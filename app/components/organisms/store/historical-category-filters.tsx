@@ -12,7 +12,7 @@ import {
 } from "@/app/components/ui/select";
 import { STORE_CATEGORY_SCOPE_LABELS } from "@/app/lib/store/category";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useTransition, type KeyboardEvent } from "react";
 
 const CATEGORY_OPTIONS = [
   { value: "all", label: STORE_CATEGORY_SCOPE_LABELS.all },
@@ -33,8 +33,21 @@ export default function HistoricalCategoryFilters() {
     if (!value || (isCategoryFilter && value === "all")) params.delete(key);
     else params.set(key, value);
     startTransition(() => {
-      router.push(params.size ? `${pathname}?${params}` : pathname);
+      router.push(params.toString() ? `${pathname}?${params}` : pathname);
     });
+  }
+
+  function commitTextFilter(key: "orderId" | "q", value: string) {
+    update(key, value.trim());
+  }
+
+  function handleTextFilterKeyDown(
+    key: "orderId" | "q",
+    event: KeyboardEvent<HTMLInputElement>,
+  ) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    commitTextFilter(key, event.currentTarget.value);
   }
 
   return (
@@ -69,7 +82,10 @@ export default function HistoricalCategoryFilters() {
           inputMode="numeric"
           placeholder="ID de pedido"
           defaultValue={searchParams.get("orderId") ?? ""}
-          onBlur={(event) => update("orderId", event.target.value.trim())}
+          onBlur={(event) =>
+            commitTextFilter("orderId", event.currentTarget.value)
+          }
+          onKeyDown={(event) => handleTextFilterKeyDown("orderId", event)}
         />
       </div>
       <div className="space-y-1.5">
@@ -78,7 +94,8 @@ export default function HistoricalCategoryFilters() {
           id="historical-category-q"
           placeholder="Buscar por nombre"
           defaultValue={searchParams.get("q") ?? ""}
-          onBlur={(event) => update("q", event.target.value.trim())}
+          onBlur={(event) => commitTextFilter("q", event.currentTarget.value)}
+          onKeyDown={(event) => handleTextFilterKeyDown("q", event)}
         />
       </div>
       <div className="space-y-1.5">

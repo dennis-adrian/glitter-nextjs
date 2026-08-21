@@ -18,7 +18,7 @@ import {
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: vi.fn().mockResolvedValue(null),
+  getCurrentUserProfile: vi.fn().mockResolvedValue({ id: 1, role: "user" }),
   getCurrentBaseProfile: vi.fn().mockResolvedValue(null),
 }));
 
@@ -474,7 +474,10 @@ describeDatabase("historical category correction", () => {
       .from(orderItems)
       .where(eq(orderItems.id, fixture.baseItemId));
 
-    expect(result.success).toBe(false);
+    expect(result).toMatchObject({
+      success: false,
+      message: "No tienes permisos para corregir categorías históricas.",
+    });
     expect(line.storeCategoryAtPurchase).toBe("merch");
   });
 });

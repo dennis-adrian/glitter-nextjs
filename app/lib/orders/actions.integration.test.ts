@@ -225,9 +225,11 @@ describeDatabase("order creation category snapshots", () => {
 
   it("rejects guest supplies after locked-product resolution without writing", async () => {
     const fixture = await createFixture();
+    const guestEmail = `invitada-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`;
     const ordersBefore = await integrationDb!
       .select({ id: orders.id })
-      .from(orders);
+      .from(orders)
+      .where(eq(orders.guestEmail, guestEmail));
 
     await expect(
       integrationDb!.transaction((tx) =>
@@ -241,7 +243,7 @@ describeDatabase("order creation category snapshots", () => {
             },
           ],
           "Invitada",
-          "invitada@example.test",
+          guestEmail,
           "+59171234567",
         ),
       ),
@@ -249,7 +251,8 @@ describeDatabase("order creation category snapshots", () => {
 
     const ordersAfter = await integrationDb!
       .select({ id: orders.id })
-      .from(orders);
+      .from(orders)
+      .where(eq(orders.guestEmail, guestEmail));
     const [product] = await integrationDb!
       .select()
       .from(products)

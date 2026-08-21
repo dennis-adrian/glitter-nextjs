@@ -118,6 +118,54 @@ export async function fetchHistoricalLineCategorySources(
   return fetchHistoricalLineCategorySourcesWithDatabase(db, filters);
 }
 
+/** `LIKE` pattern for an already lowercased needle matched as plain text. */
+function containsPattern(search: string): string {
+  return `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/**
+ * Mirrors the per-source filter below as an order-level `EXISTS`, so the row
+ * cap keeps the newest *matching* orders instead of the newest orders overall.
+ * Broader matches are harmless; the per-source filter still decides.
+ */
+function hasMatchingLine(
+  filters: HistoricalLineCategoryFilters,
+  search: string | undefined,
+) {
+  if (!filters.snapshotCategory && !filters.currentProductCategory && !search) {
+    return undefined;
+  }
+  const pattern = search ? containsPattern(search) : undefined;
+  const currentCategory = filters.currentProductCategory
+    ? sql` and p.store_category = ${filters.currentProductCategory}`
+    : sql.empty();
+  const baseSnapshot = filters.snapshotCategory
+    ? sql` and oi.store_category_at_purchase = ${filters.snapshotCategory}`
+    : sql.empty();
+  const addedSnapshot = filters.snapshotCategory
+    ? sql` and oai.store_category_snapshot = ${filters.snapshotCategory}`
+    : sql.empty();
+  // Labels are recomposed exactly as `productLabel` does so the pre-filter
+  // never drops an order the per-source search would have kept.
+  const baseLabel = pattern
+    ? sql` and lower(coalesce(oi.product_name_at_purchase, p.name) || coalesce(' (' || oi.product_variant_label || ')', '')) like ${pattern}`
+    : sql.empty();
+  const addedLabel = pattern
+    ? sql` and lower(oai.product_name_snapshot || coalesce(' (' || oai.variant_label_snapshot || ')', '')) like ${pattern}`
+    : sql.empty();
+
+  return sql`(exists (
+      select 1 from order_items oi
+      join products p on p.id = oi.product_id
+      where oi.order_id = ${orders.id}${baseSnapshot}${currentCategory}${baseLabel}
+    ) or exists (
+      select 1 from order_adjustment_items oai
+      join order_adjustments oa on oa.id = oai.adjustment_id
+      join products p on p.id = oai.product_id
+      where oa.order_id = ${orders.id} and oai.base_order_item_id is null${addedSnapshot}${currentCategory}${addedLabel}
+    ))`;
+}
+
 /** Database seam used by integration tests; application callers use the wrapper above. */
 export async function fetchHistoricalLineCategorySourcesWithDatabase(
   database: typeof db,
@@ -128,6 +176,7 @@ export async function fetchHistoricalLineCategorySourcesWithDatabase(
     (filters.orderId
       ? undefined
       : new Date(Date.now() - HISTORICAL_CATEGORY_DEFAULT_DAYS * 86_400_000));
+  const search = filters.q?.trim().toLowerCase();
   const orderRows = await database
     .select({
       id: orders.id,
@@ -141,9 +190,12 @@ export async function fetchHistoricalLineCategorySourcesWithDatabase(
         from ? gte(orders.createdAt, from) : undefined,
         filters.to ? lte(orders.createdAt, filters.to) : undefined,
         filters.orderId ? eq(orders.id, filters.orderId) : undefined,
+        hasMatchingLine(filters, search),
       ),
     )
-    .orderBy(desc(orders.createdAt));
+    // The id tiebreaker keeps the cap deterministic for same-timestamp orders.
+    .orderBy(desc(orders.createdAt), desc(orders.id))
+    .limit(HISTORICAL_CATEGORY_MAX_SOURCES);
   if (orderRows.length === 0) return [];
 
   const orderIds = orderRows.map((order) => order.id);
@@ -246,7 +298,6 @@ export async function fetchHistoricalLineCategorySourcesWithDatabase(
     });
   }
 
-  const search = filters.q?.trim().toLowerCase();
   return sources
     .filter((source) => {
       if (
