@@ -605,4 +605,145 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
       .where(eq(products.id, rentalProduct.id));
     expect(product).toMatchObject({ stock: 10, rentalStock: 4 });
   });
+
+  it("snapshots the added product's current category", async () => {
+    const fixture = await createFixture();
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const [supplyProduct] = await integrationDb!
+      .insert(products)
+      .values({
+        name: `Supply ${suffix}`,
+        slug: `integration-supply-${suffix}`,
+        price: 15,
+        unitCost: 6,
+        stock: 8,
+        isPurchasable: true,
+        storeCategory: "supplies",
+      })
+      .returning();
+    fixture.extraProductIds.push(supplyProduct.id);
+
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      {
+        orderId: fixture.orderId,
+        actorUserId: fixture.actorId,
+        actorRole: "admin",
+        expectedRevision: 1,
+        reason: "Add supply",
+        allowedStatuses: ["pending"],
+        items: [],
+        additions: [
+          {
+            productId: supplyProduct.id,
+            productVariantId: null,
+            quantity: 2,
+          },
+        ],
+      },
+    );
+    const [line] = await integrationDb!
+      .select()
+      .from(orderAdjustmentItems)
+      .where(eq(orderAdjustmentItems.adjustmentId, result.adjustmentId));
+
+    expect(line).toMatchObject({
+      productId: supplyProduct.id,
+      quantityDelta: 2,
+      storeCategorySnapshot: "supplies",
+    });
+  });
+
+  it("copies the base line's category into linked deltas", async () => {
+    const fixture = await createFixture();
+    await integrationDb!
+      .update(orderItems)
+      .set({ storeCategoryAtPurchase: "supplies" })
+      .where(eq(orderItems.id, fixture.baseItemId));
+
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      baseAdjustment(fixture, 1),
+    );
+    const [delta] = await integrationDb!
+      .select()
+      .from(orderAdjustmentItems)
+      .where(eq(orderAdjustmentItems.adjustmentId, result.adjustmentId));
+
+    expect(delta).toMatchObject({
+      baseOrderItemId: fixture.baseItemId,
+      storeCategorySnapshot: "supplies",
+    });
+  });
+
+  it("keeps an added line's category when it is later edited or returned", async () => {
+    const fixture = await createFixture();
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const [supplyProduct] = await integrationDb!
+      .insert(products)
+      .values({
+        name: `Supply ${suffix}`,
+        slug: `integration-supply-edit-${suffix}`,
+        price: 15,
+        unitCost: 6,
+        stock: 8,
+        isPurchasable: true,
+        storeCategory: "supplies",
+      })
+      .returning();
+    fixture.extraProductIds.push(supplyProduct.id);
+
+    const added = await applyOrderAdjustmentWithDatabase(adjustmentDatabase(), {
+      orderId: fixture.orderId,
+      actorUserId: fixture.actorId,
+      actorRole: "admin",
+      expectedRevision: 1,
+      reason: "Add supply",
+      allowedStatuses: ["pending"],
+      items: [],
+      additions: [
+        { productId: supplyProduct.id, productVariantId: null, quantity: 3 },
+      ],
+    });
+    const [addedLine] = await integrationDb!
+      .select()
+      .from(orderAdjustmentItems)
+      .where(eq(orderAdjustmentItems.adjustmentId, added.adjustmentId));
+
+    // Reclassifying the product must not move the already-written snapshot.
+    await integrationDb!
+      .update(products)
+      .set({ storeCategory: "merch" })
+      .where(eq(products.id, supplyProduct.id));
+
+    const edited = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      {
+        orderId: fixture.orderId,
+        actorUserId: fixture.actorId,
+        actorRole: "admin",
+        expectedRevision: 2,
+        reason: "Return one supply",
+        allowedStatuses: ["pending"],
+        items: [],
+        addedItems: [
+          { adjustmentItemId: addedLine.id, quantityDelta: -1 },
+        ],
+      },
+    );
+    const [editDelta] = await integrationDb!
+      .select()
+      .from(orderAdjustmentItems)
+      .where(eq(orderAdjustmentItems.adjustmentId, edited.adjustmentId));
+    const [storedAddedLine] = await integrationDb!
+      .select()
+      .from(orderAdjustmentItems)
+      .where(eq(orderAdjustmentItems.id, addedLine.id));
+
+    expect(storedAddedLine.storeCategorySnapshot).toBe("supplies");
+    expect(editDelta).toMatchObject({
+      quantityDelta: -1,
+      storeCategorySnapshot: "supplies",
+    });
+  });
 });

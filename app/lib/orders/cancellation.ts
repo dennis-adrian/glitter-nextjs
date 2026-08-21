@@ -15,6 +15,66 @@ import {
 
 type OrderTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+type BaseItemRow = typeof orderItems.$inferSelect;
+type AdjustmentItemRow = typeof orderAdjustmentItems.$inferSelect;
+
+/** Stock-restoration shape; category is irrelevant to how much comes back. */
+export type RestorableOrderLine = Pick<
+  BaseItemRow,
+  | "productId"
+  | "productVariantId"
+  | "quantity"
+  | "transactionType"
+  | "rentalStockModeSnapshot"
+  | "rentalReturnedQuantity"
+>;
+
+/**
+ * Pure projection of the units a cancellation must return to stock. Added
+ * lines go through `getEffectiveOrderLines`, so they group by the same
+ * identity as everywhere else — category included.
+ */
+export function projectRestorableOrderLines(
+  orderIds: readonly number[],
+  baseItems: readonly BaseItemRow[],
+  adjustmentRows: readonly { orderId: number; item: AdjustmentItemRow }[],
+): RestorableOrderLine[] {
+  const deltas = adjustmentRows
+    .filter((row) => row.item.baseOrderItemId != null)
+    .reduce((map, row) => {
+      map.set(
+        row.item.baseOrderItemId!,
+        (map.get(row.item.baseOrderItemId!) ?? 0) + row.item.quantityDelta,
+      );
+      return map;
+    }, new Map<number, number>());
+  const effectiveBaseItems = baseItems
+    .map((item) => ({
+      ...item,
+      quantity: item.quantity + (deltas.get(item.id) ?? 0),
+    }))
+    .filter((item) => item.quantity > 0);
+  const effectiveAddedItems = orderIds.flatMap((orderId) =>
+    getEffectiveOrderLines(
+      [],
+      adjustmentRows
+        .filter(
+          (row) => row.orderId === orderId && row.item.baseOrderItemId == null,
+        )
+        .map((row) => row.item),
+    ).map((line) => ({
+      productId: line.productId,
+      productVariantId: line.productVariantId,
+      quantity: line.quantity,
+      transactionType: line.transactionType,
+      rentalStockModeSnapshot: null,
+      rentalReturnedQuantity: 0,
+    })),
+  );
+
+  return [...effectiveBaseItems, ...effectiveAddedItems];
+}
+
 export async function restoreEffectiveOrderStockInTx(
   tx: OrderTx,
   orderId: number,
@@ -42,42 +102,11 @@ export async function restoreEffectiveOrdersStockInTx(
       eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
     )
     .where(inArray(orderAdjustments.orderId, orderIds));
-  const deltas = new Map(
-    adjustmentRows
-      .filter((row) => row.item.baseOrderItemId != null)
-      .map((row) => row.item)
-      .reduce((map, row) => {
-        map.set(
-          row.baseOrderItemId!,
-          (map.get(row.baseOrderItemId!) ?? 0) + row.quantityDelta,
-        );
-        return map;
-      }, new Map<number, number>()),
+  const effectiveItems = projectRestorableOrderLines(
+    orderIds,
+    baseItems,
+    adjustmentRows,
   );
-  const effectiveBaseItems = baseItems
-    .map((item) => ({
-      ...item,
-      quantity: item.quantity + (deltas.get(item.id) ?? 0),
-    }))
-    .filter((item) => item.quantity > 0);
-  const effectiveAddedItems = orderIds.flatMap((orderId) =>
-    getEffectiveOrderLines(
-      [],
-      adjustmentRows
-        .filter(
-          (row) => row.orderId === orderId && row.item.baseOrderItemId == null,
-        )
-        .map((row) => row.item),
-    ).map((line) => ({
-      productId: line.productId,
-      productVariantId: line.productVariantId,
-      quantity: line.quantity,
-      transactionType: line.transactionType,
-      rentalStockModeSnapshot: null,
-      rentalReturnedQuantity: 0,
-    })),
-  );
-  const effectiveItems = [...effectiveBaseItems, ...effectiveAddedItems];
 
   const productIds = [
     ...new Set(effectiveItems.map((item) => item.productId)),

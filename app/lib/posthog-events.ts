@@ -20,6 +20,7 @@ export const POSTHOG_EVENTS = {
   STORE_ORDER_ADJUSTMENT_FAILED: "store_order_adjustment_failed",
   STORE_PROFITABILITY_REPORT_VIEWED: "store_profitability_report_viewed",
   STORE_PROFITABILITY_EXPORTED: "store_profitability_exported",
+  STORE_ORDER_LINE_CATEGORY_CORRECTED: "store_order_line_category_corrected",
   // Visitor registration
   VISITOR_EMAIL_SUBMITTED: "visitor_email_submitted",
   VISITOR_REGISTRATION_COMPLETED: "visitor_registration_completed",

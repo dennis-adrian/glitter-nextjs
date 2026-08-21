@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { orderStatusEnum } from "@/db/schema";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
+import { storeCategoryScopeSchema } from "@/app/lib/store/category";
 
 const STATUS_VALUES = [
   ...orderStatusEnum.enumValues,
@@ -42,6 +43,7 @@ export const storeOrdersQuerySchema = z.object({
   to: isoDate,
   q: z.string().trim().max(120).catch("").default(""),
   view: z.enum(VIEW_VALUES).catch("compact"),
+  category: storeCategoryScopeSchema,
 });
 
 export type StoreOrdersQuery = z.infer<typeof storeOrdersQuerySchema>;
@@ -85,6 +87,7 @@ export function storeOrdersQueryToSearchParams(
     rental: query.rental,
     period: query.period,
     view: query.view,
+    category: query.category,
   });
   if (query.statuses) params.set("statuses", query.statuses);
   if (query.from) params.set("from", query.from);

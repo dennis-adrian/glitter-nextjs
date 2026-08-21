@@ -6,7 +6,10 @@ import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actio
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+  AdminOrderListRow,
+  OrderStatus,
+} from "@/app/lib/orders/definitions";
 import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import {
   storeOrdersQueryToSearchParams,
@@ -16,6 +19,7 @@ import {
   getOrderItemDisplayName,
   getOrderStatusLabel,
 } from "@/app/lib/orders/utils";
+import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import { getRentalOrderFilterLabel } from "@/app/lib/rentals/order-filters";
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
@@ -40,7 +44,7 @@ import { useDebouncedCallback } from "use-debounce";
 type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersCardListProps = {
-  ordersPromise: Promise<OrderWithRelations[]>;
+  ordersPromise: Promise<AdminOrderListRow[]>;
   query: StoreOrdersQuery;
 };
 
@@ -80,7 +84,7 @@ function OrderCard({
   canSelect,
   onToggleSelect,
 }: {
-  order: OrderWithRelations;
+  order: AdminOrderListRow;
   selectedStatuses: string[];
   selectionMode: boolean;
   isSelected: boolean;
@@ -167,6 +171,19 @@ function OrderCard({
                   Comprobante
                 </span>
               )}
+              {order.storeCategories.map((category) => (
+                <span
+                  key={category}
+                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                >
+                  {getStoreCategoryBadgeLabel(category)}
+                </span>
+              ))}
+              {order.isMixedCategory && (
+                <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
+                  Pedido mixto
+                </span>
+              )}
             </div>
 
             <p className="text-sm text-muted-foreground truncate">
@@ -194,13 +211,25 @@ function OrderCard({
           </div>
 
           <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-sm">
-                Bs {order.totalAmount.toFixed(2)}
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-sm">
+                  Bs {order.totalAmount.toFixed(2)}
+                </span>
+                {!selectionMode && (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Total del pedido
               </span>
-              {!selectionMode && (
-                <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-              )}
+              {order.isMixedCategory &&
+                order.scopedSubtotal !== order.totalAmount && (
+                  <span className="text-xs text-muted-foreground">
+                    Subtotal en este filtro Bs{" "}
+                    {order.scopedSubtotal.toFixed(2)}
+                  </span>
+                )}
             </div>
             {!selectionMode && (
               <div onClick={(e) => e.stopPropagation()}>

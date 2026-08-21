@@ -16,6 +16,7 @@ import {
   parseProfitabilityQuery,
 } from "@/app/lib/orders/profitability-query-schema";
 import { fetchLowStockProducts } from "@/app/lib/products/actions";
+import { toConcreteStoreCategory } from "@/app/lib/store/category";
 import { Suspense } from "react";
 
 function StatsCardsSkeleton() {
@@ -61,14 +62,21 @@ export default async function StoreAnalyticsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const profitabilityQuery = parseProfitabilityQuery(await props.searchParams);
-  const ordersPromise = fetchOrders();
-  const ordersTotalsPromise = fetchOrdersTotalsByProduct();
-  const statsPromise = fetchOrdersStats();
-  const lowStockPromise = fetchLowStockProducts();
-  const profitabilityPromise = fetchOrdersProfitability(
-    getProfitabilityDateRange(profitabilityQuery),
-  );
-  const historicalCostPreviewPromise = fetchHistoricalCostBackfillPreview();
+  const scope = profitabilityQuery.category;
+  const ordersPromise = fetchOrders(scope);
+  const ordersTotalsPromise = fetchOrdersTotalsByProduct(scope);
+  const statsPromise = fetchOrdersStats(scope);
+  const lowStockPromise = fetchLowStockProducts({
+    storeCategory: toConcreteStoreCategory(scope) ?? undefined,
+  });
+  const profitabilityPromise = fetchOrdersProfitability({
+    ...getProfitabilityDateRange(profitabilityQuery),
+    category: scope,
+  });
+  // Historical cost completion stays global, so its preview query only runs
+  // when the whole store is in scope.
+  const historicalCostPreviewPromise =
+    scope === "all" ? fetchHistoricalCostBackfillPreview() : null;
 
   return (
     <div className="space-y-6">
@@ -80,12 +88,12 @@ export default async function StoreAnalyticsPage(props: {
       </div>
 
       <Suspense fallback={<StatsCardsSkeleton />}>
-        <OrdersStatsCards statsPromise={statsPromise} />
+        <OrdersStatsCards statsPromise={statsPromise} category={scope} />
       </Suspense>
 
       <div className="hidden md:block">
         <Suspense fallback={<Skeleton className="h-72 w-full" />}>
-          <OrdersSalesChart ordersPromise={ordersPromise} />
+          <OrdersSalesChart ordersPromise={ordersPromise} category={scope} />
         </Suspense>
       </div>
 

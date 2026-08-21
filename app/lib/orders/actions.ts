@@ -19,6 +19,7 @@ import {
   OrderStatus,
   OrderWithRelations,
   type AdminOrderAdjustmentProduct,
+  type AdminOrderListRow,
 } from "@/app/lib/orders/definitions";
 import {
   ORDER_TAB_VALUES,
@@ -72,6 +73,7 @@ import {
   getOrderStatusLabel,
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
+  toAdminOrderListRow,
 } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
@@ -89,10 +91,24 @@ import {
 import { restoreEffectiveOrderStockInTx } from "@/app/lib/orders/cancellation";
 import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
 import {
+  storeCategorySchema,
+  SUPPLIES_UNVERIFIED_CAUSE,
+  SUPPLIES_VERIFIED_MESSAGE,
+  toConcreteStoreCategory,
+  type StoreCategory,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
+import {
+  correctHistoricalLineCategories,
+  fetchHistoricalLineCategorySources,
+  HISTORICAL_CATEGORY_MAX_SOURCES,
+  type HistoricalLineCategorySource,
+} from "@/app/lib/orders/category-correction";
+import {
   mapOrdersProfitabilityQuery,
   ordersProfitabilityQuery,
   type OrdersProfitability,
-  type ProfitabilityDateRange,
+  type ProfitabilityFilters,
   type ProfitabilityQueryRow,
 } from "@/app/lib/orders/profitability";
 
@@ -651,6 +667,7 @@ export async function createOrderInTx(
       ),
       productNameAtPurchase: line.product.name,
       transactionType: line.transactionType,
+      storeCategoryAtPurchase: line.product.storeCategory,
       rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
       rentalStockModeSnapshot: line.rentalStockModeSnapshot,
       rentalFestivalId: line.rentalFestivalId,
@@ -704,6 +721,15 @@ export async function createGuestOrderInTx(
   }
 
   const resolvedLines = await resolveOrderLines(tx, lines);
+  // Authoritative supplies gate: guests are never verified accounts. The
+  // storefront check is only early feedback; direct callers land here.
+  if (
+    resolvedLines.some((line) => line.product.storeCategory === "supplies")
+  ) {
+    throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
+      cause: SUPPLIES_UNVERIFIED_CAUSE,
+    });
+  }
   const totalAmount = resolvedLines.reduce(
     (sum, line) => sum + line.unitPrice * line.quantity,
     0,
@@ -767,6 +793,7 @@ export async function createGuestOrderInTx(
       ),
       productNameAtPurchase: line.product.name,
       transactionType: line.transactionType,
+      storeCategoryAtPurchase: line.product.storeCategory,
       orderId: order.id,
     });
   }
@@ -1019,6 +1046,7 @@ async function withEffectiveOrders(
         priceAtPurchase: item.priceAtPurchase,
         unitCostAtPurchase: item.unitCostAtPurchase,
         transactionType: item.transactionType,
+        storeCategoryAtPurchase: item.storeCategoryAtPurchase,
       })),
       adjustmentLines,
     );
@@ -1044,6 +1072,7 @@ async function withEffectiveOrders(
           unitCostAtPurchase: line.unitCost,
           productNameAtPurchase: line.productName,
           transactionType: line.transactionType,
+          storeCategoryAtPurchase: line.storeCategory,
           rentalContentSectionsSnapshot: null,
           rentalStockModeSnapshot: null,
           rentalFestivalId: null,
@@ -1125,11 +1154,13 @@ export async function fetchOrdersByUserIdAndStatus(
   }
 }
 
-export async function fetchOrders() {
+export async function fetchOrders(scope: StoreCategoryScope = "all") {
   try {
     const rows = await db.query.orders.findMany({
+      where: buildOrderCategoryFilterSql(scope),
       with: orderRelations,
     });
+    // Matching orders keep every effective line; consumers scope the lines.
     return withEffectiveOrders(rows);
   } catch (error) {
     console.error(error);
@@ -1140,7 +1171,10 @@ export async function fetchOrders() {
 export async function fetchOrdersByStatus(
   status?: OrderStatus | readonly OrderStatus[],
   rentalFilter: RentalOrderFilter = "all",
-  filters?: Pick<StoreOrdersQuery, "period" | "from" | "to" | "q">,
+  filters?: Pick<
+    StoreOrdersQuery,
+    "period" | "from" | "to" | "q" | "category"
+  >,
 ) {
   try {
     const statusWhere =
@@ -1153,7 +1187,14 @@ export async function fetchOrdersByStatus(
     const rentalWhere = buildRentalFilterSql(rentalFilter);
     const dateWhere = buildOrderDateFilterSql(filters);
     const searchWhere = buildOrderSearchSql(filters?.q);
-    const whereClause = and(statusWhere, rentalWhere, dateWhere, searchWhere);
+    const categoryWhere = buildOrderCategoryFilterSql(filters?.category);
+    const whereClause = and(
+      statusWhere,
+      rentalWhere,
+      dateWhere,
+      searchWhere,
+      categoryWhere,
+    );
 
     const rows = await db.query.orders.findMany({
       where: whereClause,
@@ -1167,14 +1208,122 @@ export async function fetchOrdersByStatus(
   }
 }
 
-export async function fetchOrdersForAdmin(query: StoreOrdersQuery) {
+export async function fetchOrdersForAdmin(
+  query: StoreOrdersQuery,
+): Promise<AdminOrderListRow[]> {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser || currentUser.role !== "admin") return [];
 
-  return fetchOrdersByStatus(
+  const rows = await fetchOrdersByStatus(
     resolveStoreOrdersStatusFilter(query),
     query.rental,
     query,
+  );
+  // Orders keep every effective line; the scope only annotates them.
+  return rows.map((order) => toAdminOrderListRow(order, query.category));
+}
+
+/**
+ * Revenue of one order's effective lines in a single category. Mirrors the
+ * membership predicate's line rules so list, KPI, and CSV figures agree.
+ */
+function scopedRevenueSql(category: StoreCategory) {
+  return sql`(
+    select coalesce(sum(scoped_lines.revenue), 0)
+    from (
+      select
+        (base_items.quantity + coalesce(base_deltas.quantity_delta, 0))
+          * base_items.price_at_purchase as revenue
+      from order_items base_items
+      left join (
+        select
+          base_order_item_id,
+          sum(quantity_delta)::int as quantity_delta
+        from order_adjustment_items
+        where base_order_item_id is not null
+        group by base_order_item_id
+      ) base_deltas on base_deltas.base_order_item_id = base_items.id
+      where base_items.order_id = ${orders.id}
+        and base_items.store_category_at_purchase = ${category}
+        and base_items.quantity + coalesce(base_deltas.quantity_delta, 0) > 0
+      union all
+      select
+        sum(added_items.quantity_delta) * added_items.unit_price_snapshot
+          as revenue
+      from order_adjustment_items added_items
+      inner join order_adjustments added_adjustments
+        on added_adjustments.id = added_items.adjustment_id
+      where added_adjustments.order_id = ${orders.id}
+        and added_items.base_order_item_id is null
+        and added_items.store_category_snapshot = ${category}
+      group by
+        added_items.product_id,
+        added_items.product_variant_id,
+        added_items.transaction_type,
+        added_items.store_category_snapshot,
+        added_items.unit_price_snapshot,
+        added_items.unit_cost_snapshot,
+        added_items.product_name_snapshot,
+        added_items.variant_label_snapshot
+      having sum(added_items.quantity_delta) > 0
+    ) scoped_lines
+  )`;
+}
+
+/**
+ * Effective category membership: an order matches when a base line's snapshot
+ * matches and its quantity stays positive after linked deltas, or when an
+ * added-line group with that snapshot sums to a positive quantity. The
+ * grouping mirrors `getAddedLineGroupKey` exactly.
+ */
+function buildOrderCategoryFilterSql(scope: StoreCategoryScope | undefined) {
+  const category = scope ? toConcreteStoreCategory(scope) : null;
+  if (!category) return undefined;
+
+  return or(
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.orderId, orders.id),
+            eq(orderItems.storeCategoryAtPurchase, category),
+            sql`${orderItems.quantity} + coalesce((
+              select sum(inner_items.quantity_delta)
+              from ${orderAdjustmentItems} as inner_items
+              where inner_items.base_order_item_id = ${orderItems.id}
+            ), 0) > 0`,
+          ),
+        ),
+    ),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(orderAdjustmentItems)
+        .innerJoin(
+          orderAdjustments,
+          eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
+        )
+        .where(
+          and(
+            eq(orderAdjustments.orderId, orders.id),
+            isNull(orderAdjustmentItems.baseOrderItemId),
+            eq(orderAdjustmentItems.storeCategorySnapshot, category),
+          ),
+        )
+        .groupBy(
+          orderAdjustmentItems.productId,
+          orderAdjustmentItems.productVariantId,
+          orderAdjustmentItems.transactionType,
+          orderAdjustmentItems.storeCategorySnapshot,
+          orderAdjustmentItems.unitPriceSnapshot,
+          orderAdjustmentItems.unitCostSnapshot,
+          orderAdjustmentItems.productNameSnapshot,
+          orderAdjustmentItems.variantLabelSnapshot,
+        )
+        .having(sql`sum(${orderAdjustmentItems.quantityDelta}) > 0`),
+    ),
   );
 }
 
@@ -2211,7 +2360,7 @@ export async function applyHistoricalOrderCosts(): Promise<{
 }
 
 export async function fetchOrdersProfitability(
-  range: ProfitabilityDateRange = {},
+  filters: ProfitabilityFilters = { category: "all" },
 ): Promise<OrdersProfitability> {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser || currentUser.role !== "admin") {
@@ -2227,7 +2376,7 @@ export async function fetchOrdersProfitability(
 
   try {
     const result = await db.execute<ProfitabilityQueryRow>(
-      ordersProfitabilityQuery(range),
+      ordersProfitabilityQuery(filters),
     );
     return mapOrdersProfitabilityQuery(result.rows);
   } catch (error) {
@@ -2243,18 +2392,28 @@ export async function fetchOrdersProfitability(
   }
 }
 
-export async function fetchOrdersStats(): Promise<OrdersStats> {
+export async function fetchOrdersStats(
+  scope: StoreCategoryScope = "all",
+): Promise<OrdersStats> {
   try {
+    const category = toConcreteStoreCategory(scope);
+    // A concrete scope counts distinct matching orders and sums only their
+    // matching effective lines; `orders.total_amount` would leak the other
+    // category's revenue on mixed orders.
+    const revenueExpression = category
+      ? sql<number>`cast(coalesce(sum(${scopedRevenueSql(category)}) filter (where ${orders.status} in ('paid', 'delivered')), 0) as numeric(10,2))`
+      : sql<number>`cast(coalesce(sum(${orders.totalAmount}) filter (where ${orders.status} in ('paid', 'delivered')), 0) as numeric(10,2))`;
     const [result] = await db
       .select({
         totalOrders: sql<number>`cast(count(*) as integer)`,
-        totalRevenue: sql<number>`cast(coalesce(sum(${orders.totalAmount}) filter (where ${orders.status} in ('paid', 'delivered')), 0) as numeric(10,2))`,
+        totalRevenue: revenueExpression,
         needsAttention: sql<number>`cast(count(*) filter (where ${orders.status} in ('pending', 'payment_verification')) as integer)`,
         inProgress: sql<number>`cast(count(*) filter (where ${orders.status} = 'processing') as integer)`,
         delivered: sql<number>`cast(count(*) filter (where ${orders.status} = 'delivered') as integer)`,
         cancelled: sql<number>`cast(count(*) filter (where ${orders.status} = 'cancelled') as integer)`,
       })
-      .from(orders);
+      .from(orders)
+      .where(buildOrderCategoryFilterSql(scope));
 
     return {
       totalOrders: result.totalOrders ?? 0,
@@ -2457,6 +2616,7 @@ export async function fetchAdminOrderAdjustmentProducts(): Promise<
     name: product.name,
     price: getProductPriceAtPurchase(product),
     stock: product.stock ?? 0,
+    storeCategory: product.storeCategory,
     requiresVariant: product.variants.length > 0,
     variants: product.variants
       .filter((variant) => variant.isVisible)
@@ -2696,9 +2856,12 @@ export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
   }
 }
 
-export async function fetchOrdersTotalsByProduct() {
+export async function fetchOrdersTotalsByProduct(
+  scope: StoreCategoryScope = "all",
+) {
   try {
-    const orderRows = await fetchOrders();
+    const category = toConcreteStoreCategory(scope);
+    const orderRows = await fetchOrders(scope);
     const totals = new Map<
       string,
       {
@@ -2712,6 +2875,7 @@ export async function fetchOrdersTotalsByProduct() {
     >();
     for (const order of orderRows) {
       for (const item of order.orderItems) {
+        if (category && item.storeCategoryAtPurchase !== category) continue;
         const key = `${item.productId}:${item.productVariantId ?? "base"}:${order.status}`;
         const current = totals.get(key);
         if (current) current.totalQuantity += item.quantity;
@@ -2746,4 +2910,146 @@ export async function storeGuestOrderToken(
     path: `/orders/${orderId}`,
     maxAge: 60 * 60 * 24 * 30,
   });
+}
+
+// ─── Temporary historical line-category correction ───────────────────────────
+// Remove with the maintenance route once legacy supply lines are reconciled.
+
+const historicalCategoryFiltersSchema = z.object({
+  from: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  orderId: z.coerce.number().int().positive().optional(),
+  q: z.string().trim().max(120).optional(),
+  snapshotCategory: storeCategorySchema.optional(),
+  currentProductCategory: storeCategorySchema.optional(),
+});
+
+export type HistoricalCategoryFiltersInput = z.input<
+  typeof historicalCategoryFiltersSchema
+>;
+
+export type { HistoricalLineCategorySource };
+
+export async function fetchHistoricalLineCategorySourcesForAdmin(
+  rawFilters: HistoricalCategoryFiltersInput = {},
+): Promise<HistoricalLineCategorySource[]> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+
+  const parsed = historicalCategoryFiltersSchema.safeParse(rawFilters);
+  if (!parsed.success) return [];
+
+  const toDate = (value: string | undefined, endOfDay: boolean) => {
+    if (!value) return undefined;
+    const parsedDate = DateTime.fromISO(value, { zone: STORE_TIMEZONE });
+    if (!parsedDate.isValid) return undefined;
+    return (endOfDay ? parsedDate.endOf("day") : parsedDate.startOf("day"))
+      .toJSDate();
+  };
+
+  try {
+    return await fetchHistoricalLineCategorySources({
+      from: toDate(parsed.data.from, false),
+      to: toDate(parsed.data.to, true),
+      orderId: parsed.data.orderId,
+      q: parsed.data.q,
+      snapshotCategory: parsed.data.snapshotCategory,
+      currentProductCategory: parsed.data.currentProductCategory,
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
+
+const correctHistoricalLineCategoriesSchema = z.object({
+  targetCategory: storeCategorySchema,
+  reason: z.string().trim().min(1).max(500),
+  sources: z
+    .array(
+      z.object({
+        sourceKey: z.string().regex(/^(base|adjustment):\d+$/),
+        orderId: z.number().int().positive(),
+        expectedOrderRevision: z.number().int().positive(),
+        expectedCategory: storeCategorySchema,
+      }),
+    )
+    .min(1)
+    .max(HISTORICAL_CATEGORY_MAX_SOURCES),
+});
+
+export type CorrectHistoricalLineCategoriesInput = z.infer<
+  typeof correctHistoricalLineCategoriesSchema
+>;
+
+export async function correctHistoricalLineCategoriesAction(
+  rawInput: CorrectHistoricalLineCategoriesInput,
+): Promise<{
+  success: boolean;
+  message: string;
+  changedSources?: number;
+  unchangedSources?: number;
+  changedOrders?: number;
+  cause?: string;
+}> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      success: false,
+      message: "No tienes permisos para corregir categorías históricas.",
+    };
+  }
+  const parsed = correctHistoricalLineCategoriesSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, message: "La selección contiene datos inválidos." };
+  }
+
+  try {
+    const result = await correctHistoricalLineCategories({
+      actorUserId: currentUser.id,
+      targetCategory: parsed.data.targetCategory,
+      reason: parsed.data.reason,
+      sources: parsed.data.sources,
+    });
+    const affectedOrderIds = [
+      ...new Set(parsed.data.sources.map((source) => source.orderId)),
+    ];
+    for (const orderId of affectedOrderIds) {
+      revalidatePath(`/dashboard/store/orders/${orderId}`);
+    }
+    revalidatePath("/dashboard/store/settings/historical-line-categories");
+    revalidateStoreOrderViews();
+    after(() =>
+      captureServerEvent({
+        distinctId: currentUser.clerkId,
+        event: POSTHOG_EVENTS.STORE_ORDER_LINE_CATEGORY_CORRECTED,
+        context: "store historical category correction",
+        properties: {
+          category: parsed.data.targetCategory,
+          source_count: result.changedSources,
+          order_count: result.changedOrders,
+        },
+      }),
+    );
+    return {
+      success: true,
+      message:
+        result.changedSources === 0
+          ? "Las líneas seleccionadas ya estaban en esa categoría."
+          : `Se corrigieron ${result.changedSources} líneas en ${result.changedOrders} pedidos.`,
+      changedSources: result.changedSources,
+      unchangedSources: result.unchangedSources,
+      changedOrders: result.changedOrders,
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo corregir la categoría.",
+      cause: error instanceof Error ? String(error.cause ?? "") : undefined,
+    };
+  }
 }

@@ -17,6 +17,7 @@ import {
   fetchOrderReturns,
 } from "@/app/lib/orders/actions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { STORE_CATEGORY_BADGE_LABELS } from "@/app/lib/store/category";
 import { fetchRentalReturnLogs } from "@/app/lib/rentals/return-actions";
 import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
 import {
@@ -51,6 +52,34 @@ function getNoteAddedText(payload: unknown): string | null {
   }
   const note = payload.note.trim();
   return note || null;
+}
+
+function getCategoryCorrectionText(payload: unknown): string | null {
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const reason =
+    "reason" in payload && typeof payload.reason === "string"
+      ? payload.reason.trim()
+      : "";
+  const sourceCount =
+    "sourceCount" in payload && typeof payload.sourceCount === "number"
+      ? payload.sourceCount
+      : null;
+  const target =
+    "targetCategory" in payload && typeof payload.targetCategory === "string"
+      ? STORE_CATEGORY_BADGE_LABELS[
+          payload.targetCategory as keyof typeof STORE_CATEGORY_BADGE_LABELS
+        ]
+      : null;
+  const details = [
+    sourceCount == null
+      ? null
+      : `${sourceCount} ${sourceCount === 1 ? "línea" : "líneas"}`,
+    target ? `→ ${target}` : null,
+    reason || null,
+  ].filter(Boolean);
+  return details.length > 0 ? details.join(" · ") : null;
 }
 
 const RETURN_STATUS_LABELS = {
@@ -348,6 +377,10 @@ export default async function OrderDetailPage({
                     event.type === "note_added"
                       ? getNoteAddedText(event.payload)
                       : null;
+                  const categoryCorrectionText =
+                    event.type === "category_corrected"
+                      ? getCategoryCorrectionText(event.payload)
+                      : null;
                   const title =
                     event.type === "created"
                       ? "Pedido creado"
@@ -363,7 +396,9 @@ export default async function OrderDetailPage({
                                 ? "Devolución registrada"
                                 : event.type === "cancelled"
                                   ? "Pedido cancelado"
-                                  : "Pedido actualizado";
+                                  : event.type === "category_corrected"
+                                    ? "Categoría histórica corregida"
+                                    : "Pedido actualizado";
                   return (
                     <div key={event.id} className="border-l pl-3 text-sm">
                       <div className="flex flex-wrap justify-between gap-1">
@@ -401,6 +436,11 @@ export default async function OrderDetailPage({
                       {event.type === "note_added" && noteAddedText && (
                         <p className="mt-2 text-xs text-muted-foreground">
                           {noteAddedText}
+                        </p>
+                      )}
+                      {categoryCorrectionText && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {categoryCorrectionText}
                         </p>
                       )}
                     </div>

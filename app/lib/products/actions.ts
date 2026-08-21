@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
+import type { StoreCategory } from "@/app/lib/store/category";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
@@ -52,7 +53,7 @@ type NewProductData = {
   price: number;
   unitCost?: number | null;
   stock?: number | null;
-  storeCategory?: "merch" | "supplies";
+  storeCategory?: StoreCategory;
   status?: "available" | "presale" | "sale";
   discount?: number | null;
   discountUnit?: "percentage" | "amount";
@@ -488,7 +489,7 @@ function buildProductWhere({
   storeCategory,
 }: {
   visibleOnly?: boolean;
-  storeCategory?: "merch" | "supplies";
+  storeCategory?: StoreCategory;
 } = {}) {
   const conditions = [];
   if (visibleOnly) {
@@ -508,7 +509,7 @@ function buildProductQuery({
   storeCategory,
 }: {
   visibleOnly?: boolean;
-  storeCategory?: "merch" | "supplies";
+  storeCategory?: StoreCategory;
 } = {}) {
   return {
     where: buildProductWhere({ visibleOnly, storeCategory }),
@@ -783,7 +784,7 @@ export async function fetchProducts(
   sort: "default" | "updatedAt" = "default",
   options: {
     visibleOnly?: boolean;
-    storeCategory?: "merch" | "supplies";
+    storeCategory?: StoreCategory;
   } = {},
 ) {
   const { visibleOnly = false, storeCategory } = options;
@@ -1048,12 +1049,17 @@ export async function bulkDeleteProducts(
   return { success: true, message: `${deletedCount} productos eliminados.` };
 }
 
-export async function fetchLowStockProducts(
+export async function fetchLowStockProducts({
   threshold = 5,
-): Promise<LowStockEntry[]> {
+  storeCategory,
+}: {
+  threshold?: number;
+  /** Low stock is current inventory, so it filters the product's own category. */
+  storeCategory?: StoreCategory;
+} = {}): Promise<LowStockEntry[]> {
   try {
     const allProducts = await db.query.products.findMany({
-      ...buildProductQuery(),
+      ...buildProductQuery({ storeCategory }),
       orderBy: [asc(products.name)],
     });
 

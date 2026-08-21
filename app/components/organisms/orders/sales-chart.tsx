@@ -14,12 +14,17 @@ import {
   ChartTooltipContent,
 } from "@/app/components/ui/chart";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+  toConcreteStoreCategory,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
 import { DateTime } from "luxon";
 import { use, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 type SalesChartProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
+  category: StoreCategoryScope;
 };
 
 type ChartMode = "revenue" | "orders";
@@ -33,9 +38,13 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export default function OrdersSalesChart({ ordersPromise }: SalesChartProps) {
+export default function OrdersSalesChart({
+  ordersPromise,
+  category,
+}: SalesChartProps) {
   const orders = use(ordersPromise);
   const [mode, setMode] = useState<ChartMode>("revenue");
+  const concreteCategory = toConcreteStoreCategory(category);
 
   const chartData = useMemo(() => {
     const now = DateTime.now().setZone(STORE_ZONE);
@@ -53,18 +62,44 @@ export default function OrdersSalesChart({ ordersPromise }: SalesChartProps) {
         return orderDate.toFormat("yyyy-MM-dd") === dateKey;
       });
 
+      // A mixed order's whole total belongs to no single category, so a
+      // concrete scope sums matching lines instead.
       const value =
         mode === "revenue"
           ? dayOrders
               .filter((o) => o.status === "paid" || o.status === "delivered")
-              .reduce((sum, o) => sum + o.totalAmount, 0)
-          : dayOrders.length;
+              .reduce(
+                (sum, o) =>
+                  sum +
+                  (concreteCategory == null
+                    ? o.totalAmount
+                    : o.orderItems
+                        .filter(
+                          (item) =>
+                            item.storeCategoryAtPurchase === concreteCategory,
+                        )
+                        .reduce(
+                          (lineSum, item) =>
+                            lineSum + item.quantity * item.priceAtPurchase,
+                          0,
+                        )),
+                0,
+              )
+          : concreteCategory == null
+            ? dayOrders.length
+            : dayOrders.filter((o) =>
+                o.orderItems.some(
+                  (item) =>
+                    item.storeCategoryAtPurchase === concreteCategory &&
+                    item.quantity > 0,
+                ),
+              ).length;
 
       days.push({ date: label, value });
     }
 
     return days;
-  }, [orders, mode]);
+  }, [orders, mode, concreteCategory]);
 
   return (
     <Card>

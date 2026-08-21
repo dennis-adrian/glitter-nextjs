@@ -47,6 +47,10 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useMemo, useState, useTransition } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
+import {
+  getStoreCategoryBadgeLabel,
+  type StoreCategory,
+} from "@/app/lib/store/category";
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
@@ -67,11 +71,14 @@ export default function ProfitabilityReport({
   query,
 }: {
   reportPromise: Promise<OrdersProfitability>;
-  historicalCostPreviewPromise: Promise<HistoricalCostBackfillPreview>;
+  /** Null under a concrete scope: cost completion stays a global action. */
+  historicalCostPreviewPromise: Promise<HistoricalCostBackfillPreview> | null;
   query: ProfitabilityQuery;
 }) {
   const report = use(reportPromise);
-  const preview = use(historicalCostPreviewPromise);
+  const preview = historicalCostPreviewPromise
+    ? use(historicalCostPreviewPromise)
+    : null;
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -94,11 +101,12 @@ export default function ProfitabilityReport({
   useEffect(() => {
     captureClientEvent(POSTHOG_EVENTS.STORE_PROFITABILITY_REPORT_VIEWED, {
       period: query.period,
+      category: query.category,
       has_custom_range: Boolean(query.from || query.to),
       coverage_band:
         coverage >= 100 ? "complete" : coverage >= 75 ? "high" : "low",
     });
-  }, [coverage, query.from, query.period, query.to]);
+  }, [coverage, query.category, query.from, query.period, query.to]);
 
   function updateQuery(next: ProfitabilityQuery) {
     startTransition(() => {
@@ -149,7 +157,7 @@ export default function ProfitabilityReport({
           dateTo={query.to ?? ""}
           hasCustomRange={query.period === "custom"}
           onPeriodChange={(period) =>
-            updateQuery({ period, from: undefined, to: undefined })
+            updateQuery({ ...query, period, from: undefined, to: undefined })
           }
           onFromChange={(from) =>
             updateQuery({ ...query, period: "custom", from: from || undefined })
@@ -236,7 +244,7 @@ export default function ProfitabilityReport({
         </>
       )}
 
-      {preview.missingLines > 0 && (
+      {preview != null && preview.missingLines > 0 && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 gap-3">
             <HistoryIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
@@ -381,7 +389,9 @@ function buildTrend(rows: OrdersProfitability["rows"]): TrendPoint[] {
 }
 
 type BreakdownRow = {
+  key: string;
   product: string;
+  storeCategory: StoreCategory;
   units: number;
   revenue: number;
   cost: number;
@@ -395,8 +405,13 @@ function buildBreakdown(rows: OrdersProfitability["rows"]): BreakdownRow[] {
   const products = new Map<string, Omit<BreakdownRow, "coverage" | "margin">>();
 
   for (const row of rows) {
-    const current = products.get(row.product) ?? {
+    // Same-named products in different categories are different lines of
+    // business and must not merge into one row.
+    const key = `${row.storeCategory}:${row.product}`;
+    const current = products.get(key) ?? {
+      key,
       product: row.product,
+      storeCategory: row.storeCategory,
       units: 0,
       revenue: 0,
       cost: 0,
@@ -408,7 +423,7 @@ function buildBreakdown(rows: OrdersProfitability["rows"]): BreakdownRow[] {
     current.cost += row.cost ?? 0;
     current.profit += row.profit ?? 0;
     current.knownCostRevenue += row.cost == null ? 0 : row.revenue;
-    products.set(row.product, current);
+    products.set(key, current);
   }
 
   return Array.from(products.values())
@@ -521,8 +536,13 @@ function ProfitabilityBreakdown({ rows }: { rows: BreakdownRow[] }) {
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.product}>
-                <TableCell className="font-medium">{row.product}</TableCell>
+              <TableRow key={row.key}>
+                <TableCell className="font-medium">
+                  {row.product}
+                  <span className="ml-2 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                    {getStoreCategoryBadgeLabel(row.storeCategory)}
+                  </span>
+                </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {row.units}
                 </TableCell>

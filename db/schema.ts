@@ -1829,6 +1829,7 @@ export const orderEventTypeEnum = pgEnum("order_event_type", [
   "note_added",
   "rental_returned",
   "cancelled",
+  "category_corrected",
 ]);
 export const orderAdjustmentActorRoleEnum = pgEnum(
   "order_adjustment_actor_role",
@@ -2000,6 +2001,10 @@ export const orderAdjustmentItems = pgTable(
     transactionType: productTransactionTypeEnum("transaction_type")
       .default("purchase")
       .notNull(),
+    /** Category of the delta at write time; never the product's current one. */
+    storeCategorySnapshot: productStoreCategoryEnum("store_category_snapshot")
+      .default("merch")
+      .notNull(),
     quantityDelta: integer("quantity_delta").notNull(),
     unitPriceSnapshot: numeric("unit_price_snapshot", {
       precision: 10,
@@ -2021,6 +2026,10 @@ export const orderAdjustmentItems = pgTable(
     index("order_adjustment_items_product_variant_idx").on(
       t.productId,
       t.productVariantId,
+    ),
+    index("order_adjustment_items_store_category_adjustment_id_idx").on(
+      t.storeCategorySnapshot,
+      t.adjustmentId,
     ),
     check(
       "order_adjustment_items_quantity_delta_nonzero",
@@ -2231,6 +2240,12 @@ export const orderItems = pgTable(
     transactionType: productTransactionTypeEnum("transaction_type")
       .default("purchase")
       .notNull(),
+    /** Category at purchase time; historical reports never re-read products. */
+    storeCategoryAtPurchase: productStoreCategoryEnum(
+      "store_category_at_purchase",
+    )
+      .default("merch")
+      .notNull(),
     rentalContentSectionsSnapshot: jsonb("rental_content_sections_snapshot"),
     rentalStockModeSnapshot: productRentalStockModeEnum(
       "rental_stock_mode_snapshot",
@@ -2247,6 +2262,10 @@ export const orderItems = pgTable(
     unique("order_items_id_order_id_unique").on(t.id, t.orderId),
     index("order_items_order_id_idx").on(t.orderId),
     index("order_items_product_id_idx").on(t.productId),
+    index("order_items_store_category_order_id_idx").on(
+      t.storeCategoryAtPurchase,
+      t.orderId,
+    ),
     foreignKey({
       name: "order_items_product_variant_product_fk",
       columns: [t.productVariantId, t.productId],

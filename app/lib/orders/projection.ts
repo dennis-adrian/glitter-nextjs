@@ -1,3 +1,5 @@
+import type { StoreCategory } from "@/app/lib/store/category";
+
 export type ProjectionBaseLine = {
   id: number;
   productId: number;
@@ -9,6 +11,7 @@ export type ProjectionBaseLine = {
   priceAtPurchase: number;
   unitCostAtPurchase: number | null;
   transactionType: "purchase" | "rental";
+  storeCategoryAtPurchase: StoreCategory;
 };
 
 export type ProjectionAdjustmentLine = {
@@ -22,6 +25,7 @@ export type ProjectionAdjustmentLine = {
   unitPriceSnapshot: number;
   unitCostSnapshot: number | null;
   transactionType: "purchase" | "rental";
+  storeCategorySnapshot: StoreCategory;
 };
 
 export type EffectiveOrderLine = {
@@ -36,6 +40,8 @@ export type EffectiveOrderLine = {
   unitPrice: number;
   unitCost: number | null;
   transactionType: "purchase" | "rental";
+  /** Inherited from the source snapshot, never the product's current category. */
+  storeCategory: StoreCategory;
 };
 
 export function getAddedLineGroupKey(line: ProjectionAdjustmentLine): string {
@@ -43,6 +49,7 @@ export function getAddedLineGroupKey(line: ProjectionAdjustmentLine): string {
     line.productId,
     line.productVariantId,
     line.transactionType,
+    line.storeCategorySnapshot,
     line.unitPriceSnapshot,
     line.unitCostSnapshot,
     line.productNameSnapshot,
@@ -77,6 +84,7 @@ export function getEffectiveOrderLines(
           unitPrice: line.unitPriceSnapshot,
           unitCost: line.unitCostSnapshot,
           transactionType: line.transactionType,
+          storeCategory: line.storeCategorySnapshot,
         });
       }
       continue;
@@ -100,6 +108,7 @@ export function getEffectiveOrderLines(
       unitPrice: line.priceAtPurchase,
       unitCost: line.unitCostAtPurchase,
       transactionType: line.transactionType,
+      storeCategory: line.storeCategoryAtPurchase,
     })),
     ...additionsByKey.values(),
   ].filter((line) => line.quantity > 0);
