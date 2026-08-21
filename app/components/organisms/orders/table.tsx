@@ -239,6 +239,7 @@ export default function OrdersTable({
         }
         selectable
         maxSelectable={BULK_ORDER_STATUS_LIMIT}
+        getRowId={(order) => String(order.id)}
         actions={(table) => (
           <div className="flex items-center gap-2">
             <OrdersBulkActions

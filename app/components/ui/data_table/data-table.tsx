@@ -50,6 +50,8 @@ interface DataTableProps<TData, TValue> {
   selectable?: boolean;
   /** Caps how many rows can stay selected across pages. */
   maxSelectable?: number;
+  /** Keys row selection by a stable domain id instead of the row's position. */
+  getRowId?: (originalRow: TData, index: number, parent?: Row<TData>) => string;
 }
 
 function clampRowSelection(
@@ -125,6 +127,7 @@ export function DataTable<TData, TValue>({
   actions,
   selectable = false,
   maxSelectable,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -150,6 +153,7 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnFiltersChange: setColumnFilters,
+    ...(getRowId && { getRowId }),
     ...(selectable && {
       onRowSelectionChange: (updater) => {
         setRowSelection((prev) => {
