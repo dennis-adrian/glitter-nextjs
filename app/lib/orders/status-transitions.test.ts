@@ -5,6 +5,9 @@ import { canTransitionOrderStatus } from "@/app/lib/orders/status-transitions";
 describe("canTransitionOrderStatus", () => {
   it("allows active operational transitions", () => {
     expect(canTransitionOrderStatus("pending", "processing")).toBe(true);
+    expect(canTransitionOrderStatus("payment_verification", "processing")).toBe(
+      true,
+    );
     expect(canTransitionOrderStatus("payment_verification", "paid")).toBe(true);
     expect(canTransitionOrderStatus("paid", "delivered")).toBe(true);
   });

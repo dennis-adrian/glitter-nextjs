@@ -13,7 +13,11 @@ import {
   productVariants,
   users,
 } from "@/db/schema";
-import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+  OrderStatus,
+  OrderWithRelations,
+  type AdminOrderAdjustmentProduct,
+} from "@/app/lib/orders/definitions";
 import {
   ORDER_TAB_VALUES,
   type OrderTabValue,
@@ -21,6 +25,7 @@ import {
 import { db } from "@/db";
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -31,6 +36,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
@@ -71,6 +77,13 @@ import { applyOrderAdjustment } from "@/app/lib/orders/adjustments";
 import { resolveUnitCost } from "@/app/lib/products/cost";
 import { canTransitionOrderStatus } from "@/app/lib/orders/status-transitions";
 import { restoreEffectiveOrderStockInTx } from "@/app/lib/orders/cancellation";
+import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
+import {
+  mapOrdersProfitabilityQuery,
+  ordersProfitabilityQuery,
+  type OrdersProfitability,
+  type ProfitabilityQueryRow,
+} from "@/app/lib/orders/profitability";
 
 function revalidateStoreOrderViews() {
   revalidatePath("/dashboard/store");
@@ -888,44 +901,109 @@ export async function fetchGuestOrder(
 }
 
 async function withEffectiveOrderItems(order: OrderWithRelations) {
-  const rows = await db
-    .select({
-      baseOrderItemId: orderAdjustmentItems.baseOrderItemId,
-      quantityDelta: sql<number>`cast(coalesce(sum(${orderAdjustmentItems.quantityDelta}), 0) as integer)`,
-    })
-    .from(orderAdjustmentItems)
-    .innerJoin(
-      orderAdjustments,
-      eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
-    )
-    .where(eq(orderAdjustments.orderId, order.id))
-    .groupBy(orderAdjustmentItems.baseOrderItemId);
-  const deltas = new Map(
-    rows
-      .filter(
-        (row): row is { baseOrderItemId: number; quantityDelta: number } =>
-          row.baseOrderItemId != null,
-      )
-      .map((row) => [row.baseOrderItemId, Number(row.quantityDelta)]),
-  );
-  return {
-    ...order,
-    orderItems: order.orderItems
-      .map((item) => ({
-        ...item,
-        quantity: item.quantity + (deltas.get(item.id) ?? 0),
-      }))
-      .filter((item) => item.quantity > 0),
-  };
+  const [projected] = await withEffectiveOrders([order]);
+  return projected;
+}
+
+async function withEffectiveOrders(
+  orderRows: readonly OrderWithRelations[],
+): Promise<OrderWithRelations[]> {
+  if (orderRows.length === 0) return [];
+  const adjustments = await db.query.orderAdjustments.findMany({
+    where: inArray(
+      orderAdjustments.orderId,
+      orderRows.map((order) => order.id),
+    ),
+    with: {
+      items: {
+        with: {
+          product: { with: { images: true } },
+          variant: {
+            with: {
+              selections: { with: { option: true, optionValue: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  const adjustmentLinesByOrder = new Map<
+    number,
+    (typeof adjustments)[number]["items"]
+  >();
+  for (const adjustment of adjustments) {
+    const current = adjustmentLinesByOrder.get(adjustment.orderId) ?? [];
+    current.push(...adjustment.items);
+    adjustmentLinesByOrder.set(adjustment.orderId, current);
+  }
+
+  return orderRows.map((order) => {
+    const adjustmentLines = adjustmentLinesByOrder.get(order.id) ?? [];
+    const baseById = new Map(order.orderItems.map((item) => [item.id, item]));
+    const adjustmentById = new Map(
+      adjustmentLines.map((line) => [line.id, line]),
+    );
+    const lines = getEffectiveOrderLines(
+      order.orderItems.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        productVariantId: item.productVariantId,
+        productVariantLabel: item.productVariantLabel,
+        productNameAtPurchase: item.productNameAtPurchase,
+        productName: item.product.name,
+        quantity: item.quantity,
+        priceAtPurchase: item.priceAtPurchase,
+        unitCostAtPurchase: item.unitCostAtPurchase,
+        transactionType: item.transactionType,
+      })),
+      adjustmentLines,
+    );
+    return {
+      ...order,
+      orderItems: lines.map((line) => {
+        if (line.baseOrderItemId != null) {
+          return {
+            ...baseById.get(line.baseOrderItemId)!,
+            quantity: line.quantity,
+            adjustmentItemId: null,
+          };
+        }
+        const source = adjustmentById.get(line.adjustmentItemId!)!;
+        return {
+          id: -source.id,
+          orderId: order.id,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          productVariantLabel: line.variantLabel,
+          quantity: line.quantity,
+          priceAtPurchase: line.unitPrice,
+          unitCostAtPurchase: line.unitCost,
+          productNameAtPurchase: line.productName,
+          transactionType: line.transactionType,
+          rentalContentSectionsSnapshot: null,
+          rentalStockModeSnapshot: null,
+          rentalFestivalId: null,
+          rentalReservationId: null,
+          rentalReturnedQuantity: 0,
+          updatedAt: source.createdAt,
+          createdAt: source.createdAt,
+          product: source.product,
+          variant: source.variant,
+          adjustmentItemId: source.id,
+        };
+      }),
+    };
+  });
 }
 
 export async function fetchOrdersByUserId(userId: number) {
   try {
-    return await db.query.orders.findMany({
+    const rows = await db.query.orders.findMany({
       where: eq(orders.userId, userId),
       orderBy: [desc(orders.createdAt)],
       with: orderRelations,
     });
+    return withEffectiveOrders(rows);
   } catch (error) {
     console.error(error);
     return [];
@@ -971,11 +1049,12 @@ export async function fetchOrdersByUserIdAndStatus(
   status: OrderStatus,
 ) {
   try {
-    return await db.query.orders.findMany({
+    const rows = await db.query.orders.findMany({
       where: and(eq(orders.userId, userId), eq(orders.status, status)),
       orderBy: [desc(orders.createdAt)],
       with: orderRelations,
     });
+    return withEffectiveOrders(rows);
   } catch (error) {
     console.error(error);
     return [];
@@ -984,9 +1063,10 @@ export async function fetchOrdersByUserIdAndStatus(
 
 export async function fetchOrders() {
   try {
-    return await db.query.orders.findMany({
+    const rows = await db.query.orders.findMany({
       with: orderRelations,
     });
+    return withEffectiveOrders(rows);
   } catch (error) {
     console.error(error);
     return [];
@@ -1011,11 +1091,12 @@ export async function fetchOrdersByStatus(
     const searchWhere = buildOrderSearchSql(filters?.q);
     const whereClause = and(statusWhere, rentalWhere, dateWhere, searchWhere);
 
-    return await db.query.orders.findMany({
+    const rows = await db.query.orders.findMany({
       where: whereClause,
       orderBy: [desc(orders.createdAt)],
       with: orderRelations,
     });
+    return withEffectiveOrders(rows);
   } catch (error) {
     console.error(error);
     return [];
@@ -1097,6 +1178,24 @@ function buildOrderSearchSql(query: string | undefined) {
               sql`${products.name} ilike ${pattern}`,
               sql`${orderItems.productNameAtPurchase} ilike ${pattern}`,
               sql`${orderItems.productVariantLabel} ilike ${pattern}`,
+            ),
+          ),
+        ),
+    ),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(orderAdjustmentItems)
+        .innerJoin(
+          orderAdjustments,
+          eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
+        )
+        .where(
+          and(
+            eq(orderAdjustments.orderId, orders.id),
+            or(
+              sql`${orderAdjustmentItems.productNameSnapshot} ilike ${pattern}`,
+              sql`${orderAdjustmentItems.variantLabelSnapshot} ilike ${pattern}`,
             ),
           ),
         ),
@@ -1205,11 +1304,12 @@ export async function fetchPendingVoucherCount(): Promise<number> {
 
 export async function fetchPendingVoucherReviewOrders() {
   try {
-    return await db.query.orders.findMany({
+    const rows = await db.query.orders.findMany({
       where: eq(orders.status, "payment_verification"),
       orderBy: [desc(orders.voucherSubmittedAt)],
       with: orderRelations,
     });
+    return withEffectiveOrders(rows);
   } catch (error) {
     console.error(error);
     return [];
@@ -1687,23 +1787,7 @@ export type OrdersStats = {
   cancelled: number;
 };
 
-export type OrdersProfitability = {
-  grossRevenue: number;
-  productCost: number;
-  grossProfit: number;
-  knownCostRevenue: number;
-  lineCount: number;
-  rows: {
-    orderId: number;
-    date: Date;
-    product: string;
-    quantity: number;
-    revenue: number;
-    cost: number | null;
-    profit: number | null;
-    status: string;
-  }[];
-};
+export type { OrdersProfitability } from "@/app/lib/orders/profitability";
 
 export type HistoricalCostBackfillPreview = {
   missingLines: number;
@@ -1873,55 +1957,10 @@ export async function applyHistoricalOrderCosts(): Promise<{
 
 export async function fetchOrdersProfitability(): Promise<OrdersProfitability> {
   try {
-    const lines = await db
-      .select({
-        orderId: orders.id,
-        date: orders.createdAt,
-        product: sql<string>`coalesce(${orderItems.productNameAtPurchase}, ${products.name})`,
-        quantity: orderItems.quantity,
-        revenue: sql<number>`${orderItems.priceAtPurchase} * ${orderItems.quantity}`,
-        cost: sql<
-          number | null
-        >`${orderItems.unitCostAtPurchase} * ${orderItems.quantity}`,
-        unitCost: orderItems.unitCostAtPurchase,
-        status: orders.status,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .innerJoin(products, eq(orderItems.productId, products.id))
-      .where(
-        and(
-          inArray(orders.status, ["paid", "delivered"]),
-          eq(orderItems.transactionType, "purchase"),
-        ),
-      );
-
-    const rows = lines.map((line) => {
-      const revenue = Number(line.revenue ?? 0);
-      const cost = line.unitCost == null ? null : Number(line.cost ?? 0);
-      return {
-        orderId: line.orderId,
-        date: line.date,
-        product: line.product,
-        quantity: line.quantity,
-        revenue,
-        cost,
-        profit: cost == null ? null : revenue - cost,
-        status: line.status,
-      };
-    });
-    const grossRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
-    const known = rows.filter((row) => row.cost != null);
-    const productCost = known.reduce((sum, row) => sum + (row.cost ?? 0), 0);
-    const knownCostRevenue = known.reduce((sum, row) => sum + row.revenue, 0);
-    return {
-      grossRevenue,
-      productCost,
-      grossProfit: knownCostRevenue - productCost,
-      knownCostRevenue,
-      lineCount: rows.length,
-      rows,
-    };
+    const result = await db.execute<ProfitabilityQueryRow>(
+      ordersProfitabilityQuery,
+    );
+    return mapOrdersProfitabilityQuery(result.rows);
   } catch (error) {
     console.error(error);
     return {
@@ -2028,12 +2067,12 @@ export async function updateOrder(
       message: "El ajuste contiene artículos inválidos.",
     };
   }
-  const deltas = order.orderItems
+  const changedItems = order.orderItems
     .map((item) => ({
-      baseOrderItemId: item.id,
+      item,
       quantityDelta: (requested.get(item.id) ?? item.quantity) - item.quantity,
     }))
-    .filter((item) => item.quantityDelta !== 0);
+    .filter(({ quantityDelta }) => quantityDelta !== 0);
   try {
     await applyOrderAdjustment({
       orderId,
@@ -2042,7 +2081,18 @@ export async function updateOrder(
       expectedRevision: order.revision,
       reason: "Ajuste solicitado por cliente",
       allowedStatuses: ["pending"],
-      items: deltas,
+      items: changedItems
+        .filter(({ item }) => item.adjustmentItemId == null)
+        .map(({ item, quantityDelta }) => ({
+          baseOrderItemId: item.id,
+          quantityDelta,
+        })),
+      addedItems: changedItems
+        .filter(({ item }) => item.adjustmentItemId != null)
+        .map(({ item, quantityDelta }) => ({
+          adjustmentItemId: item.adjustmentItemId!,
+          quantityDelta,
+        })),
     });
   } catch (error) {
     const cause = error instanceof Error ? error.cause : undefined;
@@ -2068,13 +2118,67 @@ export async function updateOrder(
   return { success: true, message: "Tu pedido fue actualizado correctamente." };
 }
 
-export async function adminAdjustOrder(
-  orderId: number,
-  items: UpdateOrderItemInput[],
-  expectedRevision: number,
-  reason: string,
-  customerNote?: string,
-) {
+const adminAdjustOrderSchema = z.object({
+  orderId: z.number().int().positive(),
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.number().int(),
+        quantity: z.number().int().nonnegative(),
+      }),
+    )
+    .max(200),
+  additions: z
+    .array(
+      z.object({
+        productId: z.number().int().positive(),
+        productVariantId: z.number().int().positive().nullable(),
+        quantity: z.number().int().positive(),
+      }),
+    )
+    .max(100),
+  expectedRevision: z.number().int().positive(),
+  reason: z.string().trim().min(1).max(500),
+  customerNote: z.string().trim().max(1000).optional(),
+});
+
+export type AdminAdjustOrderInput = z.infer<typeof adminAdjustOrderSchema>;
+
+export async function fetchAdminOrderAdjustmentProducts(): Promise<
+  AdminOrderAdjustmentProduct[]
+> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+
+  const rows = await db.query.products.findMany({
+    where: eq(products.isPurchasable, true),
+    orderBy: [asc(products.name)],
+    with: {
+      variants: {
+        with: {
+          selections: { with: { option: true, optionValue: true } },
+        },
+      },
+    },
+  });
+  return rows.map((product) => ({
+    id: product.id,
+    name: product.name,
+    price: getProductPriceAtPurchase(product),
+    stock: product.stock ?? 0,
+    requiresVariant: product.variants.length > 0,
+    variants: product.variants
+      .filter((variant) => variant.isVisible)
+      .map((variant) => ({
+        id: variant.id,
+        label: getVariantLabel(variant) ?? `Variante #${variant.id}`,
+        price: getProductPriceAtPurchase(product, variant),
+        stock: variant.stock,
+      })),
+  }));
+}
+
+export async function adminAdjustOrder(rawInput: AdminAdjustOrderInput) {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser || currentUser.role !== "admin") {
     return {
@@ -2082,18 +2186,25 @@ export async function adminAdjustOrder(
       message: "No tienes permisos para ajustar este pedido.",
     };
   }
-  const order = await fetchOrder(orderId);
+  const parsed = adminAdjustOrderSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, message: "El ajuste contiene datos inválidos." };
+  }
+  const input = parsed.data;
+  const order = await fetchOrder(input.orderId);
   if (!order) return { success: false, message: "Pedido no encontrado." };
-  if (!reason.trim())
-    return { success: false, message: "Debes indicar el motivo del ajuste." };
+  if (order.revision !== input.expectedRevision) {
+    return {
+      success: false,
+      cause: "conflict",
+      message: "El pedido cambió en otra sesión. Recargá la página.",
+    };
+  }
 
   const requested = new Map(
-    items.map((item) => [item.orderItemId, item.quantity]),
+    input.items.map((item) => [item.orderItemId, item.quantity]),
   );
   if (
-    items.some(
-      (item) => !Number.isInteger(item.quantity) || item.quantity < 0,
-    ) ||
     [...requested].some(
       ([id]) => !order.orderItems.some((item) => item.id === id),
     )
@@ -2103,69 +2214,83 @@ export async function adminAdjustOrder(
       message: "El ajuste contiene artículos inválidos.",
     };
   }
+  const changedItems = order.orderItems
+    .map((item) => ({
+      item,
+      quantityDelta: (requested.get(item.id) ?? item.quantity) - item.quantity,
+    }))
+    .filter(({ quantityDelta }) => quantityDelta !== 0);
   try {
     await applyOrderAdjustment({
-      orderId,
+      orderId: input.orderId,
       actorUserId: currentUser.id,
       actorRole: "admin",
-      expectedRevision,
-      reason,
-      customerNote,
+      expectedRevision: input.expectedRevision,
+      reason: input.reason,
+      customerNote: input.customerNote,
       allowedStatuses: ["pending", "payment_verification", "processing"],
-      items: order.orderItems
-        .map((item) => ({
+      items: changedItems
+        .filter(({ item }) => item.adjustmentItemId == null)
+        .map(({ item, quantityDelta }) => ({
           baseOrderItemId: item.id,
-          quantityDelta:
-            (requested.get(item.id) ?? item.quantity) - item.quantity,
-        }))
-        .filter((item) => item.quantityDelta !== 0),
+          quantityDelta,
+        })),
+      addedItems: changedItems
+        .filter(({ item }) => item.adjustmentItemId != null)
+        .map(({ item, quantityDelta }) => ({
+          adjustmentItemId: item.adjustmentItemId!,
+          quantityDelta,
+        })),
+      additions: input.additions,
     });
   } catch (error) {
     return {
       success: false,
+      cause: error instanceof Error ? String(error.cause ?? "") : undefined,
       message:
         error instanceof Error
           ? error.message
           : "No se pudo aplicar el ajuste.",
     };
   }
-  revalidatePath(`/dashboard/store/orders/${orderId}`);
-  revalidatePath(`/dashboard/store/orders/${orderId}/edit`);
+  revalidatePath(`/dashboard/store/orders/${input.orderId}`);
+  revalidatePath(`/dashboard/store/orders/${input.orderId}/edit`);
   revalidateStoreOrderViews();
   return { success: true, message: "Ajuste aplicado correctamente." };
 }
 
 export async function fetchOrdersTotalsByProduct() {
   try {
-    const result = await db.transaction(async (tx) => {
-      const totals = await tx
-        .select({
-          productId: orderItems.productId,
-          productVariantId: orderItems.productVariantId,
-          productVariantLabel: orderItems.productVariantLabel,
-          productName: sql<string>`CASE
-            WHEN ${orderItems.productVariantLabel} IS NOT NULL
-              THEN ${products.name} || ' (' || ${orderItems.productVariantLabel} || ')'
-            ELSE ${products.name}
-          END`,
-          status: orders.status,
-          totalQuantity: sql<number>`cast(sum(${orderItems.quantity}) as integer)`,
-        })
-        .from(orderItems)
-        .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .innerJoin(products, eq(orderItems.productId, products.id))
-        .groupBy(
-          orderItems.productId,
-          orderItems.productVariantId,
-          orderItems.productVariantLabel,
-          products.name,
-          orders.status,
-        );
-
-      return totals;
-    });
-
-    return result;
+    const orderRows = await fetchOrders();
+    const totals = new Map<
+      string,
+      {
+        productId: number;
+        productVariantId: number | null;
+        productVariantLabel: string | null;
+        productName: string;
+        status: OrderStatus;
+        totalQuantity: number;
+      }
+    >();
+    for (const order of orderRows) {
+      for (const item of order.orderItems) {
+        const key = `${item.productId}:${item.productVariantId ?? "base"}:${order.status}`;
+        const current = totals.get(key);
+        if (current) current.totalQuantity += item.quantity;
+        else {
+          totals.set(key, {
+            productId: item.productId,
+            productVariantId: item.productVariantId,
+            productVariantLabel: item.productVariantLabel,
+            productName: getOrderItemDisplayName(item),
+            status: order.status,
+            totalQuantity: item.quantity,
+          });
+        }
+      }
+    }
+    return [...totals.values()];
   } catch (error) {
     console.error(error);
     return [];

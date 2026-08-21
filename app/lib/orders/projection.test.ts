@@ -99,6 +99,32 @@ describe("effective order projection", () => {
       ],
     );
 
-    expect(lines).toMatchObject([{ key: "adjustment:11", quantity: 1 }]);
+    expect(lines).toMatchObject([
+      { key: "adjustment:11", adjustmentItemId: 11, quantity: 1 },
+    ]);
+  });
+
+  it("groups later deltas into the original added-line identity", () => {
+    const shared = {
+      baseOrderItemId: null,
+      productId: 2,
+      productVariantId: 4,
+      productNameSnapshot: "Polera",
+      variantLabelSnapshot: "Morado / M",
+      unitPriceSnapshot: 25,
+      unitCostSnapshot: 10,
+      transactionType: "purchase" as const,
+    };
+    const lines = getEffectiveOrderLines(
+      [],
+      [
+        { ...shared, id: 20, quantityDelta: 3 },
+        { ...shared, id: 21, quantityDelta: -1 },
+      ],
+    );
+
+    expect(lines).toMatchObject([
+      { key: "adjustment:20", adjustmentItemId: 20, quantity: 2 },
+    ]);
   });
 });

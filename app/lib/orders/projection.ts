@@ -27,6 +27,7 @@ export type ProjectionAdjustmentLine = {
 export type EffectiveOrderLine = {
   key: string;
   baseOrderItemId: number | null;
+  adjustmentItemId: number | null;
   productId: number;
   productVariantId: number | null;
   productName: string;
@@ -37,28 +38,47 @@ export type EffectiveOrderLine = {
   transactionType: "purchase" | "rental";
 };
 
+export function getAddedLineGroupKey(line: ProjectionAdjustmentLine): string {
+  return JSON.stringify([
+    line.productId,
+    line.productVariantId,
+    line.transactionType,
+    line.unitPriceSnapshot,
+    line.unitCostSnapshot,
+    line.productNameSnapshot,
+    line.variantLabelSnapshot,
+  ]);
+}
+
 /** Projects immutable source lines plus adjustment deltas into current lines. */
 export function getEffectiveOrderLines(
   baseLines: readonly ProjectionBaseLine[],
   adjustmentLines: readonly ProjectionAdjustmentLine[],
 ): EffectiveOrderLine[] {
   const deltasByBaseId = new Map<number, number>();
-  const additions: EffectiveOrderLine[] = [];
+  const additionsByKey = new Map<string, EffectiveOrderLine>();
 
-  for (const line of adjustmentLines) {
+  for (const line of [...adjustmentLines].sort((a, b) => a.id - b.id)) {
     if (line.baseOrderItemId == null) {
-      additions.push({
-        key: `adjustment:${line.id}`,
-        baseOrderItemId: null,
-        productId: line.productId,
-        productVariantId: line.productVariantId,
-        productName: line.productNameSnapshot,
-        variantLabel: line.variantLabelSnapshot,
-        quantity: line.quantityDelta,
-        unitPrice: line.unitPriceSnapshot,
-        unitCost: line.unitCostSnapshot,
-        transactionType: line.transactionType,
-      });
+      const groupKey = getAddedLineGroupKey(line);
+      const existing = additionsByKey.get(groupKey);
+      if (existing) {
+        existing.quantity += line.quantityDelta;
+      } else {
+        additionsByKey.set(groupKey, {
+          key: `adjustment:${line.id}`,
+          baseOrderItemId: null,
+          adjustmentItemId: line.id,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          productName: line.productNameSnapshot,
+          variantLabel: line.variantLabelSnapshot,
+          quantity: line.quantityDelta,
+          unitPrice: line.unitPriceSnapshot,
+          unitCost: line.unitCostSnapshot,
+          transactionType: line.transactionType,
+        });
+      }
       continue;
     }
     deltasByBaseId.set(
@@ -71,6 +91,7 @@ export function getEffectiveOrderLines(
     ...baseLines.map((line) => ({
       key: `base:${line.id}`,
       baseOrderItemId: line.id,
+      adjustmentItemId: null,
       productId: line.productId,
       productVariantId: line.productVariantId,
       productName: line.productNameAtPurchase ?? line.productName,
@@ -80,7 +101,7 @@ export function getEffectiveOrderLines(
       unitCost: line.unitCostAtPurchase,
       transactionType: line.transactionType,
     })),
-    ...additions,
+    ...additionsByKey.values(),
   ].filter((line) => line.quantity > 0);
 }
 

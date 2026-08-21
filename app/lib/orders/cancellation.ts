@@ -1,7 +1,8 @@
 import "server-only";
 
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
+import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
 import { restoreLineStockInTx } from "@/app/lib/rentals/order-stock";
 import { db } from "@/db";
 import {
@@ -30,29 +31,53 @@ export async function restoreEffectiveOrdersStockInTx(
     .select()
     .from(orderItems)
     .where(inArray(orderItems.orderId, orderIds));
-  const deltaRows = await tx
+  const adjustmentRows = await tx
     .select({
-      baseOrderItemId: orderAdjustmentItems.baseOrderItemId,
-      quantityDelta: sql<number>`cast(coalesce(sum(${orderAdjustmentItems.quantityDelta}), 0) as integer)`,
+      orderId: orderAdjustments.orderId,
+      item: orderAdjustmentItems,
     })
     .from(orderAdjustmentItems)
     .innerJoin(
       orderAdjustments,
       eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
     )
-    .where(inArray(orderAdjustments.orderId, orderIds))
-    .groupBy(orderAdjustmentItems.baseOrderItemId);
+    .where(inArray(orderAdjustments.orderId, orderIds));
   const deltas = new Map(
-    deltaRows
-      .filter((row) => row.baseOrderItemId != null)
-      .map((row) => [row.baseOrderItemId!, Number(row.quantityDelta)]),
+    adjustmentRows
+      .filter((row) => row.item.baseOrderItemId != null)
+      .map((row) => row.item)
+      .reduce((map, row) => {
+        map.set(
+          row.baseOrderItemId!,
+          (map.get(row.baseOrderItemId!) ?? 0) + row.quantityDelta,
+        );
+        return map;
+      }, new Map<number, number>()),
   );
-  const effectiveItems = baseItems
+  const effectiveBaseItems = baseItems
     .map((item) => ({
       ...item,
       quantity: item.quantity + (deltas.get(item.id) ?? 0),
     }))
     .filter((item) => item.quantity > 0);
+  const effectiveAddedItems = orderIds.flatMap((orderId) =>
+    getEffectiveOrderLines(
+      [],
+      adjustmentRows
+        .filter(
+          (row) => row.orderId === orderId && row.item.baseOrderItemId == null,
+        )
+        .map((row) => row.item),
+    ).map((line) => ({
+      productId: line.productId,
+      productVariantId: line.productVariantId,
+      quantity: line.quantity,
+      transactionType: line.transactionType,
+      rentalStockModeSnapshot: null,
+      rentalReturnedQuantity: 0,
+    })),
+  );
+  const effectiveItems = [...effectiveBaseItems, ...effectiveAddedItems];
 
   const productIds = [
     ...new Set(effectiveItems.map((item) => item.productId)),

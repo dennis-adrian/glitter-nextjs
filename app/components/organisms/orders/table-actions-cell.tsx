@@ -5,9 +5,11 @@ import {
   CheckCheckIcon,
   CheckCircleIcon,
   MoreHorizontalIcon,
+  PencilIcon,
   TruckIcon,
   UploadIcon,
 } from "lucide-react";
+import Link from "next/link";
 
 import AdminVoucherUploadDialog from "@/app/components/organisms/orders/admin-voucher-upload-dialog";
 import { Button } from "@/app/components/ui/button";
@@ -41,6 +43,16 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          {["pending", "payment_verification", "processing"].includes(
+            order.status,
+          ) && (
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/store/orders/${order.id}/edit`}>
+                <PencilIcon className="mr-1 h-4 w-4" />
+                Modificar pedido
+              </Link>
+            </DropdownMenuItem>
+          )}
           {order.status === "pending" && (
             <DropdownMenuItem
               onClick={() => {

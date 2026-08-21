@@ -1,7 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 
 import AdminAdjustOrderForm from "@/app/components/organisms/orders/admin-adjust-order-form";
-import { fetchOrder } from "@/app/lib/orders/actions";
+import {
+  fetchAdminOrderAdjustmentProducts,
+  fetchOrder,
+} from "@/app/lib/orders/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function AdminOrderEditPage({
@@ -12,7 +15,10 @@ export default async function AdminOrderEditPage({
   const profile = await getCurrentUserProfile();
   if (!profile || profile.role !== "admin") redirect("/dashboard/store/orders");
   const { id } = await params;
-  const order = await fetchOrder(Number(id));
+  const [order, products] = await Promise.all([
+    fetchOrder(Number(id)),
+    fetchAdminOrderAdjustmentProducts(),
+  ]);
   if (
     !order ||
     !["pending", "payment_verification", "processing"].includes(order.status)
@@ -26,7 +32,7 @@ export default async function AdminOrderEditPage({
           Los cambios quedan registrados en la actividad del pedido.
         </p>
       </div>
-      <AdminAdjustOrderForm order={order} />
+      <AdminAdjustOrderForm order={order} products={products} />
     </div>
   );
 }

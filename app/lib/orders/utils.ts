@@ -99,11 +99,13 @@ export function getProductPriceAtPurchase(
 
 export function getOrderItemDisplayName(item: {
   product: Pick<BaseProduct, "name">;
+  productNameAtPurchase?: string | null;
   productVariantLabel?: string | null;
 }): string {
+  const productName = item.productNameAtPurchase ?? item.product.name;
   if (!item.productVariantLabel) {
-    return item.product.name;
+    return productName;
   }
 
-  return `${item.product.name} (${item.productVariantLabel})`;
+  return `${productName} (${item.productVariantLabel})`;
 }

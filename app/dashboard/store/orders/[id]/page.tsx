@@ -302,6 +302,9 @@ export default async function OrderDetailPage({
                       {adjustment && (
                         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                           <p>{adjustment.reason}</p>
+                          {adjustment.customerNote && (
+                            <p>Nota al cliente: {adjustment.customerNote}</p>
+                          )}
                           {adjustment.items.map((item) => (
                             <p key={item.id}>
                               {item.quantityDelta > 0 ? "+" : ""}
