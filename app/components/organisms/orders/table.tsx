@@ -8,10 +8,7 @@ import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-act
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import {
-  AdminOrderListRow,
-  OrderStatus,
-} from "@/app/lib/orders/definitions";
+import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
 import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
@@ -230,7 +227,15 @@ export default function OrdersTable({
       </div>
 
       <DataTable
-        key={optimisticStatuses.join(",") || "all"}
+        key={[
+          optimisticStatuses.join(",") || "all",
+          optimisticRentalFilter,
+          query.period,
+          query.from ?? "",
+          query.to ?? "",
+          query.q,
+          query.category,
+        ].join("|")}
         columns={columns}
         data={orders}
         columnTitles={columnTitles}

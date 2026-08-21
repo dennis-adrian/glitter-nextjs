@@ -11,6 +11,8 @@ const STATUS_VALUES = [
   "needs_attention",
 ] as const;
 
+export const orderStatusSchema = z.enum(orderStatusEnum.enumValues);
+
 const RENTAL_VALUES = [
   "all",
   "has_rental",

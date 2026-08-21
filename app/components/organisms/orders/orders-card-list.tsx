@@ -6,10 +6,7 @@ import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actio
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import {
-  AdminOrderListRow,
-  OrderStatus,
-} from "@/app/lib/orders/definitions";
+import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
 import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import {
   storeOrdersQueryToSearchParams,
@@ -226,8 +223,7 @@ function OrderCard({
               {order.isMixedCategory &&
                 order.scopedSubtotal !== order.totalAmount && (
                   <span className="text-xs text-muted-foreground">
-                    Subtotal en este filtro Bs{" "}
-                    {order.scopedSubtotal.toFixed(2)}
+                    Subtotal en este filtro Bs {order.scopedSubtotal.toFixed(2)}
                   </span>
                 )}
             </div>
@@ -266,9 +262,27 @@ export default function OrdersCardList({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
+  const queryScopeKey = [
+    optimisticStatuses.join(",") || "all",
+    optimisticRentalFilter,
+    query.period,
+    query.from ?? "",
+    query.to ?? "",
+    query.q,
+    query.category,
+  ].join("|");
+  const [selectionScopeKey, setSelectionScopeKey] = useState(queryScopeKey);
+  const scopeChanged = queryScopeKey !== selectionScopeKey;
+  if (scopeChanged) {
+    setSelectionScopeKey(queryScopeKey);
+  }
+
   // Drop IDs that left the visible list so they stay unselected if they return.
+  // Clear all selection when the active query scope changes.
   const visibleIds = new Set(orders.map((order) => order.id));
-  const prunedSelectedIds = selectedIds.filter((id) => visibleIds.has(id));
+  const prunedSelectedIds = scopeChanged
+    ? []
+    : selectedIds.filter((id) => visibleIds.has(id));
   if (prunedSelectedIds.length !== selectedIds.length) {
     setSelectedIds(prunedSelectedIds);
   }

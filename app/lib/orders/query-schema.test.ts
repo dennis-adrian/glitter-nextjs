@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  orderStatusSchema,
   parseStoreOrdersQuery,
   resolveStoreOrdersStatusFilter,
   storeOrdersQueryToSearchParams,
@@ -183,5 +184,20 @@ describe("store order query schema", () => {
         category: "all",
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("orderStatusSchema", () => {
+  it("accepts concrete order statuses", () => {
+    expect(orderStatusSchema.parse("paid")).toBe("paid");
+    expect(orderStatusSchema.parse("payment_verification")).toBe(
+      "payment_verification",
+    );
+  });
+
+  it("rejects query-only and unknown statuses", () => {
+    expect(orderStatusSchema.safeParse("all").success).toBe(false);
+    expect(orderStatusSchema.safeParse("needs_attention").success).toBe(false);
+    expect(orderStatusSchema.safeParse("surprise").success).toBe(false);
   });
 });

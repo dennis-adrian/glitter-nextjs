@@ -27,6 +27,7 @@ import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table } from "@/components/ui/table";
+import { toast } from "sonner";
 
 interface DataTableFiltersProps {
   label?: string;
@@ -84,15 +85,47 @@ function createSelectColumn(maxSelectable?: number) {
   return {
     id: "select",
     header: ({ table }: { table: TableInstance<unknown> }) => {
-      const allPageSelected = table.getIsAllPageRowsSelected();
-      const somePageSelected = table.getIsSomePageRowsSelected();
+      const pageRows = table.getRowModel().rows;
+      const allPageSelected =
+        pageRows.length > 0 && pageRows.every((row) => row.getIsSelected());
+      const somePageSelected = pageRows.some((row) => row.getIsSelected());
       const selectedCount = table.getSelectedRowModel().rows.length;
       const atLimit = maxSelectable != null && selectedCount >= maxSelectable;
       return (
         <Checkbox
           checked={allPageSelected || (somePageSelected && "indeterminate")}
           disabled={atLimit && !allPageSelected && !somePageSelected}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          onCheckedChange={(value) => {
+            if (!value) {
+              table.toggleAllPageRowsSelected(false);
+              return;
+            }
+
+            if (maxSelectable == null) {
+              table.toggleAllPageRowsSelected(true);
+              return;
+            }
+
+            const unselectedOnPage = pageRows.filter(
+              (row) => !row.getIsSelected(),
+            );
+            const remaining = Math.max(0, maxSelectable - selectedCount);
+            if (unselectedOnPage.length > remaining) {
+              toast.warning(
+                `Solo puedes seleccionar hasta ${maxSelectable} pedidos a la vez.`,
+              );
+              table.setRowSelection((prev) => {
+                const next = { ...prev };
+                for (const row of unselectedOnPage.slice(0, remaining)) {
+                  next[row.id] = true;
+                }
+                return next;
+              });
+              return;
+            }
+
+            table.toggleAllPageRowsSelected(true);
+          }}
           aria-label="Seleccionar todos"
         />
       );

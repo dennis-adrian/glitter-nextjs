@@ -77,6 +77,7 @@ import {
 } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
+  orderStatusSchema,
   resolveStoreOrdersStatusFilter,
   type StoreOrdersQuery,
 } from "@/app/lib/orders/query-schema";
@@ -1232,20 +1233,20 @@ function scopedRevenueSql(category: StoreCategory) {
     select coalesce(sum(scoped_lines.revenue), 0)
     from (
       select
-        (base_items.quantity + coalesce(base_deltas.quantity_delta, 0))
+        (base_items.quantity + coalesce((
+          select sum(inner_items.quantity_delta)
+          from order_adjustment_items inner_items
+          where inner_items.base_order_item_id = base_items.id
+        ), 0))
           * base_items.price_at_purchase as revenue
       from order_items base_items
-      left join (
-        select
-          base_order_item_id,
-          sum(quantity_delta)::int as quantity_delta
-        from order_adjustment_items
-        where base_order_item_id is not null
-        group by base_order_item_id
-      ) base_deltas on base_deltas.base_order_item_id = base_items.id
       where base_items.order_id = ${orders.id}
         and base_items.store_category_at_purchase = ${category}
-        and base_items.quantity + coalesce(base_deltas.quantity_delta, 0) > 0
+        and base_items.quantity + coalesce((
+          select sum(inner_items.quantity_delta)
+          from order_adjustment_items inner_items
+          where inner_items.base_order_item_id = base_items.id
+        ), 0) > 0
       union all
       select
         sum(added_items.quantity_delta) * added_items.unit_price_snapshot
@@ -1715,6 +1716,17 @@ export async function bulkUpdateOrderStatus(
     };
   }
 
+  const parsedStatus = orderStatusSchema.safeParse(status);
+  if (!parsedStatus.success) {
+    return {
+      success: false,
+      message: "Solicitud inválida.",
+      updatedIds: [],
+      failedIds: [],
+    };
+  }
+  const nextStatus = parsedStatus.data;
+
   const uniqueTargets = [
     ...new Map(targets.map((target) => [target.id, target])).values(),
   ];
@@ -1758,13 +1770,13 @@ export async function bulkUpdateOrderStatus(
   for (const target of uniqueTargets) {
     const result = await applyOrderStatusChange(
       target.id,
-      status,
+      nextStatus,
       target.revision,
       currentUser.id,
     );
     if (result.success) {
       updatedIds.push(target.id);
-      if (status === "paid" && result.previousStatus !== "paid") {
+      if (nextStatus === "paid" && result.previousStatus !== "paid") {
         newlyPaidIds.push(target.id);
       }
     } else {
@@ -1793,7 +1805,7 @@ export async function bulkUpdateOrderStatus(
   revalidateStoreOrderViews();
 
   // Phrased so the status label never has to agree in number with the count.
-  const statusLabel = getOrderStatusLabel(status);
+  const statusLabel = getOrderStatusLabel(nextStatus);
   const message =
     failedIds.length === 0
       ? `Estado actualizado a "${statusLabel}" en ${updatedIds.length} ${updatedIds.length === 1 ? "pedido" : "pedidos"}.`
