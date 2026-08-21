@@ -14,6 +14,12 @@ export const POSTHOG_EVENTS = {
   // Store / Orders
   ORDER_PLACED: "order_placed",
   ORDER_PAYMENT_VOUCHER_UPLOADED: "order_payment_voucher_uploaded",
+  STORE_ORDERS_EXPORTED: "store_orders_exported",
+  STORE_ORDER_ADJUSTMENT_STARTED: "store_order_adjustment_started",
+  STORE_ORDER_ADJUSTMENT_APPLIED: "store_order_adjustment_applied",
+  STORE_ORDER_ADJUSTMENT_FAILED: "store_order_adjustment_failed",
+  STORE_PROFITABILITY_REPORT_VIEWED: "store_profitability_report_viewed",
+  STORE_PROFITABILITY_EXPORTED: "store_profitability_exported",
   // Visitor registration
   VISITOR_EMAIL_SUBMITTED: "visitor_email_submitted",
   VISITOR_REGISTRATION_COMPLETED: "visitor_registration_completed",

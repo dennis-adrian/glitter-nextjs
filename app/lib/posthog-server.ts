@@ -1,5 +1,6 @@
 import { PostHog } from "posthog-node";
 import { getClientEnv, serverEnv } from "@/env";
+import type { PostHogEvent } from "@/app/lib/posthog-events";
 
 const noop = new Proxy({} as PostHog, {
   get: () => async () => {},
@@ -28,4 +29,26 @@ export function getPostHogClient(): PostHog {
     flushAt: 1,
     flushInterval: 0,
   });
+}
+
+export async function captureServerEvent(input: {
+  distinctId: string;
+  event: PostHogEvent;
+  properties?: Record<string, unknown>;
+  context: string;
+}): Promise<void> {
+  try {
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: input.distinctId,
+      event: input.event,
+      properties: input.properties,
+    });
+    await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
+  } catch (error) {
+    console.error(`[posthog] ${input.context} capture failed`, {
+      event: input.event,
+      error,
+    });
+  }
 }

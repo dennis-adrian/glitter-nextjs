@@ -15,7 +15,7 @@ export default async function StoreLayout({
   const isAdmin = profile?.role === "admin";
 
   return (
-    <div className="container space-y-6 px-3 py-4 md:px-6 md:py-6">
+    <div className="container space-y-4 px-3 py-4 md:px-6 md:py-6">
       <div className="space-y-2">
         <Heading level={2}>Admin Tienda</Heading>
         <p className="text-muted-foreground text-sm md:text-base">

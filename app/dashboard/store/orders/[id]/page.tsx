@@ -11,7 +11,11 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { fetchOrder } from "@/app/lib/orders/actions";
+import {
+  fetchOrder,
+  fetchOrderActivity,
+  fetchOrderReturns,
+} from "@/app/lib/orders/actions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { fetchRentalReturnLogs } from "@/app/lib/rentals/return-actions";
 import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
@@ -34,6 +38,26 @@ import { notFound } from "next/navigation";
 function formatCurrency(amount: number) {
   return `Bs. ${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`;
 }
+
+function getNoteAddedText(payload: unknown): string | null {
+  if (
+    payload == null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload) ||
+    !("note" in payload) ||
+    typeof payload.note !== "string"
+  ) {
+    return null;
+  }
+  const note = payload.note.trim();
+  return note || null;
+}
+
+const RETURN_STATUS_LABELS = {
+  received: "Recibida",
+  refunded: "Reembolsada",
+  rejected: "Rechazada",
+} as const;
 
 function VoucherCard({ url }: { url: string }) {
   return (
@@ -76,7 +100,11 @@ export default async function OrderDetailPage({
   const order = await fetchOrder(orderId);
   if (!order) notFound();
 
-  const returnLogs = await fetchRentalReturnLogs({ orderId });
+  const [returnLogs, activity, merchandiseReturns] = await Promise.all([
+    fetchRentalReturnLogs({ orderId }),
+    fetchOrderActivity(orderId),
+    fetchOrderReturns(orderId),
+  ]);
 
   const customerName =
     order.customer?.displayName ?? order.guestName ?? "Invitado";
@@ -107,6 +135,24 @@ export default async function OrderDetailPage({
         </div>
         <div className="flex items-center gap-3">
           <OrderStatusBadge status={order.status} />
+          {["pending", "payment_verification", "processing"].includes(
+            order.status,
+          ) && (
+            <Link
+              href={`/dashboard/store/orders/${order.id}/edit`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Modificar pedido
+            </Link>
+          )}
+          {["paid", "delivered"].includes(order.status) && (
+            <Link
+              href={`/dashboard/store/orders/${order.id}/return`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Registrar devolución
+            </Link>
+          )}
           {/* Desktop-only dropdown — actions button visible on all sizes as overflow menu */}
           <OrdersActionsCell order={order} />
         </div>
@@ -216,6 +262,7 @@ export default async function OrderDetailPage({
                     {item.transactionType === "rental" && (
                       <RentalReturnForm
                         orderItemId={item.id}
+                        expectedRevision={order.revision}
                         quantity={item.quantity}
                         rentalReturnedQuantity={item.rentalReturnedQuantity}
                       />
@@ -247,12 +294,121 @@ export default async function OrderDetailPage({
                   ))}
                 </div>
               )}
+              {merchandiseReturns.length > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <p className="text-sm font-medium">
+                    Devoluciones de productos
+                  </p>
+                  {merchandiseReturns.map((returnRecord) => (
+                    <div
+                      key={returnRecord.id}
+                      className="rounded-md border p-3 text-xs text-muted-foreground"
+                    >
+                      <p className="font-medium text-foreground">
+                        Devolución #{returnRecord.id} ·{" "}
+                        {formatCurrency(returnRecord.refundAmount)} ·{" "}
+                        {RETURN_STATUS_LABELS[returnRecord.status]}
+                      </p>
+                      <p>{returnRecord.reason}</p>
+                      <p>
+                        Recibida:{" "}
+                        {formatDate(returnRecord.receivedAt).toLocaleString(
+                          DateTime.DATETIME_MED,
+                        )}
+                      </p>
+                      {returnRecord.refundedAt && (
+                        <p>
+                          Reembolsada:{" "}
+                          {formatDate(returnRecord.refundedAt).toLocaleString(
+                            DateTime.DATETIME_MED,
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="border-t pt-3 flex justify-between text-sm font-semibold">
                 <span>Total</span>
                 <span>{formatCurrency(order.totalAmount)}</span>
               </div>
             </CardContent>
           </Card>
+
+          {activity.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Actividad</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {activity.map((event) => {
+                  const adjustment =
+                    event.type === "adjusted" ? event.adjustment : null;
+                  const noteAddedText =
+                    event.type === "note_added"
+                      ? getNoteAddedText(event.payload)
+                      : null;
+                  const title =
+                    event.type === "created"
+                      ? "Pedido creado"
+                      : event.type === "adjusted"
+                        ? "Ajuste aplicado"
+                        : event.type === "voucher_submitted"
+                          ? "Comprobante enviado"
+                          : event.type === "voucher_reviewed"
+                            ? "Comprobante revisado"
+                            : event.type === "note_added"
+                              ? "Nota agregada"
+                              : event.type === "rental_returned"
+                                ? "Devolución registrada"
+                                : event.type === "cancelled"
+                                  ? "Pedido cancelado"
+                                  : "Pedido actualizado";
+                  return (
+                    <div key={event.id} className="border-l pl-3 text-sm">
+                      <div className="flex flex-wrap justify-between gap-1">
+                        <p className="font-medium">{title}</p>
+                        <time className="text-xs text-muted-foreground">
+                          {formatDate(event.createdAt).toLocaleString(
+                            DateTime.DATETIME_MED,
+                          )}
+                        </time>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {event.actor?.displayName ?? "Sistema"}
+                      </p>
+                      {adjustment && (
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <p>{adjustment.reason}</p>
+                          {adjustment.customerNote && (
+                            <p>Nota al cliente: {adjustment.customerNote}</p>
+                          )}
+                          {adjustment.items.map((item) => (
+                            <p key={item.id}>
+                              {item.quantityDelta > 0 ? "+" : ""}
+                              {item.quantityDelta} × {item.productNameSnapshot}
+                              {item.variantLabelSnapshot
+                                ? ` (${item.variantLabelSnapshot})`
+                                : ""}
+                            </p>
+                          ))}
+                          <p>
+                            Bs {adjustment.previousTotal.toFixed(2)} → Bs{" "}
+                            {adjustment.newTotal.toFixed(2)}
+                          </p>
+                        </div>
+                      )}
+                      {event.type === "note_added" && noteAddedText && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {noteAddedText}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Voucher — mobile position (after items, before dates) */}
           {order.paymentVoucherUrl && (

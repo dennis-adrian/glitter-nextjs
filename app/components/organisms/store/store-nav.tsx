@@ -118,8 +118,8 @@ export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
           </Select>
         </div>
 
-        <nav className="hidden rounded-2xl border border-border/70 bg-muted/30 p-1 shadow-sm md:block">
-          <div className="flex flex-wrap gap-1">
+        <nav className="hidden overflow-x-auto rounded-2xl border border-border/70 bg-muted/30 p-1 shadow-sm md:block">
+          <div className="flex w-max min-w-full gap-1 pb-1">
             {sections.map(({ value, label, href, icon: Icon }) => {
               const isActive = active === value;
 

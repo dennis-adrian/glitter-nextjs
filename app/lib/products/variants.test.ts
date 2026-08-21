@@ -12,6 +12,7 @@ const baseTimestamp = new Date("2024-01-01T00:00:00.000Z");
 const baseVariantFields = {
   productId: 1,
   price: null,
+  unitCost: null,
   rentalStock: null,
   imageUrl: null,
   sortOrder: 0,

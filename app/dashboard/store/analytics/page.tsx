@@ -2,12 +2,19 @@ import LowStockAlert from "@/app/components/organisms/orders/low-stock-alert";
 import OrdersTotals from "@/app/components/organisms/orders/order_totals_card/totals";
 import OrdersSalesChart from "@/app/components/organisms/orders/sales-chart";
 import OrdersStatsCards from "@/app/components/organisms/orders/stats-cards";
+import ProfitabilityReport from "@/app/components/organisms/orders/profitability-report";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import {
   fetchOrders,
+  fetchHistoricalCostBackfillPreview,
   fetchOrdersStats,
   fetchOrdersTotalsByProduct,
+  fetchOrdersProfitability,
 } from "@/app/lib/orders/actions";
+import {
+  getProfitabilityDateRange,
+  parseProfitabilityQuery,
+} from "@/app/lib/orders/profitability-query-schema";
 import { fetchLowStockProducts } from "@/app/lib/products/actions";
 import { Suspense } from "react";
 
@@ -50,11 +57,18 @@ function OrdersTotalsSkeleton() {
   );
 }
 
-export default function StoreAnalyticsPage() {
+export default async function StoreAnalyticsPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const profitabilityQuery = parseProfitabilityQuery(await props.searchParams);
   const ordersPromise = fetchOrders();
   const ordersTotalsPromise = fetchOrdersTotalsByProduct();
   const statsPromise = fetchOrdersStats();
   const lowStockPromise = fetchLowStockProducts();
+  const profitabilityPromise = fetchOrdersProfitability(
+    getProfitabilityDateRange(profitabilityQuery),
+  );
+  const historicalCostPreviewPromise = fetchHistoricalCostBackfillPreview();
 
   return (
     <div className="space-y-6">
@@ -81,6 +95,14 @@ export default function StoreAnalyticsPage() {
 
       <Suspense fallback={<OrdersTotalsSkeleton />}>
         <OrdersTotals ordersTotalsPromise={ordersTotalsPromise} />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+        <ProfitabilityReport
+          reportPromise={profitabilityPromise}
+          historicalCostPreviewPromise={historicalCostPreviewPromise}
+          query={profitabilityQuery}
+        />
       </Suspense>
     </div>
   );

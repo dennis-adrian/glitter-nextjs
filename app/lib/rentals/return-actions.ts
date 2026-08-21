@@ -12,6 +12,9 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   orderItems,
+  orderAdjustmentItems,
+  orderAdjustments,
+  orderEvents,
   orders,
   productVariants,
   products,
@@ -124,6 +127,7 @@ async function restoreRentalStockInTx(
 
 export async function markRentalOrderItemReturned(
   orderItemId: number,
+  expectedRevision: number,
   payload: {
     quantityReturned: number;
     conditionStatus: RentalReturnCondition;
@@ -141,6 +145,9 @@ export async function markRentalOrderItemReturned(
   }
 
   if (
+    !Number.isInteger(orderItemId) ||
+    !Number.isInteger(expectedRevision) ||
+    expectedRevision < 1 ||
     !Number.isInteger(payload.quantityReturned) ||
     payload.quantityReturned <= 0
   ) {
@@ -177,6 +184,36 @@ export async function markRentalOrderItemReturned(
 
   try {
     const result = await db.transaction(async (tx) => {
+      const [itemReference] = await tx
+        .select({ orderId: orderItems.orderId })
+        .from(orderItems)
+        .where(eq(orderItems.id, orderItemId));
+      if (!itemReference) {
+        return {
+          success: false as const,
+          error: "not_found",
+          message: "Ítem de orden no encontrado.",
+        };
+      }
+      const [lockedOrder] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, itemReference.orderId))
+        .for("update");
+      if (!lockedOrder) {
+        return {
+          success: false as const,
+          error: "not_found",
+          message: "Pedido no encontrado.",
+        };
+      }
+      if (lockedOrder.revision !== expectedRevision) {
+        return {
+          success: false as const,
+          error: "conflict",
+          message: "El pedido cambió en otra sesión. Recargá la página.",
+        };
+      }
       const [item] = await tx
         .select()
         .from(orderItems)
@@ -199,8 +236,25 @@ export async function markRentalOrderItemReturned(
         };
       }
 
+      const [adjustedQuantity] = await tx
+        .select({
+          quantityDelta: sql<number>`cast(coalesce(sum(${orderAdjustmentItems.quantityDelta}), 0) as integer)`,
+        })
+        .from(orderAdjustmentItems)
+        .innerJoin(
+          orderAdjustments,
+          eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
+        )
+        .where(
+          and(
+            eq(orderAdjustments.orderId, item.orderId),
+            eq(orderAdjustmentItems.baseOrderItemId, item.id),
+          ),
+        );
+      const effectiveQuantity =
+        item.quantity + Number(adjustedQuantity?.quantityDelta ?? 0);
       const outstanding = getRentalOutstandingQuantity({
-        quantity: item.quantity,
+        quantity: effectiveQuantity,
         rentalReturnedQuantity: item.rentalReturnedQuantity,
       });
 
@@ -226,6 +280,18 @@ export async function markRentalOrderItemReturned(
         previousReturnedQuantity + payload.quantityReturned;
 
       if (stockRestored > 0) {
+        await tx
+          .select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, item.productId))
+          .for("update");
+        if (item.productVariantId != null) {
+          await tx
+            .select({ id: productVariants.id })
+            .from(productVariants)
+            .where(eq(productVariants.id, item.productVariantId))
+            .for("update");
+        }
         await restoreRentalStockInTx(tx, {
           productId: item.productId,
           productVariantId: item.productVariantId,
@@ -282,6 +348,25 @@ export async function markRentalOrderItemReturned(
         productNameSnapshot: product?.name ?? null,
         variantLabelSnapshot: item.productVariantLabel,
         customerNameSnapshot: customerName,
+      });
+      const revision = lockedOrder.revision + 1;
+      await tx
+        .update(orders)
+        .set({ revision, updatedAt: sql`now()` })
+        .where(eq(orders.id, item.orderId));
+      await tx.insert(orderEvents).values({
+        orderId: item.orderId,
+        type: "rental_returned",
+        revision,
+        actorId: admin.id,
+        payload: {
+          orderItemId: item.id,
+          quantityReturned: payload.quantityReturned,
+          conditionStatus: payload.conditionStatus,
+          stockRestored,
+          previousReturnedQuantity,
+          newReturnedQuantity,
+        },
       });
 
       return {

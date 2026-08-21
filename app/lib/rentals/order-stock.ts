@@ -114,8 +114,15 @@ export async function consumeLineStockInTx(
   variant: VariantRow | null,
   quantity: number,
   transactionType: ProductTransactionType,
+  rentalStockModeSnapshot?: "shared" | "separate" | null,
 ) {
-  const pool = getStockPoolForTransaction(product, transactionType);
+  // Match restoreLineStockInTx: null/undefined rental snapshot means shared pool.
+  const pool =
+    transactionType === "rental"
+      ? (rentalStockModeSnapshot ?? "shared") === "separate"
+        ? "rental"
+        : "sale"
+      : getStockPoolForTransaction(product, transactionType);
 
   if (pool === "rental") {
     if (variant) {

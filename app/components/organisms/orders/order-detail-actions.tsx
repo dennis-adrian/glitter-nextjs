@@ -3,6 +3,7 @@
 import UpdateOrderStatusModal from "@/app/components/organisms/orders/update-order-status-modal";
 import { Button } from "@/app/components/ui/button";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import { canCancelOrderStatus } from "@/app/lib/orders/status-transitions";
 import {
   BanIcon,
   CheckCheckIcon,
@@ -57,7 +58,7 @@ export default function OrderDetailActions({
   const [openModal, setOpenModal] = useState(false);
 
   const primary = getPrimaryAction(order.status);
-  const canCancel = !["cancelled", "delivered"].includes(order.status);
+  const canCancel = canCancelOrderStatus(order.status);
 
   if (!primary && !canCancel) return null;
 

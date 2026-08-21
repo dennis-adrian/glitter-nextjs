@@ -77,6 +77,7 @@ export type MarkRentalReturnResult =
       success: false;
       error:
         | "not_found"
+        | "conflict"
         | "forbidden"
         | "not_rental"
         | "invalid_quantity"

@@ -104,6 +104,7 @@ export default async function OrderPaymentPage(props: {
 
         <OrderPaymentSection
           orderId={order.id}
+          expectedRevision={order.revision}
           totalAmount={order.totalAmount}
           status={order.status}
           paymentVoucherUrl={order.paymentVoucherUrl ?? null}
@@ -161,6 +162,7 @@ export default async function OrderPaymentPage(props: {
       {order.status === "pending" && (
         <MobilePaymentBar
           orderId={order.id}
+          expectedRevision={order.revision}
           guestToken={isGuest ? resolvedToken : undefined}
           successRedirectUrl={successRedirectUrl}
         />
