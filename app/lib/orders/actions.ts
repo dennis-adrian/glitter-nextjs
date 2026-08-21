@@ -69,6 +69,7 @@ import {
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import {
   getOrderItemDisplayName,
+  getOrderStatusLabel,
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
 } from "@/app/lib/orders/utils";
@@ -81,7 +82,10 @@ import { DateTime } from "luxon";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { applyOrderAdjustment } from "@/app/lib/orders/adjustments";
 import { resolveUnitCost } from "@/app/lib/products/cost";
-import { canTransitionOrderStatus } from "@/app/lib/orders/status-transitions";
+import {
+  BULK_ORDER_STATUS_LIMIT,
+  canTransitionOrderStatus,
+} from "@/app/lib/orders/status-transitions";
 import { restoreEffectiveOrderStockInTx } from "@/app/lib/orders/cancellation";
 import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
 import {
@@ -1385,22 +1389,21 @@ export async function deleteOrder(_orderId: number) {
   };
 }
 
-export async function updateOrderStatus(
+/**
+ * Applies a single status transition inside its own transaction. Callers are
+ * responsible for authorization, emails and revalidation so that bulk updates
+ * can do that work once instead of per order.
+ */
+async function applyOrderStatusChange(
   orderId: number,
   status: OrderStatus,
   expectedRevision: number,
-) {
-  const currentUser = await getCurrentUserProfile();
-  if (!currentUser || currentUser.role !== "admin") {
-    return {
-      success: false,
-      message: "No tienes permisos para actualizar pedidos.",
-    };
-  }
-  if (!Number.isInteger(orderId) || !Number.isInteger(expectedRevision)) {
-    return { success: false, message: "Solicitud inválida." };
-  }
-
+  actorId: number,
+): Promise<{
+  success: boolean;
+  message: string;
+  previousStatus: OrderStatus | null;
+}> {
   let previousStatus: OrderStatus | null = null;
 
   try {
@@ -1442,7 +1445,7 @@ export async function updateOrderStatus(
               ? "voucher_reviewed"
               : "status_changed",
         revision,
-        actorId: currentUser.id,
+        actorId,
         payload: { previousStatus: order.status, status },
       });
     });
@@ -1456,33 +1459,74 @@ export async function updateOrderStatus(
     return {
       success: false,
       message: safeCause ? error.message : "No se pudo actualizar el pedido.",
+      previousStatus: null,
     };
   }
 
+  return {
+    success: true,
+    message: "Pedido actualizado correctamente.",
+    previousStatus,
+  };
+}
+
+async function sendOrderPaymentConfirmationEmail(orderId: number) {
   const orderAfter = await fetchOrder(orderId);
-  if (status === "paid" && previousStatus !== "paid" && orderAfter) {
-    const recipientEmail = orderAfter.customer?.email ?? orderAfter.guestEmail;
-    const recipientName =
-      orderAfter.customer?.displayName ??
-      orderAfter.customer?.firstName ??
-      orderAfter.guestName ??
-      "";
-    try {
-      if (recipientEmail) {
-        await sendEmail({
-          to: [recipientEmail],
-          from: "Glitter Store <reservas@productoraglitter.com>",
-          subject: `Tu pago de la orden #${orderId} fue confirmado`,
-          react: OrderPaymentConfirmationForUserEmailTemplate({
-            customerName: recipientName,
-            orderId: String(orderId),
-            total: orderAfter.totalAmount,
-          }) as React.ReactElement,
-        });
-      }
-    } catch (emailError) {
-      console.error("Failed to send payment confirmation email", emailError);
-    }
+  if (!orderAfter) return;
+
+  const recipientEmail = orderAfter.customer?.email ?? orderAfter.guestEmail;
+  if (!recipientEmail) return;
+
+  const recipientName =
+    orderAfter.customer?.displayName ??
+    orderAfter.customer?.firstName ??
+    orderAfter.guestName ??
+    "";
+
+  try {
+    await sendEmail({
+      to: [recipientEmail],
+      from: "Glitter Store <reservas@productoraglitter.com>",
+      subject: `Tu pago de la orden #${orderId} fue confirmado`,
+      react: OrderPaymentConfirmationForUserEmailTemplate({
+        customerName: recipientName,
+        orderId: String(orderId),
+        total: orderAfter.totalAmount,
+      }) as React.ReactElement,
+    });
+  } catch (emailError) {
+    console.error("Failed to send payment confirmation email", emailError);
+  }
+}
+
+export async function updateOrderStatus(
+  orderId: number,
+  status: OrderStatus,
+  expectedRevision: number,
+) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      success: false,
+      message: "No tienes permisos para actualizar pedidos.",
+    };
+  }
+  if (!Number.isInteger(orderId) || !Number.isInteger(expectedRevision)) {
+    return { success: false, message: "Solicitud inválida." };
+  }
+
+  const result = await applyOrderStatusChange(
+    orderId,
+    status,
+    expectedRevision,
+    currentUser.id,
+  );
+  if (!result.success) {
+    return { success: false, message: result.message };
+  }
+
+  if (status === "paid" && result.previousStatus !== "paid") {
+    await sendOrderPaymentConfirmationEmail(orderId);
   }
 
   revalidateStoreOrderViews();
@@ -1490,6 +1534,123 @@ export async function updateOrderStatus(
     success: true,
     message: "Pedido actualizado correctamente.",
   };
+}
+
+export type BulkOrderStatusTarget = {
+  id: number;
+  revision: number;
+};
+
+/**
+ * Applies the same status transition to several orders. Each order is updated
+ * independently: orders that moved on in another session, or that are no longer
+ * in a state that allows the transition, are reported back as failures instead
+ * of rolling back the ones that did succeed.
+ */
+export async function bulkUpdateOrderStatus(
+  targets: BulkOrderStatusTarget[],
+  status: OrderStatus,
+): Promise<{
+  success: boolean;
+  message: string;
+  updatedIds: number[];
+  failedIds: number[];
+}> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      success: false,
+      message: "No tienes permisos para actualizar pedidos.",
+      updatedIds: [],
+      failedIds: [],
+    };
+  }
+
+  const uniqueTargets = [
+    ...new Map(targets.map((target) => [target.id, target])).values(),
+  ];
+
+  if (uniqueTargets.length === 0) {
+    return {
+      success: false,
+      message: "No hay pedidos seleccionados.",
+      updatedIds: [],
+      failedIds: [],
+    };
+  }
+  if (uniqueTargets.length > BULK_ORDER_STATUS_LIMIT) {
+    return {
+      success: false,
+      message: `Solo puedes actualizar hasta ${BULK_ORDER_STATUS_LIMIT} pedidos a la vez.`,
+      updatedIds: [],
+      failedIds: [],
+    };
+  }
+  if (
+    uniqueTargets.some(
+      (target) =>
+        !Number.isInteger(target.id) || !Number.isInteger(target.revision),
+    )
+  ) {
+    return {
+      success: false,
+      message: "Solicitud inválida.",
+      updatedIds: [],
+      failedIds: [],
+    };
+  }
+
+  const updatedIds: number[] = [];
+  const failedIds: number[] = [];
+  const newlyPaidIds: number[] = [];
+
+  // Sequential on purpose: each transition takes a row lock and cancellations
+  // restore stock, so running them in parallel invites deadlocks on shared pools.
+  for (const target of uniqueTargets) {
+    const result = await applyOrderStatusChange(
+      target.id,
+      status,
+      target.revision,
+      currentUser.id,
+    );
+    if (result.success) {
+      updatedIds.push(target.id);
+      if (status === "paid" && result.previousStatus !== "paid") {
+        newlyPaidIds.push(target.id);
+      }
+    } else {
+      failedIds.push(target.id);
+    }
+  }
+
+  if (newlyPaidIds.length > 0) {
+    // Emails go out after the response so a slow provider doesn't stall the UI.
+    after(async () => {
+      for (const orderId of newlyPaidIds) {
+        await sendOrderPaymentConfirmationEmail(orderId);
+      }
+    });
+  }
+
+  if (updatedIds.length === 0) {
+    return {
+      success: false,
+      message: "No se pudo actualizar ningún pedido.",
+      updatedIds,
+      failedIds,
+    };
+  }
+
+  revalidateStoreOrderViews();
+
+  // Phrased so the status label never has to agree in number with the count.
+  const statusLabel = getOrderStatusLabel(status);
+  const message =
+    failedIds.length === 0
+      ? `Estado actualizado a "${statusLabel}" en ${updatedIds.length} ${updatedIds.length === 1 ? "pedido" : "pedidos"}.`
+      : `${updatedIds.length} de ${uniqueTargets.length} pedidos actualizados. ${failedIds.length} no se ${failedIds.length === 1 ? "pudo" : "pudieron"} actualizar.`;
+
+  return { success: true, message, updatedIds, failedIds };
 }
 
 function isAllowedVoucherUrl(urlString: string): boolean {
