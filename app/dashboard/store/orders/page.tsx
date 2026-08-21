@@ -14,13 +14,13 @@ export default async function StoreOrdersPage(props: {
 
   return (
     <div className="space-y-4">
-      <div className="block lg:hidden">
+      <div className="block lg:hidden" data-testid="orders-card-view">
         <Suspense fallback={<TableSkeleton />}>
           <OrdersCardList ordersPromise={ordersPromise} query={query} />
         </Suspense>
       </div>
 
-      <div className="hidden lg:block">
+      <div className="hidden lg:block" data-testid="orders-table-view">
         <Suspense fallback={<TableSkeleton />}>
           <OrdersTable ordersPromise={ordersPromise} query={query} />
         </Suspense>

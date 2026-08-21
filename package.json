@@ -18,6 +18,7 @@
     "vercel-build": "pnpm generate && pnpm migrate && next build",
     "email": "email dev --dir app/emails",
     "test": "vitest",
+    "test:e2e": "playwright test",
     "format:write": "prettier --write .",
     "format:check": "prettier --check ."
   },
