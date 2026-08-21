@@ -49,7 +49,7 @@ INSERT INTO "order_events" ("order_id", "type", "revision", "payload")
 SELECT
   "orders"."id",
   'created',
-  "orders"."revision",
+  1,
   jsonb_build_object('legacy', true)
 FROM "orders"
 WHERE NOT EXISTS (

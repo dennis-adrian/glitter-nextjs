@@ -114,8 +114,14 @@ export async function consumeLineStockInTx(
   variant: VariantRow | null,
   quantity: number,
   transactionType: ProductTransactionType,
+  rentalStockModeSnapshot?: "shared" | "separate" | null,
 ) {
-  const pool = getStockPoolForTransaction(product, transactionType);
+  const pool =
+    transactionType === "rental" && rentalStockModeSnapshot != null
+      ? rentalStockModeSnapshot === "separate"
+        ? "rental"
+        : "sale"
+      : getStockPoolForTransaction(product, transactionType);
 
   if (pool === "rental") {
     if (variant) {

@@ -148,6 +148,38 @@ export async function applyOrderAdjustment(
       }
     }
 
+    const productIds = [
+      ...new Set(baseLines.map((line) => line.productId)),
+    ].sort((a, b) => a - b);
+    const variantIds = [
+      ...new Set(
+        baseLines
+          .map((line) => line.productVariantId)
+          .filter((id): id is number => id != null),
+      ),
+    ].sort((a, b) => a - b);
+    const lockedProducts = await tx
+      .select()
+      .from(products)
+      .where(inArray(products.id, productIds))
+      .orderBy(products.id)
+      .for("update");
+    const lockedVariants =
+      variantIds.length === 0
+        ? []
+        : await tx
+            .select()
+            .from(productVariants)
+            .where(inArray(productVariants.id, variantIds))
+            .orderBy(productVariants.id)
+            .for("update");
+    const productsById = new Map(
+      lockedProducts.map((product) => [product.id, product]),
+    );
+    const variantsById = new Map(
+      lockedVariants.map((variant) => [variant.id, variant]),
+    );
+
     const totalDelta = changedItems.reduce(
       (total, [baseOrderItemId, quantityDelta]) => {
         return (
@@ -192,25 +224,16 @@ export async function applyOrderAdjustment(
         await restoreLineStockInTx(tx, { ...line, quantity: -quantityDelta });
         continue;
       }
-      const [product] = await tx
-        .select()
-        .from(products)
-        .where(eq(products.id, line.productId))
-        .for("update");
-      const [variant] =
+      const product = productsById.get(line.productId);
+      const variant =
         line.productVariantId == null
-          ? [undefined]
-          : await tx
-              .select()
-              .from(productVariants)
-              .where(
-                and(
-                  eq(productVariants.id, line.productVariantId),
-                  eq(productVariants.productId, line.productId),
-                ),
-              )
-              .for("update");
-      if (!product || (line.productVariantId != null && !variant)) {
+          ? null
+          : (variantsById.get(line.productVariantId) ?? null);
+      if (
+        !product ||
+        (line.productVariantId != null &&
+          (!variant || variant.productId !== line.productId))
+      ) {
         fail("El producto del pedido ya no está disponible.", "not_found");
       }
       await consumeLineStockInTx(
@@ -219,6 +242,7 @@ export async function applyOrderAdjustment(
         variant ?? null,
         quantityDelta,
         line.transactionType,
+        line.rentalStockModeSnapshot,
       );
     }
 

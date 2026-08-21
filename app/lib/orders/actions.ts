@@ -3,6 +3,8 @@
 import { cookies } from "next/headers";
 import {
   orderEvents,
+  orderAdjustmentItems,
+  orderAdjustments,
   orderItems,
   orders,
   productContentSections,
@@ -69,6 +71,7 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import type { StoreOrdersQuery } from "@/app/lib/orders/query-schema";
 import { DateTime } from "luxon";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
+import { applyOrderAdjustment } from "@/app/lib/orders/adjustments";
 
 function revalidateStoreOrderViews() {
   revalidatePath("/dashboard/store");
@@ -841,7 +844,7 @@ export async function fetchOrder(
       return null;
     }
 
-    return order;
+    return withEffectiveOrderItems(order);
   } catch (error) {
     console.error(error);
     return null;
@@ -859,11 +862,43 @@ export async function fetchGuestOrder(
       where: and(eq(orders.id, orderId), eq(orders.guestOrderToken, token)),
     });
 
-    return order ?? null;
+    return order ? withEffectiveOrderItems(order) : null;
   } catch (error) {
     console.error(error);
     return null;
   }
+}
+
+async function withEffectiveOrderItems(order: OrderWithRelations) {
+  const rows = await db
+    .select({
+      baseOrderItemId: orderAdjustmentItems.baseOrderItemId,
+      quantityDelta: sql<number>`cast(coalesce(sum(${orderAdjustmentItems.quantityDelta}), 0) as integer)`,
+    })
+    .from(orderAdjustmentItems)
+    .innerJoin(
+      orderAdjustments,
+      eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
+    )
+    .where(eq(orderAdjustments.orderId, order.id))
+    .groupBy(orderAdjustmentItems.baseOrderItemId);
+  const deltas = new Map(
+    rows
+      .filter(
+        (row): row is { baseOrderItemId: number; quantityDelta: number } =>
+          row.baseOrderItemId != null,
+      )
+      .map((row) => [row.baseOrderItemId, Number(row.quantityDelta)]),
+  );
+  return {
+    ...order,
+    orderItems: order.orderItems
+      .map((item) => ({
+        ...item,
+        quantity: item.quantity + (deltas.get(item.id) ?? 0),
+      }))
+      .filter((item) => item.quantity > 0),
+  };
 }
 
 export async function fetchOrdersByUserId(userId: number) {
@@ -1783,6 +1818,160 @@ async function sendOrderUpdatedEmails(data: {
 }
 
 export async function updateOrder(
+  orderId: number,
+  profileId: number,
+  items: UpdateOrderItemInput[],
+  clientUpdatedAt: string,
+): Promise<UpdateOrderResult> {
+  const currentUser = await getCurrentUserProfile();
+  const order = await fetchOrder(orderId);
+  if (!currentUser || !order || order.userId !== currentUser.id) {
+    return {
+      success: false,
+      cause: "forbidden",
+      message: "No tienes permiso para editar este pedido.",
+    };
+  }
+  if (order.status !== "pending") {
+    return {
+      success: false,
+      message: "Solo puedes editar pedidos pendientes.",
+    };
+  }
+  if (order.updatedAt.toISOString() !== clientUpdatedAt) {
+    return {
+      success: false,
+      cause: "conflict",
+      message:
+        "El pedido fue modificado en otra sesión. Por favor recargá la página.",
+    };
+  }
+
+  const requested = new Map(
+    items.map((item) => [item.orderItemId, item.quantity]),
+  );
+  if (
+    items.some(
+      (item) => !Number.isInteger(item.quantity) || item.quantity < 0,
+    ) ||
+    [...requested].some(
+      ([id]) => !order.orderItems.some((item) => item.id === id),
+    )
+  ) {
+    return {
+      success: false,
+      cause: "forbidden",
+      message: "El ajuste contiene artículos inválidos.",
+    };
+  }
+  const deltas = order.orderItems
+    .map((item) => ({
+      baseOrderItemId: item.id,
+      quantityDelta: (requested.get(item.id) ?? item.quantity) - item.quantity,
+    }))
+    .filter((item) => item.quantityDelta !== 0);
+  try {
+    await applyOrderAdjustment({
+      orderId,
+      actorUserId: currentUser.id,
+      actorRole: "customer",
+      expectedRevision: order.revision,
+      reason: "Ajuste solicitado por cliente",
+      allowedStatuses: ["pending"],
+      items: deltas,
+    });
+  } catch (error) {
+    const cause = error instanceof Error ? error.cause : undefined;
+    return {
+      success: false,
+      cause:
+        cause === "conflict" ||
+        cause === "stock_insufficient" ||
+        cause === "not_found" ||
+        cause === "forbidden"
+          ? cause
+          : undefined,
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el pedido.",
+    };
+  }
+  revalidatePath(`/profiles/${profileId}/orders/${orderId}`);
+  revalidatePath(`/profiles/${profileId}/orders/${orderId}/edit`);
+  revalidatePath("/my_orders");
+  revalidateStoreOrderViews();
+  return { success: true, message: "Tu pedido fue actualizado correctamente." };
+}
+
+export async function adminAdjustOrder(
+  orderId: number,
+  items: UpdateOrderItemInput[],
+  expectedRevision: number,
+  reason: string,
+  customerNote?: string,
+) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      success: false,
+      message: "No tienes permisos para ajustar este pedido.",
+    };
+  }
+  const order = await fetchOrder(orderId);
+  if (!order) return { success: false, message: "Pedido no encontrado." };
+  if (!reason.trim())
+    return { success: false, message: "Debes indicar el motivo del ajuste." };
+
+  const requested = new Map(
+    items.map((item) => [item.orderItemId, item.quantity]),
+  );
+  if (
+    items.some(
+      (item) => !Number.isInteger(item.quantity) || item.quantity < 0,
+    ) ||
+    [...requested].some(
+      ([id]) => !order.orderItems.some((item) => item.id === id),
+    )
+  ) {
+    return {
+      success: false,
+      message: "El ajuste contiene artículos inválidos.",
+    };
+  }
+  try {
+    await applyOrderAdjustment({
+      orderId,
+      actorUserId: currentUser.id,
+      actorRole: "admin",
+      expectedRevision,
+      reason,
+      customerNote,
+      allowedStatuses: ["pending", "payment_verification", "processing"],
+      items: order.orderItems
+        .map((item) => ({
+          baseOrderItemId: item.id,
+          quantityDelta:
+            (requested.get(item.id) ?? item.quantity) - item.quantity,
+        }))
+        .filter((item) => item.quantityDelta !== 0),
+    });
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo aplicar el ajuste.",
+    };
+  }
+  revalidatePath(`/dashboard/store/orders/${orderId}`);
+  revalidatePath(`/dashboard/store/orders/${orderId}/edit`);
+  revalidateStoreOrderViews();
+  return { success: true, message: "Ajuste aplicado correctamente." };
+}
+
+async function updateOrderLegacy(
   orderId: number,
   profileId: number,
   items: UpdateOrderItemInput[],

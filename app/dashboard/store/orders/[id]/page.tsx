@@ -107,6 +107,16 @@ export default async function OrderDetailPage({
         </div>
         <div className="flex items-center gap-3">
           <OrderStatusBadge status={order.status} />
+          {["pending", "payment_verification", "processing"].includes(
+            order.status,
+          ) && (
+            <Link
+              href={`/dashboard/store/orders/${order.id}/edit`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Modificar pedido
+            </Link>
+          )}
           {/* Desktop-only dropdown — actions button visible on all sizes as overflow menu */}
           <OrdersActionsCell order={order} />
         </div>
