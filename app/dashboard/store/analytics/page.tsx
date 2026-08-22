@@ -7,7 +7,7 @@ import { Skeleton } from "@/app/components/ui/skeleton";
 import {
   fetchOrders,
   fetchHistoricalCostBackfillPreview,
-  fetchOrdersStats,
+  fetchOrdersStatsComparison,
   fetchOrdersTotalsByProduct,
   fetchOrdersProfitability,
 } from "@/app/lib/orders/actions";
@@ -65,12 +65,15 @@ export default async function StoreAnalyticsPage(props: {
   const scope = profitabilityQuery.category;
   const ordersPromise = fetchOrders(scope);
   const ordersTotalsPromise = fetchOrdersTotalsByProduct(scope);
-  const statsPromise = fetchOrdersStats(scope);
+  // KPIs share the profitability report's window so the page reads on one
+  // clock, and so each figure has a previous period to compare against.
+  const statsRange = getProfitabilityDateRange(profitabilityQuery);
+  const statsPromise = fetchOrdersStatsComparison(scope, statsRange);
   const lowStockPromise = fetchLowStockProducts({
     storeCategory: toConcreteStoreCategory(scope) ?? undefined,
   });
   const profitabilityPromise = fetchOrdersProfitability({
-    ...getProfitabilityDateRange(profitabilityQuery),
+    ...statsRange,
     category: scope,
   });
   // Historical cost completion stays global, so its preview query only runs

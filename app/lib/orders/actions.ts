@@ -33,8 +33,10 @@ import {
   desc,
   eq,
   exists,
+  gte,
   inArray,
   isNull,
+  lte,
   notExists,
   or,
   sql,
@@ -112,6 +114,7 @@ import {
   type ProfitabilityFilters,
   type ProfitabilityQueryRow,
 } from "@/app/lib/orders/profitability";
+import { getPreviousDateRange } from "@/app/lib/orders/profitability-query-schema";
 
 const ORDER_ADJUSTMENT_FAILURE_CATEGORIES = new Set([
   "conflict",
@@ -724,9 +727,7 @@ export async function createGuestOrderInTx(
   const resolvedLines = await resolveOrderLines(tx, lines);
   // Authoritative supplies gate: guests are never verified accounts. The
   // storefront check is only early feedback; direct callers land here.
-  if (
-    resolvedLines.some((line) => line.product.storeCategory === "supplies")
-  ) {
+  if (resolvedLines.some((line) => line.product.storeCategory === "supplies")) {
     throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
       cause: SUPPLIES_UNVERIFIED_CAUSE,
     });
@@ -1172,10 +1173,7 @@ export async function fetchOrders(scope: StoreCategoryScope = "all") {
 export async function fetchOrdersByStatus(
   status?: OrderStatus | readonly OrderStatus[],
   rentalFilter: RentalOrderFilter = "all",
-  filters?: Pick<
-    StoreOrdersQuery,
-    "period" | "from" | "to" | "q" | "category"
-  >,
+  filters?: Pick<StoreOrdersQuery, "period" | "from" | "to" | "q" | "category">,
 ) {
   try {
     const statusWhere =
@@ -2172,6 +2170,14 @@ export type OrdersStats = {
   cancelled: number;
 };
 
+export type OrdersStatsComparison = {
+  current: OrdersStats;
+  /** Equal-length window before the current one; null when unbounded. */
+  previous: OrdersStats | null;
+  /** The compared window, so cards can name the baseline they are using. */
+  baseline: { from: Date; to: Date } | null;
+};
+
 export type { OrdersProfitability } from "@/app/lib/orders/profitability";
 
 export type HistoricalCostBackfillPreview = {
@@ -2406,6 +2412,7 @@ export async function fetchOrdersProfitability(
 
 export async function fetchOrdersStats(
   scope: StoreCategoryScope = "all",
+  range: { from?: Date; to?: Date } = {},
 ): Promise<OrdersStats> {
   try {
     const category = toConcreteStoreCategory(scope);
@@ -2425,7 +2432,13 @@ export async function fetchOrdersStats(
         cancelled: sql<number>`cast(count(*) filter (where ${orders.status} = 'cancelled') as integer)`,
       })
       .from(orders)
-      .where(buildOrderCategoryFilterSql(scope));
+      .where(
+        and(
+          buildOrderCategoryFilterSql(scope),
+          range.from ? gte(orders.createdAt, range.from) : undefined,
+          range.to ? lte(orders.createdAt, range.to) : undefined,
+        ),
+      );
 
     return {
       totalOrders: result.totalOrders ?? 0,
@@ -2446,6 +2459,22 @@ export async function fetchOrdersStats(
       cancelled: 0,
     };
   }
+}
+
+/**
+ * Store KPIs alongside the preceding equal-length window, so each figure can
+ * be read as a movement rather than a bare number.
+ */
+export async function fetchOrdersStatsComparison(
+  scope: StoreCategoryScope = "all",
+  range: { from?: Date; to?: Date } = {},
+): Promise<OrdersStatsComparison> {
+  const baseline = getPreviousDateRange(range);
+  const [current, previous] = await Promise.all([
+    fetchOrdersStats(scope, range),
+    baseline ? fetchOrdersStats(scope, baseline) : Promise.resolve(null),
+  ]);
+  return { current, previous, baseline };
 }
 
 export type UpdateOrderItemInput = {
@@ -2928,8 +2957,16 @@ export async function storeGuestOrderToken(
 // Remove with the maintenance route once legacy supply lines are reconciled.
 
 const historicalCategoryFiltersSchema = z.object({
-  from: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   orderId: z.coerce.number().int().positive().optional(),
   q: z.string().trim().max(120).optional(),
   snapshotCategory: storeCategorySchema.optional(),
@@ -2955,8 +2992,9 @@ export async function fetchHistoricalLineCategorySourcesForAdmin(
     if (!value) return undefined;
     const parsedDate = DateTime.fromISO(value, { zone: STORE_TIMEZONE });
     if (!parsedDate.isValid) return undefined;
-    return (endOfDay ? parsedDate.endOf("day") : parsedDate.startOf("day"))
-      .toJSDate();
+    return (
+      endOfDay ? parsedDate.endOf("day") : parsedDate.startOf("day")
+    ).toJSDate();
   };
 
   try {
@@ -3013,7 +3051,10 @@ export async function correctHistoricalLineCategoriesAction(
   }
   const parsed = correctHistoricalLineCategoriesSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { success: false, message: "La selección contiene datos inválidos." };
+    return {
+      success: false,
+      message: "La selección contiene datos inválidos.",
+    };
   }
 
   try {

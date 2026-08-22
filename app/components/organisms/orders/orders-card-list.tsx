@@ -215,7 +215,11 @@ function OrderCard({
                 )}
               </div>
               {!selectionMode && (
-                <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                <span
+                  className="shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
                   <OrdersActionsCell order={order} />
                 </span>
               )}
