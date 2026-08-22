@@ -1,9 +1,6 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- needs sync load before exports execute
-const { pool } = require("@/db");
+import { loadEnvConfig } from "@next/env";
 
-async function seedFestivals() {
-  console.info("Empty seeds");
-}
+loadEnvConfig(process.cwd());
 
 async function main() {
   if (!process.env.POSTGRES_URL) {
@@ -11,13 +8,27 @@ async function main() {
     return;
   }
 
+  // Import after env load so @/db and Zod env validation see .env.local.
+  const { pool } = await import("@/db");
+  const { getDevSeedGate, seedDemoUsers } = await import(
+    "@/scripts/seed/demo-users"
+  );
+
+  const gate = getDevSeedGate();
+  if (!gate.allowed) {
+    console.info(`Skipping demo-user seed: ${gate.reason}`);
+    await pool.end();
+    return;
+  }
+
   try {
-    const client = await pool.connect();
-    try {
-      await seedFestivals();
-    } finally {
-      client.release();
-    }
+    const result = await seedDemoUsers();
+    console.info(
+      `Demo user seed completed (${result.users.length} users; password from ${result.passwordSource}).`,
+    );
+    console.info(
+      "Sign in with any seeded +clerk_test email and SEED_DEMO_PASSWORD (or the documented default).",
+    );
   } catch (err: unknown) {
     const pgError = err as { code?: string };
     if (pgError.code === "ECONNREFUSED") {
@@ -35,4 +46,5 @@ async function main() {
 
 main().catch((err) => {
   console.error("An error occurred while attempting to seed the database", err);
+  process.exitCode = 1;
 });

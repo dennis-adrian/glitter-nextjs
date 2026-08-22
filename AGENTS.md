@@ -29,6 +29,15 @@ Environment notes for this VM (the startup update script already runs `pnpm inst
     && POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate )
 ```
 
-- `pnpm seed` is an intentional no-op, so seed storefront/admin data manually (e.g. insert rows into `products`).
+- After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Storefront products and other domain fixtures are not seeded yet.
 - Commands: dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (loads `.env.local`, needs a migrated `TEST_DATABASE_URL`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
 - `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file and `CLAUDE.md`; commit that change rather than fighting it.
+
+## Development seed (demo users)
+
+`pnpm seed` is **dev-only** and idempotent. It upserts Clerk development users (`+clerk_test` emails) plus matching rows in local Postgres.
+
+- Gate: requires `CLERK_SECRET_KEY` starting with `sk_test_`, and refuses `VERCEL_ENV`/`NODE_ENV=production` (or `ALLOW_DEV_SEED=false`).
+- Password: `SEED_DEMO_PASSWORD`, or default `Glitter-Dev-Seed-1!` when unset.
+- Accounts: `admin+clerk_test@example.com` (admin), `festival-admin+clerk_test@example.com`, verified participants (role `user`) `illustration+clerk_test@example.com` / `gastronomy+clerk_test@example.com` / `entrepreneurship+clerk_test@example.com`, and `pending+clerk_test@example.com`. The unused `artist` role and deprecated `new_artist` category are not seeded.
+- OTP for `+clerk_test` addresses on Clerk development instances is `424242`.
