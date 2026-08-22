@@ -1,7 +1,7 @@
 "use client";
 "use no memo";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { SearchIcon } from "lucide-react";
 
@@ -168,6 +168,16 @@ export function DataTable<TData, TValue>({
     initialState?.columnFilters || [],
   );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  // TanStack builds its row models during render and, from inside that memo,
+  // queues `resetPageIndex()` on a microtask. When the table mounts inside a
+  // Suspense boundary that streams in, React can flush that microtask between
+  // the render and the commit, so the update lands on a fiber that has not
+  // mounted yet and React logs a warning. There is no page to reset before the
+  // table is on screen, so only arm the auto-reset once it is.
+  const hasMounted = useRef(false);
+  useEffect(() => {
+    hasMounted.current = true;
+  }, []);
 
   const allColumns = selectable
     ? [
@@ -180,6 +190,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns: allColumns,
+    autoResetPageIndex: hasMounted.current,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
