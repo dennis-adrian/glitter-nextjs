@@ -53,7 +53,7 @@ export default function OrdersSalesChart({
   const fromTime = range.from?.getTime() ?? null;
   const toTime = range.to?.getTime() ?? null;
 
-  const { buckets, keyFormat } = useMemo(() => {
+  const { buckets, keyFormat, start, end } = useMemo(() => {
     const now = DateTime.now().setZone(STORE_ZONE);
     const end =
       toTime == null ? now : DateTime.fromMillis(toTime).setZone(STORE_ZONE);
@@ -78,7 +78,7 @@ export default function OrdersSalesChart({
         });
         cursor = cursor.plus({ months: 1 });
       }
-      return { buckets: months, keyFormat: "yyyy-MM" };
+      return { buckets: months, keyFormat: "yyyy-MM", start, end };
     }
 
     const days: { key: string; label: string }[] = [];
@@ -89,7 +89,7 @@ export default function OrdersSalesChart({
         label: day.toFormat("d MMM", { locale: "es" }),
       });
     }
-    return { buckets: days, keyFormat: "yyyy-MM-dd" };
+    return { buckets: days, keyFormat: "yyyy-MM-dd", start, end };
   }, [fromTime, toTime]);
 
   const chartData = useMemo(() => {
@@ -139,16 +139,16 @@ export default function OrdersSalesChart({
   }, [orders, mode, concreteCategory, buckets, keyFormat]);
 
   const title = useMemo(() => {
-    if (fromTime == null || toTime == null) return "Últimos 30 días";
-    const start = DateTime.fromMillis(fromTime).setZone(STORE_ZONE);
-    const end = DateTime.fromMillis(toTime).setZone(STORE_ZONE);
+    // Both bounds missing is period === "all"; a one-sided custom window
+    // still has a resolved start/end from the bucket memo.
+    if (fromTime == null && toTime == null) return "Últimos 30 días";
     // Show the start's year too when the window crosses one.
     const startFormat = start.hasSame(end, "year") ? "d MMM" : "d MMM yyyy";
     return `${start.toFormat(startFormat, { locale: "es" })} – ${end.toFormat(
       "d MMM yyyy",
       { locale: "es" },
     )}`;
-  }, [fromTime, toTime]);
+  }, [fromTime, toTime, start, end]);
 
   return (
     <Card>
