@@ -69,4 +69,18 @@ describe("DEMO_USERS", () => {
   it("includes an admin account", () => {
     expect(DEMO_USERS.some((user) => user.role === "admin")).toBe(true);
   });
+
+  it("covers active participant categories and omits deprecated new_artist", () => {
+    const categories = new Set(
+      DEMO_USERS.filter((user) => user.role === "artist").map(
+        (user) => user.category,
+      ),
+    );
+    expect(categories).toEqual(
+      new Set(["illustration", "gastronomy", "entrepreneurship"]),
+    );
+    expect(DEMO_USERS.some((user) => user.category === "new_artist")).toBe(
+      false,
+    );
+  });
 });

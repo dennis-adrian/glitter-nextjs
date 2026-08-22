@@ -51,14 +51,34 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
     category: "none",
   },
   {
-    key: "artist",
-    email: "artist+clerk_test@example.com",
-    firstName: "Artist",
+    key: "illustration_artist",
+    email: "illustration+clerk_test@example.com",
+    firstName: "Ilustracion",
     lastName: "Demo",
-    displayName: "Artist Demo",
+    displayName: "Ilustración Demo",
     role: "artist",
     status: "verified",
     category: "illustration",
+  },
+  {
+    key: "gastronomy_artist",
+    email: "gastronomy+clerk_test@example.com",
+    firstName: "Gastronomia",
+    lastName: "Demo",
+    displayName: "Gastronomía Demo",
+    role: "artist",
+    status: "verified",
+    category: "gastronomy",
+  },
+  {
+    key: "entrepreneurship_artist",
+    email: "entrepreneurship+clerk_test@example.com",
+    firstName: "Emprendimiento",
+    lastName: "Demo",
+    displayName: "Emprendimiento Demo",
+    role: "artist",
+    status: "verified",
+    category: "entrepreneurship",
   },
   {
     key: "pending_user",
@@ -70,6 +90,15 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
     status: "pending",
     category: "none",
   },
+  // `new_artist` is deprecated and intentionally omitted from the seed.
+] as const;
+
+/**
+ * Former demo emails removed from DEMO_USERS. Deleted on each seed run so local
+ * DBs and the shared Clerk development instance stay aligned with the current list.
+ */
+export const RETIRED_DEMO_EMAILS = [
+  "artist+clerk_test@example.com",
 ] as const;
 
 /** Default password for local/cloud-agent login when SEED_DEMO_PASSWORD is unset. */
@@ -217,6 +246,29 @@ async function upsertLocalProfile(
   return row;
 }
 
+async function retireFormerDemoUsers(
+  client: ReturnType<typeof createClerkClient>,
+  database: typeof DbType,
+) {
+  for (const email of RETIRED_DEMO_EMAILS) {
+    const clerkUser = await findClerkUserByEmail(client, email);
+    if (clerkUser) {
+      await client.users.deleteUser(clerkUser.id);
+      console.info(`[seed] retired clerk user ${email} (${clerkUser.id})`);
+    }
+
+    const deleted = await database
+      .delete(users)
+      .where(eq(users.email, email))
+      .returning({ id: users.id });
+    if (deleted.length > 0) {
+      console.info(
+        `[seed] retired local profile ${email} (id=${deleted[0].id})`,
+      );
+    }
+  }
+}
+
 export type SeedDemoUsersResult = {
   passwordSource: "env" | "default";
   users: {
@@ -243,6 +295,8 @@ export async function seedDemoUsers(
   const client = createClerkClient({ secretKey: env.CLERK_SECRET_KEY! });
 
   const results: SeedDemoUsersResult["users"] = [];
+
+  await retireFormerDemoUsers(client, db);
 
   for (const demo of DEMO_USERS) {
     const { user, created } = await ensureClerkUser(client, demo, password);
