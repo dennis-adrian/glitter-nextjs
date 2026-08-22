@@ -3,6 +3,7 @@ import OrdersTotals from "@/app/components/organisms/orders/order_totals_card/to
 import OrdersSalesChart from "@/app/components/organisms/orders/sales-chart";
 import OrdersStatsCards from "@/app/components/organisms/orders/stats-cards";
 import ProfitabilityReport from "@/app/components/organisms/orders/profitability-report";
+import StorePeriodFilter from "@/app/components/organisms/store/store-period-filter";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import {
   fetchOrders,
@@ -90,13 +91,19 @@ export default async function StoreAnalyticsPage(props: {
         </p>
       </div>
 
+      <StorePeriodFilter query={profitabilityQuery} />
+
       <Suspense fallback={<StatsCardsSkeleton />}>
         <OrdersStatsCards statsPromise={statsPromise} category={scope} />
       </Suspense>
 
       <div className="hidden md:block">
         <Suspense fallback={<Skeleton className="h-72 w-full" />}>
-          <OrdersSalesChart ordersPromise={ordersPromise} category={scope} />
+          <OrdersSalesChart
+            ordersPromise={ordersPromise}
+            category={scope}
+            range={statsRange}
+          />
         </Suspense>
       </div>
 

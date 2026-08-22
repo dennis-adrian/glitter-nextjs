@@ -25,6 +25,8 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 type SalesChartProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
   category: StoreCategoryScope;
+  /** The page-level window. Unbounded falls back to the last 30 days. */
+  range: { from?: Date; to?: Date };
 };
 
 type ChartMode = "revenue" | "orders";
@@ -41,25 +43,62 @@ const chartConfig = {
 export default function OrdersSalesChart({
   ordersPromise,
   category,
+  range,
 }: SalesChartProps) {
   const orders = use(ordersPromise);
   const [mode, setMode] = useState<ChartMode>("revenue");
   const concreteCategory = toConcreteStoreCategory(category);
+  // Dates cross the server boundary as fresh objects each render, so the
+  // memos key off their timestamps instead of identity.
+  const fromTime = range.from?.getTime() ?? null;
+  const toTime = range.to?.getTime() ?? null;
+
+  const { buckets, keyFormat } = useMemo(() => {
+    const now = DateTime.now().setZone(STORE_ZONE);
+    const end =
+      toTime == null ? now : DateTime.fromMillis(toTime).setZone(STORE_ZONE);
+    const start =
+      fromTime == null
+        ? end.minus({ days: 29 })
+        : DateTime.fromMillis(fromTime).setZone(STORE_ZONE);
+    const spanDays = Math.max(
+      0,
+      Math.floor(end.startOf("day").diff(start.startOf("day"), "days").days),
+    );
+
+    // A year of daily points is unreadable, so long windows roll up by month.
+    if (spanDays > 92) {
+      const months: { key: string; label: string }[] = [];
+      let cursor = start.startOf("month");
+      const lastMonth = end.startOf("month");
+      while (cursor <= lastMonth) {
+        months.push({
+          key: cursor.toFormat("yyyy-MM"),
+          label: cursor.toFormat("MMM yy", { locale: "es" }),
+        });
+        cursor = cursor.plus({ months: 1 });
+      }
+      return { buckets: months, keyFormat: "yyyy-MM" };
+    }
+
+    const days: { key: string; label: string }[] = [];
+    for (let i = 0; i <= spanDays; i++) {
+      const day = start.plus({ days: i });
+      days.push({
+        key: day.toFormat("yyyy-MM-dd"),
+        label: day.toFormat("d MMM", { locale: "es" }),
+      });
+    }
+    return { buckets: days, keyFormat: "yyyy-MM-dd" };
+  }, [fromTime, toTime]);
 
   const chartData = useMemo(() => {
-    const now = DateTime.now().setZone(STORE_ZONE);
-    const days: { date: string; value: number }[] = [];
-
-    for (let i = 29; i >= 0; i--) {
-      const day = now.minus({ days: i });
-      const dateKey = day.toFormat("yyyy-MM-dd");
-      const label = day.toFormat("d MMM", { locale: "es" });
-
+    return buckets.map(({ key, label }) => {
       const dayOrders = orders.filter((o) => {
         const orderDate = DateTime.fromJSDate(new Date(o.createdAt)).setZone(
           STORE_ZONE,
         );
-        return orderDate.toFormat("yyyy-MM-dd") === dateKey;
+        return orderDate.toFormat(keyFormat) === key;
       });
 
       // A mixed order's whole total belongs to no single category, so a
@@ -95,17 +134,27 @@ export default function OrdersSalesChart({
                 ),
               ).length;
 
-      days.push({ date: label, value });
-    }
+      return { date: label, value };
+    });
+  }, [orders, mode, concreteCategory, buckets, keyFormat]);
 
-    return days;
-  }, [orders, mode, concreteCategory]);
+  const title = useMemo(() => {
+    if (fromTime == null || toTime == null) return "Últimos 30 días";
+    const start = DateTime.fromMillis(fromTime).setZone(STORE_ZONE);
+    const end = DateTime.fromMillis(toTime).setZone(STORE_ZONE);
+    // Show the start's year too when the window crosses one.
+    const startFormat = start.hasSame(end, "year") ? "d MMM" : "d MMM yyyy";
+    return `${start.toFormat(startFormat, { locale: "es" })} – ${end.toFormat(
+      "d MMM yyyy",
+      { locale: "es" },
+    )}`;
+  }, [fromTime, toTime]);
 
   return (
     <Card>
       <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Últimos 30 días</CardTitle>
+          <CardTitle className="text-base">{title}</CardTitle>
           <div className="flex gap-1">
             <Button
               size="sm"

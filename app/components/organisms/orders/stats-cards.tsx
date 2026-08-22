@@ -49,12 +49,17 @@ function formatValue(value: number, money?: boolean) {
 function formatBaseline(baseline: { from: Date; to: Date }) {
   const from = formatDate(baseline.from);
   const to = formatDate(baseline.to);
-  const sameMonth = from.hasSame(to, "month");
-  return sameMonth
-    ? `vs ${from.day}–${to.toLocaleString({ day: "numeric", month: "short" })}`
-    : `vs ${from.toLocaleString({ day: "numeric", month: "short" })} – ${to.toLocaleString(
-        { day: "numeric", month: "short" },
-      )}`;
+  if (from.hasSame(to, "month")) {
+    return `vs ${from.day}–${to.toLocaleString({
+      day: "numeric",
+      month: "short",
+    })}`;
+  }
+  // Without the year, a window crossing December reads as a backwards range.
+  const format: Intl.DateTimeFormatOptions = from.hasSame(to, "year")
+    ? { day: "numeric", month: "short" }
+    : { day: "numeric", month: "short", year: "2-digit" };
+  return `vs ${from.toLocaleString(format)} – ${to.toLocaleString(format)}`;
 }
 
 function Delta({
