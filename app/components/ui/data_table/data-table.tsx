@@ -1,7 +1,7 @@
 "use client";
 "use no memo";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { SearchIcon } from "lucide-react";
 
@@ -174,9 +174,9 @@ export function DataTable<TData, TValue>({
   // the render and the commit, so the update lands on a fiber that has not
   // mounted yet and React logs a warning. There is no page to reset before the
   // table is on screen, so only arm the auto-reset once it is.
-  const hasMounted = useRef(false);
+  const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => {
-    hasMounted.current = true;
+    setHasMounted(true);
   }, []);
 
   const allColumns = selectable
@@ -190,7 +190,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns: allColumns,
-    autoResetPageIndex: hasMounted.current,
+    autoResetPageIndex: hasMounted,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
