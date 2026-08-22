@@ -17,7 +17,10 @@ import {
   getOrderItemDisplayName,
   getOrderStatusLabel,
 } from "@/app/lib/orders/utils";
-import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
+import {
+  getStoreCategoryBadgeLabel,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import { getRentalOrderFilterLabel } from "@/app/lib/rentals/order-filters";
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
@@ -77,6 +80,7 @@ const STATUS_OPTIONS: {
 function OrderCard({
   order,
   selectedStatuses,
+  categoryScope,
   selectionMode,
   isSelected,
   canSelect,
@@ -84,6 +88,7 @@ function OrderCard({
 }: {
   order: AdminOrderListRow;
   selectedStatuses: string[];
+  categoryScope: StoreCategoryScope;
   selectionMode: boolean;
   isSelected: boolean;
   canSelect: boolean;
@@ -121,11 +126,26 @@ function OrderCard({
   const extraItems =
     order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";
 
+  // Category only earns a slot when the list isn't already scoped to one.
+  const categoryLabel = order.isMixedCategory
+    ? "Pedido mixto"
+    : order.storeCategories.map(getStoreCategoryBadgeLabel).join(", ");
+  const metaPrefix = [
+    categoryScope === "all" && categoryLabel ? categoryLabel : null,
+    order.orderItems.length > 0 ? `${itemsPreview}${extraItems}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const createdLabel = formatDate(order.createdAt).toLocaleString(
+    DateTime.DATE_MED,
+  );
+
   return (
     <Card
       className={cn(
         "cursor-pointer transition-colors hover:bg-accent/40",
-        isOverdue && "border-red-200 bg-red-50/30",
+        // An edge stripe carries the urgency without tinting the whole card.
+        isOverdue && "border-l-4 border-l-red-500",
         selectionMode && isSelected && "border-primary bg-primary/5",
       )}
       role={selectionMode ? "checkbox" : "button"}
@@ -139,8 +159,8 @@ function OrderCard({
         }
       }}
     >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
+      <CardContent className="p-3">
+        <div className="flex items-start gap-2">
           {selectionMode && (
             /* Purely visual: the card itself carries the checkbox semantics. */
             <Checkbox
@@ -153,45 +173,55 @@ function OrderCard({
               aria-hidden="true"
             />
           )}
-          <div className="flex flex-col gap-1.5 min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-sm font-semibold">#{order.id}</span>
-              {showStatusBadge && (
-                <OrderStatusBadge status={order.status} appearance="dot" />
-              )}
-              {showOverdueBadge && (
-                <Badge
-                  variant="outline"
-                  className="gap-1 border-red-300 bg-red-50 text-red-600"
-                >
-                  <AlertTriangleIcon className="h-3 w-3" />
-                  Vencido
-                </Badge>
-              )}
-              {hasPendingVoucher && (
-                <Badge
-                  variant="outline"
-                  className="gap-1 border-blue-300 bg-blue-50 text-blue-600"
-                >
-                  <ReceiptIcon className="h-3 w-3" />
-                  Comprobante
-                </Badge>
-              )}
-              {order.storeCategories.map((category) => (
-                <Badge
-                  key={category}
-                  variant="outline"
-                  className="text-muted-foreground"
-                >
-                  {getStoreCategoryBadgeLabel(category)}
-                </Badge>
-              ))}
-              {order.isMixedCategory && (
-                <Badge variant="secondary">Pedido mixto</Badge>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            {/* The two things scanned first: which order, and how much. */}
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                #{order.id}
+              </span>
+              <span className="flex shrink-0 items-center gap-0.5">
+                <span className="text-base font-semibold tabular-nums">
+                  Bs {order.totalAmount.toFixed(2)}
+                </span>
+                {!selectionMode && (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </span>
+            </div>
+
+            {/* Routine state is a dot; pills are reserved for exceptions. */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                {showStatusBadge && (
+                  <OrderStatusBadge status={order.status} appearance="dot" />
+                )}
+                {showOverdueBadge && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-red-300 bg-red-50 text-red-600"
+                  >
+                    <AlertTriangleIcon className="h-3 w-3" />
+                    Vencido
+                  </Badge>
+                )}
+                {hasPendingVoucher && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-blue-300 bg-blue-50 text-blue-600"
+                  >
+                    <ReceiptIcon className="h-3 w-3" />
+                    Comprobante
+                  </Badge>
+                )}
+              </div>
+              {!selectionMode && (
+                <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <OrdersActionsCell order={order} />
+                </span>
               )}
             </div>
 
-            <p className="text-sm text-muted-foreground truncate">
+            <p className="truncate text-sm font-medium">
               {order.customer?.displayName ?? order.guestName ?? "Invitado"}
             </p>
             {!order.customer && order.guestPhone && (
@@ -203,46 +233,21 @@ function OrderCard({
               </div>
             )}
 
-            {order.orderItems.length > 0 && (
-              <p className="text-xs text-muted-foreground truncate">
-                {itemsPreview}
-                {extraItems}
-              </p>
-            )}
-
-            <p className="text-xs text-muted-foreground capitalize">
-              {formatDate(order.createdAt).toLocaleString(DateTime.DATE_MED)}
+            {/* Category, items and date collapse into one muted line. */}
+            <p className="truncate text-xs text-muted-foreground">
+              {metaPrefix && `${metaPrefix} · `}
+              <span className="capitalize">{createdLabel}</span>
             </p>
-          </div>
 
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex flex-col items-end">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-sm tabular-nums">
-                  Bs {order.totalAmount.toFixed(2)}
-                </span>
-                {!selectionMode && (
-                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Total del pedido
-              </span>
-              {order.isMixedCategory &&
-                order.scopedSubtotal !== order.totalAmount && (
-                  <span className="text-xs text-muted-foreground">
-                    Subtotal en este filtro{" "}
-                    <span className="tabular-nums">
-                      Bs {order.scopedSubtotal.toFixed(2)}
-                    </span>
+            {order.isMixedCategory &&
+              order.scopedSubtotal !== order.totalAmount && (
+                <span className="text-xs text-muted-foreground">
+                  Subtotal en este filtro{" "}
+                  <span className="tabular-nums">
+                    Bs {order.scopedSubtotal.toFixed(2)}
                   </span>
-                )}
-            </div>
-            {!selectionMode && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <OrdersActionsCell order={order} />
-              </div>
-            )}
+                </span>
+              )}
           </div>
         </div>
       </CardContent>
@@ -548,6 +553,7 @@ export default function OrdersCardList({
               key={order.id}
               order={order}
               selectedStatuses={optimisticStatuses}
+              categoryScope={query.category}
               selectionMode={selectionMode}
               isSelected={prunedSelectedIds.includes(order.id)}
               canSelect={
