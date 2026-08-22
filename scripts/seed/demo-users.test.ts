@@ -70,17 +70,26 @@ describe("DEMO_USERS", () => {
     expect(DEMO_USERS.some((user) => user.role === "admin")).toBe(true);
   });
 
-  it("covers active participant categories and omits deprecated new_artist", () => {
-    const categories = new Set(
-      DEMO_USERS.filter((user) => user.role === "artist").map(
-        (user) => user.category,
-      ),
+  it("covers active participant categories as verified users (not artist role)", () => {
+    const participants = DEMO_USERS.filter(
+      (user) =>
+        user.role === "user" &&
+        user.status === "verified" &&
+        user.category !== "none",
     );
-    expect(categories).toEqual(
+    expect(new Set(participants.map((user) => user.category))).toEqual(
       new Set(["illustration", "gastronomy", "entrepreneurship"]),
     );
     expect(DEMO_USERS.some((user) => user.category === "new_artist")).toBe(
       false,
     );
+    expect(
+      DEMO_USERS.every(
+        (user) =>
+          user.role === "admin" ||
+          user.role === "festival_admin" ||
+          user.role === "user",
+      ),
+    ).toBe(true);
   });
 });

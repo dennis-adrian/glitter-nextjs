@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import type { db as DbType } from "@/db";
 import { users } from "@/db/schema";
 
-export type DemoUserRole = "admin" | "festival_admin" | "artist" | "user";
+/** Roles used by the seed. Omits unused `artist` (zero prod users; pending cleanup). */
+export type DemoUserRole = "admin" | "festival_admin" | "user";
 export type DemoUserStatus = "verified" | "pending";
 export type DemoUserCategory =
   | "none"
@@ -28,6 +29,9 @@ export type DemoUserSeed = {
 /**
  * Dev-only demo accounts. Emails use Clerk's `+clerk_test` subaddress so OTP
  * verification uses the fixed code `424242` on development instances.
+ *
+ * Verified participants use role `user` plus a festival `category` — matching
+ * production, where the `artist` role is unused.
  */
 export const DEMO_USERS: readonly DemoUserSeed[] = [
   {
@@ -51,32 +55,32 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
     category: "none",
   },
   {
-    key: "illustration_artist",
+    key: "illustration_participant",
     email: "illustration+clerk_test@example.com",
     firstName: "Ilustracion",
     lastName: "Demo",
     displayName: "Ilustración Demo",
-    role: "artist",
+    role: "user",
     status: "verified",
     category: "illustration",
   },
   {
-    key: "gastronomy_artist",
+    key: "gastronomy_participant",
     email: "gastronomy+clerk_test@example.com",
     firstName: "Gastronomia",
     lastName: "Demo",
     displayName: "Gastronomía Demo",
-    role: "artist",
+    role: "user",
     status: "verified",
     category: "gastronomy",
   },
   {
-    key: "entrepreneurship_artist",
+    key: "entrepreneurship_participant",
     email: "entrepreneurship+clerk_test@example.com",
     firstName: "Emprendimiento",
     lastName: "Demo",
     displayName: "Emprendimiento Demo",
-    role: "artist",
+    role: "user",
     status: "verified",
     category: "entrepreneurship",
   },
@@ -90,7 +94,7 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
     status: "pending",
     category: "none",
   },
-  // `new_artist` is deprecated and intentionally omitted from the seed.
+  // `new_artist` category and `artist` role are unused / pending cleanup; not seeded.
 ] as const;
 
 /**
