@@ -8,6 +8,7 @@ import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-act
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { DataTableDensityToggle } from "@/app/components/ui/data_table/density-toggle";
 import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
 import {
   storeOrdersQueryToSearchParams,
@@ -259,6 +260,7 @@ export default function OrdersTable({
         columns={columns}
         data={orders}
         columnTitles={columnTitles}
+        density={query.view}
         initialState={
           optimisticStatuses.length === 1 &&
           optimisticStatuses[0] !== "needs_attention"
@@ -277,6 +279,10 @@ export default function OrdersTable({
               onDone={() => table.resetRowSelection()}
             />
             <OrdersExportButton query={query} />
+            <DataTableDensityToggle
+              value={query.view}
+              onChange={(view) => navigate({ ...query, view })}
+            />
           </div>
         )}
       />

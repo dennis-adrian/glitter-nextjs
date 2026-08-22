@@ -24,6 +24,7 @@ import { DataTableHeader } from "@/app/components/ui/data_table/data-table-heade
 import { DataTableFilter } from "@/app/components/ui/data_table/filter";
 import { DataTableFilters } from "@/app/components/ui/data_table/filters";
 import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
+import type { TableDensity } from "@/app/components/ui/data_table/density-toggle";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table } from "@/components/ui/table";
@@ -53,6 +54,8 @@ interface DataTableProps<TData, TValue> {
   maxSelectable?: number;
   /** Keys row selection by a stable domain id instead of the row's position. */
   getRowId?: (originalRow: TData, index: number, parent?: Row<TData>) => string;
+  /** Row height. Defaults to the roomier spacing every table shipped with. */
+  density?: TableDensity;
 }
 
 function clampRowSelection(
@@ -161,6 +164,7 @@ export function DataTable<TData, TValue>({
   selectable = false,
   maxSelectable,
   getRowId,
+  density = "comfortable",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -266,8 +270,8 @@ export function DataTable<TData, TValue>({
       </div>
       <div className="mb-4 rounded-md border">
         <Table wrapperClassName="max-h-[calc(100dvh-16rem)]">
-          <DataTableHeader table={table} />
-          <DataTableBody table={table} columns={allColumns} />
+          <DataTableHeader table={table} density={density} />
+          <DataTableBody table={table} columns={allColumns} density={density} />
         </Table>
       </div>
       <div className="mb-4">
