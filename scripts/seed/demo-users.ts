@@ -104,9 +104,10 @@ export const RETIRED_DEMO_EMAILS = [
 /** Default password for local/cloud-agent login when SEED_DEMO_PASSWORD is unset. */
 export const DEFAULT_SEED_DEMO_PASSWORD = "Glitter-Dev-Seed-1!";
 
-export function resolveSeedDemoPassword(
-  env: NodeJS.ProcessEnv = process.env,
-): string {
+/** Env bag used by seed helpers so unit tests can pass partial objects. */
+export type SeedEnv = Readonly<Record<string, string | undefined>>;
+
+export function resolveSeedDemoPassword(env: SeedEnv = process.env): string {
   const fromEnv = env.SEED_DEMO_PASSWORD?.trim();
   return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_SEED_DEMO_PASSWORD;
 }
@@ -119,9 +120,7 @@ export type SeedGateResult =
  * Only allow seeding against a Clerk *development* secret key and a non-production
  * runtime. Preview/production Vercel deploys and live Clerk keys are refused.
  */
-export function getDevSeedGate(
-  env: NodeJS.ProcessEnv = process.env,
-): SeedGateResult {
+export function getDevSeedGate(env: SeedEnv = process.env): SeedGateResult {
   const clerkSecret = env.CLERK_SECRET_KEY?.trim() ?? "";
   if (!clerkSecret) {
     return { allowed: false, reason: "CLERK_SECRET_KEY is not set." };
@@ -281,7 +280,7 @@ export type SeedDemoUsersResult = {
 };
 
 export async function seedDemoUsers(
-  env: NodeJS.ProcessEnv = process.env,
+  env: SeedEnv = process.env,
 ): Promise<SeedDemoUsersResult> {
   const gate = getDevSeedGate(env);
   if (!gate.allowed) {
