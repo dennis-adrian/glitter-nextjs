@@ -18,7 +18,7 @@ export default async function EditProductPage({
   if (!product) notFound();
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-5xl">
       <h2 className="text-xl font-semibold mb-6">Editar producto</h2>
       <ProductForm product={product} />
       <ProductContentSectionsEditor

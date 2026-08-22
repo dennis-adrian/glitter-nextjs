@@ -786,639 +786,518 @@ export default function ProductForm({ product }: ProductFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={action} className="flex flex-col gap-6 pb-24 md:pb-0">
-        {/* Images — at the top */}
-        <div className="flex flex-col gap-3">
-          <Label className="text-muted-foreground">Imágenes del producto</Label>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {/* Uploaded images */}
-            {images.map((img) => {
-              const isDeleting = deletingIds.has(img.id);
-              return (
-                <div key={img.id} className="relative group">
-                  <div
-                    className={`relative aspect-square rounded-md overflow-hidden border-2 ${
-                      img.isMain ? "border-primary" : "border-transparent"
-                    } ${isDeleting ? "opacity-50" : ""}`}
-                  >
-                    <Image
-                      src={img.url}
-                      alt="Imagen del producto"
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  {!isDeleting && (
-                    <div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                      {!img.isMain && (
-                        <button
-                          type="button"
-                          onClick={() => setMain(img.id)}
-                          className="rounded bg-white/90 p-1 shadow"
-                          title="Establecer como imagen principal"
-                        >
-                          <StarIcon className="h-3 w-3 text-amber-500" />
-                        </button>
+        <div className="grid items-start gap-6 lg:grid-cols-3">
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            {/* Images — at the top */}
+            <div className="flex flex-col gap-3">
+              <Label className="text-muted-foreground">
+                Imágenes del producto
+              </Label>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {/* Uploaded images */}
+                {images.map((img) => {
+                  const isDeleting = deletingIds.has(img.id);
+                  return (
+                    <div key={img.id} className="relative group">
+                      <div
+                        className={`relative aspect-square rounded-md overflow-hidden border-2 ${
+                          img.isMain ? "border-primary" : "border-transparent"
+                        } ${isDeleting ? "opacity-50" : ""}`}
+                      >
+                        <Image
+                          src={img.url}
+                          alt="Imagen del producto"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      {!isDeleting && (
+                        <div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          {!img.isMain && (
+                            <button
+                              type="button"
+                              onClick={() => setMain(img.id)}
+                              className="rounded bg-white/90 p-1 shadow"
+                              title="Establecer como imagen principal"
+                            >
+                              <StarIcon className="h-3 w-3 text-amber-500" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(img.id)}
+                            className="rounded bg-white/90 p-1 shadow"
+                            title="Eliminar imagen"
+                          >
+                            <XIcon className="h-3 w-3 text-red-500" />
+                          </button>
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(img.id)}
-                        className="rounded bg-white/90 p-1 shadow"
-                        title="Eliminar imagen"
-                      >
-                        <XIcon className="h-3 w-3 text-red-500" />
-                      </button>
+                      {img.isMain && (
+                        <div className="absolute bottom-1 left-1">
+                          <span className="rounded bg-primary px-1 py-0.5 text-xs text-primary-foreground">
+                            Principal
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {img.isMain && (
-                    <div className="absolute bottom-1 left-1">
-                      <span className="rounded bg-primary px-1 py-0.5 text-xs text-primary-foreground">
-                        Principal
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
 
-            {/* Currently uploading */}
-            {currentlyUploading && (
-              <div
-                key={currentlyUploading.tempId}
-                className="aspect-square rounded-md border bg-muted flex flex-col items-center justify-center gap-2 p-3"
-              >
-                <p className="text-xs text-center text-muted-foreground truncate w-full">
-                  {currentlyUploading.fileName}
-                </p>
-                <Progress
-                  value={currentlyUploading.progress}
-                  className="h-1.5"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {currentlyUploading.progress}%
-                </span>
-              </div>
-            )}
-
-            {/* Queued (waiting to upload) */}
-            {uploadQueue.map((file, i) => (
-              <div
-                key={i}
-                className="aspect-square rounded-md border bg-muted flex flex-col items-center justify-center gap-2 p-3"
-              >
-                <p className="text-xs text-center text-muted-foreground truncate w-full">
-                  {file.name}
-                </p>
-                <Progress value={0} className="h-1.5" />
-              </div>
-            ))}
-
-            {/* Add button */}
-            {canAddMore && (
-              <label className="aspect-square rounded-md border-2 border-dashed flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
-                <PlusIcon className="h-6 w-6 text-muted-foreground" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="sr-only"
-                  onChange={handleFileSelect}
-                />
-              </label>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Máximo {MAX_IMAGE_SIZE_MB}MB por imagen · hasta {MAX_IMAGE_COUNT}{" "}
-            imágenes
-          </p>
-        </div>
-
-        <div className="grid gap-4">
-          <TextInput
-            label="Nombre"
-            name="name"
-            placeholder="Nombre del producto"
-          />
-          <TextareaInput
-            formControl={form.control}
-            label="Descripción"
-            name="description"
-            placeholder="Descripción del producto"
-            maxLength={500}
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
-            label="Precio base (Bs.)"
-            name="price"
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step={0.01}
-          />
-          <TextInput
-            label="Costo unitario (Bs.)"
-            name="unitCost"
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step={0.01}
-            placeholder="Opcional"
-          />
-          {!hasVariants && (
-            <TextInput
-              label="Stock"
-              name="stock"
-              type="number"
-              inputMode="numeric"
-              min={0}
-            />
-          )}
-        </div>
-
-        <div className="flex flex-col gap-4 rounded-lg border p-4">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="hasVariants"
-              checked={hasVariants}
-              onCheckedChange={(value) => {
-                if (!value) {
-                  const variantStockTotal = form
-                    .getValues("variants")
-                    .reduce(
-                      (sum, variant) => sum + (Number(variant.stock) || 0),
-                      0,
-                    );
-                  form.setValue("stock", String(variantStockTotal), {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                }
-
-                form.setValue("hasVariants", value, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-              }}
-            />
-            <Label
-              htmlFor="hasVariants"
-              className="text-muted-foreground cursor-pointer"
-            >
-              Este producto tiene variantes
-            </Label>
-          </div>
-
-          {hasVariants && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3">
-                {variantOptions.map((option, optionIndex) => (
+                {/* Currently uploading */}
+                {currentlyUploading && (
                   <div
-                    key={option.id ?? optionIndex}
-                    className="rounded-lg border border-border/70 p-4"
+                    key={currentlyUploading.tempId}
+                    className="aspect-square rounded-md border bg-muted flex flex-col items-center justify-center gap-2 p-3"
                   >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium">
-                        Opción {optionIndex + 1}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() =>
-                          setVariantOptions(
-                            variantOptions.filter(
-                              (_, index) => index !== optionIndex,
-                            ),
-                          )
-                        }
-                        disabled={variantOptions.length === 1}
-                        aria-label={`Eliminar opción ${optionIndex + 1}`}
+                    <p className="text-xs text-center text-muted-foreground truncate w-full">
+                      {currentlyUploading.fileName}
+                    </p>
+                    <Progress
+                      value={currentlyUploading.progress}
+                      className="h-1.5"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {currentlyUploading.progress}%
+                    </span>
+                  </div>
+                )}
+
+                {/* Queued (waiting to upload) */}
+                {uploadQueue.map((file, i) => (
+                  <div
+                    key={i}
+                    className="aspect-square rounded-md border bg-muted flex flex-col items-center justify-center gap-2 p-3"
+                  >
+                    <p className="text-xs text-center text-muted-foreground truncate w-full">
+                      {file.name}
+                    </p>
+                    <Progress value={0} className="h-1.5" />
+                  </div>
+                ))}
+
+                {/* Add button */}
+                {canAddMore && (
+                  <label className="aspect-square rounded-md border-2 border-dashed flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
+                    <PlusIcon className="h-6 w-6 text-muted-foreground" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="sr-only"
+                      onChange={handleFileSelect}
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Máximo {MAX_IMAGE_SIZE_MB}MB por imagen · hasta{" "}
+                {MAX_IMAGE_COUNT} imágenes
+              </p>
+            </div>
+
+            <div className="grid gap-4">
+              <TextInput
+                label="Nombre"
+                name="name"
+                placeholder="Nombre del producto"
+              />
+              <TextareaInput
+                formControl={form.control}
+                label="Descripción"
+                name="description"
+                placeholder="Descripción del producto"
+                maxLength={500}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextInput
+                label="Precio base (Bs.)"
+                name="price"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+              />
+              <TextInput
+                label="Costo unitario (Bs.)"
+                name="unitCost"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                placeholder="Opcional"
+              />
+              {!hasVariants && (
+                <TextInput
+                  label="Stock"
+                  name="stock"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                />
+              )}
+            </div>
+
+            <div className="flex flex-col gap-4 rounded-lg border p-4">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="hasVariants"
+                  checked={hasVariants}
+                  onCheckedChange={(value) => {
+                    if (!value) {
+                      const variantStockTotal = form
+                        .getValues("variants")
+                        .reduce(
+                          (sum, variant) => sum + (Number(variant.stock) || 0),
+                          0,
+                        );
+                      form.setValue("stock", String(variantStockTotal), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+
+                    form.setValue("hasVariants", value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                />
+                <Label
+                  htmlFor="hasVariants"
+                  className="text-muted-foreground cursor-pointer"
+                >
+                  Este producto tiene variantes
+                </Label>
+              </div>
+
+              {hasVariants && (
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3">
+                    {variantOptions.map((option, optionIndex) => (
+                      <div
+                        key={option.id ?? optionIndex}
+                        className="rounded-lg border border-border/70 p-4"
                       >
-                        <Trash2Icon className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <TextInput
-                        label="Nombre"
-                        name={`variantOptions.${optionIndex}.name`}
-                        placeholder="Ej: Color"
-                      />
-                      <SelectInput
-                        formControl={form.control}
-                        label="Selector en tienda"
-                        name={`variantOptions.${optionIndex}.selectorDisplay`}
-                        options={[
-                          { value: "dropdown", label: "Lista desplegable" },
-                          { value: "button", label: "Botones" },
-                          { value: "image", label: "Imágenes" },
-                        ]}
-                      />
-                    </div>
-
-                    <div className="mt-4 flex flex-col gap-2">
-                      <Label className="text-muted-foreground">Valores</Label>
-                      {option.values.map((_, valueIndex) => (
-                        <div key={valueIndex} className="flex items-end gap-2">
-                          <TextInput
-                            className="flex-1"
-                            label={valueIndex === 0 ? "Valor" : undefined}
-                            name={`variantOptions.${optionIndex}.values.${valueIndex}.value`}
-                            placeholder="Ej: Azul"
-                          />
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium">
+                            Opción {optionIndex + 1}
+                          </p>
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="mb-0.5 h-9 w-9 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             onClick={() =>
-                              updateVariantOption(optionIndex, (current) => ({
-                                ...current,
-                                values: current.values.filter(
-                                  (_, index) => index !== valueIndex,
+                              setVariantOptions(
+                                variantOptions.filter(
+                                  (_, index) => index !== optionIndex,
                                 ),
-                              }))
+                              )
                             }
-                            disabled={option.values.length === 1}
-                            aria-label={`Eliminar valor ${valueIndex + 1}`}
+                            disabled={variantOptions.length === 1}
+                            aria-label={`Eliminar opción ${optionIndex + 1}`}
                           >
                             <Trash2Icon className="h-4 w-4" />
                           </Button>
                         </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-fit"
-                        onClick={() =>
-                          updateVariantOption(optionIndex, (current) => ({
-                            ...current,
-                            values: [...current.values, { value: "" }],
-                          }))
-                        }
-                      >
-                        <PlusIcon className="mr-2 h-4 w-4" />
-                        Agregar valor
-                      </Button>
-                    </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <TextInput
+                            label="Nombre"
+                            name={`variantOptions.${optionIndex}.name`}
+                            placeholder="Ej: Color"
+                          />
+                          <SelectInput
+                            formControl={form.control}
+                            label="Selector en tienda"
+                            name={`variantOptions.${optionIndex}.selectorDisplay`}
+                            options={[
+                              { value: "dropdown", label: "Lista desplegable" },
+                              { value: "button", label: "Botones" },
+                              { value: "image", label: "Imágenes" },
+                            ]}
+                          />
+                        </div>
+
+                        <div className="mt-4 flex flex-col gap-2">
+                          <Label className="text-muted-foreground">
+                            Valores
+                          </Label>
+                          {option.values.map((_, valueIndex) => (
+                            <div
+                              key={valueIndex}
+                              className="flex items-end gap-2"
+                            >
+                              <TextInput
+                                className="flex-1"
+                                label={valueIndex === 0 ? "Valor" : undefined}
+                                name={`variantOptions.${optionIndex}.values.${valueIndex}.value`}
+                                placeholder="Ej: Azul"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="mb-0.5 h-9 w-9 text-muted-foreground hover:text-destructive"
+                                onClick={() =>
+                                  updateVariantOption(
+                                    optionIndex,
+                                    (current) => ({
+                                      ...current,
+                                      values: current.values.filter(
+                                        (_, index) => index !== valueIndex,
+                                      ),
+                                    }),
+                                  )
+                                }
+                                disabled={option.values.length === 1}
+                                aria-label={`Eliminar valor ${valueIndex + 1}`}
+                              >
+                                <Trash2Icon className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-fit"
+                            onClick={() =>
+                              updateVariantOption(optionIndex, (current) => ({
+                                ...current,
+                                values: [...current.values, { value: "" }],
+                              }))
+                            }
+                          >
+                            <PlusIcon className="mr-2 h-4 w-4" />
+                            Agregar valor
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-fit"
-                onClick={() =>
-                  setVariantOptions([...variantOptions, createEmptyOption()])
-                }
-              >
-                <PlusIcon className="mr-2 h-4 w-4" />
-                Agregar opción
-              </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-fit"
+                    onClick={() =>
+                      setVariantOptions([
+                        ...variantOptions,
+                        createEmptyOption(),
+                      ])
+                    }
+                  >
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Agregar opción
+                  </Button>
 
-              {variants.length > 0 && !hasVisibleVariant && (
-                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  Ninguna combinación está visible para compradores.
-                </p>
-              )}
-
-              {variants.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Combinaciones</p>
-                    <p className="text-xs text-muted-foreground">
-                      Cada combinación es una variante con su propio stock,
-                      precio e imagen opcional.
+                  {variants.length > 0 && !hasVisibleVariant && (
+                    <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      Ninguna combinación está visible para compradores.
                     </p>
-                  </div>
+                  )}
 
-                  {variants.map((variant, index) => (
-                    <div
-                      key={getCombinationKey(variant.optionValues)}
-                      className="rounded-lg border border-border/70 p-4"
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium">
-                          {getVariantLabel(variant.optionValues)}
+                  {variants.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <p className="text-sm font-medium">Combinaciones</p>
+                        <p className="text-xs text-muted-foreground">
+                          Cada combinación es una variante con su propio stock,
+                          precio e imagen opcional.
                         </p>
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <TextInput
-                          label="Stock"
-                          name={`variants.${index}.stock`}
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                        />
-                        {form.watch("isRentable") &&
-                          form.watch("rentalStockMode") === "separate" && (
+                      {variants.map((variant, index) => (
+                        <div
+                          key={getCombinationKey(variant.optionValues)}
+                          className="rounded-lg border border-border/70 p-4"
+                        >
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium">
+                              {getVariantLabel(variant.optionValues)}
+                            </p>
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-3">
                             <TextInput
-                              label="Stock de alquiler"
-                              name={`variants.${index}.rentalStock`}
+                              label="Stock"
+                              name={`variants.${index}.stock`}
                               type="number"
                               inputMode="numeric"
                               min={0}
                             />
-                          )}
-                        <TextInput
-                          label="Precio especial (opcional)"
-                          name={`variants.${index}.price`}
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          step={0.01}
-                          placeholder="Usar precio base"
-                        />
-                        <TextInput
-                          label="Costo unitario (opcional)"
-                          name={`variants.${index}.unitCost`}
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          step={0.01}
-                          placeholder="Usar costo base"
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`variants.${index}.imageId`}
-                          render={({ field }) => {
-                            const mainImage =
-                              images.find((image) => image.isMain) ??
-                              images[0] ??
-                              null;
-                            const selectedImage =
-                              images.find(
-                                (image) => String(image.id) === field.value,
-                              ) ?? null;
-                            const triggerImage =
-                              field.value === "__none__"
-                                ? mainImage
-                                : selectedImage;
-                            const triggerLabel =
-                              field.value === "__none__"
-                                ? "Usar imagen principal"
-                                : selectedImage?.isMain
-                                  ? `Imagen ${selectedImage.id} (principal)`
-                                  : selectedImage
-                                    ? `Imagen ${selectedImage.id}`
-                                    : "Selecciona una imagen";
+                            {form.watch("isRentable") &&
+                              form.watch("rentalStockMode") === "separate" && (
+                                <TextInput
+                                  label="Stock de alquiler"
+                                  name={`variants.${index}.rentalStock`}
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={0}
+                                />
+                              )}
+                            <TextInput
+                              label="Precio especial (opcional)"
+                              name={`variants.${index}.price`}
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step={0.01}
+                              placeholder="Usar precio base"
+                            />
+                            <TextInput
+                              label="Costo unitario (opcional)"
+                              name={`variants.${index}.unitCost`}
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step={0.01}
+                              placeholder="Usar costo base"
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`variants.${index}.imageId`}
+                              render={({ field }) => {
+                                const mainImage =
+                                  images.find((image) => image.isMain) ??
+                                  images[0] ??
+                                  null;
+                                const selectedImage =
+                                  images.find(
+                                    (image) => String(image.id) === field.value,
+                                  ) ?? null;
+                                const triggerImage =
+                                  field.value === "__none__"
+                                    ? mainImage
+                                    : selectedImage;
+                                const triggerLabel =
+                                  field.value === "__none__"
+                                    ? "Usar imagen principal"
+                                    : selectedImage?.isMain
+                                      ? `Imagen ${selectedImage.id} (principal)`
+                                      : selectedImage
+                                        ? `Imagen ${selectedImage.id}`
+                                        : "Selecciona una imagen";
 
-                            return (
-                              <FormItem className="grid gap-2">
-                                <FormLabel>Imagen</FormLabel>
-                                <Select
-                                  value={field.value ?? "__none__"}
-                                  onValueChange={field.onChange}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger className="h-10">
-                                      <div className="flex min-w-0 items-center gap-2">
-                                        {triggerImage ? (
-                                          <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded border bg-muted">
-                                            <Image
-                                              src={triggerImage.url}
-                                              alt=""
-                                              fill
-                                              sizes="28px"
-                                              className="object-cover"
-                                            />
-                                          </span>
-                                        ) : (
-                                          <span className="h-7 w-7 shrink-0 rounded border bg-muted" />
-                                        )}
-                                        <span className="truncate">
-                                          {triggerLabel}
-                                        </span>
-                                      </div>
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">
-                                      <div className="flex items-center gap-2">
-                                        {mainImage ? (
-                                          <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded border bg-muted">
-                                            <Image
-                                              src={mainImage.url}
-                                              alt=""
-                                              fill
-                                              sizes="36px"
-                                              className="object-cover"
-                                            />
-                                          </span>
-                                        ) : (
-                                          <span className="h-9 w-9 shrink-0 rounded border bg-muted" />
-                                        )}
-                                        <span>Usar imagen principal</span>
-                                      </div>
-                                    </SelectItem>
-                                    {images.map((image) => (
-                                      <SelectItem
-                                        key={image.id}
-                                        value={String(image.id)}
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded border bg-muted">
-                                            <Image
-                                              src={image.url}
-                                              alt=""
-                                              fill
-                                              sizes="36px"
-                                              className="object-cover"
-                                            />
-                                          </span>
-                                          <span>
-                                            {image.isMain
-                                              ? `Imagen ${image.id} (principal)`
-                                              : `Imagen ${image.id}`}
-                                          </span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            );
-                          }}
-                        />
-                      </div>
+                                return (
+                                  <FormItem className="grid gap-2">
+                                    <FormLabel>Imagen</FormLabel>
+                                    <Select
+                                      value={field.value ?? "__none__"}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger className="h-10">
+                                          <div className="flex min-w-0 items-center gap-2">
+                                            {triggerImage ? (
+                                              <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded border bg-muted">
+                                                <Image
+                                                  src={triggerImage.url}
+                                                  alt=""
+                                                  fill
+                                                  sizes="28px"
+                                                  className="object-cover"
+                                                />
+                                              </span>
+                                            ) : (
+                                              <span className="h-7 w-7 shrink-0 rounded border bg-muted" />
+                                            )}
+                                            <span className="truncate">
+                                              {triggerLabel}
+                                            </span>
+                                          </div>
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">
+                                          <div className="flex items-center gap-2">
+                                            {mainImage ? (
+                                              <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded border bg-muted">
+                                                <Image
+                                                  src={mainImage.url}
+                                                  alt=""
+                                                  fill
+                                                  sizes="36px"
+                                                  className="object-cover"
+                                                />
+                                              </span>
+                                            ) : (
+                                              <span className="h-9 w-9 shrink-0 rounded border bg-muted" />
+                                            )}
+                                            <span>Usar imagen principal</span>
+                                          </div>
+                                        </SelectItem>
+                                        {images.map((image) => (
+                                          <SelectItem
+                                            key={image.id}
+                                            value={String(image.id)}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded border bg-muted">
+                                                <Image
+                                                  src={image.url}
+                                                  alt=""
+                                                  fill
+                                                  sizes="36px"
+                                                  className="object-cover"
+                                                />
+                                              </span>
+                                              <span>
+                                                {image.isMain
+                                                  ? `Imagen ${image.id} (principal)`
+                                                  : `Imagen ${image.id}`}
+                                              </span>
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                );
+                              }}
+                            />
+                          </div>
 
-                      <div className="mt-4 flex items-center gap-3">
-                        <Switch
-                          id={`variants.${index}.isVisible`}
-                          checked={form.watch(`variants.${index}.isVisible`)}
-                          onCheckedChange={(value) =>
-                            form.setValue(
-                              `variants.${index}.isVisible`,
-                              value,
-                              {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              },
-                            )
-                          }
-                        />
-                        <Label
-                          htmlFor={`variants.${index}.isVisible`}
-                          className="text-muted-foreground cursor-pointer"
-                        >
-                          Visible para compradores
-                        </Label>
-                      </div>
+                          <div className="mt-4 flex items-center gap-3">
+                            <Switch
+                              id={`variants.${index}.isVisible`}
+                              checked={form.watch(
+                                `variants.${index}.isVisible`,
+                              )}
+                              onCheckedChange={(value) =>
+                                form.setValue(
+                                  `variants.${index}.isVisible`,
+                                  value,
+                                  {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  },
+                                )
+                              }
+                            />
+                            <Label
+                              htmlFor={`variants.${index}.isVisible`}
+                              className="text-muted-foreground cursor-pointer"
+                            >
+                              Visible para compradores
+                            </Label>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-        <SelectInput
-          formControl={form.control}
-          label="Estado"
-          name="status"
-          options={[
-            { value: "available", label: "Disponible" },
-            { value: "presale", label: "Preventa" },
-            { value: "sale", label: "En oferta" },
-          ]}
-        />
-
-        <SelectInput
-          formControl={form.control}
-          label="Categoría de tienda"
-          name="storeCategory"
-          options={[
-            { value: "merch", label: "Merch" },
-            { value: "supplies", label: "Mercadito de Insumos" },
-          ]}
-        />
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
-            label="Descuento"
-            name="discount"
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step={0.01}
-          />
-          <SelectInput
-            formControl={form.control}
-            label="Tipo de descuento"
-            name="discountUnit"
-            options={[
-              { value: "percentage", label: "Porcentaje (%)" },
-              { value: "amount", label: "Monto fijo (Bs.)" },
-            ]}
-          />
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {status === "presale" && (
-            <DateInput
-              formControl={form.control}
-              label="Fecha de disponibilidad"
-              name="availableDate"
-            />
-          )}
-          <div className="flex items-center gap-3">
-            <Switch
-              id="isFeatured"
-              checked={form.watch("isFeatured")}
-              onCheckedChange={(v) =>
-                form.setValue("isFeatured", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-            <Label
-              htmlFor="isFeatured"
-              className="text-muted-foreground cursor-pointer"
-            >
-              Producto destacado
-            </Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              id="isNew"
-              checked={form.watch("isNew")}
-              onCheckedChange={(v) =>
-                form.setValue("isNew", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-            <Label
-              htmlFor="isNew"
-              className="text-muted-foreground cursor-pointer"
-            >
-              Producto nuevo
-            </Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              id="isVisible"
-              checked={form.watch("isVisible")}
-              onCheckedChange={(v) =>
-                form.setValue("isVisible", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-            <Label
-              htmlFor="isVisible"
-              className="text-muted-foreground cursor-pointer"
-            >
-              Visible en la tienda
-            </Label>
-          </div>
-        </div>
-
-        <div className="rounded-lg border p-4 space-y-4">
-          <p className="text-sm font-medium">Alquiler</p>
-          <div className="flex items-center gap-3">
-            <Switch
-              id="isPurchasable"
-              checked={form.watch("isPurchasable")}
-              onCheckedChange={(v) =>
-                form.setValue("isPurchasable", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-            <Label htmlFor="isPurchasable" className="text-muted-foreground">
-              Disponible para compra
-            </Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              id="isRentable"
-              checked={form.watch("isRentable")}
-              onCheckedChange={(v) =>
-                form.setValue("isRentable", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-            <Label htmlFor="isRentable" className="text-muted-foreground">
-              Disponible para alquiler
-            </Label>
-          </div>
-          {form.watch("isRentable") && (
-            <>
+            <div className="grid gap-4 sm:grid-cols-2">
               <TextInput
-                label="Precio de alquiler (Bs.)"
-                name="rentalPrice"
+                label="Descuento"
+                name="discount"
                 type="number"
                 inputMode="decimal"
                 min={0}
@@ -1426,29 +1305,187 @@ export default function ProductForm({ product }: ProductFormProps) {
               />
               <SelectInput
                 formControl={form.control}
-                label="Stock de alquiler"
-                name="rentalStockMode"
+                label="Tipo de descuento"
+                name="discountUnit"
                 options={[
-                  { value: "shared", label: "Compartido con ventas" },
-                  { value: "separate", label: "Stock separado" },
+                  { value: "percentage", label: "Porcentaje (%)" },
+                  { value: "amount", label: "Monto fijo (Bs.)" },
                 ]}
               />
-              {form.watch("rentalStockMode") === "separate" &&
-                !form.watch("hasVariants") && (
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-4">
+              <p className="text-sm font-medium">Alquiler</p>
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="isPurchasable"
+                  checked={form.watch("isPurchasable")}
+                  onCheckedChange={(v) =>
+                    form.setValue("isPurchasable", v, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+                <Label
+                  htmlFor="isPurchasable"
+                  className="text-muted-foreground"
+                >
+                  Disponible para compra
+                </Label>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="isRentable"
+                  checked={form.watch("isRentable")}
+                  onCheckedChange={(v) =>
+                    form.setValue("isRentable", v, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+                <Label htmlFor="isRentable" className="text-muted-foreground">
+                  Disponible para alquiler
+                </Label>
+              </div>
+              {form.watch("isRentable") && (
+                <>
                   <TextInput
-                    label="Stock de alquiler"
-                    name="rentalStock"
+                    label="Precio de alquiler (Bs.)"
+                    name="rentalPrice"
                     type="number"
+                    inputMode="decimal"
                     min={0}
-                    step={1}
+                    step={0.01}
                   />
-                )}
-            </>
-          )}
+                  <SelectInput
+                    formControl={form.control}
+                    label="Stock de alquiler"
+                    name="rentalStockMode"
+                    options={[
+                      { value: "shared", label: "Compartido con ventas" },
+                      { value: "separate", label: "Stock separado" },
+                    ]}
+                  />
+                  {form.watch("rentalStockMode") === "separate" &&
+                    !form.watch("hasVariants") && (
+                      <TextInput
+                        label="Stock de alquiler"
+                        name="rentalStock"
+                        type="number"
+                        min={0}
+                        step={1}
+                      />
+                    )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Publishing and organisation metadata, the way Shopify and Wix
+              rail them beside the editor rather than below it. */}
+          <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
+            <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
+              <p className="text-sm font-medium">Publicación</p>
+              <SelectInput
+                formControl={form.control}
+                label="Estado"
+                name="status"
+                options={[
+                  { value: "available", label: "Disponible" },
+                  { value: "presale", label: "Preventa" },
+                  { value: "sale", label: "En oferta" },
+                ]}
+              />
+              {status === "presale" && (
+                <DateInput
+                  formControl={form.control}
+                  label="Fecha de disponibilidad"
+                  name="availableDate"
+                />
+              )}
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="isVisible"
+                  checked={form.watch("isVisible")}
+                  onCheckedChange={(v) =>
+                    form.setValue("isVisible", v, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+                <Label
+                  htmlFor="isVisible"
+                  className="text-muted-foreground cursor-pointer"
+                >
+                  Visible en la tienda
+                </Label>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
+              <p className="text-sm font-medium">Organización</p>
+              <SelectInput
+                formControl={form.control}
+                label="Categoría de tienda"
+                name="storeCategory"
+                options={[
+                  { value: "merch", label: "Merch" },
+                  { value: "supplies", label: "Mercadito de Insumos" },
+                ]}
+              />
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="isFeatured"
+                  checked={form.watch("isFeatured")}
+                  onCheckedChange={(v) =>
+                    form.setValue("isFeatured", v, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+                <Label
+                  htmlFor="isFeatured"
+                  className="text-muted-foreground cursor-pointer"
+                >
+                  Producto destacado
+                </Label>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="isNew"
+                  checked={form.watch("isNew")}
+                  onCheckedChange={(v) =>
+                    form.setValue("isNew", v, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+                <Label
+                  htmlFor="isNew"
+                  className="text-muted-foreground cursor-pointer"
+                >
+                  Producto nuevo
+                </Label>
+              </div>
+            </div>
+          </aside>
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
-          <div className="flex gap-2 max-w-7xl mx-auto">
+          <div className="mx-auto flex max-w-7xl items-center gap-2">
+            {/* The form already tracks this to gate Save; saying it out loud
+                is what tells you the draft is worth keeping. */}
+            {(form.formState.isDirty || hasImageChanges) &&
+              !form.formState.isSubmitting && (
+                <span className="mr-auto hidden text-sm text-muted-foreground md:inline">
+                  Cambios sin guardar
+                </span>
+              )}
             <Button
               type="button"
               variant="outline"
