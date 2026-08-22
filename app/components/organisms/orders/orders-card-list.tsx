@@ -4,6 +4,7 @@ import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-actions";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import SocialMediaBadge from "@/app/components/social-media-badge";
+import { Badge } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
@@ -155,31 +156,38 @@ function OrderCard({
           <div className="flex flex-col gap-1.5 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-sm font-semibold">#{order.id}</span>
-              {showStatusBadge && <OrderStatusBadge status={order.status} />}
+              {showStatusBadge && (
+                <OrderStatusBadge status={order.status} appearance="dot" />
+              )}
               {showOverdueBadge && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-red-300 bg-red-50 text-red-600"
+                >
                   <AlertTriangleIcon className="h-3 w-3" />
                   Vencido
-                </span>
+                </Badge>
               )}
               {hasPendingVoucher && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-blue-300 bg-blue-50 text-blue-600"
+                >
                   <ReceiptIcon className="h-3 w-3" />
                   Comprobante
-                </span>
+                </Badge>
               )}
               {order.storeCategories.map((category) => (
-                <span
+                <Badge
                   key={category}
-                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                  variant="outline"
+                  className="text-muted-foreground"
                 >
                   {getStoreCategoryBadgeLabel(category)}
-                </span>
+                </Badge>
               ))}
               {order.isMixedCategory && (
-                <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
-                  Pedido mixto
-                </span>
+                <Badge variant="secondary">Pedido mixto</Badge>
               )}
             </div>
 
@@ -210,7 +218,7 @@ function OrderCard({
           <div className="flex flex-col items-end gap-2 shrink-0">
             <div className="flex flex-col items-end">
               <div className="flex items-center gap-1">
-                <span className="font-semibold text-sm">
+                <span className="font-semibold text-sm tabular-nums">
                   Bs {order.totalAmount.toFixed(2)}
                 </span>
                 {!selectionMode && (
@@ -223,7 +231,10 @@ function OrderCard({
               {order.isMixedCategory &&
                 order.scopedSubtotal !== order.totalAmount && (
                   <span className="text-xs text-muted-foreground">
-                    Subtotal en este filtro Bs {order.scopedSubtotal.toFixed(2)}
+                    Subtotal en este filtro{" "}
+                    <span className="tabular-nums">
+                      Bs {order.scopedSubtotal.toFixed(2)}
+                    </span>
                   </span>
                 )}
             </div>

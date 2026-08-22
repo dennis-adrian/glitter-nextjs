@@ -110,7 +110,7 @@ export default function OrdersStatsCards({
             </CardHeader>
             <CardContent className="p-4 pt-0">
               <p
-                className={`text-2xl font-bold ${card.accent ? "text-amber-600" : ""}`}
+                className={`text-2xl font-bold tabular-nums ${card.accent ? "text-amber-600" : ""}`}
               >
                 {card.value}
               </p>

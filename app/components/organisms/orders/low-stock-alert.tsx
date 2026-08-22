@@ -49,8 +49,8 @@ export default function LowStockAlert({ lowStockPromise }: LowStockAlertProps) {
                 variant={product.stock === 0 ? "destructive" : "outline"}
                 className={
                   product.stock !== 0 && product.stock !== null
-                    ? "text-amber-600 border-amber-300"
-                    : undefined
+                    ? "tabular-nums text-amber-600 border-amber-300"
+                    : "tabular-nums"
                 }
               >
                 {product.stock} unid.

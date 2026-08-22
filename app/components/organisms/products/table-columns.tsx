@@ -82,7 +82,10 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
 
   if (hasVariants) {
     return (
-      <Badge variant="outline" className="border-sky-300 text-sky-700">
+      <Badge
+        variant="outline"
+        className="border-sky-300 tabular-nums text-sky-700"
+      >
         {stock} unid. / {product.variants?.length ?? 0} variantes
       </Badge>
     );
@@ -146,7 +149,7 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
     <Badge
       variant="outline"
       className={cn(
-        "cursor-pointer",
+        "cursor-pointer tabular-nums",
         stock === 0
           ? "border-red-300 text-red-600"
           : stock <= 5
@@ -242,7 +245,9 @@ export const columns: ColumnDef<BaseProductWithImages>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.price} />
     ),
-    cell: ({ row }) => `Bs ${row.original.price.toFixed(2)}`,
+    cell: ({ row }) => (
+      <span className="tabular-nums">Bs {row.original.price.toFixed(2)}</span>
+    ),
   },
   {
     accessorKey: "stock",

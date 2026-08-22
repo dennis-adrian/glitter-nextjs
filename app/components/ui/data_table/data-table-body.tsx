@@ -24,7 +24,7 @@ export function DataTableBody<TData, TValue>({
                 key={cell.id}
                 className={
                   cell.column.getIsPinned()
-                    ? "sticky right-0 z-20 bg-white shadow-inner"
+                    ? "sticky right-0 z-20 bg-background shadow-inner"
                     : ""
                 }
               >

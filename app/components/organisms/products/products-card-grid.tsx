@@ -83,13 +83,13 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
             {product.name}
           </p>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold">
+            <span className="text-sm font-semibold tabular-nums">
               Bs {product.price.toFixed(2)}
             </span>
             <Badge
               variant="outline"
               className={cn(
-                "text-xs",
+                "text-xs tabular-nums",
                 stock === 0
                   ? "border-red-300 text-red-600"
                   : stock <= 5

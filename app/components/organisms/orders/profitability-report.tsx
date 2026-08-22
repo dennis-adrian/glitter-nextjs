@@ -271,7 +271,7 @@ export default function ProfitabilityReport({
                 size="sm"
                 variant="outline"
                 disabled={preview.resolvableLines === 0 || isPending}
-                className="shrink-0 border-amber-300 bg-white hover:bg-amber-100"
+                className="shrink-0 border-amber-300 bg-background hover:bg-amber-100"
               >
                 Aplicar costos actuales
               </Button>
