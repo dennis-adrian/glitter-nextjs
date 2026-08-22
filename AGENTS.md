@@ -21,6 +21,14 @@ Environment notes for this VM (the startup update script already runs `pnpm inst
 - Node: the repo requires Node `>=24`, but the base image's default `node` on `PATH` (`/exec-daemon/node`) is Node 22. A Node 24 install (via `nvm`) is preferred on `PATH` through `~/.bashrc`, so interactive shells get Node 24. If a shell shows Node 22, run `export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH"` (or `nvm use 24`).
 - PostgreSQL runs locally (apt package, cluster `16 main` on port 5432). Start it with `sudo pg_ctlcluster 16 main start` if it is not already running (`sudo pg_lsclusters` to check). Local role/DBs: role `glitter`/`glitter`, databases `glitter_dev` and `glitter_test`.
 - Secrets: `.env.local` (git-ignored) is required to boot. It holds a real local `POSTGRES_URL`/`TEST_DATABASE_URL` plus well-formed *placeholder* keys for Clerk, UploadThing, Resend, and PostHog. The app boots and public pages render, but real Clerk login, file uploads, and email sending need real credentials (add them as secrets and mirror into `.env.local`). Resend and PostHog are effectively no-ops in `development`.
-- Apply migrations after schema changes: `pnpm migrate` (dev DB). For the integration-test DB run `POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate` once; its name must contain `test`/`ci`. `pnpm seed` is an intentional no-op, so seed storefront/admin data manually (e.g. insert rows into `products`).
+- Apply migrations after schema changes: `pnpm migrate` (dev DB). `scripts/migrate.ts` reads `.env.local` from inside Node (`@next/env`), so `TEST_DATABASE_URL` does not exist yet when the shell expands it — a bare `POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate` passes an empty value and the script just prints "POSTGRES_URL is not set. Skipping migration." Load `.env.local` into the shell first, and keep the safeguard that the target database name must contain `test`/`ci` (the integration tests assert the same rule). Run once for the integration-test DB:
+
+```bash
+( set -a; . ./.env.local; set +a
+  node -e 'const n = decodeURIComponent(new URL(process.env.TEST_DATABASE_URL).pathname.slice(1)); if (!/(^|[_-])(test|ci)([_-]|$)/i.test(n)) { console.error(`Refusing to migrate: "${n}" is not a test/ci database`); process.exit(1); }' \
+    && POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate )
+```
+
+- `pnpm seed` is an intentional no-op, so seed storefront/admin data manually (e.g. insert rows into `products`).
 - Commands: dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (loads `.env.local`, needs a migrated `TEST_DATABASE_URL`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
 - `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file and `CLAUDE.md`; commit that change rather than fighting it.
