@@ -63,6 +63,7 @@ export default async function StoreProductsPage(props: {
         <ResponsiveProductsView
           key={scope}
           productsPromise={productsPromise}
+          categoryScope={scope}
         />
       </Suspense>
     </div>
