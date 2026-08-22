@@ -1207,6 +1207,64 @@ export async function fetchOrdersByStatus(
   }
 }
 
+export type OrderStatusCounts = Record<OrderStatus, number> & {
+  all: number;
+  needs_attention: number;
+};
+
+const EMPTY_STATUS_COUNTS: OrderStatusCounts = {
+  pending: 0,
+  payment_verification: 0,
+  processing: 0,
+  paid: 0,
+  delivered: 0,
+  cancelled: 0,
+  all: 0,
+  needs_attention: 0,
+};
+
+/**
+ * How many orders each status would return under the *other* active filters.
+ * The status filter itself is deliberately excluded, so a facet can say it is
+ * empty before you spend a tap finding out.
+ */
+export async function fetchOrderStatusCounts(
+  query: StoreOrdersQuery,
+): Promise<OrderStatusCounts> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return EMPTY_STATUS_COUNTS;
+
+  try {
+    const rows = await db
+      .select({
+        status: orders.status,
+        count: sql<number>`cast(count(*) as integer)`,
+      })
+      .from(orders)
+      .where(
+        and(
+          buildRentalFilterSql(query.rental),
+          buildOrderDateFilterSql(query),
+          buildOrderSearchSql(query.q),
+          buildOrderCategoryFilterSql(query.category),
+        ),
+      )
+      .groupBy(orders.status);
+
+    const counts = { ...EMPTY_STATUS_COUNTS };
+    for (const row of rows) {
+      const value = Number(row.count ?? 0);
+      counts[row.status] = value;
+      counts.all += value;
+    }
+    counts.needs_attention = counts.pending + counts.payment_verification;
+    return counts;
+  } catch (error) {
+    console.error(error);
+    return EMPTY_STATUS_COUNTS;
+  }
+}
+
 export async function fetchOrdersForAdmin(
   query: StoreOrdersQuery,
 ): Promise<AdminOrderListRow[]> {

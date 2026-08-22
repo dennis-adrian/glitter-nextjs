@@ -13,6 +13,7 @@ import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
 } from "@/app/lib/orders/query-schema";
+import type { OrderStatusCounts } from "@/app/lib/orders/actions";
 import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
 import {
@@ -28,6 +29,7 @@ type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersTableProps = {
   ordersPromise: Promise<AdminOrderListRow[]>;
+  countsPromise: Promise<OrderStatusCounts>;
   query: StoreOrdersQuery;
 };
 
@@ -84,9 +86,11 @@ function OrdersExportButton({ query }: { query: StoreOrdersQuery }) {
 
 export default function OrdersTable({
   ordersPromise,
+  countsPromise,
   query,
 }: OrdersTableProps) {
   const orders = use(ordersPromise);
+  const counts = use(countsPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const selectedStatuses = (
@@ -168,19 +172,35 @@ export default function OrdersTable({
               opt.value === "all"
                 ? selectedStatuses.length === 0
                 : selectedStatuses.includes(opt.value);
+            const count =
+              opt.value === "all"
+                ? counts.all
+                : counts[opt.value as keyof OrderStatusCounts];
             return (
               <button
                 key={opt.value}
                 aria-pressed={isActive}
+                disabled={count === 0 && !isActive}
                 onClick={() => handleStatusChange(opt.value)}
                 className={cn(
-                  "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
                   isActive
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:bg-accent",
+                  count === 0 && !isActive && "opacity-50",
                 )}
               >
                 {opt.label}
+                <span
+                  className={cn(
+                    "text-xs tabular-nums",
+                    isActive
+                      ? "text-primary-foreground/70"
+                      : "text-foreground/50",
+                  )}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
