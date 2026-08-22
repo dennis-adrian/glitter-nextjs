@@ -144,12 +144,17 @@ export function createColumns({
       cell: ({ row }) => {
         const hasReservation = row.original.reservations.length > 0;
         return (
-          <div
-            className={cn(
-              "flex items-center gap-2 pl-2",
-              hasReservation && "border-l-4 border-l-emerald-500 -ml-2 py-0.5",
+          <div className="flex items-center gap-2 pl-2">
+            {hasReservation && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500"
+                />
+                {/* The stripe this replaced was invisible to screen readers. */}
+                <span className="sr-only">Con reserva</span>
+              </>
             )}
-          >
             <span className="text-sm font-medium">
               {standDisplayLabel(row.original)}
             </span>
