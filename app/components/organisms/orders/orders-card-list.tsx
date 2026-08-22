@@ -143,8 +143,9 @@ function OrderCard({
     <Card
       className={cn(
         "cursor-pointer transition-colors hover:bg-accent/40",
-        // An edge stripe carries the urgency without tinting the whole card.
-        isOverdue && "border-l-4 border-l-red-500",
+        // A soft tint, not an edge stripe: the "Vencido" pill already labels
+        // the state, so the card only needs to be findable in a scan.
+        isOverdue && "border-red-200 bg-red-50/30",
         selectionMode && isSelected && "border-primary bg-primary/5",
       )}
       role={selectionMode ? "checkbox" : "button"}
