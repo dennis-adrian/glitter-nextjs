@@ -396,6 +396,7 @@ export default function OrdersCardList({
   }
 
   function handleClearFilters() {
+    updateSearch.cancel();
     startTransition(() => {
       setOptimisticStatuses([]);
       setOptimisticRentalFilter("all");

@@ -1437,7 +1437,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                   />
                   <SelectInput
                     formControl={form.control}
-                    label="Stock de alquiler"
+                    label="Modo de stock de alquiler"
                     name="rentalStockMode"
                     options={[
                       { value: "shared", label: "Compartido con ventas" },

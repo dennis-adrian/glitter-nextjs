@@ -45,7 +45,11 @@ export default function OrdersDateFilter({
 
   function handleClearCustom() {
     setCustomOpen(false);
-    onPeriodChange("all");
+    // Draft custom inputs never changed the URL. Closing them should leave
+    // the active preset (and its result set) alone.
+    if (hasCustomRange) {
+      onPeriodChange("all");
+    }
   }
 
   const showInputs = customOpen || hasCustomRange;
