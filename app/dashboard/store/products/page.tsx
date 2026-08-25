@@ -1,17 +1,11 @@
-import LowStockAlert from "@/app/components/organisms/orders/low-stock-alert";
 import ResponsiveProductsView from "@/app/components/organisms/products/responsive-products-view";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import { Button } from "@/app/components/ui/button";
-import { Skeleton } from "@/app/components/ui/skeleton";
-import {
-  fetchLowStockProducts,
-  fetchProducts,
-} from "@/app/lib/products/actions";
+import { fetchProducts } from "@/app/lib/products/actions";
 import {
   isLowStockFilter,
   isProductLowStock,
   LOW_STOCK_FILTER_PARAM,
-  LOW_STOCK_FILTER_VALUE,
 } from "@/app/lib/products/low-stock";
 import {
   normalizeStoreCategoryScope,
@@ -22,22 +16,6 @@ import {
 import { PlusIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
-
-function LowStockSkeleton() {
-  return (
-    <div className="rounded-lg border border-amber-200/50 bg-card p-4">
-      <div className="flex items-center gap-2 pb-2">
-        <Skeleton className="h-5 w-5 shrink-0" />
-        <Skeleton className="h-5 w-24" />
-      </div>
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default async function StoreProductsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -52,13 +30,6 @@ export default async function StoreProductsPage(props: {
     (products) =>
       lowStockOnly ? products.filter(isProductLowStock) : products,
   );
-  const lowStockPromise = fetchLowStockProducts({ storeCategory });
-  const lowStockParams = new URLSearchParams();
-  lowStockParams.set(LOW_STOCK_FILTER_PARAM, LOW_STOCK_FILTER_VALUE);
-  if (scope !== "all") {
-    lowStockParams.set(STORE_CATEGORY_SCOPE_PARAM, scope);
-  }
-  const lowStockHref = `/dashboard/store/products?${lowStockParams.toString()}`;
   const allProductsHref = storeCategoryScopeHref(
     "/dashboard/store/products",
     scope,
@@ -74,13 +45,6 @@ export default async function StoreProductsPage(props: {
           </Link>
         </Button>
       </div>
-
-      <Suspense fallback={<LowStockSkeleton />}>
-        <LowStockAlert
-          lowStockPromise={lowStockPromise}
-          allProductsHref={lowStockHref}
-        />
-      </Suspense>
 
       {lowStockOnly && (
         <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
