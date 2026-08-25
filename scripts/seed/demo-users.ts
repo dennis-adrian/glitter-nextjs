@@ -260,14 +260,18 @@ async function retireFormerDemoUsers(
       console.info(`[seed] retired clerk user ${email} (${clerkUser.id})`);
     }
 
-    const deleted = await database
-      .delete(users)
-      .where(eq(users.email, email))
-      .returning({ id: users.id });
-    if (deleted.length > 0) {
-      console.info(
-        `[seed] retired local profile ${email} (id=${deleted[0].id})`,
-      );
+    try {
+      const deleted = await database
+        .delete(users)
+        .where(eq(users.email, email))
+        .returning({ id: users.id });
+      if (deleted.length > 0) {
+        console.info(
+          `[seed] retired local profile ${email} (id=${deleted[0].id})`,
+        );
+      }
+    } catch (error) {
+      console.warn(`[seed] failed to retire local profile ${email}`, error);
     }
   }
 }

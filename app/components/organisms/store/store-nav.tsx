@@ -90,10 +90,13 @@ export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
   // On a phone the row scrolls, so the current section can start off-screen.
   // `block: "nearest"` keeps this from scrolling the page vertically too.
   useEffect(() => {
+    const prefersReducedMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
     activeRef.current?.scrollIntoView({
       block: "nearest",
       inline: "center",
-      behavior: "smooth",
+      behavior: prefersReducedMotion ? "auto" : "smooth",
     });
   }, [active]);
 
