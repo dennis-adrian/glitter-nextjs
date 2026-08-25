@@ -115,11 +115,14 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
             <span className="text-xs text-muted-foreground">
               Total del pedido
             </span>{" "}
-            Bs{totalAmount.toFixed(2)}
+            <span className="tabular-nums">Bs {totalAmount.toFixed(2)}</span>
           </p>
           {isMixedCategory && scopedSubtotal !== totalAmount && (
             <p className="text-xs text-muted-foreground">
-              Subtotal en este filtro Bs{scopedSubtotal.toFixed(2)}
+              Subtotal en este filtro{" "}
+              <span className="tabular-nums">
+                Bs {scopedSubtotal.toFixed(2)}
+              </span>
             </p>
           )}
         </div>
@@ -156,7 +159,7 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
       const { status, paymentVoucherUrl, id } = row.original;
       return (
         <div className="flex items-center gap-2">
-          <OrderStatusBadge status={status} />
+          <OrderStatusBadge status={status} appearance="dot" />
           {paymentVoucherUrl && (
             <OrderVoucherDialog voucherUrl={paymentVoucherUrl} orderId={id} />
           )}

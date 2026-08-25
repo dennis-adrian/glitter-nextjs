@@ -1,14 +1,18 @@
 "use no memo";
 
 import { TableBody, TableCell, TableRow } from "@/app/components/ui/table";
+import type { TableDensity } from "@/app/components/ui/data_table/density-toggle";
+import { cn } from "@/lib/utils";
 import { ColumnDef, flexRender, Table } from "@tanstack/react-table";
 
 export function DataTableBody<TData, TValue>({
   table,
   columns,
+  density = "comfortable",
 }: {
   table: Table<TData>;
   columns: ColumnDef<TData, TValue>[];
+  density?: TableDensity;
 }) {
   return (
     <TableBody>
@@ -22,11 +26,12 @@ export function DataTableBody<TData, TValue>({
             {row.getVisibleCells().map((cell) => (
               <TableCell
                 key={cell.id}
-                className={
-                  cell.column.getIsPinned()
-                    ? "sticky right-0 z-20 bg-white shadow-inner"
-                    : ""
-                }
+                className={cn(
+                  // twMerge lets the compact override win over the cell's p-4.
+                  density === "compact" && "px-2 py-1.5",
+                  cell.column.getIsPinned() &&
+                    "sticky right-0 z-20 bg-background shadow-inner",
+                )}
               >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </TableCell>

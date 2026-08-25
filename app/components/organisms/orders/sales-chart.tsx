@@ -13,23 +13,21 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/app/components/ui/chart";
-import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
-  toConcreteStoreCategory,
-  type StoreCategoryScope,
-} from "@/app/lib/store/category";
-import { DateTime } from "luxon";
+  buildSalesChartData,
+  type SalesChartMode,
+} from "@/app/components/organisms/orders/sales-chart-data";
+import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import { type StoreCategoryScope } from "@/app/lib/store/category";
 import { use, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 type SalesChartProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
   category: StoreCategoryScope;
+  /** The page-level window shared by every historical analytics section. */
+  range: { from?: Date; to?: Date };
 };
-
-type ChartMode = "revenue" | "orders";
-
-const STORE_ZONE = "America/La_Paz";
 
 const chartConfig = {
   value: {
@@ -41,71 +39,33 @@ const chartConfig = {
 export default function OrdersSalesChart({
   ordersPromise,
   category,
+  range,
 }: SalesChartProps) {
   const orders = use(ordersPromise);
-  const [mode, setMode] = useState<ChartMode>("revenue");
-  const concreteCategory = toConcreteStoreCategory(category);
-
-  const chartData = useMemo(() => {
-    const now = DateTime.now().setZone(STORE_ZONE);
-    const days: { date: string; value: number }[] = [];
-
-    for (let i = 29; i >= 0; i--) {
-      const day = now.minus({ days: i });
-      const dateKey = day.toFormat("yyyy-MM-dd");
-      const label = day.toFormat("d MMM", { locale: "es" });
-
-      const dayOrders = orders.filter((o) => {
-        const orderDate = DateTime.fromJSDate(new Date(o.createdAt)).setZone(
-          STORE_ZONE,
-        );
-        return orderDate.toFormat("yyyy-MM-dd") === dateKey;
-      });
-
-      // A mixed order's whole total belongs to no single category, so a
-      // concrete scope sums matching lines instead.
-      const value =
-        mode === "revenue"
-          ? dayOrders
-              .filter((o) => o.status === "paid" || o.status === "delivered")
-              .reduce(
-                (sum, o) =>
-                  sum +
-                  (concreteCategory == null
-                    ? o.totalAmount
-                    : o.orderItems
-                        .filter(
-                          (item) =>
-                            item.storeCategoryAtPurchase === concreteCategory,
-                        )
-                        .reduce(
-                          (lineSum, item) =>
-                            lineSum + item.quantity * item.priceAtPurchase,
-                          0,
-                        )),
-                0,
-              )
-          : concreteCategory == null
-            ? dayOrders.length
-            : dayOrders.filter((o) =>
-                o.orderItems.some(
-                  (item) =>
-                    item.storeCategoryAtPurchase === concreteCategory &&
-                    item.quantity > 0,
-                ),
-              ).length;
-
-      days.push({ date: label, value });
-    }
-
-    return days;
-  }, [orders, mode, concreteCategory]);
+  const [mode, setMode] = useState<SalesChartMode>("revenue");
+  // Dates cross the server boundary as fresh objects each render, so the
+  // memos key off their timestamps instead of identity.
+  const fromTime = range.from?.getTime() ?? null;
+  const toTime = range.to?.getTime() ?? null;
+  const { data: chartData, title } = useMemo(
+    () =>
+      buildSalesChartData({
+        orders,
+        category,
+        mode,
+        range: {
+          from: fromTime == null ? undefined : new Date(fromTime),
+          to: toTime == null ? undefined : new Date(toTime),
+        },
+      }),
+    [category, fromTime, mode, orders, toTime],
+  );
 
   return (
     <Card>
       <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Últimos 30 días</CardTitle>
+          <CardTitle className="text-base">{title}</CardTitle>
           <div className="flex gap-1">
             <Button
               size="sm"

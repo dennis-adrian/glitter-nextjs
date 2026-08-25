@@ -53,6 +53,23 @@ export function profitabilityQueryToSearchParams(
   return params;
 }
 
+/**
+ * The equal-length window immediately before `range`, used as the comparison
+ * baseline for KPIs. Returns null for an unbounded range, where "the previous
+ * period" has no meaning.
+ */
+export function getPreviousDateRange(range: {
+  from?: Date;
+  to?: Date;
+}): { from: Date; to: Date } | null {
+  if (!range.from || !range.to) return null;
+  const span = range.to.getTime() - range.from.getTime();
+  return {
+    from: new Date(range.from.getTime() - span - 1),
+    to: new Date(range.from.getTime() - 1),
+  };
+}
+
 export function getProfitabilityDateRange(
   query: ProfitabilityQuery,
   now = DateTime.now().setZone(STORE_TIMEZONE),

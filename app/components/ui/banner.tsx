@@ -90,7 +90,7 @@ export function Banner({
 
   return (
     <div
-      className={`${config.bgColor} border-l-4 ${config.borderColor} rounded-r-lg p-4 ${className}`}
+      className={`${config.bgColor} border ${config.borderColor} rounded-lg p-4 ${className}`}
     >
       <div className="flex items-start gap-3">
         <Icon className={`w-4 h-4 ${config.iconColor} shrink-0 mt-0.5`} />

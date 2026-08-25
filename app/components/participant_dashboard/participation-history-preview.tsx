@@ -16,15 +16,15 @@ type Props = {
 const FESTIVAL_TYPE_STYLE: Record<string, { badge: string; border: string }> = {
   glitter: {
     badge: "bg-purple-600 text-white border-purple-200",
-    border: "border-l-purple-600",
+    border: "border-purple-300",
   },
   twinkler: {
     badge: "bg-pink-600 text-white border-pink-600",
-    border: "border-l-pink-600",
+    border: "border-pink-300",
   },
   festicker: {
     badge: "bg-rose-600 text-white border-rose-600",
-    border: "border-l-rose-600",
+    border: "border-rose-300",
   },
 };
 
@@ -79,7 +79,7 @@ export default function ParticipationHistoryPreview({
           return (
             <li
               key={p.id}
-              className={`flex items-start border-l-4 ${styles.border} rounded-lg px-4 py-3 gap-3 bg-muted/20`}
+              className={`flex items-start border ${styles.border} rounded-lg px-4 py-3 gap-3 bg-muted/20`}
             >
               {festival.posterUrl && (
                 <div className="relative aspect-4/5 w-full max-w-32 h-auto rounded-lg">

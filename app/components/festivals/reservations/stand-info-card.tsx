@@ -245,7 +245,7 @@ export function StandInfoCard({
 
           {/* Stand held by current user */}
           {isOwnHold && (
-            <div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
               <p className="text-sm text-amber-800">
                 Tienes este espacio reservado temporalmente. Confirma tu reserva
                 antes de que expire.
@@ -255,7 +255,7 @@ export function StandInfoCard({
 
           {/* Stand held by another user */}
           {stand.status === "held" && !isOwnHold && (
-            <div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
               <p className="text-sm text-amber-800">
                 Otro participante está considerando este espacio. Volverá a
                 estar disponible en breve.
@@ -265,7 +265,7 @@ export function StandInfoCard({
 
           {/* Stand taken - show reserver info */}
           {isStandTaken && stand.status !== "held" && standReservation && (
-            <div className="rounded-r-lg border-l-4 border-red-500 bg-red-50 p-4">
+            <div className="rounded-lg border border-red-300 bg-red-50 p-4">
               <div className="mb-3 space-y-2">
                 {standReservation.participants.map((participant) => (
                   <div key={participant.id} className="flex items-center gap-3">

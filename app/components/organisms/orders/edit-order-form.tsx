@@ -349,7 +349,7 @@ export default function EditOrderForm({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Items list */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-xs border p-6">
+        <div className="lg:col-span-2 bg-card rounded-xl shadow-xs border p-6">
           <Heading level={3}>Artículos</Heading>
           <p className="text-sm text-muted-foreground mb-4">
             Podés ajustar las cantidades o eliminar artículos. No es posible
@@ -406,7 +406,7 @@ export default function EditOrderForm({
       </div>
 
       {/* Mobile sticky summary bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg px-4 py-3 z-10">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg px-4 py-3 z-10">
         <div className="flex items-center justify-between mb-2">
           <div>
             <p className="text-sm text-muted-foreground">Nuevo total</p>

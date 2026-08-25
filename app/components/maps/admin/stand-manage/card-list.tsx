@@ -65,7 +65,7 @@ export default function StandManageCardList({
               className={cn(
                 "flex items-start gap-3 rounded-lg border bg-background px-3 py-3 transition-colors",
                 isSelected && "bg-muted/50",
-                hasReservation && "border-l-4 border-l-emerald-500",
+                hasReservation && "border-emerald-300",
               )}
             >
               <Checkbox

@@ -2,11 +2,14 @@
 
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-actions";
+import OrdersFilterSheet from "@/app/components/organisms/orders/orders-filter-sheet";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import SocialMediaBadge from "@/app/components/social-media-badge";
+import { Badge } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
+import type { OrderStatusCounts } from "@/app/lib/orders/actions";
 import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import {
   storeOrdersQueryToSearchParams,
@@ -16,12 +19,13 @@ import {
   getOrderItemDisplayName,
   getOrderStatusLabel,
 } from "@/app/lib/orders/utils";
-import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
+import {
+  getStoreCategoryBadgeLabel,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import { getRentalOrderFilterLabel } from "@/app/lib/rentals/order-filters";
-import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Checkbox } from "@/app/components/ui/checkbox";
-import { Input } from "@/app/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangleIcon,
@@ -29,10 +33,9 @@ import {
   DownloadIcon,
   ListChecksIcon,
   ReceiptIcon,
-  SearchIcon,
-  SlidersHorizontalIcon,
 } from "lucide-react";
 import { DateTime } from "luxon";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -42,6 +45,7 @@ type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersCardListProps = {
   ordersPromise: Promise<AdminOrderListRow[]>;
+  countsPromise: Promise<OrderStatusCounts>;
   query: StoreOrdersQuery;
 };
 
@@ -76,6 +80,7 @@ const STATUS_OPTIONS: {
 function OrderCard({
   order,
   selectedStatuses,
+  categoryScope,
   selectionMode,
   isSelected,
   canSelect,
@@ -83,18 +88,13 @@ function OrderCard({
 }: {
   order: AdminOrderListRow;
   selectedStatuses: string[];
+  categoryScope: StoreCategoryScope;
   selectionMode: boolean;
   isSelected: boolean;
   canSelect: boolean;
   onToggleSelect: () => void;
 }) {
-  const router = useRouter();
   const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
-  // While selecting, tapping the card picks it instead of leaving the list.
-  const activateCard = () =>
-    selectionMode
-      ? onToggleSelect()
-      : router.push(`/dashboard/store/orders/${order.id}`);
 
   const isOverdue =
     !!order.paymentDueDate &&
@@ -120,26 +120,47 @@ function OrderCard({
   const extraItems =
     order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";
 
+  // Category only earns a slot when the list isn't already scoped to one.
+  const categoryLabel = order.isMixedCategory
+    ? "Pedido mixto"
+    : order.storeCategories.map(getStoreCategoryBadgeLabel).join(", ");
+  const metaPrefix = [
+    categoryScope === "all" && categoryLabel ? categoryLabel : null,
+    order.orderItems.length > 0 ? `${itemsPreview}${extraItems}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const createdLabel = formatDate(order.createdAt).toLocaleString(
+    DateTime.DATE_MED,
+  );
+
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-colors hover:bg-accent/40",
+        "relative transition-colors hover:bg-accent/40",
+        selectionMode && "cursor-pointer",
+        // A soft tint, not an edge stripe: the "Vencido" pill already labels
+        // the state, so the card only needs to be findable in a scan.
         isOverdue && "border-red-200 bg-red-50/30",
         selectionMode && isSelected && "border-primary bg-primary/5",
       )}
-      role={selectionMode ? "checkbox" : "button"}
+      role={selectionMode ? "checkbox" : undefined}
       aria-checked={selectionMode ? isSelected : undefined}
-      tabIndex={0}
-      onClick={activateCard}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          activateCard();
-        }
-      }}
+      tabIndex={selectionMode ? 0 : undefined}
+      onClick={selectionMode ? onToggleSelect : undefined}
+      onKeyDown={
+        selectionMode
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onToggleSelect();
+              }
+            }
+          : undefined
+      }
     >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
+      <CardContent className="p-3">
+        <div className="flex items-start gap-2">
           {selectionMode && (
             /* Purely visual: the card itself carries the checkbox semantics. */
             <Checkbox
@@ -152,42 +173,59 @@ function OrderCard({
               aria-hidden="true"
             />
           )}
-          <div className="flex flex-col gap-1.5 min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-sm font-semibold">#{order.id}</span>
-              {showStatusBadge && <OrderStatusBadge status={order.status} />}
-              {showOverdueBadge && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
-                  <AlertTriangleIcon className="h-3 w-3" />
-                  Vencido
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            {/* The two things scanned first: which order, and how much. */}
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                #{order.id}
+              </span>
+              <span className="flex shrink-0 items-center gap-0.5">
+                <span className="text-base font-semibold tabular-nums">
+                  Bs {order.totalAmount.toFixed(2)}
                 </span>
-              )}
-              {hasPendingVoucher && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
-                  <ReceiptIcon className="h-3 w-3" />
-                  Comprobante
-                </span>
-              )}
-              {order.storeCategories.map((category) => (
-                <span
-                  key={category}
-                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                >
-                  {getStoreCategoryBadgeLabel(category)}
-                </span>
-              ))}
-              {order.isMixedCategory && (
-                <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
-                  Pedido mixto
+                {!selectionMode && (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </span>
+            </div>
+
+            {/* Routine state is a dot; pills are reserved for exceptions. */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                {showStatusBadge && (
+                  <OrderStatusBadge status={order.status} appearance="dot" />
+                )}
+                {showOverdueBadge && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-red-300 bg-red-50 text-red-600"
+                  >
+                    <AlertTriangleIcon className="h-3 w-3" />
+                    Vencido
+                  </Badge>
+                )}
+                {hasPendingVoucher && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-blue-300 bg-blue-50 text-blue-600"
+                  >
+                    <ReceiptIcon className="h-3 w-3" />
+                    Comprobante
+                  </Badge>
+                )}
+              </div>
+              {!selectionMode && (
+                <span className="relative z-10 shrink-0">
+                  <OrdersActionsCell order={order} />
                 </span>
               )}
             </div>
 
-            <p className="text-sm text-muted-foreground truncate">
+            <p className="truncate text-sm font-medium">
               {order.customer?.displayName ?? order.guestName ?? "Invitado"}
             </p>
             {!order.customer && order.guestPhone && (
-              <div onClick={(e) => e.stopPropagation()}>
+              <div className="relative z-10">
                 <SocialMediaBadge
                   socialMediaType="whatsapp"
                   username={order.guestPhone}
@@ -195,55 +233,44 @@ function OrderCard({
               </div>
             )}
 
-            {order.orderItems.length > 0 && (
-              <p className="text-xs text-muted-foreground truncate">
-                {itemsPreview}
-                {extraItems}
-              </p>
-            )}
-
-            <p className="text-xs text-muted-foreground capitalize">
-              {formatDate(order.createdAt).toLocaleString(DateTime.DATE_MED)}
+            {/* Category, items and date collapse into one muted line. */}
+            <p className="truncate text-xs text-muted-foreground">
+              {metaPrefix && `${metaPrefix} · `}
+              <span className="capitalize">{createdLabel}</span>
             </p>
-          </div>
 
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex flex-col items-end">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-sm">
-                  Bs {order.totalAmount.toFixed(2)}
-                </span>
-                {!selectionMode && (
-                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Total del pedido
-              </span>
-              {order.isMixedCategory &&
-                order.scopedSubtotal !== order.totalAmount && (
-                  <span className="text-xs text-muted-foreground">
-                    Subtotal en este filtro Bs {order.scopedSubtotal.toFixed(2)}
+            {order.isMixedCategory &&
+              order.scopedSubtotal !== order.totalAmount && (
+                <span className="text-xs text-muted-foreground">
+                  Subtotal en este filtro{" "}
+                  <span className="tabular-nums">
+                    Bs {order.scopedSubtotal.toFixed(2)}
                   </span>
-                )}
-            </div>
-            {!selectionMode && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <OrdersActionsCell order={order} />
-              </div>
-            )}
+                </span>
+              )}
           </div>
         </div>
       </CardContent>
+      {!selectionMode && (
+        <Link
+          href={`/dashboard/store/orders/${order.id}`}
+          className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={`Pedido #${order.id}, ${
+            order.customer?.displayName ?? order.guestName ?? "Invitado"
+          }, ${getOrderStatusLabel(order.status)}`}
+        />
+      )}
     </Card>
   );
 }
 
 export default function OrdersCardList({
   ordersPromise,
+  countsPromise,
   query,
 }: OrdersCardListProps) {
   const orders = use(ordersPromise);
+  const counts = use(countsPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const selectedStatuses = (
@@ -258,7 +285,6 @@ export default function OrdersCardList({
   );
   const [search, setSearch] = useState(query.q);
   const [previousQuerySearch, setPreviousQuerySearch] = useState(query.q);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
@@ -369,6 +395,25 @@ export default function OrdersCardList({
     });
   }
 
+  function handleClearFilters() {
+    updateSearch.cancel();
+    startTransition(() => {
+      setOptimisticStatuses([]);
+      setOptimisticRentalFilter("all");
+      setSearch("");
+      navigate({
+        ...query,
+        status: "all",
+        statuses: "",
+        rental: "all",
+        period: "all",
+        from: undefined,
+        to: undefined,
+        q: "",
+      });
+    });
+  }
+
   const exportParams = storeOrdersQueryToSearchParams(query);
   exportParams.set("format", "summary");
 
@@ -405,103 +450,21 @@ export default function OrdersCardList({
               <ListChecksIcon className="h-3.5 w-3.5" />
               {selectionMode ? "Cancelar" : "Seleccionar"}
             </button>
-            <button
-              onClick={() => setFiltersOpen((v) => !v)}
-              className={cn(
-                "relative inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-                filtersOpen
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <SlidersHorizontalIcon className="h-3.5 w-3.5" />
-              Filtros
-              {(search !== "" ||
-                query.from ||
-                query.to ||
-                query.period !== "all") && (
-                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
-              )}
-            </button>
-          </div>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
-          {STATUS_OPTIONS.map((opt) => {
-            const isActive =
-              opt.value === ""
-                ? selectedStatuses.length === 0
-                : selectedStatuses.includes(opt.value);
-            return (
-              <button
-                key={opt.value}
-                aria-pressed={isActive}
-                onClick={() => handleStatusChange(opt.value)}
-                className={cn(
-                  "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border text-muted-foreground hover:bg-accent",
-                )}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Alquiler
-        </span>
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
-          {RENTAL_FILTER_OPTIONS.map((opt) => {
-            const isActive = optimisticRentalFilter === opt.value;
-            return (
-              <button
-                key={opt.value}
-                onClick={() => handleRentalFilterChange(opt.value)}
-                className={cn(
-                  "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary border-primary"
-                    : "border-border text-muted-foreground hover:bg-accent",
-                )}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {filtersOpen && (
-        <>
-          {/* Search */}
-          <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por cliente, ID o producto..."
-              value={search}
-              onChange={(e) => {
-                const q = e.target.value;
-                setSearch(q);
-                updateSearch(q.trim());
+            <OrdersFilterSheet
+              query={query}
+              statusOptions={STATUS_OPTIONS}
+              rentalOptions={RENTAL_FILTER_OPTIONS}
+              counts={counts}
+              selectedStatuses={optimisticStatuses}
+              rentalFilter={optimisticRentalFilter}
+              resultCount={orders.length}
+              search={search}
+              onSearchChange={(value) => {
+                setSearch(value);
+                updateSearch(value.trim());
               }}
-              className="pl-9"
-            />
-          </div>
-
-          {/* Date filter */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Fecha
-            </span>
-            <OrdersDateFilter
-              period={query.period}
-              dateFrom={query.from ?? ""}
-              dateTo={query.to ?? ""}
-              hasCustomRange={Boolean(query.from || query.to)}
+              onStatusToggle={handleStatusChange}
+              onRentalChange={handleRentalFilterChange}
               onPeriodChange={(period) =>
                 navigate({ ...query, period, from: undefined, to: undefined })
               }
@@ -515,10 +478,53 @@ export default function OrdersCardList({
               onToChange={(to) =>
                 navigate({ ...query, period: "custom", to: to || undefined })
               }
+              onClear={handleClearFilters}
             />
           </div>
-        </>
-      )}
+        </div>
+        {/* Status stays on the surface rather than moving into the sheet:
+            it is the most common switch, and burying it would turn a one-tap
+            action into three. The sheet still carries it, plus the rest. */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
+          {STATUS_OPTIONS.map((opt) => {
+            const isActive =
+              opt.value === ""
+                ? optimisticStatuses.length === 0
+                : optimisticStatuses.includes(opt.value);
+            const count =
+              opt.value === ""
+                ? counts.all
+                : counts[opt.value as keyof OrderStatusCounts];
+            return (
+              <button
+                key={opt.value}
+                aria-pressed={isActive}
+                disabled={count === 0 && !isActive}
+                onClick={() => handleStatusChange(opt.value)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                  count === 0 && !isActive && "opacity-50",
+                )}
+              >
+                {opt.label}
+                <span
+                  className={cn(
+                    "tabular-nums",
+                    isActive
+                      ? "text-primary-foreground/70"
+                      : "text-foreground/50",
+                  )}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Cards */}
       <div
@@ -537,6 +543,7 @@ export default function OrdersCardList({
               key={order.id}
               order={order}
               selectedStatuses={optimisticStatuses}
+              categoryScope={query.category}
               selectionMode={selectionMode}
               isSelected={prunedSelectedIds.includes(order.id)}
               canSelect={

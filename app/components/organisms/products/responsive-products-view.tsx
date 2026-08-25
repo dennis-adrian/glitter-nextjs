@@ -4,11 +4,13 @@ import ProductsCardGrid from "@/app/components/organisms/products/products-card-
 import ProductsTable from "@/app/components/organisms/products/products-table";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import type { StoreCategoryScope } from "@/app/lib/store/category";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { Suspense, use } from "react";
 
 type ResponsiveProductsViewProps = {
   productsPromise: Promise<BaseProductWithImages[]>;
+  categoryScope: StoreCategoryScope;
 };
 
 const cardGridFallback = (
@@ -24,6 +26,7 @@ const cardGridFallback = (
 
 function ProductsContent({
   productsPromise,
+  categoryScope,
   isDesktop,
 }: ResponsiveProductsViewProps & { isDesktop: boolean }) {
   const products = use(productsPromise);
@@ -31,12 +34,13 @@ function ProductsContent({
   return isDesktop ? (
     <ProductsTable products={products} />
   ) : (
-    <ProductsCardGrid products={products} />
+    <ProductsCardGrid products={products} categoryScope={categoryScope} />
   );
 }
 
 export default function ResponsiveProductsView({
   productsPromise,
+  categoryScope,
 }: ResponsiveProductsViewProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -44,6 +48,7 @@ export default function ResponsiveProductsView({
     <Suspense fallback={isDesktop ? <TableSkeleton /> : cardGridFallback}>
       <ProductsContent
         productsPromise={productsPromise}
+        categoryScope={categoryScope}
         isDesktop={isDesktop}
       />
     </Suspense>
