@@ -43,6 +43,7 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
@@ -115,6 +116,13 @@ import {
   type ProfitabilityQueryRow,
 } from "@/app/lib/orders/profitability";
 import { getPreviousDateRange } from "@/app/lib/orders/profitability-query-schema";
+import {
+  buildOrderStatusCounts,
+  emptyOrderStatusCounts,
+  type OrderStatusCounts,
+} from "@/app/lib/orders/order-status-counts";
+
+export type { OrderStatusCounts } from "@/app/lib/orders/order-status-counts";
 
 const ORDER_ADJUSTMENT_FAILURE_CATEGORIES = new Set([
   "conflict",
@@ -570,6 +578,11 @@ export async function createOrderInTx(
   _customerEmail: string,
   _customerName: string,
 ): Promise<CreateOrderInTxResult> {
+  // Kept in the transaction API for callers that already have customer
+  // snapshots; order ownership is derived from the persisted user profile.
+  void _customerEmail;
+  void _customerName;
+
   let orderLines = lines;
   const rentalLines = orderLines.filter(
     (line) => (line.transactionType ?? "purchase") === "rental",
@@ -1156,10 +1169,19 @@ export async function fetchOrdersByUserIdAndStatus(
   }
 }
 
-export async function fetchOrders(scope: StoreCategoryScope = "all") {
+type OrdersDateRange = { from?: Date; to?: Date };
+
+const fetchOrdersInternal = cache(async function fetchOrdersInternal(
+  scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
+) {
   try {
     const rows = await db.query.orders.findMany({
-      where: buildOrderCategoryFilterSql(scope),
+      where: and(
+        buildOrderCategoryFilterSql(scope),
+        range.from ? gte(orders.createdAt, range.from) : undefined,
+        range.to ? lte(orders.createdAt, range.to) : undefined,
+      ),
       with: orderRelations,
     });
     // Matching orders keep every effective line; consumers scope the lines.
@@ -1168,9 +1190,18 @@ export async function fetchOrders(scope: StoreCategoryScope = "all") {
     console.error(error);
     return [];
   }
+});
+
+export async function fetchOrders(
+  scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
+) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+  return fetchOrdersInternal(scope, range);
 }
 
-export async function fetchOrdersByStatus(
+async function fetchOrdersByStatus(
   status?: OrderStatus | readonly OrderStatus[],
   rentalFilter: RentalOrderFilter = "all",
   filters?: Pick<StoreOrdersQuery, "period" | "from" | "to" | "q" | "category">,
@@ -1207,22 +1238,6 @@ export async function fetchOrdersByStatus(
   }
 }
 
-export type OrderStatusCounts = Record<OrderStatus, number> & {
-  all: number;
-  needs_attention: number;
-};
-
-const EMPTY_STATUS_COUNTS: OrderStatusCounts = {
-  pending: 0,
-  payment_verification: 0,
-  processing: 0,
-  paid: 0,
-  delivered: 0,
-  cancelled: 0,
-  all: 0,
-  needs_attention: 0,
-};
-
 /**
  * How many orders each status would return under the *other* active filters.
  * The status filter itself is deliberately excluded, so a facet can say it is
@@ -1232,7 +1247,9 @@ export async function fetchOrderStatusCounts(
   query: StoreOrdersQuery,
 ): Promise<OrderStatusCounts> {
   const currentUser = await getCurrentUserProfile();
-  if (!currentUser || currentUser.role !== "admin") return EMPTY_STATUS_COUNTS;
+  if (!currentUser || currentUser.role !== "admin") {
+    return emptyOrderStatusCounts();
+  }
 
   try {
     const rows = await db
@@ -1251,17 +1268,10 @@ export async function fetchOrderStatusCounts(
       )
       .groupBy(orders.status);
 
-    const counts = { ...EMPTY_STATUS_COUNTS };
-    for (const row of rows) {
-      const value = Number(row.count ?? 0);
-      counts[row.status] = value;
-      counts.all += value;
-    }
-    counts.needs_attention = counts.pending + counts.payment_verification;
-    return counts;
+    return buildOrderStatusCounts(rows);
   } catch (error) {
     console.error(error);
-    return EMPTY_STATUS_COUNTS;
+    return emptyOrderStatusCounts();
   }
 }
 
@@ -1589,6 +1599,7 @@ export async function acceptOrder(orderId: number, expectedRevision: number) {
 }
 
 export async function deleteOrder(_orderId: number) {
+  void _orderId;
   return {
     success: false,
     message: "Los pedidos conservan un historial permanente y no se eliminan.",
@@ -2468,9 +2479,9 @@ export async function fetchOrdersProfitability(
   }
 }
 
-export async function fetchOrdersStats(
+async function fetchOrdersStats(
   scope: StoreCategoryScope = "all",
-  range: { from?: Date; to?: Date } = {},
+  range: OrdersDateRange = {},
 ): Promise<OrdersStats> {
   try {
     const category = toConcreteStoreCategory(scope);
@@ -2525,8 +2536,24 @@ export async function fetchOrdersStats(
  */
 export async function fetchOrdersStatsComparison(
   scope: StoreCategoryScope = "all",
-  range: { from?: Date; to?: Date } = {},
+  range: OrdersDateRange = {},
 ): Promise<OrdersStatsComparison> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      current: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        needsAttention: 0,
+        inProgress: 0,
+        delivered: 0,
+        cancelled: 0,
+      },
+      previous: null,
+      baseline: null,
+    };
+  }
+
   const baseline = getPreviousDateRange(range);
   const [current, previous] = await Promise.all([
     fetchOrdersStats(scope, range),
@@ -2957,10 +2984,14 @@ export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
 
 export async function fetchOrdersTotalsByProduct(
   scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
 ) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+
   try {
     const category = toConcreteStoreCategory(scope);
-    const orderRows = await fetchOrders(scope);
+    const orderRows = await fetchOrdersInternal(scope, range);
     const totals = new Map<
       string,
       {

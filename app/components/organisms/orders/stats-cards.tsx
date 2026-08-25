@@ -94,6 +94,7 @@ function Delta({
         good ? "text-green-700" : "text-red-600",
       )}
     >
+      <span className="sr-only">{good ? "Mejora" : "Empeora"}: </span>
       <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
       {magnitude}
     </span>
@@ -121,10 +122,13 @@ export default function OrdersStatsCards({
     // A snap rail on phones keeps six metrics in one band instead of three
     // stacked rows; the grid takes over once there is width for it.
     <div
+      role="region"
+      aria-label="Indicadores de pedidos"
+      tabIndex={0}
       className={cn(
         "-mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-1",
         "[&::-webkit-scrollbar]:hidden",
-        "md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0",
+        "md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 lg:grid-cols-6",
       )}
     >
       {METRICS.map((metric) => {

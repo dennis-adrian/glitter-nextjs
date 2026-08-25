@@ -162,8 +162,8 @@ export default function OrdersTable({
             Filtros de estado
           </span>
           <span className="text-xs text-muted-foreground">
-            {selectedStatuses.length
-              ? `${selectedStatuses.length} activos`
+            {optimisticStatuses.length
+              ? `${optimisticStatuses.length} activos`
               : "Todos"}
           </span>
         </div>
@@ -171,8 +171,8 @@ export default function OrdersTable({
           {STATUS_OPTIONS.map((opt) => {
             const isActive =
               opt.value === "all"
-                ? selectedStatuses.length === 0
-                : selectedStatuses.includes(opt.value);
+                ? optimisticStatuses.length === 0
+                : optimisticStatuses.includes(opt.value);
             const count =
               opt.value === "all"
                 ? counts.all

@@ -104,7 +104,7 @@ export default function OrdersFilterSheet({
   const activeCount =
     selectedStatuses.length +
     (rentalFilter !== "all" ? 1 : 0) +
-    (query.period !== "all" ? 1 : 0) +
+    (query.period !== "all" || query.from || query.to ? 1 : 0) +
     (search.trim() !== "" ? 1 : 0);
 
   return (

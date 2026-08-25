@@ -64,11 +64,11 @@ export default async function StoreAnalyticsPage(props: {
 }) {
   const profitabilityQuery = parseProfitabilityQuery(await props.searchParams);
   const scope = profitabilityQuery.category;
-  const ordersPromise = fetchOrders(scope);
-  const ordersTotalsPromise = fetchOrdersTotalsByProduct(scope);
-  // KPIs share the profitability report's window so the page reads on one
-  // clock, and so each figure has a previous period to compare against.
+  // Every historical section shares one date range. Current inventory remains
+  // intentionally unbounded because stock is a point-in-time measure.
   const statsRange = getProfitabilityDateRange(profitabilityQuery);
+  const ordersPromise = fetchOrders(scope, statsRange);
+  const ordersTotalsPromise = fetchOrdersTotalsByProduct(scope, statsRange);
   const statsPromise = fetchOrdersStatsComparison(scope, statsRange);
   const lowStockPromise = fetchLowStockProducts({
     storeCategory: toConcreteStoreCategory(scope) ?? undefined,
@@ -97,15 +97,13 @@ export default async function StoreAnalyticsPage(props: {
         <OrdersStatsCards statsPromise={statsPromise} category={scope} />
       </Suspense>
 
-      <div className="hidden md:block">
-        <Suspense fallback={<Skeleton className="h-72 w-full" />}>
-          <OrdersSalesChart
-            ordersPromise={ordersPromise}
-            category={scope}
-            range={statsRange}
-          />
-        </Suspense>
-      </div>
+      <Suspense fallback={<Skeleton className="h-72 w-full" />}>
+        <OrdersSalesChart
+          ordersPromise={ordersPromise}
+          category={scope}
+          range={statsRange}
+        />
+      </Suspense>
 
       <Suspense fallback={<LowStockSkeleton />}>
         <LowStockAlert lowStockPromise={lowStockPromise} />

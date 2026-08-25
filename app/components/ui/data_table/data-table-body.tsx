@@ -28,7 +28,7 @@ export function DataTableBody<TData, TValue>({
                 key={cell.id}
                 className={cn(
                   // twMerge lets the compact override win over the cell's p-4.
-                  density === "compact" && "py-1.5",
+                  density === "compact" && "px-2 py-1.5",
                   cell.column.getIsPinned() &&
                     "sticky right-0 z-20 bg-background shadow-inner",
                 )}

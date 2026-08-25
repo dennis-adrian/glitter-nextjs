@@ -117,6 +117,14 @@ const FormSchema = z
       });
     }
 
+    if (values.status === "presale" && !values.availableDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La fecha de disponibilidad es requerida para la preventa",
+        path: ["availableDate"],
+      });
+    }
+
     const rentalValidationError = validateProductRentalSettings({
       isPurchasable: values.isPurchasable,
       isRentable: values.isRentable,
@@ -452,19 +460,6 @@ export default function ProductForm({ product }: ProductFormProps) {
   const [images, setImages] = useState<ImageItem[]>(initialImages);
   const [hasImageChanges, setHasImageChanges] = useState(false);
 
-  // Sync images when product identity changes (e.g. navigation to different product without remount)
-  useEffect(() => {
-    const nextImages: ImageItem[] =
-      product?.images
-        ?.filter((img) => img.uploadStatus === "active")
-        .map((img) => ({
-          id: img.id,
-          url: img.imageUrl,
-          isMain: img.isMain,
-        })) ?? [];
-    setImages(nextImages);
-  }, [product?.id]);
-
   const [uploadQueue, setUploadQueue] = useState<File[]>([]);
   const [currentlyUploading, setCurrentlyUploading] =
     useState<UploadingItem | null>(null);
@@ -518,20 +513,6 @@ export default function ProductForm({ product }: ProductFormProps) {
     resolver: zodResolver(FormSchema),
     defaultValues: buildProductFormValues(product, initialImages),
   });
-
-  // Reset form to new product values when product identity changes (e.g. switching products without remount)
-  useEffect(() => {
-    const nextImages: ImageItem[] =
-      product?.images
-        ?.filter((img) => img.uploadStatus === "active")
-        .map((img) => ({
-          id: img.id,
-          url: img.imageUrl,
-          isMain: img.isMain,
-        })) ?? [];
-
-    form.reset(buildProductFormValues(product, nextImages));
-  }, [product?.id]);
 
   const status = form.watch("status");
   const hasVariants = form.watch("hasVariants");
@@ -819,6 +800,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                               onClick={() => setMain(img.id)}
                               className="rounded bg-white/90 p-1 shadow"
                               title="Establecer como imagen principal"
+                              aria-label="Establecer como imagen principal"
                             >
                               <StarIcon className="h-3 w-3 text-amber-500" />
                             </button>
@@ -828,6 +810,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                             onClick={() => handleDelete(img.id)}
                             className="rounded bg-white/90 p-1 shadow"
                             title="Eliminar imagen"
+                            aria-label="Eliminar imagen"
                           >
                             <XIcon className="h-3 w-3 text-red-500" />
                           </button>
@@ -1315,40 +1298,64 @@ export default function ProductForm({ product }: ProductFormProps) {
             </div>
 
             <div className="rounded-lg border p-4 space-y-4">
-              <p className="text-sm font-medium">Alquiler</p>
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="isPurchasable"
-                  checked={form.watch("isPurchasable")}
-                  onCheckedChange={(v) =>
-                    form.setValue("isPurchasable", v, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    })
-                  }
-                />
-                <Label
-                  htmlFor="isPurchasable"
-                  className="text-muted-foreground"
-                >
-                  Disponible para compra
-                </Label>
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="isRentable"
-                  checked={form.watch("isRentable")}
-                  onCheckedChange={(v) =>
-                    form.setValue("isRentable", v, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    })
-                  }
-                />
-                <Label htmlFor="isRentable" className="text-muted-foreground">
-                  Disponible para alquiler
-                </Label>
-              </div>
+              <h3 className="text-sm font-medium">Alquiler</h3>
+              <FormField
+                control={form.control}
+                name="isPurchasable"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-3">
+                      <FormControl>
+                        <Switch
+                          id="isPurchasable"
+                          checked={field.value}
+                          onCheckedChange={(value) =>
+                            form.setValue("isPurchasable", value, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                        />
+                      </FormControl>
+                      <Label
+                        htmlFor="isPurchasable"
+                        className="text-muted-foreground"
+                      >
+                        Disponible para compra
+                      </Label>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isRentable"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-3">
+                      <FormControl>
+                        <Switch
+                          id="isRentable"
+                          checked={field.value}
+                          onCheckedChange={(value) =>
+                            form.setValue("isRentable", value, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                        />
+                      </FormControl>
+                      <Label
+                        htmlFor="isRentable"
+                        className="text-muted-foreground"
+                      >
+                        Disponible para alquiler
+                      </Label>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               {form.watch("isRentable") && (
                 <>
                   <TextInput
@@ -1387,7 +1394,7 @@ export default function ProductForm({ product }: ProductFormProps) {
               rail them beside the editor rather than below it. */}
           <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
             <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
-              <p className="text-sm font-medium">Publicación</p>
+              <h3 className="text-sm font-medium">Publicación</h3>
               <SelectInput
                 formControl={form.control}
                 label="Estado"
@@ -1426,7 +1433,7 @@ export default function ProductForm({ product }: ProductFormProps) {
             </div>
 
             <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
-              <p className="text-sm font-medium">Organización</p>
+              <h3 className="text-sm font-medium">Organización</h3>
               <SelectInput
                 formControl={form.control}
                 label="Categoría de tienda"

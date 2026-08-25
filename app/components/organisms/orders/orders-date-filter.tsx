@@ -41,7 +41,6 @@ export default function OrdersDateFilter({
 
   function handleCustomClick() {
     setCustomOpen(true);
-    onPeriodChange("all");
   }
 
   function handleClearCustom() {
@@ -55,8 +54,9 @@ export default function OrdersDateFilter({
     <div className="flex flex-col gap-2">
       <div className="flex gap-1.5 flex-wrap items-center">
         {PERIOD_OPTIONS.map((opt) => {
-          const isActive =
-            !customOpen && !hasCustomRange && period === opt.value;
+          // Opening the custom inputs is only a draft UI state. Keep the
+          // applied preset highlighted until a date actually changes the URL.
+          const isActive = !hasCustomRange && period === opt.value;
           return (
             <button
               key={opt.value}

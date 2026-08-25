@@ -21,7 +21,7 @@ export function DataTableHeader<TData>({
               <TableHead
                 key={header.id}
                 className={cn(
-                  density === "compact" && "h-9",
+                  density === "compact" && "h-9 px-2",
                   header.column.getIsPinned()
                     ? "sticky right-0 top-0 z-30 bg-background shadow-inner"
                     : "sticky top-0 z-10 bg-background",

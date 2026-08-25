@@ -35,6 +35,7 @@ import {
   ReceiptIcon,
 } from "lucide-react";
 import { DateTime } from "luxon";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -93,13 +94,7 @@ function OrderCard({
   canSelect: boolean;
   onToggleSelect: () => void;
 }) {
-  const router = useRouter();
   const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
-  // While selecting, tapping the card picks it instead of leaving the list.
-  const activateCard = () =>
-    selectionMode
-      ? onToggleSelect()
-      : router.push(`/dashboard/store/orders/${order.id}`);
 
   const isOverdue =
     !!order.paymentDueDate &&
@@ -142,22 +137,27 @@ function OrderCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-colors hover:bg-accent/40",
+        "relative transition-colors hover:bg-accent/40",
+        selectionMode && "cursor-pointer",
         // A soft tint, not an edge stripe: the "Vencido" pill already labels
         // the state, so the card only needs to be findable in a scan.
         isOverdue && "border-red-200 bg-red-50/30",
         selectionMode && isSelected && "border-primary bg-primary/5",
       )}
-      role={selectionMode ? "checkbox" : "button"}
+      role={selectionMode ? "checkbox" : undefined}
       aria-checked={selectionMode ? isSelected : undefined}
-      tabIndex={0}
-      onClick={activateCard}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          activateCard();
-        }
-      }}
+      tabIndex={selectionMode ? 0 : undefined}
+      onClick={selectionMode ? onToggleSelect : undefined}
+      onKeyDown={
+        selectionMode
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onToggleSelect();
+              }
+            }
+          : undefined
+      }
     >
       <CardContent className="p-3">
         <div className="flex items-start gap-2">
@@ -215,11 +215,7 @@ function OrderCard({
                 )}
               </div>
               {!selectionMode && (
-                <span
-                  className="shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
+                <span className="relative z-10 shrink-0">
                   <OrdersActionsCell order={order} />
                 </span>
               )}
@@ -229,7 +225,7 @@ function OrderCard({
               {order.customer?.displayName ?? order.guestName ?? "Invitado"}
             </p>
             {!order.customer && order.guestPhone && (
-              <div onClick={(e) => e.stopPropagation()}>
+              <div className="relative z-10">
                 <SocialMediaBadge
                   socialMediaType="whatsapp"
                   username={order.guestPhone}
@@ -255,6 +251,15 @@ function OrderCard({
           </div>
         </div>
       </CardContent>
+      {!selectionMode && (
+        <Link
+          href={`/dashboard/store/orders/${order.id}`}
+          className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={`Pedido #${order.id}, ${
+            order.customer?.displayName ?? order.guestName ?? "Invitado"
+          }, ${getOrderStatusLabel(order.status)}`}
+        />
+      )}
     </Card>
   );
 }
@@ -483,8 +488,8 @@ export default function OrdersCardList({
           {STATUS_OPTIONS.map((opt) => {
             const isActive =
               opt.value === ""
-                ? selectedStatuses.length === 0
-                : selectedStatuses.includes(opt.value);
+                ? optimisticStatuses.length === 0
+                : optimisticStatuses.includes(opt.value);
             const count =
               opt.value === ""
                 ? counts.all

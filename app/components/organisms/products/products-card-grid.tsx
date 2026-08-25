@@ -103,10 +103,14 @@ function ProductCard({
               <StarIcon className="h-4 w-4 text-amber-500 fill-amber-500 drop-shadow" />
             </div>
           )}
-          {/* Hidden products read as dimmed rather than needing a label. */}
+          {/* Keep the compact visual treatment while announcing the state. */}
           {!visible && (
             <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-              <EyeOffIcon className="h-6 w-6 text-muted-foreground" />
+              <EyeOffIcon
+                aria-hidden="true"
+                className="h-6 w-6 text-muted-foreground"
+              />
+              <span className="sr-only">Producto oculto</span>
             </div>
           )}
         </div>
@@ -145,8 +149,8 @@ function ProductCard({
             content so it stacks above it, and below the menu's z-10. */}
         <Link
           href={`/dashboard/store/products/${product.id}/edit`}
-          className="absolute inset-0 rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          aria-label={`Editar ${product.name}`}
+          className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={`Editar ${product.name}${visible ? "" : ", producto oculto"}`}
         />
 
         <div className="absolute right-2 top-2 z-10">

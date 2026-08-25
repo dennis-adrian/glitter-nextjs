@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm/column";
 import type { OrderByOperators } from "drizzle-orm/relations";
 import type { SQLWrapper } from "drizzle-orm/sql/sql";
@@ -1057,6 +1057,9 @@ export async function fetchLowStockProducts({
   /** Low stock is current inventory, so it filters the product's own category. */
   storeCategory?: StoreCategory;
 } = {}): Promise<LowStockEntry[]> {
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") return [];
+
   try {
     const allProducts = await db.query.products.findMany({
       ...buildProductQuery({ storeCategory }),

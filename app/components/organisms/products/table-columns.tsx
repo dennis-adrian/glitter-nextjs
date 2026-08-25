@@ -84,7 +84,14 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
     return (
       <Badge
         variant="outline"
-        className="border-sky-300 tabular-nums text-sky-700"
+        className={cn(
+          "tabular-nums",
+          stock === 0
+            ? "border-red-300 text-red-700"
+            : stock <= 5
+              ? "border-amber-300 text-amber-700"
+              : "border-green-300 text-green-700",
+        )}
       >
         {stock} unid. / {product.variants?.length ?? 0} variantes
       </Badge>
