@@ -11,6 +11,10 @@ import {
   toggleProductVisibility,
   updateProductStock,
 } from "@/app/lib/products/actions";
+import {
+  isLowStockLevel,
+  isProductLowStock,
+} from "@/app/lib/products/low-stock";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { cn } from "@/lib/utils";
@@ -79,6 +83,12 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
   const [inputValue, setInputValue] = useState(String(stock));
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isLowStock = hasVariants
+    ? isProductLowStock(product)
+    : isLowStockLevel({
+        stock,
+        lowStockThreshold: product.lowStockThreshold,
+      });
 
   if (hasVariants) {
     return (
@@ -88,7 +98,7 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
           "tabular-nums",
           stock === 0
             ? "border-red-300 text-red-700"
-            : stock <= 5
+            : isLowStock
               ? "border-amber-300 text-amber-700"
               : "border-green-300 text-green-700",
         )}
@@ -159,7 +169,7 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
         "cursor-pointer tabular-nums",
         stock === 0
           ? "border-red-300 text-red-600"
-          : stock <= 5
+          : isLowStock
             ? "border-amber-300 text-amber-600"
             : "border-green-300 text-green-600",
       )}

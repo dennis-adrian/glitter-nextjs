@@ -8,11 +8,18 @@ import {
   fetchProducts,
 } from "@/app/lib/products/actions";
 import {
+  isLowStockFilter,
+  isProductLowStock,
+  LOW_STOCK_FILTER_PARAM,
+  LOW_STOCK_FILTER_VALUE,
+} from "@/app/lib/products/low-stock";
+import {
   normalizeStoreCategoryScope,
+  storeCategoryScopeHref,
   STORE_CATEGORY_SCOPE_PARAM,
   toConcreteStoreCategory,
 } from "@/app/lib/store/category";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -39,9 +46,23 @@ export default async function StoreProductsPage(props: {
   const scope = normalizeStoreCategoryScope(
     searchParams[STORE_CATEGORY_SCOPE_PARAM],
   );
+  const lowStockOnly = isLowStockFilter(searchParams[LOW_STOCK_FILTER_PARAM]);
   const storeCategory = toConcreteStoreCategory(scope) ?? undefined;
-  const productsPromise = fetchProducts("updatedAt", { storeCategory });
+  const productsPromise = fetchProducts("updatedAt", { storeCategory }).then(
+    (products) =>
+      lowStockOnly ? products.filter(isProductLowStock) : products,
+  );
   const lowStockPromise = fetchLowStockProducts({ storeCategory });
+  const lowStockParams = new URLSearchParams();
+  lowStockParams.set(LOW_STOCK_FILTER_PARAM, LOW_STOCK_FILTER_VALUE);
+  if (scope !== "all") {
+    lowStockParams.set(STORE_CATEGORY_SCOPE_PARAM, scope);
+  }
+  const lowStockHref = `/dashboard/store/products?${lowStockParams.toString()}`;
+  const allProductsHref = storeCategoryScopeHref(
+    "/dashboard/store/products",
+    scope,
+  );
 
   return (
     <div className="space-y-4">
@@ -55,13 +76,33 @@ export default async function StoreProductsPage(props: {
       </div>
 
       <Suspense fallback={<LowStockSkeleton />}>
-        <LowStockAlert lowStockPromise={lowStockPromise} />
+        <LowStockAlert
+          lowStockPromise={lowStockPromise}
+          allProductsHref={lowStockHref}
+        />
       </Suspense>
 
-      <Suspense key={scope} fallback={<TableSkeleton />}>
+      {lowStockOnly && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+          <p className="text-sm text-muted-foreground">
+            Mostrando solo productos con alertas de stock.
+          </p>
+          <Button asChild variant="ghost" size="sm">
+            <Link href={allProductsHref}>
+              <XIcon aria-hidden="true" className="mr-1 h-4 w-4" />
+              Quitar filtro
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      <Suspense
+        key={`${scope}:${lowStockOnly ? "low" : "all"}`}
+        fallback={<TableSkeleton />}
+      >
         {/* Remounting by scope drops TanStack row selection from the old set. */}
         <ResponsiveProductsView
-          key={scope}
+          key={`${scope}:${lowStockOnly ? "low" : "all"}`}
           productsPromise={productsPromise}
           categoryScope={scope}
         />

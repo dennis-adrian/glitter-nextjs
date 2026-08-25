@@ -17,7 +17,14 @@ import {
   parseProfitabilityQuery,
 } from "@/app/lib/orders/profitability-query-schema";
 import { fetchLowStockProducts } from "@/app/lib/products/actions";
-import { toConcreteStoreCategory } from "@/app/lib/store/category";
+import {
+  LOW_STOCK_FILTER_PARAM,
+  LOW_STOCK_FILTER_VALUE,
+} from "@/app/lib/products/low-stock";
+import {
+  STORE_CATEGORY_SCOPE_PARAM,
+  toConcreteStoreCategory,
+} from "@/app/lib/store/category";
 import { Suspense } from "react";
 
 function StatsCardsSkeleton() {
@@ -73,6 +80,12 @@ export default async function StoreAnalyticsPage(props: {
   const lowStockPromise = fetchLowStockProducts({
     storeCategory: toConcreteStoreCategory(scope) ?? undefined,
   });
+  const lowStockParams = new URLSearchParams();
+  lowStockParams.set(LOW_STOCK_FILTER_PARAM, LOW_STOCK_FILTER_VALUE);
+  if (scope !== "all") {
+    lowStockParams.set(STORE_CATEGORY_SCOPE_PARAM, scope);
+  }
+  const lowStockHref = `/dashboard/store/products?${lowStockParams.toString()}`;
   const profitabilityPromise = fetchOrdersProfitability({
     ...statsRange,
     category: scope,
@@ -94,7 +107,13 @@ export default async function StoreAnalyticsPage(props: {
       <StorePeriodFilter query={profitabilityQuery} />
 
       <Suspense fallback={<StatsCardsSkeleton />}>
-        <OrdersStatsCards statsPromise={statsPromise} category={scope} />
+        <OrdersStatsCards
+          statsPromise={statsPromise}
+          category={scope}
+          period={profitabilityQuery.period}
+          from={profitabilityQuery.from}
+          to={profitabilityQuery.to}
+        />
       </Suspense>
 
       <Suspense fallback={<Skeleton className="h-72 w-full" />}>
@@ -106,7 +125,10 @@ export default async function StoreAnalyticsPage(props: {
       </Suspense>
 
       <Suspense fallback={<LowStockSkeleton />}>
-        <LowStockAlert lowStockPromise={lowStockPromise} />
+        <LowStockAlert
+          lowStockPromise={lowStockPromise}
+          allProductsHref={lowStockHref}
+        />
       </Suspense>
 
       <Suspense fallback={<OrdersTotalsSkeleton />}>

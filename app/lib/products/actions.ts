@@ -7,6 +7,7 @@ import type { SQLWrapper } from "drizzle-orm/sql/sql";
 import { revalidatePath } from "next/cache";
 
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
+import { isLowStockLevel } from "@/app/lib/products/low-stock";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
 import type { StoreCategory } from "@/app/lib/store/category";
@@ -29,6 +30,7 @@ type ProductVariantInput = {
   price?: number | null;
   unitCost?: number | null;
   stock: number;
+  lowStockThreshold?: number | null;
   rentalStock?: number | null;
   imageUrl?: string | null;
   isVisible?: boolean;
@@ -53,6 +55,7 @@ type NewProductData = {
   price: number;
   unitCost?: number | null;
   stock?: number | null;
+  lowStockThreshold?: number | null;
   storeCategory?: StoreCategory;
   status?: "available" | "presale" | "sale";
   discount?: number | null;
@@ -162,6 +165,7 @@ function normalizeVariantInputs(
           variant.unitCost == null || Number.isNaN(variant.unitCost)
             ? null
             : Number(variant.unitCost),
+        lowStockThreshold: variant.lowStockThreshold ?? null,
         stock: Math.max(0, Math.trunc(variant.stock)),
         imageUrl: variant.imageUrl?.trim() || null,
         isVisible: variant.isVisible ?? true,
@@ -224,6 +228,30 @@ function validateProductCostData(
     )
   ) {
     return "El costo de cada variante debe ser mayor o igual a 0.";
+  }
+  return null;
+}
+
+function validateProductLowStockData(
+  productData: NewProductData,
+  normalizedVariants: ReturnType<typeof normalizeVariantInputs>,
+): string | null {
+  if (
+    productData.lowStockThreshold != null &&
+    (!Number.isInteger(productData.lowStockThreshold) ||
+      productData.lowStockThreshold < 0)
+  ) {
+    return "El límite de stock bajo debe ser un número entero mayor o igual a 0.";
+  }
+  if (
+    normalizedVariants.variants.some(
+      (variant) =>
+        variant.lowStockThreshold != null &&
+        (!Number.isInteger(variant.lowStockThreshold) ||
+          variant.lowStockThreshold < 0),
+    )
+  ) {
+    return "El límite de stock bajo de cada variante debe ser un número entero mayor o igual a 0.";
   }
   return null;
 }
@@ -412,6 +440,7 @@ async function syncProductVariants(
       price: variant.price,
       unitCost: variant.unitCost ?? null,
       stock: variant.stock,
+      lowStockThreshold: variant.lowStockThreshold ?? null,
       rentalStock: variant.rentalStock ?? null,
       imageUrl: variant.imageUrl ?? null,
       isVisible: variant.isVisible ?? true,
@@ -571,6 +600,12 @@ export async function createProduct(data: NewProductData) {
   );
   if (costValidationError)
     return { success: false, message: costValidationError };
+  const lowStockValidationError = validateProductLowStockData(
+    productData,
+    normalizedVariants,
+  );
+  if (lowStockValidationError)
+    return { success: false, message: lowStockValidationError };
   const rentalValidationError = validateNewProductRentalData(
     productData,
     normalizedVariants,
@@ -660,6 +695,12 @@ export async function updateProduct(id: number, data: NewProductData) {
   );
   if (costValidationError)
     return { success: false, message: costValidationError };
+  const lowStockValidationError = validateProductLowStockData(
+    productData,
+    normalizedVariants,
+  );
+  if (lowStockValidationError)
+    return { success: false, message: lowStockValidationError };
   const rentalValidationError = validateNewProductRentalData(
     productData,
     normalizedVariants,
@@ -1050,10 +1091,8 @@ export async function bulkDeleteProducts(
 }
 
 export async function fetchLowStockProducts({
-  threshold = 5,
   storeCategory,
 }: {
-  threshold?: number;
   /** Low stock is current inventory, so it filters the product's own category. */
   storeCategory?: StoreCategory;
 } = {}): Promise<LowStockEntry[]> {
@@ -1070,7 +1109,7 @@ export async function fetchLowStockProducts({
     for (const product of allProducts) {
       if ((product.variants?.length ?? 0) > 0) {
         for (const variant of product.variants ?? []) {
-          if (variant.isVisible && variant.stock <= threshold) {
+          if (variant.isVisible && isLowStockLevel(variant)) {
             const label = variant.selections
               .map(
                 (selection) =>
@@ -1086,7 +1125,12 @@ export async function fetchLowStockProducts({
             });
           }
         }
-      } else if ((product.stock ?? 0) <= threshold) {
+      } else if (
+        isLowStockLevel({
+          stock: product.stock ?? 0,
+          lowStockThreshold: product.lowStockThreshold,
+        })
+      ) {
         entries.push({
           productId: product.id,
           productName: product.name,

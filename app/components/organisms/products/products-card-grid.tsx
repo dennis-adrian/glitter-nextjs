@@ -14,6 +14,7 @@ import {
 } from "@/app/components/ui/dropdown-menu";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { toggleProductVisibility } from "@/app/lib/products/actions";
+import { isProductLowStock } from "@/app/lib/products/low-stock";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import {
   getStoreCategoryBadgeLabel,
@@ -55,7 +56,7 @@ function ProductCard({
   const hasVariants = variantCount > 0;
 
   const stockTone: StatusTone =
-    stock === 0 ? "danger" : stock <= 5 ? "warning" : "success";
+    stock === 0 ? "danger" : isProductLowStock(product) ? "warning" : "success";
   const stockLabel = hasVariants
     ? `${stock} unid · ${variantCount} var.`
     : `${stock} unid`;

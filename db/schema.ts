@@ -1587,6 +1587,7 @@ export const products = pgTable(
     price: real("price").notNull(),
     unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
     stock: integer("stock").default(0),
+    lowStockThreshold: integer("low_stock_threshold").default(5),
     imageUrl: text("image_url"),
     isNew: boolean("is_new").default(true).notNull(),
     isFeatured: boolean("is_featured").default(false).notNull(),
@@ -1614,6 +1615,10 @@ export const products = pgTable(
     check(
       "products_unit_cost_nonnegative",
       sql`${t.unitCost} IS NULL OR ${t.unitCost} >= 0`,
+    ),
+    check(
+      "products_low_stock_threshold_nonnegative",
+      sql`${t.lowStockThreshold} IS NULL OR ${t.lowStockThreshold} >= 0`,
     ),
   ],
 );
@@ -1703,6 +1708,7 @@ export const productVariants = pgTable(
     price: real("price"),
     unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
     stock: integer("stock").notNull().default(0),
+    lowStockThreshold: integer("low_stock_threshold").default(5),
     rentalStock: integer("rental_stock"),
     imageUrl: text("image_url"),
     isVisible: boolean("is_visible").default(true).notNull(),
@@ -1717,6 +1723,10 @@ export const productVariants = pgTable(
     check(
       "product_variants_unit_cost_nonnegative",
       sql`${t.unitCost} IS NULL OR ${t.unitCost} >= 0`,
+    ),
+    check(
+      "product_variants_low_stock_threshold_nonnegative",
+      sql`${t.lowStockThreshold} IS NULL OR ${t.lowStockThreshold} >= 0`,
     ),
   ],
 );

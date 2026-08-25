@@ -27,6 +27,7 @@ import { useUploadThing } from "@/app/vendors/uploadthing";
 import { createProduct, updateProduct } from "@/app/lib/products/actions";
 import { deleteProductImage } from "@/app/lib/products/image-actions";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import { DEFAULT_LOW_STOCK_THRESHOLD } from "@/app/lib/products/low-stock";
 import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
@@ -57,6 +58,7 @@ const VariantFormSchema = z.object({
   price: z.string().trim().optional(),
   unitCost: z.string().trim().optional(),
   stock: z.string().trim().optional(),
+  lowStockThreshold: z.string().trim().optional(),
   rentalStock: z.string().trim().optional(),
   imageId: z.string().trim().optional(),
   isVisible: z.boolean(),
@@ -69,6 +71,7 @@ const FormSchema = z
     price: z.string().trim().min(1, "El precio es requerido"),
     unitCost: z.string().trim().optional(),
     stock: z.string().trim().min(1, "El stock es requerido"),
+    lowStockThreshold: z.string().trim().optional(),
     storeCategory: z.enum(["merch", "supplies"]),
     status: z.enum(["available", "presale", "sale"]),
     discount: z.string().trim().optional(),
@@ -103,6 +106,18 @@ const FormSchema = z
         code: z.ZodIssueCode.custom,
         message: "El costo debe ser mayor o igual a 0",
         path: ["unitCost"],
+      });
+    }
+
+    if (
+      values.lowStockThreshold?.trim() &&
+      (!Number.isInteger(Number(values.lowStockThreshold)) ||
+        Number(values.lowStockThreshold) < 0)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El límite debe ser un número entero mayor o igual a 0",
+        path: ["lowStockThreshold"],
       });
     }
 
@@ -258,6 +273,18 @@ const FormSchema = z
       }
 
       if (
+        variant.lowStockThreshold?.trim() &&
+        (!Number.isInteger(Number(variant.lowStockThreshold)) ||
+          Number(variant.lowStockThreshold) < 0)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "El límite debe ser un número entero mayor o igual a 0",
+          path: ["variants", index, "lowStockThreshold"],
+        });
+      }
+
+      if (
         variant.price &&
         (!Number.isFinite(Number(variant.price)) || Number(variant.price) < 0)
       ) {
@@ -335,6 +362,7 @@ function createEmptyVariant(optionValues: string[]): VariantFormValue {
     price: "",
     unitCost: "",
     stock: "0",
+    lowStockThreshold: String(DEFAULT_LOW_STOCK_THRESHOLD),
     imageId: "__none__",
     isVisible: true,
   };
@@ -406,6 +434,10 @@ function buildProductFormValues(
         price: variant.price != null ? String(variant.price) : "",
         unitCost: variant.unitCost != null ? String(variant.unitCost) : "",
         stock: String(variant.stock),
+        lowStockThreshold:
+          variant.lowStockThreshold != null
+            ? String(variant.lowStockThreshold)
+            : "",
         rentalStock:
           variant.rentalStock != null ? String(variant.rentalStock) : "",
         imageId:
@@ -426,6 +458,10 @@ function buildProductFormValues(
     price: String(product?.price ?? 0),
     unitCost: product?.unitCost != null ? String(product.unitCost) : "",
     stock: String(product?.stock ?? 0),
+    lowStockThreshold:
+      product?.lowStockThreshold !== null
+        ? String(product?.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD)
+        : "",
     storeCategory: product?.storeCategory ?? "merch",
     status: product?.status ?? "available",
     discount: product?.discount !== undefined ? String(product.discount) : "0",
@@ -686,6 +722,9 @@ export default function ProductForm({ product }: ProductFormProps) {
           price: variant.price?.trim() ? Number(variant.price) : null,
           unitCost: variant.unitCost?.trim() ? Number(variant.unitCost) : null,
           stock: Number(variant.stock),
+          lowStockThreshold: variant.lowStockThreshold?.trim()
+            ? Number(variant.lowStockThreshold)
+            : null,
           rentalStock:
             data.isRentable &&
             data.rentalStockMode === "separate" &&
@@ -719,6 +758,9 @@ export default function ProductForm({ product }: ProductFormProps) {
       price: Number(data.price),
       unitCost: data.unitCost?.trim() ? Number(data.unitCost) : null,
       stock: data.hasVariants ? 0 : Number(data.stock),
+      lowStockThreshold: data.lowStockThreshold?.trim()
+        ? Number(data.lowStockThreshold)
+        : null,
       storeCategory: data.storeCategory,
       status: data.status,
       discount: data.discount?.trim() ? Number(data.discount) : 0,
@@ -913,15 +955,32 @@ export default function ProductForm({ product }: ProductFormProps) {
                 placeholder="Opcional"
               />
               {!hasVariants && (
-                <TextInput
-                  label="Stock"
-                  name="stock"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                />
+                <>
+                  <TextInput
+                    label="Stock"
+                    name="stock"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                  />
+                  <TextInput
+                    label="Avisar cuando queden"
+                    name="lowStockThreshold"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    placeholder="Sin alerta"
+                  />
+                </>
               )}
             </div>
+            {!hasVariants && (
+              <p className="-mt-2 text-xs text-muted-foreground">
+                Deja el límite de aviso vacío si este producto no debe generar
+                alertas de stock bajo.
+              </p>
+            )}
 
             <div className="flex flex-col gap-4 rounded-lg border p-4">
               <div className="flex items-center gap-3">
@@ -1089,13 +1148,14 @@ export default function ProductForm({ product }: ProductFormProps) {
                         <p className="text-sm font-medium">Combinaciones</p>
                         <p className="text-xs text-muted-foreground">
                           Cada combinación es una variante con su propio stock,
-                          precio e imagen opcional.
+                          límite de aviso, precio e imagen opcional. Deja el
+                          límite vacío para desactivar su alerta.
                         </p>
                       </div>
 
                       {variants.map((variant, index) => (
                         <div
-                          key={getCombinationKey(variant.optionValues)}
+                          key={index}
                           className="rounded-lg border border-border/70 p-4"
                         >
                           <div className="mb-3 flex items-center justify-between gap-3">
@@ -1111,6 +1171,15 @@ export default function ProductForm({ product }: ProductFormProps) {
                               type="number"
                               inputMode="numeric"
                               min={0}
+                            />
+                            <TextInput
+                              label="Avisar cuando queden"
+                              name={`variants.${index}.lowStockThreshold`}
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              step={1}
+                              placeholder="Sin alerta"
                             />
                             {form.watch("isRentable") &&
                               form.watch("rentalStockMode") === "separate" && (

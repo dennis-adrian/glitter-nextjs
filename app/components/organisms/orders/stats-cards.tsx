@@ -3,8 +3,9 @@
 import { Card, CardContent } from "@/app/components/ui/card";
 import { OrdersStats, OrdersStatsComparison } from "@/app/lib/orders/actions";
 import { formatDate } from "@/app/lib/formatters";
+import type { ProfitabilityQuery } from "@/app/lib/orders/profitability-query-schema";
 import {
-  storeCategoryScopeHref,
+  withStoreCategoryScope,
   type StoreCategoryScope,
 } from "@/app/lib/store/category";
 import Link from "next/link";
@@ -101,21 +102,44 @@ function Delta({
   );
 }
 
+type OrdersDateRangeQuery = Pick<ProfitabilityQuery, "period" | "from" | "to">;
+
 type OrdersStatsCardsProps = {
   statsPromise: Promise<OrdersStatsComparison>;
   category: StoreCategoryScope;
-};
+} & OrdersDateRangeQuery;
+
+export function needsAttentionOrdersHref({
+  category,
+  period,
+  from,
+  to,
+}: { category: StoreCategoryScope } & OrdersDateRangeQuery): string {
+  const params = new URLSearchParams({
+    status: "needs_attention",
+    period,
+  });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return `/dashboard/store/orders?${withStoreCategoryScope(params, category)}`;
+}
 
 export default function OrdersStatsCards({
   statsPromise,
   category,
+  period,
+  from,
+  to,
 }: OrdersStatsCardsProps) {
   const { current, previous, baseline } = use(statsPromise);
-  // The KPI link keeps the active scope while carrying its own status filter.
-  const needsAttentionHref = `${storeCategoryScopeHref(
-    "/dashboard/store/orders",
+  // The KPI link keeps the active category and date range while carrying its
+  // own status filter, so the orders list matches the stats that were shown.
+  const needsAttentionHref = needsAttentionOrdersHref({
     category,
-  )}${category === "all" ? "?" : "&"}status=needs_attention`;
+    period,
+    from,
+    to,
+  });
   const baselineLabel = baseline ? formatBaseline(baseline) : null;
 
   return (
