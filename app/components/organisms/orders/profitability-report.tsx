@@ -26,7 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { formatDate } from "@/app/lib/formatters";
 import {
   applyHistoricalOrderCosts,
@@ -108,15 +107,6 @@ export default function ProfitabilityReport({
     });
   }, [coverage, query.category, query.from, query.period, query.to]);
 
-  function updateQuery(next: ProfitabilityQuery) {
-    startTransition(() => {
-      router.replace(
-        `/dashboard/store/analytics?${profitabilityQueryToSearchParams(next)}`,
-        { scroll: false },
-      );
-    });
-  }
-
   function applyHistoricalCosts() {
     startTransition(async () => {
       const result = await applyHistoricalOrderCosts();
@@ -150,29 +140,7 @@ export default function ProfitabilityReport({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 lg:flex-row lg:items-center lg:justify-between">
-        <OrdersDateFilter
-          period={query.period}
-          dateFrom={query.from ?? ""}
-          dateTo={query.to ?? ""}
-          hasCustomRange={query.period === "custom"}
-          onPeriodChange={(period) =>
-            updateQuery({ ...query, period, from: undefined, to: undefined })
-          }
-          onFromChange={(from) =>
-            updateQuery({ ...query, period: "custom", from: from || undefined })
-          }
-          onToChange={(to) =>
-            updateQuery({ ...query, period: "custom", to: to || undefined })
-          }
-        />
-        {isPending && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-            Actualizando
-          </span>
-        )}
-      </div>
+      {/* The window now lives in the page-level filter above the KPIs. */}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
@@ -271,7 +239,7 @@ export default function ProfitabilityReport({
                 size="sm"
                 variant="outline"
                 disabled={preview.resolvableLines === 0 || isPending}
-                className="shrink-0 border-amber-300 bg-white hover:bg-amber-100"
+                className="shrink-0 border-amber-300 bg-background hover:bg-amber-100"
               >
                 Aplicar costos actuales
               </Button>

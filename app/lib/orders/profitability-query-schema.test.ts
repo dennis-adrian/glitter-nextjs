@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
 import {
+  getPreviousDateRange,
   getProfitabilityDateRange,
   parseProfitabilityQuery,
   profitabilityQueryToSearchParams,
@@ -93,5 +94,27 @@ describe("profitability query schema", () => {
     expect(params.get("category")).toBe("supplies");
     expect(params.get("from")).toBe("2026-08-01");
     expect(params.get("to")).toBe("2026-08-15");
+  });
+
+  it("builds the immediately preceding equal-length comparison range", () => {
+    const current = {
+      from: new Date("2026-08-10T04:00:00.000Z"),
+      to: new Date("2026-08-20T03:59:59.999Z"),
+    };
+
+    expect(getPreviousDateRange(current)).toEqual({
+      from: new Date("2026-07-31T04:00:00.000Z"),
+      to: new Date("2026-08-10T03:59:59.999Z"),
+    });
+  });
+
+  it("does not invent a comparison for a one-sided or unbounded range", () => {
+    expect(getPreviousDateRange({})).toBeNull();
+    expect(
+      getPreviousDateRange({ from: new Date("2026-08-01T04:00:00.000Z") }),
+    ).toBeNull();
+    expect(
+      getPreviousDateRange({ to: new Date("2026-08-20T03:59:59.999Z") }),
+    ).toBeNull();
   });
 });

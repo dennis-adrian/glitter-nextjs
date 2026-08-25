@@ -33,14 +33,17 @@ import {
   desc,
   eq,
   exists,
+  gte,
   inArray,
   isNull,
+  lte,
   notExists,
   or,
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
@@ -112,6 +115,14 @@ import {
   type ProfitabilityFilters,
   type ProfitabilityQueryRow,
 } from "@/app/lib/orders/profitability";
+import { getPreviousDateRange } from "@/app/lib/orders/profitability-query-schema";
+import {
+  buildOrderStatusCounts,
+  emptyOrderStatusCounts,
+  type OrderStatusCounts,
+} from "@/app/lib/orders/order-status-counts";
+
+export type { OrderStatusCounts } from "@/app/lib/orders/order-status-counts";
 
 const ORDER_ADJUSTMENT_FAILURE_CATEGORIES = new Set([
   "conflict",
@@ -567,6 +578,11 @@ export async function createOrderInTx(
   _customerEmail: string,
   _customerName: string,
 ): Promise<CreateOrderInTxResult> {
+  // Kept in the transaction API for callers that already have customer
+  // snapshots; order ownership is derived from the persisted user profile.
+  void _customerEmail;
+  void _customerName;
+
   let orderLines = lines;
   const rentalLines = orderLines.filter(
     (line) => (line.transactionType ?? "purchase") === "rental",
@@ -724,9 +740,7 @@ export async function createGuestOrderInTx(
   const resolvedLines = await resolveOrderLines(tx, lines);
   // Authoritative supplies gate: guests are never verified accounts. The
   // storefront check is only early feedback; direct callers land here.
-  if (
-    resolvedLines.some((line) => line.product.storeCategory === "supplies")
-  ) {
+  if (resolvedLines.some((line) => line.product.storeCategory === "supplies")) {
     throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
       cause: SUPPLIES_UNVERIFIED_CAUSE,
     });
@@ -1155,10 +1169,19 @@ export async function fetchOrdersByUserIdAndStatus(
   }
 }
 
-export async function fetchOrders(scope: StoreCategoryScope = "all") {
+type OrdersDateRange = { from?: Date; to?: Date };
+
+const fetchOrdersInternal = cache(async function fetchOrdersInternal(
+  scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
+) {
   try {
     const rows = await db.query.orders.findMany({
-      where: buildOrderCategoryFilterSql(scope),
+      where: and(
+        buildOrderCategoryFilterSql(scope),
+        range.from ? gte(orders.createdAt, range.from) : undefined,
+        range.to ? lte(orders.createdAt, range.to) : undefined,
+      ),
       with: orderRelations,
     });
     // Matching orders keep every effective line; consumers scope the lines.
@@ -1167,15 +1190,21 @@ export async function fetchOrders(scope: StoreCategoryScope = "all") {
     console.error(error);
     return [];
   }
+});
+
+export async function fetchOrders(
+  scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
+) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+  return fetchOrdersInternal(scope, range);
 }
 
-export async function fetchOrdersByStatus(
+async function fetchOrdersByStatus(
   status?: OrderStatus | readonly OrderStatus[],
   rentalFilter: RentalOrderFilter = "all",
-  filters?: Pick<
-    StoreOrdersQuery,
-    "period" | "from" | "to" | "q" | "category"
-  >,
+  filters?: Pick<StoreOrdersQuery, "period" | "from" | "to" | "q" | "category">,
 ) {
   try {
     const statusWhere =
@@ -1206,6 +1235,43 @@ export async function fetchOrdersByStatus(
   } catch (error) {
     console.error(error);
     return [];
+  }
+}
+
+/**
+ * How many orders each status would return under the *other* active filters.
+ * The status filter itself is deliberately excluded, so a facet can say it is
+ * empty before you spend a tap finding out.
+ */
+export async function fetchOrderStatusCounts(
+  query: StoreOrdersQuery,
+): Promise<OrderStatusCounts> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return emptyOrderStatusCounts();
+  }
+
+  try {
+    const rows = await db
+      .select({
+        status: orders.status,
+        count: sql<number>`cast(count(*) as integer)`,
+      })
+      .from(orders)
+      .where(
+        and(
+          buildRentalFilterSql(query.rental),
+          buildOrderDateFilterSql(query),
+          buildOrderSearchSql(query.q),
+          buildOrderCategoryFilterSql(query.category),
+        ),
+      )
+      .groupBy(orders.status);
+
+    return buildOrderStatusCounts(rows);
+  } catch (error) {
+    console.error(error);
+    return emptyOrderStatusCounts();
   }
 }
 
@@ -1533,6 +1599,7 @@ export async function acceptOrder(orderId: number, expectedRevision: number) {
 }
 
 export async function deleteOrder(_orderId: number) {
+  void _orderId;
   return {
     success: false,
     message: "Los pedidos conservan un historial permanente y no se eliminan.",
@@ -2172,6 +2239,14 @@ export type OrdersStats = {
   cancelled: number;
 };
 
+export type OrdersStatsComparison = {
+  current: OrdersStats;
+  /** Equal-length window before the current one; null when unbounded. */
+  previous: OrdersStats | null;
+  /** The compared window, so cards can name the baseline they are using. */
+  baseline: { from: Date; to: Date } | null;
+};
+
 export type { OrdersProfitability } from "@/app/lib/orders/profitability";
 
 export type HistoricalCostBackfillPreview = {
@@ -2404,8 +2479,9 @@ export async function fetchOrdersProfitability(
   }
 }
 
-export async function fetchOrdersStats(
+async function fetchOrdersStats(
   scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
 ): Promise<OrdersStats> {
   try {
     const category = toConcreteStoreCategory(scope);
@@ -2425,7 +2501,13 @@ export async function fetchOrdersStats(
         cancelled: sql<number>`cast(count(*) filter (where ${orders.status} = 'cancelled') as integer)`,
       })
       .from(orders)
-      .where(buildOrderCategoryFilterSql(scope));
+      .where(
+        and(
+          buildOrderCategoryFilterSql(scope),
+          range.from ? gte(orders.createdAt, range.from) : undefined,
+          range.to ? lte(orders.createdAt, range.to) : undefined,
+        ),
+      );
 
     return {
       totalOrders: result.totalOrders ?? 0,
@@ -2446,6 +2528,38 @@ export async function fetchOrdersStats(
       cancelled: 0,
     };
   }
+}
+
+/**
+ * Store KPIs alongside the preceding equal-length window, so each figure can
+ * be read as a movement rather than a bare number.
+ */
+export async function fetchOrdersStatsComparison(
+  scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
+): Promise<OrdersStatsComparison> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      current: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        needsAttention: 0,
+        inProgress: 0,
+        delivered: 0,
+        cancelled: 0,
+      },
+      previous: null,
+      baseline: null,
+    };
+  }
+
+  const baseline = getPreviousDateRange(range);
+  const [current, previous] = await Promise.all([
+    fetchOrdersStats(scope, range),
+    baseline ? fetchOrdersStats(scope, baseline) : Promise.resolve(null),
+  ]);
+  return { current, previous, baseline };
 }
 
 export type UpdateOrderItemInput = {
@@ -2870,10 +2984,14 @@ export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
 
 export async function fetchOrdersTotalsByProduct(
   scope: StoreCategoryScope = "all",
+  range: OrdersDateRange = {},
 ) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+
   try {
     const category = toConcreteStoreCategory(scope);
-    const orderRows = await fetchOrders(scope);
+    const orderRows = await fetchOrdersInternal(scope, range);
     const totals = new Map<
       string,
       {
@@ -2928,8 +3046,16 @@ export async function storeGuestOrderToken(
 // Remove with the maintenance route once legacy supply lines are reconciled.
 
 const historicalCategoryFiltersSchema = z.object({
-  from: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   orderId: z.coerce.number().int().positive().optional(),
   q: z.string().trim().max(120).optional(),
   snapshotCategory: storeCategorySchema.optional(),
@@ -2955,8 +3081,9 @@ export async function fetchHistoricalLineCategorySourcesForAdmin(
     if (!value) return undefined;
     const parsedDate = DateTime.fromISO(value, { zone: STORE_TIMEZONE });
     if (!parsedDate.isValid) return undefined;
-    return (endOfDay ? parsedDate.endOf("day") : parsedDate.startOf("day"))
-      .toJSDate();
+    return (
+      endOfDay ? parsedDate.endOf("day") : parsedDate.startOf("day")
+    ).toJSDate();
   };
 
   try {
@@ -3013,7 +3140,10 @@ export async function correctHistoricalLineCategoriesAction(
   }
   const parsed = correctHistoricalLineCategoriesSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { success: false, message: "La selección contiene datos inválidos." };
+    return {
+      success: false,
+      message: "La selección contiene datos inválidos.",
+    };
   }
 
   try {

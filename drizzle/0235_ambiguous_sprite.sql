@@ -1,0 +1,4 @@
+ALTER TABLE "product_variants" ADD COLUMN "low_stock_threshold" integer DEFAULT 5;--> statement-breakpoint
+ALTER TABLE "products" ADD COLUMN "low_stock_threshold" integer DEFAULT 5;--> statement-breakpoint
+ALTER TABLE "product_variants" ADD CONSTRAINT "product_variants_low_stock_threshold_nonnegative" CHECK ("product_variants"."low_stock_threshold" IS NULL OR "product_variants"."low_stock_threshold" >= 0);--> statement-breakpoint
+ALTER TABLE "products" ADD CONSTRAINT "products_low_stock_threshold_nonnegative" CHECK ("products"."low_stock_threshold" IS NULL OR "products"."low_stock_threshold" >= 0);

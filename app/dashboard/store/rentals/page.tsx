@@ -59,7 +59,9 @@ export default async function CurrentRentalsPage() {
                     )}
                   </div>
                   <div className="text-sm">
-                    <p>{rental.quantityOut} en alquiler</p>
+                    <p className="tabular-nums">
+                      {rental.quantityOut} en alquiler
+                    </p>
                     <Badge variant="outline">
                       {getRentalStatusLabel(status)}
                     </Badge>

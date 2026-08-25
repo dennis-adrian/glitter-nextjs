@@ -369,6 +369,43 @@ describeDatabase("historical category correction", () => {
     expect(baseLine.storeCategoryAtPurchase).toBe("merch");
   });
 
+  it("rejects multiple row IDs from the same added group", async () => {
+    const fixture = await createFixture();
+
+    await expect(
+      correctHistoricalLineCategoriesWithDatabase(correctionDatabase(), {
+        actorUserId: fixture.actorId,
+        targetCategory: "supplies",
+        reason: "Duplicate logical group",
+        sources: fixture.addedItemIds.map((id) => ({
+          sourceKey: `adjustment:${id}`,
+          orderId: fixture.orderId,
+          expectedOrderRevision: 1,
+          expectedCategory: "merch" as const,
+        })),
+      }),
+    ).rejects.toMatchObject({ cause: "invalid_input" });
+
+    const addedRows = await integrationDb!
+      .select()
+      .from(orderAdjustmentItems)
+      .where(inArray(orderAdjustmentItems.id, fixture.addedItemIds));
+    const [order] = await integrationDb!
+      .select()
+      .from(orders)
+      .where(eq(orders.id, fixture.orderId));
+    const events = await integrationDb!
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, fixture.orderId));
+
+    expect(
+      addedRows.every((row) => row.storeCategorySnapshot === "merch"),
+    ).toBe(true);
+    expect(order.revision).toBe(1);
+    expect(events).toHaveLength(0);
+  });
+
   it("rejects a stale order revision without writing", async () => {
     const fixture = await createFixture();
     await expect(

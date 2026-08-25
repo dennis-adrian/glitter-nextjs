@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import {
   BarChart3Icon,
   PackageIcon,
@@ -11,13 +12,6 @@ import {
   SettingsIcon,
 } from "lucide-react";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
 import {
   normalizeStoreCategoryScope,
   STORE_CATEGORY_SCOPE_PARAM,
@@ -83,15 +77,28 @@ type StoreNavProps = {
 
 export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const active = getActiveStoreSection(pathname);
+  const activeRef = useRef<HTMLAnchorElement>(null);
   const sections = storeSections.filter(
     (section) => section.value !== "settings" || isAdmin,
   );
   const category = normalizeStoreCategoryScope(
     searchParams.get(STORE_CATEGORY_SCOPE_PARAM),
   );
+
+  // On a phone the row scrolls, so the current section can start off-screen.
+  // `block: "nearest"` keeps this from scrolling the page vertically too.
+  useEffect(() => {
+    const prefersReducedMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+    activeRef.current?.scrollIntoView({
+      block: "nearest",
+      inline: "center",
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
+  }, [active]);
 
   // Carry the scope between scoped sections only; page-specific filters are
   // intentionally dropped when changing section.
@@ -103,70 +110,39 @@ export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
 
   return (
     <div className="sticky top-16 z-40 -mx-3 border-b bg-background/95 px-3 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:top-20 md:-mx-6 md:px-6">
-      <div className="flex flex-col gap-3">
-        <div className="md:hidden">
-          <p className="mb-2 text-sm font-medium text-muted-foreground">
-            Sección
-          </p>
-          <Select
-            value={active}
-            onValueChange={(value) => {
-              const targetSection = sections.find(
-                (section) => section.value === value,
-              );
-              if (targetSection) {
-                router.push(
-                  sectionHref(targetSection.value, targetSection.href),
-                );
-              }
-            }}
-          >
-            <SelectTrigger className="h-11 rounded-xl border-border/70 bg-muted/30">
-              <SelectValue placeholder="Selecciona una sección" />
-            </SelectTrigger>
-            <SelectContent>
-              {sections.map(({ value, label, icon: Icon }) => (
-                <SelectItem key={value} value={value}>
-                  <span className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    {label}
-                    {value === "payments" && pendingCount > 0 && (
-                      <span className="ml-0.5 h-2 w-2 rounded-full bg-primary" />
-                    )}
+      <nav
+        aria-label="Secciones de la tienda"
+        className="overflow-x-auto rounded-2xl border border-border/70 bg-muted/30 p-1 shadow-sm [&::-webkit-scrollbar]:hidden"
+      >
+        <div className="flex w-max min-w-full gap-1">
+          {sections.map(({ value, label, href, icon: Icon }) => {
+            const isActive = active === value;
+
+            return (
+              <Link
+                key={value}
+                ref={isActive ? activeRef : undefined}
+                href={sectionHref(value, href)}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-background text-primary shadow-sm"
+                    : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+                {value === "payments" && pendingCount > 0 && (
+                  <span className="ml-0.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
+                    {pendingCount > 99 ? "99+" : pendingCount}
                   </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                )}
+              </Link>
+            );
+          })}
         </div>
-
-        <nav className="hidden overflow-x-auto rounded-2xl border border-border/70 bg-muted/30 p-1 shadow-sm md:block">
-          <div className="flex w-max min-w-full gap-1 pb-1">
-            {sections.map(({ value, label, href, icon: Icon }) => {
-              const isActive = active === value;
-
-              return (
-                <Link
-                  key={value}
-                  href={sectionHref(value, href)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-background text-primary shadow-sm"
-                      : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                  {value === "payments" && pendingCount > 0 && (
-                    <span className="ml-0.5 h-2 w-2 rounded-full bg-primary" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      </div>
+      </nav>
     </div>
   );
 }

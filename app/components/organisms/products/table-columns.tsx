@@ -11,6 +11,10 @@ import {
   toggleProductVisibility,
   updateProductStock,
 } from "@/app/lib/products/actions";
+import {
+  isLowStockLevel,
+  isProductLowStock,
+} from "@/app/lib/products/low-stock";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { cn } from "@/lib/utils";
@@ -79,10 +83,26 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
   const [inputValue, setInputValue] = useState(String(stock));
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isLowStock = hasVariants
+    ? isProductLowStock(product)
+    : isLowStockLevel({
+        stock,
+        lowStockThreshold: product.lowStockThreshold,
+      });
 
   if (hasVariants) {
     return (
-      <Badge variant="outline" className="border-sky-300 text-sky-700">
+      <Badge
+        variant="outline"
+        className={cn(
+          "tabular-nums",
+          stock === 0
+            ? "border-red-300 text-red-700"
+            : isLowStock
+              ? "border-amber-300 text-amber-700"
+              : "border-green-300 text-green-700",
+        )}
+      >
         {stock} unid. / {product.variants?.length ?? 0} variantes
       </Badge>
     );
@@ -146,10 +166,10 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
     <Badge
       variant="outline"
       className={cn(
-        "cursor-pointer",
+        "cursor-pointer tabular-nums",
         stock === 0
           ? "border-red-300 text-red-600"
-          : stock <= 5
+          : isLowStock
             ? "border-amber-300 text-amber-600"
             : "border-green-300 text-green-600",
       )}
@@ -242,7 +262,9 @@ export const columns: ColumnDef<BaseProductWithImages>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.price} />
     ),
-    cell: ({ row }) => `Bs ${row.original.price.toFixed(2)}`,
+    cell: ({ row }) => (
+      <span className="tabular-nums">Bs {row.original.price.toFixed(2)}</span>
+    ),
   },
   {
     accessorKey: "stock",

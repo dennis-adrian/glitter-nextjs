@@ -431,6 +431,55 @@ export async function correctHistoricalLineCategoriesWithDatabase(
               ),
             );
     const addedById = new Map(allAddedRows.map((row) => [row.item.id, row]));
+    const addedGroupsByKey = new Map<
+      string,
+      { representativeId: number; itemIds: number[] }
+    >();
+    for (const row of allAddedRows) {
+      const groupKey = `${row.orderId}|${getAddedLineGroupKey(
+        toProjectionLine(row.item),
+      )}`;
+      const group = addedGroupsByKey.get(groupKey);
+      if (group) {
+        group.itemIds.push(row.item.id);
+        group.representativeId = Math.min(group.representativeId, row.item.id);
+      } else {
+        addedGroupsByKey.set(groupKey, {
+          representativeId: row.item.id,
+          itemIds: [row.item.id],
+        });
+      }
+    }
+
+    // Source rows expose the lowest item ID as the canonical representative.
+    // Re-derive that identity from locked data so a forged action request
+    // cannot submit multiple row IDs for one logical added-line group.
+    const selectedAddedGroupKeys = new Set<string>();
+    for (const source of parsedSources) {
+      if (source.type !== "adjustment") continue;
+      const representative = addedById.get(source.id);
+      if (
+        !representative ||
+        representative.orderId !== source.orderId ||
+        representative.item.baseOrderItemId != null
+      ) {
+        fail("Una línea seleccionada ya no pertenece al pedido.", "not_found");
+      }
+      const groupKey = `${source.orderId}|${getAddedLineGroupKey(
+        toProjectionLine(representative.item),
+      )}`;
+      const group = addedGroupsByKey.get(groupKey);
+      if (!group || group.representativeId !== source.id) {
+        fail(
+          "La selección contiene datos inválidos. Recargá la página.",
+          "invalid_input",
+        );
+      }
+      if (selectedAddedGroupKeys.has(groupKey)) {
+        fail("La selección contiene líneas repetidas.", "invalid_input");
+      }
+      selectedAddedGroupKeys.add(groupKey);
+    }
 
     const changedOrderIds = new Set<number>();
     const previousByOrder = new Map<
@@ -504,13 +553,9 @@ export async function correctHistoricalLineCategoriesWithDatabase(
       const groupKey = getAddedLineGroupKey(
         toProjectionLine(representative.item),
       );
-      const groupIds = allAddedRows
-        .filter(
-          (row) =>
-            row.orderId === source.orderId &&
-            getAddedLineGroupKey(toProjectionLine(row.item)) === groupKey,
-        )
-        .map((row) => row.item.id);
+      const groupIds = addedGroupsByKey.get(
+        `${source.orderId}|${groupKey}`,
+      )!.itemIds;
       await tx
         .update(orderAdjustmentItems)
         .set({ storeCategorySnapshot: input.targetCategory })

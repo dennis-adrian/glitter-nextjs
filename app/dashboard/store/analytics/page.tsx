@@ -3,11 +3,12 @@ import OrdersTotals from "@/app/components/organisms/orders/order_totals_card/to
 import OrdersSalesChart from "@/app/components/organisms/orders/sales-chart";
 import OrdersStatsCards from "@/app/components/organisms/orders/stats-cards";
 import ProfitabilityReport from "@/app/components/organisms/orders/profitability-report";
+import StorePeriodFilter from "@/app/components/organisms/store/store-period-filter";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import {
   fetchOrders,
   fetchHistoricalCostBackfillPreview,
-  fetchOrdersStats,
+  fetchOrdersStatsComparison,
   fetchOrdersTotalsByProduct,
   fetchOrdersProfitability,
 } from "@/app/lib/orders/actions";
@@ -16,7 +17,14 @@ import {
   parseProfitabilityQuery,
 } from "@/app/lib/orders/profitability-query-schema";
 import { fetchLowStockProducts } from "@/app/lib/products/actions";
-import { toConcreteStoreCategory } from "@/app/lib/store/category";
+import {
+  LOW_STOCK_FILTER_PARAM,
+  LOW_STOCK_FILTER_VALUE,
+} from "@/app/lib/products/low-stock";
+import {
+  STORE_CATEGORY_SCOPE_PARAM,
+  toConcreteStoreCategory,
+} from "@/app/lib/store/category";
 import { Suspense } from "react";
 
 function StatsCardsSkeleton() {
@@ -63,14 +71,23 @@ export default async function StoreAnalyticsPage(props: {
 }) {
   const profitabilityQuery = parseProfitabilityQuery(await props.searchParams);
   const scope = profitabilityQuery.category;
-  const ordersPromise = fetchOrders(scope);
-  const ordersTotalsPromise = fetchOrdersTotalsByProduct(scope);
-  const statsPromise = fetchOrdersStats(scope);
+  // Every historical section shares one date range. Current inventory remains
+  // intentionally unbounded because stock is a point-in-time measure.
+  const statsRange = getProfitabilityDateRange(profitabilityQuery);
+  const ordersPromise = fetchOrders(scope, statsRange);
+  const ordersTotalsPromise = fetchOrdersTotalsByProduct(scope, statsRange);
+  const statsPromise = fetchOrdersStatsComparison(scope, statsRange);
   const lowStockPromise = fetchLowStockProducts({
     storeCategory: toConcreteStoreCategory(scope) ?? undefined,
   });
+  const lowStockParams = new URLSearchParams();
+  lowStockParams.set(LOW_STOCK_FILTER_PARAM, LOW_STOCK_FILTER_VALUE);
+  if (scope !== "all") {
+    lowStockParams.set(STORE_CATEGORY_SCOPE_PARAM, scope);
+  }
+  const lowStockHref = `/dashboard/store/products?${lowStockParams.toString()}`;
   const profitabilityPromise = fetchOrdersProfitability({
-    ...getProfitabilityDateRange(profitabilityQuery),
+    ...statsRange,
     category: scope,
   });
   // Historical cost completion stays global, so its preview query only runs
@@ -87,18 +104,31 @@ export default async function StoreAnalyticsPage(props: {
         </p>
       </div>
 
+      <StorePeriodFilter query={profitabilityQuery} />
+
       <Suspense fallback={<StatsCardsSkeleton />}>
-        <OrdersStatsCards statsPromise={statsPromise} category={scope} />
+        <OrdersStatsCards
+          statsPromise={statsPromise}
+          category={scope}
+          period={profitabilityQuery.period}
+          from={profitabilityQuery.from}
+          to={profitabilityQuery.to}
+        />
       </Suspense>
 
-      <div className="hidden md:block">
-        <Suspense fallback={<Skeleton className="h-72 w-full" />}>
-          <OrdersSalesChart ordersPromise={ordersPromise} category={scope} />
-        </Suspense>
-      </div>
+      <Suspense fallback={<Skeleton className="h-72 w-full" />}>
+        <OrdersSalesChart
+          ordersPromise={ordersPromise}
+          category={scope}
+          range={statsRange}
+        />
+      </Suspense>
 
       <Suspense fallback={<LowStockSkeleton />}>
-        <LowStockAlert lowStockPromise={lowStockPromise} />
+        <LowStockAlert
+          lowStockPromise={lowStockPromise}
+          allProductsHref={lowStockHref}
+        />
       </Suspense>
 
       <Suspense fallback={<OrdersTotalsSkeleton />}>
