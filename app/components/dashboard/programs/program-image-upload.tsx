@@ -1,10 +1,10 @@
 "use client";
 
-import { ImageIcon, Loader2Icon, UploadIcon, XIcon } from "lucide-react";
+import { ImageIcon, XIcon } from "lucide-react";
 import Image from "next/image";
 import type { Control } from "react-hook-form";
-import { toast } from "sonner";
 
+import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
 import { Button } from "@/app/components/ui/button";
 import {
   FormDescription,
@@ -15,7 +15,6 @@ import {
 } from "@/app/components/ui/form";
 import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
 import type { ProgramFormValues } from "@/app/lib/programs/form-schemas";
-import { UploadButton } from "@/app/vendors/uploadthing";
 import { cn } from "@/lib/utils";
 
 type ArtworkField = "bannerUrl" | "thumbnailUrl";
@@ -88,65 +87,14 @@ export default function ProgramImageUpload({
             </div>
 
             <div className="flex flex-wrap items-start gap-2">
-              <UploadButton
+              <UploadThingImageButton
                 endpoint="programArtwork"
-                content={{
-                  button({ ready, isUploading, uploadProgress }) {
-                    if (isUploading) {
-                      return (
-                        <span className="flex items-center gap-2">
-                          <Loader2Icon
-                            className="size-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                          {uploadProgress}%
-                        </span>
-                      );
-                    }
-                    if (ready) {
-                      return (
-                        <span className="flex items-center gap-2">
-                          <UploadIcon className="size-4" aria-hidden="true" />
-                          {imageUrl ? "Cambiar imagen" : "Seleccionar imagen"}
-                        </span>
-                      );
-                    }
-                    return "Cargando...";
-                  },
-                  allowedContent({ ready, isUploading }) {
-                    if (!ready || isUploading) return null;
-                    return "JPG, PNG o WebP · máximo 4 MB";
-                  },
-                }}
-                appearance={{
-                  button:
-                    "h-9 w-auto bg-primary px-3 text-xs text-primary-foreground after:bg-primary/60",
-                  allowedContent: "text-xs text-muted-foreground",
-                }}
-                onBeforeUploadBegin={(files) => {
-                  onUploading(true);
-                  return files;
-                }}
-                onClientUploadComplete={(results) => {
-                  onUploading(false);
-                  const uploadedUrl =
-                    results[0]?.serverData?.imageUrl ?? results[0]?.url;
-                  if (!uploadedUrl) {
-                    toast.error("No se pudo obtener la imagen subida");
-                    return;
-                  }
-
-                  field.onChange(uploadedUrl);
-                  toast.success("Imagen subida correctamente");
-                }}
-                onUploadError={(error) => {
-                  onUploading(false);
-                  toast.error(
-                    error.code === "TOO_LARGE"
-                      ? "La imagen supera el máximo de 4 MB"
-                      : "No se pudo subir la imagen",
-                  );
-                }}
+                hasImage={Boolean(imageUrl)}
+                buttonLabel="Seleccionar imagen"
+                allowedContent="JPG, PNG o WebP · máximo 4 MB"
+                variant="primary"
+                onUploading={onUploading}
+                onUploadComplete={field.onChange}
               />
 
               {imageUrl ? (

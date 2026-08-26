@@ -8,12 +8,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/app/components/ui/form";
-import { UploadButton } from "@/app/vendors/uploadthing";
+import {
+  type ImageUploadEndpoint,
+  UploadThingImageButton,
+} from "@/app/components/uploads/uploadthing-image-button";
 import { UseFormReturn } from "react-hook-form";
-import { Loader2Icon, Trash2Icon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
-import type { OurFileRouter } from "@/app/api/uploadthing/core";
-import type { Json } from "@uploadthing/shared";
 import { Button } from "@/app/components/ui/button";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
 
@@ -33,7 +34,7 @@ export default function FileInput({
   messagePosition?: "top" | "bottom";
   name: string;
   description?: string;
-  endpoint?: keyof OurFileRouter;
+  endpoint?: ImageUploadEndpoint;
   onUploading?: (isUploading: boolean) => void;
 }) {
   return (
@@ -75,73 +76,16 @@ export default function FileInput({
                   </Button>
                 </div>
               )}
-              <UploadButton
-                content={{
-                  button({
-                    ready,
-                    isUploading,
-                    uploadProgress,
-                  }: {
-                    ready: boolean;
-                    isUploading: boolean;
-                    uploadProgress: number;
-                  }) {
-                    if (isUploading && uploadProgress === 100) {
-                      return (
-                        <Loader2Icon className="w-4 h-4 text-primary-500 animate-spin" />
-                      );
-                    }
-                    if (isUploading) return <div>{uploadProgress}%</div>;
-                    if (ready) return <div>Elige un archivo</div>;
-                    return "Cargando...";
-                  },
-                  allowedContent({
-                    ready,
-                    isUploading,
-                  }: {
-                    ready: boolean;
-                    isUploading: boolean;
-                  }) {
-                    if (!ready) return null;
-                    if (isUploading) return "Subiendo archivo...";
-                    return "Archivo hasta 4MB";
-                  },
-                }}
-                appearance={{
-                  button: ({
-                    ready,
-                    isUploading,
-                  }: {
-                    ready: boolean;
-                    isUploading: boolean;
-                  }) => {
-                    if (!ready) {
-                      return "bg-transparent text-xs text-muted-foreground border";
-                    }
-                    if (isUploading) {
-                      return "bg-transparent text-xs text-muted-foreground border after:bg-primary-700/60";
-                    }
-                    return "bg-transparent text-xs text-foreground border hover:text-primary-500 hover:border-primary-500";
-                  },
-                }}
+              <UploadThingImageButton
                 endpoint={endpoint}
-                onBeforeUploadBegin={(files: File[]) => {
-                  if (onUploading) onUploading(true);
-                  return files;
-                }}
-                onClientUploadComplete={(
-                  res: { url: string; serverData: Json }[],
-                ) => {
-                  if (onUploading) onUploading(false);
-                  if (res && res[0]?.url) {
-                    field.onChange(res[0].url);
-                    toast.success("Archivo subido correctamente");
-                  }
-                }}
-                onUploadError={(error) => {
-                  if (onUploading) onUploading(false);
-                  toast.error("Error al subir el archivo");
-                }}
+                hasImage={Boolean(field.value)}
+                buttonLabel="Elige un archivo"
+                changeLabel="Cambiar archivo"
+                allowedContent="Archivo hasta 4MB"
+                onUploading={onUploading}
+                onUploadComplete={field.onChange}
+                successMessage="Archivo subido correctamente"
+                errorMessage="Error al subir el archivo"
               />
             </div>
           </FormControl>
