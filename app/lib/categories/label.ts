@@ -16,6 +16,11 @@ export function labelsMatch(a: string, b: string): boolean {
   return normalizeCategoryLabel(a) === normalizeCategoryLabel(b);
 }
 
+/** Matches the unique index `(category, lower(name))` after the editor trims the label. */
+export function uniqueLabelIndexKey(area: string, label: string): string {
+  return `${area}:${label.trim().toLowerCase()}`;
+}
+
 export function labelContainsNormalized(label: string, needle: string): boolean {
   return normalizeCategoryLabel(label).includes(normalizeCategoryLabel(needle));
 }

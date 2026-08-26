@@ -13,7 +13,11 @@ import {
   fetchAdminCategory,
   loadCategoryWithCounts,
 } from "@/app/lib/categories/queries";
-import { formatDeleteBlockedMessage } from "@/app/lib/categories/copy";
+import {
+  formatDeleteBlockedMessage,
+  UNIQUE_LABEL_MESSAGE,
+} from "@/app/lib/categories/copy";
+import { isUniqueViolation } from "@/app/lib/categories/pg";
 import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { requireAdmin } from "@/app/lib/users/helpers";
@@ -23,15 +27,6 @@ import { subcategories } from "@/db/schema";
 function revalidateCategoryPaths() {
   revalidatePath("/festivals/categories");
   revalidatePath("/dashboard/categories");
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
-  );
 }
 
 async function nextSortOrder(area: ManagementArea): Promise<number> {
@@ -94,7 +89,7 @@ export async function createCategory(input: unknown) {
     if (isUniqueViolation(error)) {
       return {
         success: false as const,
-        message: "Ya existe una categoría con ese nombre en esta área",
+        message: UNIQUE_LABEL_MESSAGE,
       };
     }
     return { success: false as const, message: "Error al crear la categoría" };
@@ -164,7 +159,7 @@ export async function updateCategory(id: number, input: unknown) {
     if (isUniqueViolation(error)) {
       return {
         success: false as const,
-        message: "Ya existe una categoría con ese nombre en esta área",
+        message: UNIQUE_LABEL_MESSAGE,
       };
     }
     return {

@@ -5,7 +5,9 @@ import {
   filterPickerOptions,
   withExclusiveSelection,
 } from "@/app/lib/categories/filters";
-import { labelsMatch, normalizeCategoryLabel } from "@/app/lib/categories/label";
+import { labelsMatch, normalizeCategoryLabel, uniqueLabelIndexKey } from "@/app/lib/categories/label";
+import { UNIQUE_LABEL_MESSAGE, categoryParticipantsHref } from "@/app/lib/categories/copy";
+import { isUniqueViolation } from "@/app/lib/categories/pg";
 import {
   isAdminAssignable,
   isParticipantSelectable,
@@ -121,14 +123,30 @@ describe("label normalization", () => {
     );
   });
 
-  it("keeps the same normalized label unique per área", () => {
-    const areaLabels = [
-      { area: "illustration", label: "Crochet" },
-      { area: "illustration", label: " crochet " },
-    ];
-    const keys = areaLabels.map(
-      (row) => `${row.area}:${normalizeCategoryLabel(row.label)}`,
+  it("treats the same trimmed lowercase label as a collision inside one área", () => {
+    expect(uniqueLabelIndexKey("illustration", "Crochet")).toBe(
+      uniqueLabelIndexKey("illustration", " CROCHET "),
     );
-    expect(new Set(keys).size).toBe(1);
+    expect(uniqueLabelIndexKey("illustration", "Crochet")).not.toBe(
+      uniqueLabelIndexKey("entrepreneurship", "Crochet"),
+    );
+    expect(UNIQUE_LABEL_MESSAGE).toMatch(/área/i);
+  });
+});
+
+describe("unique constraint errors", () => {
+  it("recognizes Postgres unique-violation code 23505", () => {
+    expect(isUniqueViolation({ code: "23505" })).toBe(true);
+    expect(isUniqueViolation({ code: "23503" })).toBe(false);
+    expect(isUniqueViolation(new Error("duplicate"))).toBe(false);
+  });
+});
+
+describe("participants deep link", () => {
+  it("filters the users list by the category área", () => {
+    expect(categoryParticipantsHref("illustration")).toContain(
+      "category=illustration",
+    );
+    expect(categoryParticipantsHref("none")).not.toContain("category=");
   });
 });

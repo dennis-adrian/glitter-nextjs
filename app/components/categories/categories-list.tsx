@@ -51,6 +51,7 @@ import {
   formatDeleteWarningMessage,
   VISIBILITY_COPY,
   visibilityTone,
+  categoryParticipantsHref,
 } from "@/app/lib/categories/copy";
 import { isDeleteBlocked, unverifiedLinkedCounts } from "@/app/lib/categories/delete";
 import type { AdminCategory, ManagementArea } from "@/app/lib/categories/definitions";
@@ -397,6 +398,16 @@ export default function CategoriesList({ categories }: CategoriesListProps) {
             : []
         }
         blocked={blocked}
+        secondaryHref={
+          pendingId && blocked && pendingId.verified > 0
+            ? categoryParticipantsHref(pendingId.category)
+            : undefined
+        }
+        secondaryLabel={
+          pendingId && blocked && pendingId.verified > 0
+            ? "Ver perfiles"
+            : undefined
+        }
         confirmLabel="Eliminar categoría"
         confirmPending={isPending}
         onConfirm={() => {

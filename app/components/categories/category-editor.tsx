@@ -36,6 +36,7 @@ import {
   MANAGEMENT_AREA_OPTIONS,
   RENAME_MOVE_WARNING,
   VISIBILITY_COPY,
+  categoryParticipantsHref,
 } from "@/app/lib/categories/copy";
 import { isDeleteBlocked, unverifiedLinkedCounts } from "@/app/lib/categories/delete";
 import type {
@@ -373,6 +374,14 @@ export default function CategoryEditor({
             },
           ]}
           blocked={blocked}
+          secondaryHref={
+            blocked && category.verified > 0
+              ? categoryParticipantsHref(category.category)
+              : undefined
+          }
+          secondaryLabel={
+            blocked && category.verified > 0 ? "Ver perfiles" : undefined
+          }
           confirmLabel="Eliminar categoría"
           confirmPending={isPending}
           onConfirm={() => {

@@ -1,6 +1,6 @@
 import type { CategoryVisibility } from "@/app/lib/categories/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
-import { MANAGEMENT_AREAS, type ManagementArea } from "./definitions";
+import { MANAGEMENT_AREAS, isManagementArea, type ManagementArea } from "./definitions";
 
 export const VISIBILITY_COPY: Record<
   CategoryVisibility,
@@ -100,4 +100,21 @@ export function formatDeleteWarningMessage(counts: {
 
 export function areaLabel(area: ManagementArea): string {
   return getCategoryLabel(area);
+}
+
+export const UNIQUE_LABEL_MESSAGE =
+  "Ya existe una categoría con ese nombre en esta área";
+
+export function categoryParticipantsHref(area: string): string {
+  const params = new URLSearchParams({
+    limit: "10",
+    offset: "0",
+    includeAdmins: "false",
+    sort: "updatedAt",
+    direction: "desc",
+  });
+  if (isManagementArea(area)) {
+    params.set("category", area);
+  }
+  return `/dashboard/users?${params.toString()}`;
 }

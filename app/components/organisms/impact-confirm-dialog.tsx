@@ -12,6 +12,7 @@ import {
 } from "@/app/components/ui/alert-dialog";
 import { buttonVariants } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
+import Link from "next/link";
 
 export type ImpactItem = {
   label: string;
@@ -29,6 +30,8 @@ type ImpactConfirmDialogProps = {
   confirmLabel: string;
   onConfirm: () => void;
   confirmPending?: boolean;
+  secondaryHref?: string;
+  secondaryLabel?: string;
 };
 
 export default function ImpactConfirmDialog({
@@ -41,6 +44,8 @@ export default function ImpactConfirmDialog({
   confirmLabel,
   onConfirm,
   confirmPending = false,
+  secondaryHref,
+  secondaryLabel,
 }: ImpactConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -73,6 +78,17 @@ export default function ImpactConfirmDialog({
           </ul>
         ) : null}
         <AlertDialogFooter>
+          {secondaryHref && secondaryLabel ? (
+            <Link
+              href={secondaryHref}
+              className={cn(
+                buttonVariants({ variant: "link" }),
+                "mr-auto h-auto px-0",
+              )}
+            >
+              {secondaryLabel}
+            </Link>
+          ) : null}
           <AlertDialogCancel>Cerrar</AlertDialogCancel>
           <AlertDialogAction
             className={buttonVariants({ variant: "destructive" })}
