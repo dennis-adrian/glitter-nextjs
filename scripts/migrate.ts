@@ -1,6 +1,7 @@
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { pool, db } from "@/db";
 
+import { backfillCategoryCatalog } from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
 
 /**
@@ -43,6 +44,65 @@ async function ensureProductSlugConstraints() {
   }
 }
 
+const CATEGORY_CATALOG_BACKFILL = "0236_manageable_categories";
+
+async function catalogMigrationPending(): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    const col = await client.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'subcategories'
+         AND column_name = 'description_json'`,
+    );
+    return col.rows.length === 0;
+  } finally {
+    client.release();
+  }
+}
+
+async function ensureCategoryCatalogBackfillMarker() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS category_catalog_backfill (
+        name text PRIMARY KEY,
+        completed_at timestamp NOT NULL DEFAULT now()
+      )
+    `);
+  } finally {
+    client.release();
+  }
+}
+
+async function categoryCatalogBackfillCompleted(): Promise<boolean> {
+  await ensureCategoryCatalogBackfillMarker();
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT 1 FROM category_catalog_backfill WHERE name = $1`,
+      [CATEGORY_CATALOG_BACKFILL],
+    );
+    return rows.length > 0;
+  } finally {
+    client.release();
+  }
+}
+
+async function markCategoryCatalogBackfillCompleted() {
+  await ensureCategoryCatalogBackfillMarker();
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO category_catalog_backfill (name) VALUES ($1)
+       ON CONFLICT (name) DO NOTHING`,
+      [CATEGORY_CATALOG_BACKFILL],
+    );
+  } finally {
+    client.release();
+  }
+}
+
 async function main() {
   if (!process.env.POSTGRES_URL) {
     console.info("POSTGRES_URL is not set. Skipping migration.");
@@ -51,9 +111,18 @@ async function main() {
   }
 
   try {
+    const catalogPending = await catalogMigrationPending();
+    const catalogBackfillDone = catalogPending
+      ? false
+      : await categoryCatalogBackfillCompleted();
+
     await migrate(db, { migrationsFolder: "./drizzle" });
     await backfillProductSlugs();
     await ensureProductSlugConstraints();
+    if (catalogPending || !catalogBackfillDone) {
+      await backfillCategoryCatalog();
+      await markCategoryCatalogBackfillCompleted();
+    }
     console.info("Migration completed successfully.");
   } catch (error: unknown) {
     const pgError = error as { code?: string };
