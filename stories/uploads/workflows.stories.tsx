@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { z } from "zod";
 
 import MobilePaymentBar from "@/app/components/organisms/orders/mobile-payment-bar";
@@ -128,10 +128,14 @@ export const MobileOrderPayment: Story = {
       input!,
       new File(["mobile"], "pago-móvil.png", { type: "image/png" }),
     );
-    await expect(canvas.getByText("pago-móvil.png")).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Confirmar pago" }),
-    ).toBeEnabled();
+    await waitFor(() =>
+      expect(canvas.getByText("pago-móvil.png")).toBeVisible(),
+    );
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Confirmar pago" }),
+      ).toBeEnabled(),
+    );
   },
 };
 
@@ -139,10 +143,14 @@ export const ParticipantProductModal: Story = {
   render: () => <ParticipantProductStory />,
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
-    await expect(
-      await body.findByRole("heading", { name: "Agregar Producto" }),
-    ).toBeVisible();
-    await expect(body.getByAltText("Product image")).toBeVisible();
+    await waitFor(() =>
+      expect(
+        body.getByRole("heading", { name: "Agregar Producto" }),
+      ).toBeVisible(),
+    );
+    await waitFor(() =>
+      expect(body.getByAltText("Product image")).toBeVisible(),
+    );
   },
 };
 

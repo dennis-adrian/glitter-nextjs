@@ -15,7 +15,7 @@ import { Form } from "@/app/components/ui/form";
 import ProfilePicUpload from "@/app/components/user_profile/profile_pic/upload";
 import type { ProgramFormValues } from "@/app/lib/programs/form-schemas";
 
-const placeholder = "/img/placeholders/placeholder-500x500.png";
+const mockImageUrl = "/img/banner-caceria-de-sellos.png";
 
 function ExternalParticipantStory() {
   const [imageUrl, setImageUrl] = useState("");
@@ -162,6 +162,10 @@ type Story = StoryObj<typeof meta>;
 
 export const ExternalParticipantImage: Story = {
   render: () => <ExternalParticipantStory />,
+};
+
+export const ExternalParticipantInteractionTest: Story = {
+  render: () => <ExternalParticipantStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.upload(
@@ -185,7 +189,7 @@ export const BannerImage: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const urlInput = canvas.getByLabelText("O pega la URL");
-    await userEvent.type(urlInput, placeholder);
+    await userEvent.type(urlInput, mockImageUrl);
     await expect(
       canvas.getByRole("img", { name: "Vista previa escritorio" }),
     ).toBeVisible();
@@ -221,7 +225,7 @@ export const GenericFileInput: Story = {
       canvas.getByLabelText("Seleccionar archivo para imageUploader"),
       new File(["badge"], "insignia.png", { type: "image/png" }),
     );
-    await expect(canvas.getByText(placeholder)).toBeVisible();
+    await expect(await canvas.findByText(mockImageUrl)).toBeVisible();
   },
 };
 

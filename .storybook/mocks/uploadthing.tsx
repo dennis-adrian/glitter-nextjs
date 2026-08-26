@@ -49,21 +49,26 @@ type HookOptions = {
   onUploadProgress?: (progress: number) => void;
 };
 
-const MOCK_IMAGE_URL = "/img/placeholders/placeholder-500x500.png";
+const MOCK_IMAGE_URL = "/img/banner-caceria-de-sellos.png";
+const MOCK_PROGRAM_ARTWORK_URL =
+  "https://ja4q35y666.ufs.sh/f/WpsJq20QkpNgUNwAtQc0euIzkCdrXyN91qS6cOjvapWi280J";
 
 function resultFor(file: File, endpoint: string): MockUploadResult {
+  const imageUrl =
+    endpoint === "programArtwork" ? MOCK_PROGRAM_ARTWORK_URL : MOCK_IMAGE_URL;
+
   return {
     key: `storybook-${endpoint}-${file.name}`,
     name: file.name,
     size: file.size,
     type: file.type,
-    url: MOCK_IMAGE_URL,
+    url: imageUrl,
     serverData: {
       imageId: endpoint === "productImage" ? 101 : undefined,
-      imageUrl: MOCK_IMAGE_URL,
+      imageUrl,
       results: {
         fileKey: `storybook-${file.name}`,
-        imageUrl: MOCK_IMAGE_URL,
+        imageUrl,
         profileId: 1,
       },
     },

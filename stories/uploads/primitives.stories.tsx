@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
 
@@ -33,10 +33,14 @@ export const Outline: Story = {
       new File(["storybook"], "portada.png", { type: "image/png" }),
     );
     await expect(args.onUploading).toHaveBeenCalledWith(true);
-    await expect(args.onUploadComplete).toHaveBeenCalledWith(
-      "/img/placeholders/placeholder-500x500.png",
+    await waitFor(() =>
+      expect(args.onUploadComplete).toHaveBeenCalledWith(
+        "/img/banner-caceria-de-sellos.png",
+      ),
     );
-    await expect(args.onUploading).toHaveBeenLastCalledWith(false);
+    await waitFor(() =>
+      expect(args.onUploading).toHaveBeenLastCalledWith(false),
+    );
   },
 };
 
@@ -59,7 +63,9 @@ export const UploadFailure: Story = {
       input,
       new File(["storybook"], "error.png", { type: "image/png" }),
     );
+    await waitFor(() =>
+      expect(args.onUploading).toHaveBeenLastCalledWith(false),
+    );
     await expect(args.onUploadComplete).not.toHaveBeenCalled();
-    await expect(args.onUploading).toHaveBeenLastCalledWith(false);
   },
 };
