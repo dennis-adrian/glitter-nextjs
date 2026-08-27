@@ -113,11 +113,6 @@ export function FittedImage({
       aria-keyshortcuts={
         canReposition ? "ArrowLeft ArrowRight ArrowUp ArrowDown" : undefined
       }
-      title={
-        canReposition
-          ? `Recorte ${Math.round(position.x)}% horizontal, ${Math.round(position.y)}% vertical. Arrastra la imagen o usa las flechas para reposicionar.`
-          : undefined
-      }
       className={cn(
         "relative size-full min-h-0 min-w-0 overflow-hidden",
         canReposition && "touch-none select-none",
