@@ -155,6 +155,7 @@ export function SingleImageUploadField({
         <Button
           type="button"
           size="sm"
+          className="gap-2"
           disabled={disabled || isUploading}
           onClick={() => inputRef.current?.click()}
         >
@@ -170,6 +171,7 @@ export function SingleImageUploadField({
             type="button"
             size="sm"
             variant="ghost"
+            className="gap-2"
             disabled={disabled}
             onClick={() => onChange(null)}
           >

@@ -163,6 +163,7 @@ export function ManagedImageGallery({
         <Button
           type="button"
           size="sm"
+          className="gap-2"
           disabled={isUploading || images.length >= maxFiles}
           onClick={() => inputRef.current?.click()}
         >

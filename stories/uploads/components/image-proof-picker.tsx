@@ -200,7 +200,7 @@ export function ImageProofPicker({
         {selectedFile ? (
           <Button
             type="button"
-            className="flex-1"
+            className="flex-1 gap-2"
             disabled={isUploading}
             onClick={() => void confirmUpload()}
           >
@@ -216,6 +216,7 @@ export function ImageProofPicker({
             <Button
               type="button"
               variant="outline"
+              className="gap-2"
               onClick={() => inputRef.current?.click()}
             >
               <RefreshCwIcon className="size-4" />

@@ -260,6 +260,7 @@ export function MultiImageDropzone({
 
       <Button
         type="button"
+        className="gap-2"
         disabled={disabled || isUploading || selected.length === 0}
         onClick={() => void uploadSelected()}
       >
