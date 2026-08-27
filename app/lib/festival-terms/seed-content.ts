@@ -74,7 +74,7 @@ export function buildInitialFestivalTermsSections(): SeedTermsSection[] {
       sortOrder: 2,
       kind: "rich_text",
       layout: "plain",
-      title: null,
+      title: "Ocupación del stand con stickers (Festicker)",
       audienceCategories: ["illustration"],
       audienceFestivalTypes: ["festicker"],
       bodyJson: [
@@ -87,7 +87,7 @@ export function buildInitialFestivalTermsSections(): SeedTermsSection[] {
       sortOrder: 3,
       kind: "rich_text",
       layout: "plain",
-      title: null,
+      title: "Donación de stickers para el Stand de Trueque",
       audienceCategories: ["illustration"],
       audienceFestivalTypes: [],
       bodyJson: [
