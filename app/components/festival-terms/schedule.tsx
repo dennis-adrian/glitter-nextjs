@@ -492,11 +492,13 @@ export default function FestivalTermsSchedule({
               </span>
             </h4>
             <div className="ml-2 flex flex-col gap-2">
-              <p>
-                Los expositores tienen permitido dejar sus estructuras
-                armadas para facilitar acomodarse el segundo día del
-                festival.
-              </p>
+              {dayTwo ? (
+                <p>
+                  Los expositores tienen permitido dejar sus estructuras
+                  armadas para facilitar acomodarse el segundo día del
+                  festival.
+                </p>
+              ) : null}
               <p>
                 El horario en que los expositores tienen permitido
                 retirarse este día es desde las{" "}
