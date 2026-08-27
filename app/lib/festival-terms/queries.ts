@@ -125,6 +125,7 @@ export async function countStaleActiveFestivalAcceptances(
     INNER JOIN festivals f ON f.id = ur.festival_id
     WHERE ur.type = 'festival_participation'
       AND f.status = 'active'
+      AND f.participant_terms_enabled = true
       AND ur.terms_version_id IS DISTINCT FROM ${publishedVersionId}
   `);
   return Number(result.rows[0]?.count ?? 0);
