@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import FestivalTermsDocument from "@/app/components/festival-terms/document";
 import { Label } from "@/app/components/ui/label";
 import {
@@ -45,18 +46,21 @@ export default function FestivalTermsPreviewPanel({
   className,
   documentClassName,
 }: FestivalTermsPreviewPanelProps) {
+  const categorySelectId = useId();
+  const festivalTypeSelectId = useId();
+
   return (
     <div className={cn("flex min-h-0 flex-col gap-3", className)}>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label>Categoría</Label>
+          <Label htmlFor={categorySelectId}>Categoría</Label>
           <Select
             value={category}
             onValueChange={(value) =>
               onCategoryChange(value as TermsAudienceCategory)
             }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id={categorySelectId} className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -69,14 +73,14 @@ export default function FestivalTermsPreviewPanel({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Tipo de festival</Label>
+          <Label htmlFor={festivalTypeSelectId}>Tipo de festival</Label>
           <Select
             value={festivalType}
             onValueChange={(value) =>
               onFestivalTypeChange(value as TermsFestivalType)
             }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id={festivalTypeSelectId} className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
