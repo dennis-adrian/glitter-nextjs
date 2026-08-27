@@ -2,6 +2,7 @@
 
 import { XIcon } from "lucide-react";
 
+import { Button } from "@/app/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ImagePreviewRemoveButtonProps = {
@@ -22,14 +23,14 @@ export function ImagePreviewRemoveButton({
   className,
 }: ImagePreviewRemoveButtonProps) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="icon"
       aria-label={label}
       disabled={disabled}
       className={cn(
-        "absolute -right-1 -top-1 z-20 grid size-11 place-items-center rounded-full border bg-background text-foreground shadow-md touch-manipulation",
-        "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "disabled:pointer-events-none disabled:opacity-50",
+        "absolute -right-1 -top-1 z-20 rounded-full bg-background shadow-md touch-manipulation",
         className,
       )}
       onPointerDown={(event) => event.stopPropagation()}
@@ -38,7 +39,7 @@ export function ImagePreviewRemoveButton({
         onClick();
       }}
     >
-      <XIcon className="size-5" aria-hidden="true" />
-    </button>
+      <XIcon className="size-4" aria-hidden="true" />
+    </Button>
   );
 }

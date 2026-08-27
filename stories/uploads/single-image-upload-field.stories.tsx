@@ -2,11 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import {
-  formatImageZoom,
-  imageZoom,
-  type ImageFit,
-} from "@/stories/uploads/components/image-object-position";
+import type { ImageFit } from "@/stories/uploads/components/image-object-position";
 import { SingleImageUploadField } from "@/stories/uploads/components/single-image-upload-field";
 import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
 import type { UploadedImage } from "@/stories/uploads/components/upload-types";
@@ -34,13 +30,6 @@ function SingleImageStory({
         previewShape={previewShape}
         fit={fit}
       />
-      {fit === "cover" && image ? (
-        <output className="text-sm text-muted-foreground">
-          Recorte {Math.round(image.objectPosition?.x ?? 50)}% horizontal,{" "}
-          {Math.round(image.objectPosition?.y ?? 50)}% vertical · zoom{" "}
-          {formatImageZoom(imageZoom(image.objectPosition))}
-        </output>
-      ) : null}
     </div>
   );
 }
@@ -121,9 +110,7 @@ export const CoverReposition: Story = {
     await expect(image).toHaveAttribute("data-object-position", "40% 50%");
     await userEvent.click(canvas.getByRole("button", { name: "Acercar" }));
     await expect(image).toHaveAttribute("data-image-zoom", "1.1");
-    await expect(
-      canvas.getByText("Recorte 40% horizontal, 50% vertical · zoom 1,1×"),
-    ).toBeVisible();
+    await expect(canvas.getByText("Zoom 1,1×")).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Quitar imagen del perfil" }),
     ).toBeVisible();

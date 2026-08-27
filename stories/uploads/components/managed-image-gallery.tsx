@@ -242,19 +242,23 @@ export function ManagedImageGallery({
               ) : null}
               <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                 {!image.isPrimary ? (
-                  <button
+                  <Button
                     type="button"
-                    className="grid size-11 place-items-center rounded-full bg-background/95 shadow-md touch-manipulation"
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full bg-background/95 shadow-md touch-manipulation"
                     aria-label={`Establecer ${image.name} como principal`}
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => setPrimary(image.id)}
                   >
                     <StarIcon className="size-4 text-amber-500" />
-                  </button>
+                  </Button>
                 ) : null}
-                <button
+                <Button
                   type="button"
-                  className="grid size-11 place-items-center rounded-full bg-background/95 shadow-md touch-manipulation"
+                  variant="outline"
+                  size="icon"
+                  className="rounded-full bg-background/95 shadow-md touch-manipulation"
                   aria-label={`Eliminar ${image.name}`}
                   disabled={isDeleting}
                   onPointerDown={(event) => event.stopPropagation()}
@@ -265,7 +269,7 @@ export function ManagedImageGallery({
                   ) : (
                     <Trash2Icon className="size-4 text-destructive" />
                   )}
-                </button>
+                </Button>
               </div>
             </article>
           );
