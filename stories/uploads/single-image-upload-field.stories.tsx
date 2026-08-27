@@ -98,7 +98,7 @@ export const CoverReposition: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const image = canvas.getByRole("img", {
+    const image = canvas.getByRole("group", {
       name: "Vista previa de imagen del perfil",
     });
     await expect(image).toHaveAttribute("data-image-fit", "cover");

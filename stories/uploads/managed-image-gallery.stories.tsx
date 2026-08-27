@@ -80,7 +80,7 @@ export const ProductThumbnailsFill: Story = {
   render: () => <GalleryStory fit="cover" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const image = canvas.getByRole("img", { name: "Mascota" });
+    const image = canvas.getByRole("group", { name: "Mascota" });
     await expect(image).toHaveAttribute("data-image-fit", "cover");
     image.focus();
     await expect(image).toHaveFocus();

@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type KeyboardEvent,
@@ -56,6 +57,7 @@ export function FittedImage({
   const draggingRef = useRef(false);
   const positionRef = useRef(position);
   const [isDragging, setIsDragging] = useState(false);
+  const hintId = useId();
   const zoom = imageZoom(position);
   const canReposition =
     fit === "cover" && Boolean(onPositionChange) && !disabled;
@@ -154,8 +156,9 @@ export function FittedImage({
   return (
     <div
       ref={frameRef}
-      role="img"
+      role={canReposition ? "group" : "img"}
       aria-label={alt}
+      aria-describedby={canReposition ? hintId : undefined}
       data-image-fit={fit}
       data-image-zoom={String(zoom)}
       data-object-position={imageObjectPositionCss(position)}
@@ -218,6 +221,12 @@ export function FittedImage({
       onLostPointerCapture={() => stopPointer()}
       onKeyDown={handleKeyDown}
     >
+      {canReposition ? (
+        <p id={hintId} className="sr-only">
+          Arrastrá o pellizcá la imagen para ajustar el recorte. Usá las flechas
+          para moverla y + o - para acercar o alejar.
+        </p>
+      ) : null}
       {/* Storybook prototypes preview object URLs and arbitrary remote URLs. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
