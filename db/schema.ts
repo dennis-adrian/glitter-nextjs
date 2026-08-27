@@ -345,6 +345,9 @@ export const festivals = pgTable(
     endDate: timestamp("end_date"),
     mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
     publicRegistration: boolean("public_registration").default(false).notNull(),
+    participantTermsEnabled: boolean("participant_terms_enabled")
+      .default(false)
+      .notNull(),
     eventDayRegistration: boolean("event_day_registration")
       .default(false)
       .notNull(),

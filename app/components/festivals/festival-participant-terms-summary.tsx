@@ -10,6 +10,7 @@ import { formatDateWithTime } from "@/app/lib/formatters";
 
 type FestivalParticipantTermsSummaryProps = {
   festivalStatus: FestivalBase["status"];
+  participantTermsEnabled: FestivalBase["participantTermsEnabled"];
 };
 
 export default async function FestivalParticipantTermsSummary(
@@ -34,6 +35,14 @@ export default async function FestivalParticipantTermsSummary(
       </div>
 
       <dl className="space-y-2 text-sm">
+        <div>
+          <dt className="font-medium">Acceso en este festival</dt>
+          <dd className="text-muted-foreground">
+            {props.participantTermsEnabled
+              ? "Habilitado — los participantes pueden ver y aceptar términos"
+              : "Deshabilitado — los participantes no pueden acceder a la página de términos"}
+          </dd>
+        </div>
         <div>
           <dt className="font-medium">Versión publicada</dt>
           <dd className="text-muted-foreground">
@@ -61,9 +70,16 @@ export default async function FestivalParticipantTermsSummary(
 
       {isPublicFestival && !published ? (
         <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
-          Este festival ya es visible para participantes, pero los términos y
-          condiciones todavía no están publicados. Quienes ingresen a la página
-          de términos verán un aviso hasta que publiques una versión.
+          Este festival ya es visible para participantes, pero los términos globales
+          todavía no están publicados en el CMS.
+        </p>
+      ) : null}
+
+      {isPublicFestival && published && !props.participantTermsEnabled ? (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
+          Hay términos publicados en el CMS, pero el acceso está deshabilitado
+          para este festival. Activá &quot;Términos para participantes&quot; en los
+          interruptores de arriba.
         </p>
       ) : null}
 

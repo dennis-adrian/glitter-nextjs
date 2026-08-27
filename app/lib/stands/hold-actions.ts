@@ -7,6 +7,10 @@ import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import {
+  FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+  isFestivalParticipantTermsEnabled,
+} from "@/app/lib/festivals/participant-terms";
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
@@ -18,6 +22,7 @@ import {
   standHolds,
   standReservations,
   stands,
+  festivals,
   userRequests,
   users,
 } from "@/db/schema";
@@ -36,6 +41,17 @@ async function rejectIfTermsStale(
 ) {
   if (actor?.role === "admin" || actor?.role === "festival_admin") {
     return null;
+  }
+
+  const festival = await tx.query.festivals.findFirst({
+    where: eq(festivals.id, festivalId),
+    columns: { participantTermsEnabled: true },
+  });
+  if (!festival || !isFestivalParticipantTermsEnabled(festival)) {
+    return {
+      success: false as const,
+      message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+    };
   }
 
   const publishedTerms = await fetchPublishedFestivalTermsVersion();

@@ -26,7 +26,10 @@ export default async function Page({
         Detalles del festival
       </h1>
       <FestivalCard festival={festival} />
-      <FestivalParticipantTermsSummary festivalStatus={festival.status} />
+      <FestivalParticipantTermsSummary
+        festivalStatus={festival.status}
+        participantTermsEnabled={festival.participantTermsEnabled}
+      />
     </div>
   );
 }

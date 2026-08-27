@@ -30,6 +30,11 @@ import { StandBase } from "@/app/api/stands/definitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { nextEnrollmentTermsWrite } from "@/app/lib/festival-terms/acceptance";
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
+import {
+  FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+  isFestivalParticipantTermsEnabled,
+} from "@/app/lib/festivals/participant-terms";
+import { festivals } from "@/db/schema";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 
 export async function fetchRequestsByUserId(userId: number) {
@@ -415,6 +420,17 @@ export async function createUserEnrollment(params: {
       return {
         success: false,
         message: "Tu perfil debe estar verificado para aceptar los términos.",
+      };
+    }
+
+    const festival = await db.query.festivals.findFirst({
+      where: eq(festivals.id, festivalId),
+      columns: { participantTermsEnabled: true },
+    });
+    if (!festival || !isFestivalParticipantTermsEnabled(festival)) {
+      return {
+        success: false,
+        message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
       };
     }
 

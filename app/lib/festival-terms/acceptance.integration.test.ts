@@ -247,7 +247,7 @@ describeDatabase("festival terms schema and acceptance", () => {
     ).toBe(false);
     expect(
       needsFestivalTermsReacceptance(
-        { id: festivalA.id, status: "active" },
+        { id: festivalA.id, status: "active", participantTermsEnabled: true },
         profile,
         published!.id,
       ),
@@ -360,14 +360,14 @@ describeDatabase("festival terms schema and acceptance", () => {
 
     expect(
       needsFestivalTermsReacceptance(
-        { id: festivalA.id, status: "active" },
+        { id: festivalA.id, status: "active", participantTermsEnabled: true },
         profile,
         newVersion.id,
       ),
     ).toBe(true);
     expect(
       needsFestivalTermsReacceptance(
-        { id: festivalB.id, status: "archived" },
+        { id: festivalB.id, status: "archived", participantTermsEnabled: true },
         profile,
         newVersion.id,
       ),

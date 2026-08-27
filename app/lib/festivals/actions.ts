@@ -955,6 +955,34 @@ export async function updateFestivalRegistration(
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
+export async function updateFestivalParticipantTerms(
+  participantTermsEnabled: FestivalBase["participantTermsEnabled"],
+  festivalId: FestivalBase["id"],
+) {
+  try {
+    await db
+      .update(festivals)
+      .set({ participantTermsEnabled, updatedAt: new Date() })
+      .where(eq(festivals.id, festivalId));
+  } catch (error) {
+    console.error("Error updating festival participant terms", error);
+    return {
+      success: false,
+      message: "Error al actualizar los términos para participantes",
+    };
+  }
+
+  revalidatePath("/dashboard/festivals");
+  revalidatePath(`/dashboard/festivals/${festivalId}`);
+  revalidatePath("/festivals", "layout");
+  return {
+    success: true,
+    message: participantTermsEnabled
+      ? "Los participantes ya pueden acceder a los términos y condiciones"
+      : "Se deshabilitó el acceso a los términos y condiciones para participantes",
+  };
+}
+
 export async function queueEmails<T>(
   entities: T[],
   festival: FestivalWithDates,

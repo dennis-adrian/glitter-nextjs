@@ -54,10 +54,14 @@ export function hasAcceptedCurrentFestivalTerms(
 }
 
 export function needsFestivalTermsReacceptance(
-  festival: Pick<FestivalBase, "id" | "status">,
+  festival: Pick<
+    FestivalBase,
+    "id" | "status" | "participantTermsEnabled"
+  >,
   profile: ProfileWithRequests | null | undefined,
   currentVersionId: number | null | undefined,
 ): boolean {
+  if (!festival.participantTermsEnabled) return false;
   if (festival.status !== "active") return false;
   const request = getFestivalParticipationRequest(profile, festival.id);
   if (!request) return false;

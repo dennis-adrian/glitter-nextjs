@@ -48,6 +48,24 @@ import {
   confirmStandHold,
   createStandHold,
 } from "@/app/lib/stands/hold-actions";
+import { FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE } from "@/app/lib/festivals/participant-terms";
+
+function withParticipantTermsQuery(
+  tx: Record<string, unknown>,
+  participantTermsEnabled = true,
+) {
+  return {
+    ...tx,
+    query: {
+      ...(tx.query as Record<string, unknown>),
+      festivals: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ participantTermsEnabled }),
+      },
+    },
+  };
+}
 
 function standSelection(rows: unknown[]) {
   return {
@@ -112,7 +130,7 @@ describe("stand hold sanction enforcement", () => {
       message: "Bloqueado por sanción",
     });
     const insert = vi.fn();
-    const tx = {
+    const tx = withParticipantTermsQuery({
       select: vi.fn(() =>
         standSelection([{ id: 7, status: "available", festivalId: 10 }]),
       ),
@@ -125,7 +143,7 @@ describe("stand hold sanction enforcement", () => {
         },
       },
       insert,
-    };
+    });
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -180,7 +198,7 @@ describe("stand hold sanction enforcement", () => {
           ]),
         })),
       }));
-    const tx = {
+    const tx = withParticipantTermsQuery({
       select,
       insert,
       query: {
@@ -188,7 +206,7 @@ describe("stand hold sanction enforcement", () => {
           findFirst: vi.fn().mockResolvedValue({ termsVersionId: 1 }),
         },
       },
-    };
+    });
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -212,7 +230,7 @@ describe("stand hold sanction enforcement", () => {
   it("rejects hold creation when the participant has not accepted current terms", async () => {
     authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
     const insert = vi.fn();
-    const tx = {
+    const tx = withParticipantTermsQuery({
       select: vi.fn(() =>
         standSelection([{ id: 7, status: "available", festivalId: 10 }]),
       ),
@@ -225,7 +243,7 @@ describe("stand hold sanction enforcement", () => {
         },
       },
       insert,
-    };
+    });
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -255,7 +273,7 @@ describe("stand hold sanction enforcement", () => {
         },
       ]),
     );
-    const tx = {
+    const tx = withParticipantTermsQuery({
       select,
       insert,
       query: {
@@ -263,7 +281,7 @@ describe("stand hold sanction enforcement", () => {
           findFirst: vi.fn().mockResolvedValue({ termsVersionId: 99 }),
         },
       },
-    };
+    });
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -297,7 +315,7 @@ describe("stand hold sanction enforcement", () => {
       .fn()
       .mockResolvedValueOnce({ termsVersionId: 1 })
       .mockResolvedValueOnce({ termsVersionId: 99 });
-    const tx = {
+    const tx = withParticipantTermsQuery({
       select,
       insert,
       query: {
@@ -305,7 +323,7 @@ describe("stand hold sanction enforcement", () => {
           findFirst,
         },
       },
-    };
+    });
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -321,5 +339,38 @@ describe("stand hold sanction enforcement", () => {
     expect(findFirst).toHaveBeenCalledTimes(2);
     expect(insert).not.toHaveBeenCalled();
     expect(eligibilityMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects hold creation when participant terms are disabled for the festival", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const insert = vi.fn();
+    const tx = withParticipantTermsQuery(
+      {
+        select: vi.fn(() =>
+          standSelection([{ id: 7, status: "available", festivalId: 10 }]),
+        ),
+        query: {
+          users: {
+            findFirst: vi.fn().mockResolvedValue({ status: "verified" }),
+          },
+          userRequests: {
+            findFirst: vi.fn().mockResolvedValue({ termsVersionId: 1 }),
+          },
+        },
+        insert,
+      },
+      false,
+    );
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await createStandHold(7, 3, 10);
+
+    expect(result).toEqual({
+      success: false,
+      message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+    });
+    expect(insert).not.toHaveBeenCalled();
   });
 });

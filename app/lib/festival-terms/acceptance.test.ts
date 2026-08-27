@@ -66,31 +66,38 @@ describe("festival terms acceptance", () => {
   });
 
   it("requires re-acceptance only on active festivals with a stale version", () => {
+    const activeFestival = {
+      id: 10,
+      status: "active" as const,
+      participantTermsEnabled: true,
+    };
     expect(
-      needsFestivalTermsReacceptance(
-        { id: 10, status: "active" },
-        profile(3),
-        4,
-      ),
+      needsFestivalTermsReacceptance(activeFestival, profile(3), 4),
     ).toBe(true);
     expect(
       needsFestivalTermsReacceptance(
-        { id: 10, status: "archived" },
+        { id: 10, status: "archived", participantTermsEnabled: true },
         profile(3),
         4,
       ),
     ).toBe(false);
     expect(
-      needsFestivalTermsReacceptance(
-        { id: 10, status: "active" },
-        profile(4),
-        4,
-      ),
+      needsFestivalTermsReacceptance(activeFestival, profile(4), 4),
     ).toBe(false);
     expect(
       needsFestivalTermsReacceptance(
-        { id: 10, status: "active" },
+        activeFestival,
         { userRequests: [] },
+        4,
+      ),
+    ).toBe(false);
+  });
+
+  it("does not require re-acceptance when participant terms are disabled", () => {
+    expect(
+      needsFestivalTermsReacceptance(
+        { id: 10, status: "active", participantTermsEnabled: false },
+        profile(3),
         4,
       ),
     ).toBe(false);
@@ -99,14 +106,14 @@ describe("festival terms acceptance", () => {
   it("does not require re-acceptance when no published version exists", () => {
     expect(
       needsFestivalTermsReacceptance(
-        { id: 10, status: "active" },
+        { id: 10, status: "active", participantTermsEnabled: true },
         profile(3),
         null,
       ),
     ).toBe(false);
     expect(
       needsFestivalTermsReacceptance(
-        { id: 10, status: "active" },
+        { id: 10, status: "active", participantTermsEnabled: true },
         profile(null),
         undefined,
       ),
