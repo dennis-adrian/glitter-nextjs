@@ -67,5 +67,6 @@ export const UploadFailure: Story = {
       expect(args.onUploading).toHaveBeenLastCalledWith(false),
     );
     await expect(args.onUploadComplete).not.toHaveBeenCalled();
+    await expect(input).toHaveValue("");
   },
 };
