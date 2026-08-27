@@ -44,7 +44,7 @@ type SingleImageUploadFieldProps = {
 };
 
 const previewColumnClasses = {
-  circle: "w-32",
+  circle: "w-48",
   landscape: "w-full",
   square: "w-48",
 } as const;
