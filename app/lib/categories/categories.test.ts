@@ -67,6 +67,9 @@ describe("delete rules", () => {
   it("blocks when a paused profile uses the row", () => {
     expect(isDeleteBlocked({ ...empty, paused: 4 })).toBe(true);
     expect(hasUnverifiedLinks({ ...empty, paused: 4 })).toBe(false);
+    expect(formatDeleteBlockedMessage("Pintura", 0, 1, 0)).toBe(
+      "No se puede eliminar Pintura porque 1 perfil pausado la usa.",
+    );
     expect(formatDeleteBlockedMessage("Pintura", 0, 4, 0)).toBe(
       "No se puede eliminar Pintura porque 4 perfiles pausados la usan.",
     );

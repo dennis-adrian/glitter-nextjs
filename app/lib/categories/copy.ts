@@ -66,7 +66,8 @@ export function formatDeleteBlockedMessage(
     reasons.length > 1
       ? `${reasons.slice(0, -1).join(", ")} y ${reasons[reasons.length - 1]}`
       : reasons[0] ?? "";
-  return `No se puede eliminar ${label} porque ${joined} la usan.`;
+  const total = verifiedCount + pausedCount + standCount;
+  return `No se puede eliminar ${label} porque ${joined} la ${total === 1 ? "usa" : "usan"}.`;
 }
 
 export function formatDeleteWarningMessage(counts: {
