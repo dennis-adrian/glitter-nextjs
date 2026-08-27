@@ -117,6 +117,7 @@ export function UploadButton({
     if (files.some((file) => file.name.includes("error"))) {
       onUploadError?.({ code: "BAD_REQUEST", message: "Mock upload failed" });
       setState({ ready: true, isUploading: false, uploadProgress: 0 });
+      event.target.value = "";
       return;
     }
 
