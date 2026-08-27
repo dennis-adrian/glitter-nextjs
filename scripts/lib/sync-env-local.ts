@@ -329,7 +329,8 @@ export function applySyncedEnvToProcess(options?: {
   ancestorEnvs?: Record<string, string>[];
 }): SyncEnvLocalResult {
   const result = syncEnvLocal(options);
-  const target = options?.processEnv ?? process.env;
+  const processEnv = options?.processEnv ?? process.env;
+  const target = processEnv;
   const fileValues = existsSync(result.path)
     ? parseEnvFile(readFileSync(result.path, "utf8"))
     : {};
