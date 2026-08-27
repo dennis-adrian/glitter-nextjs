@@ -10,6 +10,7 @@ import {
   listFestivalTermsVersions,
 } from "@/app/lib/festival-terms/queries";
 import {
+  createInitialFestivalTermsDraft,
   ensureDefaultFestivalTerms,
   insertFestivalTermsSections,
 } from "@/app/lib/festival-terms/persist";
@@ -34,7 +35,6 @@ export async function getFestivalTermsAdminState() {
     return { success: false as const, message: "No autorizado" };
   }
 
-  await ensureDefaultFestivalTerms();
   const [published, draft, versions] = await Promise.all([
     fetchPublishedFestivalTermsVersion(),
     fetchDraftFestivalTermsVersion(),
@@ -55,7 +55,6 @@ export async function getOrCreateFestivalTermsDraft() {
     return { success: false as const, message: "No autorizado" };
   }
 
-  await ensureDefaultFestivalTerms();
   const existingDraft = await fetchDraftFestivalTermsVersion();
   if (existingDraft) {
     return { success: true as const, draft: existingDraft };
@@ -63,10 +62,16 @@ export async function getOrCreateFestivalTermsDraft() {
 
   const published = await fetchPublishedFestivalTermsVersion();
   if (!published) {
-    return {
-      success: false as const,
-      message: "No hay una versión publicada para editar",
-    };
+    await createInitialFestivalTermsDraft(profile.id);
+    revalidateTermsPaths();
+    const initialDraft = await fetchDraftFestivalTermsVersion();
+    if (!initialDraft) {
+      return {
+        success: false as const,
+        message: "No se pudo crear el borrador inicial",
+      };
+    }
+    return { success: true as const, draft: initialDraft };
   }
 
   await db.transaction(async (tx) => {
@@ -327,8 +332,5 @@ export async function discardFestivalTermsDraft() {
 }
 
 export async function getPublishedFestivalTermsForPage() {
-  const published = await fetchPublishedFestivalTermsVersion();
-  if (published) return published;
-  await ensureDefaultFestivalTerms();
   return fetchPublishedFestivalTermsVersion();
 }

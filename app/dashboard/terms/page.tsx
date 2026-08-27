@@ -40,7 +40,11 @@ export default async function FestivalTermsDashboardPage() {
         </div>
         <Button asChild>
           <Link href="/dashboard/terms/edit">
-            {draft ? "Continuar borrador" : "Editar términos"}
+            {draft
+              ? "Continuar borrador"
+              : published
+                ? "Editar términos"
+                : "Crear borrador"}
           </Link>
         </Button>
       </div>
@@ -78,8 +82,8 @@ export default async function FestivalTermsDashboardPage() {
               </>
             ) : (
               <p className="text-muted-foreground">
-                Publicá un borrador para que los participantes puedan aceptar
-                términos.
+                Creá y publicá un borrador para que los participantes puedan leer
+                y aceptar términos en festivales activos.
               </p>
             )}
           </CardContent>
@@ -99,7 +103,8 @@ export default async function FestivalTermsDashboardPage() {
               </p>
             ) : (
               <p className="text-muted-foreground">
-                Al editar se crea un borrador a partir de la versión publicada.
+                Al editar se crea un borrador a partir de la versión publicada o,
+                si no hay ninguna, desde el contenido base.
               </p>
             )}
           </CardContent>

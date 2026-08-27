@@ -47,6 +47,7 @@ type TermsAndConditionsProps = {
     })[]
   >;
   termsVersion: FestivalTermsVersionWithSections | null;
+  canAcceptTerms: boolean;
 };
 
 export default function TermsAndConditions(props: TermsAndConditionsProps) {
@@ -69,12 +70,11 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
     currentVersionId,
   );
   const needsReacceptance =
+    props.canAcceptTerms &&
     currentVersionId != null &&
     Boolean(participationRequest) &&
     !acceptedCurrent;
   const enrolled = isProfileInFestival(props.festival.id, props.forProfile);
-  const canContinueWithoutPublishedTerms =
-    enrolled && currentVersionId == null;
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-6">
@@ -112,6 +112,16 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             habilitar tu participación en el festival.
           </p>
         </div>
+
+        {props.festival.status === "published" ? (
+          <Alert className="mb-6">
+            <AlertTitle>Las reservas aún no están abiertas</AlertTitle>
+            <AlertDescription>
+              Podés leer los términos y condiciones, pero la inscripción y la
+              reserva de espacios se habilitan cuando el festival esté activo.
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         {needsReacceptance ? (
           <Alert className="mb-6">
@@ -171,30 +181,33 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             festival={props.festival}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Los términos y condiciones todavía no están publicados.
-          </p>
+          <Alert className="mb-6">
+            <AlertTitle>Términos en preparación</AlertTitle>
+            <AlertDescription>
+              La organización todavía no publicó los términos y condiciones para
+              los participantes. Volvé más tarde o contactá a la organización si
+              necesitás más información.
+            </AlertDescription>
+          </Alert>
         )}
 
-        {acceptedCurrent || canContinueWithoutPublishedTerms ? (
+        {props.canAcceptTerms && acceptedCurrent ? (
           <>
-            {acceptedCurrent ? (
-              <div className="text-sm w-full text-muted-foreground text-pretty mt-6">
-                {mapCategory === "gastronomy" &&
-                participationRequest?.status === "pending" ? (
-                  <>
-                    Gracias por aceptar los términos y condiciones. La
-                    organización evaluará tu participación en el sector
-                    gastronómico y te notificará si has sido aprobado.
-                  </>
-                ) : (
-                  <>
-                    Gracias por aceptar los términos y condiciones. Para
-                    continuar con tu reserva hacé clic en el botón de abajo.
-                  </>
-                )}
-              </div>
-            ) : null}
+            <div className="text-sm w-full text-muted-foreground text-pretty mt-6">
+              {mapCategory === "gastronomy" &&
+              participationRequest?.status === "pending" ? (
+                <>
+                  Gracias por aceptar los términos y condiciones. La
+                  organización evaluará tu participación en el sector
+                  gastronómico y te notificará si has sido aprobado.
+                </>
+              ) : (
+                <>
+                  Gracias por aceptar los términos y condiciones. Para continuar
+                  con tu reserva hacé clic en el botón de abajo.
+                </>
+              )}
+            </div>
             {enrolled ? (
               <div className="flex justify-end mt-4">
                 <RedirectButton
@@ -206,7 +219,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
               </div>
             ) : null}
           </>
-        ) : props.termsVersion ? (
+        ) : props.canAcceptTerms && props.termsVersion ? (
           <div className="mt-6">
             <TermsForm
               festival={props.festival}

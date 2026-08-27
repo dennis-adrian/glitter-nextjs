@@ -67,6 +67,66 @@ export function seedSectionsToEditor(): EditorTermsSection[] {
   }));
 }
 
+export async function createInitialFestivalTermsDraft(createdByUserId: number) {
+  return db.transaction(async (tx) => {
+    let document = await tx.query.festivalTermsDocuments.findFirst({
+      where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
+    });
+
+    if (!document) {
+      const [createdDocument] = await tx
+        .insert(festivalTermsDocuments)
+        .values({ slug: FESTIVAL_TERMS_DOCUMENT_SLUG })
+        .returning();
+      document = createdDocument;
+    }
+
+    if (!document) {
+      throw new Error("No se pudo crear el documento de términos");
+    }
+
+    const existingDraft = await tx.query.festivalTermsVersions.findFirst({
+      where: and(
+        eq(festivalTermsVersions.documentId, document.id),
+        eq(festivalTermsVersions.status, "draft"),
+      ),
+    });
+    if (existingDraft) {
+      return existingDraft;
+    }
+
+    const existingPublished = await tx.query.festivalTermsVersions.findFirst({
+      where: and(
+        eq(festivalTermsVersions.documentId, document.id),
+        eq(festivalTermsVersions.status, "published"),
+      ),
+    });
+    if (existingPublished) {
+      throw new Error(
+        "Ya hay una versión publicada; usá el flujo de clonado para editar",
+      );
+    }
+
+    const [version] = await tx
+      .insert(festivalTermsVersions)
+      .values({
+        documentId: document.id,
+        versionNumber: 1,
+        status: "draft",
+        createdByUserId,
+        changelog: "Borrador inicial desde contenido base",
+      })
+      .returning();
+
+    if (!version) {
+      throw new Error("No se pudo crear el borrador inicial de términos");
+    }
+
+    await insertFestivalTermsSections(tx, version.id, seedSectionsToEditor());
+    return version;
+  });
+}
+
 export async function ensureDefaultFestivalTerms() {
   const existing = await fetchFestivalTermsDocument();
   if (existing) {

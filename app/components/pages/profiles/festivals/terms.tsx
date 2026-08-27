@@ -26,7 +26,12 @@ export default async function TermsPage(props: TermsPageProps) {
   const festivalSectors = await fetchFestivalSectors(props.festivalId);
   if (!festival) notFound();
 
-  if (currentProfile?.role !== "admin" && festival.status !== "active") {
+  const canViewParticipantTerms =
+    currentProfile?.role === "admin" ||
+    festival.status === "active" ||
+    festival.status === "published";
+
+  if (!canViewParticipantTerms) {
     return (
       <div className="flex flex-col items-center justify-center my-8 text-muted-foreground gap-2">
         <HeartCrackIcon className="h-12 w-12" />
@@ -34,6 +39,8 @@ export default async function TermsPage(props: TermsPageProps) {
       </div>
     );
   }
+
+  const canAcceptTerms = festival.status === "active";
 
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) notFound();
@@ -62,6 +69,7 @@ export default async function TermsPage(props: TermsPageProps) {
         festivalSectorsWithAllowedCategoriesPromise
       }
       termsVersion={termsVersion}
+      canAcceptTerms={canAcceptTerms}
     />
   );
 }
