@@ -92,3 +92,42 @@ export function blocksToSeedHtml(blocks: unknown): string {
   if (!Array.isArray(blocks) || blocks.length === 0) return "";
   return groupBlocks(blocks as BlockNode[]);
 }
+
+const VISIBLE_MEDIA_BLOCK_TYPES = new Set(["image", "divider"]);
+
+function inlineNodesHaveVisibleText(nodes: unknown): boolean {
+  if (!Array.isArray(nodes)) return false;
+  for (const node of nodes) {
+    if (!node || typeof node !== "object") continue;
+    const value = node as InlineNode;
+    if (typeof value.text === "string" && value.text.trim().length > 0) {
+      return true;
+    }
+    if (inlineNodesHaveVisibleText(value.content)) return true;
+  }
+  return false;
+}
+
+/**
+ * Sync emptiness check aligned with `renderTermsSectionHtml`:
+ * empty / non-array bodies yield ""; empty paragraphs yield no text;
+ * media blocks (image/divider) count as visible (BlockNote HTML path).
+ */
+export function richTextBodyHasVisibleContent(bodyJson: unknown): boolean {
+  if (!Array.isArray(bodyJson) || bodyJson.length === 0) return false;
+
+  function walk(blocks: unknown[]): boolean {
+    for (const block of blocks) {
+      if (!block || typeof block !== "object") continue;
+      const node = block as BlockNode & { type?: string };
+      if (typeof node.type === "string" && VISIBLE_MEDIA_BLOCK_TYPES.has(node.type)) {
+        return true;
+      }
+      if (inlineNodesHaveVisibleText(node.content)) return true;
+      if (Array.isArray(node.children) && walk(node.children)) return true;
+    }
+    return false;
+  }
+
+  return walk(bodyJson);
+}
