@@ -1,5 +1,8 @@
 import { loadEnvConfig } from "@next/env";
 
+import { applySyncedEnvToProcess } from "@/scripts/lib/sync-env-local";
+
+applySyncedEnvToProcess();
 loadEnvConfig(process.cwd());
 
 async function main() {
