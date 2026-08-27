@@ -6,6 +6,7 @@ import { useId } from "react";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
+import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
 import { cn } from "@/lib/utils";
 
 type BannerImageUploadProps = {
@@ -31,6 +32,7 @@ export function BannerImageUpload({
   successMessage = "Imagen subida",
 }: BannerImageUploadProps) {
   const inputId = useId();
+  const canPreview = isAllowedProgramArtworkUrl(imageUrl);
 
   return (
     <div className="space-y-2 rounded-lg border p-4">
@@ -45,7 +47,7 @@ export function BannerImageUpload({
           previewMaxWidth,
         )}
       >
-        {imageUrl ? (
+        {canPreview ? (
           <Image
             src={imageUrl}
             alt={`Vista previa ${title.toLowerCase()}`}
