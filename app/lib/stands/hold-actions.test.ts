@@ -21,8 +21,8 @@ vi.mock("@/app/api/stands/actions", () => ({
   fetchStandById: vi.fn(),
 }));
 
-vi.mock("@/app/lib/festivals/actions", () => ({
-  fetchBaseFestival: vi.fn(),
+vi.mock("@/app/lib/festival-terms/queries", () => ({
+  fetchPublishedFestivalTermsVersion: vi.fn().mockResolvedValue({ id: 1 }),
 }));
 
 vi.mock("@/app/vendors/resend", () => ({
@@ -119,6 +119,9 @@ describe("stand hold sanction enforcement", () => {
       query: {
         users: {
           findFirst: vi.fn().mockResolvedValue({ status: "verified" }),
+        },
+        userRequests: {
+          findFirst: vi.fn().mockResolvedValue({ termsVersionId: 1 }),
         },
       },
       insert,

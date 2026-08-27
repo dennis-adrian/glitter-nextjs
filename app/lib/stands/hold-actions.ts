@@ -7,6 +7,7 @@ import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
@@ -17,6 +18,7 @@ import {
   standHolds,
   standReservations,
   stands,
+  userRequests,
   users,
 } from "@/db/schema";
 import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
@@ -141,6 +143,28 @@ export async function createStandHold(
           success: false,
           message: "El participante no está verificado",
         };
+      }
+
+      if (actor?.role !== "admin" && actor?.role !== "festival_admin") {
+        const publishedTerms = await fetchPublishedFestivalTermsVersion();
+        const participation = await tx.query.userRequests.findFirst({
+          where: and(
+            eq(userRequests.userId, userId),
+            eq(userRequests.festivalId, festivalId),
+            eq(userRequests.type, "festival_participation"),
+          ),
+          columns: { termsVersionId: true },
+        });
+        if (
+          !publishedTerms ||
+          participation?.termsVersionId !== publishedTerms.id
+        ) {
+          return {
+            success: false,
+            message:
+              "Tenés que aceptar la versión actual de los términos y condiciones.",
+          };
+        }
       }
 
       const blocked = await rejectIfAnyParticipantIsIneligible(

@@ -6,6 +6,7 @@ import {
   fetchFestivalSectors,
   fetchFestivalSectorsWithAllowedCategories,
 } from "@/app/lib/festival_sectors/actions";
+import { getPublishedFestivalTermsForPage } from "@/app/lib/festival-terms/actions";
 import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -48,6 +49,7 @@ export default async function TermsPage(props: TermsPageProps) {
 
   const festivalSectorsWithAllowedCategoriesPromise =
     fetchFestivalSectorsWithAllowedCategories(festival.id);
+  const termsVersion = await getPublishedFestivalTermsForPage();
 
   return (
     <TermsAndConditions
@@ -59,6 +61,7 @@ export default async function TermsPage(props: TermsPageProps) {
       festivalSectorsWithAllowedCategoriesPromise={
         festivalSectorsWithAllowedCategoriesPromise
       }
+      termsVersion={termsVersion}
     />
   );
 }

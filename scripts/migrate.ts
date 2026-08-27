@@ -3,6 +3,7 @@ import { pool, db } from "@/db";
 
 import { backfillCategoryCatalog } from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
+import { ensureDefaultFestivalTerms } from "@/app/lib/festival-terms/persist";
 
 /**
  * After 0165 adds nullable `slug`, backfill fills values; then match schema.ts
@@ -123,6 +124,7 @@ async function main() {
       await backfillCategoryCatalog();
       await markCategoryCatalogBackfillCompleted();
     }
+    await ensureDefaultFestivalTerms();
     console.info("Migration completed successfully.");
   } catch (error: unknown) {
     const pgError = error as { code?: string };

@@ -8,6 +8,7 @@ import { isProfileComplete } from "@/app/lib/utils";
 import PendingVerificationCard from "./pending-verification-card";
 import RejectedProfileCard from "./rejected-profile.card";
 import { fetchFestival } from "@/app/lib/festivals/actions";
+import { profileNeedsTermsReacceptance } from "@/app/lib/festival-terms/require-current";
 
 export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile || profile?.role === "admin") return null;
@@ -24,6 +25,12 @@ export default async function Card({ profile }: { profile: ProfileType }) {
 
   const festival = await fetchFestival({});
   if (!festival) return null;
+
+  if (await profileNeedsTermsReacceptance(festival, profile)) {
+    return (
+      <TermsCard festival={festival} profile={profile} isReacceptance />
+    );
+  }
 
   if (isProfileInFestival(festival.id, profile)) {
     const festivalParticipations = profile.participations.filter(
