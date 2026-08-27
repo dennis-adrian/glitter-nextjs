@@ -5,7 +5,7 @@ const reusableComponents = [
   {
     name: "SingleImageUploadField",
     useCases:
-      "Avatares, logos, banners y arte; contain por defecto, cover con recorte, zoom y quitar en overlay",
+      "Avatares, logos, banners y arte; selección local, Subir para confirmar, cover con recorte y quitar en overlay",
   },
   {
     name: "ImageProofPicker",

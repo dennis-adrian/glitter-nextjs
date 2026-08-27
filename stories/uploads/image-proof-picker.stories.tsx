@@ -68,8 +68,8 @@ export const InteractionTest: Story = {
     );
     await waitFor(() => expect(canvas.getByText("Cargado")).toBeVisible());
     await expect(
-      canvas.getByRole("button", { name: "Reemplazar" }),
-    ).toBeVisible();
+      canvas.queryByRole("button", { name: "Reemplazar" }),
+    ).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("button", { name: /^Quitar$/ }),
     ).not.toBeInTheDocument();

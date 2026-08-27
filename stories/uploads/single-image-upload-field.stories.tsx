@@ -26,7 +26,7 @@ function SingleImageStory({
         onChange={setImage}
         upload={storybookUploadAdapter}
         label="Imagen del perfil"
-        description="Control inmediato para avatares, logos y arte"
+        description="Seleccioná una imagen y confirmá con Subir"
         previewShape={previewShape}
         fit={fit}
       />
@@ -115,6 +115,9 @@ export const CoverReposition: Story = {
       canvas.getByRole("button", { name: "Quitar imagen del perfil" }),
     ).toBeVisible();
     await expect(
+      canvas.queryByRole("button", { name: "Cambiar imagen" }),
+    ).not.toBeInTheDocument();
+    await expect(
       canvas.queryByRole("button", { name: /^Quitar$/ }),
     ).not.toBeInTheDocument();
   },
@@ -140,18 +143,28 @@ export const InteractionTest: Story = {
       fileInput,
       new File(["profile"], "nuevo-perfil.png", { type: "image/png" }),
     );
-    const removeButton = await canvas.findByRole("button", {
-      name: "Quitar imagen del perfil",
-    });
     await expect(
       canvas.getByRole("img", { name: "Vista previa de imagen del perfil" }),
     ).toBeVisible();
     await expect(
       canvas.getByRole("img", { name: "Vista previa de imagen del perfil" }),
     ).toHaveAttribute("data-image-fit", "contain");
-    await userEvent.click(removeButton);
+    await expect(canvas.getByText("nuevo-perfil.png")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Subir imagen" }));
+    await expect(
+      canvas.findByRole("button", { name: "Quitar imagen del perfil" }),
+    ).resolves.toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Subir imagen" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Quitar imagen del perfil" }),
+    );
     await expect(
       canvas.queryByRole("img", { name: "Vista previa de imagen del perfil" }),
     ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Seleccionar imagen" }),
+    ).toBeVisible();
   },
 };

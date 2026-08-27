@@ -4,7 +4,6 @@ import {
   CheckCircle2Icon,
   ImageIcon,
   Loader2Icon,
-  RefreshCwIcon,
   UploadIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
@@ -198,32 +197,21 @@ export function ImageProofPicker({
         </div>
       ) : null}
 
-      {selectedFile || uploadedImage ? (
+      {selectedFile ? (
         <div className="grid w-full">
-          {selectedFile ? (
-            <Button
-              type="button"
-              className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
-              disabled={isUploading}
-              onClick={() => void confirmUpload()}
-            >
-              {isUploading ? (
-                <Loader2Icon className="size-4 shrink-0 animate-spin" />
-              ) : (
-                <UploadIcon className="size-4 shrink-0" />
-              )}
-              {isUploading ? "Subiendo..." : confirmLabel}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
-              onClick={() => inputRef.current?.click()}
-            >
-              <RefreshCwIcon className="size-4 shrink-0" />
-              Reemplazar
-            </Button>
-          )}
+          <Button
+            type="button"
+            className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
+            disabled={isUploading}
+            onClick={() => void confirmUpload()}
+          >
+            {isUploading ? (
+              <Loader2Icon className="size-4 shrink-0 animate-spin" />
+            ) : (
+              <UploadIcon className="size-4 shrink-0" />
+            )}
+            {isUploading ? "Subiendo..." : confirmLabel}
+          </Button>
         </div>
       ) : null}
 

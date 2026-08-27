@@ -31,6 +31,7 @@ type SingleImageUploadFieldProps = {
   label?: string;
   description?: string;
   emptyLabel?: string;
+  confirmLabel?: string;
   accept?: string;
   maxSize?: number;
   previewShape?: "circle" | "landscape" | "square";
@@ -56,8 +57,9 @@ const previewShapeClasses = {
 } as const;
 
 /**
- * Immediate single-image upload for avatars, logos, artwork, and generic
- * image fields. The upload transport is injected and the value is controlled.
+ * Staged single-image field for avatars, logos, and artwork. Selection stays
+ * local until the user confirms with Subir; clear via the overlay X, then pick
+ * again. The upload transport is injected and the value is controlled.
  */
 export function SingleImageUploadField({
   value,
@@ -66,6 +68,7 @@ export function SingleImageUploadField({
   label = "Imagen",
   description = "JPG, PNG o WebP",
   emptyLabel = "Todavía no seleccionaste una imagen",
+  confirmLabel = "Subir imagen",
   accept = "image/*",
   maxSize = DEFAULT_MAX_IMAGE_SIZE,
   previewShape = "square",
@@ -74,6 +77,7 @@ export function SingleImageUploadField({
 }: SingleImageUploadFieldProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File>();
   const [localPreview, setLocalPreview] = useState<string>();
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string>();
@@ -84,12 +88,13 @@ export function SingleImageUploadField({
   const draftPositionRef = useRef(draftPosition);
   draftPositionRef.current = draftPosition;
 
-  // Reset the draft crop when a different image is selected, not when the
+  // Reset the draft crop when a different uploaded image is set, not when the
   // user pans the current one (that only changes objectPosition).
   useEffect(() => {
+    if (selectedFile) return;
     setDraftPosition(value?.objectPosition ?? DEFAULT_IMAGE_OBJECT_POSITION);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- identity is value.id
-  }, [value?.id]);
+  }, [value?.id, selectedFile]);
 
   useEffect(() => {
     return () => {
@@ -100,26 +105,49 @@ export function SingleImageUploadField({
   function updatePosition(next: ImageObjectPosition) {
     setDraftPosition(next);
     draftPositionRef.current = next;
-    if (value && !localPreview) {
+    if (value && !selectedFile) {
       onChange({ ...value, objectPosition: next });
     }
   }
 
-  async function selectFile(file: File) {
+  function clearSelection() {
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    setSelectedFile(undefined);
+    setLocalPreview(undefined);
+    setProgress(0);
+    setError(undefined);
+    setDraftPosition(DEFAULT_IMAGE_OBJECT_POSITION);
+    draftPositionRef.current = DEFAULT_IMAGE_OBJECT_POSITION;
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function chooseFile(file: File) {
     const validationError = validateImage(file, maxSize);
     if (validationError) {
       setError(validationError);
       return;
     }
 
+    if (localPreview) URL.revokeObjectURL(localPreview);
     setError(undefined);
     setProgress(0);
     setDraftPosition(DEFAULT_IMAGE_OBJECT_POSITION);
     draftPositionRef.current = DEFAULT_IMAGE_OBJECT_POSITION;
+    setSelectedFile(file);
     setLocalPreview(URL.createObjectURL(file));
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  async function confirmUpload() {
+    if (!selectedFile) return;
+
     setIsUploading(true);
+    setError(undefined);
+    setProgress(0);
     try {
-      const [uploaded] = await upload([file], { onProgress: setProgress });
+      const [uploaded] = await upload([selectedFile], {
+        onProgress: setProgress,
+      });
       if (!uploaded) {
         setError("La carga no devolvió ninguna imagen.");
         return;
@@ -128,21 +156,21 @@ export function SingleImageUploadField({
         ...uploaded,
         objectPosition: draftPositionRef.current,
       });
-      setLocalPreview(undefined);
+      clearSelection();
     } catch {
       setError("No se pudo subir la imagen. Intentá de nuevo.");
     } finally {
       setIsUploading(false);
       setProgress(0);
-      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   const previewUrl = localPreview ?? value?.url;
-  const position = localPreview
+  const position = selectedFile
     ? draftPosition
     : (value?.objectPosition ?? draftPosition);
-  const canClear = Boolean(value || localPreview) && !isUploading && !disabled;
+  const canClear = Boolean(value || selectedFile) && !isUploading && !disabled;
+  const isEmpty = !value && !selectedFile;
 
   return (
     <section className="grid w-full gap-3" aria-labelledby={`${inputId}-label`}>
@@ -175,7 +203,7 @@ export function SingleImageUploadField({
                 fit={fit}
                 position={position}
                 onPositionChange={fit === "cover" ? updatePosition : undefined}
-                disabled={disabled}
+                disabled={disabled || isUploading}
                 className="absolute inset-0"
               />
             ) : (
@@ -207,7 +235,7 @@ export function SingleImageUploadField({
             <ImagePreviewRemoveButton
               label={`Quitar ${label.toLowerCase()}`}
               onClick={() => {
-                setLocalPreview(undefined);
+                clearSelection();
                 onChange(null);
               }}
             />
@@ -217,7 +245,7 @@ export function SingleImageUploadField({
           <div className="grid gap-2">
             <ImageCropZoomSlider
               value={imageZoom(position)}
-              disabled={disabled}
+              disabled={disabled || isUploading}
               onChange={(zoom) =>
                 updatePosition({ ...position, zoom: roundZoom(zoom) })
               }
@@ -238,25 +266,47 @@ export function SingleImageUploadField({
           aria-label={`Seleccionar ${label.toLowerCase()}`}
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) void selectFile(file);
+            if (file) chooseFile(file);
           }}
         />
 
-        <div className="grid w-full">
-          <Button
-            type="button"
-            className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
-            disabled={disabled || isUploading}
-            onClick={() => inputRef.current?.click()}
-          >
-            {isUploading ? (
-              <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
+        {isEmpty ? (
+          <div className="grid w-full">
+            <Button
+              type="button"
+              className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
+              disabled={disabled || isUploading}
+              onClick={() => inputRef.current?.click()}
+            >
               <UploadIcon className="size-4 shrink-0" aria-hidden="true" />
-            )}
-            {value || localPreview ? "Cambiar imagen" : "Seleccionar imagen"}
-          </Button>
-        </div>
+              Seleccionar imagen
+            </Button>
+          </div>
+        ) : null}
+
+        {selectedFile ? (
+          <div className="grid w-full gap-1.5">
+            <p className="truncate text-center text-xs text-muted-foreground">
+              {selectedFile.name}
+            </p>
+            <Button
+              type="button"
+              className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
+              disabled={disabled || isUploading}
+              onClick={() => void confirmUpload()}
+            >
+              {isUploading ? (
+                <Loader2Icon
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <UploadIcon className="size-4 shrink-0" aria-hidden="true" />
+              )}
+              {isUploading ? "Subiendo..." : confirmLabel}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {error ? (
