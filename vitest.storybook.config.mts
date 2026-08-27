@@ -10,6 +10,9 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  optimizeDeps: {
+    include: ["@radix-ui/react-slider"],
+  },
   plugins: [
     storybookTest({
       configDir: path.join(dirname, ".storybook"),

@@ -43,6 +43,11 @@ const config: StorybookConfig = {
   staticDirs: ["../public"],
   viteFinal(viteConfig) {
     viteConfig.resolve ??= {};
+    viteConfig.optimizeDeps ??= {};
+    viteConfig.optimizeDeps.include = [
+      ...(viteConfig.optimizeDeps.include ?? []),
+      "@radix-ui/react-slider",
+    ];
     viteConfig.resolve.alias = {
       ...viteConfig.resolve.alias,
       "@/app/vendors/uploadthing": uploadthingMock,
