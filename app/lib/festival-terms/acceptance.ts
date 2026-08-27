@@ -5,21 +5,42 @@ import type { userRequests } from "@/db/schema";
 type TermsRequest = Pick<
   typeof userRequests.$inferSelect,
   "festivalId" | "type" | "status" | "termsVersionId"
->;
+> &
+  Partial<
+    Pick<typeof userRequests.$inferSelect, "id" | "updatedAt" | "createdAt">
+  >;
 
 type ProfileWithRequests = {
   userRequests?: TermsRequest[] | ProfileType["userRequests"];
 };
 
+function requestRecencyMs(request: TermsRequest): number {
+  const ts = request.updatedAt ?? request.createdAt;
+  if (ts == null) return Number.NEGATIVE_INFINITY;
+  return ts instanceof Date ? ts.getTime() : new Date(ts).getTime();
+}
+
+/** Current festival_participation row: latest by updatedAt, then createdAt, then id. */
 export function getFestivalParticipationRequest(
   profile: ProfileWithRequests | null | undefined,
   festivalId: number,
 ): TermsRequest | undefined {
-  return profile?.userRequests?.find(
+  const matches = profile?.userRequests?.filter(
     (request) =>
       request.festivalId === festivalId &&
       request.type === "festival_participation",
   );
+  if (!matches?.length) return undefined;
+
+  return matches.reduce((latest, request) => {
+    const latestMs = requestRecencyMs(latest);
+    const requestMs = requestRecencyMs(request);
+    if (requestMs > latestMs) return request;
+    if (requestMs < latestMs) return latest;
+    const latestId = latest.id ?? Number.NEGATIVE_INFINITY;
+    const requestId = request.id ?? Number.NEGATIVE_INFINITY;
+    return requestId > latestId ? request : latest;
+  });
 }
 
 export function hasAcceptedCurrentFestivalTerms(

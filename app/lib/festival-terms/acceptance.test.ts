@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getFestivalParticipationRequest,
   hasAcceptedCurrentFestivalTerms,
   needsFestivalTermsReacceptance,
   nextEnrollmentTermsWrite,
@@ -18,6 +19,42 @@ const profile = (termsVersionId: number | null) => ({
 });
 
 describe("festival terms acceptance", () => {
+  it("selects the latest festival_participation by updatedAt", () => {
+    const older = {
+      id: 1,
+      festivalId: 10,
+      type: "festival_participation" as const,
+      status: "accepted" as const,
+      termsVersionId: 3,
+      updatedAt: new Date("2024-01-01T00:00:00Z"),
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+    };
+    const newer = {
+      id: 2,
+      festivalId: 10,
+      type: "festival_participation" as const,
+      status: "accepted" as const,
+      termsVersionId: 4,
+      updatedAt: new Date("2024-06-01T00:00:00Z"),
+      createdAt: new Date("2024-02-01T00:00:00Z"),
+    };
+    expect(
+      getFestivalParticipationRequest(
+        { userRequests: [older, newer] },
+        10,
+      )?.termsVersionId,
+    ).toBe(4);
+    expect(
+      getFestivalParticipationRequest(
+        { userRequests: [newer, older] },
+        10,
+      )?.termsVersionId,
+    ).toBe(4);
+    expect(
+      getFestivalParticipationRequest({ userRequests: [older, newer] }, 99),
+    ).toBeUndefined();
+  });
+
   it("treats a matching version id as current acceptance", () => {
     expect(hasAcceptedCurrentFestivalTerms(profile(4), 10, 4)).toBe(true);
     expect(hasAcceptedCurrentFestivalTerms(profile(3), 10, 4)).toBe(false);

@@ -718,6 +718,11 @@ export const userRequests = pgTable(
   },
   (table) => [
     index("user_requests_terms_version_id_idx").on(table.termsVersionId),
+    unique("user_requests_user_festival_type_unique").on(
+      table.userId,
+      table.festivalId,
+      table.type,
+    ),
   ],
 );
 export const userRequestsRelations = relations(userRequests, ({ one }) => ({

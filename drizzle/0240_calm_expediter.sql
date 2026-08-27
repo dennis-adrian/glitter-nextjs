@@ -1,0 +1,1 @@
+ALTER TABLE "user_requests" ADD CONSTRAINT "user_requests_user_festival_type_unique" UNIQUE("user_id","festival_id","type");
