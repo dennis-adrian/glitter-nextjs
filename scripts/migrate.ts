@@ -104,6 +104,27 @@ async function markCategoryCatalogBackfillCompleted() {
   }
 }
 
+async function ensureFestivalTermsArchivedEnum() {
+  const client = await pool.connect();
+  try {
+    // Drizzle applies all pending migrations in one transaction. Postgres
+    // refuses to use a newly added enum label until that transaction commits,
+    // so add `archived` here (autocommit) before migrate() runs backfill SQL.
+    await client.query(
+      `ALTER TYPE "public"."festival_terms_version_status" ADD VALUE IF NOT EXISTS 'archived'`,
+    );
+  } catch (error: unknown) {
+    const pgError = error as { code?: string };
+    // Type may not exist yet on a fresh DB; 0237/0238 create/extend it.
+    if (pgError.code === "42704") {
+      return;
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function main() {
   if (!process.env.POSTGRES_URL) {
     console.info("POSTGRES_URL is not set. Skipping migration.");
@@ -117,6 +138,7 @@ async function main() {
       ? false
       : await categoryCatalogBackfillCompleted();
 
+    await ensureFestivalTermsArchivedEnum();
     await migrate(db, { migrationsFolder: "./drizzle" });
     await backfillProductSlugs();
     await ensureProductSlugConstraints();
