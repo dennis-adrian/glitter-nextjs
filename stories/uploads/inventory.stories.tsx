@@ -1,6 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, within } from "storybook/test";
 
+const reusableComponents = [
+  {
+    name: "SingleImageUploadField",
+    useCases: "Avatares, logos, banners, arte y campos de una imagen",
+  },
+  {
+    name: "ImageProofPicker",
+    useCases: "Comprobantes de pago y evidencia con confirmación explícita",
+  },
+  {
+    name: "MultiImageDropzone",
+    useCases: "Carga por lote, arrastrar y soltar, y vistas previas removibles",
+  },
+  {
+    name: "ManagedImageGallery",
+    useCases: "Galerías persistidas con imagen principal y eliminación",
+  },
+] as const;
+
 const components = [
   {
     name: "UploadThingImageButton",
@@ -101,6 +120,41 @@ function UploadInventory() {
           The network layer is mocked only inside Storybook. File selection,
           previews, progress, callbacks, and validation remain interactive, so
           every story runs without Clerk or UploadThing credentials.
+        </p>
+      </div>
+
+      <section
+        className="space-y-3"
+        aria-labelledby="reusable-components-title"
+      >
+        <div>
+          <h2 id="reusable-components-title" className="text-xl font-semibold">
+            Four reusable components
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Storybook-only prototypes with an injected upload adapter. They are
+            not connected to application forms or UploadThing.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {reusableComponents.map((component) => (
+            <article key={component.name} className="rounded-xl border p-4">
+              <h3 className="font-semibold">{component.name}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {component.useCases}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <div>
+        <h2 className="text-xl font-semibold">
+          Current implementation inventory
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Existing upload surfaces these components are intended to consolidate
+          later.
         </p>
       </div>
 
