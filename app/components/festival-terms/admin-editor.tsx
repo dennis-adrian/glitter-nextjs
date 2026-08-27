@@ -1,6 +1,6 @@
 "use client";
 
-import FestivalTermsDocument from "@/app/components/festival-terms/document";
+import FestivalTermsPreviewPanel from "@/app/components/festival-terms/preview-panel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/app/components/ui/sheet";
 import { Textarea } from "@/app/components/ui/textarea";
 import RichTextEditor from "@/app/components/organisms/rich-text-editor";
 import {
@@ -67,7 +74,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  EyeIcon,
   GripVerticalIcon,
+  PencilIcon,
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -91,11 +102,15 @@ function toggleValue<T extends string>(values: T[], value: T): T[] {
 function SortableSectionCard({
   section,
   index,
+  expanded,
+  onToggleExpand,
   onChange,
   onRemove,
 }: {
   section: EditorTermsSection;
   index: number;
+  expanded: boolean;
+  onToggleExpand: () => void;
   onChange: (next: EditorTermsSection) => void;
   onRemove: () => void;
 }) {
@@ -115,11 +130,11 @@ function SortableSectionCard({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(isDragging && "opacity-70")}
     >
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-3 sm:p-6 sm:pb-4">
         <div className="flex min-w-0 items-start gap-2">
           <button
             type="button"
-            className="mt-1 text-muted-foreground"
+            className="mt-1 touch-none text-muted-foreground"
             aria-label="Reordenar sección"
             {...attributes}
             {...listeners}
@@ -127,7 +142,7 @@ function SortableSectionCard({
             <GripVerticalIcon className="size-4" />
           </button>
           <div className="min-w-0">
-            <CardTitle className="text-base">
+            <CardTitle className="text-sm sm:text-base">
               {section.title.trim() || `Sección ${index + 1}`}
             </CardTitle>
             <p className="text-xs text-muted-foreground">
@@ -139,49 +154,88 @@ function SortableSectionCard({
             </p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onRemove}
-          disabled={isSchedule}
-          title={
-            isSchedule
-              ? "La sección de horarios no se puede eliminar"
-              : undefined
-          }
-        >
-          <Trash2Icon className="size-4" />
-          <span className="sr-only">
-            {isSchedule ? "No se puede eliminar horarios" : "Eliminar sección"}
-          </span>
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label>Título</Label>
-            <Input
-              value={section.title}
-              onChange={(event) =>
-                onChange({ ...section, title: event.target.value })
-              }
-              placeholder="1. Aceptación de Términos"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Tipo</Label>
-            {isSchedule ? (
-              <p className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
-                {KIND_LABELS.schedule}
-              </p>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onToggleExpand}
+            aria-expanded={expanded}
+          >
+            {expanded ? (
+              <ChevronUpIcon className="mr-1 size-4" />
             ) : (
+              <PencilIcon className="mr-1 size-4" />
+            )}
+            {expanded ? "Cerrar" : "Editar"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onRemove}
+            disabled={isSchedule}
+            title={
+              isSchedule
+                ? "La sección de horarios no se puede eliminar"
+                : undefined
+            }
+          >
+            <Trash2Icon className="size-4" />
+            <span className="sr-only">
+              {isSchedule ? "No se puede eliminar horarios" : "Eliminar sección"}
+            </span>
+          </Button>
+        </div>
+      </CardHeader>
+      {expanded ? (
+        <CardContent className="space-y-4 pt-0">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label>Título</Label>
+              <Input
+                value={section.title}
+                onChange={(event) =>
+                  onChange({ ...section, title: event.target.value })
+                }
+                placeholder="1. Aceptación de Términos"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tipo</Label>
+              {isSchedule ? (
+                <p className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
+                  {KIND_LABELS.schedule}
+                </p>
+              ) : (
+                <Select
+                  value={section.kind}
+                  onValueChange={(value) =>
+                    onChange({
+                      ...section,
+                      kind: value as EditorTermsSection["kind"],
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rich_text">
+                      {KIND_LABELS.rich_text}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Presentación</Label>
               <Select
-                value={section.kind}
+                value={section.layout}
                 onValueChange={(value) =>
                   onChange({
                     ...section,
-                    kind: value as EditorTermsSection["kind"],
+                    layout: value as EditorTermsSection["layout"],
                   })
                 }
               >
@@ -189,116 +243,98 @@ function SortableSectionCard({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="rich_text">
-                    {KIND_LABELS.rich_text}
+                  <SelectItem value="plain">{LAYOUT_LABELS.plain}</SelectItem>
+                  <SelectItem value="accordion">
+                    {LAYOUT_LABELS.accordion}
                   </SelectItem>
+                  <SelectItem value="card">{LAYOUT_LABELS.card}</SelectItem>
                 </SelectContent>
               </Select>
-            )}
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Presentación</Label>
-            <Select
-              value={section.layout}
-              onValueChange={(value) =>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Categorías</legend>
+              <p className="text-xs text-muted-foreground">
+                Si no marcás ninguna, se muestra a todas.
+              </p>
+              {TERMS_AUDIENCE_CATEGORIES.map((category) => (
+                <label
+                  key={category}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <Checkbox
+                    checked={section.audienceCategories.includes(category)}
+                    onCheckedChange={() =>
+                      onChange({
+                        ...section,
+                        audienceCategories: toggleValue(
+                          section.audienceCategories,
+                          category,
+                        ),
+                      })
+                    }
+                  />
+                  {CATEGORY_LABELS[category as TermsAudienceCategory]}
+                </label>
+              ))}
+            </fieldset>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Tipos de festival</legend>
+              <p className="text-xs text-muted-foreground">
+                Si no marcás ninguno, se muestra en todos.
+              </p>
+              {TERMS_FESTIVAL_TYPES.map((festivalType) => (
+                <label
+                  key={festivalType}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <Checkbox
+                    checked={section.audienceFestivalTypes.includes(festivalType)}
+                    onCheckedChange={() =>
+                      onChange({
+                        ...section,
+                        audienceFestivalTypes: toggleValue(
+                          section.audienceFestivalTypes,
+                          festivalType,
+                        ),
+                      })
+                    }
+                  />
+                  {FESTIVAL_TYPE_LABELS[festivalType as TermsFestivalType]}
+                </label>
+              ))}
+            </fieldset>
+          </div>
+
+          {section.kind === "rich_text" ? (
+            <RichTextEditor
+              variant="article"
+              initialContent={section.bodyJson}
+              placeholder="Escribí el contenido de esta sección. Usá / para insertar bloques."
+              onChange={(json, html) =>
                 onChange({
                   ...section,
-                  layout: value as EditorTermsSection["layout"],
+                  bodyJson: json as unknown[],
+                  bodyHtml: html,
                 })
               }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="plain">{LAYOUT_LABELS.plain}</SelectItem>
-                <SelectItem value="accordion">
-                  {LAYOUT_LABELS.accordion}
-                </SelectItem>
-                <SelectItem value="card">{LAYOUT_LABELS.card}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Categorías</legend>
-            <p className="text-xs text-muted-foreground">
-              Si no marcás ninguna, se muestra a todas.
+            />
+          ) : (
+            <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+              Esta sección muestra los horarios calculados a partir de las fechas
+              de cada festival. El texto legal no se edita aquí.
             </p>
-            {TERMS_AUDIENCE_CATEGORIES.map((category) => (
-              <label
-                key={category}
-                className="flex items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  checked={section.audienceCategories.includes(category)}
-                  onCheckedChange={() =>
-                    onChange({
-                      ...section,
-                      audienceCategories: toggleValue(
-                        section.audienceCategories,
-                        category,
-                      ),
-                    })
-                  }
-                />
-                {CATEGORY_LABELS[category as TermsAudienceCategory]}
-              </label>
-            ))}
-          </fieldset>
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Tipos de festival</legend>
-            <p className="text-xs text-muted-foreground">
-              Si no marcás ninguno, se muestra en todos.
-            </p>
-            {TERMS_FESTIVAL_TYPES.map((festivalType) => (
-              <label
-                key={festivalType}
-                className="flex items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  checked={section.audienceFestivalTypes.includes(festivalType)}
-                  onCheckedChange={() =>
-                    onChange({
-                      ...section,
-                      audienceFestivalTypes: toggleValue(
-                        section.audienceFestivalTypes,
-                        festivalType,
-                      ),
-                    })
-                  }
-                />
-                {FESTIVAL_TYPE_LABELS[festivalType as TermsFestivalType]}
-              </label>
-            ))}
-          </fieldset>
-        </div>
-
-        {section.kind === "rich_text" ? (
-          <RichTextEditor
-            variant="article"
-            initialContent={section.bodyJson}
-            placeholder="Escribí el contenido de esta sección. Usá / para insertar bloques."
-            onChange={(json, html) =>
-              onChange({
-                ...section,
-                bodyJson: json as unknown[],
-                bodyHtml: html,
-              })
-            }
-          />
-        ) : (
-          <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-            Esta sección muestra los horarios calculados a partir de las fechas
-            de cada festival. El texto legal no se edita aquí.
-          </p>
-        )}
-      </CardContent>
+          )}
+        </CardContent>
+      ) : null}
     </Card>
   );
 }
+
+const PREVIEW_HINT =
+  "La vista previa usa el texto del editor; el HTML publicado se genera al guardar.";
 
 export default function FestivalTermsEditor({
   draft,
@@ -307,6 +343,8 @@ export default function FestivalTermsEditor({
 }: FestivalTermsEditorProps) {
   const router = useRouter();
   const [sections, setSections] = useState(initialSections);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [changelog, setChangelog] = useState(draft.changelog ?? "");
   const [publishOpen, setPublishOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -316,7 +354,7 @@ export default function FestivalTermsEditor({
     useState<TermsFestivalType>("glitter");
   const [isPending, startTransition] = useTransition();
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -338,6 +376,18 @@ export default function FestivalTermsEditor({
       })),
     [draft.createdAt, draft.id, draft.updatedAt, sections],
   );
+
+  function toggleExpanded(clientId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(clientId)) {
+        next.delete(clientId);
+      } else {
+        next.add(clientId);
+      }
+      return next;
+    });
+  }
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -391,28 +441,47 @@ export default function FestivalTermsEditor({
     });
   }
 
+  const previewPanelProps = {
+    sections: previewSections,
+    category: previewCategory,
+    festivalType: previewFestivalType,
+    onCategoryChange: setPreviewCategory,
+    onFestivalTypeChange: setPreviewFestivalType,
+    hint: PREVIEW_HINT,
+  } as const;
+
   return (
     <div className="space-y-6">
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 py-3 backdrop-blur">
-        <div>
+        <div className="min-w-0">
           <Link
             href="/dashboard/terms"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
             ← Términos y condiciones
           </Link>
-          <h1 className="text-xl font-semibold">
+          <h1 className="text-lg font-semibold sm:text-xl">
             Editar borrador · v{draft.versionNumber}
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => setDiscardOpen(true)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="xl:hidden"
+            onClick={() => setPreviewOpen(true)}
+          >
+            <EyeIcon className="mr-1 size-4" />
+            Vista previa
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setDiscardOpen(true)}>
             Descartar
           </Button>
-          <Button type="button" variant="secondary" disabled={isPending} onClick={save}>
-            Guardar borrador
+          <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={save}>
+            Guardar
           </Button>
-          <Button type="button" disabled={isPending} onClick={() => setPublishOpen(true)}>
+          <Button type="button" size="sm" disabled={isPending} onClick={() => setPublishOpen(true)}>
             Publicar
           </Button>
         </div>
@@ -425,12 +494,12 @@ export default function FestivalTermsEditor({
           value={changelog}
           onChange={(event) => setChangelog(event.target.value)}
           placeholder="Qué cambió en esta versión"
-          rows={3}
+          rows={2}
         />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]">
-        <div className="space-y-4">
+        <div className="space-y-3">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -440,12 +509,14 @@ export default function FestivalTermsEditor({
               items={sections.map((section) => section.clientId)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {sections.map((section, index) => (
                   <SortableSectionCard
                     key={section.clientId}
                     section={section}
                     index={index}
+                    expanded={expandedIds.has(section.clientId)}
+                    onToggleExpand={() => toggleExpanded(section.clientId)}
                     onChange={(next) =>
                       setSections((current) =>
                         current.map((item) =>
@@ -455,6 +526,11 @@ export default function FestivalTermsEditor({
                     }
                     onRemove={() => {
                       if (section.kind === "schedule") return;
+                      setExpandedIds((current) => {
+                        const next = new Set(current);
+                        next.delete(section.clientId);
+                        return next;
+                      });
                       setSections((current) =>
                         current.filter((item) => item.clientId !== section.clientId),
                       );
@@ -464,89 +540,69 @@ export default function FestivalTermsEditor({
               </div>
             </SortableContext>
           </DndContext>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              setSections((current) => [...current, createEmptyEditorSection()])
-            }
-          >
-            <PlusIcon className="mr-2 size-4" />
-            Agregar sección
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const next = createEmptyEditorSection();
+                setSections((current) => [...current, next]);
+                setExpandedIds((current) => new Set(current).add(next.clientId));
+              }}
+            >
+              <PlusIcon className="mr-2 size-4" />
+              Agregar sección
+            </Button>
+            {expandedIds.size > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setExpandedIds(new Set())}
+              >
+                <ChevronDownIcon className="mr-2 size-4 rotate-180" />
+                Contraer todas
+              </Button>
+            ) : null}
+          </div>
           <p className="text-xs text-muted-foreground">
             Los horarios son una sola sección fija: se puede reordenar, no
             editar ni duplicar.
           </p>
         </div>
 
-        <aside className="space-y-3 xl:sticky xl:top-24 xl:self-start">
+        <aside className="hidden min-h-0 xl:sticky xl:top-24 xl:block xl:self-start">
           <Card>
             <CardHeader>
               <CardTitle>Vista previa</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Categoría</Label>
-                  <Select
-                    value={previewCategory}
-                    onValueChange={(value) =>
-                      setPreviewCategory(value as TermsAudienceCategory)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TERMS_AUDIENCE_CATEGORIES.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {CATEGORY_LABELS[category]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Tipo de festival</Label>
-                  <Select
-                    value={previewFestivalType}
-                    onValueChange={(value) =>
-                      setPreviewFestivalType(value as TermsFestivalType)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TERMS_FESTIVAL_TYPES.map((festivalType) => (
-                        <SelectItem key={festivalType} value={festivalType}>
-                          {FESTIVAL_TYPE_LABELS[festivalType]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <CardContent className="p-4 pt-0">
+              <div className="flex max-h-[70vh] min-h-0 flex-col">
+                <FestivalTermsPreviewPanel {...previewPanelProps} />
               </div>
-              <p className="text-xs text-muted-foreground">
-                La vista previa usa el texto del editor; el HTML publicado se
-                genera al guardar.
-              </p>
             </CardContent>
           </Card>
-          <div className="max-h-[70vh] overflow-auto rounded-lg border p-4">
-            <FestivalTermsDocument
-              sections={previewSections}
-              category={previewCategory}
-              festival={{
-                festivalType: previewFestivalType,
-                festivalDates: [],
-              }}
-              schedulePlaceholder
-            />
-          </div>
         </aside>
       </div>
+
+      <Sheet open={previewOpen} onOpenChange={setPreviewOpen}>
+        <SheetContent
+          side="bottom"
+          className="flex h-[90dvh] max-h-[90dvh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-none"
+        >
+          <SheetHeader className="border-b px-4 py-3 text-left">
+            <SheetTitle>Vista previa</SheetTitle>
+            <SheetDescription>
+              Así se ve el documento en un ancho de teléfono, con los filtros de
+              audiencia.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+            <div className="flex h-full min-h-0 flex-col">
+              <FestivalTermsPreviewPanel {...previewPanelProps} />
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={publishOpen} onOpenChange={setPublishOpen}>
         <AlertDialogContent>
