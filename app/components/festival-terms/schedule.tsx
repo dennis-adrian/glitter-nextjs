@@ -1,7 +1,7 @@
 import { UserCategory } from "@/app/api/users/definitions";
 import { Highlight } from "@/app/components/ui/highlight";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDateOrNull } from "@/app/lib/formatters";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { DateTime } from "luxon";
 
@@ -19,10 +19,14 @@ export default function FestivalTermsSchedule({
   const festivalDates = festival.festivalDates;
   const dayOne = festivalDates[0];
   const dayTwo = festivalDates[1];
-  const dayOneStartDate = dayOne ? formatDate(dayOne.startDate) : null;
-  const dayOneEndDate = dayOne ? formatDate(dayOne.endDate) : null;
-  const dayTwoStartDate = dayTwo ? formatDate(dayTwo.startDate) : null;
-  const dayTwoEndDate = dayTwo ? formatDate(dayTwo.endDate) : null;
+  const dayOneStartDate = dayOne
+    ? formatDateOrNull(dayOne.startDate)
+    : null;
+  const dayOneEndDate = dayOne ? formatDateOrNull(dayOne.endDate) : null;
+  const dayTwoStartDate = dayTwo
+    ? formatDateOrNull(dayTwo.startDate)
+    : null;
+  const dayTwoEndDate = dayTwo ? formatDateOrNull(dayTwo.endDate) : null;
 
   return (
     <div className="flex flex-col gap-2">
