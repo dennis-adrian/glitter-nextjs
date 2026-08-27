@@ -8,6 +8,7 @@ import {
   fetchPublishedFestivalTermsVersion,
 } from "@/app/lib/festival-terms/queries";
 import { buildInitialFestivalTermsSections } from "@/app/lib/festival-terms/seed-content";
+import { sanitizeRichTextHtml } from "@/app/lib/rich-text/sanitize";
 import { db } from "@/db";
 import {
   festivalTermsDocuments,
@@ -26,7 +27,7 @@ export async function renderTermsSectionHtml(
     const { blocksToSanitizedHtml } = await import("@/app/lib/rich-text/render");
     return await blocksToSanitizedHtml(bodyJson, "article");
   } catch {
-    return blocksToSeedHtml(bodyJson);
+    return sanitizeRichTextHtml(blocksToSeedHtml(bodyJson), "article");
   }
 }
 
