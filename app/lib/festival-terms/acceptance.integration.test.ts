@@ -50,6 +50,8 @@ type Fixture = {
   festivalBId: number;
   requestId: number;
   extraVersionIds: number[];
+  /** Document whose published row must be scoped during cleanup restore. */
+  restoreDocumentId?: number;
   /** Seed published version temporarily archived for the test; restore after cleanup. */
   restorePublishedVersionId?: number;
 };
@@ -73,13 +75,17 @@ describeDatabase("festival terms schema and acceptance", () => {
     const db = integrationDb!;
     const leftover = fixtures.splice(0);
     for (const fixture of leftover) {
-      if (fixture.restorePublishedVersionId != null) {
+      if (
+        fixture.restorePublishedVersionId != null &&
+        fixture.restoreDocumentId != null
+      ) {
         await db
           .update(festivalTermsVersions)
           .set({ status: "archived", updatedAt: new Date() })
           .where(
             and(
               eq(festivalTermsVersions.status, "published"),
+              eq(festivalTermsVersions.documentId, fixture.restoreDocumentId),
             ),
           );
         await db
@@ -331,6 +337,7 @@ describeDatabase("festival terms schema and acceptance", () => {
       festivalBId: festivalB.id,
       requestId: request.id,
       extraVersionIds: [newVersion.id],
+      restoreDocumentId: document!.id,
       restorePublishedVersionId: published!.id,
     });
 
@@ -511,6 +518,7 @@ describeDatabase("festival terms schema and acceptance", () => {
       festivalBId: -1,
       requestId: -1,
       extraVersionIds: [draft.id],
+      restoreDocumentId: document!.id,
       restorePublishedVersionId: previousPublished!.id,
     });
   });
