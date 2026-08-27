@@ -182,11 +182,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
           />
         ) : (
           <Alert className="mb-6">
-            <AlertTitle>Términos en preparación</AlertTitle>
             <AlertDescription>
-              La organización todavía no publicó los términos y condiciones para
-              los participantes. Volvé más tarde o contactá a la organización si
-              necesitás más información.
+              Los términos y condiciones del festival están en preparación. Te
+              avisaremos por correo electrónico apenas estén disponibles.
             </AlertDescription>
           </Alert>
         )}
