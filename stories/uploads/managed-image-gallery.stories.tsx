@@ -86,6 +86,8 @@ export const ProductThumbnailsFill: Story = {
     await expect(image).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");
     await expect(image).toHaveAttribute("data-object-position", "50% 45%");
+    await userEvent.keyboard("+");
+    await expect(image).toHaveAttribute("data-image-zoom", "1.1");
   },
 };
 

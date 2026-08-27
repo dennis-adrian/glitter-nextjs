@@ -178,14 +178,14 @@ export function ManagedImageGallery({
             Elegí una imagen principal · máximo {maxFiles} archivos de{" "}
             {formatFileSize(maxSize)}
             {fit === "cover"
-              ? " · arrastrá una imagen para ajustar el recorte"
+              ? " · arrastrá o pellizcá una imagen para ajustar el recorte"
               : ""}
           </p>
         </div>
         <Button
           type="button"
           size="sm"
-          className="gap-2"
+          className="min-h-11 gap-2 touch-manipulation"
           disabled={isUploading || images.length >= maxFiles}
           onClick={() => inputRef.current?.click()}
         >
@@ -239,12 +239,13 @@ export function ManagedImageGallery({
                   Principal
                 </span>
               ) : null}
-              <div className="absolute right-2 top-2 z-10 flex gap-1">
+              <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                 {!image.isPrimary ? (
                   <button
                     type="button"
-                    className="grid size-8 place-items-center rounded-md bg-background/95 shadow"
+                    className="grid size-11 place-items-center rounded-full bg-background/95 shadow-md touch-manipulation"
                     aria-label={`Establecer ${image.name} como principal`}
+                    onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => setPrimary(image.id)}
                   >
                     <StarIcon className="size-4 text-amber-500" />
@@ -252,9 +253,10 @@ export function ManagedImageGallery({
                 ) : null}
                 <button
                   type="button"
-                  className="grid size-8 place-items-center rounded-md bg-background/95 shadow"
+                  className="grid size-11 place-items-center rounded-full bg-background/95 shadow-md touch-manipulation"
                   aria-label={`Eliminar ${image.name}`}
                   disabled={isDeleting}
+                  onPointerDown={(event) => event.stopPropagation()}
                   onClick={() => void deleteImage(image)}
                 >
                   {isDeleting ? (

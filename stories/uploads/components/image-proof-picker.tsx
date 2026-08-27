@@ -5,7 +5,6 @@ import {
   ImageIcon,
   Loader2Icon,
   RefreshCwIcon,
-  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
@@ -13,6 +12,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Progress } from "@/app/components/ui/progress";
 import { FittedImage } from "@/stories/uploads/components/fitted-image";
+import { ImagePreviewRemoveButton } from "@/stories/uploads/components/image-preview-remove-button";
 import {
   DEFAULT_MAX_IMAGE_SIZE,
   formatFileSize,
@@ -133,39 +133,41 @@ export function ImageProofPicker({
       />
 
       {visibleUrl ? (
-        <div className="grid gap-3">
-          <div className="relative mx-auto aspect-3/4 w-52 overflow-hidden rounded-lg border bg-muted">
-            <FittedImage
-              src={visibleUrl}
-              alt={`Vista previa de ${title.toLowerCase()}`}
-              className="absolute inset-0"
-            />
-            {uploadedImage && !selectedFile ? (
-              <span className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">
-                <CheckCircle2Icon className="size-3" aria-hidden="true" />
-                Cargado
-              </span>
+        <div className="grid justify-items-center gap-2">
+          <div className="relative w-52">
+            <div className="relative aspect-3/4 overflow-hidden rounded-lg border bg-muted">
+              <FittedImage
+                src={visibleUrl}
+                alt={`Vista previa de ${title.toLowerCase()}`}
+                className="absolute inset-0"
+              />
+              {uploadedImage && !selectedFile ? (
+                <span className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">
+                  <CheckCircle2Icon className="size-3" aria-hidden="true" />
+                  Cargado
+                </span>
+              ) : null}
+            </div>
+            {!isUploading ? (
+              <ImagePreviewRemoveButton
+                label={`Quitar ${title.toLowerCase()}`}
+                onClick={() => {
+                  if (selectedFile) {
+                    resetSelection();
+                    return;
+                  }
+                  onClear?.();
+                }}
+              />
             ) : null}
           </div>
           {selectedFile ? (
-            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/60 p-3 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{selectedFile.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatFileSize(selectedFile.size)}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={isUploading}
-                aria-label="Quitar imagen seleccionada"
-                onClick={resetSelection}
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </div>
+            <p className="max-w-52 truncate text-center text-sm">
+              {selectedFile.name}
+              <span className="block text-xs text-muted-foreground">
+                {formatFileSize(selectedFile.size)}
+              </span>
+            </p>
           ) : null}
         </div>
       ) : (
@@ -200,7 +202,7 @@ export function ImageProofPicker({
         {selectedFile ? (
           <Button
             type="button"
-            className="flex-1 gap-2"
+            className="min-h-11 flex-1 gap-2 touch-manipulation"
             disabled={isUploading}
             onClick={() => void confirmUpload()}
           >
@@ -212,22 +214,15 @@ export function ImageProofPicker({
             {isUploading ? "Subiendo..." : confirmLabel}
           </Button>
         ) : uploadedImage ? (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2"
-              onClick={() => inputRef.current?.click()}
-            >
-              <RefreshCwIcon className="size-4" />
-              Reemplazar
-            </Button>
-            {onClear ? (
-              <Button type="button" variant="ghost" onClick={onClear}>
-                Quitar
-              </Button>
-            ) : null}
-          </>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 gap-2 touch-manipulation"
+            onClick={() => inputRef.current?.click()}
+          >
+            <RefreshCwIcon className="size-4" />
+            Reemplazar
+          </Button>
         ) : null}
       </div>
 

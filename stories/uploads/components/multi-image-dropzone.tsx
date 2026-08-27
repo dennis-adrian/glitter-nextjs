@@ -4,7 +4,6 @@ import {
   CheckCircle2Icon,
   ImagesIcon,
   Loader2Icon,
-  Trash2Icon,
   UploadCloudIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
@@ -13,6 +12,7 @@ import { Button } from "@/app/components/ui/button";
 import { Progress } from "@/app/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { FittedImage } from "@/stories/uploads/components/fitted-image";
+import { ImagePreviewRemoveButton } from "@/stories/uploads/components/image-preview-remove-button";
 import {
   DEFAULT_MAX_IMAGE_SIZE,
   formatFileSize,
@@ -220,28 +220,24 @@ export function MultiImageDropzone({
           </div>
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {selected.map((image, index) => (
-              <li
-                key={`${image.file.name}-${index}`}
-                className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
-              >
-                <FittedImage
-                  src={image.previewUrl}
-                  alt={image.file.name}
-                  className="absolute inset-0"
-                />
-                <div className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 bg-black/65 p-2 text-white">
-                  <span className="min-w-0 flex-1 truncate text-xs">
-                    {image.file.name}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Quitar ${image.file.name}`}
+              <li key={`${image.file.name}-${index}`} className="grid gap-1.5">
+                <div className="relative">
+                  <div className="relative aspect-square overflow-hidden rounded-lg border bg-muted">
+                    <FittedImage
+                      src={image.previewUrl}
+                      alt={image.file.name}
+                      className="absolute inset-0"
+                    />
+                  </div>
+                  <ImagePreviewRemoveButton
+                    label={`Quitar ${image.file.name}`}
                     disabled={isUploading}
                     onClick={() => removeFile(index)}
-                  >
-                    <Trash2Icon className="size-4" />
-                  </button>
+                  />
                 </div>
+                <p className="truncate px-0.5 text-xs text-muted-foreground">
+                  {image.file.name}
+                </p>
               </li>
             ))}
           </ul>
@@ -260,7 +256,7 @@ export function MultiImageDropzone({
 
       <Button
         type="button"
-        className="gap-2"
+        className="min-h-11 gap-2 touch-manipulation"
         disabled={disabled || isUploading || selected.length === 0}
         onClick={() => void uploadSelected()}
       >

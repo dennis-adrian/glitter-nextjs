@@ -3,14 +3,21 @@ export type ImageFit = "contain" | "cover";
 export type ImageObjectPosition = {
   x: number;
   y: number;
+  /** Extra magnification on top of cover. `1` fills the frame. */
+  zoom?: number;
 };
 
 export const DEFAULT_IMAGE_OBJECT_POSITION: ImageObjectPosition = {
   x: 50,
   y: 50,
+  zoom: 1,
 };
 
 export const IMAGE_POSITION_KEYBOARD_STEP = 5;
+export const MIN_IMAGE_ZOOM = 1;
+export const MAX_IMAGE_ZOOM = 3;
+export const DEFAULT_IMAGE_ZOOM = 1;
+export const IMAGE_ZOOM_STEP = 0.1;
 
 export function clampPercent(value: number): number {
   return Math.min(100, Math.max(0, value));
@@ -18,6 +25,24 @@ export function clampPercent(value: number): number {
 
 export function roundPercent(value: number): number {
   return Math.round(clampPercent(value) * 100) / 100;
+}
+
+export function clampZoom(value: number): number {
+  return Math.min(MAX_IMAGE_ZOOM, Math.max(MIN_IMAGE_ZOOM, value));
+}
+
+export function roundZoom(value: number): number {
+  return Math.round(clampZoom(value) * 100) / 100;
+}
+
+export function imageZoom(
+  position: ImageObjectPosition = DEFAULT_IMAGE_OBJECT_POSITION,
+): number {
+  return roundZoom(position.zoom ?? DEFAULT_IMAGE_ZOOM);
+}
+
+export function formatImageZoom(zoom: number): string {
+  return `${roundZoom(zoom).toFixed(1).replace(".", ",")}×`;
 }
 
 export function imageObjectPositionCss(
@@ -31,14 +56,16 @@ export function isDefaultImageObjectPosition(
 ): boolean {
   return (
     position.x === DEFAULT_IMAGE_OBJECT_POSITION.x &&
-    position.y === DEFAULT_IMAGE_OBJECT_POSITION.y
+    position.y === DEFAULT_IMAGE_OBJECT_POSITION.y &&
+    imageZoom(position) === DEFAULT_IMAGE_ZOOM
   );
 }
 
 /**
  * Translate a pointer drag into object-position percentages for `object-fit:
  * cover`. Positive deltas move the image with the pointer, revealing the
- * opposite edge of the source.
+ * opposite edge of the source. `zoom` enlarges overflow so the same finger
+ * movement tracks the magnified bitmap.
  */
 export function panCoverObjectPosition({
   position,
@@ -48,6 +75,7 @@ export function panCoverObjectPosition({
   containerHeight,
   naturalWidth,
   naturalHeight,
+  zoom = imageZoom(position),
 }: {
   position: ImageObjectPosition;
   deltaX: number;
@@ -56,6 +84,7 @@ export function panCoverObjectPosition({
   containerHeight: number;
   naturalWidth: number;
   naturalHeight: number;
+  zoom?: number;
 }): ImageObjectPosition {
   if (
     containerWidth <= 0 ||
@@ -66,10 +95,9 @@ export function panCoverObjectPosition({
     return position;
   }
 
-  const scale = Math.max(
-    containerWidth / naturalWidth,
-    containerHeight / naturalHeight,
-  );
+  const scale =
+    Math.max(containerWidth / naturalWidth, containerHeight / naturalHeight) *
+    clampZoom(zoom);
   const scaledWidth = naturalWidth * scale;
   const scaledHeight = naturalHeight * scale;
   const overflowX = scaledWidth - containerWidth;
@@ -92,7 +120,7 @@ export function panCoverObjectPosition({
     nextY = roundPercent((clampedOffsetY / minOffsetY) * 100);
   }
 
-  return { x: nextX, y: nextY };
+  return { ...position, x: nextX, y: nextY, zoom: clampZoom(zoom) };
 }
 
 export function nudgeImageObjectPosition(
@@ -106,7 +134,27 @@ export function nudgeImageObjectPosition(
   if (key === "ArrowDown") next.y -= step;
   if (key === "ArrowUp") next.y += step;
   return {
+    ...position,
     x: roundPercent(next.x),
     y: roundPercent(next.y),
   };
+}
+
+export function nudgeImageZoom(
+  position: ImageObjectPosition,
+  direction: "in" | "out",
+  step = IMAGE_ZOOM_STEP,
+): ImageObjectPosition {
+  const delta = direction === "in" ? step : -step;
+  return {
+    ...position,
+    zoom: roundZoom(imageZoom(position) + delta),
+  };
+}
+
+export function pointerDistance(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }

@@ -5,7 +5,7 @@ const reusableComponents = [
   {
     name: "SingleImageUploadField",
     useCases:
-      "Avatares, logos, banners y arte; contain por defecto, cover con recorte",
+      "Avatares, logos, banners y arte; contain por defecto, cover con recorte, zoom y quitar en overlay",
   },
   {
     name: "ImageProofPicker",
@@ -13,12 +13,12 @@ const reusableComponents = [
   },
   {
     name: "MultiImageDropzone",
-    useCases: "Carga por lote, arrastrar y soltar, y vistas previas removibles",
+    useCases: "Carga por lote, arrastrar y soltar, y quitar desde el overlay",
   },
   {
     name: "ManagedImageGallery",
     useCases:
-      "Galerías persistidas con imagen principal, eliminación y recorte cover",
+      "Galerías persistidas con imagen principal, overlay de eliminar y recorte cover",
   },
 ] as const;
 

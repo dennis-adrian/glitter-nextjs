@@ -2,7 +2,11 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import type { ImageFit } from "@/stories/uploads/components/image-object-position";
+import {
+  formatImageZoom,
+  imageZoom,
+  type ImageFit,
+} from "@/stories/uploads/components/image-object-position";
 import { SingleImageUploadField } from "@/stories/uploads/components/single-image-upload-field";
 import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
 import type { UploadedImage } from "@/stories/uploads/components/upload-types";
@@ -33,7 +37,8 @@ function SingleImageStory({
       {fit === "cover" && image ? (
         <output className="text-sm text-muted-foreground">
           Recorte {Math.round(image.objectPosition?.x ?? 50)}% horizontal,{" "}
-          {Math.round(image.objectPosition?.y ?? 50)}% vertical
+          {Math.round(image.objectPosition?.y ?? 50)}% vertical · zoom{" "}
+          {formatImageZoom(imageZoom(image.objectPosition))}
         </output>
       ) : null}
     </div>
@@ -109,13 +114,22 @@ export const CoverReposition: Story = {
     });
     await expect(image).toHaveAttribute("data-image-fit", "cover");
     await expect(image).toHaveAttribute("data-object-position", "50% 50%");
+    await expect(image).toHaveAttribute("data-image-zoom", "1");
     image.focus();
     await expect(image).toHaveFocus();
     await userEvent.keyboard("{ArrowRight}{ArrowRight}");
     await expect(image).toHaveAttribute("data-object-position", "40% 50%");
+    await userEvent.click(canvas.getByRole("button", { name: "Acercar" }));
+    await expect(image).toHaveAttribute("data-image-zoom", "1.1");
     await expect(
-      canvas.getByText("Recorte 40% horizontal, 50% vertical"),
+      canvas.getByText("Recorte 40% horizontal, 50% vertical · zoom 1,1×"),
     ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Quitar imagen del perfil" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /^Quitar$/ }),
+    ).not.toBeInTheDocument();
   },
 };
 
@@ -139,7 +153,9 @@ export const InteractionTest: Story = {
       fileInput,
       new File(["profile"], "nuevo-perfil.png", { type: "image/png" }),
     );
-    const removeButton = await canvas.findByRole("button", { name: "Quitar" });
+    const removeButton = await canvas.findByRole("button", {
+      name: "Quitar imagen del perfil",
+    });
     await expect(
       canvas.getByRole("img", { name: "Vista previa de imagen del perfil" }),
     ).toBeVisible();

@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_IMAGE_OBJECT_POSITION,
+  formatImageZoom,
   imageObjectPositionCss,
+  imageZoom,
   nudgeImageObjectPosition,
+  nudgeImageZoom,
   panCoverObjectPosition,
+  roundZoom,
 } from "@/stories/uploads/components/image-object-position";
 
 describe("panCoverObjectPosition", () => {
@@ -60,7 +64,7 @@ describe("panCoverObjectPosition", () => {
       naturalHeight: 100,
     });
 
-    expect(next).toEqual({ x: 40, y: 60 });
+    expect(next).toEqual({ x: 40, y: 60, zoom: 1 });
   });
 });
 
@@ -68,10 +72,10 @@ describe("nudgeImageObjectPosition", () => {
   it("moves the image in the arrow direction", () => {
     expect(
       nudgeImageObjectPosition(DEFAULT_IMAGE_OBJECT_POSITION, "ArrowRight"),
-    ).toEqual({ x: 45, y: 50 });
+    ).toEqual({ x: 45, y: 50, zoom: 1 });
     expect(
       nudgeImageObjectPosition(DEFAULT_IMAGE_OBJECT_POSITION, "ArrowDown"),
-    ).toEqual({ x: 50, y: 45 });
+    ).toEqual({ x: 50, y: 45, zoom: 1 });
   });
 
   it("clamps keyboard nudges to 0–100", () => {
@@ -83,6 +87,41 @@ describe("nudgeImageObjectPosition", () => {
       x: 2,
       y: 100,
     });
+  });
+});
+
+describe("image zoom", () => {
+  it("clamps and rounds extra magnification", () => {
+    expect(roundZoom(0.2)).toBe(1);
+    expect(roundZoom(4)).toBe(3);
+    expect(imageZoom({ x: 50, y: 50 })).toBe(1);
+    expect(formatImageZoom(1.1)).toBe("1,1×");
+    expect(nudgeImageZoom({ x: 50, y: 50, zoom: 1 }, "in")).toEqual({
+      x: 50,
+      y: 50,
+      zoom: 1.1,
+    });
+    expect(nudgeImageZoom({ x: 50, y: 50, zoom: 1 }, "out")).toEqual({
+      x: 50,
+      y: 50,
+      zoom: 1,
+    });
+  });
+
+  it("uses zoomed overflow when panning a cover crop", () => {
+    const next = panCoverObjectPosition({
+      position: { x: 50, y: 50, zoom: 2 },
+      deltaX: 25,
+      deltaY: 0,
+      containerWidth: 100,
+      containerHeight: 100,
+      naturalWidth: 200,
+      naturalHeight: 100,
+      zoom: 2,
+    });
+
+    expect(next.x).toBeLessThan(50);
+    expect(next.zoom).toBe(2);
   });
 });
 

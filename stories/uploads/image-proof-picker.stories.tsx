@@ -70,7 +70,12 @@ export const InteractionTest: Story = {
     await expect(
       canvas.getByRole("button", { name: "Reemplazar" }),
     ).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Quitar" }));
+    await expect(
+      canvas.queryByRole("button", { name: /^Quitar$/ }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Quitar comprobante de pago" }),
+    );
     await expect(
       canvas.getByRole("button", { name: /^Elegí una imagen/ }),
     ).toBeVisible();
