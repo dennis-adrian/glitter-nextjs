@@ -33,9 +33,10 @@ export default async function FestivalTermsDashboardPage() {
           <h1 className="text-2xl font-bold">Términos y condiciones</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Documento global para la inscripción a festivales. Los
-            participantes no ven el número de versión; cada festival nuevo pide
-            aceptación, y una publicación nueva obliga a reaceptar en festivales
-            activos.
+            participantes no ven el número de versión. La aceptación solo se
+            solicita en festivales con términos para participantes habilitados;
+            una publicación nueva obliga a reaceptar en festivales activos que
+            los tengan habilitados.
           </p>
         </div>
         <Button asChild>
