@@ -14,7 +14,7 @@ export function isAllowedProgramArtworkUrl(
   if (!input) return false;
 
   // Same-origin public assets (Storybook mocks, placeholders under /img/...).
-  if (input.startsWith("/") && !input.startsWith("//")) {
+  if (input.startsWith("/img/") && !input.startsWith("//")) {
     return !input.includes("\\") && !input.includes(":");
   }
 

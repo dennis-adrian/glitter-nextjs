@@ -18,6 +18,7 @@ describe("isAllowedProgramArtworkUrl", () => {
     "//evil.example/img.png",
     "/img/with:colon.png",
     "/img\\windows.png",
+    "/api/foo",
     "https://example.com/banner.jpg",
   ])("rejects unsafe or remote-disallowed URLs: %s", (url) => {
     expect(isAllowedProgramArtworkUrl(url)).toBe(false);
