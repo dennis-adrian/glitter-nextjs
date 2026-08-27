@@ -30,7 +30,7 @@ const STALE_TERMS_MESSAGE =
 
 async function rejectIfTermsStale(
   actor: { role: string } | null | undefined,
-  userId: number,
+  participantIds: readonly number[],
   festivalId: number,
   tx: HoldTx,
 ) {
@@ -39,19 +39,21 @@ async function rejectIfTermsStale(
   }
 
   const publishedTerms = await fetchPublishedFestivalTermsVersion();
-  const participation = await tx.query.userRequests.findFirst({
-    where: and(
-      eq(userRequests.userId, userId),
-      eq(userRequests.festivalId, festivalId),
-      eq(userRequests.type, "festival_participation"),
-    ),
-    columns: { termsVersionId: true },
-  });
-  if (!publishedTerms || participation?.termsVersionId !== publishedTerms.id) {
-    return {
-      success: false as const,
-      message: STALE_TERMS_MESSAGE,
-    };
+  for (const userId of [...new Set(participantIds)]) {
+    const participation = await tx.query.userRequests.findFirst({
+      where: and(
+        eq(userRequests.userId, userId),
+        eq(userRequests.festivalId, festivalId),
+        eq(userRequests.type, "festival_participation"),
+      ),
+      columns: { termsVersionId: true },
+    });
+    if (!publishedTerms || participation?.termsVersionId !== publishedTerms.id) {
+      return {
+        success: false as const,
+        message: STALE_TERMS_MESSAGE,
+      };
+    }
   }
   return null;
 }
@@ -177,7 +179,7 @@ export async function createStandHold(
 
       const staleTerms = await rejectIfTermsStale(
         actor,
-        userId,
+        [userId],
         festivalId,
         tx,
       );
@@ -375,14 +377,6 @@ export async function confirmStandHold(
         };
       }
 
-      const staleTerms = await rejectIfTermsStale(
-        actor,
-        userId,
-        hold.festivalId,
-        tx,
-      );
-      if (staleTerms) return staleTerms;
-
       const participantIds = [
         ...new Set([userId, ...(partnerId ? [partnerId] : [])]),
       ];
@@ -392,6 +386,14 @@ export async function confirmStandHold(
           message: "El compañero no puede ser el usuario principal",
         };
       }
+
+      const staleTerms = await rejectIfTermsStale(
+        actor,
+        participantIds,
+        hold.festivalId,
+        tx,
+      );
+      if (staleTerms) return staleTerms;
 
       const participantRows = await tx
         .select({ id: users.id, status: users.status })

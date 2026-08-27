@@ -278,4 +278,48 @@ describe("stand hold sanction enforcement", () => {
     });
     expect(insert).not.toHaveBeenCalled();
   });
+
+  it("rejects confirmation when the partner has not accepted current terms", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const insert = vi.fn();
+    const select = vi.fn().mockImplementationOnce(() =>
+      holdSelection([
+        {
+          id: 20,
+          standId: 7,
+          festivalId: 10,
+          standFestivalId: 10,
+          standPrice: 100,
+        },
+      ]),
+    );
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ termsVersionId: 1 })
+      .mockResolvedValueOnce({ termsVersionId: 99 });
+    const tx = {
+      select,
+      insert,
+      query: {
+        userRequests: {
+          findFirst,
+        },
+      },
+    };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await confirmStandHold(20, 3, 4);
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "Tenés que aceptar la versión actual de los términos y condiciones.",
+      reservationId: undefined,
+    });
+    expect(findFirst).toHaveBeenCalledTimes(2);
+    expect(insert).not.toHaveBeenCalled();
+    expect(eligibilityMock).not.toHaveBeenCalled();
+  });
 });
