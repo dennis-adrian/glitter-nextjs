@@ -74,6 +74,8 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 let saveFestivalTermsDraft: (typeof import("@/app/lib/festival-terms/actions"))["saveFestivalTermsDraft"];
 
 const extraVersionIds: number[] = [];
+/** Document whose published row must be scoped during cleanup restore. */
+let restoreDocumentId: number | null = null;
 let seedPublishedIdToRestore: number | null = null;
 
 describeDatabase("festival terms draft save concurrency", () => {
@@ -104,16 +106,25 @@ describeDatabase("festival terms draft save concurrency", () => {
   afterEach(async () => {
     fetchDraftFestivalTermsVersion.mockReset();
     const db = integrationDb!;
-    if (seedPublishedIdToRestore != null) {
+    if (
+      seedPublishedIdToRestore != null &&
+      restoreDocumentId != null
+    ) {
       await db
         .update(festivalTermsVersions)
         .set({ status: "archived", updatedAt: new Date() })
-        .where(eq(festivalTermsVersions.status, "published"));
+        .where(
+          and(
+            eq(festivalTermsVersions.status, "published"),
+            eq(festivalTermsVersions.documentId, restoreDocumentId),
+          ),
+        );
       await db
         .update(festivalTermsVersions)
         .set({ status: "published", updatedAt: new Date() })
         .where(eq(festivalTermsVersions.id, seedPublishedIdToRestore));
       seedPublishedIdToRestore = null;
+      restoreDocumentId = null;
     }
     const leftover = extraVersionIds.splice(0);
     for (const versionId of leftover) {
@@ -195,6 +206,7 @@ describeDatabase("festival terms draft save concurrency", () => {
         eq(festivalTermsVersions.status, "published"),
       ),
     });
+    restoreDocumentId = document.id;
     seedPublishedIdToRestore = previousPublished?.id ?? null;
 
     await db
