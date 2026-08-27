@@ -9,6 +9,8 @@ import {
   clerkStatus,
   envForChildProcess,
   isPlaceholderValue,
+  isTestOrCiDatabaseUrl,
+  LOCAL_POSTGRES,
   mergeEnvSources,
   parseEnvFile,
   pickBestValue,
@@ -88,6 +90,54 @@ describe("sync-env-local", () => {
     expect(child.POSTGRES_URL).toContain("glitter_dev");
     expect(child.TEST_DATABASE_URL).toContain("glitter_test");
     expect(child.PATH).toBe("/usr/bin");
+  });
+
+  it("preserves an explicit test/ci POSTGRES_URL override for wrapped migrate", () => {
+    const testUrl = LOCAL_POSTGRES.TEST_DATABASE_URL;
+    const child = envForChildProcess(
+      {
+        POSTGRES_URL: LOCAL_POSTGRES.POSTGRES_URL,
+        TEST_DATABASE_URL: testUrl,
+      },
+      {
+        CLOUD_AGENT_ALL_SECRET_NAMES: "CLERK_SECRET_KEY",
+        // Mirrors `POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate`
+        POSTGRES_URL: testUrl,
+        TEST_DATABASE_URL: testUrl,
+        PATH: "/usr/bin",
+      },
+    );
+
+    expect(child.POSTGRES_URL).toBe(testUrl);
+    expect(child.POSTGRES_URL).toContain("glitter_test");
+    expect(child.POSTGRES_DATABASE).toBe("glitter_test");
+    expect(child.TEST_DATABASE_URL).toBe(testUrl);
+    expect(isTestOrCiDatabaseUrl(child.POSTGRES_URL)).toBe(true);
+  });
+
+  it("does not preserve a non-test/ci POSTGRES_URL override", () => {
+    const child = envForChildProcess(
+      {},
+      {
+        CLOUD_AGENT_ALL_SECRET_NAMES: "CLERK_SECRET_KEY",
+        POSTGRES_URL: "postgres://glitter:glitter@127.0.0.1:5432/glitter_staging",
+        PATH: "/usr/bin",
+      },
+    );
+    expect(child.POSTGRES_URL).toBe(LOCAL_POSTGRES.POSTGRES_URL);
+    expect(child.POSTGRES_DATABASE).toBe("glitter_dev");
+  });
+
+  it("package.json migrate script still routes through sync-env-local --exec", () => {
+    const pkg = JSON.parse(
+      readFileSync(join(process.cwd(), "package.json"), "utf8"),
+    ) as { scripts: Record<string, string> };
+    expect(pkg.scripts.migrate).toBe(
+      "tsx scripts/sync-env-local.ts --exec tsx scripts/migrate.ts",
+    );
+    expect(pkg.scripts["migrate:test"]).toBe(
+      'tsx scripts/sync-env-local.ts --exec sh -c \'POSTGRES_URL="$TEST_DATABASE_URL" exec tsx scripts/migrate.ts\'',
+    );
   });
 
   it("parses env files without treating comments as keys", () => {
