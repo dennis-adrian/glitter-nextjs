@@ -105,6 +105,8 @@ export const InteractionTest: Story = {
         canvas.getByRole("img", { name: "producto-nuevo.png" }),
       ).toBeVisible(),
     );
-    await expect(canvas.getByText("Imágenes persistidas: 3")).toBeVisible();
+    await waitFor(() =>
+      expect(canvas.getByText("Imágenes persistidas: 3")).toBeVisible(),
+    );
   },
 };

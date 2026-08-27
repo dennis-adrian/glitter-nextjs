@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { SingleImageUploadField } from "@/stories/uploads/components/single-image-upload-field";
 import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
@@ -69,13 +69,11 @@ export const InteractionTest: Story = {
       canvas.getByLabelText("Seleccionar imagen del perfil"),
       new File(["profile"], "nuevo-perfil.png", { type: "image/png" }),
     );
-    await waitFor(() =>
-      expect(
-        canvas.getByRole("img", { name: "Vista previa de imagen del perfil" }),
-      ).toBeVisible(),
-    );
-    await expect(canvas.getByRole("button", { name: "Quitar" })).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Quitar" }));
+    const removeButton = await canvas.findByRole("button", { name: "Quitar" });
+    await expect(
+      canvas.getByRole("img", { name: "Vista previa de imagen del perfil" }),
+    ).toBeVisible();
+    await userEvent.click(removeButton);
     await expect(
       canvas.queryByRole("img", { name: "Vista previa de imagen del perfil" }),
     ).not.toBeInTheDocument();

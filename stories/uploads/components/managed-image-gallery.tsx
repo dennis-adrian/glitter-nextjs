@@ -1,7 +1,7 @@
 "use client";
 
 import { ImagePlusIcon, Loader2Icon, StarIcon, Trash2Icon } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/app/components/ui/button";
 import { Progress } from "@/app/components/ui/progress";
@@ -44,6 +44,8 @@ export function ManagedImageGallery({
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [images, setImages] = useState(initialImages);
+  const onChangeRef = useRef(onChange);
+  const lastNotifiedImagesRef = useRef(images);
   const [pendingNames, setPendingNames] = useState<string[]>([]);
   const [currentUpload, setCurrentUpload] = useState<{
     name: string;
@@ -52,14 +54,20 @@ export function ManagedImageGallery({
   const [deletingIds, setDeletingIds] = useState(new Set<string>());
   const [error, setError] = useState<string>();
 
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    if (lastNotifiedImagesRef.current === images) return;
+    lastNotifiedImagesRef.current = images;
+    onChangeRef.current?.(images);
+  }, [images]);
+
   function updateImages(
     updater: (current: ManagedGalleryImage[]) => ManagedGalleryImage[],
   ) {
-    setImages((current) => {
-      const next = updater(current);
-      onChange?.(next);
-      return next;
-    });
+    setImages(updater);
   }
 
   async function addFiles(files: File[]) {

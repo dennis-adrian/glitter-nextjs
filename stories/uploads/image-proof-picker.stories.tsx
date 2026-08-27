@@ -67,7 +67,7 @@ export const InteractionTest: Story = {
     ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Quitar" }));
     await expect(
-      canvas.getByRole("button", { name: "Elegir una imagen" }),
+      canvas.getByRole("button", { name: /^Elegir una imagen/ }),
     ).toBeVisible();
   },
 };
