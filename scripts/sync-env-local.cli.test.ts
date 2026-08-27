@@ -3,9 +3,31 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  EXEC_USAGE,
   launchExecAfterSync,
+  parseExecArgs,
   syncEnvStatusExitCode,
 } from "@/scripts/sync-env-local";
+
+describe("parseExecArgs", () => {
+  it("returns empty exec when --exec is absent (sync-only)", () => {
+    expect(parseExecArgs([])).toEqual({ exec: [] });
+    expect(parseExecArgs(["--verbose"])).toEqual({ exec: [] });
+  });
+
+  it("returns a usage error when --exec is present with no command", () => {
+    const parsed = parseExecArgs(["--exec"]);
+    expect(parsed.exec).toEqual([]);
+    expect(parsed.error).toContain("Missing command after --exec");
+    expect(parsed.error).toContain(EXEC_USAGE);
+  });
+
+  it("parses the command and args after --exec", () => {
+    expect(parseExecArgs(["--exec", "tsx", "scripts/migrate.ts"])).toEqual({
+      exec: ["tsx", "scripts/migrate.ts"],
+    });
+  });
+});
 
 describe("sync-env-local --exec fail-closed", () => {
   it("exits 1 for Cloud Agent when Clerk is missing (same as bare env:sync)", () => {

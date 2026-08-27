@@ -20,10 +20,24 @@ function logResult(result: SyncEnvLocalResult) {
   }
 }
 
-export function parseExecArgs(argv: string[]): { exec: string[] } {
+export const EXEC_USAGE =
+  "usage: tsx scripts/sync-env-local.ts [--exec <command> [args...]]";
+
+/**
+ * Absent `--exec` → empty exec (sync-only).
+ * Present `--exec` with no following command → usage error (must not sync-only).
+ */
+export function parseExecArgs(argv: string[]): {
+  exec: string[];
+  error?: string;
+} {
   const execIndex = argv.indexOf("--exec");
   if (execIndex === -1) return { exec: [] };
-  return { exec: argv.slice(execIndex + 1) };
+  const exec = argv.slice(execIndex + 1);
+  if (exec.length === 0) {
+    return { exec: [], error: `Missing command after --exec. ${EXEC_USAGE}` };
+  }
+  return { exec };
 }
 
 /** Same status code as bare `pnpm env:sync` when Cloud Agent Clerk is missing. */
@@ -90,7 +104,12 @@ export function launchExecAfterSync(
 export function main(argv = process.argv.slice(2)): void {
   const result = syncEnvLocal();
   logResult(result);
-  const { exec } = parseExecArgs(argv);
+  const { exec, error } = parseExecArgs(argv);
+  if (error) {
+    console.error(error);
+    process.exit(1);
+    return;
+  }
   launchExecAfterSync(result, exec, {
     spawn,
     exit: (code) => {
