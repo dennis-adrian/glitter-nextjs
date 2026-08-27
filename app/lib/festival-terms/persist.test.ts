@@ -28,4 +28,27 @@ describe("renderTermsSectionHtml", () => {
     expect(html).toContain("click");
     expect(html).toContain("safe");
   });
+
+  it("renders image-only bodies via the blocksToSeedHtml fallback path", async () => {
+    const { renderTermsSectionHtml } = await import(
+      "@/app/lib/festival-terms/persist"
+    );
+
+    const html = await renderTermsSectionHtml("rich_text", [
+      { type: "image", props: { url: "/terms/diagram.png", name: "Diagrama" } },
+    ]);
+
+    expect(html).toContain('src="/terms/diagram.png"');
+    expect(html).toContain('alt="Diagrama"');
+  });
+
+  it("renders divider-only bodies via the blocksToSeedHtml fallback path", async () => {
+    const { renderTermsSectionHtml } = await import(
+      "@/app/lib/festival-terms/persist"
+    );
+
+    const html = await renderTermsSectionHtml("rich_text", [{ type: "divider" }]);
+
+    expect(html).toContain("<hr");
+  });
 });

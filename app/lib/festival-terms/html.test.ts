@@ -18,6 +18,22 @@ describe("blocksToSeedHtml", () => {
     expect(html).toContain("<li>Uno</li>");
     expect(html).toContain('href="https://example.com"');
   });
+
+  it("renders image-only bodies on the fallback path", () => {
+    const html = blocksToSeedHtml([
+      { type: "image", props: { url: "/a.png", name: "Diagrama" } },
+    ]);
+    expect(html).toBe('<img src="/a.png" alt="Diagrama" />');
+    expect(richTextBodyHasVisibleContent([{ type: "image", props: { url: "/a.png" } }])).toBe(
+      true,
+    );
+  });
+
+  it("renders divider-only bodies on the fallback path", () => {
+    const html = blocksToSeedHtml([{ type: "divider" }]);
+    expect(html).toBe("<hr />");
+    expect(richTextBodyHasVisibleContent([{ type: "divider" }])).toBe(true);
+  });
 });
 
 describe("richTextBodyHasVisibleContent", () => {

@@ -8,7 +8,12 @@ type InlineNode = {
 
 type BlockNode = {
   type?: string;
-  props?: { level?: number };
+  props?: {
+    level?: number;
+    url?: string;
+    name?: string;
+    previewWidth?: number;
+  };
   content?: InlineNode[];
   children?: BlockNode[];
 };
@@ -77,6 +82,21 @@ function groupBlocks(blocks: BlockNode[]): string {
 }
 
 function renderBlock(block: BlockNode): string {
+  if (block.type === "image") {
+    const url = typeof block.props?.url === "string" ? block.props.url : "";
+    const alt = typeof block.props?.name === "string" ? block.props.name : "";
+    let html = url
+      ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}"`
+      : `<img alt="${escapeHtml(alt)}"`;
+    if (typeof block.props?.previewWidth === "number") {
+      html += ` width="${block.props.previewWidth}"`;
+    }
+    return `${html} />`;
+  }
+  if (block.type === "divider") {
+    return "<hr />";
+  }
+
   const inner = renderInline(block.content);
   if (block.type === "heading") {
     const level = block.props?.level === 3 ? 3 : block.props?.level === 1 ? 1 : 2;
