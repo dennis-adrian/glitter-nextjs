@@ -13599,7 +13599,8 @@
       "schema": "public",
       "values": [
         "draft",
-        "published"
+        "published",
+        "archived"
       ]
     },
     "public.festival_type": {

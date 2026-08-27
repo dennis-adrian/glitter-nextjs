@@ -1,6 +1,6 @@
 CREATE TYPE "public"."festival_terms_section_kind" AS ENUM('rich_text', 'schedule');--> statement-breakpoint
 CREATE TYPE "public"."festival_terms_section_layout" AS ENUM('plain', 'accordion', 'card');--> statement-breakpoint
-CREATE TYPE "public"."festival_terms_version_status" AS ENUM('draft', 'published');--> statement-breakpoint
+CREATE TYPE "public"."festival_terms_version_status" AS ENUM('draft', 'published', 'archived');--> statement-breakpoint
 CREATE TABLE "festival_terms_documents" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"slug" text NOT NULL,
