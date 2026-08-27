@@ -21,7 +21,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Outline: Story = {
   args: {
-    buttonLabel: "Elige una imagen",
+    buttonLabel: "Elegí una imagen",
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);

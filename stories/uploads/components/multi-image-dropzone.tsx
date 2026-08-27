@@ -46,7 +46,7 @@ export function MultiImageDropzone({
   maxFiles = 5,
   maxSize = DEFAULT_MAX_IMAGE_SIZE,
   title = "Imágenes",
-  description = "Arrastra imágenes aquí o selecciónalas desde tu dispositivo.",
+  description = "Arrastrá imágenes aquí o seleccionálas desde tu dispositivo.",
   disabled = false,
 }: MultiImageDropzoneProps) {
   const inputId = useId();
@@ -69,7 +69,7 @@ export function MultiImageDropzone({
   function addFiles(files: File[]) {
     const availableSlots = Math.max(0, maxFiles - selected.length);
     if (availableSlots === 0) {
-      setError(`Solo puedes seleccionar ${maxFiles} imágenes.`);
+      setError(`Solo podés seleccionar ${maxFiles} imágenes.`);
       return;
     }
 
@@ -132,7 +132,7 @@ export function MultiImageDropzone({
       setUploadedCount(uploaded.length);
       clearSelection();
     } catch {
-      setError("No se pudieron subir las imágenes. Intenta de nuevo.");
+      setError("No se pudieron subir las imágenes. Intentá de nuevo.");
     } finally {
       setIsUploading(false);
       setProgress(0);

@@ -38,7 +38,7 @@ export function formatFileSize(bytes: number): string {
 
 export function validateImage(file: File, maxSize: number): string | undefined {
   if (!file.type.startsWith("image/")) {
-    return "Selecciona un archivo de imagen.";
+    return "Seleccioná un archivo de imagen.";
   }
   if (file.size > maxSize) {
     return `La imagen supera el máximo de ${formatFileSize(maxSize)}.`;

@@ -24,7 +24,7 @@ function ProofStory({ initialImage }: { initialImage?: UploadedImage }) {
       onClear={() => setImage(null)}
       upload={storybookUploadAdapter}
       title="Comprobante de pago"
-      instructions="Verifica que el monto y la referencia sean legibles."
+      instructions="Verificá que el monto y la referencia sean legibles."
     />
   );
 }
@@ -72,7 +72,7 @@ export const InteractionTest: Story = {
     ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Quitar" }));
     await expect(
-      canvas.getByRole("button", { name: /^Elegir una imagen/ }),
+      canvas.getByRole("button", { name: /^Elegí una imagen/ }),
     ).toBeVisible();
   },
 };

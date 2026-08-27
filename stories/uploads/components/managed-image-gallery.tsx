@@ -175,10 +175,10 @@ export function ManagedImageGallery({
             {title}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Elige una imagen principal · máximo {maxFiles} archivos de{" "}
+            Elegí una imagen principal · máximo {maxFiles} archivos de{" "}
             {formatFileSize(maxSize)}
             {fit === "cover"
-              ? " · arrastra una imagen para ajustar el recorte"
+              ? " · arrastrá una imagen para ajustar el recorte"
               : ""}
           </p>
         </div>
@@ -303,7 +303,7 @@ export function ManagedImageGallery({
           >
             <span className="grid justify-items-center gap-2">
               <ImagePlusIcon className="size-8" />
-              Añade la primera imagen
+              Añadí la primera imagen
             </span>
           </button>
         ) : null}

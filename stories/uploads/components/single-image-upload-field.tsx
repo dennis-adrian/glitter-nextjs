@@ -120,7 +120,7 @@ export function SingleImageUploadField({
       });
       setLocalPreview(undefined);
     } catch {
-      setError("No se pudo subir la imagen. Intenta de nuevo.");
+      setError("No se pudo subir la imagen. Intentá de nuevo.");
     } finally {
       setIsUploading(false);
       setProgress(0);
@@ -187,7 +187,7 @@ export function SingleImageUploadField({
       </div>
       {previewUrl && fit === "cover" ? (
         <p className="text-xs text-muted-foreground">
-          Arrastra la imagen o usa las flechas para elegir el recorte.
+          Arrastrá la imagen o usá las flechas para elegir el recorte.
         </p>
       ) : null}
 

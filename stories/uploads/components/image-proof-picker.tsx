@@ -43,7 +43,7 @@ export function ImageProofPicker({
   onClear,
   upload,
   title = "Comprobante",
-  instructions = "Selecciona una foto legible antes de confirmar.",
+  instructions = "Seleccioná una foto legible antes de confirmar.",
   confirmLabel = "Subir comprobante",
   accept = "image/*",
   maxSize = DEFAULT_MAX_IMAGE_SIZE,
@@ -98,7 +98,7 @@ export function ImageProofPicker({
       onUploaded(uploaded);
       resetSelection();
     } catch {
-      setError("No se pudo subir el comprobante. Intenta de nuevo.");
+      setError("No se pudo subir el comprobante. Intentá de nuevo.");
     } finally {
       setIsUploading(false);
     }
@@ -178,7 +178,7 @@ export function ImageProofPicker({
             <span className="grid size-12 place-items-center rounded-full bg-muted">
               <ImageIcon className="size-6 text-muted-foreground" />
             </span>
-            <span className="text-sm font-medium">Elegir una imagen</span>
+            <span className="text-sm font-medium">Elegí una imagen</span>
             <span className="text-xs text-muted-foreground">
               Hasta {formatFileSize(maxSize)}
             </span>
