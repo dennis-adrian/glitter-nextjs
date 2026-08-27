@@ -64,22 +64,17 @@ describeDatabase("festival terms publish archives previous", () => {
   afterEach(async () => {
     const db = integrationDb!;
     const ids = createdVersionIds.splice(0);
-    for (const id of ids) {
-      await db
-        .delete(festivalTermsVersions)
-        .where(eq(festivalTermsVersions.id, id));
-    }
     if (seedPublishedId != null) {
-      const current = await db.query.festivalTermsVersions.findFirst({
+      const seed = await db.query.festivalTermsVersions.findFirst({
         where: eq(festivalTermsVersions.id, seedPublishedId),
       });
-      if (current && current.status !== "published") {
+      if (seed && seed.status !== "published") {
         await db
           .update(festivalTermsVersions)
           .set({ status: "archived", updatedAt: new Date() })
           .where(
             and(
-              eq(festivalTermsVersions.documentId, current.documentId),
+              eq(festivalTermsVersions.documentId, seed.documentId),
               eq(festivalTermsVersions.status, "published"),
             ),
           );
@@ -88,6 +83,12 @@ describeDatabase("festival terms publish archives previous", () => {
           .set({ status: "published", updatedAt: new Date() })
           .where(eq(festivalTermsVersions.id, seedPublishedId));
       }
+    }
+    for (const id of ids) {
+      if (id === seedPublishedId) continue;
+      await db
+        .delete(festivalTermsVersions)
+        .where(eq(festivalTermsVersions.id, id));
     }
   });
 

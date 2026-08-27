@@ -115,7 +115,7 @@ describeDatabase("festival terms schema and acceptance", () => {
       with: { sections: true },
     });
     expect(published?.status).toBe("published");
-    expect(published?.versionNumber).toBeGreaterThanOrEqual(1);
+    expect(published?.versionNumber).toBe(1);
     expect(published?.sections.length).toBeGreaterThanOrEqual(19);
     expect(published?.sections.some((section) => section.kind === "schedule")).toBe(
       true,
