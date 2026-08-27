@@ -1653,6 +1653,13 @@
       "when": 1787626198061,
       "tag": "0235_ambiguous_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 236,
+      "version": "7",
+      "when": 1787629966401,
+      "tag": "0236_manageable_categories",
+      "breakpoints": true
     }
   ]
 }

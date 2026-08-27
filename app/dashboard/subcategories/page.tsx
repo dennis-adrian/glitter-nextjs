@@ -1,10 +1,5 @@
-import SubcategoriesPage from "@/app/components/subcategories/pages/subcategories";
-import { Suspense } from "react";
+import { permanentRedirect } from "next/navigation";
 
-export default async function Page() {
-  return (
-    <Suspense fallback={<div>Cargando...</div>}>
-      <SubcategoriesPage />
-    </Suspense>
-  );
+export default function LegacySubcategoriesPage() {
+  permanentRedirect("/dashboard/categories");
 }

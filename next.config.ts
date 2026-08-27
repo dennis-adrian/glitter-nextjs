@@ -19,7 +19,21 @@ const nextConfig: NextConfig = {
     ];
   },
   skipTrailingSlashRedirect: true,
+  async redirects() {
+    return [
+      {
+        source: "/dashboard/subcategories",
+        destination: "/dashboard/categories",
+        permanent: true,
+      },
+    ];
+  },
   reactCompiler: true,
+  serverExternalPackages: [
+    "@blocknote/server-util",
+    "jsdom",
+    "isomorphic-dompurify",
+  ],
   outputFileTracingIncludes: {
     // Turbopack matches this key with "contains" semantics against the raw
     // entry name (`app/api/.../route`), so it must not start with a slash.

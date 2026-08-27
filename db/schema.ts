@@ -72,6 +72,11 @@ export const storeStatusModeEnum = pgEnum("store_status_mode", [
   "closed",
 ]);
 export const storeSectionEnum = pgEnum("store_section", ["merch", "supplies"]);
+export const categoryVisibilityEnum = pgEnum("category_visibility", [
+  "hidden",
+  "listed",
+  "selectable",
+]);
 
 export const users = pgTable(
   "users",
@@ -242,14 +247,38 @@ export const profileTagsRelations = relations(profileTags, ({ one }) => ({
   }),
 }));
 
-export const subcategories = pgTable("subcategories", {
-  id: serial("id").primaryKey(),
-  label: text("name").notNull(),
-  descrption: text("description"),
-  category: userCategoryEnum("category").notNull().default("none"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const subcategories = pgTable(
+  "subcategories",
+  {
+    id: serial("id").primaryKey(),
+    label: text("name").notNull(),
+    descriptionJson: jsonb("description_json"),
+    descriptionHtml: text("description_html"),
+    imageUrl: text("image_url"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    visibility: categoryVisibilityEnum("visibility")
+      .default("selectable")
+      .notNull(),
+    isExclusive: boolean("is_exclusive").default(false).notNull(),
+    isAdminAssignableOnly: boolean("is_admin_assignable_only")
+      .default(false)
+      .notNull(),
+    category: userCategoryEnum("category").notNull().default("none"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("subcategories_category_lower_label_unique").on(
+      table.category,
+      sql`lower(${table.label})`,
+    ),
+    index("subcategories_visibility_category_sort_idx").on(
+      table.visibility,
+      table.category,
+      table.sortOrder,
+    ),
+  ],
+);
 export const subcategoriesRelations = relations(subcategories, ({ many }) => ({
   profileSubcategories: many(profileSubcategories),
   standSubcategories: many(standSubcategories),
