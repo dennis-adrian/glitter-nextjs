@@ -65,6 +65,18 @@ export async function requireAdminOrFestivalAdmin() {
   return profile;
 }
 
+/**
+ * Returns the current profile when the caller is an admin.
+ * Festival admins are not admitted. Returns null when unauthenticated or unauthorized.
+ */
+export async function requireAdmin() {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return null;
+  }
+  return profile;
+}
+
 type ProtectRouteOptions = {
   allowedStatuses?: BaseProfile["status"][];
 };

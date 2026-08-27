@@ -4,7 +4,7 @@ import { Button } from "@/app/components/ui/button";
 import CompleteProfileModal from "@/app/components/user_profile/complete-profile-modal";
 import PrivateProfileOverview from "@/app/components/user_profile/private_profile/overview";
 import PublicProfile from "@/app/components/user_profile/public_profile/profile";
-import { fetchSubcategories } from "@/app/lib/subcategories/actions";
+import { fetchSelectableCategories } from "@/app/lib/categories/queries";
 import { ArrowRightIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -13,7 +13,7 @@ type UserProfileProps = {
 };
 
 export default async function UserProfile({ profile }: UserProfileProps) {
-  const subcategories = fetchSubcategories();
+  const subcategories = fetchSelectableCategories();
 
   return (
     <div className="container p-3 md:p-6 flex flex-col gap-2">

@@ -5,6 +5,10 @@ import Tag from "@/app/components/molecules/tag";
 import { Separator } from "@/app/components/ui/separator";
 import CategoriesForm from "@/app/components/user_profile/creation-process/categories-form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
+import {
+  filterPickerOptions,
+  withExclusiveSelection,
+} from "@/app/lib/categories/filters";
 import { useState } from "react";
 
 const categoriesWithLabel: {
@@ -48,32 +52,11 @@ export default function Categories({
   };
 
   const filterSubcategories = (category: UserCategory) => {
-    // if skincare is selected, the user shouldn't be able to select other subcategories
-    const selectedSubcagetegoriesLabels = selectedSubcategories.map((sub) =>
-      sub.label.toLowerCase(),
+    return filterPickerOptions(
+      subcategories,
+      selectedSubcategories,
+      category,
     );
-    if (selectedSubcagetegoriesLabels.join(" ").includes("skin")) return [];
-
-    const filteredSubcategories = subcategories.filter((subcategory) => {
-      // we don't want users to select the "sublimación" subcategory at all
-      if (subcategory.label.toLowerCase().includes("sublimación")) return false;
-      // if there are any subcategories selected, we don't want to show the "skincare" subcategory
-      if (
-        subcategory.label.toLowerCase().includes("skin") &&
-        selectedSubcategories.length > 0
-      ) {
-        return false;
-      }
-
-      return (
-        subcategory.category === category &&
-        !selectedSubcategories.map((sub) => sub.id).includes(subcategory.id)
-      );
-    });
-
-    return filteredSubcategories.sort((a, b) => {
-      return a.label.localeCompare(b.label);
-    });
   };
 
   return (
@@ -156,7 +139,7 @@ const SelectedCategoryCard = ({
   selectedSubcategories: Subcategory[];
 }) => {
   const handleAddSubcategory = (subcategory: Subcategory) => {
-    onSelectSubcategory([...selectedSubcategories, subcategory]);
+    onSelectSubcategory(withExclusiveSelection(selectedSubcategories, subcategory));
   };
 
   const handleRemoveSubcategory = (subcategory: Subcategory) => {
@@ -201,9 +184,9 @@ const SelectedCategoryCard = ({
             ))}
           </div>
         )}
-        {category === "entrepreneurship" && (
+        {subcategories.some((row) => row.isExclusive) && (
           <p className="text-xs md:text-sm text-muted-foreground mt-3">
-            * La categoría Skincare no se puede seleccionar junto con otras
+            * Las categorías exclusivas no se pueden seleccionar junto con otras
             categorías.
           </p>
         )}

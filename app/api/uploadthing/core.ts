@@ -344,6 +344,24 @@ export const ourFileRouter = {
       }
       return { imageUrl, imageId: record.id };
     }),
+  categoryImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .middleware(async () => {
+      const user = await currentUser();
+      if (!user) throw new UploadThingError("Debes iniciar sesión");
+
+      const profile = await fetchUserProfile(user.id);
+      if (!profile || profile.role !== "admin") {
+        throw new UploadThingError(
+          "No tienes permisos para subir imágenes de categorías",
+        );
+      }
+
+      return { userId: user.id };
+    })
+    .onUploadComplete(({ file }) => ({
+      imageUrl: (file as { url: string }).url,
+      fileKey: (file as { key?: string }).key,
+    })),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
