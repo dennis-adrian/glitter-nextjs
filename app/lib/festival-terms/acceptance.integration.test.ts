@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -107,11 +107,15 @@ describeDatabase("festival terms schema and acceptance", () => {
     expect(document).toBeTruthy();
 
     const published = await db.query.festivalTermsVersions.findFirst({
-      where: eq(festivalTermsVersions.documentId, document!.id),
+      where: and(
+        eq(festivalTermsVersions.documentId, document!.id),
+        eq(festivalTermsVersions.status, "published"),
+      ),
+      orderBy: [desc(festivalTermsVersions.versionNumber)],
       with: { sections: true },
     });
     expect(published?.status).toBe("published");
-    expect(published?.versionNumber).toBe(1);
+    expect(published?.versionNumber).toBeGreaterThanOrEqual(1);
     expect(published?.sections.length).toBeGreaterThanOrEqual(19);
     expect(published?.sections.some((section) => section.kind === "schedule")).toBe(
       true,

@@ -102,14 +102,30 @@ describeDatabase("festival terms publish archives previous", () => {
     });
     expect(document).toBeTruthy();
 
-    await expect(
-      db.insert(festivalTermsVersions).values({
+    let insertError: unknown;
+    try {
+      await db.insert(festivalTermsVersions).values({
         documentId: document!.id,
         versionNumber: 20_000 + Math.floor(Math.random() * 1000),
         status: "published",
         publishedAt: new Date(),
-      }),
-    ).rejects.toThrow(/festival_terms_versions_one_published_per_document|unique/i);
+      });
+    } catch (error) {
+      insertError = error;
+    }
+    expect(insertError).toBeTruthy();
+    const message = [
+      insertError instanceof Error ? insertError.message : String(insertError),
+      insertError &&
+      typeof insertError === "object" &&
+      "cause" in insertError &&
+      insertError.cause instanceof Error
+        ? insertError.cause.message
+        : "",
+    ].join("\n");
+    expect(message).toMatch(
+      /festival_terms_versions_one_published_per_document|unique|duplicate key/i,
+    );
   });
 
   it("archives existing published rows before promoting a draft (publish path)", async () => {
