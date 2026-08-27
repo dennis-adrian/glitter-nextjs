@@ -34,8 +34,10 @@ const initialImages: ManagedGalleryImage[] = [
 
 function GalleryStory({
   images = initialImages,
+  fit = "contain",
 }: {
   images?: ManagedGalleryImage[];
+  fit?: "contain" | "cover";
 }) {
   const [count, setCount] = useState(images.length);
   return (
@@ -46,6 +48,7 @@ function GalleryStory({
         onChange={(nextImages) => setCount(nextImages.length)}
         onDelete={async () => undefined}
         title="Imágenes del producto"
+        fit={fit}
       />
       <output className="text-sm text-muted-foreground">
         Imágenes persistidas: {count}
@@ -64,6 +67,25 @@ type Story = StoryObj<typeof meta>;
 
 export const WithImages: Story = {
   render: () => <GalleryStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("img", { name: "Mascota" })).toHaveAttribute(
+      "data-image-fit",
+      "contain",
+    );
+  },
+};
+
+export const ProductThumbnailsFill: Story = {
+  render: () => <GalleryStory fit="cover" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const image = canvas.getByRole("img", { name: "Mascota" });
+    await expect(image).toHaveAttribute("data-image-fit", "cover");
+    await userEvent.click(image);
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(image).toHaveStyle({ objectPosition: "50% 45%" });
+  },
 };
 
 export const Empty: Story = {

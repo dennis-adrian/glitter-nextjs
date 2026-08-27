@@ -58,6 +58,11 @@ export const InteractionTest: Story = {
         name: "Vista previa de comprobante de pago",
       }),
     ).toBeVisible();
+    await expect(
+      canvas.getByRole("img", {
+        name: "Vista previa de comprobante de pago",
+      }),
+    ).toHaveAttribute("data-image-fit", "contain");
     await userEvent.click(
       canvas.getByRole("button", { name: "Subir comprobante" }),
     );

@@ -6,6 +6,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Progress } from "@/app/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { FittedImage } from "@/stories/uploads/components/fitted-image";
+import type { ImageFit } from "@/stories/uploads/components/image-object-position";
 import {
   DEFAULT_MAX_IMAGE_SIZE,
   formatFileSize,
@@ -26,6 +28,11 @@ type ManagedImageGalleryProps = {
   maxFiles?: number;
   maxSize?: number;
   title?: string;
+  /**
+   * How thumbnails sit in each tile. `contain` (default) shows the whole
+   * image. `cover` fills the tile like a product card; drag to choose the crop.
+   */
+  fit?: ImageFit;
 };
 
 /**
@@ -40,6 +47,7 @@ export function ManagedImageGallery({
   maxFiles = 10,
   maxSize = DEFAULT_MAX_IMAGE_SIZE,
   title = "Galería de imágenes",
+  fit = "contain",
 }: ManagedImageGalleryProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -121,6 +129,17 @@ export function ManagedImageGallery({
     );
   }
 
+  function setImagePosition(
+    id: string,
+    objectPosition: ManagedGalleryImage["objectPosition"],
+  ) {
+    updateImages((current) =>
+      current.map((image) =>
+        image.id === id ? { ...image, objectPosition } : image,
+      ),
+    );
+  }
+
   async function deleteImage(image: ManagedGalleryImage) {
     setDeletingIds((current) => new Set(current).add(image.id));
     try {
@@ -158,6 +177,9 @@ export function ManagedImageGallery({
           <p className="text-sm text-muted-foreground">
             Elige una imagen principal · máximo {maxFiles} archivos de{" "}
             {formatFileSize(maxSize)}
+            {fit === "cover"
+              ? " · arrastra una imagen para ajustar el recorte"
+              : ""}
           </p>
         </div>
         <Button
@@ -193,16 +215,23 @@ export function ManagedImageGallery({
             <article
               key={image.id}
               className={cn(
-                "group relative overflow-hidden rounded-xl border-2 bg-muted",
+                "group relative aspect-square overflow-hidden rounded-xl border-2 bg-muted",
                 image.isPrimary ? "border-primary" : "border-transparent",
                 isDeleting && "opacity-50",
               )}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <FittedImage
                 src={image.url}
                 alt={image.name}
-                className="aspect-square w-full object-cover"
+                fit={fit}
+                position={image.objectPosition}
+                onPositionChange={
+                  fit === "cover"
+                    ? (objectPosition) =>
+                        setImagePosition(image.id, objectPosition)
+                    : undefined
+                }
+                disabled={isDeleting}
               />
               {image.isPrimary ? (
                 <span className="absolute bottom-2 left-2 rounded-full bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">

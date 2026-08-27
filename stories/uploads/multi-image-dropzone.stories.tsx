@@ -49,6 +49,9 @@ export const InteractionTest: Story = {
     ]);
     await expect(canvas.getByText("escenario.png")).toBeVisible();
     await expect(canvas.getByText("público.png")).toBeVisible();
+    await expect(
+      canvas.getByRole("img", { name: "escenario.png" }),
+    ).toHaveAttribute("data-image-fit", "contain");
     await userEvent.click(
       canvas.getByRole("button", { name: "Quitar público.png" }),
     );

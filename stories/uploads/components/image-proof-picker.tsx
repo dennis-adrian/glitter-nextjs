@@ -12,6 +12,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/app/components/ui/button";
 import { Progress } from "@/app/components/ui/progress";
+import { FittedImage } from "@/stories/uploads/components/fitted-image";
 import {
   DEFAULT_MAX_IMAGE_SIZE,
   formatFileSize,
@@ -134,11 +135,9 @@ export function ImageProofPicker({
       {visibleUrl ? (
         <div className="grid gap-3">
           <div className="relative mx-auto aspect-3/4 w-52 overflow-hidden rounded-lg border bg-muted">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <FittedImage
               src={visibleUrl}
               alt={`Vista previa de ${title.toLowerCase()}`}
-              className="size-full object-cover"
             />
             {uploadedImage && !selectedFile ? (
               <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">

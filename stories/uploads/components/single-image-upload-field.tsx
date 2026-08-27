@@ -6,6 +6,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Progress } from "@/app/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { FittedImage } from "@/stories/uploads/components/fitted-image";
+import {
+  DEFAULT_IMAGE_OBJECT_POSITION,
+  type ImageFit,
+  type ImageObjectPosition,
+} from "@/stories/uploads/components/image-object-position";
 import {
   DEFAULT_MAX_IMAGE_SIZE,
   formatFileSize,
@@ -24,6 +30,12 @@ type SingleImageUploadFieldProps = {
   accept?: string;
   maxSize?: number;
   previewShape?: "circle" | "landscape" | "square";
+  /**
+   * How the image sits in the preview frame. `contain` (default) shows the
+   * whole image. `cover` fills the frame — use it for avatars and cropped
+   * product shots, then pan to choose the visible area.
+   */
+  fit?: ImageFit;
   disabled?: boolean;
 };
 
@@ -47,6 +59,7 @@ export function SingleImageUploadField({
   accept = "image/*",
   maxSize = DEFAULT_MAX_IMAGE_SIZE,
   previewShape = "square",
+  fit = "contain",
   disabled = false,
 }: SingleImageUploadFieldProps) {
   const inputId = useId();
@@ -55,12 +68,29 @@ export function SingleImageUploadField({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string>();
   const [isUploading, setIsUploading] = useState(false);
+  const [draftPosition, setDraftPosition] = useState<ImageObjectPosition>(
+    value?.objectPosition ?? DEFAULT_IMAGE_OBJECT_POSITION,
+  );
+  const draftPositionRef = useRef(draftPosition);
+  draftPositionRef.current = draftPosition;
+
+  useEffect(() => {
+    setDraftPosition(value?.objectPosition ?? DEFAULT_IMAGE_OBJECT_POSITION);
+  }, [value?.id]);
 
   useEffect(() => {
     return () => {
       if (localPreview) URL.revokeObjectURL(localPreview);
     };
   }, [localPreview]);
+
+  function updatePosition(next: ImageObjectPosition) {
+    setDraftPosition(next);
+    draftPositionRef.current = next;
+    if (value && !localPreview) {
+      onChange({ ...value, objectPosition: next });
+    }
+  }
 
   async function selectFile(file: File) {
     const validationError = validateImage(file, maxSize);
@@ -71,6 +101,8 @@ export function SingleImageUploadField({
 
     setError(undefined);
     setProgress(0);
+    setDraftPosition(DEFAULT_IMAGE_OBJECT_POSITION);
+    draftPositionRef.current = DEFAULT_IMAGE_OBJECT_POSITION;
     setLocalPreview(URL.createObjectURL(file));
     setIsUploading(true);
     try {
@@ -79,7 +111,10 @@ export function SingleImageUploadField({
         setError("La carga no devolvió ninguna imagen.");
         return;
       }
-      onChange(uploaded);
+      onChange({
+        ...uploaded,
+        objectPosition: draftPositionRef.current,
+      });
       setLocalPreview(undefined);
     } catch {
       setError("No se pudo subir la imagen. Intenta de nuevo.");
@@ -91,6 +126,9 @@ export function SingleImageUploadField({
   }
 
   const previewUrl = localPreview ?? value?.url;
+  const position = localPreview
+    ? draftPosition
+    : (value?.objectPosition ?? draftPosition);
 
   return (
     <section className="grid w-full gap-3" aria-labelledby={`${inputId}-label`}>
@@ -110,12 +148,13 @@ export function SingleImageUploadField({
         )}
       >
         {previewUrl ? (
-          // Storybook prototype supports object URLs and arbitrary remote URLs.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <FittedImage
             src={previewUrl}
             alt={`Vista previa de ${label.toLowerCase()}`}
-            className="size-full object-cover"
+            fit={fit}
+            position={position}
+            onPositionChange={fit === "cover" ? updatePosition : undefined}
+            disabled={disabled}
           />
         ) : (
           <button
@@ -142,6 +181,11 @@ export function SingleImageUploadField({
           </div>
         ) : null}
       </div>
+      {previewUrl && fit === "cover" ? (
+        <p className="text-xs text-muted-foreground">
+          Arrastra la imagen o usa las flechas para elegir el recorte.
+        </p>
+      ) : null}
 
       <input
         ref={inputRef}

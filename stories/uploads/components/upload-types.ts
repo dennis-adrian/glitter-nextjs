@@ -1,8 +1,16 @@
+import type { ImageObjectPosition } from "@/stories/uploads/components/image-object-position";
+
+export type {
+  ImageFit,
+  ImageObjectPosition,
+} from "@/stories/uploads/components/image-object-position";
+
 export type UploadedImage = {
   id: string;
   name: string;
   size: number;
   url: string;
+  objectPosition?: ImageObjectPosition;
 };
 
 export type UploadOptions = {

@@ -12,6 +12,7 @@ import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Progress } from "@/app/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { FittedImage } from "@/stories/uploads/components/fitted-image";
 import {
   DEFAULT_MAX_IMAGE_SIZE,
   formatFileSize,
@@ -221,14 +222,9 @@ export function MultiImageDropzone({
             {selected.map((image, index) => (
               <li
                 key={`${image.file.name}-${index}`}
-                className="group relative overflow-hidden rounded-lg border bg-muted"
+                className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={image.previewUrl}
-                  alt={image.file.name}
-                  className="aspect-square w-full object-cover"
-                />
+                <FittedImage src={image.previewUrl} alt={image.file.name} />
                 <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-black/65 p-2 text-white">
                   <span className="min-w-0 flex-1 truncate text-xs">
                     {image.file.name}

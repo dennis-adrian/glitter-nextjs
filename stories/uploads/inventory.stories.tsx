@@ -4,7 +4,8 @@ import { expect, within } from "storybook/test";
 const reusableComponents = [
   {
     name: "SingleImageUploadField",
-    useCases: "Avatares, logos, banners, arte y campos de una imagen",
+    useCases:
+      "Avatares, logos, banners y arte; contain por defecto, cover con recorte",
   },
   {
     name: "ImageProofPicker",
@@ -16,7 +17,8 @@ const reusableComponents = [
   },
   {
     name: "ManagedImageGallery",
-    useCases: "Galerías persistidas con imagen principal y eliminación",
+    useCases:
+      "Galerías persistidas con imagen principal, eliminación y recorte cover",
   },
 ] as const;
 
