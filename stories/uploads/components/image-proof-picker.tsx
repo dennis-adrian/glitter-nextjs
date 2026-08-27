@@ -133,9 +133,9 @@ export function ImageProofPicker({
       />
 
       {visibleUrl ? (
-        <div className="grid justify-items-center gap-2">
-          <div className="relative w-52">
-            <div className="relative aspect-3/4 overflow-hidden rounded-lg border bg-muted">
+        <div className="grid w-full gap-2">
+          <div className="relative w-full">
+            <div className="relative aspect-3/4 w-full overflow-hidden rounded-lg border bg-muted">
               <FittedImage
                 src={visibleUrl}
                 alt={`Vista previa de ${title.toLowerCase()}`}
@@ -162,7 +162,7 @@ export function ImageProofPicker({
             ) : null}
           </div>
           {selectedFile ? (
-            <p className="max-w-52 truncate text-center text-sm">
+            <p className="truncate text-center text-sm">
               {selectedFile.name}
               <span className="block text-xs text-muted-foreground">
                 {formatFileSize(selectedFile.size)}
@@ -217,7 +217,6 @@ export function ImageProofPicker({
           ) : (
             <Button
               type="button"
-              variant="outline"
               className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
               onClick={() => inputRef.current?.click()}
             >
