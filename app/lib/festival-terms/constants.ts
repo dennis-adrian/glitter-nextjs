@@ -14,4 +14,8 @@ export const TERMS_FESTIVAL_TYPES = [
 
 export const TERMS_SECTION_KINDS = ["rich_text", "schedule"] as const;
 export const TERMS_SECTION_LAYOUTS = ["plain", "accordion", "card"] as const;
-export const TERMS_VERSION_STATUSES = ["draft", "published"] as const;
+export const TERMS_VERSION_STATUSES = [
+  "draft",
+  "published",
+  "archived",
+] as const;

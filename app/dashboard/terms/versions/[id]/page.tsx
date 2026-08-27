@@ -35,7 +35,11 @@ export default async function FestivalTermsVersionPage({ params }: PageProps) {
         <h1 className="text-2xl font-semibold">
           Versión {version.versionNumber}{" "}
           <span className="text-base font-normal text-muted-foreground">
-            {version.status === "published" ? "publicada" : "borrador"}
+            {version.status === "published"
+              ? "publicada"
+              : version.status === "archived"
+                ? "archivada"
+                : "borrador"}
           </span>
         </h1>
         <p className="text-sm text-muted-foreground">

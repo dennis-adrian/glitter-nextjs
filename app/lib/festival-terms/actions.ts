@@ -252,6 +252,19 @@ export async function publishFestivalTermsDraft(input: unknown) {
         parsed.data.sections,
       );
 
+      await tx
+        .update(festivalTermsVersions)
+        .set({
+          status: "archived",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(festivalTermsVersions.documentId, currentDraft.documentId),
+            eq(festivalTermsVersions.status, "published"),
+          ),
+        );
+
       const [published] = await tx
         .update(festivalTermsVersions)
         .set({

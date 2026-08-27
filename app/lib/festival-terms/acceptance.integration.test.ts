@@ -50,6 +50,8 @@ type Fixture = {
   festivalBId: number;
   requestId: number;
   extraVersionIds: number[];
+  /** Seed published version temporarily archived for the test; restore after cleanup. */
+  restorePublishedVersionId?: number;
 };
 
 const fixtures: Fixture[] = [];
@@ -81,6 +83,14 @@ describeDatabase("festival terms schema and acceptance", () => {
         await db
           .delete(festivalTermsVersions)
           .where(eq(festivalTermsVersions.id, versionId));
+      }
+      if (fixture.restorePublishedVersionId != null) {
+        await db
+          .update(festivalTermsVersions)
+          .set({ status: "published", updatedAt: new Date() })
+          .where(
+            eq(festivalTermsVersions.id, fixture.restorePublishedVersionId),
+          );
       }
     }
   });
@@ -275,6 +285,10 @@ describeDatabase("festival terms schema and acceptance", () => {
         termsVersionId: published!.id,
       })
       .returning();
+    await db
+      .update(festivalTermsVersions)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(festivalTermsVersions.id, published!.id));
     const [newVersion] = await db
       .insert(festivalTermsVersions)
       .values({
@@ -292,6 +306,7 @@ describeDatabase("festival terms schema and acceptance", () => {
       festivalBId: festivalB.id,
       requestId: request.id,
       extraVersionIds: [newVersion.id],
+      restorePublishedVersionId: published!.id,
     });
 
     const profile = {

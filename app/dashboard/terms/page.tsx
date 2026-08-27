@@ -137,7 +137,11 @@ export default async function FestivalTermsDashboardPage() {
                       </Link>
                     </td>
                     <td className="py-2 pr-3">
-                      {version.status === "published" ? "Publicada" : "Borrador"}
+                      {version.status === "published"
+                        ? "Publicada"
+                        : version.status === "archived"
+                          ? "Archivada"
+                          : "Borrador"}
                     </td>
                     <td className="py-2 pr-3">
                       {version.publishedAt

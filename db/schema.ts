@@ -558,7 +558,7 @@ export const externalParticipantTypeEnum = pgEnum("external_participant_type", [
 
 export const festivalTermsVersionStatusEnum = pgEnum(
   "festival_terms_version_status",
-  ["draft", "published"],
+  ["draft", "published", "archived"],
 );
 export const festivalTermsSectionKindEnum = pgEnum(
   "festival_terms_section_kind",
@@ -571,8 +571,9 @@ export const festivalTermsSectionLayoutEnum = pgEnum(
 
 /**
  * Global participant terms document. One row (`festival-participant-terms`).
- * Current published copy is the highest published version; drafts are cloned
- * from that snapshot and become immutable once published.
+ * At most one version is `published` per document (older ones are `archived`);
+ * `fetchPublishedFestivalTermsVersion` returns that row. Drafts are cloned
+ * from the published snapshot and become immutable once published.
  */
 export const festivalTermsDocuments = pgTable("festival_terms_documents", {
   id: serial("id").primaryKey(),
@@ -618,6 +619,9 @@ export const festivalTermsVersions = pgTable(
     uniqueIndex("festival_terms_versions_one_draft_per_document")
       .on(table.documentId)
       .where(sql`${table.status} = 'draft'`),
+    uniqueIndex("festival_terms_versions_one_published_per_document")
+      .on(table.documentId)
+      .where(sql`${table.status} = 'published'`),
     index("festival_terms_versions_document_status_idx").on(
       table.documentId,
       table.status,
