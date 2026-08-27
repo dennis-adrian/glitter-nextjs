@@ -49,7 +49,7 @@ const fixtures: Fixture[] = [];
 
 describeDatabase("countStaleActiveFestivalAcceptances", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     ({ countStaleActiveFestivalAcceptances } = await import(
       "@/app/lib/festival-terms/queries"
     ));
@@ -97,6 +97,10 @@ describeDatabase("countStaleActiveFestivalAcceptances", () => {
       orderBy: [desc(festivalTermsVersions.versionNumber)],
     });
     expect(published).toBeTruthy();
+
+    const baselineCount = await countStaleActiveFestivalAcceptances(
+      published!.id,
+    );
 
     const [staleVersion] = await db
       .insert(festivalTermsVersions)
@@ -168,6 +172,6 @@ describeDatabase("countStaleActiveFestivalAcceptances", () => {
     });
 
     const count = await countStaleActiveFestivalAcceptances(published!.id);
-    expect(count).toBe(1);
+    expect(count).toBe(baselineCount + 1);
   });
 });
