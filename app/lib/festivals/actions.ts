@@ -956,9 +956,17 @@ export async function updateFestivalRegistration(
 }
 
 export async function updateFestivalParticipantTerms(
-  participantTermsEnabled: FestivalBase["participantTermsEnabled"],
   festivalId: FestivalBase["id"],
+  participantTermsEnabled: FestivalBase["participantTermsEnabled"],
 ) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!Number.isInteger(festivalId) || festivalId <= 0) {
+    return { success: false, message: "Festival inválido" };
+  }
+
   try {
     await db
       .update(festivals)

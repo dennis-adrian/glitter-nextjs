@@ -17,10 +17,14 @@ export default function UpdateFestivalParticipantTermsForm({
 }) {
   const form = useForm();
 
+  const updateParticipantTermsForFestival = updateFestivalParticipantTerms.bind(
+    null,
+    festival.id,
+  );
+
   const action: () => void = form.handleSubmit(async () => {
-    const res = await updateFestivalParticipantTerms(
+    const res = await updateParticipantTermsForFestival(
       !festival.participantTermsEnabled,
-      festival.id,
     );
 
     if (res.success) {
