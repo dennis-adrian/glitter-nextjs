@@ -7,6 +7,9 @@ const imagePool = [
   "/img/profile-default-banner.png",
 ] as const;
 
+/** Monotonic id suffix so repeated filenames stay unique across adapter calls. */
+let nextUploadId = 0;
+
 function wait(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -24,7 +27,7 @@ export const storybookUploadAdapter: ImageUploadAdapter = async (
   await wait(30);
 
   return files.map((file, index) => ({
-    id: `storybook-${file.name}-${index}`,
+    id: `storybook-${file.name}-${nextUploadId++}`,
     name: file.name,
     size: file.size,
     url: imagePool[index % imagePool.length],
