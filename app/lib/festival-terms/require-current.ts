@@ -4,7 +4,7 @@ import type { FestivalBase } from "@/app/lib/festivals/definitions";
 import type { ProfileType } from "@/app/api/users/definitions";
 
 export async function profileNeedsTermsReacceptance(
-  festival: Pick<FestivalBase, "id" | "status">,
+  festival: Pick<FestivalBase, "id" | "status" | "participantTermsEnabled">,
   profile: ProfileType | null | undefined,
 ) {
   const published = await fetchPublishedFestivalTermsVersion();
