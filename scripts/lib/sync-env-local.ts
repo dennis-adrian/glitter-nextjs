@@ -10,6 +10,26 @@ export const LOCAL_POSTGRES = {
   TEST_DATABASE_URL: "postgres://glitter:glitter@127.0.0.1:5432/glitter_test",
 } as const;
 
+/** Same rule as AGENTS.md / integration tests: only test|ci DB names are safe overrides. */
+export const TEST_OR_CI_DATABASE_NAME_RE = /(^|[_-])(test|ci)([_-]|$)/i;
+
+export function databaseNameFromPostgresUrl(
+  url: string | undefined,
+): string | null {
+  if (!url) return null;
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
+export function isTestOrCiDatabaseUrl(url: string | undefined): boolean {
+  const name = databaseNameFromPostgresUrl(url);
+  return name != null && TEST_OR_CI_DATABASE_NAME_RE.test(name);
+}
+
 export const ENV_KEY_ORDER = [
   "CLERK_SECRET_KEY",
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
@@ -58,6 +78,28 @@ export function isPlaceholderValue(value: string | undefined): boolean {
 
 export function isUsableSecretValue(value: string | undefined): boolean {
   return !isPlaceholderValue(value);
+}
+
+/**
+ * Cloud Agent default is LOCAL_POSTGRES (dev DB). An explicit POSTGRES_URL in the
+ * parent env is preserved only when it targets a test/ci database (e.g.
+ * `POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate`).
+ */
+export function applyLocalPostgresDefaults(
+  target: Record<string, string>,
+  processEnv: NodeJS.Dict<string>,
+): void {
+  const explicitUrl = processEnv.POSTGRES_URL;
+  const preserveTestOverride =
+    isUsableSecretValue(explicitUrl) && isTestOrCiDatabaseUrl(explicitUrl);
+
+  Object.assign(target, LOCAL_POSTGRES);
+
+  if (preserveTestOverride && explicitUrl) {
+    target.POSTGRES_URL = explicitUrl;
+    const dbName = databaseNameFromPostgresUrl(explicitUrl);
+    if (dbName) target.POSTGRES_DATABASE = dbName;
+  }
 }
 
 export function cloudSecretNames(env: NodeJS.Dict<string> = process.env): string[] {
@@ -225,7 +267,7 @@ export function envForChildProcess(
     }
   }
   if (isCloudAgentEnv(processEnv)) {
-    Object.assign(env, LOCAL_POSTGRES);
+    applyLocalPostgresDefaults(env, processEnv);
   }
   const nodeEnv = processEnv.NODE_ENV ?? process.env.NODE_ENV;
   if (typeof nodeEnv === "string" && !isPlaceholderValue(nodeEnv)) {
@@ -304,7 +346,7 @@ export function applySyncedEnvToProcess(options?: {
     }
   }
   if (result.cloudAgent || isCloudAgentEnv(target)) {
-    Object.assign(target, LOCAL_POSTGRES);
+    applyLocalPostgresDefaults(target as Record<string, string>, processEnv);
   }
   return result;
 }
