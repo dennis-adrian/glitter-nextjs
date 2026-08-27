@@ -173,17 +173,17 @@ export function ImageProofPicker({
       ) : (
         <button
           type="button"
-          className="grid min-h-56 place-items-center rounded-xl border-2 border-dashed p-6 text-center transition-colors hover:bg-muted/40"
+          className="flex min-h-56 w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed p-6 text-center transition-colors hover:bg-muted/40"
           onClick={() => inputRef.current?.click()}
         >
-          <span className="grid justify-items-center gap-2">
-            <span className="grid size-12 place-items-center rounded-full bg-muted">
-              <ImageIcon className="size-6 text-muted-foreground" />
-            </span>
-            <span className="text-sm font-medium">Elegí una imagen</span>
-            <span className="text-xs text-muted-foreground">
-              Hasta {formatFileSize(maxSize)}
-            </span>
+          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-muted">
+            <ImageIcon className="size-6 text-muted-foreground" />
+          </span>
+          <span className="text-sm font-medium leading-snug">
+            Elegí una imagen
+          </span>
+          <span className="text-xs leading-snug text-muted-foreground">
+            Hasta {formatFileSize(maxSize)}
           </span>
         </button>
       )}
@@ -198,33 +198,31 @@ export function ImageProofPicker({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        {selectedFile ? (
-          <Button
-            type="button"
-            className="min-h-11 flex-1 gap-2 touch-manipulation"
-            disabled={isUploading}
-            onClick={() => void confirmUpload()}
-          >
-            {isUploading ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <UploadIcon className="size-4" />
-            )}
-            {isUploading ? "Subiendo..." : confirmLabel}
-          </Button>
-        ) : uploadedImage ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 gap-2 touch-manipulation"
-            onClick={() => inputRef.current?.click()}
-          >
-            <RefreshCwIcon className="size-4" />
-            Reemplazar
-          </Button>
-        ) : null}
-      </div>
+      {selectedFile ? (
+        <Button
+          type="button"
+          className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
+          disabled={isUploading}
+          onClick={() => void confirmUpload()}
+        >
+          {isUploading ? (
+            <Loader2Icon className="size-4 shrink-0 animate-spin" />
+          ) : (
+            <UploadIcon className="size-4 shrink-0" />
+          )}
+          {isUploading ? "Subiendo..." : confirmLabel}
+        </Button>
+      ) : uploadedImage ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
+          onClick={() => inputRef.current?.click()}
+        >
+          <RefreshCwIcon className="size-4 shrink-0" />
+          Reemplazar
+        </Button>
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-sm text-destructive">

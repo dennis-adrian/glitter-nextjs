@@ -172,7 +172,7 @@ export function MultiImageDropzone({
 
       <div
         className={cn(
-          "grid min-h-48 place-items-center rounded-xl border-2 border-dashed p-6 text-center transition-colors",
+          "rounded-xl border-2 border-dashed transition-colors",
           isDragging
             ? "border-primary bg-primary/5"
             : "border-muted-foreground/30 hover:border-primary/60 hover:bg-muted/30",
@@ -188,15 +188,15 @@ export function MultiImageDropzone({
       >
         <button
           type="button"
-          className="grid justify-items-center gap-2"
+          className="flex min-h-48 w-full flex-col items-center justify-center gap-1.5 p-6 text-center"
           disabled={disabled || isUploading}
           onClick={() => inputRef.current?.click()}
         >
-          <span className="grid size-12 place-items-center rounded-full bg-muted">
+          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-muted">
             <UploadCloudIcon className="size-6 text-muted-foreground" />
           </span>
-          <span className="font-medium">Seleccionar imágenes</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="font-medium leading-snug">Seleccionar imágenes</span>
+          <span className="text-xs leading-snug text-muted-foreground">
             Máximo {maxFiles} · {formatFileSize(maxSize)} cada una
           </span>
         </button>
@@ -256,14 +256,14 @@ export function MultiImageDropzone({
 
       <Button
         type="button"
-        className="min-h-11 gap-2 touch-manipulation"
+        className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
         disabled={disabled || isUploading || selected.length === 0}
         onClick={() => void uploadSelected()}
       >
         {isUploading ? (
           <Loader2Icon className="size-4 animate-spin" />
         ) : (
-          <ImagesIcon className="size-4" />
+          <ImagesIcon className="size-4 shrink-0" />
         )}
         {isUploading
           ? "Subiendo..."

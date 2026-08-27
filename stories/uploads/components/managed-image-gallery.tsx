@@ -169,7 +169,7 @@ export function ManagedImageGallery({
       className="grid w-full max-w-3xl gap-4"
       aria-labelledby={`${inputId}-title`}
     >
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="grid gap-3">
         <div>
           <h3 id={`${inputId}-title`} className="font-semibold">
             {title}
@@ -184,12 +184,11 @@ export function ManagedImageGallery({
         </div>
         <Button
           type="button"
-          size="sm"
-          className="min-h-11 gap-2 touch-manipulation"
+          className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
           disabled={isUploading || images.length >= maxFiles}
           onClick={() => inputRef.current?.click()}
         >
-          <ImagePlusIcon className="size-4" />
+          <ImagePlusIcon className="size-4 shrink-0" />
           Añadir imágenes
         </Button>
       </div>
@@ -300,13 +299,11 @@ export function ManagedImageGallery({
         {images.length === 0 && !isUploading ? (
           <button
             type="button"
-            className="col-span-2 grid min-h-48 place-items-center rounded-xl border-2 border-dashed text-sm text-muted-foreground sm:col-span-3 md:col-span-4"
+            className="col-span-2 flex min-h-48 flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed p-6 text-center text-sm text-muted-foreground sm:col-span-3 md:col-span-4"
             onClick={() => inputRef.current?.click()}
           >
-            <span className="grid justify-items-center gap-2">
-              <ImagePlusIcon className="size-8" />
-              Añadí la primera imagen
-            </span>
+            <ImagePlusIcon className="size-8 shrink-0" />
+            <span className="leading-snug">Añadí la primera imagen</span>
           </button>
         ) : null}
       </div>
