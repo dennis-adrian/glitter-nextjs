@@ -31,7 +31,7 @@ function ProofStory({ initialImage }: { initialImage?: UploadedImage }) {
 
 const meta = {
   title: "Uploads/Reusable Components/Image Proof Picker",
-  parameters: { layout: "centered" },
+  parameters: { layout: "padded" },
 } satisfies Meta;
 
 export default meta;

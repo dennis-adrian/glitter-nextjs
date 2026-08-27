@@ -254,23 +254,25 @@ export function MultiImageDropzone({
         </div>
       ) : null}
 
-      <Button
-        type="button"
-        className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
-        disabled={disabled || isUploading || selected.length === 0}
-        onClick={() => void uploadSelected()}
-      >
-        {isUploading ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
-          <ImagesIcon className="size-4 shrink-0" />
-        )}
-        {isUploading
-          ? "Subiendo..."
-          : `Subir ${selected.length || ""} ${
-              selected.length === 1 ? "imagen" : "imágenes"
-            }`.trim()}
-      </Button>
+      <div className="grid w-full">
+        <Button
+          type="button"
+          className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
+          disabled={disabled || isUploading || selected.length === 0}
+          onClick={() => void uploadSelected()}
+        >
+          {isUploading ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : (
+            <ImagesIcon className="size-4 shrink-0" />
+          )}
+          {isUploading
+            ? "Subiendo..."
+            : `Subir ${selected.length || ""} ${
+                selected.length === 1 ? "imagen" : "imágenes"
+              }`.trim()}
+        </Button>
+      </div>
 
       {uploadedCount > 0 ? (
         <p

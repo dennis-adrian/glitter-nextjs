@@ -54,7 +54,7 @@ const existingImage: UploadedImage = {
 
 const meta = {
   title: "Uploads/Reusable Components/Single Image Upload Field",
-  parameters: { layout: "centered" },
+  parameters: { layout: "padded" },
 } satisfies Meta;
 
 export default meta;

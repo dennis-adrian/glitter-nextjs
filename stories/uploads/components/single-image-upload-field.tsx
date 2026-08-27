@@ -242,19 +242,21 @@ export function SingleImageUploadField({
           }}
         />
 
-        <Button
-          type="button"
-          className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
-          disabled={disabled || isUploading}
-          onClick={() => inputRef.current?.click()}
-        >
-          {isUploading ? (
-            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <UploadIcon className="size-4 shrink-0" aria-hidden="true" />
-          )}
-          {value || localPreview ? "Cambiar imagen" : "Seleccionar imagen"}
-        </Button>
+        <div className="grid w-full">
+          <Button
+            type="button"
+            className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
+            disabled={disabled || isUploading}
+            onClick={() => inputRef.current?.click()}
+          >
+            {isUploading ? (
+              <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <UploadIcon className="size-4 shrink-0" aria-hidden="true" />
+            )}
+            {value || localPreview ? "Cambiar imagen" : "Seleccionar imagen"}
+          </Button>
+        </div>
       </div>
 
       {error ? (

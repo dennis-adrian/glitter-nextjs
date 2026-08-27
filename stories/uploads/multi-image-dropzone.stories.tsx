@@ -24,7 +24,7 @@ function DropzoneStory({ maxFiles = 5 }: { maxFiles?: number }) {
 
 const meta = {
   title: "Uploads/Reusable Components/Multi Image Dropzone",
-  parameters: { layout: "centered" },
+  parameters: { layout: "padded" },
 } satisfies Meta;
 
 export default meta;

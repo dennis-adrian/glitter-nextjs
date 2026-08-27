@@ -182,15 +182,17 @@ export function ManagedImageGallery({
               : ""}
           </p>
         </div>
-        <Button
-          type="button"
-          className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
-          disabled={isUploading || images.length >= maxFiles}
-          onClick={() => inputRef.current?.click()}
-        >
-          <ImagePlusIcon className="size-4 shrink-0" />
-          Añadir imágenes
-        </Button>
+        <div className="grid w-full">
+          <Button
+            type="button"
+            className="h-auto min-h-11 w-full justify-center gap-2 whitespace-normal touch-manipulation"
+            disabled={isUploading || images.length >= maxFiles}
+            onClick={() => inputRef.current?.click()}
+          >
+            <ImagePlusIcon className="size-4 shrink-0" />
+            Añadir imágenes
+          </Button>
+        </div>
       </div>
 
       <input

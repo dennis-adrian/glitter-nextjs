@@ -59,7 +59,7 @@ function GalleryStory({
 
 const meta = {
   title: "Uploads/Reusable Components/Managed Image Gallery",
-  parameters: { layout: "centered" },
+  parameters: { layout: "padded" },
 } satisfies Meta;
 
 export default meta;
