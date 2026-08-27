@@ -94,6 +94,12 @@ export const saveDraftSchema = z
   })
   .superRefine(refineExactlyOneSchedule);
 
+/**
+ * Used by `publishFestivalTermsDraft` before any DB write.
+ * Participant-visible content = at least one `rich_text` section whose
+ * `bodyJson` would not render as empty under `renderTermsSectionHtml`
+ * (see `richTextBodyHasVisibleContent`). Schedule alone is not enough.
+ */
 export const publishDraftSchema = z
   .object({
     changelog: z.string().trim().max(2000).optional(),
