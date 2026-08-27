@@ -117,6 +117,28 @@ export function cloudSecretNames(env: NodeJS.Dict<string> = process.env): string
   return [...names];
 }
 
+/** Decode escapes produced by `encodeEnvValue` (`\\`, `\"`, `\\n`). */
+export function unescapeEnvValue(value: string): string {
+  let out = "";
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === "\\" && i + 1 < value.length) {
+      const next = value[i + 1]!;
+      if (next === "n") {
+        out += "\n";
+        i++;
+        continue;
+      }
+      if (next === '"' || next === "\\") {
+        out += next;
+        i++;
+        continue;
+      }
+    }
+    out += value[i]!;
+  }
+  return out;
+}
+
 export function parseEnvFile(contents: string): Record<string, string> {
   const parsed: Record<string, string> = {};
   for (const line of contents.split(/\r?\n/)) {
@@ -127,10 +149,10 @@ export function parseEnvFile(contents: string): Record<string, string> {
     const key = trimmed.slice(0, eq).trim();
     let value = trimmed.slice(eq + 1);
     if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
+      (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
     ) {
-      value = value.slice(1, -1);
+      value = unescapeEnvValue(value.slice(1, -1));
     }
     parsed[key] = value;
   }

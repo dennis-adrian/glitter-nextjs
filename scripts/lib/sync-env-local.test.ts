@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   applySyncedEnvToProcess,
   clerkStatus,
+  encodeEnvValue,
   envForChildProcess,
   isPlaceholderValue,
   isTestOrCiDatabaseUrl,
@@ -148,6 +149,25 @@ describe("sync-env-local", () => {
       CLERK_SECRET_KEY: "sk_test_x",
       NEXT_PUBLIC_BASE_URL: "http://localhost:3000",
     });
+  });
+
+  it("round-trips quotes, backslashes, and newlines via encode/parse", () => {
+    const cases = {
+      WITH_QUOTES: 'say "hello"',
+      WITH_BACKSLASH: "path\\to\\file",
+      WITH_NEWLINE: "line1\nline2",
+      COMBINED: 'a\\"b\nc',
+    };
+
+    const serialized = Object.entries(cases)
+      .map(([key, value]) => `${key}=${encodeEnvValue(value)}`)
+      .join("\n");
+
+    expect(serialized).toContain('\\"');
+    expect(serialized).toContain("\\\\");
+    expect(serialized).toContain("\\n");
+
+    expect(parseEnvFile(serialized)).toEqual(cases);
   });
 
   it("strips placeholder shell values and keeps PATH when applying a synced file", () => {
