@@ -134,6 +134,8 @@ export async function getOrCreateFestivalTermsDraft() {
   return { success: true as const, draft: loaded };
 }
 
+const DRAFT_UNAVAILABLE_MESSAGE = "El borrador ya no está disponible";
+
 async function replaceDraftSections(
   draftId: number,
   documentId: number,
@@ -141,28 +143,29 @@ async function replaceDraftSections(
   changelog: string | undefined,
 ) {
   await db.transaction(async (tx) => {
-    const draft = await tx.query.festivalTermsVersions.findFirst({
-      where: and(
-        eq(festivalTermsVersions.id, draftId),
-        eq(festivalTermsVersions.documentId, documentId),
-        eq(festivalTermsVersions.status, "draft"),
-      ),
-    });
-    if (!draft) {
-      throw new Error("El borrador ya no está disponible");
-    }
-
-    await tx
-      .delete(festivalTermsSections)
-      .where(eq(festivalTermsSections.versionId, draft.id));
-    await insertFestivalTermsSections(tx, draft.id, sections);
-    await tx
+    const [updated] = await tx
       .update(festivalTermsVersions)
       .set({
         changelog: changelog?.trim() || null,
         updatedAt: new Date(),
       })
-      .where(eq(festivalTermsVersions.id, draft.id));
+      .where(
+        and(
+          eq(festivalTermsVersions.id, draftId),
+          eq(festivalTermsVersions.documentId, documentId),
+          eq(festivalTermsVersions.status, "draft"),
+        ),
+      )
+      .returning({ id: festivalTermsVersions.id });
+
+    if (!updated) {
+      throw new Error(DRAFT_UNAVAILABLE_MESSAGE);
+    }
+
+    await tx
+      .delete(festivalTermsSections)
+      .where(eq(festivalTermsSections.versionId, updated.id));
+    await insertFestivalTermsSections(tx, updated.id, sections);
   });
 }
 
@@ -194,7 +197,11 @@ export async function saveFestivalTermsDraft(input: unknown) {
     );
   } catch (error) {
     console.error("Error saving festival terms draft", error);
-    return { success: false as const, message: "Error al guardar el borrador" };
+    const message =
+      error instanceof Error && error.message === DRAFT_UNAVAILABLE_MESSAGE
+        ? DRAFT_UNAVAILABLE_MESSAGE
+        : "Error al guardar el borrador";
+    return { success: false as const, message };
   }
 
   revalidateTermsPaths();

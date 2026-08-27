@@ -19,7 +19,7 @@
     "vercel-build": "pnpm generate && pnpm migrate && next build",
     "email": "email dev --dir app/emails",
     "test": "vitest",
-    "test:integration": "tsx scripts/sync-env-local.ts --exec node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/categories/migration.integration.test.ts app/lib/orders/actions.integration.test.ts app/lib/orders/adjustments.integration.test.ts app/lib/orders/category-correction.integration.test.ts app/lib/festival-terms/acceptance.integration.test.ts",
+    "test:integration": "tsx scripts/sync-env-local.ts --exec node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/categories/migration.integration.test.ts app/lib/orders/actions.integration.test.ts app/lib/orders/adjustments.integration.test.ts app/lib/orders/category-correction.integration.test.ts app/lib/festival-terms/acceptance.integration.test.ts app/lib/festival-terms/actions.integration.test.ts",
     "test:e2e": "playwright test",
     "format:write": "prettier --write .",
     "format:check": "prettier --check ."
