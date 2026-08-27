@@ -597,7 +597,7 @@ export default function FestivalTermsEditor({
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-sm flex-col">
               <FestivalTermsPreviewPanel {...previewPanelProps} />
             </div>
           </div>
