@@ -5,7 +5,9 @@ import { buildInitialFestivalTermsSections } from "@/app/lib/festival-terms/seed
 describe("initial festival terms seed", () => {
   it("includes a schedule slot and audience-tagged addenda", () => {
     const sections = buildInitialFestivalTermsSections();
-    expect(sections.some((section) => section.kind === "schedule")).toBe(true);
+    expect(sections.filter((section) => section.kind === "schedule")).toHaveLength(
+      1,
+    );
     expect(
       sections.some(
         (section) =>

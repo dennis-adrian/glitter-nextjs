@@ -99,6 +99,7 @@ function SortableSectionCard({
   onChange: (next: EditorTermsSection) => void;
   onRemove: () => void;
 }) {
+  const isSchedule = section.kind === "schedule";
   const {
     attributes,
     listeners,
@@ -138,9 +139,22 @@ function SortableSectionCard({
             </p>
           </div>
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onRemove}
+          disabled={isSchedule}
+          title={
+            isSchedule
+              ? "La sección de horarios no se puede eliminar"
+              : undefined
+          }
+        >
           <Trash2Icon className="size-4" />
-          <span className="sr-only">Eliminar sección</span>
+          <span className="sr-only">
+            {isSchedule ? "No se puede eliminar horarios" : "Eliminar sección"}
+          </span>
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -157,24 +171,30 @@ function SortableSectionCard({
           </div>
           <div className="space-y-1.5">
             <Label>Tipo</Label>
-            <Select
-              value={section.kind}
-              onValueChange={(value) =>
-                onChange({
-                  ...section,
-                  kind: value as EditorTermsSection["kind"],
-                  bodyJson: value === "schedule" ? null : section.bodyJson,
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="rich_text">{KIND_LABELS.rich_text}</SelectItem>
-                <SelectItem value="schedule">{KIND_LABELS.schedule}</SelectItem>
-              </SelectContent>
-            </Select>
+            {isSchedule ? (
+              <p className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
+                {KIND_LABELS.schedule}
+              </p>
+            ) : (
+              <Select
+                value={section.kind}
+                onValueChange={(value) =>
+                  onChange({
+                    ...section,
+                    kind: value as EditorTermsSection["kind"],
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rich_text">
+                    {KIND_LABELS.rich_text}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Presentación</Label>
@@ -433,11 +453,12 @@ export default function FestivalTermsEditor({
                         ),
                       )
                     }
-                    onRemove={() =>
+                    onRemove={() => {
+                      if (section.kind === "schedule") return;
                       setSections((current) =>
                         current.filter((item) => item.clientId !== section.clientId),
-                      )
-                    }
+                      );
+                    }}
                   />
                 ))}
               </div>
@@ -453,6 +474,10 @@ export default function FestivalTermsEditor({
             <PlusIcon className="mr-2 size-4" />
             Agregar sección
           </Button>
+          <p className="text-xs text-muted-foreground">
+            Los horarios son una sola sección fija: se puede reordenar, no
+            editar ni duplicar.
+          </p>
         </div>
 
         <aside className="space-y-3 xl:sticky xl:top-24 xl:self-start">

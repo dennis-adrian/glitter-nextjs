@@ -25,6 +25,36 @@ import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
+const STALE_TERMS_MESSAGE =
+  "Tenés que aceptar la versión actual de los términos y condiciones.";
+
+async function rejectIfTermsStale(
+  actor: { role: string } | null | undefined,
+  userId: number,
+  festivalId: number,
+  tx: HoldTx,
+) {
+  if (actor?.role === "admin" || actor?.role === "festival_admin") {
+    return null;
+  }
+
+  const publishedTerms = await fetchPublishedFestivalTermsVersion();
+  const participation = await tx.query.userRequests.findFirst({
+    where: and(
+      eq(userRequests.userId, userId),
+      eq(userRequests.festivalId, festivalId),
+      eq(userRequests.type, "festival_participation"),
+    ),
+    columns: { termsVersionId: true },
+  });
+  if (!publishedTerms || participation?.termsVersionId !== publishedTerms.id) {
+    return {
+      success: false as const,
+      message: STALE_TERMS_MESSAGE,
+    };
+  }
+  return null;
+}
 
 function canActOnBehalfOfUser(
   actor: { id: number; role: string } | null | undefined,
@@ -145,27 +175,13 @@ export async function createStandHold(
         };
       }
 
-      if (actor?.role !== "admin" && actor?.role !== "festival_admin") {
-        const publishedTerms = await fetchPublishedFestivalTermsVersion();
-        const participation = await tx.query.userRequests.findFirst({
-          where: and(
-            eq(userRequests.userId, userId),
-            eq(userRequests.festivalId, festivalId),
-            eq(userRequests.type, "festival_participation"),
-          ),
-          columns: { termsVersionId: true },
-        });
-        if (
-          !publishedTerms ||
-          participation?.termsVersionId !== publishedTerms.id
-        ) {
-          return {
-            success: false,
-            message:
-              "Tenés que aceptar la versión actual de los términos y condiciones.",
-          };
-        }
-      }
+      const staleTerms = await rejectIfTermsStale(
+        actor,
+        userId,
+        festivalId,
+        tx,
+      );
+      if (staleTerms) return staleTerms;
 
       const blocked = await rejectIfAnyParticipantIsIneligible(
         [userId],
@@ -358,6 +374,14 @@ export async function confirmStandHold(
             "La reserva temporal no coincide con el festival del espacio",
         };
       }
+
+      const staleTerms = await rejectIfTermsStale(
+        actor,
+        userId,
+        hold.festivalId,
+        tx,
+      );
+      if (staleTerms) return staleTerms;
 
       const participantIds = [
         ...new Set([userId, ...(partnerId ? [partnerId] : [])]),

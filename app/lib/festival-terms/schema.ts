@@ -20,16 +20,33 @@ export const editorTermsSectionSchema = z.object({
   audienceFestivalTypes: z.array(termsFestivalTypeSchema),
 });
 
-export const saveDraftSchema = z.object({
-  changelog: z.string().trim().max(2000).optional(),
-  sections: z.array(editorTermsSectionSchema).min(1, {
-    error: "Agregá al menos una sección",
-  }),
-});
+export const EXACTLY_ONE_SCHEDULE_MESSAGE =
+  "Tiene que haber exactamente una sección de horarios. Podés moverla, no eliminarla ni editar los horarios.";
 
-export const publishDraftSchema = saveDraftSchema.extend({
-  changelog: z.string().trim().max(2000).optional(),
-});
+export function scheduleSectionCount(
+  sections: Array<{ kind: string }>,
+): number {
+  return sections.filter((section) => section.kind === "schedule").length;
+}
+
+export const saveDraftSchema = z
+  .object({
+    changelog: z.string().trim().max(2000).optional(),
+    sections: z.array(editorTermsSectionSchema).min(1, {
+      error: "Agregá al menos una sección",
+    }),
+  })
+  .superRefine((data, ctx) => {
+    if (scheduleSectionCount(data.sections) !== 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sections"],
+        message: EXACTLY_ONE_SCHEDULE_MESSAGE,
+      });
+    }
+  });
+
+export const publishDraftSchema = saveDraftSchema;
 
 export type SaveDraftInput = z.infer<typeof saveDraftSchema>;
 export type PublishDraftInput = z.infer<typeof publishDraftSchema>;

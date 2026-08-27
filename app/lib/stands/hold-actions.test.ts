@@ -180,7 +180,15 @@ describe("stand hold sanction enforcement", () => {
           ]),
         })),
       }));
-    const tx = { select, insert };
+    const tx = {
+      select,
+      insert,
+      query: {
+        userRequests: {
+          findFirst: vi.fn().mockResolvedValue({ termsVersionId: 1 }),
+        },
+      },
+    };
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -198,6 +206,76 @@ describe("stand hold sanction enforcement", () => {
       { userId: 4, festivalId: 10 },
       tx,
     );
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects hold creation when the participant has not accepted current terms", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const insert = vi.fn();
+    const tx = {
+      select: vi.fn(() =>
+        standSelection([{ id: 7, status: "available", festivalId: 10 }]),
+      ),
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ status: "verified" }),
+        },
+        userRequests: {
+          findFirst: vi.fn().mockResolvedValue({ termsVersionId: 99 }),
+        },
+      },
+      insert,
+    };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await createStandHold(7, 3, 10);
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "Tenés que aceptar la versión actual de los términos y condiciones.",
+    });
+    expect(insert).not.toHaveBeenCalled();
+    expect(eligibilityMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects confirmation when terms were republished after the hold started", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const insert = vi.fn();
+    const select = vi.fn().mockImplementationOnce(() =>
+      holdSelection([
+        {
+          id: 20,
+          standId: 7,
+          festivalId: 10,
+          standFestivalId: 10,
+          standPrice: 100,
+        },
+      ]),
+    );
+    const tx = {
+      select,
+      insert,
+      query: {
+        userRequests: {
+          findFirst: vi.fn().mockResolvedValue({ termsVersionId: 99 }),
+        },
+      },
+    };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await confirmStandHold(20, 3);
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "Tenés que aceptar la versión actual de los términos y condiciones.",
+      reservationId: undefined,
+    });
     expect(insert).not.toHaveBeenCalled();
   });
 });
