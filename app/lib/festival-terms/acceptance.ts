@@ -40,7 +40,7 @@ export function needsFestivalTermsReacceptance(
   if (festival.status !== "active") return false;
   const request = getFestivalParticipationRequest(profile, festival.id);
   if (!request) return false;
-  if (currentVersionId == null) return true;
+  if (currentVersionId == null) return false;
   return request.termsVersionId !== currentVersionId;
 }
 

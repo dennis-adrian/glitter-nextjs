@@ -59,6 +59,23 @@ describe("festival terms acceptance", () => {
     ).toBe(false);
   });
 
+  it("does not require re-acceptance when no published version exists", () => {
+    expect(
+      needsFestivalTermsReacceptance(
+        { id: 10, status: "active" },
+        profile(3),
+        null,
+      ),
+    ).toBe(false);
+    expect(
+      needsFestivalTermsReacceptance(
+        { id: 10, status: "active" },
+        profile(null),
+        undefined,
+      ),
+    ).toBe(false);
+  });
+
   it("decides insert, reaccept, or noop when writing an enrollment", () => {
     expect(nextEnrollmentTermsWrite(null, 4)).toEqual({ type: "insert" });
     expect(nextEnrollmentTermsWrite({ termsVersionId: 3 }, 4)).toEqual({

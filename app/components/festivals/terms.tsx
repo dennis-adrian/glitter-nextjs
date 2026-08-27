@@ -68,8 +68,13 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
     props.festival.id,
     currentVersionId,
   );
-  const needsReacceptance = Boolean(participationRequest) && !acceptedCurrent;
+  const needsReacceptance =
+    currentVersionId != null &&
+    Boolean(participationRequest) &&
+    !acceptedCurrent;
   const enrolled = isProfileInFestival(props.festival.id, props.forProfile);
+  const canContinueWithoutPublishedTerms =
+    enrolled && currentVersionId == null;
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-6">
@@ -171,23 +176,25 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
           </p>
         )}
 
-        {acceptedCurrent ? (
+        {acceptedCurrent || canContinueWithoutPublishedTerms ? (
           <>
-            <div className="text-sm w-full text-muted-foreground text-pretty mt-6">
-              {mapCategory === "gastronomy" &&
-              participationRequest?.status === "pending" ? (
-                <>
-                  Gracias por aceptar los términos y condiciones. La
-                  organización evaluará tu participación en el sector
-                  gastronómico y te notificará si has sido aprobado.
-                </>
-              ) : (
-                <>
-                  Gracias por aceptar los términos y condiciones. Para continuar
-                  con tu reserva hacé clic en el botón de abajo.
-                </>
-              )}
-            </div>
+            {acceptedCurrent ? (
+              <div className="text-sm w-full text-muted-foreground text-pretty mt-6">
+                {mapCategory === "gastronomy" &&
+                participationRequest?.status === "pending" ? (
+                  <>
+                    Gracias por aceptar los términos y condiciones. La
+                    organización evaluará tu participación en el sector
+                    gastronómico y te notificará si has sido aprobado.
+                  </>
+                ) : (
+                  <>
+                    Gracias por aceptar los términos y condiciones. Para
+                    continuar con tu reserva hacé clic en el botón de abajo.
+                  </>
+                )}
+              </div>
+            ) : null}
             {enrolled ? (
               <div className="flex justify-end mt-4">
                 <RedirectButton
@@ -199,7 +206,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
               </div>
             ) : null}
           </>
-        ) : (
+        ) : props.termsVersion ? (
           <div className="mt-6">
             <TermsForm
               festival={props.festival}
@@ -207,7 +214,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
               isReacceptance={needsReacceptance}
             />
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
