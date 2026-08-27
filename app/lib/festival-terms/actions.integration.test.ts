@@ -13,6 +13,7 @@ import {
   vi,
 } from "vitest";
 
+import { paragraph } from "@/app/lib/festival-terms/blocks";
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import { toEditorSections } from "@/app/lib/festival-terms/editor";
 import * as schema from "@/db/schema";
@@ -152,8 +153,8 @@ describeDatabase("festival terms draft save concurrency", () => {
         kind: "rich_text",
         layout: "plain",
         title: "Published title",
-        bodyJson: [],
-        bodyHtml: "",
+        bodyJson: [paragraph("Published body")],
+        bodyHtml: "<p>Published body</p>",
         audienceCategories: [],
         audienceFestivalTypes: [],
       },
