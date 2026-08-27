@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -143,6 +143,7 @@ describeDatabase("festival terms schema and acceptance", () => {
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const published = await db.query.festivalTermsVersions.findFirst({
       where: eq(festivalTermsVersions.status, "published"),
+      orderBy: [desc(festivalTermsVersions.versionNumber)],
     });
     expect(published).toBeTruthy();
 
@@ -234,6 +235,7 @@ describeDatabase("festival terms schema and acceptance", () => {
     });
     const published = await db.query.festivalTermsVersions.findFirst({
       where: eq(festivalTermsVersions.status, "published"),
+      orderBy: [desc(festivalTermsVersions.versionNumber)],
     });
     expect(document && published).toBeTruthy();
 
