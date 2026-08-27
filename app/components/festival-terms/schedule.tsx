@@ -1,4 +1,5 @@
 import { UserCategory } from "@/app/api/users/definitions";
+import { haveSameClockTimes } from "@/app/components/festival-terms/public-hours";
 import { Highlight } from "@/app/components/ui/highlight";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDateOrNull } from "@/app/lib/formatters";
@@ -9,6 +10,41 @@ type FestivalTermsScheduleProps = {
   festival: Pick<FestivalWithDates, "festivalType" | "festivalDates">;
   category: Exclude<UserCategory, "none">;
 };
+
+function PublicHoursCopy({
+  start,
+  end,
+}: {
+  start: DateTime;
+  end: DateTime;
+}) {
+  return (
+    <>
+      Las puertas al público se abrirán a las{" "}
+      <span className="font-semibold">
+        {start.toLocaleString(DateTime.TIME_24_SIMPLE)}
+      </span>{" "}
+      y se cerrarán a las{" "}
+      <span className="font-semibold">
+        {end.toLocaleString(DateTime.TIME_24_SIMPLE)}
+      </span>
+    </>
+  );
+}
+
+function DayHoursHeading({ date }: { date: DateTime }) {
+  return (
+    <h4 className="font-semibold my-2">
+      <span className="capitalize">{date.weekdayLong}</span>{" "}
+      <span>
+        {date.toLocaleString({
+          month: "long",
+          day: "numeric",
+        })}
+      </span>
+    </h4>
+  );
+}
 
 export default function FestivalTermsSchedule({
   festival,
@@ -27,6 +63,12 @@ export default function FestivalTermsSchedule({
     ? formatDateOrNull(dayTwo.startDate)
     : null;
   const dayTwoEndDate = dayTwo ? formatDateOrNull(dayTwo.endDate) : null;
+  const samePublicHours = haveSameClockTimes(
+    dayOneStartDate,
+    dayTwoStartDate,
+    dayOneEndDate,
+    dayTwoEndDate,
+  );
 
   return (
     <div className="flex flex-col gap-2">
@@ -397,21 +439,40 @@ export default function FestivalTermsSchedule({
         <h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
           4.3. Horario de apertura y cierre de puertas al público
         </h3>
-        {dayOneStartDate && dayOneEndDate ? (
+        {samePublicHours && dayOneStartDate && dayOneEndDate ? (
           <p className="mt-1">
-            Ambos días del evento tienen el mismo horario. Las puertas
-            al público se abrirán a las{" "}
-            <span className="font-semibold">
-              {dayOneStartDate.toLocaleString(
-                DateTime.TIME_24_SIMPLE,
-              )}
-            </span>{" "}
-            y se cerrarán a las{" "}
-            <span className="font-semibold">
-              {dayOneEndDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
-            </span>
+            Ambos días del evento tienen el mismo horario.{" "}
+            <PublicHoursCopy
+              start={dayOneStartDate}
+              end={dayOneEndDate}
+            />
           </p>
-        ) : null}
+        ) : (
+          <>
+            {dayOneStartDate && dayOneEndDate ? (
+              <section className="text-sm">
+                <DayHoursHeading date={dayOneStartDate} />
+                <p className="ml-2">
+                  <PublicHoursCopy
+                    start={dayOneStartDate}
+                    end={dayOneEndDate}
+                  />
+                </p>
+              </section>
+            ) : null}
+            {dayTwoStartDate && dayTwoEndDate ? (
+              <section className="text-sm">
+                <DayHoursHeading date={dayTwoStartDate} />
+                <p className="ml-2">
+                  <PublicHoursCopy
+                    start={dayTwoStartDate}
+                    end={dayTwoEndDate}
+                  />
+                </p>
+              </section>
+            ) : null}
+          </>
+        )}
       </section>
       <section>
         <h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
