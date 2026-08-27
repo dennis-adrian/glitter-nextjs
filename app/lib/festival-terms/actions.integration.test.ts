@@ -180,6 +180,18 @@ describeDatabase("festival terms draft save concurrency", () => {
     await db
       .update(festivalTermsVersions)
       .set({
+        status: "archived",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(festivalTermsVersions.documentId, document!.id),
+          eq(festivalTermsVersions.status, "published"),
+        ),
+      );
+    await db
+      .update(festivalTermsVersions)
+      .set({
         status: "published",
         publishedAt: new Date(),
         changelog: "published changelog",
