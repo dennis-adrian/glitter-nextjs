@@ -311,6 +311,18 @@ describeDatabase("festival terms schema and acceptance", () => {
         termsVersionId: published!.id,
       })
       .returning();
+
+    const fixture: Fixture = {
+      userId: user.id,
+      festivalAId: festivalA.id,
+      festivalBId: festivalB.id,
+      requestId: request.id,
+      extraVersionIds: [],
+      restoreDocumentId: document!.id,
+      restorePublishedVersionId: published!.id,
+    };
+    fixtures.push(fixture);
+
     await db
       .update(festivalTermsVersions)
       .set({ status: "archived", updatedAt: new Date() })
@@ -330,16 +342,7 @@ describeDatabase("festival terms schema and acceptance", () => {
         publishedAt: new Date(),
       })
       .returning();
-
-    fixtures.push({
-      userId: user.id,
-      festivalAId: festivalA.id,
-      festivalBId: festivalB.id,
-      requestId: request.id,
-      extraVersionIds: [newVersion.id],
-      restoreDocumentId: document!.id,
-      restorePublishedVersionId: published!.id,
-    });
+    fixture.extraVersionIds.push(newVersion.id);
 
     const profile = {
       userRequests: [
