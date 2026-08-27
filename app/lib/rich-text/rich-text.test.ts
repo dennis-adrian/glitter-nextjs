@@ -28,6 +28,22 @@ describe("editor schemas", () => {
     expect(Object.keys(articleEditorSchema.blockSchema)).toContain("image");
   });
 
+  it("rejects unsupported compact heading levels", () => {
+    const levels = compactEditorSchema.blockSchema.heading.propSchema.level.values;
+
+    expect(levels).toEqual([2, 3]);
+    expect(levels).not.toContain(1);
+    expect(levels).not.toContain(4);
+  });
+
+  it("rejects unsupported article heading levels", () => {
+    const levels = articleEditorSchema.blockSchema.heading.propSchema.level.values;
+
+    expect(levels).toEqual([1, 2, 3, 4]);
+    expect(levels).not.toContain(5);
+    expect(levels).not.toContain(6);
+  });
+
   it("rejects image/video/file blocks in compact documents", () => {
     expect(disallowedBlockTypes([{ type: "image" }], "compact")).toEqual([
       "image",

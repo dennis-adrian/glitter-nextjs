@@ -56,7 +56,7 @@ export default function Categories({
       subcategories,
       selectedSubcategories,
       category,
-    ).sort((a, b) => a.label.localeCompare(b.label));
+    );
   };
 
   return (

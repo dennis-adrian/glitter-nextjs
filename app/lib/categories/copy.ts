@@ -45,6 +45,7 @@ export function visibilityTone(
 export function formatDeleteBlockedMessage(
   label: string,
   verifiedCount: number,
+  pausedCount: number,
   standCount: number,
 ): string {
   const reasons: string[] = [];
@@ -53,17 +54,23 @@ export function formatDeleteBlockedMessage(
       `${verifiedCount} ${verifiedCount === 1 ? "perfil verificado" : "perfiles verificados"}`,
     );
   }
+  if (pausedCount > 0) {
+    reasons.push(
+      `${pausedCount} ${pausedCount === 1 ? "perfil pausado" : "perfiles pausados"}`,
+    );
+  }
   if (standCount > 0) {
     reasons.push(`${standCount} ${standCount === 1 ? "stand" : "stands"}`);
   }
   const joined =
-    reasons.length === 2 ? `${reasons[0]} y ${reasons[1]}` : reasons[0] ?? "";
+    reasons.length > 1
+      ? `${reasons.slice(0, -1).join(", ")} y ${reasons[reasons.length - 1]}`
+      : reasons[0] ?? "";
   return `No se puede eliminar ${label} porque ${joined} la usan.`;
 }
 
 export function formatDeleteWarningMessage(counts: {
   pending: number;
-  paused: number;
   rejected: number;
   banned: number;
 }): string | null {
@@ -71,11 +78,6 @@ export function formatDeleteWarningMessage(counts: {
   if (counts.pending > 0) {
     parts.push(
       `${counts.pending} ${counts.pending === 1 ? "pendiente" : "pendientes"}`,
-    );
-  }
-  if (counts.paused > 0) {
-    parts.push(
-      `${counts.paused} ${counts.paused === 1 ? "pausado" : "pausados"}`,
     );
   }
   if (counts.rejected > 0) {
@@ -89,8 +91,7 @@ export function formatDeleteWarningMessage(counts: {
     );
   }
 
-  const total =
-    counts.pending + counts.paused + counts.rejected + counts.banned;
+  const total = counts.pending + counts.rejected + counts.banned;
   if (total === 0) return null;
 
   return `Esta acción no se puede deshacer. Hay ${total} ${

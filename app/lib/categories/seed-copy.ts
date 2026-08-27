@@ -137,7 +137,7 @@ export const HARDCODED_CATEGORY_COPY: SeedCategoryCopy[] = [
     title: "Coleccionables",
     area: "entrepreneurship",
     paragraphs: [
-      "Está categoría es para aquellos que venden productos coleccionables. Figuras, vinilos, cómics, muñecas o artículos.",
+      "Esta categoría es para aquellos que venden productos coleccionables. Figuras, vinilos, cómics, muñecas o artículos.",
     ],
   },
   {
@@ -162,10 +162,10 @@ export const HARDCODED_CATEGORY_COPY: SeedCategoryCopy[] = [
     title: "Sublimación colaborativa",
     area: "entrepreneurship",
     paragraphs: [
-      "Nos interesan mucho los ilustradores y artistas que vienen al festival, por ello, si tienes un emprendiendo de sublimación en poleras, llaveros, tazas, gorras, etc., y gustas ser parte de Glitter, puedes hacerlo únicamente si los diseños de los productos que ofreces son colaborativos o pagados a un ilustrador.",
+      "Nos interesan mucho los ilustradores y artistas que vienen al festival, por ello, si tienes un emprendimiento de sublimación en poleras, llaveros, tazas, gorras, etc., y gustas ser parte de Glitter, puedes hacerlo únicamente si los diseños de los productos que ofreces son colaborativos o pagados a un ilustrador.",
       "El festival no permite la venta de productos con imágenes sacadas de internet. Si quieres ser parte de esta categoría, comunícate con el equipo Glitter al correo equipo@productoraglitter.com",
     ],
-    htmlOverride: `<p>Nos interesan mucho los ilustradores y artistas que vienen al festival, por ello, si tienes un emprendiendo de sublimación en poleras, llaveros, tazas, gorras, etc., y gustas ser parte de Glitter, puedes hacerlo únicamente si los diseños de los productos que ofreces son colaborativos o pagados a un ilustrador.</p><p>El festival no permite la venta de productos con imágenes sacadas de internet. Si quieres ser parte de esta categoría, comunícate con el equipo Glitter al correo <a href="mailto:equipo@productoraglitter.com">equipo@productoraglitter.com</a></p>`,
+    htmlOverride: `<p>Nos interesan mucho los ilustradores y artistas que vienen al festival, por ello, si tienes un emprendimiento de sublimación en poleras, llaveros, tazas, gorras, etc., y gustas ser parte de Glitter, puedes hacerlo únicamente si los diseños de los productos que ofreces son colaborativos o pagados a un ilustrador.</p><p>El festival no permite la venta de productos con imágenes sacadas de internet. Si quieres ser parte de esta categoría, comunícate con el equipo Glitter al correo <a href="mailto:equipo@productoraglitter.com">equipo@productoraglitter.com</a></p>`,
   },
 ];
 

@@ -357,6 +357,7 @@ export default function CategoryEditor({
               ? formatDeleteBlockedMessage(
                   category.label,
                   category.verified,
+                  category.paused,
                   category.stands,
                 )
               : warning || "Esta acción no se puede deshacer."
@@ -368,6 +369,11 @@ export default function CategoryEditor({
               tone: category.verified > 0 ? "danger" : "default",
             },
             {
+              label: "Pausados",
+              count: category.paused,
+              tone: category.paused > 0 ? "danger" : "default",
+            },
+            {
               label: "Stands",
               count: category.stands,
               tone: category.stands > 0 ? "danger" : "default",
@@ -375,12 +381,14 @@ export default function CategoryEditor({
           ]}
           blocked={blocked}
           secondaryHref={
-            blocked && category.verified > 0
+            blocked && (category.verified > 0 || category.paused > 0)
               ? categoryParticipantsHref(category.category)
               : undefined
           }
           secondaryLabel={
-            blocked && category.verified > 0 ? "Ver perfiles" : undefined
+            blocked && (category.verified > 0 || category.paused > 0)
+              ? "Ver perfiles"
+              : undefined
           }
           confirmLabel="Eliminar categoría"
           confirmPending={isPending}

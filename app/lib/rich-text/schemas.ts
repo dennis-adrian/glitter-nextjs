@@ -1,11 +1,11 @@
 import {
   BlockNoteSchema,
+  createHeadingBlockSpec,
   defaultBlockSpecs,
 } from "@blocknote/core";
 
 const {
   paragraph,
-  heading,
   bulletListItem,
   numberedListItem,
   quote,
@@ -36,7 +36,7 @@ export type EditorVariant = "compact" | "article";
 export const compactEditorSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph,
-    heading,
+    heading: createHeadingBlockSpec({ levels: [2, 3] }),
     bulletListItem,
     numberedListItem,
     quote,
@@ -46,7 +46,7 @@ export const compactEditorSchema = BlockNoteSchema.create({
 export const articleEditorSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph,
-    heading,
+    heading: createHeadingBlockSpec({ levels: [1, 2, 3, 4] }),
     bulletListItem,
     numberedListItem,
     quote,

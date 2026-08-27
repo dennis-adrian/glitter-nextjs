@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { cache } from "react";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";

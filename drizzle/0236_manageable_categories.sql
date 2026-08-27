@@ -16,7 +16,26 @@ ALTER TABLE "subcategories" ADD COLUMN "visibility" "category_visibility" DEFAUL
 ALTER TABLE "subcategories" ADD COLUMN "is_exclusive" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "subcategories" ADD COLUMN "is_admin_assignable_only" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 UPDATE "subcategories"
-SET "description_html" = '<p>' || replace(replace(replace("description", '&', '&amp;'), '<', '&lt;'), '>', '&gt;') || '</p>'
+SET "description_json" = jsonb_build_array(
+  jsonb_build_object(
+    'id', 'legacy-' || "id"::text,
+    'type', 'paragraph',
+    'props', jsonb_build_object(
+      'textColor', 'default',
+      'backgroundColor', 'default',
+      'textAlignment', 'left'
+    ),
+    'content', jsonb_build_array(
+      jsonb_build_object(
+        'type', 'text',
+        'text', "description",
+        'styles', '{}'::jsonb
+      )
+    ),
+    'children', '[]'::jsonb
+  )
+),
+"description_html" = '<p>' || replace(replace(replace("description", '&', '&amp;'), '<', '&lt;'), '>', '&gt;') || '</p>'
 WHERE "description" IS NOT NULL AND btrim("description") <> '' AND "description_html" IS NULL;--> statement-breakpoint
 UPDATE "subcategories"
 SET "is_exclusive" = true

@@ -56,7 +56,11 @@ import {
 import { isDeleteBlocked, unverifiedLinkedCounts } from "@/app/lib/categories/delete";
 import type { AdminCategory, ManagementArea } from "@/app/lib/categories/definitions";
 import { participantCount } from "@/app/lib/categories/definitions";
-import { groupByManagementArea } from "@/app/lib/categories/group";
+import {
+  groupByManagementArea,
+  OTHER_MANAGEMENT_AREA,
+  type CategoryGroupArea,
+} from "@/app/lib/categories/group";
 import { cn } from "@/app/lib/utils";
 
 type CategoriesListProps = {
@@ -167,7 +171,7 @@ function AreaSection({
   onVisibility,
   onReorder,
 }: {
-  area: ManagementArea;
+  area: CategoryGroupArea;
   label: string;
   items: AdminCategory[];
   disableReorder?: boolean;
@@ -186,7 +190,7 @@ function AreaSection({
   );
 
   function handleDragEnd(event: DragEndEvent) {
-    if (disableReorder) return;
+    if (disableReorder || area === OTHER_MANAGEMENT_AREA) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = items.findIndex((item) => item.id === active.id);
@@ -199,12 +203,14 @@ function AreaSection({
     <section className="rounded-xl border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{label}</h2>
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/dashboard/categories/new?area=${area}`}>
-            <PlusIcon className="mr-1 size-4" />
-            Añadir en esta área
-          </Link>
-        </Button>
+        {area !== OTHER_MANAGEMENT_AREA ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/categories/new?area=${area}`}>
+              <PlusIcon className="mr-1 size-4" />
+              Añadir en esta área
+            </Link>
+          </Button>
+        ) : null}
       </div>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -226,7 +232,9 @@ function AreaSection({
                   key={category.id}
                   category={category}
                   onDelete={() => onDelete(category)}
-                  disableReorder={disableReorder}
+                  disableReorder={
+                    disableReorder || area === OTHER_MANAGEMENT_AREA
+                  }
                   onVisibility={(visibility) =>
                     onVisibility(category, visibility)
                   }
@@ -262,7 +270,11 @@ export default function CategoriesList({ categories }: CategoriesListProps) {
   function handleReorder(area: ManagementArea, nextItems: AdminCategory[]) {
     const previous = items;
     const other = items.filter((item) => item.category !== area);
-    const merged = [...other, ...nextItems];
+    const reorderedItems = nextItems.map((item, sortOrder) => ({
+      ...item,
+      sortOrder,
+    }));
+    const merged = [...other, ...reorderedItems];
     setItems(merged);
     startTransition(async () => {
       const result = await reorderCategories({
@@ -360,6 +372,7 @@ export default function CategoriesList({ categories }: CategoriesListProps) {
             ? formatDeleteBlockedMessage(
                 pendingId.label,
                 pendingId.verified,
+                pendingId.paused,
                 pendingId.stands,
               )
             : warning ||
@@ -385,6 +398,7 @@ export default function CategoriesList({ categories }: CategoriesListProps) {
                 {
                   label: "Pausados",
                   count: pendingId.paused,
+                  tone: pendingId.paused > 0 ? "danger" : "default",
                 },
                 {
                   label: "Rechazados",
@@ -399,12 +413,12 @@ export default function CategoriesList({ categories }: CategoriesListProps) {
         }
         blocked={blocked}
         secondaryHref={
-          pendingId && blocked && pendingId.verified > 0
+          pendingId && blocked && (pendingId.verified > 0 || pendingId.paused > 0)
             ? categoryParticipantsHref(pendingId.category)
             : undefined
         }
         secondaryLabel={
-          pendingId && blocked && pendingId.verified > 0
+          pendingId && blocked && (pendingId.verified > 0 || pendingId.paused > 0)
             ? "Ver perfiles"
             : undefined
         }

@@ -252,6 +252,7 @@ export async function deleteCategory(id: number) {
           message: formatDeleteBlockedMessage(
             current.label,
             current.verified,
+            current.paused,
             current.stands,
           ),
         };

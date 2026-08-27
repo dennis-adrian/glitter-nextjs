@@ -6,7 +6,11 @@ import {
   withExclusiveSelection,
 } from "@/app/lib/categories/filters";
 import { labelsMatch, normalizeCategoryLabel, uniqueLabelIndexKey } from "@/app/lib/categories/label";
-import { UNIQUE_LABEL_MESSAGE, categoryParticipantsHref } from "@/app/lib/categories/copy";
+import {
+  categoryParticipantsHref,
+  formatDeleteBlockedMessage,
+  UNIQUE_LABEL_MESSAGE,
+} from "@/app/lib/categories/copy";
 import { isUniqueViolation } from "@/app/lib/categories/pg";
 import {
   isAdminAssignable,
@@ -55,14 +59,20 @@ describe("delete rules", () => {
   });
 
   it("allows delete when only unverified profiles are linked, with a warning", () => {
-    const counts = { ...empty, pending: 2, paused: 1, rejected: 1, banned: 1 };
+    const counts = { ...empty, pending: 2, rejected: 1, banned: 1 };
     expect(isDeleteBlocked(counts)).toBe(false);
     expect(hasUnverifiedLinks(counts)).toBe(true);
   });
 
-  it("paused profiles do not block delete", () => {
-    expect(isDeleteBlocked({ ...empty, paused: 4 })).toBe(false);
-    expect(hasUnverifiedLinks({ ...empty, paused: 4 })).toBe(true);
+  it("blocks when a paused profile uses the row", () => {
+    expect(isDeleteBlocked({ ...empty, paused: 4 })).toBe(true);
+    expect(hasUnverifiedLinks({ ...empty, paused: 4 })).toBe(false);
+    expect(formatDeleteBlockedMessage("Pintura", 0, 4, 0)).toBe(
+      "No se puede eliminar Pintura porque 4 perfiles pausados la usan.",
+    );
+    expect(formatDeleteBlockedMessage("Pintura", 1, 1, 1)).toBe(
+      "No se puede eliminar Pintura porque 1 perfil verificado, 1 perfil pausado y 1 stand la usan.",
+    );
   });
 });
 
