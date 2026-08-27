@@ -13,6 +13,11 @@ export function isAllowedProgramArtworkUrl(
 ): input is string {
   if (!input) return false;
 
+  // Same-origin public assets (Storybook mocks, placeholders under /img/...).
+  if (input.startsWith("/img/") && !input.startsWith("//")) {
+    return !input.includes("\\") && !input.includes(":");
+  }
+
   try {
     const url = new URL(input);
     const hostname = url.hostname.toLowerCase();

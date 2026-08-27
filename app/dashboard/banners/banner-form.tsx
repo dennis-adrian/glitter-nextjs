@@ -1,6 +1,6 @@
 "use client";
 
-import { UploadButton } from "@/app/vendors/uploadthing";
+import { BannerImageUpload } from "@/app/components/uploads/banner-image-upload";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
@@ -19,14 +19,10 @@ import {
 } from "@/app/lib/marketing_banners/actions";
 import { assertValidHref } from "@/app/lib/marketing_banners/validate-href";
 import { ArrowLeftIcon, Loader2Icon } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { twMerge } from "tailwind-merge";
-import type { UploadThingError } from "uploadthing/server";
-import type { Json } from "@uploadthing/shared";
 
 const AUDIENCE_OPTIONS: {
   value: MarketingBannerRow["audience"];
@@ -176,148 +172,37 @@ export default function BannerForm(props: Props) {
       </Link>
       <h1 className="text-2xl font-bold">{title}</h1>
       <form onSubmit={onSubmit} className="space-y-6">
-        <div className="space-y-2 rounded-lg border p-4">
-          <Label>Escritorio (obligatoria)</Label>
-          <p className="text-xs text-muted-foreground">
-            Recomendado: 2400 × 600 px (aprox. 4:1) — imagen ancha mostrada en
-            pantallas grandes
-          </p>
-          <div className="relative mt-2 aspect-4/1 w-full max-w-lg overflow-hidden rounded-md border bg-muted">
-            {form.imageUrl ? (
-              <Image
-                src={form.imageUrl}
-                alt="Vista previa escritorio"
-                fill
-                className="object-contain"
-                sizes="512px"
-              />
-            ) : (
-              <div className="flex h-full min-h-24 items-center justify-center p-2 text-center text-xs text-muted-foreground">
-                Sin imagen
-              </div>
-            )}
-          </div>
-          <UploadButton
-            config={{ cn: twMerge }}
-            endpoint="imageUploader"
-            onClientUploadComplete={(res) => {
-              if (res?.[0]?.url) {
-                setForm((f) => ({ ...f, imageUrl: res[0].url }));
-                toast.success("Imagen subida");
-              }
-            }}
-            onUploadError={(
-              error: Pick<UploadThingError<Json>, "code" | "message">,
-            ) => {
-              toast.error(
-                error.message?.includes("FileSize")
-                  ? "Imagen demasiado grande (máx. 4MB)"
-                  : "Error al subir",
-              );
-            }}
-          />
-          <Label
-            htmlFor="img-desktop-url"
-            className="text-xs text-muted-foreground"
-          >
-            O pega la URL
-          </Label>
-          <Input
-            id="img-desktop-url"
-            value={form.imageUrl}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, imageUrl: e.target.value }))
-            }
-          />
-        </div>
+        <BannerImageUpload
+          title="Escritorio"
+          recommendation="Recomendado: 2400 × 600 px (aprox. 4:1) — imagen ancha mostrada en pantallas grandes"
+          imageUrl={form.imageUrl}
+          onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
+          previewClassName="aspect-4/1"
+          required
+        />
 
-        <div className="space-y-2 rounded-lg border p-4">
-          <Label>Tablet (opcional)</Label>
-          <p className="text-xs text-muted-foreground">
-            Recomendado: 2400 × 800 px (aprox. 3:1) — pantallas medianas
-          </p>
-          <div className="relative mt-2 aspect-3/1 w-full max-w-lg overflow-hidden rounded-md border bg-muted">
-            {form.imageUrlTablet ? (
-              <Image
-                src={form.imageUrlTablet}
-                alt="Vista previa tablet"
-                fill
-                className="object-contain"
-                sizes="512px"
-              />
-            ) : null}
-          </div>
-          <UploadButton
-            config={{ cn: twMerge }}
-            endpoint="imageUploader"
-            onClientUploadComplete={(res) => {
-              if (res?.[0]?.url) {
-                setForm((f) => ({ ...f, imageUrlTablet: res[0].url }));
-                toast.success("Imagen tablet subida");
-              }
-            }}
-            onUploadError={(
-              error: Pick<UploadThingError<Json>, "code" | "message">,
-            ) => {
-              toast.error(
-                error.message?.includes("FileSize")
-                  ? "Imagen demasiado grande (máx. 4MB)"
-                  : "Error al subir",
-              );
-            }}
-          />
-          <Input
-            placeholder="URL (opcional)"
-            value={form.imageUrlTablet}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, imageUrlTablet: e.target.value }))
-            }
-          />
-        </div>
+        <BannerImageUpload
+          title="Tablet"
+          recommendation="Recomendado: 2400 × 800 px (aprox. 3:1) — pantallas medianas"
+          imageUrl={form.imageUrlTablet}
+          onChange={(imageUrlTablet) =>
+            setForm((f) => ({ ...f, imageUrlTablet }))
+          }
+          previewClassName="aspect-3/1"
+          successMessage="Imagen tablet subida"
+        />
 
-        <div className="space-y-2 rounded-lg border p-4">
-          <Label>Móvil (opcional)</Label>
-          <p className="text-xs text-muted-foreground">
-            Recomendado: 1200 × 800 px (aprox. 3:2) — teléfonos
-          </p>
-          <div className="relative mt-2 aspect-3/2 w-full max-w-sm overflow-hidden rounded-md border bg-muted">
-            {form.imageUrlMobile ? (
-              <Image
-                src={form.imageUrlMobile}
-                alt="Vista previa móvil"
-                fill
-                className="object-contain"
-                sizes="400px"
-              />
-            ) : null}
-          </div>
-          <UploadButton
-            config={{ cn: twMerge }}
-            endpoint="imageUploader"
-            onClientUploadComplete={(res) => {
-              if (res?.[0]?.url) {
-                setForm((f) => ({ ...f, imageUrlMobile: res[0].url }));
-                toast.success("Imagen móvil subida");
-              }
-            }}
-            onUploadError={(
-              error: Pick<UploadThingError<Json>, "code" | "message">,
-            ) => {
-              toast.error(
-                error.message?.includes("FileSize")
-                  ? "Imagen demasiado grande (máx. 4MB)"
-                  : "Error al subir",
-              );
-            }}
-          />
-          <Input
-            placeholder="URL (opcional)"
-            value={form.imageUrlMobile}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, imageUrlMobile: e.target.value }))
-            }
-          />
-        </div>
+        <BannerImageUpload
+          title="Móvil"
+          recommendation="Recomendado: 1200 × 800 px (aprox. 3:2) — teléfonos"
+          imageUrl={form.imageUrlMobile}
+          onChange={(imageUrlMobile) =>
+            setForm((f) => ({ ...f, imageUrlMobile }))
+          }
+          previewClassName="aspect-3/2"
+          previewMaxWidth="max-w-sm"
+          successMessage="Imagen móvil subida"
+        />
 
         <div className="space-y-2">
           <Label htmlFor="href">Enlace (destino al hacer clic)</Label>

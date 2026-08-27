@@ -4,6 +4,7 @@ import PhoneInput from "@/app/components/form/fields/phone";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
+import { ExternalParticipantImageUpload } from "@/app/components/uploads/external-participant-image-upload";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -14,7 +15,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/app/components/ui/form";
-import { UploadButton } from "@/app/vendors/uploadthing";
 import {
   createExternalParticipant,
   updateExternalParticipant,
@@ -25,11 +25,9 @@ import {
 } from "@/app/lib/external_participants/definitions";
 import { externalParticipantInputSchema } from "@/app/lib/external_participants/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Building2Icon, Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { twMerge } from "tailwind-merge";
 import { z } from "zod";
 
 type ExternalParticipantFormProps = {
@@ -102,7 +100,23 @@ export default function ExternalParticipantForm({
           placeholder="Ej. Refugio animal"
         />
 
-        <ExternalParticipantImageField imageUrl={imageUrl} />
+        <FormField
+          control={form.control}
+          name="imageUrl"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Imagen o logo</FormLabel>
+              <FormControl>
+                <ExternalParticipantImageUpload
+                  imageUrl={imageUrl}
+                  onChange={field.onChange}
+                  onRemove={() => field.onChange("")}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <TextInput
@@ -155,96 +169,4 @@ export default function ExternalParticipantForm({
       </form>
     </Form>
   );
-
-  function ExternalParticipantImageField({ imageUrl }: { imageUrl?: string }) {
-    return (
-      <FormField
-        control={form.control}
-        name="imageUrl"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Imagen o logo</FormLabel>
-            <FormControl>
-              <div className="grid gap-3">
-                <div className="flex items-center gap-3 rounded-md border border-dashed p-3">
-                  <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt="Vista previa"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Building2Icon className="size-7 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <UploadButton
-                        config={{ cn: twMerge }}
-                        endpoint="externalParticipantImage"
-                        content={{
-                          button({ ready, isUploading, uploadProgress }) {
-                            if (isUploading && uploadProgress === 100) {
-                              return (
-                                <Loader2Icon className="size-4 animate-spin text-primary-500" />
-                              );
-                            }
-                            if (isUploading)
-                              return <span>{uploadProgress}%</span>;
-                            if (ready) return <span>Subir imagen</span>;
-                            return "Cargando...";
-                          },
-                          allowedContent({ ready, isUploading }) {
-                            if (!ready) return null;
-                            if (isUploading) return "Subiendo imagen...";
-                            return "Imagen hasta 4MB";
-                          },
-                        }}
-                        appearance={{
-                          button: ({ ready, isUploading }) => {
-                            if (!ready) {
-                              return "bg-transparent text-xs text-muted-foreground border";
-                            }
-                            if (isUploading) {
-                              return "bg-transparent text-xs text-muted-foreground border after:bg-primary-700/60";
-                            }
-                            return "bg-transparent text-xs text-foreground border hover:text-primary-500 hover:border-primary-500";
-                          },
-                        }}
-                        onClientUploadComplete={(res) => {
-                          const uploadedUrl =
-                            res?.[0]?.serverData?.imageUrl ?? res?.[0]?.url;
-                          if (uploadedUrl && typeof uploadedUrl === "string") {
-                            field.onChange(uploadedUrl);
-                            toast.success("Imagen subida");
-                          } else {
-                            toast.error("Respuesta de carga inválida");
-                          }
-                        }}
-                        onUploadError={() => {
-                          toast.error("Error al subir la imagen");
-                        }}
-                      />
-                      {imageUrl && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => field.onChange("")}
-                        >
-                          Quitar
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    );
-  }
 }
