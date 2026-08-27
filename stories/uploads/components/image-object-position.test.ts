@@ -24,18 +24,29 @@ describe("panCoverObjectPosition", () => {
   });
 
   it("clamps to the image edges", () => {
-    const next = panCoverObjectPosition({
+    const nextX = panCoverObjectPosition({
       position: DEFAULT_IMAGE_OBJECT_POSITION,
       deltaX: 1000,
-      deltaY: -1000,
+      deltaY: 0,
       containerWidth: 100,
       containerHeight: 100,
       naturalWidth: 200,
+      naturalHeight: 100,
+    });
+    const nextY = panCoverObjectPosition({
+      position: DEFAULT_IMAGE_OBJECT_POSITION,
+      deltaX: 0,
+      deltaY: -1000,
+      containerWidth: 100,
+      containerHeight: 100,
+      naturalWidth: 100,
       naturalHeight: 400,
     });
 
-    expect(next.x).toBe(0);
-    expect(next.y).toBe(100);
+    expect(nextX.x).toBe(0);
+    expect(nextX.y).toBe(50);
+    expect(nextY.x).toBe(50);
+    expect(nextY.y).toBe(100);
   });
 
   it("keeps the current position when the image does not overflow an axis", () => {

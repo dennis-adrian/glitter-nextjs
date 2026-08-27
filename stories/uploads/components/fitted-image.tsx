@@ -37,7 +37,7 @@ export function FittedImage({
   disabled = false,
 }: FittedImageProps) {
   const imageRef = useRef<HTMLImageElement>(null);
-  const lastPointRef = useRef<{ x: number; y: number }>();
+  const lastPointRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const draggingRef = useRef(false);
   const positionRef = useRef(position);
   const [isDragging, setIsDragging] = useState(false);
@@ -89,7 +89,8 @@ export function FittedImage({
       aria-keyshortcuts={
         canReposition ? "ArrowLeft ArrowRight ArrowUp ArrowDown" : undefined
       }
-      aria-description={
+      data-object-position={imageObjectPositionCss(position)}
+      title={
         canReposition
           ? `Recorte ${Math.round(position.x)}% horizontal, ${Math.round(position.y)}% vertical. Arrastra la imagen o usa las flechas para reposicionar.`
           : undefined
@@ -105,6 +106,7 @@ export function FittedImage({
       onPointerDown={(event) => {
         if (!canReposition || event.button !== 0) return;
         event.preventDefault();
+        event.currentTarget.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
         lastPointRef.current = { x: event.clientX, y: event.clientY };
         draggingRef.current = true;

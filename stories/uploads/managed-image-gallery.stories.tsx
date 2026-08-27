@@ -82,9 +82,10 @@ export const ProductThumbnailsFill: Story = {
     const canvas = within(canvasElement);
     const image = canvas.getByRole("img", { name: "Mascota" });
     await expect(image).toHaveAttribute("data-image-fit", "cover");
-    await userEvent.click(image);
+    image.focus();
+    await expect(image).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");
-    await expect(image).toHaveStyle({ objectPosition: "50% 45%" });
+    await expect(image).toHaveAttribute("data-object-position", "50% 45%");
   },
 };
 

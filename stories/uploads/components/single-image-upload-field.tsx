@@ -74,8 +74,11 @@ export function SingleImageUploadField({
   const draftPositionRef = useRef(draftPosition);
   draftPositionRef.current = draftPosition;
 
+  // Reset the draft crop when a different image is selected, not when the
+  // user pans the current one (that only changes objectPosition).
   useEffect(() => {
     setDraftPosition(value?.objectPosition ?? DEFAULT_IMAGE_OBJECT_POSITION);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- identity is value.id
   }, [value?.id]);
 
   useEffect(() => {

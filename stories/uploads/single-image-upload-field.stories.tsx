@@ -108,10 +108,11 @@ export const CoverReposition: Story = {
       name: "Vista previa de imagen del perfil",
     });
     await expect(image).toHaveAttribute("data-image-fit", "cover");
-    await expect(image).toHaveStyle({ objectPosition: "50% 50%" });
-    await userEvent.click(image);
+    await expect(image).toHaveAttribute("data-object-position", "50% 50%");
+    image.focus();
+    await expect(image).toHaveFocus();
     await userEvent.keyboard("{ArrowRight}");
-    await expect(image).toHaveStyle({ objectPosition: "45% 50%" });
+    await expect(image).toHaveAttribute("data-object-position", "45% 50%");
     await expect(
       canvas.getByText("Recorte 45% horizontal, 50% vertical"),
     ).toBeVisible();
