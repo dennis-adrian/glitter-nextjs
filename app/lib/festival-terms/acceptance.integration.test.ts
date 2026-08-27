@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, max, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -73,24 +73,40 @@ describeDatabase("festival terms schema and acceptance", () => {
     const db = integrationDb!;
     const leftover = fixtures.splice(0);
     for (const fixture of leftover) {
-      await db
-        .delete(userRequests)
-        .where(eq(userRequests.id, fixture.requestId));
-      await db.delete(festivals).where(eq(festivals.id, fixture.festivalAId));
-      await db.delete(festivals).where(eq(festivals.id, fixture.festivalBId));
-      await db.delete(users).where(eq(users.id, fixture.userId));
-      for (const versionId of fixture.extraVersionIds) {
-        await db
-          .delete(festivalTermsVersions)
-          .where(eq(festivalTermsVersions.id, versionId));
-      }
       if (fixture.restorePublishedVersionId != null) {
+        await db
+          .update(festivalTermsVersions)
+          .set({ status: "archived", updatedAt: new Date() })
+          .where(
+            and(
+              eq(festivalTermsVersions.status, "published"),
+            ),
+          );
         await db
           .update(festivalTermsVersions)
           .set({ status: "published", updatedAt: new Date() })
           .where(
             eq(festivalTermsVersions.id, fixture.restorePublishedVersionId),
           );
+      }
+      for (const versionId of fixture.extraVersionIds) {
+        await db
+          .delete(festivalTermsVersions)
+          .where(eq(festivalTermsVersions.id, versionId));
+      }
+      if (fixture.requestId > 0) {
+        await db
+          .delete(userRequests)
+          .where(eq(userRequests.id, fixture.requestId));
+      }
+      if (fixture.festivalAId > 0) {
+        await db.delete(festivals).where(eq(festivals.id, fixture.festivalAId));
+      }
+      if (fixture.festivalBId > 0) {
+        await db.delete(festivals).where(eq(festivals.id, fixture.festivalBId));
+      }
+      if (fixture.userId > 0) {
+        await db.delete(users).where(eq(users.id, fixture.userId));
       }
     }
   });
@@ -292,7 +308,12 @@ describeDatabase("festival terms schema and acceptance", () => {
     await db
       .update(festivalTermsVersions)
       .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(festivalTermsVersions.id, published!.id));
+      .where(
+        and(
+          eq(festivalTermsVersions.documentId, document!.id),
+          eq(festivalTermsVersions.status, "published"),
+        ),
+      );
     const [newVersion] = await db
       .insert(festivalTermsVersions)
       .values({
@@ -363,5 +384,134 @@ describeDatabase("festival terms schema and acceptance", () => {
       `,
     );
     expect(Number(stale.rows[0]?.count ?? 0)).toBe(1);
+  });
+
+  it("allows only one published version per document", async () => {
+    const db = integrationDb!;
+    const document = await db.query.festivalTermsDocuments.findFirst({
+      where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
+    });
+    expect(document).toBeTruthy();
+
+    let insertError: unknown;
+    try {
+      await db.insert(festivalTermsVersions).values({
+        documentId: document!.id,
+        versionNumber: 20_000 + Math.floor(Math.random() * 1000),
+        status: "published",
+        publishedAt: new Date(),
+      });
+    } catch (error) {
+      insertError = error;
+    }
+    expect(insertError).toBeTruthy();
+    const message = [
+      insertError instanceof Error ? insertError.message : String(insertError),
+      insertError &&
+      typeof insertError === "object" &&
+      "cause" in insertError &&
+      insertError.cause instanceof Error
+        ? insertError.cause.message
+        : "",
+    ].join("\n");
+    expect(message).toMatch(
+      /festival_terms_versions_one_published_per_document|unique|duplicate key/i,
+    );
+  });
+
+  it("archives existing published rows before promoting a draft", async () => {
+    const db = integrationDb!;
+    const document = await db.query.festivalTermsDocuments.findFirst({
+      where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
+    });
+    const previousPublished = await db.query.festivalTermsVersions.findFirst({
+      where: and(
+        eq(festivalTermsVersions.documentId, document!.id),
+        eq(festivalTermsVersions.status, "published"),
+      ),
+      orderBy: [desc(festivalTermsVersions.versionNumber)],
+    });
+    expect(previousPublished).toBeTruthy();
+
+    await db
+      .delete(festivalTermsVersions)
+      .where(
+        and(
+          eq(festivalTermsVersions.documentId, document!.id),
+          eq(festivalTermsVersions.status, "draft"),
+        ),
+      );
+
+    const [maxRow] = await db
+      .select({ max: max(festivalTermsVersions.versionNumber) })
+      .from(festivalTermsVersions)
+      .where(eq(festivalTermsVersions.documentId, document!.id));
+
+    const [draft] = await db
+      .insert(festivalTermsVersions)
+      .values({
+        documentId: document!.id,
+        versionNumber: (maxRow?.max ?? previousPublished!.versionNumber) + 1,
+        status: "draft",
+        changelog: "publish archive test",
+      })
+      .returning();
+
+    // Mirrors publishFestivalTermsDraft: archive published, then promote draft.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(festivalTermsVersions)
+        .set({ status: "archived", updatedAt: new Date() })
+        .where(
+          and(
+            eq(festivalTermsVersions.documentId, document!.id),
+            eq(festivalTermsVersions.status, "published"),
+          ),
+        );
+
+      const [published] = await tx
+        .update(festivalTermsVersions)
+        .set({
+          status: "published",
+          publishedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(festivalTermsVersions.id, draft.id),
+            eq(festivalTermsVersions.status, "draft"),
+          ),
+        )
+        .returning({ id: festivalTermsVersions.id });
+
+      expect(published).toBeTruthy();
+    });
+
+    const archived = await db.query.festivalTermsVersions.findFirst({
+      where: eq(festivalTermsVersions.id, previousPublished!.id),
+    });
+    const newlyPublished = await db.query.festivalTermsVersions.findFirst({
+      where: eq(festivalTermsVersions.id, draft.id),
+    });
+    expect(archived?.status).toBe("archived");
+    expect(newlyPublished?.status).toBe("published");
+
+    const publishedRows = await db.query.festivalTermsVersions.findMany({
+      where: and(
+        eq(festivalTermsVersions.documentId, document!.id),
+        eq(festivalTermsVersions.status, "published"),
+      ),
+    });
+    expect(publishedRows).toHaveLength(1);
+    expect(publishedRows[0]?.id).toBe(draft.id);
+
+    fixtures.push({
+      userId: -1,
+      festivalAId: -1,
+      festivalBId: -1,
+      requestId: -1,
+      extraVersionIds: [draft.id],
+      restorePublishedVersionId: previousPublished!.id,
+    });
   });
 });
