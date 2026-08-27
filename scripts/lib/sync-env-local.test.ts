@@ -65,10 +65,15 @@ describe("sync-env-local", () => {
   it("replaces placeholder process env with synced file values for child processes", () => {
     const child = envForChildProcess(
       { CLERK_SECRET_KEY: "sk_test_injected_from_daemon" },
-      { CLERK_SECRET_KEY: "sk_test_placeholder_not_real", PATH: "/usr/bin" },
+      {
+        CLERK_SECRET_KEY: "sk_test_placeholder_not_real",
+        PATH: "/usr/bin",
+        NODE_ENV: "test",
+      },
     );
     expect(child.CLERK_SECRET_KEY).toBe("sk_test_injected_from_daemon");
     expect(child.PATH).toBe("/usr/bin");
+    expect(child.NODE_ENV).toBe("test");
   });
 
   it("forces local Postgres URLs for Cloud Agent child processes", () => {

@@ -208,8 +208,8 @@ export function clerkStatus(values: Record<string, string>): "ok" | "missing" {
 export function envForChildProcess(
   fileValues: Record<string, string>,
   processEnv: NodeJS.Dict<string> = process.env,
-): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {};
+): Record<string, string> {
+  const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(processEnv)) {
     if (value == null) continue;
     if (isPlaceholderValue(value) && isUsableSecretValue(fileValues[key])) {
@@ -226,6 +226,10 @@ export function envForChildProcess(
   }
   if (isCloudAgentEnv(processEnv)) {
     Object.assign(env, LOCAL_POSTGRES);
+  }
+  const nodeEnv = processEnv.NODE_ENV ?? process.env.NODE_ENV;
+  if (typeof nodeEnv === "string" && !isPlaceholderValue(nodeEnv)) {
+    env.NODE_ENV = nodeEnv;
   }
   return env;
 }

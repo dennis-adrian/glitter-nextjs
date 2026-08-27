@@ -38,7 +38,7 @@ const fileValues = existsSync(result.path)
   : {};
 const child = spawn(exec[0]!, exec.slice(1), {
   stdio: "inherit",
-  env: envForChildProcess(fileValues),
+  env: envForChildProcess(fileValues) as NodeJS.ProcessEnv,
 });
 child.on("exit", (code, signal) => {
   if (signal) {
