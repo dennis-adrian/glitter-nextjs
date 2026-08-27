@@ -43,10 +43,16 @@ type SingleImageUploadFieldProps = {
   disabled?: boolean;
 };
 
+const previewColumnClasses = {
+  circle: "w-32",
+  landscape: "w-full",
+  square: "w-48",
+} as const;
+
 const previewShapeClasses = {
-  circle: "aspect-square w-32 rounded-full",
+  circle: "aspect-square w-full rounded-full",
   landscape: "aspect-video w-full rounded-xl",
-  square: "aspect-square w-48 rounded-xl",
+  square: "aspect-square w-full rounded-xl",
 } as const;
 
 /**
@@ -151,102 +157,101 @@ export function SingleImageUploadField({
 
       <div
         className={cn(
-          "relative",
-          previewShape === "landscape" ? "w-full" : "w-fit max-w-full",
+          "grid max-w-full gap-3",
+          previewColumnClasses[previewShape],
         )}
       >
-        <div
-          className={cn(
-            "relative grid place-items-center overflow-hidden border border-dashed bg-muted/50",
-            previewShapeClasses[previewShape],
-          )}
-        >
-          {previewUrl ? (
-            <FittedImage
-              src={previewUrl}
-              alt={`Vista previa de ${label.toLowerCase()}`}
-              fit={fit}
-              position={position}
-              onPositionChange={fit === "cover" ? updatePosition : undefined}
-              disabled={disabled}
-              className="absolute inset-0"
-            />
-          ) : (
-            <button
-              type="button"
-              className="grid size-full touch-manipulation justify-items-center gap-2 p-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed"
-              disabled={disabled || isUploading}
-              aria-label={`Seleccionar ${label.toLowerCase()} desde la vista previa`}
-              onClick={() => inputRef.current?.click()}
-            >
-              <ImageIcon className="size-8" aria-hidden="true" />
-              <span>{emptyLabel}</span>
-            </button>
-          )}
-          {isUploading ? (
-            <div className="absolute inset-x-3 bottom-3 z-10 rounded-md bg-background/95 p-2 shadow">
-              <div className="mb-1 flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1">
-                  <Loader2Icon className="size-3 animate-spin" />
-                  Subiendo
-                </span>
-                <span>{progress}%</span>
+        <div className="relative">
+          <div
+            className={cn(
+              "relative grid place-items-center overflow-hidden border border-dashed bg-muted/50",
+              previewShapeClasses[previewShape],
+            )}
+          >
+            {previewUrl ? (
+              <FittedImage
+                src={previewUrl}
+                alt={`Vista previa de ${label.toLowerCase()}`}
+                fit={fit}
+                position={position}
+                onPositionChange={fit === "cover" ? updatePosition : undefined}
+                disabled={disabled}
+                className="absolute inset-0"
+              />
+            ) : (
+              <button
+                type="button"
+                className="flex size-full touch-manipulation flex-col items-center justify-center gap-1.5 p-4 text-center text-xs leading-snug text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed"
+                disabled={disabled || isUploading}
+                aria-label={`Seleccionar ${label.toLowerCase()} desde la vista previa`}
+                onClick={() => inputRef.current?.click()}
+              >
+                <ImageIcon className="size-8 shrink-0" aria-hidden="true" />
+                <span>{emptyLabel}</span>
+              </button>
+            )}
+            {isUploading ? (
+              <div className="absolute inset-x-3 bottom-3 z-10 rounded-md bg-background/95 p-2 shadow">
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1">
+                    <Loader2Icon className="size-3 animate-spin" />
+                    Subiendo
+                  </span>
+                  <span>{progress}%</span>
+                </div>
+                <Progress value={progress} className="h-1.5" />
               </div>
-              <Progress value={progress} className="h-1.5" />
-            </div>
+            ) : null}
+          </div>
+          {canClear ? (
+            <ImagePreviewRemoveButton
+              label={`Quitar ${label.toLowerCase()}`}
+              onClick={() => {
+                setLocalPreview(undefined);
+                onChange(null);
+              }}
+            />
           ) : null}
         </div>
-        {canClear ? (
-          <ImagePreviewRemoveButton
-            label={`Quitar ${label.toLowerCase()}`}
-            onClick={() => {
-              setLocalPreview(undefined);
-              onChange(null);
-            }}
-          />
+        {previewUrl && fit === "cover" ? (
+          <div className="grid gap-2">
+            <ImageCropZoomSlider
+              value={imageZoom(position)}
+              disabled={disabled}
+              onChange={(zoom) =>
+                updatePosition({ ...position, zoom: roundZoom(zoom) })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Arrastrá o pellizcá la imagen. Usá el control para acercar.
+            </p>
+          </div>
         ) : null}
-      </div>
-      {previewUrl && fit === "cover" ? (
-        <div className="grid max-w-xs gap-2">
-          <ImageCropZoomSlider
-            value={imageZoom(position)}
-            disabled={disabled}
-            onChange={(zoom) =>
-              updatePosition({ ...position, zoom: roundZoom(zoom) })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            Arrastrá o pellizcá la imagen. Usá el control para acercar.
-          </p>
-        </div>
-      ) : null}
 
-      <input
-        ref={inputRef}
-        id={inputId}
-        type="file"
-        accept={accept}
-        className="sr-only"
-        disabled={disabled || isUploading}
-        aria-label={`Seleccionar ${label.toLowerCase()}`}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void selectFile(file);
-        }}
-      />
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="file"
+          accept={accept}
+          className="sr-only"
+          disabled={disabled || isUploading}
+          aria-label={`Seleccionar ${label.toLowerCase()}`}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void selectFile(file);
+          }}
+        />
 
-      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          size="sm"
-          className="min-h-11 gap-2 touch-manipulation"
+          className="h-auto min-h-11 w-full gap-2 whitespace-normal touch-manipulation"
           disabled={disabled || isUploading}
           onClick={() => inputRef.current?.click()}
         >
           {isUploading ? (
             <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
           ) : (
-            <UploadIcon className="size-4" aria-hidden="true" />
+            <UploadIcon className="size-4 shrink-0" aria-hidden="true" />
           )}
           {value || localPreview ? "Cambiar imagen" : "Seleccionar imagen"}
         </Button>
