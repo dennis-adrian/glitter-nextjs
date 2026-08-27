@@ -118,10 +118,16 @@ export function SingleImageUploadField({
             className="size-full object-cover"
           />
         ) : (
-          <div className="grid justify-items-center gap-2 p-4 text-center text-xs text-muted-foreground">
+          <button
+            type="button"
+            className="grid size-full touch-manipulation justify-items-center gap-2 p-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed"
+            disabled={disabled || isUploading}
+            aria-label={`Seleccionar ${label.toLowerCase()} desde la vista previa`}
+            onClick={() => inputRef.current?.click()}
+          >
             <ImageIcon className="size-8" aria-hidden="true" />
             <span>{emptyLabel}</span>
-          </div>
+          </button>
         )}
         {isUploading ? (
           <div className="absolute inset-x-3 bottom-3 rounded-md bg-background/95 p-2 shadow">

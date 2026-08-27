@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { SingleImageUploadField } from "@/stories/uploads/components/single-image-upload-field";
 import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
@@ -65,8 +65,20 @@ export const InteractionTest: Story = {
   render: () => <SingleImageStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const fileInput = canvas.getByLabelText("Seleccionar imagen del perfil");
+    const originalClick = fileInput.click;
+    const openSystemPicker = fn();
+    fileInput.click = openSystemPicker;
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Seleccionar imagen del perfil desde la vista previa",
+      }),
+    );
+    await expect(openSystemPicker).toHaveBeenCalledOnce();
+    fileInput.click = originalClick;
+
     await userEvent.upload(
-      canvas.getByLabelText("Seleccionar imagen del perfil"),
+      fileInput,
       new File(["profile"], "nuevo-perfil.png", { type: "image/png" }),
     );
     const removeButton = await canvas.findByRole("button", { name: "Quitar" });
