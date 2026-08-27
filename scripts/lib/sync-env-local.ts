@@ -148,11 +148,10 @@ export function parseEnvFile(contents: string): Record<string, string> {
     if (eq <= 0) continue;
     const key = trimmed.slice(0, eq).trim();
     let value = trimmed.slice(eq + 1);
-    if (
-      (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
-      (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
-    ) {
+    if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
       value = unescapeEnvValue(value.slice(1, -1));
+    } else if (value.startsWith("'") && value.endsWith("'") && value.length >= 2) {
+      value = value.slice(1, -1);
     }
     parsed[key] = value;
   }

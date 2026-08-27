@@ -151,6 +151,16 @@ describe("sync-env-local", () => {
     });
   });
 
+  it("preserves escape sequences literally in single-quoted values", () => {
+    const parsed = parseEnvFile("SINGLE='a\\\\b\\nc\\'d'");
+    expect(parsed.SINGLE).toBe("a\\\\b\\nc\\'d");
+  });
+
+  it("unescapes double-quoted values", () => {
+    const parsed = parseEnvFile('DOUBLE="a\\\\b\\nc\\"d"');
+    expect(parsed.DOUBLE).toBe('a\\b\nc"d');
+  });
+
   it("round-trips quotes, backslashes, and newlines via encode/parse", () => {
     const cases = {
       WITH_QUOTES: 'say "hello"',
