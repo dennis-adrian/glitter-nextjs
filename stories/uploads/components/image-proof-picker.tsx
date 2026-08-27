@@ -138,9 +138,10 @@ export function ImageProofPicker({
             <FittedImage
               src={visibleUrl}
               alt={`Vista previa de ${title.toLowerCase()}`}
+              className="absolute inset-0"
             />
             {uploadedImage && !selectedFile ? (
-              <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">
+              <span className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-xs font-medium text-white">
                 <CheckCircle2Icon className="size-3" aria-hidden="true" />
                 Cargado
               </span>

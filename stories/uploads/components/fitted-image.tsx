@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +42,7 @@ export function FittedImage({
   className,
   disabled = false,
 }: FittedImageProps) {
+  const frameRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const lastPointRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const draggingRef = useRef(false);
@@ -56,16 +63,19 @@ export function FittedImage({
     setIsDragging(false);
   }
 
-  function updateFromPointer(event: PointerEvent<HTMLImageElement>) {
+  function updateFromPointer(event: PointerEvent<HTMLDivElement>) {
+    const frame = frameRef.current;
     const image = imageRef.current;
     const lastPoint = lastPointRef.current;
-    if (!image || !lastPoint || !onPositionChange) return;
+    if (!frame || !image || !lastPoint || !onPositionChange) return;
 
-    const rect = image.getBoundingClientRect();
+    const rect = frame.getBoundingClientRect();
+    const deltaX = event.movementX || event.clientX - lastPoint.x;
+    const deltaY = event.movementY || event.clientY - lastPoint.y;
     const next = panCoverObjectPosition({
       position: positionRef.current,
-      deltaX: event.clientX - lastPoint.x,
-      deltaY: event.clientY - lastPoint.y,
+      deltaX,
+      deltaY,
       containerWidth: rect.width,
       containerHeight: rect.height,
       naturalWidth: image.naturalWidth,
@@ -76,33 +86,44 @@ export function FittedImage({
     onPositionChange(next);
   }
 
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!canReposition || !onPositionChange) return;
+    if (
+      event.key !== "ArrowLeft" &&
+      event.key !== "ArrowRight" &&
+      event.key !== "ArrowUp" &&
+      event.key !== "ArrowDown"
+    ) {
+      return;
+    }
+    event.preventDefault();
+    const next = nudgeImageObjectPosition(positionRef.current, event.key);
+    positionRef.current = next;
+    onPositionChange(next);
+  }
+
   return (
-    // Storybook prototypes preview object URLs and arbitrary remote URLs.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      ref={imageRef}
-      src={src}
-      alt={alt}
-      draggable={false}
+    <div
+      ref={frameRef}
+      role="img"
+      aria-label={alt}
       data-image-fit={fit}
+      data-object-position={imageObjectPositionCss(position)}
       tabIndex={canReposition ? 0 : undefined}
       aria-keyshortcuts={
         canReposition ? "ArrowLeft ArrowRight ArrowUp ArrowDown" : undefined
       }
-      data-object-position={imageObjectPositionCss(position)}
       title={
         canReposition
           ? `Recorte ${Math.round(position.x)}% horizontal, ${Math.round(position.y)}% vertical. Arrastra la imagen o usa las flechas para reposicionar.`
           : undefined
       }
       className={cn(
-        "size-full select-none",
-        fit === "cover" ? "object-cover" : "object-contain",
-        canReposition && "touch-none",
+        "relative size-full min-h-0 min-w-0 overflow-hidden",
+        canReposition && "touch-none select-none",
         canReposition && (isDragging ? "cursor-grabbing" : "cursor-grab"),
         className,
       )}
-      style={{ objectPosition: imageObjectPositionCss(position) }}
       onPointerDown={(event) => {
         if (!canReposition || event.button !== 0) return;
         event.preventDefault();
@@ -119,19 +140,22 @@ export function FittedImage({
       onPointerUp={stopDragging}
       onPointerCancel={stopDragging}
       onLostPointerCapture={stopDragging}
-      onKeyDown={(event) => {
-        if (!canReposition || !onPositionChange) return;
-        if (
-          event.key !== "ArrowLeft" &&
-          event.key !== "ArrowRight" &&
-          event.key !== "ArrowUp" &&
-          event.key !== "ArrowDown"
-        ) {
-          return;
-        }
-        event.preventDefault();
-        onPositionChange(nudgeImageObjectPosition(position, event.key));
-      }}
-    />
+      onKeyDown={handleKeyDown}
+    >
+      {/* Storybook prototypes preview object URLs and arbitrary remote URLs. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={imageRef}
+        src={src}
+        alt=""
+        draggable={false}
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none size-full select-none",
+          fit === "cover" ? "object-cover" : "object-contain",
+        )}
+        style={{ objectPosition: imageObjectPositionCss(position) }}
+      />
+    </div>
   );
 }

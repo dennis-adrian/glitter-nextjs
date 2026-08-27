@@ -158,6 +158,7 @@ export function SingleImageUploadField({
             position={position}
             onPositionChange={fit === "cover" ? updatePosition : undefined}
             disabled={disabled}
+            className="absolute inset-0"
           />
         ) : (
           <button

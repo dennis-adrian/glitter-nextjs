@@ -224,8 +224,12 @@ export function MultiImageDropzone({
                 key={`${image.file.name}-${index}`}
                 className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
               >
-                <FittedImage src={image.previewUrl} alt={image.file.name} />
-                <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-black/65 p-2 text-white">
+                <FittedImage
+                  src={image.previewUrl}
+                  alt={image.file.name}
+                  className="absolute inset-0"
+                />
+                <div className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 bg-black/65 p-2 text-white">
                   <span className="min-w-0 flex-1 truncate text-xs">
                     {image.file.name}
                   </span>

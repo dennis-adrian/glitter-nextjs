@@ -111,10 +111,10 @@ export const CoverReposition: Story = {
     await expect(image).toHaveAttribute("data-object-position", "50% 50%");
     image.focus();
     await expect(image).toHaveFocus();
-    await userEvent.keyboard("{ArrowRight}");
-    await expect(image).toHaveAttribute("data-object-position", "45% 50%");
+    await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+    await expect(image).toHaveAttribute("data-object-position", "40% 50%");
     await expect(
-      canvas.getByText("Recorte 45% horizontal, 50% vertical"),
+      canvas.getByText("Recorte 40% horizontal, 50% vertical"),
     ).toBeVisible();
   },
 };

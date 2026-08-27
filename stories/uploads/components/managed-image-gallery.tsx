@@ -232,13 +232,14 @@ export function ManagedImageGallery({
                     : undefined
                 }
                 disabled={isDeleting}
+                className="absolute inset-0"
               />
               {image.isPrimary ? (
-                <span className="absolute bottom-2 left-2 rounded-full bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
+                <span className="absolute bottom-2 left-2 z-10 rounded-full bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
                   Principal
                 </span>
               ) : null}
-              <div className="absolute right-2 top-2 flex gap-1">
+              <div className="absolute right-2 top-2 z-10 flex gap-1">
                 {!image.isPrimary ? (
                   <button
                     type="button"
