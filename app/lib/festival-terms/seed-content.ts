@@ -75,7 +75,7 @@ export function buildInitialFestivalTermsSections(): SeedTermsSection[] {
       kind: "rich_text",
       layout: "plain",
       title: null,
-      audienceCategories: [],
+      audienceCategories: ["illustration"],
       audienceFestivalTypes: ["festicker"],
       bodyJson: [
         bullet([
