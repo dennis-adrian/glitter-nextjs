@@ -464,6 +464,16 @@ describeDatabase("festival terms schema and acceptance", () => {
       })
       .returning();
 
+    fixtures.push({
+      userId: -1,
+      festivalAId: -1,
+      festivalBId: -1,
+      requestId: -1,
+      extraVersionIds: [draft.id],
+      restoreDocumentId: document!.id,
+      restorePublishedVersionId: previousPublished!.id,
+    });
+
     // Mirrors publishFestivalTermsDraft: archive published, then promote draft.
     await db.transaction(async (tx) => {
       await tx
@@ -511,15 +521,5 @@ describeDatabase("festival terms schema and acceptance", () => {
     });
     expect(publishedRows).toHaveLength(1);
     expect(publishedRows[0]?.id).toBe(draft.id);
-
-    fixtures.push({
-      userId: -1,
-      festivalAId: -1,
-      festivalBId: -1,
-      requestId: -1,
-      extraVersionIds: [draft.id],
-      restoreDocumentId: document!.id,
-      restorePublishedVersionId: previousPublished!.id,
-    });
   });
 });
