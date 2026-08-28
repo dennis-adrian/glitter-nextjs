@@ -2,7 +2,7 @@
   "name": "glitter-nextjs",
   "version": "2.59.0",
   "private": true,
-  "packageManager": "pnpm@10.34.3",
+  "packageManager": "pnpm@11.24.0",
   "engines": {
     "node": ">=24"
   },
@@ -148,19 +148,5 @@
   "overrides": {
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@clerk/shared",
-      "esbuild",
-      "@fortawesome/fontawesome-common-types",
-      "@fortawesome/fontawesome-svg-core",
-      "@fortawesome/free-brands-svg-icons",
-      "core-js",
-      "fsevents",
-      "msgpackr-extract",
-      "protobufjs",
-      "sharp"
-    ]
   }
 }
