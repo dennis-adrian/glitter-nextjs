@@ -5,6 +5,7 @@ import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
@@ -21,6 +22,18 @@ const f = createUploadthing();
 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
+  landingPageImageUploader: f({
+    image: { maxFileSize: "4MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const profile = await requireAdminOrFestivalAdmin();
+      if (!profile) throw new UploadThingError("No autorizado");
+      return { userId: profile.id };
+    })
+    .onUploadComplete(({ metadata, file }) => ({
+      imageUrl: (file as { url: string }).url,
+      uploadedBy: metadata.userId,
+    })),
   // Define as many FileRoutes as you like, each with a unique routeSlug
   profilePicture: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async ({ req }) => {

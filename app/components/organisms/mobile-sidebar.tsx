@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useClerk, useUser } from "@clerk/nextjs";
@@ -41,7 +42,6 @@ import {
   SparklesIcon,
 } from "lucide-react";
 import { NavbarProfile } from "@/app/api/users/definitions";
-import GlitterLogo from "@/app/components/landing/glitter-logo";
 
 type MobileSidebarItemProps = {
   href: string;
@@ -53,7 +53,7 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
     <li>
       <SheetClose
         asChild
-        className="hover:bg-accent hover:text-accent-foreground flex w-full rounded-md p-2 text-left"
+        className="flex w-full rounded-xl p-2 text-left text-brand-neutral transition-colors hover:bg-brand-lavender hover:text-brand-primary"
       >
         <Link href={href}>{children}</Link>
       </SheetClose>
@@ -86,18 +86,27 @@ const MobileSidebar = ({
     <Sheet>
       <SheetTrigger
         aria-label="Open navigation menu"
-        className="cursor-default hover:bg-primary-200/30 hover:text-primary-700"
+        className="cursor-default rounded-full border-brand-border text-brand-ink hover:bg-brand-lavender hover:text-brand-primary"
         variant="outline"
         size="icon"
       >
         {children}
       </SheetTrigger>
-      <SheetContent side="left" className="flex flex-col">
+      <SheetContent
+        side="left"
+        className="flex flex-col border-brand-border bg-brand-elevated"
+      >
         <SheetHeader>
           <SheetTitle>
             <SheetClose>
               <Link href="/">
-                <GlitterLogo variant="dark" height={48} width={48} />
+                <Image
+                  src="/img/logo/glitter-logo-full-primary-1696x739.png"
+                  alt="Productora Glitter"
+                  width={1696}
+                  height={739}
+                  className="h-auto w-[120px] object-contain"
+                />
               </Link>
             </SheetClose>
           </SheetTitle>
@@ -175,6 +184,10 @@ const MobileSidebar = ({
               <MobileSidebarItem href="/dashboard/banners">
                 <ImagesIcon className="mr-2 h-6 w-6" />
                 Carrusel inicio
+              </MobileSidebarItem>
+              <MobileSidebarItem href="/dashboard/landing">
+                <ImagesIcon className="mr-2 h-6 w-6" />
+                Contenido de inicio
               </MobileSidebarItem>
               <li>
                 <h4 className="flex items-center p-2 text-lg">
@@ -287,6 +300,10 @@ const MobileSidebar = ({
                 <MobileSidebarItem href="/dashboard/banners">
                   <ImagesIcon className="mr-2 h-6 w-6" />
                   Carrusel inicio
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/landing">
+                  <ImagesIcon className="mr-2 h-6 w-6" />
+                  Contenido de inicio
                 </MobileSidebarItem>
                 <li>
                   <h4 className="flex items-center p-2 text-lg">

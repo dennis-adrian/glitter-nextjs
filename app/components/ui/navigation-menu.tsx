@@ -42,7 +42,7 @@ NavigationMenuList.displayName = NavigationMenuPrimitive.List.displayName;
 const NavigationMenuItem = NavigationMenuPrimitive.Item;
 
 const navigationMenuTriggerStyle = cva(
-  "group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:text-primary-700 hover:bg-primary-200/30 focus:bg-primary-200/30 focus:border focus:border-primary-700 focus:text-primary-700 focus:outline-hidden disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-primary-200/30 data-[state=open]:bg-primary-200/30",
+  "group inline-flex h-10 w-max items-center justify-center rounded-full bg-transparent px-3 py-2 text-sm font-medium text-brand-neutral transition-colors hover:bg-brand-lavender hover:text-brand-primary focus-visible:bg-brand-lavender focus-visible:text-brand-primary focus-visible:outline-2 focus-visible:outline-brand-primary disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-brand-lavender data-[active]:text-brand-primary data-[state=open]:bg-brand-lavender data-[state=open]:text-brand-primary",
 );
 
 const NavigationMenuTrigger = React.forwardRef<
@@ -70,7 +70,7 @@ const NavigationMenuContent = React.forwardRef<
   <NavigationMenuPrimitive.Content
     ref={ref}
     className={cn(
-      "left-0 bg-white top-0 w-full data-[motion^=from-]:animate-in data-[motion^=to-]:animate-out data-[motion^=from-]:fade-in data-[motion^=to-]:fade-out data-[motion=from-end]:slide-in-from-right-52 data-[motion=from-start]:slide-in-from-left-52 data-[motion=to-end]:slide-out-to-right-52 data-[motion=to-start]:slide-out-to-left-52 md:absolute md:w-auto ",
+      "left-0 top-0 w-full bg-white data-[motion^=from-]:animate-in data-[motion^=to-]:animate-out data-[motion^=from-]:fade-in data-[motion^=to-]:fade-out data-[motion=from-end]:slide-in-from-right-52 data-[motion=from-start]:slide-in-from-left-52 data-[motion=to-end]:slide-out-to-right-52 data-[motion=to-start]:slide-out-to-left-52 md:absolute md:w-auto",
       className,
     )}
     {...props}
@@ -87,7 +87,7 @@ const NavigationMenuViewport = React.forwardRef<
   <div className={cn("absolute left-0 top-full flex justify-center")}>
     <NavigationMenuPrimitive.Viewport
       className={cn(
-        "origin-top-center relative mt-1.5 h-[var(--radix-navigation-menu-viewport-height)] w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 md:w-[var(--radix-navigation-menu-viewport-width)]",
+        "relative mt-2 h-[var(--radix-navigation-menu-viewport-height)] w-full origin-top-center overflow-hidden rounded-[20px] border border-brand-border bg-popover text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 md:w-[var(--radix-navigation-menu-viewport-width)]",
         className,
       )}
       ref={ref}
@@ -118,7 +118,7 @@ NavigationMenuIndicator.displayName =
 
 const NavigationMenuListItem = React.forwardRef<
   React.ComponentRef<"a">,
-  React.ComponentPropsWithoutRef<"a">
+  Omit<React.ComponentPropsWithoutRef<"a">, "href"> & { href: string }
 >(({ className, title, children, href, ...props }, ref) => {
   return (
     <li>
@@ -126,13 +126,13 @@ const NavigationMenuListItem = React.forwardRef<
         <Link
           ref={ref}
           className={cn(
-            "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-primary-200/30 focus:bg-primary-200/30",
+            "block select-none space-y-1 rounded-xl p-3 leading-none no-underline outline-none transition-colors hover:bg-brand-lavender focus-visible:bg-brand-lavender focus-visible:outline-2 focus-visible:outline-brand-primary",
             className,
           )}
-          href={href || "https//example.com"}
+          href={href}
           {...props}
         >
-          <div className="text-sm font-medium leading-none group-hover:text-primary-700">
+          <div className="text-sm font-semibold leading-none text-brand-ink group-hover:text-brand-primary">
             {title}
           </div>
           <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">

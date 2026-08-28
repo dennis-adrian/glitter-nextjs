@@ -452,6 +452,53 @@ export const marketingBanners = pgTable(
   ],
 );
 
+/** Mutable working copy for the public home page. */
+export const landingPageDrafts = pgTable("landing_page_drafts", {
+  pageKey: text("page_key").primaryKey(),
+  content: jsonb("content")
+    .$type<
+      import("@/app/lib/landing_content/definitions").LandingPageContentV1
+    >()
+    .notNull(),
+  version: integer("version").notNull(),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/** Immutable snapshots; restoring always copies one back to the draft. */
+export const landingPagePublications = pgTable(
+  "landing_page_publications",
+  {
+    id: serial("id").primaryKey(),
+    pageKey: text("page_key").notNull(),
+    content: jsonb("content")
+      .$type<
+        import("@/app/lib/landing_content/definitions").LandingPageContentV1
+      >()
+      .notNull(),
+    sourceDraftVersion: integer("source_draft_version").notNull(),
+    publishedByUserId: integer("published_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    publishedAt: timestamp("published_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("landing_page_publications_page_key_id_idx").on(
+      table.pageKey,
+      table.id,
+    ),
+    index("landing_page_publications_published_by_user_id_idx").on(
+      table.publishedByUserId,
+    ),
+  ],
+);
+
 /**
  * Per-section store configuration (one row per `section`: merch / supplies).
  * The storefront reads `mode` to decide whether to override the festival-based
