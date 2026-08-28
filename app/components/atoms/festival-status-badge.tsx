@@ -29,4 +29,12 @@ export default function FestivalStatusBadge({
       </Badge>
     );
   }
+
+  if (status === "published") {
+    return (
+      <Badge className="bg-sky-100 text-sky-800 font-normal border-sky-300">
+        Publicado
+      </Badge>
+    );
+  }
 }

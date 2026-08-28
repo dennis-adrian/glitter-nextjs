@@ -212,6 +212,12 @@ export const usersRelations = relations(users, ({ many }) => ({
   createdStatusEvents: many(userStatusEvents, {
     relationName: "createdUserStatusEvents",
   }),
+  festivalTermsPublished: many(festivalTermsVersions, {
+    relationName: "festivalTermsPublishedBy",
+  }),
+  festivalTermsCreated: many(festivalTermsVersions, {
+    relationName: "festivalTermsCreatedBy",
+  }),
 }));
 
 export const tags = pgTable("tags", {
@@ -339,6 +345,9 @@ export const festivals = pgTable(
     endDate: timestamp("end_date"),
     mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
     publicRegistration: boolean("public_registration").default(false).notNull(),
+    participantTermsEnabled: boolean("participant_terms_enabled")
+      .default(false)
+      .notNull(),
     eventDayRegistration: boolean("event_day_registration")
       .default(false)
       .notNull(),
@@ -550,21 +559,175 @@ export const externalParticipantTypeEnum = pgEnum("external_participant_type", [
   "other",
 ]);
 
+export const festivalTermsVersionStatusEnum = pgEnum(
+  "festival_terms_version_status",
+  ["draft", "published", "archived"],
+);
+export const festivalTermsSectionKindEnum = pgEnum(
+  "festival_terms_section_kind",
+  ["rich_text", "schedule"],
+);
+export const festivalTermsSectionLayoutEnum = pgEnum(
+  "festival_terms_section_layout",
+  ["plain", "accordion", "card"],
+);
+
+/**
+ * Global participant terms document. One row (`festival-participant-terms`).
+ * At most one version is `published` per document (older ones are `archived`);
+ * `fetchPublishedFestivalTermsVersion` returns that row. Drafts are cloned
+ * from the published snapshot and become immutable once published.
+ */
+export const festivalTermsDocuments = pgTable("festival_terms_documents", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").unique().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const festivalTermsDocumentsRelations = relations(
+  festivalTermsDocuments,
+  ({ many }) => ({
+    versions: many(festivalTermsVersions),
+  }),
+);
+
+export const festivalTermsVersions = pgTable(
+  "festival_terms_versions",
+  {
+    id: serial("id").primaryKey(),
+    documentId: integer("document_id")
+      .notNull()
+      .references(() => festivalTermsDocuments.id, { onDelete: "restrict" }),
+    versionNumber: integer("version_number").notNull(),
+    status: festivalTermsVersionStatusEnum("status")
+      .default("draft")
+      .notNull(),
+    changelog: text("changelog"),
+    publishedAt: timestamp("published_at"),
+    publishedByUserId: integer("published_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("festival_terms_versions_document_number_unique").on(
+      table.documentId,
+      table.versionNumber,
+    ),
+    uniqueIndex("festival_terms_versions_one_draft_per_document")
+      .on(table.documentId)
+      .where(sql`${table.status} = 'draft'`),
+    uniqueIndex("festival_terms_versions_one_published_per_document")
+      .on(table.documentId)
+      .where(sql`${table.status} = 'published'`),
+    index("festival_terms_versions_document_status_idx").on(
+      table.documentId,
+      table.status,
+    ),
+  ],
+);
+export const festivalTermsVersionsRelations = relations(
+  festivalTermsVersions,
+  ({ one, many }) => ({
+    document: one(festivalTermsDocuments, {
+      fields: [festivalTermsVersions.documentId],
+      references: [festivalTermsDocuments.id],
+    }),
+    publishedBy: one(users, {
+      fields: [festivalTermsVersions.publishedByUserId],
+      references: [users.id],
+      relationName: "festivalTermsPublishedBy",
+    }),
+    createdBy: one(users, {
+      fields: [festivalTermsVersions.createdByUserId],
+      references: [users.id],
+      relationName: "festivalTermsCreatedBy",
+    }),
+    sections: many(festivalTermsSections),
+    acceptances: many(userRequests),
+  }),
+);
+
+export const festivalTermsSections = pgTable(
+  "festival_terms_sections",
+  {
+    id: serial("id").primaryKey(),
+    versionId: integer("version_id")
+      .notNull()
+      .references(() => festivalTermsVersions.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    kind: festivalTermsSectionKindEnum("kind").default("rich_text").notNull(),
+    layout: festivalTermsSectionLayoutEnum("layout")
+      .default("plain")
+      .notNull(),
+    title: text("title"),
+    bodyJson: jsonb("body_json"),
+    bodyHtml: text("body_html"),
+    /** Empty array means every participant category. */
+    audienceCategories: jsonb("audience_categories")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
+    /** Empty array means every festival type. */
+    audienceFestivalTypes: jsonb("audience_festival_types")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("festival_terms_sections_version_sort_idx").on(
+      table.versionId,
+      table.sortOrder,
+    ),
+  ],
+);
+export const festivalTermsSectionsRelations = relations(
+  festivalTermsSections,
+  ({ one }) => ({
+    version: one(festivalTermsVersions, {
+      fields: [festivalTermsSections.versionId],
+      references: [festivalTermsVersions.id],
+    }),
+  }),
+);
+
 export const requestTypeEnum = pgEnum("user_request_type", [
   "festival_participation",
   "become_artist",
 ]);
-export const userRequests = pgTable("user_requests", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  festivalId: integer("festival_id").references(() => festivals.id),
-  type: requestTypeEnum("type").notNull().default("become_artist"),
-  status: requestStatusEnum("status").default("pending").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const userRequests = pgTable(
+  "user_requests",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id").references(() => festivals.id),
+    type: requestTypeEnum("type").notNull().default("become_artist"),
+    status: requestStatusEnum("status").default("pending").notNull(),
+    termsVersionId: integer("terms_version_id").references(
+      () => festivalTermsVersions.id,
+      { onDelete: "restrict" },
+    ),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("user_requests_terms_version_id_idx").on(table.termsVersionId),
+    unique("user_requests_user_festival_type_unique").on(
+      table.userId,
+      table.festivalId,
+      table.type,
+    ),
+  ],
+);
 export const userRequestsRelations = relations(userRequests, ({ one }) => ({
   user: one(users, {
     fields: [userRequests.userId],
@@ -573,6 +736,10 @@ export const userRequestsRelations = relations(userRequests, ({ one }) => ({
   festival: one(festivals, {
     fields: [userRequests.festivalId],
     references: [festivals.id],
+  }),
+  termsVersion: one(festivalTermsVersions, {
+    fields: [userRequests.termsVersionId],
+    references: [festivalTermsVersions.id],
   }),
 }));
 

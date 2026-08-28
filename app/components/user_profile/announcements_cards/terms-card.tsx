@@ -12,7 +12,7 @@ type TermsCardProps = {
   profile: ProfileType;
 };
 
-export function TermsCard(props: TermsCardProps) {
+export function TermsCard(props: TermsCardProps & { isReacceptance?: boolean }) {
   const festivalCategories = getFestivalCategories(props.festival);
   if (
     props.profile.category &&
@@ -24,10 +24,17 @@ export function TermsCard(props: TermsCardProps) {
   return (
     <BaseCard
       content={
-        <p>
-          Se acerca <b>{props.festival.name}</b>. Leé y aceptá los términos y
-          condiciones para participar.
-        </p>
+        props.isReacceptance ? (
+          <p>
+            Actualizamos los términos y condiciones de{" "}
+            <b>{props.festival.name}</b>. Volvé a aceptarlos para continuar.
+          </p>
+        ) : (
+          <p>
+            Se acerca <b>{props.festival.name}</b>. Leé y aceptá los términos y
+            condiciones para participar.
+          </p>
+        )
       }
       footer={
         <RedirectButton
@@ -36,7 +43,9 @@ export function TermsCard(props: TermsCardProps) {
           size="sm"
           href={`/festivals/${props.festival.id}/terms`}
         >
-          Leer términos y condiciones
+          {props.isReacceptance
+            ? "Aceptar nueva versión"
+            : "Leer términos y condiciones"}
           <ArrowRightIcon className="ml-1 w-4 h-4" />
         </RedirectButton>
       }

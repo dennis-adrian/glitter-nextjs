@@ -24,6 +24,7 @@ const ARTICLE_TAGS = [
   "code",
   "hr",
   "img",
+  "mark",
 ];
 
 const ALLOWED_ATTR = ["href", "target", "rel", "src", "alt"];

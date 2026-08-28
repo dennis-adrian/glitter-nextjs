@@ -1,3 +1,4 @@
 reviews:
   auto_review:
+    enabled: false
     base_branches: [develop, main]

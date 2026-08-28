@@ -28,6 +28,12 @@ import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confi
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import { nextEnrollmentTermsWrite } from "@/app/lib/festival-terms/acceptance";
+import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
+import {
+  FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+  isFestivalParticipantTermsEnabled,
+} from "@/app/lib/festivals/participant-terms";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 
 export async function fetchRequestsByUserId(userId: number) {
@@ -416,6 +422,17 @@ export async function createUserEnrollment(params: {
       };
     }
 
+    const festival = await db.query.festivals.findFirst({
+      where: eq(festivals.id, festivalId),
+      columns: { participantTermsEnabled: true },
+    });
+    if (!festival || !isFestivalParticipantTermsEnabled(festival)) {
+      return {
+        success: false,
+        message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+      };
+    }
+
     const existing = await db.query.userRequests.findFirst({
       where: and(
         eq(userRequests.userId, profileId),
@@ -424,10 +441,34 @@ export async function createUserEnrollment(params: {
       ),
     });
 
-    if (existing) {
+    const publishedTerms = await fetchPublishedFestivalTermsVersion();
+    const write = nextEnrollmentTermsWrite(
+      existing,
+      publishedTerms?.id ?? null,
+    );
+
+    if (write.type === "error") {
+      return { success: false, message: write.message };
+    }
+
+    if (write.type === "noop") {
       return {
         success: true,
         message: "Ya tenés una solicitud de participación.",
+      };
+    }
+
+    if (write.type === "reaccept" && existing) {
+      await db
+        .update(userRequests)
+        .set({
+          termsVersionId: publishedTerms!.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(userRequests.id, existing.id));
+      return {
+        success: true,
+        message: "Aceptaste la nueva versión de los términos y condiciones.",
       };
     }
 
@@ -441,6 +482,7 @@ export async function createUserEnrollment(params: {
       festivalId: festivalId,
       status: enrollmentStatus,
       type: "festival_participation",
+      termsVersionId: publishedTerms!.id,
     });
 
     const admins = await fetchAdminUsers();
