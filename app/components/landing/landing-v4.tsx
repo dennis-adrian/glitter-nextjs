@@ -51,7 +51,7 @@ const sectionBackgroundClasses: Record<
 > = {
   none: "bg-brand-elevated",
   purple: "bg-brand-lavender",
-  coral: "bg-brand-coral",
+  coral: "bg-brand-coral-soft",
 };
 
 function Heading({
