@@ -387,10 +387,6 @@ export function parseLandingPageContent(value: unknown) {
         };
       }
     });
-    const festivalOrder = { glitter: 0, festicker: 1, twinkler: 2 } as const;
-    section.items.sort(
-      (a, b) => festivalOrder[a.festivalType] - festivalOrder[b.festivalType],
-    );
   }
   return result;
 }

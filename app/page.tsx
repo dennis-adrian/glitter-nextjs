@@ -12,19 +12,28 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  searchParams,
-}: {
+type HomeProps = {
   searchParams: Promise<{ preview?: string }>;
-}): Promise<Metadata> {
+};
+
+async function getLandingPreviewState(
+  searchParams: HomeProps["searchParams"],
+) {
   const preview = (await searchParams).preview === "landing-draft";
   const profile = await getCurrentUserProfile();
   const canPreview =
     profile?.role === "admin" || profile?.role === "festival_admin";
-  if (preview && canPreview) {
-    return { robots: { index: false, follow: false } };
-  }
-  const content = await getPublishedLandingContent();
+  return { preview, canPreview, profile };
+}
+
+export async function generateMetadata({
+  searchParams,
+}: HomeProps): Promise<Metadata> {
+  const { preview, canPreview } = await getLandingPreviewState(searchParams);
+  const content =
+    preview && canPreview
+      ? (await getLandingDraftOrFallback()).content
+      : await getPublishedLandingContent();
   return {
     title: content.seo.title,
     description: content.seo.description,
@@ -35,15 +44,9 @@ export async function generateMetadata({
   };
 }
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ preview?: string }>;
-}) {
-  const preview = (await searchParams).preview === "landing-draft";
-  const profile = await getCurrentUserProfile();
-  const canPreview =
-    profile?.role === "admin" || profile?.role === "festival_admin";
+export default async function Home({ searchParams }: HomeProps) {
+  const { preview, canPreview, profile } =
+    await getLandingPreviewState(searchParams);
   if (preview && canPreview) {
     const draft = await getLandingDraftOrFallback();
     return (

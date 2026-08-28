@@ -189,6 +189,25 @@ describe("landing page content schema", () => {
     }
   });
 
+  it("preserves festival family item order from parsed content", () => {
+    const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    content.sections.festivalFamily.items = [
+      content.sections.festivalFamily.items[2],
+      content.sections.festivalFamily.items[0],
+      content.sections.festivalFamily.items[1],
+    ];
+
+    const parsed = parseLandingPageContent(content);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(
+        parsed.data.sections.festivalFamily.items.map(
+          (item) => item.festivalType,
+        ),
+      ).toEqual(["twinkler", "glitter", "festicker"]);
+    }
+  });
+
   it("migrates the original festival cards to the immersive showcase content", () => {
     const legacy = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
     legacy.sections.festivalFamily.heading = "Una familia de tres festivales";

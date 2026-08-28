@@ -257,6 +257,8 @@ function CropPreview({
   const [draftPoint, setDraftPoint] = useState<FocalPoint>(
     focalPoint ?? { ...CENTERED_IMAGE_FOCAL_POINT },
   );
+  const [prevFocalX, setPrevFocalX] = useState(focalPoint?.x);
+  const [prevFocalY, setPrevFocalY] = useState(focalPoint?.y);
   const drag = useRef<{
     pointerId: number;
     originX: number;
@@ -264,6 +266,12 @@ function CropPreview({
     focalPoint: FocalPoint;
     currentPoint: FocalPoint;
   } | null>(null);
+
+  if (focalPoint?.x !== prevFocalX || focalPoint?.y !== prevFocalY) {
+    setPrevFocalX(focalPoint?.x);
+    setPrevFocalY(focalPoint?.y);
+    setDraftPoint(focalPoint ?? { ...CENTERED_IMAGE_FOCAL_POINT });
+  }
 
   function startPan(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || !url) return;
@@ -452,7 +460,7 @@ function CropEditor({
         </DialogHeader>
         <div className="rounded-2xl border bg-muted/30 p-3 sm:p-4">
           <CropPreview
-            key={`${url}:${focalPoint?.x ?? 50}:${focalPoint?.y ?? 50}`}
+            key={url}
             label={label}
             url={url}
             fit={fit}
@@ -1340,7 +1348,18 @@ export default function LandingEditor({
                 <span className="text-sm font-medium">Fuente</span>
                 <select
                   className="h-10 rounded-md border bg-background px-3"
-                  {...register("sections.eventSpotlight.source")}
+                  value={content.sections.eventSpotlight.source}
+                  onChange={(event) => {
+                    const source = event.target.value as "active" | "selected";
+                    setValue("sections.eventSpotlight.source", source, {
+                      shouldDirty: true,
+                    });
+                    if (source === "active") {
+                      setValue("sections.eventSpotlight.festivalId", null, {
+                        shouldDirty: true,
+                      });
+                    }
+                  }}
                 >
                   <option value="active">Festival activo automático</option>
                   <option value="selected">Festival seleccionado</option>
