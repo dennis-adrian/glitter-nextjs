@@ -63,7 +63,6 @@ export async function getOrCreateFestivalTermsDraft() {
   const published = await fetchPublishedFestivalTermsVersion();
   if (!published) {
     await createInitialFestivalTermsDraft(profile.id);
-    revalidateTermsPaths();
     const initialDraft = await fetchDraftFestivalTermsVersion();
     if (!initialDraft) {
       return {
@@ -128,7 +127,6 @@ export async function getOrCreateFestivalTermsDraft() {
     return created;
   });
 
-  revalidateTermsPaths();
   const loaded = await fetchDraftFestivalTermsVersion();
   if (!loaded) {
     return {
