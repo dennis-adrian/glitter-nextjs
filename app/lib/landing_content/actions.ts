@@ -24,8 +24,8 @@ async function validateForPublish(content: unknown) {
   const event = parsed.data.sections.eventSpotlight;
   if (
     event.source === "selected" &&
-    event.festivalId &&
-    !(await isEligiblePublishedFestival(event.festivalId))
+    (event.festivalId === null ||
+      !(await isEligiblePublishedFestival(event.festivalId)))
   )
     return null;
   return parsed.data;

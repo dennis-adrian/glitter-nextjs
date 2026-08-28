@@ -1471,7 +1471,7 @@ export default function LandingEditor({
                     title: "Nueva tarjeta",
                     description: "Descripción",
                     image: {
-                      url: "/img/landing-v4/audience-artist.png",
+                      url: "/img/landing-audiences/participants.png",
                       alt: "Descripción de imagen",
                     },
                     cta: { label: "Ver más", href: "/", show: true },
@@ -1607,7 +1607,7 @@ export default function LandingEditor({
                     badge: "Próxima edición",
                     description: "Descripción",
                     fallbackImage: {
-                      url: "/img/landing-v4/festival-glitter.png",
+                      url: "/img/landing-festivals/glitter-characters.png",
                       alt: "Descripción de imagen",
                     },
                     href: null,
@@ -1706,7 +1706,7 @@ export default function LandingEditor({
                   addTo("sections.community.gallery", {
                     id: crypto.randomUUID(),
                     image: {
-                      url: "/img/landing-carousel/21 1.jpg",
+                      url: "/img/landing-carousel/hanon-show.png",
                       alt: "Descripción de imagen",
                       focalPoint: { ...CENTERED_IMAGE_FOCAL_POINT },
                       zoom: DEFAULT_IMAGE_ZOOM,

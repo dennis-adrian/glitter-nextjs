@@ -8,7 +8,7 @@ import {
 
 describe("isAllowedProgramArtworkUrl", () => {
   it.each([
-    "/img/banner-caceria-de-sellos.png",
+    "/img/glitter-mascot-with-stand.png",
     "/img/programs/program-banner-placeholder.svg",
   ])("allows same-origin public paths: %s", (url) => {
     expect(isAllowedProgramArtworkUrl(url)).toBe(true);

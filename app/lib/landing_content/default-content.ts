@@ -7,57 +7,57 @@ export const DEFAULT_COMMUNITY_GALLERY: LandingPageContentV1["sections"]["commun
     {
       id: "b1b7d8f0-d8b9-4c77-a28f-2b4a1b6c5111",
       image: {
-        url: "/img/landing-carousel/21 1.jpg",
+        url: "/img/landing-carousel/hanon-show.png",
         alt: "Público participando en una actividad sobre el escenario de Glitter",
       },
     },
     {
       id: "b1b7d8f1-d8b9-4c77-a28f-2b4a1b6c5112",
       image: {
-        url: "/img/landing-carousel/29.jpg",
-        alt: "Presentador animando al público durante un festival Glitter",
+        url: "/img/landing-carousel/silksong.png",
+        alt: "Visitantes en cosplay durante un festival Glitter",
       },
     },
     {
       id: "b1b7d8f2-d8b9-4c77-a28f-2b4a1b6c5113",
       image: {
-        url: "/img/landing-carousel/75.jpg",
+        url: "/img/landing-carousel/illustrations.png",
         alt: "Ilustraciones exhibidas en un stand de artistas",
       },
     },
     {
       id: "b1b7d8f3-d8b9-4c77-a28f-2b4a1b6c5114",
       image: {
-        url: "/img/landing-carousel/50.jpg",
-        alt: "Visitante eligiendo artesanías tejidas a crochet",
+        url: "/img/landing-carousel/bees.png",
+        alt: "Abejas tejidas a crochet exhibidas en un stand artesanal",
       },
     },
     {
       id: "b1b7d8f4-d8b9-4c77-a28f-2b4a1b6c5115",
       image: {
-        url: "/img/landing-carousel/10 1.jpg",
+        url: "/img/landing-carousel/cookies.jpg",
         alt: "Galletas artesanales de colores en un stand gastronómico",
       },
     },
     {
       id: "b1b7d8f5-d8b9-4c77-a28f-2b4a1b6c5116",
       image: {
-        url: "/img/landing-carousel/70.jpg",
+        url: "/img/landing-carousel/earrings.png",
         alt: "Aretes artesanales exhibidos en un stand creativo",
       },
     },
     {
       id: "b1b7d8f6-d8b9-4c77-a28f-2b4a1b6c5117",
       image: {
-        url: "/img/landing-carousel/21.jpg",
+        url: "/img/landing-carousel/ceramics.png",
         alt: "Piezas de cerámica coloridas creadas por artistas locales",
       },
     },
     {
       id: "b1b7d8f7-d8b9-4c77-a28f-2b4a1b6c5118",
       image: {
-        url: "/img/landing-carousel/34.jpg",
-        alt: "Stickers de animales exhibidos durante Festicker",
+        url: "/img/landing-carousel/sticker-stand.png",
+        alt: "Stickers ilustrados exhibidos durante Festicker",
       },
     },
   ];

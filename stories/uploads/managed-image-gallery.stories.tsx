@@ -13,7 +13,7 @@ const initialImages: ManagedGalleryImage[] = [
     id: "cover",
     name: "Portada del festival",
     size: 410_000,
-    url: "/img/banner-caceria-de-sellos.png",
+    url: "/img/festicker-banner.png",
     isPrimary: true,
   },
   {

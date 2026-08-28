@@ -155,7 +155,7 @@ describe("landing page content schema", () => {
     expect(migrated.success).toBe(true);
     if (migrated.success) {
       expect(migrated.data.sections.community.gallery[0].image.url).toBe(
-        "/img/landing-carousel/21 1.jpg",
+        "/img/landing-carousel/hanon-show.png",
       );
     }
 
@@ -166,6 +166,25 @@ describe("landing page content schema", () => {
     if (untouched.success) {
       expect(untouched.data.sections.community.gallery[0].image.url).toBe(
         "/custom/photo.jpg",
+      );
+    }
+  });
+
+  it("migrates the original numeric gallery filenames to the named assets", () => {
+    const legacy = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    legacy.sections.community.gallery[0].image.url =
+      "/img/landing-carousel/21 1.jpg";
+    legacy.sections.community.gallery[1].image.url =
+      "/img/landing-carousel/29.jpg";
+
+    const migrated = parseLandingPageContent(legacy);
+    expect(migrated.success).toBe(true);
+    if (migrated.success) {
+      expect(migrated.data.sections.community.gallery[0].image.url).toBe(
+        "/img/landing-carousel/hanon-show.png",
+      );
+      expect(migrated.data.sections.community.gallery[1].image.url).toBe(
+        "/img/landing-carousel/silksong.png",
       );
     }
   });

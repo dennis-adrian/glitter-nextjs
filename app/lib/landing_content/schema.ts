@@ -286,6 +286,22 @@ export function parseLandingPageContent(value: unknown) {
     );
   }
   if (result.success) {
+    const legacyCommunityGalleryUrls: Record<string, string> = {
+      "/img/landing-carousel/21 1.jpg": "/img/landing-carousel/hanon-show.png",
+      "/img/landing-carousel/29.jpg": "/img/landing-carousel/silksong.png",
+      "/img/landing-carousel/75.jpg": "/img/landing-carousel/illustrations.png",
+      "/img/landing-carousel/50.jpg": "/img/landing-carousel/bees.png",
+      "/img/landing-carousel/10 1.jpg": "/img/landing-carousel/cookies.jpg",
+      "/img/landing-carousel/70.jpg": "/img/landing-carousel/earrings.png",
+      "/img/landing-carousel/21.jpg": "/img/landing-carousel/ceramics.png",
+      "/img/landing-carousel/34.jpg": "/img/landing-carousel/sticker-stand.png",
+    };
+    result.data.sections.community.gallery.forEach((item) => {
+      const nextUrl = legacyCommunityGalleryUrls[item.image.url];
+      if (nextUrl) item.image.url = nextUrl;
+    });
+  }
+  if (result.success) {
     if (result.data.footer.logo.url === "/img/landing-v4/logo-wordmark.png") {
       result.data.footer.logo = {
         ...DEFAULT_LANDING_PAGE_CONTENT.footer.logo,
