@@ -15,7 +15,7 @@ export const glitterTokens = {
     card: "#FFFFFF",
     neutral: "#697281",
     neutralStrong: "#0E1624",
-    coralSoft: "#FFF0EE",
+    coralSoft: "#FFE0DB",
     border: "#F0E5FF",
     primaryScale: {
       50: "#F5F0FF",
