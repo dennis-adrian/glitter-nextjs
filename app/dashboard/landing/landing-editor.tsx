@@ -204,11 +204,10 @@ function SectionLinkPicker({
   name: string;
   setValue: UseFormSetValue<LandingPageContentV1>;
 }) {
-  const selectedHref = landingSectionTargets.some(
-    (target) => target.href === href,
-  )
-    ? href
-    : "";
+  const selectedHref =
+    href && landingSectionTargets.some((target) => target.href === href)
+      ? href
+      : "";
 
   return (
     <label className="grid gap-1.5">

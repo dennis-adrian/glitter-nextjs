@@ -48,8 +48,8 @@ export default function AnnouncementStrip({
     if (display !== "rotating" || items.length < 2) return;
 
     const rotationMs = rotationIntervalSeconds * 1000;
-    let exitTimer: ReturnType<typeof window.setTimeout> | undefined;
-    let rotateTimer: ReturnType<typeof window.setTimeout> | undefined;
+    let exitTimer: number | undefined;
+    let rotateTimer: number | undefined;
     const scheduleRotation = () => {
       exitTimer = window.setTimeout(
         () => {
