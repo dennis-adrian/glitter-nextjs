@@ -1,3 +1,6 @@
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -32,7 +35,8 @@ describe("editor schemas", () => {
   });
 
   it("rejects unsupported compact heading levels", () => {
-    const levels = compactEditorSchema.blockSchema.heading.propSchema.level.values;
+    const levels =
+      compactEditorSchema.blockSchema.heading.propSchema.level.values;
 
     expect(levels).toEqual([2, 3]);
     expect(levels).not.toContain(1);
@@ -40,7 +44,8 @@ describe("editor schemas", () => {
   });
 
   it("rejects unsupported article heading levels", () => {
-    const levels = articleEditorSchema.blockSchema.heading.propSchema.level.values;
+    const levels =
+      articleEditorSchema.blockSchema.heading.propSchema.level.values;
 
     expect(levels).toEqual([1, 2, 3, 4]);
     expect(levels).not.toContain(5);
@@ -76,6 +81,25 @@ describe("editor schemas", () => {
 });
 
 describe("HTML sanitizer", () => {
+  it("loads when synchronous CommonJS-to-ESM bridging is unavailable", () => {
+    const require = createRequire(import.meta.url);
+    const sanitizerPath = require.resolve("sanitize-html");
+    const result = spawnSync(
+      process.execPath,
+      ["-e", `require(${JSON.stringify(sanitizerPath)})`],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          NODE_OPTIONS: "--no-experimental-require-module",
+        },
+      },
+    );
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+  });
+
   it("allowlists http(s), mailto, and root-relative URIs", () => {
     expect(isAllowedRichTextUri("https://example.com")).toBe(true);
     expect(isAllowedRichTextUri("http://example.com")).toBe(true);
@@ -83,6 +107,7 @@ describe("HTML sanitizer", () => {
       true,
     );
     expect(isAllowedRichTextUri("/terms/diagram.png")).toBe(true);
+    expect(isAllowedRichTextUri("//example.com/diagram.png")).toBe(false);
     expect(isAllowedRichTextUri("javascript:alert(1)")).toBe(false);
     expect(isAllowedRichTextUri("data:text/html,x")).toBe(false);
   });
@@ -94,6 +119,16 @@ describe("HTML sanitizer", () => {
     expect(clean).not.toMatch(/script/i);
     expect(clean).not.toMatch(/javascript:/i);
     expect(clean).toContain("Hola");
+  });
+
+  it("strips non-root-relative and protocol-relative URIs", () => {
+    const dirty =
+      '<a href="relative/path">relative</a><img src="//example.com/image.png" alt="image">';
+    const clean = sanitizeRichTextHtml(dirty, "article");
+    expect(clean).not.toContain("href=");
+    expect(clean).not.toContain("src=");
+    expect(clean).toContain("relative");
+    expect(clean).toContain('alt="image"');
   });
 
   it("keeps compact allowlisted markup including mailto links", () => {
