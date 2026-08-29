@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 
 import type { EditorVariant } from "@/app/lib/rich-text/schemas";
 
@@ -27,9 +27,7 @@ const ARTICLE_TAGS = [
   "mark",
 ];
 
-const ALLOWED_ATTR = ["href", "target", "rel", "src", "alt"];
-
-const ALLOWED_URI_REGEXP = /^(?:https?:|mailto:|\/)/i;
+const ALLOWED_URI_REGEXP = /^(?:https?:|mailto:|\/(?![\\/]))/i;
 
 export function isAllowedRichTextUri(value: string): boolean {
   return ALLOWED_URI_REGEXP.test(value.trim());
@@ -39,10 +37,29 @@ export function sanitizeRichTextHtml(
   html: string,
   variant: EditorVariant = "compact",
 ): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: variant === "article" ? ARTICLE_TAGS : COMPACT_TAGS,
-    ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP,
-    ALLOW_DATA_ATTR: false,
+  return sanitizeHtml(html, {
+    allowedTags: variant === "article" ? ARTICLE_TAGS : COMPACT_TAGS,
+    allowedAttributes: {
+      a: ["href", "target", "rel"],
+      img: ["src", "alt"],
+    },
+    allowedSchemes: ["http", "https", "mailto"],
+    allowProtocolRelative: false,
+    transformTags: {
+      a: (tagName, attributes) => {
+        const attribs = { ...attributes };
+        if (attribs.href && !isAllowedRichTextUri(attribs.href)) {
+          delete attribs.href;
+        }
+        return { tagName, attribs };
+      },
+      img: (tagName, attributes) => {
+        const attribs = { ...attributes };
+        if (attribs.src && !isAllowedRichTextUri(attribs.src)) {
+          delete attribs.src;
+        }
+        return { tagName, attribs };
+      },
+    },
   });
 }

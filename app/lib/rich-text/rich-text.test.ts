@@ -32,7 +32,8 @@ describe("editor schemas", () => {
   });
 
   it("rejects unsupported compact heading levels", () => {
-    const levels = compactEditorSchema.blockSchema.heading.propSchema.level.values;
+    const levels =
+      compactEditorSchema.blockSchema.heading.propSchema.level.values;
 
     expect(levels).toEqual([2, 3]);
     expect(levels).not.toContain(1);
@@ -40,7 +41,8 @@ describe("editor schemas", () => {
   });
 
   it("rejects unsupported article heading levels", () => {
-    const levels = articleEditorSchema.blockSchema.heading.propSchema.level.values;
+    const levels =
+      articleEditorSchema.blockSchema.heading.propSchema.level.values;
 
     expect(levels).toEqual([1, 2, 3, 4]);
     expect(levels).not.toContain(5);
@@ -83,6 +85,8 @@ describe("HTML sanitizer", () => {
       true,
     );
     expect(isAllowedRichTextUri("/terms/diagram.png")).toBe(true);
+    expect(isAllowedRichTextUri("//example.com/diagram.png")).toBe(false);
+    expect(isAllowedRichTextUri("/\\example.com/image.png")).toBe(false);
     expect(isAllowedRichTextUri("javascript:alert(1)")).toBe(false);
     expect(isAllowedRichTextUri("data:text/html,x")).toBe(false);
   });
@@ -94,6 +98,24 @@ describe("HTML sanitizer", () => {
     expect(clean).not.toMatch(/script/i);
     expect(clean).not.toMatch(/javascript:/i);
     expect(clean).toContain("Hola");
+  });
+
+  it("blocks raw-text end-tag mutation XSS", () => {
+    const dirty =
+      '<textarea></textarea/><img src="/safe.png" onerror="alert(1)">';
+    const clean = sanitizeRichTextHtml(dirty, "article");
+    expect(clean).not.toMatch(/textarea|onerror|alert/i);
+    expect(clean).toContain('src="/safe.png"');
+  });
+
+  it("strips non-root-relative and protocol-relative URIs", () => {
+    const dirty =
+      '<a href="relative/path">relative</a><img src="//example.com/image.png" alt="image">';
+    const clean = sanitizeRichTextHtml(dirty, "article");
+    expect(clean).not.toContain("href=");
+    expect(clean).not.toContain("src=");
+    expect(clean).toContain("relative");
+    expect(clean).toContain('alt="image"');
   });
 
   it("keeps compact allowlisted markup including mailto links", () => {

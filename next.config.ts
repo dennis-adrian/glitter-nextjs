@@ -29,11 +29,7 @@ const nextConfig: NextConfig = {
     ];
   },
   reactCompiler: true,
-  serverExternalPackages: [
-    "@blocknote/server-util",
-    "jsdom",
-    "isomorphic-dompurify",
-  ],
+  serverExternalPackages: ["@blocknote/server-util", "jsdom"],
   outputFileTracingIncludes: {
     // Turbopack matches this key with "contains" semantics against the raw
     // entry name (`app/api/.../route`), so it must not start with a slash.
