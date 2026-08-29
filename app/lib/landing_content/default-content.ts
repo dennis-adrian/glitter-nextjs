@@ -14,8 +14,9 @@ export const DEFAULT_COMMUNITY_GALLERY: LandingPageContentV1["sections"]["commun
     {
       id: "b1b7d8f1-d8b9-4c77-a28f-2b4a1b6c5112",
       image: {
-        url: "/img/landing-carousel/silksong.png",
-        alt: "Visitantes en cosplay durante un festival Glitter",
+        url: "/img/landing-carousel/sticker-stand.png",
+        alt: "Muestra de stickers de un participante",
+        focalPoint: { x: 40.1, y: 48 },
       },
     },
     {
@@ -23,13 +24,14 @@ export const DEFAULT_COMMUNITY_GALLERY: LandingPageContentV1["sections"]["commun
       image: {
         url: "/img/landing-carousel/illustrations.png",
         alt: "Ilustraciones exhibidas en un stand de artistas",
+        focalPoint: { x: 51.2, y: 49.8 },
       },
     },
     {
       id: "b1b7d8f3-d8b9-4c77-a28f-2b4a1b6c5114",
       image: {
-        url: "/img/landing-carousel/bees.png",
-        alt: "Abejas tejidas a crochet exhibidas en un stand artesanal",
+        url: "/img/landing-carousel/silksong.png",
+        alt: "Visitantes en cosplay posando para la foto",
       },
     },
     {
@@ -44,6 +46,7 @@ export const DEFAULT_COMMUNITY_GALLERY: LandingPageContentV1["sections"]["commun
       image: {
         url: "/img/landing-carousel/earrings.png",
         alt: "Aretes artesanales exhibidos en un stand creativo",
+        focalPoint: { x: 43, y: 43.4 },
       },
     },
     {
@@ -51,13 +54,15 @@ export const DEFAULT_COMMUNITY_GALLERY: LandingPageContentV1["sections"]["commun
       image: {
         url: "/img/landing-carousel/ceramics.png",
         alt: "Piezas de cerámica coloridas creadas por artistas locales",
+        focalPoint: { x: 30.4, y: 31.2 },
       },
     },
     {
       id: "b1b7d8f7-d8b9-4c77-a28f-2b4a1b6c5118",
       image: {
-        url: "/img/landing-carousel/sticker-stand.png",
-        alt: "Stickers ilustrados exhibidos durante Festicker",
+        url: "/img/landing-carousel/bees.png",
+        alt: "Par de abejas hechas con crochet",
+        focalPoint: { x: 50.1, y: 62 },
       },
     },
   ];
@@ -66,7 +71,7 @@ export const DEFAULT_COMMUNITY_GALLERY: LandingPageContentV1["sections"]["commun
 export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
   schemaVersion: 1,
   announcement: {
-    display: "stacked",
+    display: "rotating",
     rotationIntervalSeconds: 6,
     items: [],
   },
@@ -79,27 +84,27 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
   hero: {
     titleLead: "El lugar para tu",
     titleAccent: "creatividad",
-    body: "Creamos espacios acogedores y seguros para que ilustradores y emprendimientos creativos puedan impulsar sus ideas en Bolivia.",
+    body: "Creamos espacios acogedores y seguros para que ilustradores y emprendimientos creativos puedan impulsar sus ideas.",
     image: {
       url: asset("theo-standard-hero.png"),
       alt: "Theo llevando materiales para un stand creativo",
     },
     primaryCta: {
-      label: "Reservá tu lugar",
-      href: "/festivals/festicker",
+      label: "Quiero participar",
+      href: "#participa",
       show: true,
     },
     secondaryCta: {
-      label: "Conocé los festivales",
-      href: "#festivales",
+      label: "Próximo festival",
+      href: "#proximo-evento",
       show: true,
     },
   },
   sectionOrder: [
     "marketing_banners",
     "event_spotlight",
-    "audience",
     "festival_family",
+    "audience",
     "community",
     "partners",
   ],
@@ -112,13 +117,13 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
     partners: "default",
   },
   sections: {
-    marketingBanners: { enabled: true },
+    marketingBanners: { enabled: false },
     eventSpotlight: {
       enabled: true,
       source: "active",
       festivalId: null,
       primaryCta: {
-        label: "Reservá tu lugar",
+        label: "Obtener entrada",
         destination: "registration",
         href: null,
         show: true,
@@ -127,7 +132,7 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
         label: "Ver festival",
         destination: "festival",
         href: null,
-        show: false,
+        show: true,
       },
     },
     audience: {
@@ -143,22 +148,26 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
             url: "/img/landing-audiences/participants.png",
             alt: "Personajes atendiendo un puesto creativo",
           },
-          cta: { label: "Ver postulaciones", href: "/sign_up", show: true },
+          cta: {
+            label: "Ver cómo participar",
+            href: "/sign_up",
+            show: false,
+          },
           featured: false,
         },
         {
           id: "4b5111fc-4340-4689-a7bd-e9482652479b",
           title: "Visitante",
           description:
-            "Vení por stickers, prints, talleres y comida. Descubrí todo lo que podés vivir en el próximo festival.",
+            "Vení por stickers, prints, ropa, amigurimis, talleres, comida y mucho más. Descubrí todo lo que podés vivir en el próximo festival.",
           image: {
             url: "/img/landing-audiences/visitors.png",
             alt: "Visitante disfrutando una bebida durante el festival",
           },
           cta: {
-            label: "Ver próximos eventos",
+            label: "Ver próximo evento",
             href: "#proximo-evento",
-            show: true,
+            show: false,
           },
           featured: false,
         },
@@ -172,9 +181,9 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
             alt: "Personaje sosteniendo un cartel para marcas aliadas",
           },
           cta: {
-            label: "Conocé las alianzas",
+            label: "Ver opciones de auspicio",
             href: "#alianzas",
-            show: true,
+            show: false,
           },
           featured: false,
         },
@@ -183,7 +192,7 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
     festivalFamily: {
       enabled: true,
       heading: "Tres festivales. Tres mundos.",
-      body: "Nacieron de la misma comunidad, pero cada uno tiene su propia forma de imaginar, crear y celebrar.",
+      body: "Nacieron en el mismo lugar, pero cada uno tiene su propia forma de imaginar, crear y celebrar.",
       items: [
         {
           id: "1f275993-4273-4d30-bfef-0c835cfa028c",
@@ -191,14 +200,14 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
           displayName: "Glitter",
           badge: "Festival creativo",
           description:
-            "El encuentro donde el arte, la ilustración y los oficios creativos cobran vida.",
+            "El festival que dio inicio a esta aventura. Todos lo que podés imaginar lo encontrás en este mundo con mucho por explorar",
           fallbackImage: {
             url: "/img/landing-festivals/glitter-characters.png",
             alt: "Personajes animales que forman parte del universo de Glitter",
             focalPoint: { x: 50, y: 50 },
           },
           href: null,
-          showCta: true,
+          showCta: false,
         },
         {
           id: "e20f3377-0cd0-4f1f-b3f8-0e6af074b55a",
@@ -206,14 +215,14 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
           displayName: "Festicker",
           badge: "Festival urbano",
           description:
-            "Stickers, personajes y cultura urbana en una celebración que toma la ciudad.",
+            "Pegate a la onda de los stickers y la cultura urbana. Descubrí diferentes formas de expresarte",
           fallbackImage: {
             url: "/img/landing-festivals/festicker-characters.png",
             alt: "Los cuatro personajes del universo urbano de Festicker",
             focalPoint: { x: 50, y: 50 },
           },
           href: "/festivals/festicker",
-          showCta: true,
+          showCta: false,
         },
         {
           id: "fc879379-2696-4ca7-a1a6-0e27f40dcc37",
@@ -228,54 +237,20 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
             focalPoint: { x: 50, y: 50 },
           },
           href: null,
-          showCta: true,
+          showCta: false,
         },
       ],
     },
     community: {
       enabled: true,
-      heading: "Momentos y voces de Glitter",
-      body: "Una galería de nuestros festivales y comentarios de quienes forman parte.",
+      heading: "Momentos para compartir",
+      body: "Una galería de lo que hace especial a nuestros festivales",
       testimonialHeading: "Comentarios de participantes",
       gallery: DEFAULT_COMMUNITY_GALLERY,
-      testimonials: [
-        {
-          id: "f5b5353e-9f49-4a21-a572-c232dde275f2",
-          quote:
-            "Glitter cambió por completo mi forma de conectar con otros artistas. La calidez de la gente de Santa Cruz es inigualable.",
-          name: "Cata Ilustra",
-          role: "Ilustradora",
-          image: {
-            url: asset("testimonial-cata.png"),
-            alt: "Retrato de Cata Ilustra",
-          },
-        },
-        {
-          id: "4c6bc7b7-d6a1-4571-a9b3-c9415c575d1d",
-          quote:
-            "Vender mis cerámicas artesanales en Glitter me permitió llegar a coleccionistas que valoran el trabajo hecho con paciencia y amor.",
-          name: "Bruno Cerámicas",
-          role: "Ceramista",
-          image: {
-            url: asset("testimonial-bruno.png"),
-            alt: "Retrato de Bruno Cerámicas",
-          },
-        },
-        {
-          id: "1e74a1d0-0329-4dd8-9b03-f5d17d498a6d",
-          quote:
-            "El ambiente cute and clean se siente en cada rincón. Es el festival más lindo de Bolivia sin duda alguna.",
-          name: "Menta y Lana",
-          role: "Arte textil",
-          image: {
-            url: asset("testimonial-menta.png"),
-            alt: "Retrato de Menta y Lana",
-          },
-        },
-      ],
+      testimonials: [],
     },
     partners: {
-      enabled: true,
+      enabled: false,
       heading: "Con el apoyo de marcas que creen en el talento nacional",
       items: [
         "CBA Santa Cruz",
@@ -307,39 +282,39 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
       alt: "Productora Glitter",
     },
     description:
-      "Ecosistema cultural y creativo independiente de Santa Cruz, Bolivia. Produciendo momentos mágicos e inspiradores desde el corazón de Sudamérica.",
+      "Produciendo momentos inspiradores y llenos de creatividad desde Santa Cruz, Bolivia.",
     festivalLinks: [
       { label: "Glitter", href: "#festivales" },
       { label: "Twinkler", href: "#festivales" },
       { label: "Festicker", href: "/festivals/festicker" },
     ],
     communityLinks: [
-      { label: "Artistas", href: "#comunidad" },
-      { label: "Staff voluntario", href: "/sign_up" },
-      { label: "Postulaciones", href: "/sign_up" },
+      {
+        label: "Participá en nuestro escenario",
+        href: "/presentaciones-en-vivo",
+      },
     ],
     contactEmail: "info@productoraglitter.com",
     location: "Santa Cruz, Bolivia",
-    copyrightText:
-      "Productora Glitter. Todos los derechos reservados. Diseñado con amor en Santa Cruz, Bolivia.",
+    copyrightText: "Productora Glitter. Todos los derechos reservados.",
     socialLinks: [
       {
         id: "c4e1e10f-1b74-40f7-aae4-7fa3e8ac1baf",
         network: "instagram",
-        label: "Instagram",
+        label: "Instagram Glitter",
         href: "https://www.instagram.com/glitter.bo",
       },
       {
-        id: "9df41d59-032e-49fe-91a7-c4bcae64c1e9",
-        network: "tiktok",
-        label: "TikTok",
-        href: "https://www.tiktok.com/@glitter.bo",
-      },
-      {
-        id: "13d4452e-b85b-47d5-b6bc-60270d808413",
+        id: "465d87b2-ae6f-45bc-b146-2fae83a86169",
         network: "facebook",
         label: "Facebook",
         href: "https://www.facebook.com/glitterfestival",
+      },
+      {
+        id: "b1291041-247f-46ec-aab7-449d000f343e",
+        network: "tiktok",
+        label: "TikTok",
+        href: "https://www.tiktok.com/@glitter.bo",
       },
     ],
   },

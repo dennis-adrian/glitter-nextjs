@@ -298,7 +298,7 @@ export const landingPageContentSchema = z.strictObject({
     contactEmail: z.string().trim().email().max(254),
     location: text(240),
     copyrightText: text(500).default(
-      "Productora Glitter. Todos los derechos reservados. Diseñado con amor en Santa Cruz, Bolivia.",
+      "Productora Glitter. Todos los derechos reservados.",
     ),
     socialLinks: z
       .array(
