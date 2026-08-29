@@ -123,6 +123,15 @@ type LinkContent = {
 
 type CardCtaContent = LinkContent & { show: boolean };
 
+type EventCtaContent = {
+  label: string;
+  destination: "festival" | "registration" | "custom";
+  href: string | null;
+  show: boolean;
+};
+
+type LandingSectionBackground = "default" | "none" | "purple" | "coral";
+
 type ImageContent = {
   url: string;
   alt: string;
@@ -153,10 +162,11 @@ type LandingPageContentV1 = {
     titleAccent: string;
     body: string;
     image: ImageContent;
-    primaryCta: LinkContent;
-    secondaryCta: LinkContent;
+    primaryCta: CardCtaContent;
+    secondaryCta: CardCtaContent;
   };
   sectionOrder: LandingSectionKey[];
+  sectionBackgrounds: Record<LandingSectionKey, LandingSectionBackground>;
   sections: {
     marketingBanners: {
       enabled: boolean;
@@ -165,8 +175,8 @@ type LandingPageContentV1 = {
       enabled: boolean;
       source: "active" | "selected";
       festivalId: number | null;
-      primaryCtaLabel: string;
-      showCta: boolean;
+      primaryCta: EventCtaContent;
+      secondaryCta: EventCtaContent;
     };
     audience: {
       enabled: boolean;
@@ -241,6 +251,7 @@ type LandingPageContentV1 = {
     communityLinks: LinkContent[];
     contactEmail: string;
     location: string;
+    copyrightText: string;
     socialLinks: Array<{
       id: string;
       network: "instagram" | "facebook" | "x" | "tiktok" | "other";

@@ -647,7 +647,11 @@ function ImageField({
               type="file"
               accept="image/*"
               disabled={isUploading}
-              onChange={(event) => void upload(event.target.files?.[0])}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                void upload(file);
+              }}
             />
           </label>
         </div>
@@ -772,7 +776,16 @@ function RemoveButton({
   );
 }
 
-export default function LandingEditor({
+export default function LandingEditor(props: Props) {
+  // Server data replaces the editor draft after a refresh (for example, restore).
+  // A keyed remount initializes all local state from that snapshot without
+  // synchronizing state during an effect.
+  const snapshotKey = `${props.initialVersion}:${props.updatedAt}:${JSON.stringify(props.initialContent)}`;
+
+  return <LandingEditorForm key={snapshotKey} {...props} />;
+}
+
+function LandingEditorForm({
   initialContent,
   initialVersion,
   updatedAt: initialUpdatedAt,
@@ -791,6 +804,7 @@ export default function LandingEditor({
   const [savedContent, setSavedContent] = useState(
     JSON.stringify(initialContent),
   );
+
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const dirty = useMemo(

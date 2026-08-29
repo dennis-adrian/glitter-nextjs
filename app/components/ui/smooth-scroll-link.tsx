@@ -43,6 +43,9 @@ export default function SmoothScrollLink({
       behavior: prefersReducedMotion ? "auto" : "smooth",
       block: "start",
     });
+    if (target.tabIndex < 0 && !target.hasAttribute("tabindex")) {
+      target.tabIndex = -1;
+    }
     target.focus({ preventScroll: true });
 
     window.history.replaceState(

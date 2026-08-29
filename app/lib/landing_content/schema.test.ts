@@ -10,6 +10,20 @@ describe("landing page content schema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("rejects disallowed remote image URLs while keeping external navigation links", () => {
+    const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    content.hero.image.url = "https://example.com/hero.jpg";
+    expect(parseLandingPageContent(content).success).toBe(false);
+
+    const uploadThing = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    uploadThing.hero.image.url = "https://utfs.io/f/landing-hero.png";
+    expect(parseLandingPageContent(uploadThing).success).toBe(true);
+
+    const social = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    social.footer.socialLinks[0].href = "https://www.instagram.com/glitter.bo";
+    expect(parseLandingPageContent(social).success).toBe(true);
+  });
+
   it("rejects unsafe links, duplicate ordering, and unknown fields", () => {
     const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
     content.hero.primaryCta.href = "javascript:alert(1)";

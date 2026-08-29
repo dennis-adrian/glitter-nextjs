@@ -200,7 +200,7 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
           displayName: "Glitter",
           badge: "Festival creativo",
           description:
-            "El festival que dio inicio a esta aventura. Todos lo que podés imaginar lo encontrás en este mundo con mucho por explorar",
+            "El festival que dio inicio a esta aventura. Todo lo que podés imaginar lo encontrás en este mundo con mucho por explorar",
           fallbackImage: {
             url: "/img/landing-festivals/glitter-characters.png",
             alt: "Personajes animales que forman parte del universo de Glitter",

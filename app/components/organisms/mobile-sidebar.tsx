@@ -98,7 +98,7 @@ const MobileSidebar = ({
       >
         <SheetHeader>
           <SheetTitle>
-            <SheetClose>
+            <SheetClose asChild>
               <Link href="/">
                 <Image
                   src="/img/logo/glitter-logo-full-primary-1696x739.png"

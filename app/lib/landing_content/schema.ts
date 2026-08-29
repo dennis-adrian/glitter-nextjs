@@ -5,7 +5,7 @@ import {
   DEFAULT_COMMUNITY_GALLERY,
   DEFAULT_LANDING_PAGE_CONTENT,
 } from "./default-content";
-import { normalizeLandingHref } from "./links";
+import { normalizeLandingHref, normalizeLandingImageHref } from "./links";
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 const id = z.string().uuid();
@@ -14,6 +14,14 @@ const safeHref = z
   .trim()
   .max(2048)
   .refine((value) => normalizeLandingHref(value) !== null, "URL no válida");
+const safeImageUrl = z
+  .string()
+  .trim()
+  .max(2048)
+  .refine(
+    (value) => normalizeLandingImageHref(value) !== null,
+    "URL no válida",
+  );
 const nullableHref = z
   .preprocess(
     (value) => (typeof value === "string" && !value.trim() ? null : value),
@@ -24,7 +32,7 @@ const nullableHref = z
     "URL no válida",
   );
 const image = z.strictObject({
-  url: safeHref,
+  url: safeImageUrl,
   alt: text(240),
   focalPoint: z
     .strictObject({
@@ -166,7 +174,7 @@ export const landingPageContentSchema = z.strictObject({
   seo: z.strictObject({
     title: text(120),
     description: text(1000),
-    shareImageUrl: safeHref.nullable(),
+    shareImageUrl: safeImageUrl.nullable(),
   }),
   hero: z.strictObject({
     titleLead: text(120),
