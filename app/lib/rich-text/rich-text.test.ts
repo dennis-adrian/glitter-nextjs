@@ -86,6 +86,7 @@ describe("HTML sanitizer", () => {
     );
     expect(isAllowedRichTextUri("/terms/diagram.png")).toBe(true);
     expect(isAllowedRichTextUri("//example.com/diagram.png")).toBe(false);
+    expect(isAllowedRichTextUri("/\\example.com/image.png")).toBe(false);
     expect(isAllowedRichTextUri("javascript:alert(1)")).toBe(false);
     expect(isAllowedRichTextUri("data:text/html,x")).toBe(false);
   });

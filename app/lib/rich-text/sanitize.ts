@@ -27,7 +27,7 @@ const ARTICLE_TAGS = [
   "mark",
 ];
 
-const ALLOWED_URI_REGEXP = /^(?:https?:|mailto:|\/(?!\/))/i;
+const ALLOWED_URI_REGEXP = /^(?:https?:|mailto:|\/(?![\\/]))/i;
 
 export function isAllowedRichTextUri(value: string): boolean {
   return ALLOWED_URI_REGEXP.test(value.trim());
