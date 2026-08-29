@@ -173,7 +173,9 @@ export async function updateReservation(
         })
         .where(eq(standReservations.id, reservation.id));
 
-      const standStatus = status === "accepted" ? "confirmed" : "available";
+      const standStatus = ["accepted", "verification_payment"].includes(status)
+        ? "confirmed"
+        : "available";
       await tx
         .update(stands)
         .set({ status: standStatus })
