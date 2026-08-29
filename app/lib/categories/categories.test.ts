@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { isDeleteBlocked, hasUnverifiedLinks } from "@/app/lib/categories/delete";
+import { isDeleteBlocked, hasUnverifiedLinks, shouldWarnRenameMove } from "@/app/lib/categories/delete";
 import {
   filterPickerOptions,
   withExclusiveSelection,
 } from "@/app/lib/categories/filters";
-import { labelsMatch, normalizeCategoryLabel, uniqueLabelIndexKey } from "@/app/lib/categories/label";
+import {
+  findCanonicalLabelDuplicates,
+  formatCanonicalDuplicateReport,
+  labelsMatch,
+  normalizeCategoryLabel,
+  uniqueLabelIndexKey,
+  CANONICAL_LABEL_SQL,
+} from "@/app/lib/categories/label";
 import {
   categoryParticipantsHref,
   formatDeleteBlockedMessage,
@@ -77,6 +84,15 @@ describe("delete rules", () => {
       "No se puede eliminar Pintura porque 1 perfil verificado, 1 perfil pausado y 1 stand la usan.",
     );
   });
+
+  it("warns on rename or move when any profile or stand is linked", () => {
+    expect(shouldWarnRenameMove(true, { ...empty, pending: 1 })).toBe(true);
+    expect(shouldWarnRenameMove(true, { ...empty, paused: 1 })).toBe(true);
+    expect(shouldWarnRenameMove(true, { ...empty, rejected: 1 })).toBe(true);
+    expect(shouldWarnRenameMove(true, { ...empty, banned: 1 })).toBe(true);
+    expect(shouldWarnRenameMove(true, empty)).toBe(false);
+    expect(shouldWarnRenameMove(false, { ...empty, pending: 2 })).toBe(false);
+  });
 });
 
 describe("exclusive and admin-only picker filters", () => {
@@ -134,6 +150,7 @@ describe("label normalization", () => {
     expect(labelsMatch("Sublimación colaborativa", "sublimacion colaborativa")).toBe(
       true,
     );
+    expect(normalizeCategoryLabel("Cafe\u{1AB0}")).toBe("cafe");
   });
 
   it("treats the same trimmed lowercase label as a collision inside one área", () => {
@@ -144,6 +161,25 @@ describe("label normalization", () => {
       uniqueLabelIndexKey("entrepreneurship", "Crochet"),
     );
     expect(UNIQUE_LABEL_MESSAGE).toMatch(/área/i);
+  });
+
+  it("reports canonical duplicates that lower() would miss", () => {
+    const duplicates = findCanonicalLabelDuplicates([
+      { id: 1, category: "illustration", label: "Café" },
+      { id: 2, category: "illustration", label: "Cafe" },
+      { id: 3, category: "gastronomy", label: "Café" },
+    ]);
+    expect(duplicates).toEqual([
+      {
+        category: "illustration",
+        canonical: "cafe",
+        ids: [1, 2],
+        labels: ["Café", "Cafe"],
+      },
+    ]);
+    expect(formatCanonicalDuplicateReport(duplicates)).toContain("ids=1,2");
+    expect(CANONICAL_LABEL_SQL).toContain("normalize(\"name\", NFD)");
+    expect(CANONICAL_LABEL_SQL).toContain("\\1AB0-\\1AFF");
   });
 });
 

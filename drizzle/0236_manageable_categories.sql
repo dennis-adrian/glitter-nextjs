@@ -43,18 +43,47 @@ WHERE lower("name") LIKE '%skincare%' OR lower("name") LIKE '%skin care%';--> st
 UPDATE "subcategories"
 SET "is_admin_assignable_only" = true, "visibility" = 'listed'
 WHERE translate(lower("name"), 'áéíóúüñ', 'aeiouun') LIKE '%sublimacion%';--> statement-breakpoint
-UPDATE "subcategories" AS s
-SET "name" = s."name" || ' [' || s."id"::text || ']'
-FROM (
-  SELECT
-    id,
-    row_number() OVER (
-      PARTITION BY "category", lower("name")
-      ORDER BY id
-    ) AS rn
-  FROM "subcategories"
-) AS d
-WHERE s.id = d.id AND d.rn > 1;--> statement-breakpoint
+-- Canonical label duplicate preflight (must succeed before unique index).
+-- Uses the same canonicalization as normalizeCategoryLabel: NFD, strip combining
+-- marks, lower, treat / and extra whitespace as equivalent.
+DO $$
+DECLARE
+  dup_report text;
+BEGIN
+  SELECT string_agg(
+    format(
+      'area=%s canonical=%s ids=%s labels=%s',
+      category::text,
+      canonical,
+      ids,
+      labels
+    ),
+    E'\n'
+    ORDER BY category::text, canonical
+  )
+  INTO dup_report
+  FROM (
+    SELECT
+      category,
+      canonical,
+      string_agg(id::text, ',' ORDER BY id) AS ids,
+      string_agg(quote_literal("name"), ',' ORDER BY id) AS labels
+    FROM (
+      SELECT
+        id,
+        category,
+        "name",
+        trim(regexp_replace(regexp_replace(lower(regexp_replace(normalize("name", NFD), U&'[\0300-\036F\1AB0-\1AFF\1DC0-\1DFF\20D0-\20FF\FE20-\FE2F]', '', 'g')), '[/]+', ' ', 'g'), '[[:space:]]+', ' ', 'g')) AS canonical
+      FROM subcategories
+    ) labeled
+    GROUP BY category, canonical
+    HAVING count(*) > 1
+  ) dups;
+
+  IF dup_report IS NOT NULL THEN
+    RAISE EXCEPTION 'Duplicate category labels under backfill canonicalization. Resolve before creating unique index:%', E'\n' || dup_report;
+  END IF;
+END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX "subcategories_category_lower_label_unique" ON "subcategories" USING btree ("category", lower("name"));--> statement-breakpoint
 CREATE INDEX "subcategories_visibility_category_sort_idx" ON "subcategories" USING btree ("visibility","category","sort_order");--> statement-breakpoint
 ALTER TABLE "subcategories" DROP COLUMN "description";

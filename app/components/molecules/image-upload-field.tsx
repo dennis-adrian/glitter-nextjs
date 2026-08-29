@@ -6,12 +6,12 @@ import { toast } from "sonner";
 import type { OurFileRouter } from "@/app/api/uploadthing/core";
 import EntityThumbnail from "@/app/components/molecules/entity-thumbnail";
 import { Button } from "@/app/components/ui/button";
-import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { UploadButton } from "@/app/vendors/uploadthing";
 
 type ImageUploadFieldProps = {
   value?: string | null;
-  onChange: (url: string | null) => void;
+  fileKey?: string | null;
+  onChange: (url: string | null, fileKey?: string | null) => void;
   endpoint?: keyof OurFileRouter;
   alt?: string;
 };
@@ -55,19 +55,21 @@ export default function ImageUploadField({
         allowedContent: "hidden",
       }}
       endpoint={endpoint}
-      onClientUploadComplete={async (res) => {
+      onClientUploadComplete={(res) => {
         const uploaded = res?.[0];
-        const nextUrl =
-          (uploaded?.serverData as { imageUrl?: string } | undefined)
-            ?.imageUrl || uploaded?.url;
+        const serverData = uploaded?.serverData as
+          | { imageUrl?: string; fileKey?: string }
+          | undefined;
+        const nextUrl = serverData?.imageUrl || uploaded?.url;
+        const nextKey =
+          serverData?.fileKey ||
+          (uploaded as { key?: string } | undefined)?.key ||
+          null;
         if (!nextUrl) {
           toast.error("Error al subir la imagen");
           return;
         }
-        if (value && value !== nextUrl) {
-          await deleteFile(value);
-        }
-        onChange(nextUrl);
+        onChange(nextUrl, nextKey);
         toast.success("Imagen subida");
       }}
       onUploadError={() => {
@@ -101,14 +103,8 @@ export default function ImageUploadField({
           variant="ghost"
           size="sm"
           className="h-10 text-muted-foreground"
-          onClick={async () => {
-            const result = await deleteFile(value);
-            if (!result.success) {
-              toast.error(result.error || "Error al eliminar la imagen");
-              return;
-            }
-            onChange(null);
-            toast.success("Imagen eliminada");
+          onClick={() => {
+            onChange(null, null);
           }}
         >
           <Trash2Icon className="mr-1 size-4" />

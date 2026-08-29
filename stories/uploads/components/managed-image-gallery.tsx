@@ -54,7 +54,9 @@ export function ManagedImageGallery({
   const [images, setImages] = useState(initialImages);
   const onChangeRef = useRef(onChange);
   const lastNotifiedImagesRef = useRef(images);
-  const [pendingNames, setPendingNames] = useState<string[]>([]);
+  const [pendingUploads, setPendingUploads] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [currentUpload, setCurrentUpload] = useState<{
     name: string;
     progress: number;
@@ -98,10 +100,16 @@ export function ManagedImageGallery({
       setError(undefined);
     }
 
-    setPendingNames(validFiles.map((file) => file.name));
-    for (const file of validFiles) {
-      setPendingNames((current) =>
-        current.filter((name) => name !== file.name),
+    const queued = validFiles.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+    }));
+    setPendingUploads(
+      queued.map((item) => ({ id: item.id, name: item.file.name })),
+    );
+    for (const { id, file } of queued) {
+      setPendingUploads((current) =>
+        current.filter((pending) => pending.id !== id),
       );
       setCurrentUpload({ name: file.name, progress: 0 });
       try {
@@ -119,7 +127,7 @@ export function ManagedImageGallery({
       }
     }
     setCurrentUpload(undefined);
-    setPendingNames([]);
+    setPendingUploads([]);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -162,7 +170,7 @@ export function ManagedImageGallery({
     }
   }
 
-  const isUploading = Boolean(currentUpload) || pendingNames.length > 0;
+  const isUploading = Boolean(currentUpload) || pendingUploads.length > 0;
 
   return (
     <section
@@ -290,13 +298,13 @@ export function ManagedImageGallery({
           </div>
         ) : null}
 
-        {pendingNames.map((name) => (
+        {pendingUploads.map((pending) => (
           <div
-            key={name}
+            key={pending.id}
             className="grid aspect-square place-items-center rounded-xl border border-dashed bg-muted/40 p-3 text-center"
           >
             <div>
-              <p className="truncate text-xs font-medium">{name}</p>
+              <p className="truncate text-xs font-medium">{pending.name}</p>
               <p className="text-xs text-muted-foreground">En cola</p>
             </div>
           </div>

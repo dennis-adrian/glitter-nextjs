@@ -13,6 +13,8 @@ import {
   vi,
 } from "vitest";
 
+import { revalidatePath } from "next/cache";
+
 import * as schema from "@/db/schema";
 import { festivals } from "@/db/schema";
 
@@ -76,6 +78,7 @@ describeDatabase("festival participant terms actions", () => {
 
   afterEach(async () => {
     requireAdminOrFestivalAdmin.mockReset();
+    vi.mocked(revalidatePath).mockClear();
     const db = integrationDb!;
     const leftover = festivalIds.splice(0);
     for (const festivalId of leftover) {
@@ -112,5 +115,55 @@ describeDatabase("festival participant terms actions", () => {
       columns: { participantTermsEnabled: true },
     });
     expect(unchanged?.participantTermsEnabled).toBe(false);
+  });
+
+  it("returns an error when no festival matches without revalidating", async () => {
+    requireAdminOrFestivalAdmin.mockResolvedValue({
+      id: 1,
+      role: "admin",
+    });
+
+    const result = await updateFestivalParticipantTerms(2_147_483_647, true);
+
+    expect(result).toEqual({
+      success: false,
+      message: "Festival no encontrado",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("updates participantTermsEnabled when the festival exists", async () => {
+    const db = integrationDb!;
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const [festival] = await db
+      .insert(festivals)
+      .values({
+        name: `Participant Terms Update ${suffix}`,
+        status: "active",
+        festivalType: "glitter",
+        participantTermsEnabled: false,
+      })
+      .returning();
+    festivalIds.push(festival.id);
+
+    requireAdminOrFestivalAdmin.mockResolvedValue({
+      id: 1,
+      role: "admin",
+    });
+
+    const result = await updateFestivalParticipantTerms(festival.id, true);
+
+    expect(result).toEqual({
+      success: true,
+      message:
+        "Los participantes ya pueden acceder a los términos y condiciones",
+    });
+
+    const updated = await db.query.festivals.findFirst({
+      where: eq(festivals.id, festival.id),
+      columns: { participantTermsEnabled: true },
+    });
+    expect(updated?.participantTermsEnabled).toBe(true);
+    expect(revalidatePath).toHaveBeenCalled();
   });
 });

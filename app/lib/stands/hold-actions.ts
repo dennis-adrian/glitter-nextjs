@@ -63,7 +63,7 @@ async function rejectIfTermsStale(
     };
   }
 
-  for (const userId of [...new Set(participantIds)]) {
+  for (const [index, userId] of [...new Set(participantIds)].entries()) {
     const participation = await tx.query.userRequests.findFirst({
       where: and(
         eq(userRequests.userId, userId),
@@ -75,7 +75,10 @@ async function rejectIfTermsStale(
     if (participation?.termsVersionId !== publishedVersionId) {
       return {
         success: false as const,
-        message: STALE_TERMS_MESSAGE,
+        message:
+          index === 0
+            ? STALE_TERMS_MESSAGE
+            : `El compañero seleccionado no puede participar en esta reserva. ${STALE_TERMS_MESSAGE}`,
       };
     }
   }

@@ -76,9 +76,10 @@ export default function RichTextEditorInner({
         emptyDocument: placeholder ?? es.placeholders.default,
       },
     },
-    initialContent: Array.isArray(initialContent)
-      ? (initialContent as Block[])
-      : undefined,
+    initialContent:
+      Array.isArray(initialContent) && initialContent.length > 0
+        ? (initialContent as Block[])
+        : undefined,
     uploadFile: variant === "article" ? uploadFile : undefined,
   });
 

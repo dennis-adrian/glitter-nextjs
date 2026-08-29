@@ -1,6 +1,7 @@
 "use client";
 
 import { Building2Icon } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
 import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
@@ -23,6 +24,14 @@ export function ExternalParticipantImageUpload({
   onChange,
   onRemove,
 }: ExternalParticipantImageUploadProps) {
+  async function handleRemove() {
+    try {
+      await onRemove?.();
+    } catch {
+      toast.error("Error al eliminar la imagen");
+    }
+  }
+
   return (
     <div className="flex items-center gap-3 rounded-md border border-dashed p-3">
       <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
@@ -48,7 +57,12 @@ export function ExternalParticipantImageUpload({
           errorMessage="Error al subir la imagen"
         />
         {imageUrl ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleRemove()}
+          >
             Quitar
           </Button>
         ) : null}

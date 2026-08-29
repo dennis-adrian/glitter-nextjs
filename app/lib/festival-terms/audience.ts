@@ -1,7 +1,6 @@
 import type { UserCategory } from "@/app/api/users/definitions";
 import type { FestivalBase } from "@/app/lib/festivals/definitions";
 import type {
-  FestivalTermsSection,
   TermsAudienceCategory,
   TermsFestivalType,
 } from "@/app/lib/festival-terms/definitions";
@@ -25,10 +24,10 @@ function asStringArray(value: unknown): string[] {
 }
 
 export function sectionMatchesAudience(
-  section: Pick<
-    FestivalTermsSection,
-    "audienceCategories" | "audienceFestivalTypes"
-  >,
+  section: {
+    audienceCategories?: unknown;
+    audienceFestivalTypes?: unknown;
+  },
   category: UserCategory | null | undefined,
   festivalType: FestivalBase["festivalType"] | null | undefined,
 ): boolean {
@@ -48,13 +47,19 @@ export function sectionMatchesAudience(
   return categoryOk && typeOk;
 }
 
-export function filterSectionsForAudience<T extends FestivalTermsSection>(
+export function filterSectionsForAudience<
+  T extends {
+    audienceCategories?: unknown;
+    audienceFestivalTypes?: unknown;
+    sortOrder?: number;
+  },
+>(
   sections: T[],
   category: UserCategory | null | undefined,
   festivalType: FestivalBase["festivalType"] | null | undefined,
 ): T[] {
   return [...sections]
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .filter((section) =>
       sectionMatchesAudience(section, category, festivalType),
     );

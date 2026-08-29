@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { filterSectionsForAudience } from "@/app/lib/festival-terms/audience";
 import { paragraph } from "@/app/lib/festival-terms/blocks";
 import type { EditorTermsSection } from "@/app/lib/festival-terms/definitions";
 import {
@@ -7,6 +8,7 @@ import {
   NO_PARTICIPANT_VISIBLE_CONTENT_MESSAGE,
   RICH_TEXT_BODY_REQUIRED_MESSAGE,
   RICH_TEXT_TITLE_REQUIRED_MESSAGE,
+  hasParticipantVisibleTermsContent,
   publishDraftSchema,
   saveDraftSchema,
 } from "@/app/lib/festival-terms/schema";
@@ -126,5 +128,32 @@ describe("festival terms draft schema", () => {
         sections: [section("rich_text", "a"), section("schedule", "b")],
       }).success,
     ).toBe(true);
+  });
+
+  it("rejects publish when a category and festival type would see no rich_text", () => {
+    const sections = [
+      section("rich_text", "a", {
+        audienceCategories: ["illustration"],
+        audienceFestivalTypes: ["glitter"],
+      }),
+      section("schedule", "b"),
+    ];
+
+    expect(
+      filterSectionsForAudience(sections, "gastronomy", "glitter").some(
+        (item) => item.kind === "rich_text",
+      ),
+    ).toBe(false);
+    expect(hasParticipantVisibleTermsContent(sections)).toBe(false);
+
+    const illustrationGlitterOnly = publishDraftSchema.safeParse({
+      sections,
+    });
+    expect(illustrationGlitterOnly.success).toBe(false);
+    if (!illustrationGlitterOnly.success) {
+      expect(illustrationGlitterOnly.error.issues[0]?.message).toBe(
+        NO_PARTICIPANT_VISIBLE_CONTENT_MESSAGE,
+      );
+    }
   });
 });

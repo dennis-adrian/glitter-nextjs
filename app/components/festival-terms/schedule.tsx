@@ -46,12 +46,35 @@ function DayHoursHeading({ date }: { date: DateTime }) {
   );
 }
 
+function hasDedicatedEntryHours(
+  category: Exclude<UserCategory, "none">,
+): category is "entrepreneurship" | "illustration" | "gastronomy" {
+  return (
+    category === "entrepreneurship" ||
+    category === "illustration" ||
+    category === "gastronomy"
+  );
+}
+
+function GenericEntryHours({ start }: { start: DateTime }) {
+  return (
+    <p>
+      El ingreso de los expositores será desde las{" "}
+      <Highlight>
+        {start.minus({ hour: 1 }).toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+        hasta las {start.toLocaleString(DateTime.TIME_24_SIMPLE)}
+      </Highlight>
+      . Cualquier expositor que llegue después del horario marcado, tendrá que{" "}
+      <Highlight>hacer cola junto con el público</Highlight> para ingresar. No
+      se harán excepciones.
+    </p>
+  );
+}
+
 export default function FestivalTermsSchedule({
   festival,
   category,
 }: FestivalTermsScheduleProps) {
-  const mapCategory =
-    category === "new_artist" ? "illustration" : category;
   const festivalDates = festival.festivalDates;
   const dayOne = festivalDates[0];
   const dayTwo = festivalDates[1];
@@ -90,7 +113,7 @@ export default function FestivalTermsSchedule({
               </span>
             </h4>
             <div className="ml-2 flex flex-col gap-2">
-              {mapCategory === "entrepreneurship" && (
+              {category === "entrepreneurship" && (
                 <>
                   <p>
                     Dependiendo del sector en el que hagás tu reserva,
@@ -188,12 +211,12 @@ export default function FestivalTermsSchedule({
                   </section>
                 </>
               )}
-              {mapCategory === "illustration" && (
+              {category === "illustration" && (
                 <section className="flex flex-col gap-2">
                   <p>
                     Los expositores de la categoría{" "}
                     <Highlight>
-                      {getCategoryLabel(mapCategory).toLowerCase()}
+                      {getCategoryLabel(category).toLowerCase()}
                     </Highlight>{" "}
                     ingresarán al recinto únicamente{" "}
                     <Highlight>
@@ -234,12 +257,12 @@ export default function FestivalTermsSchedule({
                   </p>
                 </section>
               )}
-              {mapCategory === "gastronomy" && (
+              {category === "gastronomy" && (
                 <section className="flex flex-col gap-2">
                   <p>
                     Los expositores de la categoría{" "}
                     <Highlight>
-                      {getCategoryLabel(mapCategory).toLowerCase()}
+                      {getCategoryLabel(category).toLowerCase()}
                     </Highlight>{" "}
                     ingresarán al recinto únicamente{" "}
                     <Highlight>
@@ -277,6 +300,9 @@ export default function FestivalTermsSchedule({
                   </p>
                 </section>
               )}
+              {!hasDedicatedEntryHours(category) ? (
+                <GenericEntryHours start={dayOneStartDate} />
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -294,7 +320,7 @@ export default function FestivalTermsSchedule({
               </span>
             </h4>
             <div className="ml-2 flex flex-col gap-2">
-              {mapCategory === "entrepreneurship" && (
+              {category === "entrepreneurship" && (
                 <section className="flex flex-col gap-2">
                   <p>
                     El ingreso de los expositores será desde las{" "}
@@ -330,8 +356,8 @@ export default function FestivalTermsSchedule({
                   </p>
                 </section>
               )}
-              {(mapCategory === "illustration" ||
-                mapCategory === "gastronomy") && (
+              {(category === "illustration" ||
+                category === "gastronomy") && (
                 <section className="flex flex-col gap-2">
                   <p>
                     El ingreso de los expositores será desde las{" "}
@@ -345,7 +371,7 @@ export default function FestivalTermsSchedule({
                       )}
                     </Highlight>
                     .{" "}
-                    {mapCategory === "illustration" && (
+                    {category === "illustration" && (
                       <span>
                         Cualquier expositor que llegue después del
                         horario marcado, tendrá que{" "}
@@ -356,7 +382,7 @@ export default function FestivalTermsSchedule({
                       </span>
                     )}
                   </p>
-                  {mapCategory === "illustration" ? (
+                  {category === "illustration" ? (
                     <p>
                       El ingreso será por la puerta del Teatro CBA en
                       la calle Sucre entre calle Cochabamba y calle
@@ -370,6 +396,9 @@ export default function FestivalTermsSchedule({
                   )}
                 </section>
               )}
+              {!hasDedicatedEntryHours(category) ? (
+                <GenericEntryHours start={dayTwoStartDate} />
+              ) : null}
             </div>
           </section>
         ) : null}

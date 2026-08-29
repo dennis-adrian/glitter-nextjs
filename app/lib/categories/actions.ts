@@ -3,20 +3,14 @@
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { isDeleteBlocked } from "@/app/lib/categories/delete";
+import { deleteCategoryRecord } from "@/app/lib/categories/delete-persist";
 import type { ManagementArea } from "@/app/lib/categories/definitions";
 import {
   categoryEditorSchema,
   reorderCategoriesSchema,
 } from "@/app/lib/categories/schema";
-import {
-  fetchAdminCategory,
-  loadCategoryWithCounts,
-} from "@/app/lib/categories/queries";
-import {
-  formatDeleteBlockedMessage,
-  UNIQUE_LABEL_MESSAGE,
-} from "@/app/lib/categories/copy";
+import { fetchAdminCategory } from "@/app/lib/categories/queries";
+import { UNIQUE_LABEL_MESSAGE } from "@/app/lib/categories/copy";
 import { isUniqueViolation } from "@/app/lib/categories/pg";
 import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
@@ -29,12 +23,13 @@ function revalidateCategoryPaths() {
   revalidatePath("/dashboard/categories");
 }
 
-async function cleanupCategoryImage(url: string) {
+async function cleanupCategoryImage(url: string, fileKey?: string | null) {
   try {
-    const result = await deleteFile(url);
+    const result = await deleteFile(url, fileKey);
     if (!result.success) {
       console.error("Failed to delete category image from storage", {
         url,
+        fileKey,
         error: result.error,
       });
     }
@@ -85,6 +80,7 @@ export async function createCategory(input: unknown) {
         descriptionJson: data.descriptionJson ?? null,
         descriptionHtml,
         imageUrl: data.imageUrl || null,
+        imageFileKey: data.imageFileKey || null,
         visibility: data.visibility,
         isExclusive: data.isExclusive,
         isAdminAssignableOnly: data.isAdminAssignableOnly,
@@ -149,6 +145,7 @@ export async function updateCategory(id: number, input: unknown) {
         descriptionJson: data.descriptionJson ?? null,
         descriptionHtml,
         imageUrl: data.imageUrl || null,
+        imageFileKey: data.imageFileKey || null,
         visibility: data.visibility,
         isExclusive: data.isExclusive,
         isAdminAssignableOnly: data.isAdminAssignableOnly,
@@ -171,9 +168,10 @@ export async function updateCategory(id: number, input: unknown) {
   }
 
   const previousImage = existing.imageUrl;
+  const previousKey = existing.imageFileKey;
   const nextImage = data.imageUrl || null;
   if (previousImage && previousImage !== nextImage) {
-    await cleanupCategoryImage(previousImage);
+    await cleanupCategoryImage(previousImage, previousKey);
   }
 
   revalidateCategoryPaths();
@@ -254,32 +252,7 @@ export async function deleteCategory(id: number) {
 
   let result;
   try {
-    result = await db.transaction(async (tx) => {
-      const current = await loadCategoryWithCounts(id, tx);
-      if (!current) {
-        return { success: false as const, message: "La categoría no existe" };
-      }
-
-      if (isDeleteBlocked(current)) {
-        return {
-          success: false as const,
-          blocked: true as const,
-          message: formatDeleteBlockedMessage(
-            current.label,
-            current.verified,
-            current.paused,
-            current.stands,
-          ),
-        };
-      }
-
-      await tx.delete(subcategories).where(eq(subcategories.id, id));
-      return {
-        success: true as const,
-        imageUrl: current.imageUrl,
-        label: current.label,
-      };
-    });
+    result = await db.transaction(async (tx) => deleteCategoryRecord(tx, id));
   } catch (error) {
     console.error("Error deleting category", error);
     return { success: false as const, message: "Error al eliminar la categoría" };
@@ -289,8 +262,8 @@ export async function deleteCategory(id: number) {
     return result;
   }
 
-  if (result.imageUrl) {
-    await cleanupCategoryImage(result.imageUrl);
+  if (result.imageUrl || result.imageFileKey) {
+    await cleanupCategoryImage(result.imageUrl ?? "", result.imageFileKey);
   }
 
   revalidateCategoryPaths();

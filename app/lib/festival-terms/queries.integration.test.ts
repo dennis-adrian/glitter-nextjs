@@ -141,6 +141,15 @@ describeDatabase("countStaleActiveFestivalAcceptances", () => {
         participantTermsEnabled: false,
       })
       .returning();
+    const [pendingFestival] = await db
+      .insert(festivals)
+      .values({
+        name: `Stale Count Pending ${suffix}`,
+        status: "active",
+        festivalType: "glitter",
+        participantTermsEnabled: true,
+      })
+      .returning();
 
     const staleVersionId = staleVersion.id;
     const [enabledRequest] = await db
@@ -163,11 +172,25 @@ describeDatabase("countStaleActiveFestivalAcceptances", () => {
         termsVersionId: staleVersionId,
       })
       .returning();
+    const [pendingRequest] = await db
+      .insert(userRequests)
+      .values({
+        userId: user.id,
+        festivalId: pendingFestival.id,
+        type: "festival_participation",
+        status: "pending",
+        termsVersionId: staleVersionId,
+      })
+      .returning();
 
     fixtures.push({
       userId: user.id,
-      festivalIds: [enabledFestival.id, disabledFestival.id],
-      requestIds: [enabledRequest.id, disabledRequest.id],
+      festivalIds: [
+        enabledFestival.id,
+        disabledFestival.id,
+        pendingFestival.id,
+      ],
+      requestIds: [enabledRequest.id, disabledRequest.id, pendingRequest.id],
       extraVersionIds: [staleVersion.id],
     });
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { filterSectionsForAudience } from "@/app/lib/festival-terms/audience";
 import {
   TERMS_AUDIENCE_CATEGORIES,
   TERMS_FESTIVAL_TYPES,
@@ -63,12 +64,22 @@ export function scheduleSectionCount(
 }
 
 export function hasParticipantVisibleTermsContent(
-  sections: Array<{ kind: string; bodyJson?: unknown }>,
+  sections: Array<{
+    kind: string;
+    bodyJson?: unknown;
+    audienceCategories?: unknown;
+    audienceFestivalTypes?: unknown;
+    sortOrder?: number;
+  }>,
 ): boolean {
-  return sections.some(
-    (section) =>
-      section.kind === "rich_text" &&
-      richTextBodyHasVisibleContent(section.bodyJson),
+  return TERMS_AUDIENCE_CATEGORIES.every((category) =>
+    TERMS_FESTIVAL_TYPES.every((festivalType) =>
+      filterSectionsForAudience(sections, category, festivalType).some(
+        (section) =>
+          section.kind === "rich_text" &&
+          richTextBodyHasVisibleContent(section.bodyJson),
+      ),
+    ),
   );
 }
 
@@ -96,8 +107,9 @@ export const saveDraftSchema = z
 
 /**
  * Used by `publishFestivalTermsDraft` before any DB write.
- * Participant-visible content = at least one `rich_text` section whose
- * `bodyJson` would not render as empty under `renderTermsSectionHtml`
+ * Every supported category × festival-type pair must still see at least
+ * one `rich_text` section after `filterSectionsForAudience`, with a
+ * `bodyJson` that would not render as empty under `renderTermsSectionHtml`
  * (see `richTextBodyHasVisibleContent`). Schedule alone is not enough.
  */
 export const publishDraftSchema = z

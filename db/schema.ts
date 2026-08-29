@@ -261,6 +261,7 @@ export const subcategories = pgTable(
     descriptionJson: jsonb("description_json"),
     descriptionHtml: text("description_html"),
     imageUrl: text("image_url"),
+    imageFileKey: text("image_file_key"),
     sortOrder: integer("sort_order").default(0).notNull(),
     visibility: categoryVisibilityEnum("visibility")
       .default("selectable")

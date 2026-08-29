@@ -1,5 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 
+import { RequestStatusEnum } from "@/app/api/user_requests/definitions";
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import type {
   FestivalTermsSection,
@@ -121,12 +122,16 @@ export async function countStaleActiveFestivalAcceptances(
 ): Promise<number> {
   const result = await db.execute(sql`
     SELECT count(*)::text AS count
-    FROM user_requests ur
-    INNER JOIN festivals f ON f.id = ur.festival_id
-    WHERE ur.type = 'festival_participation'
-      AND f.status = 'active'
-      AND f.participant_terms_enabled = true
-      AND ur.terms_version_id IS DISTINCT FROM ${publishedVersionId}
+    FROM (
+      SELECT DISTINCT ur.user_id, ur.festival_id
+      FROM user_requests ur
+      INNER JOIN festivals f ON f.id = ur.festival_id
+      WHERE ur.type = 'festival_participation'
+        AND ur.status = ${RequestStatusEnum.accepted}
+        AND f.status = 'active'
+        AND f.participant_terms_enabled = true
+        AND ur.terms_version_id IS DISTINCT FROM ${publishedVersionId}
+    ) stale_acceptances
   `);
   return Number(result.rows[0]?.count ?? 0);
 }

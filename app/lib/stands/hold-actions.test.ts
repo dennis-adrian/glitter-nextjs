@@ -340,7 +340,7 @@ describe("stand hold sanction enforcement", () => {
     expect(result).toEqual({
       success: false,
       message:
-        "Tenés que aceptar la versión actual de los términos y condiciones.",
+        "El compañero seleccionado no puede participar en esta reserva. Tenés que aceptar la versión actual de los términos y condiciones.",
       reservationId: undefined,
     });
     expect(findFirst).toHaveBeenCalledTimes(2);

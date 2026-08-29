@@ -59,9 +59,9 @@ function leaseExpiryDate(from = new Date()) {
   return new Date(from.getTime() + LEASE_DURATION_MS);
 }
 
-export async function deleteFile(url: string) {
+export async function deleteFile(url: string, fileKey?: string | null) {
   try {
-    const key = getUploadThingFileKey(url);
+    const key = fileKey?.trim() || getUploadThingFileKey(url);
     if (!key) {
       console.warn("Could not extract UploadThing file key from URL:", url);
       return { success: false, error: "No se pudo identificar el archivo" };

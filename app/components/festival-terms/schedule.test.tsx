@@ -12,6 +12,12 @@ const STRUCTURES_COPY =
 const DEPARTURE_COPY =
   "El horario en que los expositores tienen permitido retirarse este día";
 
+const GENERIC_ENTRY_COPY =
+  "El ingreso de los expositores será desde las";
+
+const ILLUSTRATION_ENTRY_COPY =
+  "Los expositores de la categoría";
+
 function festivalDate(
   id: number,
   start: string,
@@ -73,5 +79,38 @@ describe("FestivalTermsSchedule day-one teardown", () => {
 
     expect(screen.getByText(STRUCTURES_COPY)).toBeTruthy();
     expect(screen.getByText(new RegExp(DEPARTURE_COPY))).toBeTruthy();
+  });
+});
+
+describe("FestivalTermsSchedule entry hours by category", () => {
+  const festival = {
+    festivalType: "glitter" as const,
+    festivalDates: [
+      festivalDate(
+        1,
+        "2026-08-15T14:00:00.000Z",
+        "2026-08-15T22:00:00.000Z",
+      ),
+    ],
+  };
+
+  it("keeps dedicated illustration copy and omits the generic paragraph", () => {
+    render(
+      <FestivalTermsSchedule category="illustration" festival={festival} />,
+    );
+
+    expect(screen.getByText(new RegExp(ILLUSTRATION_ENTRY_COPY))).toBeTruthy();
+    expect(screen.queryByText(new RegExp(GENERIC_ENTRY_COPY))).toBeNull();
+    expect(screen.queryByText("Galería:")).toBeNull();
+  });
+
+  it("renders generic entry hours for new_artist instead of illustration copy", () => {
+    render(
+      <FestivalTermsSchedule category="new_artist" festival={festival} />,
+    );
+
+    expect(screen.getByText(new RegExp(GENERIC_ENTRY_COPY))).toBeTruthy();
+    expect(screen.queryByText(new RegExp(ILLUSTRATION_ENTRY_COPY))).toBeNull();
+    expect(screen.queryByText("Galería:")).toBeNull();
   });
 });

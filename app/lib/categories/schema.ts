@@ -19,6 +19,7 @@ export const categoryEditorSchema = z.object({
   category: managementAreaSchema,
   descriptionJson: z.unknown().nullable().optional(),
   imageUrl: z.string().trim().nullable().optional(),
+  imageFileKey: z.string().trim().nullable().optional(),
   visibility: categoryVisibilitySchema,
   isExclusive: z.boolean(),
   isAdminAssignableOnly: z.boolean(),

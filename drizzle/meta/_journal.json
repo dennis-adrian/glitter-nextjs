@@ -1688,6 +1688,13 @@
       "when": 1787868313837,
       "tag": "0241_festival_participant_terms_enabled",
       "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1787982247222,
+      "tag": "0242_category_image_file_key",
+      "breakpoints": true
     }
   ]
 }

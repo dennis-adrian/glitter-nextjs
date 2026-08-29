@@ -48,3 +48,18 @@ export function isManagementArea(
 export function participantCount(counts: Pick<CategoryUsageCounts, "verified" | "paused">) {
   return counts.verified + counts.paused;
 }
+
+export function linkedAssignmentCount(counts: CategoryUsageCounts): number {
+  return (
+    counts.verified +
+    counts.paused +
+    counts.pending +
+    counts.rejected +
+    counts.banned +
+    counts.stands
+  );
+}
+
+export function hasLinkedAssignments(counts: CategoryUsageCounts): boolean {
+  return linkedAssignmentCount(counts) > 0;
+}

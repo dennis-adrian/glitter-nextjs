@@ -38,7 +38,7 @@ import {
   VISIBILITY_COPY,
   categoryParticipantsHref,
 } from "@/app/lib/categories/copy";
-import { isDeleteBlocked, unverifiedLinkedCounts } from "@/app/lib/categories/delete";
+import { isDeleteBlocked, shouldWarnRenameMove, unverifiedLinkedCounts } from "@/app/lib/categories/delete";
 import type {
   AdminCategory,
   CategoryVisibility,
@@ -69,6 +69,7 @@ export default function CategoryEditor({
       category: (category?.category as ManagementArea | undefined) ?? defaultArea,
       descriptionJson: category?.descriptionJson ?? null,
       imageUrl: category?.imageUrl ?? null,
+      imageFileKey: category?.imageFileKey ?? null,
       visibility: category?.visibility ?? "selectable",
       isExclusive: category?.isExclusive ?? false,
       isAdminAssignableOnly: category?.isAdminAssignableOnly ?? false,
@@ -79,10 +80,17 @@ export default function CategoryEditor({
     category != null && form.watch("category") !== category.category;
   const nameChanged =
     category != null && form.watch("label").trim() !== category.label;
-  const showRenameWarning =
-    category != null &&
-    (areaChanged || nameChanged) &&
-    (category.verified > 0 || category.stands > 0);
+  const showRenameWarning = shouldWarnRenameMove(
+    category != null && (areaChanged || nameChanged),
+    category ?? {
+      verified: 0,
+      paused: 0,
+      pending: 0,
+      rejected: 0,
+      banned: 0,
+      stands: 0,
+    },
+  );
 
   const blocked = category ? isDeleteBlocked(category) : false;
   const warning = category
@@ -292,7 +300,11 @@ export default function CategoryEditor({
                   render={({ field }) => (
                     <ImageUploadField
                       value={field.value}
-                      onChange={field.onChange}
+                      fileKey={form.watch("imageFileKey")}
+                      onChange={(url, nextFileKey) => {
+                        field.onChange(url);
+                        form.setValue("imageFileKey", nextFileKey ?? null);
+                      }}
                       alt={form.watch("label") || "Categoría"}
                     />
                   )}

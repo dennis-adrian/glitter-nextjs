@@ -5,7 +5,7 @@
 **Status:** Proposed  
 **Last updated:** 2026-08-24
 
-This plan turns the hardcoded `/festivals/categories` page and the operational `subcategories` table into one admin-managed catalog. UI language calls the rows **categorías**. The three parent enum values stay a higher grouping called **áreas**. The database table and column names do not change.
+This plan turns the hardcoded `/festivals/categories` page and the operational `subcategories` table into one admin-managed catalog. UI language calls the rows **categorías**. The three parent enum values stay a higher grouping called **áreas**. The existing `subcategories` table and its foreign-key references stay in place. The column set changes: new catalog columns are added, and unused `description` is dropped after backfill.
 
 ---
 
@@ -109,6 +109,7 @@ New / changed columns:
 | `description_json` | `jsonb` | `null` | BlockNote document. |
 | `description_html` | `text` | `null` | Sanitized HTML for the public page. Replaces ad-hoc use of the old plain `description` after backfill. |
 | `image_url` | `text` | `null` | UploadThing URL. |
+| `image_file_key` | `text` | `null` | UploadThing `fileKey`. Replacement and deletion must use this stored key (`deleteFile` / `utapi.deleteFiles`), not a guessed URL path. |
 | `sort_order` | `integer` | `0` | Order within an área. |
 | `visibility` | enum | `'selectable'` | See §6. Existing rows stay selectable so onboarding does not shrink on deploy. |
 | `is_exclusive` | `boolean` | `false` | Skincare rule. |
@@ -116,10 +117,10 @@ New / changed columns:
 
 Also add:
 
-- Unique index on `(category, lower(label))` so “Crochet” cannot be duplicated inside Ilustración.
+- Unique index on `(category, lower(label))` so “Crochet” cannot be duplicated inside Ilustración. Create it only after a preflight that uses the same canonicalization as the backfill (`normalizeCategoryLabel`: lowercase, strip accents, collapse `/` and whitespace). If any `(área, canonical label)` group still has more than one row, abort with a report of ids and raw labels (or resolve those duplicates first).
 - Index on `(visibility, category, sort_order)` for the public query.
 
-Keep the old `description` text column through the backfill, then drop it in the same migration after copying into `description_html` as a single unsanitized paragraph when JSON is empty. Do not leave two competing description fields.
+Keep the old `description` text column through the backfill. Copy legacy text into `description_html` as a single HTML-escaped `<p>` (and a matching paragraph in `description_json` when JSON is empty) so stored markup cannot execute. Drop `description` only after that copy succeeds in the same migration. Do not leave two competing description fields.
 
 Enum (new):
 
@@ -197,7 +198,7 @@ Layout:
 
 BlockNote’s own chrome (slash menu, floating format bar) follows [Notion’s block editor](https://mobbin.com/screens/4acb3a13-ddf8-4b60-9eae-e6ade2cc4dd3). Do not add a second custom toolbar on top.
 
-Rename / move warning: inline `Alert` under the área select when the loaded row has `verifiedCount > 0` or `standCount > 0`. Saving still works; the warning is the gate, not a modal.
+Rename / move warning: inline `Alert` under the área select when the loaded row has any linked profiles (verified, pending, paused, rejected, banned) or any stands. Categories linked only to pending, paused, rejected, or banned profiles still show the Alert. Saving still works; the warning is the gate, not a modal.
 
 ### 7.3 Delete — Vanta impact dialog
 
@@ -302,7 +303,7 @@ Actions (all `"use server"`, all `requireAdmin()` except reads used by the publi
 | `createCategory` | Label + área required. Defaults: `selectable`, flags false. |
 | `updateCategory` | Name, área, JSON+HTML, image, visibility, flags, sort. |
 | `reorderCategories` | Array of `{ id, sortOrder }` within one área. |
-| `deleteCategory` | Re-checks verified + stand counts in the same transaction. Refuse if blocked. |
+| `deleteCategory` | One transaction: `SELECT … FOR UPDATE` on the category row (serializes with concurrent `profile_subcategories` / `stand_subcategories` inserts, which take a key-share lock on the parent), re-check blocking counts, then `DELETE` (CASCADE). Guard and delete are one atomic policy decision. Default `READ COMMITTED` plus the row lock is enough. Test: concurrent delete vs relationship insert. |
 | `fetchSelectableCategories()` | Onboarding + profile edit: `selectable` and not `is_admin_assignable_only`. |
 | `fetchAdminAssignableCategories()` | Profile edit by admin: not `hidden`. |
 
@@ -310,7 +311,7 @@ Revalidate `/festivals/categories` and `/dashboard/categories` on every write.
 
 Auth helper: add `requireAdmin()` next to `requireAdminOrFestivalAdmin()` in `app/lib/users/helpers.ts`.
 
-UploadThing: new `categoryImage` route, `admin` only, 4MB, one file, returns `{ imageUrl, fileKey }`.
+UploadThing: new `categoryImage` route, `admin` only, 4MB, one file, returns `{ imageUrl, fileKey }`. Persist both `image_url` and `image_file_key`. On replace or delete, remove the previous file with the stored key.
 
 Onboarding change: `filterSubcategories` drops the `skin` / `sublimación` string checks and uses `isExclusive` / `isAdminAssignableOnly` from the row.
 
@@ -323,13 +324,13 @@ Single Drizzle migration, then a data backfill in the same SQL file (or a follow
 1. Create enum `category_visibility`.
 2. Add new columns with defaults.
 3. Rename TS field `descrption` → `description` is a schema-only fix; SQL column already `description`.
-4. Backfill HTML: wrap existing non-null `description` in `<p>…</p>` if any row has it (today the app never writes it; expect empty).
+4. Backfill HTML: if `description_json` is empty and `description` is non-empty, store a single paragraph in JSON and set `description_html` to `<p>` plus HTML-escaped legacy text (`&`, `<`, `>`). Expect empty in production today.
 5. Match hardcoded cards to rows by normalized label (lowercase, strip accents, treat `/` and extra spaces as equivalent). Write `description_html` + a minimal `description_json` of paragraphs.
 6. Insert **Ilustración Digital** and **Postres** if no row matches those normalized names under the right área. Seed their copy from the current Ilustración / Gastronomía cards.
 7. Set `is_exclusive = true` where normalized label contains `skincare` / `skin care`.
 8. Set `is_admin_assignable_only = true` and `visibility = 'listed'` where normalized label contains `sublimacion`.
-9. Drop unused plain `description` after copy.
-10. Unique index on `(category, lower(label))`.
+9. Drop unused plain `description` only after the copy in step 4 succeeds.
+10. Preflight labels with the same canonicalization as step 5. If any `(category, canonical label)` still has duplicates, abort with an actionable report (ids, área, raw labels) or resolve them first. Only then create the unique index on `(category, lower(label))`.
 
 Unmatched hardcoded titles stay logged in the migration comments so they can be created by hand. Unmatched DB rows stay `selectable` with empty copy (they already appear in onboarding).
 
@@ -374,7 +375,7 @@ Unmatched hardcoded titles stay logged in the migration comments so they can be 
 ### Phase 5 — Hardening
 
 - Sanitize HTML on write; reject javascript: hrefs.
-- If image is replaced, delete the previous UploadThing file (existing `deleteFile`).
+- If image is replaced or the row is deleted, delete the previous UploadThing file with the stored `image_file_key` (existing `deleteFile`).
 - `pnpm exec vitest run` for new tests; smoke the three admin screens and `/festivals/categories` in the browser (desktop + a mobile width).
 
 ---
@@ -420,7 +421,7 @@ Unmatched hardcoded titles stay logged in the migration comments so they can be 
 
 ## 15. File touch list (expected)
 
-- `db/schema.ts` — columns, enum, relations unchanged besides new fields.
+- `db/schema.ts` — columns, enum, relations unchanged besides new fields (`image_file_key` included).
 - `drizzle/*.sql` — generated migration + backfill.
 - `app/api/uploadthing/core.ts` — `categoryImage`.
 - `app/lib/users/helpers.ts` — `requireAdmin`.

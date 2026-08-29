@@ -12,6 +12,8 @@ import {
 import {
   labelContainsNormalized,
   normalizeCategoryLabel,
+  findCanonicalLabelDuplicates,
+  formatCanonicalDuplicateReport,
 } from "@/app/lib/categories/label";
 
 export const CATEGORY_CATALOG_BACKFILL = "0236_manageable_categories";
@@ -60,6 +62,18 @@ export async function markCategoryCatalogBackfillCompleted() {
 
 export async function backfillCategoryCatalog() {
   const rows = await db.select().from(subcategories);
+  const duplicates = findCanonicalLabelDuplicates(
+    rows.map((row) => ({
+      id: row.id,
+      category: row.category,
+      label: row.label,
+    })),
+  );
+  if (duplicates.length > 0) {
+    throw new Error(
+      `Duplicate category labels under backfill canonicalization:\n${formatCanonicalDuplicateReport(duplicates)}`,
+    );
+  }
   const unmatched = unmatchedHardcodedTitles(rows);
   if (unmatched.length > 0) {
     console.info(

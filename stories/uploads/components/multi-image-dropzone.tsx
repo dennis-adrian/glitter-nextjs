@@ -169,7 +169,10 @@ export function MultiImageDropzone({
         className="sr-only"
         disabled={disabled || isUploading}
         aria-label={`Seleccionar ${title.toLowerCase()}`}
-        onChange={(event) => addFiles(Array.from(event.target.files ?? []))}
+        onChange={(event) => {
+          addFiles(Array.from(event.target.files ?? []));
+          event.target.value = "";
+        }}
       />
 
       <div

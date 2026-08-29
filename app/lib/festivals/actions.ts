@@ -968,10 +968,15 @@ export async function updateFestivalParticipantTerms(
   }
 
   try {
-    await db
+    const [updatedFestival] = await db
       .update(festivals)
       .set({ participantTermsEnabled, updatedAt: new Date() })
-      .where(eq(festivals.id, festivalId));
+      .where(eq(festivals.id, festivalId))
+      .returning({ festivalId: festivals.id });
+
+    if (!updatedFestival) {
+      return { success: false, message: "Festival no encontrado" };
+    }
   } catch (error) {
     console.error("Error updating festival participant terms", error);
     return {
