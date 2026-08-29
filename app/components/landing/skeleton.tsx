@@ -28,6 +28,26 @@ export default function LandingSkeleton() {
         </div>
       </section>
 
+      <section className="bg-muted/20 px-5 py-14 sm:px-8 lg:px-20 lg:py-20">
+        <div className="mx-auto max-w-[1280px] overflow-hidden rounded-[28px] border border-border bg-background shadow-sm md:grid md:grid-cols-[minmax(240px,0.82fr)_1px_minmax(0,1.18fr)]">
+          <div className="bg-muted-foreground/15 px-5 py-6 sm:px-8 sm:py-8 md:px-6 lg:px-8 lg:py-10">
+            <Skeleton className="mx-auto aspect-3/4 w-full max-w-[360px] rounded-[16px]" />
+          </div>
+          <div className="border-t-2 border-dashed border-muted-foreground/20 md:border-l-2 md:border-t-0" />
+          <div className="flex flex-col justify-center p-6 sm:p-8 md:p-9 lg:p-14">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="mt-4 h-10 w-full max-w-md rounded-lg" />
+            <Skeleton className="mt-5 h-4 w-full max-w-xl" />
+            <Skeleton className="mt-2 h-4 w-4/5 max-w-lg" />
+            <div className="mt-7 grid gap-4 sm:grid-cols-[112px_minmax(0,1fr)]">
+              <Skeleton className="h-28 rounded-[18px]" />
+              <Skeleton className="h-28 rounded-[18px]" />
+            </div>
+            <Skeleton className="mt-8 h-12 w-full rounded-full sm:w-44" />
+          </div>
+        </div>
+      </section>
+
       <section className="bg-muted/30 px-5 py-14 sm:px-8 lg:px-20 lg:py-20">
         <div className="mx-auto max-w-[1280px]">
           <Skeleton className="mx-auto h-10 w-72 rounded-lg" />

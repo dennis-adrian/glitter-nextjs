@@ -1,9 +1,4 @@
-import {
-  ArrowRightIcon,
-  ArrowUpRightIcon,
-  CalendarDaysIcon,
-  MapPinIcon,
-} from "lucide-react";
+import { ArrowRightIcon, ArrowUpRightIcon, MapPinIcon } from "lucide-react";
 import {
   faFacebook,
   faInstagram,
@@ -17,6 +12,7 @@ import MarketingBannerCarousel from "@/app/components/marketing/marketing-banner
 import PreviewLandingBar from "@/app/components/landing/preview-landing-bar";
 import { Button } from "@/app/components/ui/button";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { formatDate } from "@/app/lib/formatters";
 import {
   getCommunityGalleryLayout,
   getImageObjectPosition,
@@ -68,6 +64,40 @@ function Heading({
       {children}
     </h2>
   );
+}
+
+const festivalSpotlightFallbacks: Record<
+  ResolvedFestival["festivalType"],
+  string
+> = {
+  glitter:
+    "Arte, ilustración y oficios creativos en un encuentro hecho para descubrir talento boliviano.",
+  festicker:
+    "Stickers, personajes y cultura urbana se encuentran en una celebración que toma la ciudad.",
+  twinkler:
+    "Historias, personajes y mundos encantados para despertar la imaginación en comunidad.",
+};
+
+function getFestivalDateStamp(festival: ResolvedFestival) {
+  const first = festival.festivalDates[0]?.startDate;
+  const last = festival.festivalDates.at(-1)?.startDate;
+  if (!first || !last) return null;
+
+  const start = formatDate(first);
+  const end = formatDate(last);
+  const sameDay = start.hasSame(end, "day");
+  const sameMonth = start.hasSame(end, "month");
+  const month = (date: typeof start) =>
+    date.toFormat("LLL").replace(".", "").toUpperCase();
+
+  return {
+    primary: sameDay
+      ? start.toFormat("d")
+      : `${start.toFormat("d")}–${end.toFormat("d")}`,
+    secondary: sameMonth ? month(end) : `${month(start)}–${month(end)}`,
+    year: end.toFormat("yyyy"),
+    dateTime: start.toISODate() ?? undefined,
+  };
 }
 
 function DestinationArrow({ href }: { href: string }) {
@@ -164,47 +194,104 @@ function Event({
   const location =
     [festival.locationLabel, festival.address].filter(Boolean).join(" · ") ||
     "Ubicación por confirmar";
+  const dateLabel = festival.festivalDates.length
+    ? getFestivalDateLabel(festival)
+    : "Fecha por confirmar";
+  const dateStamp = getFestivalDateStamp(festival);
+  const description =
+    festival.description?.trim() ||
+    festivalSpotlightFallbacks[festival.festivalType];
   return (
     <section id="proximo-evento" className={`scroll-mt-20 ${backgroundClass}`}>
-      <div className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8 lg:px-20 lg:py-16">
-        <div className="grid items-center gap-10 rounded-[24px] md:grid-cols-[minmax(260px,400px)_1fr]">
+      <div className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8 lg:px-20 lg:py-20">
+        <article
+          className={`relative mx-auto overflow-hidden rounded-[28px] border border-brand-ink/10 bg-brand-card shadow-[0_24px_70px_rgba(41,0,92,0.12)] ${
+            art
+              ? "grid md:grid-cols-[minmax(240px,0.82fr)_1px_minmax(0,1.18fr)]"
+              : "max-w-4xl"
+          }`}
+        >
           {art ? (
-            <div className="mx-auto w-full max-w-[400px] rounded-[20px] bg-brand-lavender p-7 sm:p-10">
-              <div className="relative aspect-3/4 overflow-hidden">
+            <div className="relative isolate bg-brand-ink px-5 py-6 sm:px-8 sm:py-8 md:px-6 lg:px-8 lg:py-10">
+              <div className="relative mx-auto aspect-3/4 w-full max-w-[360px] overflow-hidden rounded-[16px] shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
                 <Image
                   src={art}
                   alt={`Afiche de ${festival.name}`}
                   fill
-                  sizes="(max-width: 768px) 70vw, 300px"
+                  sizes="(max-width: 767px) 80vw, (max-width: 1023px) 34vw, 360px"
                   className="object-cover"
                 />
               </div>
             </div>
           ) : null}
-          <div className="max-w-3xl">
-            <Heading>{festival.name}</Heading>
-            <div className="mt-5 space-y-3 font-display text-lg font-bold text-brand-ink sm:text-xl">
-              <p className="flex items-start gap-3">
-                <CalendarDaysIcon className="mt-1 size-4 shrink-0 text-brand-primary" />
-                <span>{getFestivalDateLabel(festival)}</span>
-              </p>
-              <p className="flex items-start gap-3">
-                <MapPinIcon className="mt-1 size-4 shrink-0 text-brand-primary" />
-                <span>{location}</span>
-              </p>
+
+          {art ? (
+            <div
+              aria-hidden="true"
+              className="border-t-2 border-dashed border-brand-primary/25 md:border-l-2 md:border-t-0"
+            />
+          ) : null}
+
+          <div className="flex max-w-3xl flex-col justify-center p-6 sm:p-8 md:p-9 lg:p-14">
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-brand-primary sm:text-sm">
+              <span
+                aria-hidden="true"
+                className="size-2 rounded-full bg-brand-coral"
+              />
+              Próximo festival
+            </p>
+            <Heading className="mt-3">{festival.name}</Heading>
+
+            <p className="mt-4 max-w-2xl text-base leading-7 text-brand-neutral sm:text-lg">
+              {description}
+            </p>
+
+            <div className="mt-7 grid items-stretch gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+              {dateStamp ? (
+                <time
+                  dateTime={dateStamp.dateTime}
+                  aria-label={dateLabel}
+                  className="grid min-w-28 place-items-center rounded-[18px] bg-brand-ink px-5 py-4 text-center font-display text-white"
+                >
+                  <span className="text-3xl font-extrabold leading-none tracking-[-1px] sm:text-4xl">
+                    {dateStamp.primary}
+                  </span>
+                  <span className="mt-1 text-sm font-bold tracking-[0.16em]">
+                    {dateStamp.secondary}
+                  </span>
+                  <span className="mt-0.5 text-xs text-white/70">
+                    {dateStamp.year}
+                  </span>
+                </time>
+              ) : (
+                <div className="flex min-h-28 min-w-28 items-center justify-center rounded-[18px] bg-brand-ink px-5 py-4 text-center font-display font-bold text-white">
+                  Fecha por confirmar
+                </div>
+              )}
+
+              <div className="flex min-h-28 items-center rounded-[18px] border border-brand-border bg-brand-lavender/45 px-5 py-4">
+                <p className="flex items-start gap-3 font-display text-lg font-bold leading-6 text-brand-ink sm:text-xl">
+                  <MapPinIcon className="mt-0.5 size-5 shrink-0 text-brand-primary" />
+                  <span>{location}</span>
+                </p>
+              </div>
             </div>
-            {festival.description ? (
-              <p className="mt-5 text-lg leading-7 text-brand-neutral sm:text-xl">
-                {festival.description}
-              </p>
-            ) : null}
+
             {value.showCta ? (
-              <Button asChild size="lg" variant="cta" className="mt-8">
-                <Link href={register}>{value.primaryCtaLabel}</Link>
+              <Button
+                asChild
+                size="lg"
+                variant="cta"
+                className="mt-8 w-full gap-2 sm:w-fit"
+              >
+                <Link href={register}>
+                  {value.primaryCtaLabel}
+                  <ArrowRightIcon aria-hidden="true" className="size-4" />
+                </Link>
               </Button>
             ) : null}
           </div>
-        </div>
+        </article>
       </div>
     </section>
   );
