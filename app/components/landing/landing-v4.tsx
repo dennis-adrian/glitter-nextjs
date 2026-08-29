@@ -153,12 +153,8 @@ function Hero({
         <div className="pointer-events-none absolute bottom-[28px] left-[5%] right-[-24%] h-[345px] sm:bottom-[16px] sm:left-[20%] sm:right-[-14%] sm:h-[400px] md:bottom-[12px] md:left-[30%] md:right-[-4%] md:top-auto md:h-[360px] lg:relative lg:inset-auto lg:h-[520px] lg:w-full">
           <div
             aria-hidden="true"
-            className="absolute bottom-[10%] left-[7%] right-[-4%] top-[11%] rotate-[-2deg] overflow-hidden rounded-[32px] border-2 border-brand-ink/10 bg-[#FFD633] shadow-[0_22px_60px_rgba(98,0,203,0.14)]"
-          >
-            <span className="absolute -left-3 top-1/2 size-6 -translate-y-1/2 rounded-full bg-brand-elevated" />
-            <span className="absolute -right-3 top-1/2 size-6 -translate-y-1/2 rounded-full bg-brand-elevated" />
-            <span className="absolute bottom-[16%] left-[12%] top-[16%] border-l-2 border-dashed border-brand-ink/15" />
-          </div>
+            className="absolute bottom-[10%] left-[7%] right-[-4%] top-[11%] rotate-[-2deg] rounded-[32px] border-2 border-brand-ink/10 bg-[#FFD633] shadow-[0_22px_60px_rgba(98,0,203,0.14)]"
+          />
 
           <Image
             src={value.image.url}

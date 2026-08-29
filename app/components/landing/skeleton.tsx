@@ -17,11 +17,7 @@ export default function LandingSkeleton() {
           </div>
 
           <div className="pointer-events-none absolute bottom-[28px] left-[5%] right-[-24%] h-[345px] sm:bottom-[16px] sm:left-[20%] sm:right-[-14%] sm:h-[400px] md:bottom-[12px] md:left-[30%] md:right-[-4%] md:top-auto md:h-[360px] lg:relative lg:inset-auto lg:h-[520px] lg:w-full">
-            <div className="absolute bottom-[10%] left-[7%] right-[-4%] top-[11%] rotate-[-2deg] overflow-hidden rounded-[32px] border-2 border-border bg-muted">
-              <span className="absolute -left-3 top-1/2 size-6 -translate-y-1/2 rounded-full bg-muted/20" />
-              <span className="absolute -right-3 top-1/2 size-6 -translate-y-1/2 rounded-full bg-muted/20" />
-              <span className="absolute bottom-[16%] left-[12%] top-[16%] border-l-2 border-dashed border-muted-foreground/20" />
-            </div>
+            <div className="absolute bottom-[10%] left-[7%] right-[-4%] top-[11%] rotate-[-2deg] rounded-[32px] border-2 border-border bg-muted" />
             <Skeleton className="absolute bottom-[1%] left-[27%] h-[82%] w-[48%] rounded-[46%_46%_24%_24%] bg-muted-foreground/20" />
             <Skeleton className="absolute bottom-[4%] left-[12%] h-[31%] w-[28%] rounded-[42%_50%_28%_36%] bg-muted-foreground/20" />
           </div>
