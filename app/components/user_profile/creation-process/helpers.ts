@@ -20,7 +20,7 @@ export function getInitialAvailableCategories(
   const mainCategory = userCategories[0];
   if (
     ["illustration", "gastronomy"].includes(mainCategory.category) ||
-    mainCategory.label === "Skincare"
+    mainCategory.isExclusive
   ) {
     return [];
   }
@@ -29,7 +29,9 @@ export function getInitialAvailableCategories(
   return subcategories.filter((subcategory) => {
     return (
       !userCategoriesIds.includes(subcategory.id) &&
-      subcategory.category === "entrepreneurship"
+      subcategory.category === "entrepreneurship" &&
+      !subcategory.isAdminAssignableOnly &&
+      !subcategory.isExclusive
     );
   });
 }

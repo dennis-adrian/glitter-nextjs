@@ -30,6 +30,7 @@ import {
   QrCodeIcon,
   ReceiptTextIcon,
   ScanLineIcon,
+  ScrollTextIcon,
   ShirtIcon,
   // StickerIcon, // used by the commented-out festival items
   StoreIcon,
@@ -255,9 +256,13 @@ const MobileSidebar = ({
                   <CalendarIcon className="mr-2 h-6 w-6" />
                   Festivales
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/subcategories">
+                <MobileSidebarItem href="/dashboard/categories">
                   <BoxesIcon className="mr-2 h-6 w-6" />
-                  Subcategorías
+                  Categorías
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/terms">
+                  <ScrollTextIcon className="mr-2 h-6 w-6" />
+                  Términos y condiciones
                 </MobileSidebarItem>
                 <MobileSidebarItem href="/dashboard/tags">
                   <TagsIcon className="mr-2 h-6 w-6" />

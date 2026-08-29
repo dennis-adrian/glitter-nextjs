@@ -1,11 +1,10 @@
 "use client";
 
-import { Loader2Icon, UploadIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import Image from "next/image";
-import { toast } from "sonner";
 
+import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
 import { Button } from "@/app/components/ui/button";
-import { UploadButton } from "@/app/vendors/uploadthing";
 
 type Props = {
   imageUrl?: string;
@@ -43,61 +42,12 @@ export default function SpeakerImageUpload({
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-          <UploadButton
+          <UploadThingImageButton
             endpoint="speakerImage"
-            content={{
-              button({ ready, isUploading, uploadProgress }) {
-                if (isUploading) {
-                  return (
-                    <span className="flex items-center gap-2">
-                      <Loader2Icon className="size-4 animate-spin" />
-                      {uploadProgress}%
-                    </span>
-                  );
-                }
-                if (ready) {
-                  return (
-                    <span className="flex items-center gap-2">
-                      <UploadIcon className="size-4" />
-                      Subir imagen
-                    </span>
-                  );
-                }
-                return "Cargando...";
-              },
-              allowedContent({ ready, isUploading }) {
-                if (!ready || isUploading) return null;
-                return "Imagen de hasta 4 MB";
-              },
-            }}
-            appearance={{
-              button:
-                "h-9 w-auto bg-primary px-3 text-xs text-primary-foreground after:bg-primary/60",
-              allowedContent: "text-xs text-muted-foreground",
-            }}
-            onBeforeUploadBegin={(files) => {
-              onUploading(true);
-              return files;
-            }}
-            onClientUploadComplete={(results) => {
-              onUploading(false);
-              const uploadedUrl =
-                results[0]?.serverData?.imageUrl ?? results[0]?.url;
-              if (!uploadedUrl) {
-                toast.error("No se pudo obtener la imagen subida");
-                return;
-              }
-              onChange(uploadedUrl);
-              toast.success("Imagen subida correctamente");
-            }}
-            onUploadError={(error) => {
-              onUploading(false);
-              toast.error(
-                error.code === "TOO_LARGE"
-                  ? "La imagen supera el máximo de 4 MB"
-                  : "No se pudo subir la imagen",
-              );
-            }}
+            hasImage={Boolean(imageUrl)}
+            variant="primary"
+            onUploading={onUploading}
+            onUploadComplete={onChange}
           />
 
           {imageUrl ? (

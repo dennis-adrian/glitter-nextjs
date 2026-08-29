@@ -955,6 +955,47 @@ export async function updateFestivalRegistration(
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
+export async function updateFestivalParticipantTerms(
+  festivalId: FestivalBase["id"],
+  participantTermsEnabled: FestivalBase["participantTermsEnabled"],
+) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!Number.isInteger(festivalId) || festivalId <= 0) {
+    return { success: false, message: "Festival inválido" };
+  }
+
+  try {
+    const [updatedFestival] = await db
+      .update(festivals)
+      .set({ participantTermsEnabled, updatedAt: new Date() })
+      .where(eq(festivals.id, festivalId))
+      .returning({ festivalId: festivals.id });
+
+    if (!updatedFestival) {
+      return { success: false, message: "Festival no encontrado" };
+    }
+  } catch (error) {
+    console.error("Error updating festival participant terms", error);
+    return {
+      success: false,
+      message: "Error al actualizar los términos para participantes",
+    };
+  }
+
+  revalidatePath("/dashboard/festivals");
+  revalidatePath(`/dashboard/festivals/${festivalId}`);
+  revalidatePath("/festivals", "layout");
+  return {
+    success: true,
+    message: participantTermsEnabled
+      ? "Los participantes ya pueden acceder a los términos y condiciones"
+      : "Se deshabilitó el acceso a los términos y condiciones para participantes",
+  };
+}
+
 export async function queueEmails<T>(
   entities: T[],
   festival: FestivalWithDates,

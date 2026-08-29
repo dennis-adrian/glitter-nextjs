@@ -1,7 +1,13 @@
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { pool, db } from "@/db";
 
+import {
+  backfillCategoryCatalog,
+  categoryCatalogBackfillCompleted,
+  markCategoryCatalogBackfillCompleted,
+} from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
+import { ensureDefaultFestivalTerms } from "@/app/lib/festival-terms/persist";
 
 /**
  * After 0165 adds nullable `slug`, backfill fills values; then match schema.ts
@@ -43,6 +49,44 @@ async function ensureProductSlugConstraints() {
   }
 }
 
+async function catalogMigrationPending(): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    const col = await client.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'subcategories'
+         AND column_name = 'description_json'`,
+    );
+    return col.rows.length === 0;
+  } finally {
+    client.release();
+  }
+}
+
+async function ensureFestivalTermsArchivedEnum() {
+  const client = await pool.connect();
+  try {
+    // Safety net for DBs that already applied an older 0237 without `archived`.
+    // Fresh installs create the label in 0237's CREATE TYPE. Postgres refuses
+    // to use a newly ADD VALUE'd enum label until that transaction commits, so
+    // if the type exists without `archived`, add it here (autocommit) before
+    // migrate() runs 0239's backfill SQL that references the label.
+    await client.query(
+      `ALTER TYPE "public"."festival_terms_version_status" ADD VALUE IF NOT EXISTS 'archived'`,
+    );
+  } catch (error: unknown) {
+    const pgError = error as { code?: string };
+    // Type may not exist yet on a fresh DB; 0237 creates it with `archived`.
+    if (pgError.code === "42704") {
+      return;
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function main() {
   if (!process.env.POSTGRES_URL) {
     console.info("POSTGRES_URL is not set. Skipping migration.");
@@ -51,9 +95,20 @@ async function main() {
   }
 
   try {
+    const catalogPending = await catalogMigrationPending();
+    const catalogBackfillDone = catalogPending
+      ? false
+      : await categoryCatalogBackfillCompleted();
+
+    await ensureFestivalTermsArchivedEnum();
     await migrate(db, { migrationsFolder: "./drizzle" });
     await backfillProductSlugs();
     await ensureProductSlugConstraints();
+    if (catalogPending || !catalogBackfillDone) {
+      await backfillCategoryCatalog();
+      await markCategoryCatalogBackfillCompleted();
+    }
+    await ensureDefaultFestivalTerms();
     console.info("Migration completed successfully.");
   } catch (error: unknown) {
     const pgError = error as { code?: string };

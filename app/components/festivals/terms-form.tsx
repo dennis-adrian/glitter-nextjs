@@ -40,9 +40,11 @@ const FormSchema = z.object({
 export default function TermsForm({
   profile,
   festival,
+  isReacceptance = false,
 }: {
   profile: ProfileType;
   festival: FestivalBase;
+  isReacceptance?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -74,8 +76,16 @@ export default function TermsForm({
           profile_id: profile.id,
           profile_category: profile.category,
           is_gastronomy_application: profile.category === "gastronomy",
+          is_reacceptance: isReacceptance,
         });
-        if (profile.category === "gastronomy") {
+        if (isReacceptance) {
+          toast.success(res.message);
+          router.push(
+            profile.category === "gastronomy"
+              ? "/portal"
+              : `/profiles/${profile.id}/festivals/${festival.id}/reservations/new`,
+          );
+        } else if (profile.category === "gastronomy") {
           toast.success("Postulación enviada. Te avisaremos si es aprobada.");
           router.push(`/portal`);
         } else {
@@ -90,8 +100,9 @@ export default function TermsForm({
     });
   }
 
-  const submitButtonLabel =
-    profile.category === "gastronomy"
+  const submitButtonLabel = isReacceptance
+    ? "Aceptar la nueva versión"
+    : profile.category === "gastronomy"
       ? "Postularme al festival"
       : "Inscribirme al festival";
 
@@ -100,8 +111,16 @@ export default function TermsForm({
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <ConsentFormField
           name="consent"
-          label="Acepto los términos y condiciones para participar en el festival"
-          description="Si llegaste hasta aquí y estas de acuerdo con todas las normas anteriores, acepta los términos y condiciones y dale clic al botón"
+          label={
+            isReacceptance
+              ? "Acepto la nueva versión de los términos y condiciones"
+              : "Acepto los términos y condiciones para participar en el festival"
+          }
+          description={
+            isReacceptance
+              ? "Si estás de acuerdo con los términos actualizados, aceptalos y dale clic al botón"
+              : "Si llegaste hasta aquí y estas de acuerdo con todas las normas anteriores, acepta los términos y condiciones y dale clic al botón"
+          }
         />
         <div className="flex flex-col sm:flex-row gap-4">
           <Button disabled={isPending} className="flex-1" type="submit">

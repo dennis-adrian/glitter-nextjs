@@ -7,6 +7,12 @@ import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import {
+  FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+  isFestivalParticipantTermsEnabled,
+} from "@/app/lib/festivals/participant-terms";
+import { NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE } from "@/app/lib/festival-terms/acceptance";
+import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
@@ -17,12 +23,68 @@ import {
   standHolds,
   standReservations,
   stands,
+  festivals,
+  userRequests,
   users,
 } from "@/db/schema";
 import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
+const STALE_TERMS_MESSAGE =
+  "Tenés que aceptar la versión actual de los términos y condiciones.";
+
+async function rejectIfTermsStale(
+  actor: { role: string } | null | undefined,
+  participantIds: readonly number[],
+  festivalId: number,
+  tx: HoldTx,
+) {
+  if (actor?.role === "admin" || actor?.role === "festival_admin") {
+    return null;
+  }
+
+  const festival = await tx.query.festivals.findFirst({
+    where: eq(festivals.id, festivalId),
+    columns: { participantTermsEnabled: true },
+  });
+  if (!festival || !isFestivalParticipantTermsEnabled(festival)) {
+    return {
+      success: false as const,
+      message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+    };
+  }
+
+  const publishedTerms = await fetchPublishedFestivalTermsVersion(tx);
+  const publishedVersionId = publishedTerms?.id ?? null;
+  if (publishedVersionId == null) {
+    return {
+      success: false as const,
+      message: NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE,
+    };
+  }
+
+  for (const [index, userId] of [...new Set(participantIds)].entries()) {
+    const participation = await tx.query.userRequests.findFirst({
+      where: and(
+        eq(userRequests.userId, userId),
+        eq(userRequests.festivalId, festivalId),
+        eq(userRequests.type, "festival_participation"),
+      ),
+      columns: { termsVersionId: true },
+    });
+    if (participation?.termsVersionId !== publishedVersionId) {
+      return {
+        success: false as const,
+        message:
+          index === 0
+            ? STALE_TERMS_MESSAGE
+            : `El compañero seleccionado no puede participar en esta reserva. ${STALE_TERMS_MESSAGE}`,
+      };
+    }
+  }
+  return null;
+}
 
 function canActOnBehalfOfUser(
   actor: { id: number; role: string } | null | undefined,
@@ -142,6 +204,14 @@ export async function createStandHold(
           message: "El participante no está verificado",
         };
       }
+
+      const staleTerms = await rejectIfTermsStale(
+        actor,
+        [userId],
+        festivalId,
+        tx,
+      );
+      if (staleTerms) return staleTerms;
 
       const blocked = await rejectIfAnyParticipantIsIneligible(
         [userId],
@@ -344,6 +414,14 @@ export async function confirmStandHold(
           message: "El compañero no puede ser el usuario principal",
         };
       }
+
+      const staleTerms = await rejectIfTermsStale(
+        actor,
+        participantIds,
+        hold.festivalId,
+        tx,
+      );
+      if (staleTerms) return staleTerms;
 
       const participantRows = await tx
         .select({ id: users.id, status: users.status })

@@ -2,9 +2,11 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import MapTabsClient from "@/app/components/festivals/reservations/map-tabs-client";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
+import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { profileNeedsTermsReacceptance } from "@/app/lib/festival-terms/require-current";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -45,6 +47,13 @@ export default async function MapReservationPage(
         No estás habilitado para participar en este evento
       </div>
     );
+  }
+
+  if (
+    currentProfile?.role !== "admin" &&
+    (await profileNeedsTermsReacceptance(festival, forProfile))
+  ) {
+    return <TermsReacceptanceRequired festivalId={festival.id} />;
   }
 
   const eligibility = await getReservationEligibility({

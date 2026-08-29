@@ -1,29 +1,38 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.58.0",
+  "version": "2.59.0",
   "private": true,
-  "packageManager": "pnpm@10.34.3",
+  "packageManager": "pnpm@11.24.0",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx scripts/sync-env-local.ts --exec next dev",
+    "env:sync": "tsx scripts/sync-env-local.ts",
     "build": "pnpm generate && next build",
     "start": "next start",
     "generate": "drizzle-kit generate",
-    "migrate": "tsx scripts/migrate.ts",
+    "migrate": "tsx scripts/sync-env-local.ts --exec tsx scripts/migrate.ts",
+    "migrate:test": "tsx scripts/sync-env-local.ts --exec sh -c 'POSTGRES_URL=\"$TEST_DATABASE_URL\" exec tsx scripts/migrate.ts'",
     "push": "drizzle-kit push:pg",
-    "seed": "tsx scripts/seed.ts",
+    "seed": "tsx scripts/sync-env-local.ts --exec tsx scripts/seed.ts",
     "db:setup": "pnpm generate && pnpm migrate && pnpm seed",
     "vercel-build": "pnpm generate && pnpm migrate && next build",
     "email": "email dev --dir app/emails",
     "test": "vitest",
-    "test:integration": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/orders/actions.integration.test.ts app/lib/orders/adjustments.integration.test.ts app/lib/orders/category-correction.integration.test.ts",
+    "test:storybook": "vitest --config vitest.storybook.config.mts run",
+    "test:integration": "tsx scripts/sync-env-local.ts --exec node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/categories/migration.integration.test.ts app/lib/categories/delete.integration.test.ts app/api/user_requests/duplicate-cleanup.migration.test.ts app/lib/orders/actions.integration.test.ts app/lib/orders/adjustments.integration.test.ts app/lib/orders/category-correction.integration.test.ts app/lib/festival-terms/acceptance.integration.test.ts app/lib/festival-terms/actions.integration.test.ts app/lib/festivals/actions.integration.test.ts",
     "test:e2e": "playwright test",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
     "format:write": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@blocknote/core": "^0.54.0",
+    "@blocknote/react": "^0.54.0",
+    "@blocknote/server-util": "^0.54.0",
+    "@blocknote/shadcn": "^0.54.0",
     "@clerk/backend": "^3.16.10",
     "@clerk/localizations": "^3.37.4",
     "@clerk/nextjs": "^7.2.3",
@@ -72,6 +81,7 @@
     "embla-carousel-react": "^8.5.2",
     "google-libphonenumber": "^3.2.40",
     "html-to-image": "^1.11.11",
+    "isomorphic-dompurify": "^3.22.0",
     "jsbarcode": "^3.11.6",
     "lucide-react": "0.503.0",
     "luxon": "^3.5.0",
@@ -103,6 +113,10 @@
   "devDependencies": {
     "@react-email/preview-server": "^5.2.8",
     "@react-email/render": "^1.0.4",
+    "@storybook/addon-a11y": "^10.5.10",
+    "@storybook/addon-docs": "^10.5.10",
+    "@storybook/addon-vitest": "^10.5.10",
+    "@storybook/nextjs-vite": "^10.5.10",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
@@ -115,35 +129,24 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/browser-playwright": "^4.1.11",
     "autoprefixer": "^10.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "drizzle-kit": "^0.31.4",
+    "esbuild": "^0.27.7",
     "eslint": "^9.34.0",
-    "eslint-config-next": "^16.2.4",
+    "eslint-config-next": "^16.3.3",
     "jsdom": "^29.0.1",
     "prettier": "^3.8.4",
+    "storybook": "^10.5.10",
     "tailwindcss": "^4",
     "tsx": "^4.23.9",
     "tw-animate-css": "^1.4.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@clerk/shared",
-      "esbuild",
-      "@fortawesome/fontawesome-common-types",
-      "@fortawesome/fontawesome-svg-core",
-      "@fortawesome/free-brands-svg-icons",
-      "core-js",
-      "fsevents",
-      "msgpackr-extract",
-      "protobufjs",
-      "sharp"
-    ]
   }
 }

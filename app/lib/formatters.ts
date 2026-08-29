@@ -21,6 +21,12 @@ export function formatDate(date: Date | string): DateTime {
   return DateTime.invalid("unparsable");
 }
 
+/** Like `formatDate`, but returns null for invalid Luxon DateTimes (which are still truthy objects). */
+export function formatDateOrNull(date: Date | string): DateTime | null {
+  const formatted = formatDate(date);
+  return formatted.isValid ? formatted : null;
+}
+
 export function formatFullDate(
   date: Date | null | undefined,
   format = DateTime.DATE_FULL,

@@ -293,10 +293,16 @@ const NavbarNavigationMenu = ({
                   Gestiona pagos, pedidos y productos de la tienda
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
-                  title="Subcategorías"
-                  href="/dashboard/subcategories"
+                  title="Categorías"
+                  href="/dashboard/categories"
                 >
-                  Subcategorías
+                  Catálogo público y altas de participantes
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Términos y condiciones"
+                  href="/dashboard/terms"
+                >
+                  Documento de inscripción a festivales y su historial
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Etiquetas"

@@ -4,9 +4,10 @@ import {
   NewSubcategory,
   Subcategory,
 } from "@/app/lib/subcategories/definitions";
+import { deleteCategory } from "@/app/lib/categories/actions";
+import { requireAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { subcategories } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
 
@@ -19,7 +20,21 @@ export const fetchSubcategories = cache(async (): Promise<Subcategory[]> => {
   }
 });
 
+function revalidateLegacyPaths() {
+  revalidatePath("/dashboard/subcategories");
+  revalidatePath("/dashboard/categories");
+  revalidatePath("/festivals/categories");
+}
+
 export async function createSubcategory(subcategory: NewSubcategory) {
+  const profile = await requireAdmin();
+  if (!profile) {
+    return {
+      success: false,
+      message: "No autorizado",
+    };
+  }
+
   try {
     if (subcategory.category === "none") {
       throw new Error("Subcategoría inválida");
@@ -34,7 +49,7 @@ export async function createSubcategory(subcategory: NewSubcategory) {
     };
   }
 
-  revalidatePath("/dashboard/subcategories");
+  revalidateLegacyPaths();
   return {
     success: true,
     message: "Subcategoría creada correctamente",
@@ -42,17 +57,23 @@ export async function createSubcategory(subcategory: NewSubcategory) {
 }
 
 export async function deleteSubcategory(subcategoryId: number) {
-  try {
-    await db.delete(subcategories).where(eq(subcategories.id, subcategoryId));
-  } catch (error) {
-    console.error("Error deleting subcategory", error);
+  const profile = await requireAdmin();
+  if (!profile) {
     return {
       success: false,
-      message: "Error al eliminar la subcategoría",
+      message: "No autorizado",
     };
   }
 
-  revalidatePath("/dashboard/subcategories");
+  const result = await deleteCategory(subcategoryId);
+  if (!result.success) {
+    return {
+      success: false,
+      message: result.message,
+    };
+  }
+
+  revalidateLegacyPaths();
   return {
     success: true,
     message: "Subcategoría eliminada correctamente",
