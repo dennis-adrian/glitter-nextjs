@@ -73,59 +73,67 @@ export async function getOrCreateFestivalTermsDraft() {
     return { success: true as const, draft: initialDraft };
   }
 
-  await db.transaction(async (tx) => {
-    const stillDraft = await tx.query.festivalTermsVersions.findFirst({
-      where: and(
-        eq(festivalTermsVersions.documentId, published.documentId),
-        eq(festivalTermsVersions.status, "draft"),
-      ),
+  try {
+    await db.transaction(async (tx) => {
+      const stillDraft = await tx.query.festivalTermsVersions.findFirst({
+        where: and(
+          eq(festivalTermsVersions.documentId, published.documentId),
+          eq(festivalTermsVersions.status, "draft"),
+        ),
+      });
+      if (stillDraft) {
+        return stillDraft;
+      }
+
+      const [maxRow] = await tx
+        .select({
+          max: max(festivalTermsVersions.versionNumber),
+        })
+        .from(festivalTermsVersions)
+        .where(eq(festivalTermsVersions.documentId, published.documentId));
+
+      const [created] = await tx
+        .insert(festivalTermsVersions)
+        .values({
+          documentId: published.documentId,
+          versionNumber: (maxRow?.max ?? published.versionNumber) + 1,
+          status: "draft",
+          createdByUserId: profile.id,
+        })
+        .returning();
+
+      if (!created) {
+        throw new Error("No se pudo crear el borrador");
+      }
+
+      const source = await tx.query.festivalTermsSections.findMany({
+        where: eq(festivalTermsSections.versionId, published.id),
+      });
+      if (source.length > 0) {
+        await tx.insert(festivalTermsSections).values(
+          source.map((section) => ({
+            versionId: created.id,
+            sortOrder: section.sortOrder,
+            kind: section.kind,
+            layout: section.layout,
+            title: section.title,
+            bodyJson: section.bodyJson,
+            bodyHtml: section.bodyHtml,
+            audienceCategories: section.audienceCategories,
+            audienceFestivalTypes: section.audienceFestivalTypes,
+          })),
+        );
+      }
+
+      return created;
     });
-    if (stillDraft) {
-      return stillDraft;
-    }
-
-    const [maxRow] = await tx
-      .select({
-        max: max(festivalTermsVersions.versionNumber),
-      })
-      .from(festivalTermsVersions)
-      .where(eq(festivalTermsVersions.documentId, published.documentId));
-
-    const [created] = await tx
-      .insert(festivalTermsVersions)
-      .values({
-        documentId: published.documentId,
-        versionNumber: (maxRow?.max ?? published.versionNumber) + 1,
-        status: "draft",
-        createdByUserId: profile.id,
-      })
-      .returning();
-
-    if (!created) {
-      throw new Error("No se pudo crear el borrador");
-    }
-
-    const source = await tx.query.festivalTermsSections.findMany({
-      where: eq(festivalTermsSections.versionId, published.id),
-    });
-    if (source.length > 0) {
-      await tx.insert(festivalTermsSections).values(
-        source.map((section) => ({
-          versionId: created.id,
-          sortOrder: section.sortOrder,
-          kind: section.kind,
-          layout: section.layout,
-          title: section.title,
-          bodyJson: section.bodyJson,
-          bodyHtml: section.bodyHtml,
-          audienceCategories: section.audienceCategories,
-          audienceFestivalTypes: section.audienceFestivalTypes,
-        })),
-      );
-    }
-
-    return created;
-  });
+  } catch (error) {
+    console.error("Error creating festival terms draft", error);
+    return {
+      success: false as const,
+      message: "No se pudo crear el borrador",
+    };
+  }
 
   const loaded = await fetchDraftFestivalTermsVersion();
   if (!loaded) {
@@ -243,7 +251,7 @@ export async function publishFestivalTermsDraft(input: unknown) {
         ),
       });
       if (!currentDraft) {
-        throw new Error("El borrador ya no está disponible");
+        throw new Error(DRAFT_UNAVAILABLE_MESSAGE);
       }
 
       await tx
@@ -286,15 +294,16 @@ export async function publishFestivalTermsDraft(input: unknown) {
         .returning({ id: festivalTermsVersions.id });
 
       if (!published) {
-        throw new Error("El borrador ya no está disponible");
+        throw new Error(DRAFT_UNAVAILABLE_MESSAGE);
       }
     });
   } catch (error) {
     console.error("Error publishing festival terms", error);
-    return {
-      success: false as const,
-      message: "Error al publicar los términos",
-    };
+    const message =
+      error instanceof Error && error.message === DRAFT_UNAVAILABLE_MESSAGE
+        ? DRAFT_UNAVAILABLE_MESSAGE
+        : "Error al publicar los términos";
+    return { success: false as const, message };
   }
 
   revalidateTermsPaths();

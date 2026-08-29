@@ -3,14 +3,18 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
-import {
-  profileSubcategories,
-  subcategories,
-  users,
-} from "@/db/schema";
+import { profileSubcategories, subcategories, users } from "@/db/schema";
 
 vi.mock("server-only", () => ({}));
 
@@ -48,17 +52,16 @@ const createdCategoryIds: number[] = [];
 
 describeDatabase("deleteCategory concurrent relationship insert", () => {
   beforeAll(async () => {
-    ({ deleteCategoryRecord } = await import(
-      "@/app/lib/categories/delete-persist"
-    ));
+    ({ deleteCategoryRecord } =
+      await import("@/app/lib/categories/delete-persist"));
   }, 60_000);
 
   afterEach(async () => {
     if (createdUserIds.length > 0) {
       for (const id of createdUserIds) {
-        await dbA!.delete(profileSubcategories).where(
-          eq(profileSubcategories.profileId, id),
-        );
+        await dbA!
+          .delete(profileSubcategories)
+          .where(eq(profileSubcategories.profileId, id));
         await dbA!.delete(users).where(eq(users.id, id));
       }
       createdUserIds.length = 0;
@@ -136,5 +139,6 @@ describeDatabase("deleteCategory concurrent relationship insert", () => {
     }
 
     expect(insertSucceeded && deleteSucceeded).toBe(false);
+    expect(insertSucceeded || deleteSucceeded).toBe(true);
   });
 });
