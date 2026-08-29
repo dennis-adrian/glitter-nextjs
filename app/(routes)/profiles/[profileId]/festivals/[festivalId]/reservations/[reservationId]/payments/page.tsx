@@ -68,6 +68,7 @@ export default async function Page(props: {
                 <InvoiceUnderReviewPanel
                   invoice={invoice}
                   allowReplace={false}
+                  showVoucher={false}
                 />
               ) : (
                 <PaymentSummary

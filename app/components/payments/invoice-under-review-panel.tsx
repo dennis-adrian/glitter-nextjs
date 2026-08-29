@@ -6,11 +6,13 @@ import { ClockIcon } from "lucide-react";
 type InvoiceUnderReviewPanelProps = {
   invoice: InvoiceWithPaymentsAndStand;
   allowReplace?: boolean;
+  showVoucher?: boolean;
 };
 
 export default function InvoiceUnderReviewPanel({
   invoice,
   allowReplace = true,
+  showVoucher = true,
 }: InvoiceUnderReviewPanelProps) {
   const voucherUrl = invoice.payments.find(
     (payment) => payment.voucherUrl,
@@ -29,7 +31,7 @@ export default function InvoiceUnderReviewPanel({
                 ? "Ya solicitaste la revisión. El equipo confirma el beneficio antes de habilitar tu reserva."
                 : "Ya recibimos tu comprobante. El equipo lo revisa antes de confirmar tu reserva."}
             </p>
-            {voucherUrl && (
+            {showVoucher && voucherUrl && (
               <a
                 href={voucherUrl}
                 target="_blank"

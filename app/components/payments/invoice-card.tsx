@@ -124,7 +124,9 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
             </Button>
           ) : (
             <Banner variant="info">
-              El titular ya envió el comprobante. Está en revisión.
+              {invoice.amount === 0
+                ? "El titular ya solicitó la revisión del beneficio. Está en revisión."
+                : "El titular ya envió el comprobante. Está en revisión."}
             </Banner>
           ))}
       </CardContent>
