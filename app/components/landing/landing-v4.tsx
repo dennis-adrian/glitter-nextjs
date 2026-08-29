@@ -424,10 +424,6 @@ function Family({
   family: Props["family"];
   backgroundClass: string;
 }) {
-  const festivalOrder = { glitter: 0, festicker: 1, twinkler: 2 } as const;
-  const orderedFamily = [...family].sort(
-    (a, b) => festivalOrder[a.festivalType] - festivalOrder[b.festivalType],
-  );
   const styles = {
     glitter: {
       panel:
@@ -514,7 +510,7 @@ function Family({
           </p>
         </div>
         <div className="mt-10 space-y-6 lg:mt-14 lg:space-y-8">
-          {orderedFamily.map((card) => {
+          {family.map((card) => {
             const theme = styles[card.festivalType];
             const href =
               card.href ??

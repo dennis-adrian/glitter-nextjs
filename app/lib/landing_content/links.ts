@@ -11,10 +11,7 @@ export function normalizeLandingImageHref(value: string): string | null {
   if (!result.ok) return null;
 
   const href = result.href;
-  if (
-    (href.startsWith("/") && !href.startsWith("//")) ||
-    href.startsWith("#")
-  ) {
+  if (href.startsWith("/") && !href.startsWith("//")) {
     return href;
   }
 

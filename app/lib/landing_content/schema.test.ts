@@ -22,6 +22,14 @@ describe("landing page content schema", () => {
     const social = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
     social.footer.socialLinks[0].href = "https://www.instagram.com/glitter.bo";
     expect(parseLandingPageContent(social).success).toBe(true);
+
+    const fragmentImage = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    fragmentImage.hero.image.url = "#hero";
+    expect(parseLandingPageContent(fragmentImage).success).toBe(false);
+
+    const rootRelativeImage = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    rootRelativeImage.hero.image.url = "/img/landing-v4/hero.png";
+    expect(parseLandingPageContent(rootRelativeImage).success).toBe(true);
   });
 
   it("rejects unsafe links, duplicate ordering, and unknown fields", () => {

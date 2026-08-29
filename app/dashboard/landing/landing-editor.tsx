@@ -857,7 +857,7 @@ function LandingEditorForm({
     link.href = url;
     link.download = `glitter-inicio-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }
   async function importContent(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

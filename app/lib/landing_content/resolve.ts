@@ -57,13 +57,7 @@ export async function resolveLandingFestivals(
               (a.festivalDates[0]?.startDate.getTime() ?? 0) -
               (b.festivalDates[0]?.startDate.getTime() ?? 0),
           )[0] ?? null;
-      const latest =
-        [...rows].sort(
-          (a, b) =>
-            (b.festivalDates.at(-1)?.startDate.getTime() ?? 0) -
-            (a.festivalDates.at(-1)?.startDate.getTime() ?? 0),
-        )[0] ?? null;
-      return { ...item, occurrence: next ?? latest };
+      return { ...item, occurrence: next };
     }),
   );
   return { spotlight, family };
