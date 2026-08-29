@@ -238,8 +238,9 @@ export function SingleImageUploadField({
             <ImagePreviewRemoveButton
               label={`Quitar ${label.toLowerCase()}`}
               onClick={() => {
+                const hadStagedFile = Boolean(selectedFile);
                 clearSelection();
-                onChange(null);
+                if (!hadStagedFile) onChange(null);
               }}
             />
           ) : null}

@@ -153,8 +153,9 @@ export function ManagedImageGallery({
     try {
       await onDelete?.(image);
       updateImages((current) => {
+        const deleted = current.find((item) => item.id === image.id);
         const remaining = current.filter((item) => item.id !== image.id);
-        if (image.isPrimary && remaining[0]) {
+        if (deleted?.isPrimary && remaining[0]) {
           remaining[0] = { ...remaining[0], isPrimary: true };
         }
         return remaining;

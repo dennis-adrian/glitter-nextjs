@@ -102,14 +102,14 @@ export function launchExecAfterSync(
 }
 
 export function main(argv = process.argv.slice(2)): void {
-  const result = syncEnvLocal();
-  logResult(result);
   const { exec, error } = parseExecArgs(argv);
   if (error) {
     console.error(error);
     process.exit(1);
     return;
   }
+  const result = syncEnvLocal();
+  logResult(result);
   launchExecAfterSync(result, exec, {
     spawn,
     exit: (code) => {

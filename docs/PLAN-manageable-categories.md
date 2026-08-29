@@ -117,7 +117,7 @@ New / changed columns:
 
 Also add:
 
-- Unique index on `(category, lower(label))` so “Crochet” cannot be duplicated inside Ilustración. Create it only after a preflight that uses the same canonicalization as the backfill (`normalizeCategoryLabel`: lowercase, strip accents, collapse `/` and whitespace). If any `(área, canonical label)` group still has more than one row, abort with a report of ids and raw labels (or resolve those duplicates first).
+- Unique index on `(category, canonical_label(name))` using the same Postgres expression as the duplicate preflight and `normalizeCategoryLabel` (`CANONICAL_LABEL_SQL` in `app/lib/categories/label.ts`): `normalize(name, NFD)` → strip combining marks → `lower` → collapse `/` and whitespace (including NBSP) → `trim`. Do not use the weaker `lower(label)` alone — that would still allow duplicates such as “Bisutería” vs “Bisuteria” or “Foo/Bar” vs “Foo Bar”. Create the index only after a preflight that groups by this same expression. If any `(área, canonical label)` group still has more than one row, abort with a report of ids and raw labels (or resolve those duplicates first).
 - Index on `(visibility, category, sort_order)` for the public query.
 
 Keep the old `description` text column through the backfill. Copy legacy text into `description_html` as a single HTML-escaped `<p>` (and a matching paragraph in `description_json` when JSON is empty) so stored markup cannot execute. Drop `description` only after that copy succeeds in the same migration. Do not leave two competing description fields.
@@ -330,7 +330,7 @@ Single Drizzle migration, then a data backfill in the same SQL file (or a follow
 7. Set `is_exclusive = true` where normalized label contains `skincare` / `skin care`.
 8. Set `is_admin_assignable_only = true` and `visibility = 'listed'` where normalized label contains `sublimacion`.
 9. Drop unused plain `description` only after the copy in step 4 succeeds.
-10. Preflight labels with the same canonicalization as step 5. If any `(category, canonical label)` still has duplicates, abort with an actionable report (ids, área, raw labels) or resolve them first. Only then create the unique index on `(category, lower(label))`.
+10. Preflight labels with the same canonicalization as step 5. If any `(category, canonical label)` still has duplicates, abort with an actionable report (ids, área, raw labels) or resolve them first. Only then create the unique index on `(category, CANONICAL_LABEL_SQL(name))` — same expression as the preflight, not `lower(label)`.
 
 Unmatched hardcoded titles stay logged in the migration comments so they can be created by hand. Unmatched DB rows stay `selectable` with empty copy (they already appear in onboarding).
 

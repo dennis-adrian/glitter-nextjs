@@ -147,7 +147,7 @@ export function ImageProofPicker({
                 </span>
               ) : null}
             </div>
-            {!isUploading ? (
+            {!isUploading && (selectedFile || onClear) ? (
               <ImagePreviewRemoveButton
                 label={`Quitar ${title.toLowerCase()}`}
                 onClick={() => {
