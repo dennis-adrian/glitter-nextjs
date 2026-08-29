@@ -219,7 +219,7 @@ function Event({
           }`}
         >
           {art ? (
-            <div className="relative isolate flex items-center border-t-[6px] border-brand-primary bg-brand-elevated px-5 py-6 sm:px-8 sm:py-8 md:border-l-[6px] md:border-t-0 md:px-6 lg:px-8 lg:py-10">
+            <div className="relative isolate flex items-center bg-brand-elevated px-5 py-6 sm:px-8 sm:py-8 md:px-6 lg:px-8 lg:py-10">
               <div className="relative mx-auto aspect-3/4 w-full max-w-[360px] rounded-[20px] border border-brand-border bg-brand-card p-2 shadow-[0_18px_42px_rgba(41,0,92,0.12)]">
                 <div className="relative size-full overflow-hidden rounded-[12px] bg-brand-elevated">
                   <Image
