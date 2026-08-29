@@ -9,7 +9,7 @@ import {
 } from "@/app/components/ui/popover";
 import { updateInvoiceStatus } from "@/app/data/invoices/actions";
 import { cn } from "@/app/lib/utils";
-import { CheckIcon, CircleXIcon, MinusIcon } from "lucide-react";
+import { CheckIcon, CircleXIcon, ClockIcon, MinusIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -17,6 +17,8 @@ import { toast } from "sonner";
 const statusColors: Record<InvoiceStatus, string> = {
   pending:
     "bg-gray-500/20 border border-gray-300 text-gray-800 hover:bg-gray-500/30 hover:border-gray-300",
+  verification_payment:
+    "bg-blue-500/20 border border-blue-300 text-blue-800 hover:bg-blue-500/30 hover:border-blue-300",
   paid: "bg-green-500/20 border border-green-300 text-green-800 hover:bg-green-500/30 hover:border-green-300",
   cancelled:
     "bg-red-500/20 border border-red-300 text-red-800 hover:bg-red-500/30 hover:border-red-300",
@@ -24,17 +26,24 @@ const statusColors: Record<InvoiceStatus, string> = {
 
 const statusLabels: Record<InvoiceStatus, string> = {
   pending: "Pendiente",
+  verification_payment: "En revisión",
   paid: "Pagado",
   cancelled: "Cancelado",
 };
 
 const statusIcons: Record<InvoiceStatus, typeof MinusIcon> = {
   pending: MinusIcon,
+  verification_payment: ClockIcon,
   paid: CheckIcon,
   cancelled: CircleXIcon,
 };
 
-const statuses: InvoiceStatus[] = ["pending", "paid", "cancelled"];
+const statuses: InvoiceStatus[] = [
+  "pending",
+  "verification_payment",
+  "paid",
+  "cancelled",
+];
 
 export default function PaymentStatus({
   invoiceId,
@@ -113,6 +122,7 @@ export default function PaymentStatus({
                   className={cn(
                     "h-4 w-4",
                     nextStatus === "pending" && "text-gray-500",
+                    nextStatus === "verification_payment" && "text-blue-600",
                     nextStatus === "paid" && "text-green-600",
                     nextStatus === "cancelled" && "text-red-600",
                   )}

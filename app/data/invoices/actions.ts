@@ -42,6 +42,7 @@ import {
   attemptStorageCleanupJob,
   enqueueStorageCleanupJob,
 } from "@/app/lib/uploadthing/actions";
+import { countOutstandingInvoices, canAcceptInvoiceProof } from "@/app/lib/payments/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export async function updateInvoiceStatus(
@@ -53,7 +54,7 @@ export async function updateInvoiceStatus(
     return { success: false, message: "No autorizado." };
   }
 
-  if (!["pending", "paid", "cancelled"].includes(status)) {
+  if (!["pending", "verification_payment", "paid", "cancelled"].includes(status)) {
     return { success: false, message: "Estado de pago inválido." };
   }
 
@@ -166,6 +167,11 @@ export async function adminAttachPaymentVoucher(
         await tx
           .update(invoices)
           .set({ status: "paid", updatedAt: new Date() })
+          .where(eq(invoices.id, invoiceId));
+      } else if (invoice.status === "pending") {
+        await tx
+          .update(invoices)
+          .set({ status: "verification_payment", updatedAt: new Date() })
           .where(eq(invoices.id, invoiceId));
       }
     });
@@ -374,7 +380,7 @@ export async function createPayment(
         return reservationFailure("INVOICE_NOT_OWNED");
       }
 
-      if (invoice.status !== "pending") {
+      if (!canAcceptInvoiceProof(invoice.status)) {
         return reservationFailure("INVOICE_NOT_PENDING");
       }
 
@@ -419,6 +425,11 @@ export async function createPayment(
             eq(standReservations.standId, invoice.reservation.standId),
           ),
         );
+
+      await tx
+        .update(invoices)
+        .set({ status: "verification_payment", updatedAt: new Date() })
+        .where(eq(invoices.id, invoice.id));
 
       return {
         success: true as const,
@@ -532,6 +543,10 @@ export async function confirmFreeInvoice(
         return reservationFailure("INVOICE_NOT_OWNED");
       }
 
+      if (invoice.status === "verification_payment") {
+        return reservationFailure("PAYMENT_ALREADY_SUBMITTED");
+      }
+
       if (invoice.status !== "pending") {
         return reservationFailure("INVOICE_NOT_PENDING");
       }
@@ -544,6 +559,11 @@ export async function confirmFreeInvoice(
         .update(standReservations)
         .set({ status: "verification_payment", updatedAt: new Date() })
         .where(eq(standReservations.id, invoice.reservationId));
+
+      await tx
+        .update(invoices)
+        .set({ status: "verification_payment", updatedAt: new Date() })
+        .where(eq(invoices.id, invoice.id));
 
       return { success: true as const, userId: invoice.userId };
     });
@@ -761,7 +781,7 @@ export async function fetchOutstandingInvoiceCountByProfileAndFestival(
   );
   const outstandingInvoiceCount = nonRejectedReservations.reduce(
     (count, reservation) =>
-      count + reservation.invoices.filter((i) => i.status === "pending").length,
+      count + countOutstandingInvoices(reservation.invoices),
     0,
   );
   return {

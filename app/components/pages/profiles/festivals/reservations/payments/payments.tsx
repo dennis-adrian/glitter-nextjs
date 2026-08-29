@@ -1,6 +1,7 @@
 import { PaymentSummary } from "@/app/components/payments/payment-summary";
 import { ProductDetails } from "@/app/components/payments/product-details";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
+import InvoiceUnderReviewPanel from "@/app/components/payments/invoice-under-review-panel";
 import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -18,35 +19,41 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
   await protectRoute(profile, props.profileId);
 
   const invoices = await fetchInvoicesByReservation(props.reservationId);
-  const pendingInvoices = invoices?.filter(
-    (invoice) => invoice.status === "pending",
+  const actionableInvoices = invoices?.filter(
+    (invoice) =>
+      invoice.status === "pending" || invoice.status === "verification_payment",
   );
 
-  if (pendingInvoices?.length === 0) {
+  if (!actionableInvoices || actionableInvoices.length === 0) {
     return (
       <div className="p-20">
         <p className="text-center text-2xl font-bold text-gray-500">
-          No tienes pagos pendientes
+          No tenés pagos pendientes
         </p>
       </div>
     );
   }
 
-  return invoices?.map((invoice) => {
-    if (invoice && invoice.status === "pending") {
-      return (
-        <div key={invoice.id} className="container p-4 md:p-6">
-          <h1 className="text-3xl font-bold mb-8">Completa tu Pago</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="flex flex-col gap-6">
-              <ProductDetails festival={festival} invoice={invoice} />
-              <PaymentSummary invoice={invoice} festivalId={festival.id} />
-            </div>
-
-            <QRCodeDetails invoice={invoice} />
+  return actionableInvoices.map((invoice) => {
+    const underReview = invoice.status === "verification_payment";
+    return (
+      <div key={invoice.id} className="container p-4 md:p-6">
+        <h1 className="text-3xl font-bold mb-8">
+          {underReview ? "Tu pago está en revisión" : "Completá el pago"}
+        </h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="flex flex-col gap-6">
+            <ProductDetails festival={festival} invoice={invoice} />
+            <PaymentSummary invoice={invoice} festivalId={festival.id} />
           </div>
+
+          {underReview ? (
+            <InvoiceUnderReviewPanel invoice={invoice} />
+          ) : (
+            <QRCodeDetails invoice={invoice} />
+          )}
         </div>
-      );
-    }
+      </div>
+    );
   });
 }

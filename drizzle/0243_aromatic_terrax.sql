@@ -1,0 +1,1 @@
+ALTER TYPE "public"."invoice_status" ADD VALUE 'verification_payment' BEFORE 'paid';

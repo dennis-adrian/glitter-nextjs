@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { canAcceptInvoiceProof } from "@/app/lib/payments/helpers";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
@@ -83,7 +84,7 @@ export const ourFileRouter = {
       ) {
         throw new UploadThingError("Factura no encontrada");
       }
-      if (invoice.status !== "pending") {
+      if (!canAcceptInvoiceProof(invoice.status)) {
         throw new UploadThingError("Esta factura ya no admite un comprobante");
       }
       if (

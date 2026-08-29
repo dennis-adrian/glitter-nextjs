@@ -257,20 +257,12 @@ export const userOccupationsLabel = [
   },
 ];
 
-export const invoiceStatusOptions = [
-  {
-    value: invoiceStatusEnum.enumValues[0],
-    label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[0]),
-  },
-  {
-    value: invoiceStatusEnum.enumValues[1],
-    label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[1]),
-  },
-  {
-    value: invoiceStatusEnum.enumValues[2],
-    label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[2]),
-  },
-];
+export const invoiceStatusOptions = invoiceStatusEnum.enumValues.map(
+  (value) => ({
+    value,
+    label: getInvoiceStatusLabel(value),
+  }),
+);
 
 export const profileStatusOptions = userStatusEnum.enumValues.map((value) => ({
   value,

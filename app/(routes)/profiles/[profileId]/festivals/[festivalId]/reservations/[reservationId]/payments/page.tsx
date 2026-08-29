@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
 import FreeReservationDetails from "@/app/components/payments/free-reservation-details";
+import InvoiceUnderReviewPanel from "@/app/components/payments/invoice-under-review-panel";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 
@@ -58,12 +59,22 @@ export default async function Page(props: {
             puede enviar el comprobante.
           </p>
           {visibleInvoices.map((invoice) => (
-            <div key={invoice.id} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div
+              key={invoice.id}
+              className="grid grid-cols-1 md:grid-cols-2 gap-8"
+            >
               <ProductDetails festival={festival} invoice={invoice} />
-              <PaymentSummary
-                invoice={invoice}
-                festivalId={validatedParams.data.festivalId}
-              />
+              {invoice.status === "verification_payment" ? (
+                <InvoiceUnderReviewPanel
+                  invoice={invoice}
+                  allowReplace={false}
+                />
+              ) : (
+                <PaymentSummary
+                  invoice={invoice}
+                  festivalId={validatedParams.data.festivalId}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -71,11 +82,12 @@ export default async function Page(props: {
     );
   }
 
-  const pendingInvoices = ownerInvoices.filter(
-    (invoice) => invoice.status === "pending",
+  const actionableInvoices = ownerInvoices.filter(
+    (invoice) =>
+      invoice.status === "pending" || invoice.status === "verification_payment",
   );
 
-  if (pendingInvoices.length === 0) {
+  if (actionableInvoices.length === 0) {
     return (
       <>
         <StepIndicator
@@ -101,33 +113,36 @@ export default async function Page(props: {
         backLabel="Ver mi reserva"
         backHref="/my_profile"
       />
-      {ownerInvoices.map((invoice) => {
-        if (invoice && invoice.status === "pending") {
-          return (
-            <div key={invoice.id} className="container p-4 md:p-6">
-              <h1 className="text-3xl font-bold mb-8">
-                {invoice.amount === 0
+      {actionableInvoices.map((invoice) => {
+        const underReview = invoice.status === "verification_payment";
+        return (
+          <div key={invoice.id} className="container p-4 md:p-6">
+            <h1 className="text-3xl font-bold mb-8">
+              {underReview
+                ? "Tu pago está en revisión"
+                : invoice.amount === 0
                   ? "Solicitá la revisión de tu reserva"
                   : "Completá el pago"}
-              </h1>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="flex flex-col gap-6">
-                  <ProductDetails festival={festival} invoice={invoice} />
-                  <PaymentSummary
-                    invoice={invoice}
-                    festivalId={validatedParams.data.festivalId}
-                  />
-                </div>
-
-                {invoice.amount === 0 ? (
-                  <FreeReservationDetails invoice={invoice} />
-                ) : (
-                  <QRCodeDetails invoice={invoice} />
-                )}
+            </h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="flex flex-col gap-6">
+                <ProductDetails festival={festival} invoice={invoice} />
+                <PaymentSummary
+                  invoice={invoice}
+                  festivalId={validatedParams.data.festivalId}
+                />
               </div>
+
+              {underReview ? (
+                <InvoiceUnderReviewPanel invoice={invoice} />
+              ) : invoice.amount === 0 ? (
+                <FreeReservationDetails invoice={invoice} />
+              ) : (
+                <QRCodeDetails invoice={invoice} />
+              )}
             </div>
-          );
-        }
+          </div>
+        );
       })}
     </>
   );

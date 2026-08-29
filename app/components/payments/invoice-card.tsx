@@ -41,6 +41,7 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
   const createdAt = formatDate(invoice.createdAt);
   const dueDate = createdAt.plus({ days: PAYMENT_DUE_DAYS });
   const isPending = invoice.status === "pending";
+  const isUnderReview = invoice.status === "verification_payment";
   const isOverdue = isPending && DateTime.now() > dueDate;
   const isOwner = invoice.userId === profileId;
   const standLabel = formatStandLabel(invoice.reservation.stand);
@@ -111,6 +112,21 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
               para completar este pago.
             </Banner>
           ))}
+        {isUnderReview &&
+          (isOwner ? (
+            <Button asChild variant="outline" size="sm" className="w-full">
+              <Link
+                href={`/profiles/${profileId}/festivals/${festivalId}/reservations/${invoice.reservation.id}/payments`}
+              >
+                Ver estado
+                <ArrowRightIcon className="w-3.5 h-3.5 shrink-0 ml-1" />
+              </Link>
+            </Button>
+          ) : (
+            <Banner variant="info">
+              El titular ya envió el comprobante. Está en revisión.
+            </Banner>
+          ))}
       </CardContent>
     </Card>
   );
@@ -132,6 +148,12 @@ function getInvoiceStatusConfig(status: InvoiceWithPayments["status"]) {
         icon: CheckCircle2Icon,
         label: "Pagada",
         badgeStyle: "bg-green-600/10 text-green-800 border-green-600/20",
+      };
+    case "verification_payment":
+      return {
+        icon: ClockIcon,
+        label: "En revisión",
+        badgeStyle: "bg-blue-500/10 text-blue-700 border-blue-500/20",
       };
     case "pending":
       return {

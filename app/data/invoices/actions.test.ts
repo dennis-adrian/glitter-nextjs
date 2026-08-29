@@ -40,7 +40,7 @@ vi.mock("@/app/api/reservations/actions", () => ({
   sendReservationConfirmationEmails: vi.fn(),
 }));
 
-import { createPayment } from "@/app/data/invoices/actions";
+import { createPayment, confirmFreeInvoice } from "@/app/data/invoices/actions";
 
 describe("createPayment authorization", () => {
   beforeEach(() => {
@@ -90,6 +90,7 @@ describe("createPayment authorization", () => {
   it("ignores a caller-supplied amount and uses the canonical invoice amount", async () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
     const inserted: unknown[] = [];
+    const invoiceSets: unknown[] = [];
     const tx = {
       query: {
         invoices: {
@@ -111,9 +112,12 @@ describe("createPayment authorization", () => {
         },
       })),
       update: vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn().mockResolvedValue([]),
-        })),
+        set: (values: unknown) => {
+          invoiceSets.push(values);
+          return {
+            where: vi.fn().mockResolvedValue([]),
+          };
+        },
       })),
     };
     transactionMock.mockImplementation(
@@ -136,5 +140,87 @@ describe("createPayment authorization", () => {
         voucherUrl: "https://files.example.com/f/abc",
       },
     ]);
+    expect(invoiceSets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "verification_payment" }),
+      ]),
+    );
+  });
+
+  it("moves a pending invoice into review after a voucher is sent", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    const invoiceSets: unknown[] = [];
+    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
+      callback({
+        query: {
+          invoices: {
+            findFirst: vi.fn().mockResolvedValue({
+              id: 9,
+              userId: 8,
+              status: "pending",
+              amount: 150,
+              reservationId: 4,
+              reservation: { standId: 7, status: "pending", participants: [] },
+              payments: [],
+            }),
+          },
+        },
+        insert: vi.fn(() => ({
+          values: () => Promise.resolve(),
+        })),
+        update: vi.fn(() => ({
+          set: (values: unknown) => {
+            invoiceSets.push(values);
+            return { where: vi.fn().mockResolvedValue([]) };
+          },
+        })),
+      }),
+    );
+
+    const result = await createPayment({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+    });
+
+    expect(result.success).toBe(true);
+    expect(invoiceSets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "verification_payment" }),
+      ]),
+    );
+  });
+});
+
+describe("confirmFreeInvoice", () => {
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+  });
+
+  it("rejects a second review request on an in-review invoice", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback({
+        query: {
+          invoices: {
+            findFirst: vi.fn().mockResolvedValue({
+              id: 9,
+              userId: 8,
+              status: "verification_payment",
+              amount: 0,
+              reservationId: 4,
+              reservation: { standId: 7, status: "verification_payment", participants: [] },
+            }),
+          },
+        },
+        update: vi.fn(),
+      }),
+    );
+
+    const result = await confirmFreeInvoice({ invoiceId: 9 });
+    expect(result).toMatchObject({
+      success: false,
+      code: "PAYMENT_ALREADY_SUBMITTED",
+    });
   });
 });
