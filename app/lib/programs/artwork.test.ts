@@ -18,6 +18,7 @@ describe("isAllowedProgramArtworkUrl", () => {
     "//evil.example/img.png",
     "/img/with:colon.png",
     "/img\\windows.png",
+    "img/banner.png",
     "/api/foo",
     "https://example.com/banner.jpg",
     "/img/../secret",

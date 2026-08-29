@@ -6,7 +6,7 @@ import {
   ManagedImageGallery,
   type ManagedGalleryImage,
 } from "@/stories/uploads/components/managed-image-gallery";
-import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
+import { storybookUploadAdapter } from "@/stories/uploads/storybook-upload-adapter";
 
 const initialImages: ManagedGalleryImage[] = [
   {

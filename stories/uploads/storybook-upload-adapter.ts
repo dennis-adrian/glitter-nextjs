@@ -14,7 +14,7 @@ function wait(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-/** Deterministic transport used only by Storybook stories and browser tests. */
+/** Story-level stand-in for upload transport. Components never import this. */
 export const storybookUploadAdapter: ImageUploadAdapter = async (
   files,
   { onProgress },

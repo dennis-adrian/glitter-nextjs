@@ -56,7 +56,7 @@ export function ExternalParticipantImageUpload({
           invalidResponseMessage="Respuesta de carga inválida"
           errorMessage="Error al subir la imagen"
         />
-        {imageUrl ? (
+        {imageUrl && onRemove ? (
           <Button
             type="button"
             variant="ghost"

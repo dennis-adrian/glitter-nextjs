@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
+import { storybookUploadAdapter } from "@/stories/uploads/storybook-upload-adapter";
 
 function fakeImage(name: string) {
   return new File([new Uint8Array([1, 2, 3])], name, { type: "image/png" });

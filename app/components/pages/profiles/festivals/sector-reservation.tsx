@@ -54,7 +54,6 @@ export default async function SectorReservationPage(
 
   if (
     currentProfile?.role !== "admin" &&
-    currentProfile?.role !== "festival_admin" &&
     (await profileNeedsTermsReacceptance(festival, forProfile))
   ) {
     return <TermsReacceptanceRequired festivalId={festival.id} />;

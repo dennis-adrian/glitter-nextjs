@@ -323,12 +323,13 @@ export default function CategoryEditor({
                   render={({ field }) => (
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium">Exclusiva</p>
+                        <Label htmlFor="category-is-exclusive">Exclusiva</Label>
                         <p className="text-xs text-muted-foreground">
                           No se puede combinar con otras categorías.
                         </p>
                       </div>
                       <Switch
+                        id="category-is-exclusive"
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
@@ -341,12 +342,15 @@ export default function CategoryEditor({
                   render={({ field }) => (
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium">Solo asignación admin</p>
+                        <Label htmlFor="category-is-admin-assignable-only">
+                          Solo asignación admin
+                        </Label>
                         <p className="text-xs text-muted-foreground">
                           Oculta en el alta; un admin puede asignarla.
                         </p>
                       </div>
                       <Switch
+                        id="category-is-admin-assignable-only"
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />

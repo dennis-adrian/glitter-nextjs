@@ -123,14 +123,21 @@ export function headingLevelsIn(blocks: unknown): number[] {
   return levels;
 }
 
-export function assertCompactDocument(blocks: unknown): void {
+export function assertCompactDocument(
+  blocks: unknown,
+  documentLabel = "este documento",
+): void {
   const extra = disallowedBlockTypes(blocks, "compact");
   if (extra.length > 0) {
-    throw new Error(`Bloques no permitidos en una categoría: ${extra.join(", ")}`);
+    throw new Error(
+      `Bloques no permitidos en ${documentLabel}: ${extra.join(", ")}`,
+    );
   }
   const levels = headingLevelsIn(blocks);
   const allowed = new Set(allowedHeadingLevels("compact"));
   if (levels.some((level) => !allowed.has(level))) {
-    throw new Error("Las categorías solo admiten títulos de nivel 2 y 3");
+    throw new Error(
+      `Solo se admiten títulos de nivel 2 y 3 en ${documentLabel}`,
+    );
   }
 }

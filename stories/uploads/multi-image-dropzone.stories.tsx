@@ -3,7 +3,7 @@ import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { MultiImageDropzone } from "@/stories/uploads/components/multi-image-dropzone";
-import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
+import { storybookUploadAdapter } from "@/stories/uploads/storybook-upload-adapter";
 
 function DropzoneStory({ maxFiles = 5 }: { maxFiles?: number }) {
   const [uploadedCount, setUploadedCount] = useState(0);

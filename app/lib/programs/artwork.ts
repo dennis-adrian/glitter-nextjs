@@ -25,7 +25,9 @@ function isAllowedLocalArtworkPath(input: string): boolean {
     const normalizedPathname = new URL(decodedPathname, LOCAL_ARTWORK_ORIGIN)
       .pathname;
 
-    return normalizedPathname.startsWith("/img/");
+    return (
+      input.startsWith("/img/") && normalizedPathname.startsWith("/img/")
+    );
   } catch {
     return false;
   }

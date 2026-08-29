@@ -28,6 +28,20 @@ afterEach(() => {
 });
 
 describe("ExternalParticipantImageUpload remove", () => {
+  it("keeps the preview and hides Quitar when onRemove is omitted", () => {
+    render(
+      <ExternalParticipantImageUpload
+        imageUrl="https://example.test/logo.png"
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByAltText("Vista previa").getAttribute("src")).toBe(
+      "https://example.test/logo.png",
+    );
+    expect(screen.queryByRole("button", { name: "Quitar" })).toBeNull();
+  });
+
   it("toasts when onRemove rejects", async () => {
     render(
       <ExternalParticipantImageUpload

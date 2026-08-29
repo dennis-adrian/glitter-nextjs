@@ -1,3 +1,8 @@
+/**
+ * Shared upload contract for image components under
+ * `stories/uploads/components`. Components depend only on these types and UI
+ * primitives — never on a concrete upload transport.
+ */
 import type { ImageObjectPosition } from "@/stories/uploads/components/image-object-position";
 
 export type {
@@ -20,8 +25,8 @@ export type UploadOptions = {
 /**
  * Transport-agnostic upload contract.
  *
- * Storybook supplies a deterministic in-memory adapter. A future application
- * integration can adapt UploadThing without changing any component UI.
+ * Transport-agnostic upload contract. Stories pass an `upload` adapter; app
+ * code can wire its own transport without changing component UI.
  */
 export type ImageUploadAdapter = (
   files: File[],

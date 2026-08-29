@@ -27,16 +27,7 @@ const preview: Preview = {
     },
     options: {
       storySort: {
-        order: [
-          "Uploads",
-          [
-            "Inventory",
-            "Reusable Components",
-            "Primitives",
-            "Forms",
-            "Workflows",
-          ],
-        ],
+        order: ["Uploads", ["Inventory", "Reusable Components"]],
       },
     },
   },

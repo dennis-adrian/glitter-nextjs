@@ -43,6 +43,21 @@ WHERE lower("name") LIKE '%skincare%' OR lower("name") LIKE '%skin care%';--> st
 UPDATE "subcategories"
 SET "is_admin_assignable_only" = true, "visibility" = 'listed'
 WHERE translate(lower("name"), 'áéíóúüñ', 'aeiouun') LIKE '%sublimacion%';--> statement-breakpoint
+-- Canonical label environment preflight (must succeed before normalization SQL).
+-- normalize() needs PostgreSQL 13+; Unicode escapes need standard_conforming_strings;
+-- combining-mark classes assume UTF-8.
+DO $$
+BEGIN
+  IF current_setting('server_version_num')::integer < 130000 THEN
+    RAISE EXCEPTION 'Canonical label preflight requires PostgreSQL 13 or newer. Found server_version_num=%', current_setting('server_version_num');
+  END IF;
+  IF current_setting('server_encoding') IS DISTINCT FROM 'UTF8' THEN
+    RAISE EXCEPTION 'Canonical label preflight requires UTF-8 database encoding. Found %', current_setting('server_encoding');
+  END IF;
+  IF current_setting('standard_conforming_strings') IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'Canonical label preflight requires standard_conforming_strings=on. Found %', current_setting('standard_conforming_strings');
+  END IF;
+END $$;--> statement-breakpoint
 -- Canonical label duplicate preflight (must succeed before unique index).
 -- Uses the same canonicalization as normalizeCategoryLabel: NFD, strip combining
 -- marks, lower, treat / and extra whitespace as equivalent.

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export const LOCAL_POSTGRES = {
@@ -183,6 +183,17 @@ export function pickBestValue(
   return undefined;
 }
 
+/**
+ * `/proc/<pid>/stat` field 2 (`comm`) is in parentheses and may contain spaces.
+ * PPID is the second field after the final closing parenthesis (state, then ppid).
+ */
+export function parentPidFromProcStat(stat: string): number {
+  const closeParen = stat.lastIndexOf(")");
+  if (closeParen === -1) return Number.NaN;
+  const fields = stat.slice(closeParen + 1).trim().split(/\s+/);
+  return Number(fields[1]);
+}
+
 export function ancestorEnvironments(
   startPid = process.ppid,
 ): Record<string, string>[] {
@@ -194,8 +205,7 @@ export function ancestorEnvironments(
     try {
       const raw = readFileSync(`/proc/${pid}/environ`);
       collected.push(parseEnvironBuffer(raw));
-      const stat = readFileSync(`/proc/${pid}/stat`, "utf8").split(" ");
-      pid = Number(stat[3]);
+      pid = parentPidFromProcStat(readFileSync(`/proc/${pid}/stat`, "utf8"));
     } catch {
       break;
     }
@@ -348,7 +358,8 @@ export function syncEnvLocal(options?: {
     existingFile: existing,
     cloudAgent,
   });
-  writeFileSync(path, serializeEnvLocal(merged));
+  writeFileSync(path, serializeEnvLocal(merged), { mode: 0o600 });
+  chmodSync(path, 0o600);
   return {
     wrote: true,
     cloudAgent,

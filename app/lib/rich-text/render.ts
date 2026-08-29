@@ -11,13 +11,14 @@ import { sanitizeRichTextHtml } from "@/app/lib/rich-text/sanitize";
 export async function blocksToSanitizedHtml(
   blocks: unknown,
   variant: EditorVariant = "compact",
+  documentLabel?: string,
 ): Promise<string> {
   if (!Array.isArray(blocks) || blocks.length === 0) {
     return "";
   }
 
   if (variant === "compact") {
-    assertCompactDocument(blocks);
+    assertCompactDocument(blocks, documentLabel);
   }
 
   const editor =

@@ -19,6 +19,22 @@ describe("blocksToSeedHtml", () => {
     expect(html).toContain('href="https://example.com"');
   });
 
+  it("omits disallowed URI schemes from link href and image src", () => {
+    const html = blocksToSeedHtml([
+      paragraph(link("javascript:alert(1)", "click"), " safe"),
+      {
+        type: "image",
+        props: { url: "javascript:alert(1)", name: "Diagrama" },
+      },
+    ]);
+    expect(html).not.toMatch(/javascript:/i);
+    expect(html).not.toContain("href=");
+    expect(html).not.toContain("src=");
+    expect(html).toContain("click");
+    expect(html).toContain("safe");
+    expect(html).toContain('alt="Diagrama"');
+  });
+
   it("renders image-only bodies on the fallback path", () => {
     const html = blocksToSeedHtml([
       { type: "image", props: { url: "/a.png", name: "Diagrama" } },

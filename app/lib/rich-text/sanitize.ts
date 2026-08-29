@@ -31,6 +31,10 @@ const ALLOWED_ATTR = ["href", "target", "rel", "src", "alt"];
 
 const ALLOWED_URI_REGEXP = /^(?:https?:|mailto:|\/)/i;
 
+export function isAllowedRichTextUri(value: string): boolean {
+  return ALLOWED_URI_REGEXP.test(value.trim());
+}
+
 export function sanitizeRichTextHtml(
   html: string,
   variant: EditorVariant = "compact",

@@ -1,3 +1,5 @@
+import { isAllowedRichTextUri } from "@/app/lib/rich-text/sanitize";
+
 type InlineNode = {
   type?: string;
   text?: string;
@@ -30,8 +32,12 @@ function renderInline(nodes: InlineNode[] | undefined): string {
   if (!nodes?.length) return "";
   return nodes
     .map((node) => {
-      if (node.type === "link" && node.href) {
-        return `<a href="${escapeHtml(node.href)}">${renderInline(node.content)}</a>`;
+      if (node.type === "link") {
+        const inner = renderInline(node.content);
+        if (node.href && isAllowedRichTextUri(node.href)) {
+          return `<a href="${escapeHtml(node.href)}">${inner}</a>`;
+        }
+        return inner;
       }
       let text = escapeHtml(node.text ?? "");
       if (node.styles?.bold) text = `<strong>${text}</strong>`;
@@ -85,8 +91,9 @@ function renderBlock(block: BlockNode): string {
   if (block.type === "image") {
     const url = typeof block.props?.url === "string" ? block.props.url : "";
     const alt = typeof block.props?.name === "string" ? block.props.name : "";
-    let html = url
-      ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}"`
+    const allowedUrl = url && isAllowedRichTextUri(url) ? url : "";
+    let html = allowedUrl
+      ? `<img src="${escapeHtml(allowedUrl)}" alt="${escapeHtml(alt)}"`
       : `<img alt="${escapeHtml(alt)}"`;
     if (typeof block.props?.previewWidth === "number") {
       html += ` width="${block.props.previewWidth}"`;

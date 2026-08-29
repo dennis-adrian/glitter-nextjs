@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CANONICAL_LABEL_SQL } from "@/app/lib/categories/label";
+import {
+  CANONICAL_LABEL_ENVIRONMENT_SQL,
+  CANONICAL_LABEL_SQL,
+} from "@/app/lib/categories/label";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -31,6 +34,9 @@ const descriptionBackfill = statements.find(
     statement.includes('"description_json"') &&
     statement.includes('"description_html"'),
 );
+const uniqueIndexEnvironmentPreflight = statements.find((statement) =>
+  statement.includes("Canonical label environment preflight"),
+);
 const uniqueIndexPreflight = statements.find((statement) =>
   statement.includes("Canonical label duplicate preflight"),
 );
@@ -41,15 +47,21 @@ const additiveMigration = readFileSync(
   join(process.cwd(), "drizzle/0242_category_image_file_key.sql"),
   "utf8",
 );
-const additivePreflight = additiveMigration
+const additiveStatements = additiveMigration
   .split("--> statement-breakpoint")
-  .map((statement) => statement.trim())
-  .find((statement) =>
-    statement.includes("Canonical label duplicate preflight"),
-  );
+  .map((statement) => statement.trim());
+const additiveEnvironmentPreflight = additiveStatements.find((statement) =>
+  statement.includes("Canonical label environment preflight"),
+);
+const additivePreflight = additiveStatements.find((statement) =>
+  statement.includes("Canonical label duplicate preflight"),
+);
 
 if (!descriptionBackfill) {
   throw new Error("Category description backfill was not found");
+}
+if (!uniqueIndexEnvironmentPreflight) {
+  throw new Error("Canonical label environment preflight was not found");
 }
 if (!uniqueIndexPreflight) {
   throw new Error("Canonical label duplicate preflight was not found");
@@ -57,17 +69,29 @@ if (!uniqueIndexPreflight) {
 if (!uniqueIndexCreate) {
   throw new Error("Unique label index creation was not found");
 }
+if (!additiveEnvironmentPreflight) {
+  throw new Error(
+    "Additive category image migration environment preflight was not found",
+  );
+}
 if (!additivePreflight) {
   throw new Error("Additive category image migration preflight was not found");
 }
 
 describe("manageable categories migration SQL", () => {
   it("runs canonical duplicate preflight before creating the unique index", () => {
+    expect(migration.indexOf("Canonical label environment preflight")).toBeLessThan(
+      migration.indexOf("Canonical label duplicate preflight"),
+    );
     expect(migration.indexOf("Canonical label duplicate preflight")).toBeLessThan(
       migration.indexOf(
         'CREATE UNIQUE INDEX "subcategories_category_lower_label_unique"',
       ),
     );
+    expect(uniqueIndexEnvironmentPreflight).toContain(
+      CANONICAL_LABEL_ENVIRONMENT_SQL,
+    );
+    expect(uniqueIndexEnvironmentPreflight).not.toContain(CANONICAL_LABEL_SQL);
     expect(uniqueIndexPreflight).toContain(CANONICAL_LABEL_SQL);
     expect(uniqueIndexPreflight).toMatch(/RAISE EXCEPTION/i);
   });
@@ -82,6 +106,13 @@ describe("manageable categories migration SQL", () => {
   });
 
   it("warns on canonical duplicates in the additive image_file_key migration", () => {
+    expect(additiveMigration.indexOf("Canonical label environment preflight")).toBeLessThan(
+      additiveMigration.indexOf("Canonical label duplicate preflight"),
+    );
+    expect(additiveEnvironmentPreflight).toContain(
+      CANONICAL_LABEL_ENVIRONMENT_SQL,
+    );
+    expect(additiveEnvironmentPreflight).not.toContain(CANONICAL_LABEL_SQL);
     expect(additivePreflight).toContain(CANONICAL_LABEL_SQL);
     expect(additivePreflight).toMatch(/RAISE WARNING/i);
     expect(additivePreflight).not.toMatch(/RAISE EXCEPTION/i);
@@ -147,6 +178,31 @@ describeDatabase("manageable categories migration", () => {
         description_html:
           "<p>Legacy &lt;b&gt;description&lt;/b&gt; &amp; details</p>",
       });
+    } finally {
+      await client!.query("ROLLBACK");
+    }
+  });
+
+  it("rejects unsupported environments before duplicate detection", async () => {
+    await client!.query("BEGIN");
+    try {
+      await client!.query(`
+        CREATE TEMP TABLE "subcategories" (
+          "id" serial PRIMARY KEY,
+          "name" text NOT NULL,
+          "category" text NOT NULL
+        ) ON COMMIT DROP
+      `);
+      await client!.query(
+        `INSERT INTO "subcategories" ("name", "category") VALUES
+          ('Café', 'illustration'),
+          ('Cafe', 'illustration')`,
+      );
+      await client!.query("SET LOCAL standard_conforming_strings = off");
+
+      await expect(
+        client!.query(uniqueIndexEnvironmentPreflight),
+      ).rejects.toThrow(/standard_conforming_strings/i);
     } finally {
       await client!.query("ROLLBACK");
     }

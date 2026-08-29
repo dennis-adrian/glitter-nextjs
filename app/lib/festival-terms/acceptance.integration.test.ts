@@ -404,29 +404,43 @@ describeDatabase("festival terms schema and acceptance", () => {
     expect(document).toBeTruthy();
 
     let insertError: unknown;
+    let insertedId: number | undefined;
     try {
-      await db.insert(festivalTermsVersions).values({
-        documentId: document!.id,
-        versionNumber: 20_000 + Math.floor(Math.random() * 1000),
-        status: "published",
-        publishedAt: new Date(),
-      });
+      const [inserted] = await db
+        .insert(festivalTermsVersions)
+        .values({
+          documentId: document!.id,
+          versionNumber: 20_000 + Math.floor(Math.random() * 1000),
+          status: "published",
+          publishedAt: new Date(),
+        })
+        .returning({ id: festivalTermsVersions.id });
+      insertedId = inserted?.id;
     } catch (error) {
       insertError = error;
     }
-    expect(insertError).toBeTruthy();
-    const message = [
-      insertError instanceof Error ? insertError.message : String(insertError),
-      insertError &&
-      typeof insertError === "object" &&
-      "cause" in insertError &&
-      insertError.cause instanceof Error
-        ? insertError.cause.message
-        : "",
-    ].join("\n");
-    expect(message).toMatch(
-      /festival_terms_versions_one_published_per_document|unique|duplicate key/i,
-    );
+
+    try {
+      expect(insertError).toBeTruthy();
+      const message = [
+        insertError instanceof Error ? insertError.message : String(insertError),
+        insertError &&
+        typeof insertError === "object" &&
+        "cause" in insertError &&
+        insertError.cause instanceof Error
+          ? insertError.cause.message
+          : "",
+      ].join("\n");
+      expect(message).toMatch(
+        /festival_terms_versions_one_published_per_document|unique|duplicate key/i,
+      );
+    } finally {
+      if (insertedId != null) {
+        await db
+          .delete(festivalTermsVersions)
+          .where(eq(festivalTermsVersions.id, insertedId));
+      }
+    }
   });
 
   it("archives existing published rows before promoting a draft", async () => {

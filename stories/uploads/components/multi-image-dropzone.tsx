@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 
-import { Button } from "@/app/components/ui/button";
-import { Progress } from "@/app/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { FittedImage } from "@/stories/uploads/components/fitted-image";
 import { ImagePreviewRemoveButton } from "@/stories/uploads/components/image-preview-remove-button";
@@ -93,6 +93,8 @@ export function MultiImageDropzone({
 
     if (messages.length > 0) {
       setError(messages.join(" "));
+    } else {
+      setError(undefined);
     }
 
     setSelected((current) => [...current, ...accepted]);

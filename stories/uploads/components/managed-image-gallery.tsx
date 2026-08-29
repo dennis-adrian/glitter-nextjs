@@ -3,8 +3,8 @@
 import { ImagePlusIcon, Loader2Icon, StarIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { Button } from "@/app/components/ui/button";
-import { Progress } from "@/app/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { FittedImage } from "@/stories/uploads/components/fitted-image";
 import type { ImageFit } from "@/stories/uploads/components/image-object-position";

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ImageProofPicker } from "@/stories/uploads/components/image-proof-picker";
-import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
+import { storybookUploadAdapter } from "@/stories/uploads/storybook-upload-adapter";
 import type { UploadedImage } from "@/stories/uploads/components/upload-types";
 
 const existingProof: UploadedImage = {

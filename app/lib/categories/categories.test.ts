@@ -11,6 +11,7 @@ import {
   labelsMatch,
   normalizeCategoryLabel,
   uniqueLabelIndexKey,
+  CANONICAL_LABEL_ENVIRONMENT_SQL,
   CANONICAL_LABEL_SQL,
 } from "@/app/lib/categories/label";
 import {
@@ -180,6 +181,10 @@ describe("label normalization", () => {
     expect(formatCanonicalDuplicateReport(duplicates)).toContain("ids=1,2");
     expect(CANONICAL_LABEL_SQL).toContain("normalize(\"name\", NFD)");
     expect(CANONICAL_LABEL_SQL).toContain("\\1AB0-\\1AFF");
+    expect(CANONICAL_LABEL_ENVIRONMENT_SQL).toContain("130000");
+    expect(CANONICAL_LABEL_ENVIRONMENT_SQL).toContain("UTF8");
+    expect(CANONICAL_LABEL_ENVIRONMENT_SQL).toContain("standard_conforming_strings");
+    expect(CANONICAL_LABEL_ENVIRONMENT_SQL).not.toContain(CANONICAL_LABEL_SQL);
   });
 });
 

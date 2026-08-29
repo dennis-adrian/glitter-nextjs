@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import type { EditorTermsSection } from "@/app/lib/festival-terms/definitions";
@@ -17,6 +17,68 @@ import {
   userRequests,
 } from "@/db/schema";
 
+type FestivalTermsTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * First key of the advisory lock that serializes festival-terms
+ * initialization, so a hash of the document slug cannot collide with the same
+ * number used as a lock key elsewhere. Arbitrary, and only has to stay stable.
+ */
+const FESTIVAL_TERMS_INIT_LOCK_NAMESPACE = 5822;
+
+async function lockFestivalTermsDocument(tx: FestivalTermsTx) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${FESTIVAL_TERMS_INIT_LOCK_NAMESPACE}, hashtext(${FESTIVAL_TERMS_DOCUMENT_SLUG}))`,
+  );
+}
+
+async function findFestivalTermsDocument(tx: FestivalTermsTx) {
+  return tx.query.festivalTermsDocuments.findFirst({
+    where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
+  });
+}
+
+async function findVersionByStatus(
+  tx: FestivalTermsTx,
+  documentId: number,
+  status: "draft" | "published",
+) {
+  return tx.query.festivalTermsVersions.findFirst({
+    where: and(
+      eq(festivalTermsVersions.documentId, documentId),
+      eq(festivalTermsVersions.status, status),
+    ),
+  });
+}
+
+async function versionsAfterConflict(tx: FestivalTermsTx) {
+  const document = await findFestivalTermsDocument(tx);
+  if (!document) {
+    return { document: null, published: null, draft: null };
+  }
+  const published = await findVersionByStatus(tx, document.id, "published");
+  const draft = await findVersionByStatus(tx, document.id, "draft");
+  return { document, published, draft };
+}
+
+async function getOrCreateFestivalTermsDocument(tx: FestivalTermsTx) {
+  const existing = await findFestivalTermsDocument(tx);
+  if (existing) return existing;
+
+  const [created] = await tx
+    .insert(festivalTermsDocuments)
+    .values({ slug: FESTIVAL_TERMS_DOCUMENT_SLUG })
+    .onConflictDoNothing({ target: festivalTermsDocuments.slug })
+    .returning();
+  if (created) return created;
+
+  const document = await findFestivalTermsDocument(tx);
+  if (!document) {
+    throw new Error("No se pudo crear el documento de términos");
+  }
+  return document;
+}
+
 export async function renderTermsSectionHtml(
   kind: EditorTermsSection["kind"],
   bodyJson: unknown,
@@ -32,7 +94,7 @@ export async function renderTermsSectionHtml(
 }
 
 export async function insertFestivalTermsSections(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tx: FestivalTermsTx,
   versionId: number,
   sections: EditorTermsSection[],
 ) {
@@ -69,38 +131,19 @@ export function seedSectionsToEditor(): EditorTermsSection[] {
 
 export async function createInitialFestivalTermsDraft(createdByUserId: number) {
   return db.transaction(async (tx) => {
-    let document = await tx.query.festivalTermsDocuments.findFirst({
-      where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
-    });
+    await lockFestivalTermsDocument(tx);
+    const document = await getOrCreateFestivalTermsDocument(tx);
 
-    if (!document) {
-      const [createdDocument] = await tx
-        .insert(festivalTermsDocuments)
-        .values({ slug: FESTIVAL_TERMS_DOCUMENT_SLUG })
-        .returning();
-      document = createdDocument;
-    }
-
-    if (!document) {
-      throw new Error("No se pudo crear el documento de términos");
-    }
-
-    const existingDraft = await tx.query.festivalTermsVersions.findFirst({
-      where: and(
-        eq(festivalTermsVersions.documentId, document.id),
-        eq(festivalTermsVersions.status, "draft"),
-      ),
-    });
+    const existingDraft = await findVersionByStatus(tx, document.id, "draft");
     if (existingDraft) {
       return existingDraft;
     }
 
-    const existingPublished = await tx.query.festivalTermsVersions.findFirst({
-      where: and(
-        eq(festivalTermsVersions.documentId, document.id),
-        eq(festivalTermsVersions.status, "published"),
-      ),
-    });
+    const existingPublished = await findVersionByStatus(
+      tx,
+      document.id,
+      "published",
+    );
     if (existingPublished) {
       throw new Error(
         "Ya hay una versión publicada; usá el flujo de clonado para editar",
@@ -116,9 +159,17 @@ export async function createInitialFestivalTermsDraft(createdByUserId: number) {
         createdByUserId,
         changelog: "Borrador inicial desde contenido base",
       })
+      .onConflictDoNothing()
       .returning();
 
     if (!version) {
+      const { published, draft } = await versionsAfterConflict(tx);
+      if (published) {
+        throw new Error(
+          "Ya hay una versión publicada; usá el flujo de clonado para editar",
+        );
+      }
+      if (draft) return draft;
       throw new Error("No se pudo crear el borrador inicial de términos");
     }
 
@@ -135,33 +186,11 @@ export async function ensureDefaultFestivalTerms() {
   }
 
   return db.transaction(async (tx) => {
-    const current = await tx.query.festivalTermsDocuments.findFirst({
-      where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
-    });
-    if (current) {
-      const published = await tx.query.festivalTermsVersions.findFirst({
-        where: and(
-          eq(festivalTermsVersions.documentId, current.id),
-          eq(festivalTermsVersions.status, "published"),
-        ),
-      });
-      if (published) return published;
-    }
+    await lockFestivalTermsDocument(tx);
 
-    let document = current;
-    if (!document) {
-      await tx
-        .insert(festivalTermsDocuments)
-        .values({ slug: FESTIVAL_TERMS_DOCUMENT_SLUG })
-        .onConflictDoNothing({ target: festivalTermsDocuments.slug });
-      document = await tx.query.festivalTermsDocuments.findFirst({
-        where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
-      });
-    }
-
-    if (!document) {
-      throw new Error("No se pudo crear el documento de términos");
-    }
+    const document = await getOrCreateFestivalTermsDocument(tx);
+    const published = await findVersionByStatus(tx, document.id, "published");
+    if (published) return published;
 
     const [version] = await tx
       .insert(festivalTermsVersions)
@@ -172,9 +201,13 @@ export async function ensureDefaultFestivalTerms() {
         changelog: "Versión inicial migrada desde el contenido en código",
         publishedAt: new Date(),
       })
+      .onConflictDoNothing()
       .returning();
 
     if (!version) {
+      const existingVersions = await versionsAfterConflict(tx);
+      if (existingVersions.published) return existingVersions.published;
+      if (existingVersions.draft) return existingVersions.draft;
       throw new Error("No se pudo crear la versión inicial de términos");
     }
 

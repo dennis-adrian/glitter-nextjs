@@ -9,7 +9,10 @@ import {
   compactEditorSchema,
   disallowedBlockTypes,
 } from "@/app/lib/rich-text/schemas";
-import { sanitizeRichTextHtml } from "@/app/lib/rich-text/sanitize";
+import {
+  isAllowedRichTextUri,
+  sanitizeRichTextHtml,
+} from "@/app/lib/rich-text/sanitize";
 
 describe("editor schemas", () => {
   it("exposes compact as a subset of article", () => {
@@ -50,11 +53,40 @@ describe("editor schemas", () => {
     ]);
     expect(() =>
       assertCompactDocument([{ type: "video" }, { type: "file" }]),
-    ).toThrow(/no permitidos/i);
+    ).toThrow(/no permitidos en este documento: video, file/i);
+  });
+
+  it("rejects unsupported heading levels in compact documents", () => {
+    expect(() =>
+      assertCompactDocument([{ type: "heading", props: { level: 1 } }]),
+    ).toThrow(/títulos de nivel 2 y 3 en este documento/i);
+  });
+
+  it("uses a caller-supplied document label in compact validation errors", () => {
+    expect(() =>
+      assertCompactDocument([{ type: "video" }], "una categoría"),
+    ).toThrow(/no permitidos en una categoría: video/i);
+    expect(() =>
+      assertCompactDocument(
+        [{ type: "heading", props: { level: 1 } }],
+        "una categoría",
+      ),
+    ).toThrow(/títulos de nivel 2 y 3 en una categoría/i);
   });
 });
 
 describe("HTML sanitizer", () => {
+  it("allowlists http(s), mailto, and root-relative URIs", () => {
+    expect(isAllowedRichTextUri("https://example.com")).toBe(true);
+    expect(isAllowedRichTextUri("http://example.com")).toBe(true);
+    expect(isAllowedRichTextUri("mailto:equipo@productoraglitter.com")).toBe(
+      true,
+    );
+    expect(isAllowedRichTextUri("/terms/diagram.png")).toBe(true);
+    expect(isAllowedRichTextUri("javascript:alert(1)")).toBe(false);
+    expect(isAllowedRichTextUri("data:text/html,x")).toBe(false);
+  });
+
   it("strips script tags and javascript: links", () => {
     const dirty =
       '<p>Hola</p><script>alert(1)</script><a href="javascript:alert(1)">x</a>';

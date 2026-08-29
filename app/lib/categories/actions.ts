@@ -68,7 +68,11 @@ export async function createCategory(input: unknown) {
 
   try {
     const descriptionHtml = Array.isArray(data.descriptionJson)
-      ? await blocksToSanitizedHtml(data.descriptionJson, "compact")
+      ? await blocksToSanitizedHtml(
+          data.descriptionJson,
+          "compact",
+          "una categoría",
+        )
       : null;
     const sortOrder = await nextSortOrder(data.category);
 
@@ -129,7 +133,11 @@ export async function updateCategory(id: number, input: unknown) {
 
   try {
     const descriptionHtml = Array.isArray(data.descriptionJson)
-      ? await blocksToSanitizedHtml(data.descriptionJson, "compact")
+      ? await blocksToSanitizedHtml(
+          data.descriptionJson,
+          "compact",
+          "una categoría",
+        )
       : null;
 
     const movingArea = existing.category !== data.category;

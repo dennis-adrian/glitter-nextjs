@@ -2,7 +2,7 @@
 
 import { XIcon } from "lucide-react";
 
-import { Button } from "@/app/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ImagePreviewRemoveButtonProps = {

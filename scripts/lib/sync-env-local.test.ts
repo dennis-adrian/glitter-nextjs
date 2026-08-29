@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -13,6 +13,7 @@ import {
   isTestOrCiDatabaseUrl,
   LOCAL_POSTGRES,
   mergeEnvSources,
+  parentPidFromProcStat,
   parseEnvFile,
   pickBestValue,
   serializeEnvLocal,
@@ -189,6 +190,16 @@ describe("sync-env-local", () => {
     expect(parseEnvFile(serialized)).toEqual(cases);
   });
 
+  it("reads ppid from fields after the final closing parenthesis in /proc/stat", () => {
+    expect(parentPidFromProcStat("42 (node) S 7 42 42 0 -1")).toBe(7);
+    expect(
+      parentPidFromProcStat("99 (node server) S 1 99 99 0 -1"),
+    ).toBe(1);
+    expect(
+      parentPidFromProcStat("12 (proc (nested)) R 44 12 12 0 -1"),
+    ).toBe(44);
+  });
+
   it("strips placeholder shell values and keeps PATH when applying a synced file", () => {
     const cwd = mkdtempSync(join(tmpdir(), "glitter-env-sync-"));
     writeFileSync(
@@ -235,5 +246,6 @@ describe("sync-env-local", () => {
     expect(readFileSync(join(cwd, ".env.local"), "utf8")).not.toContain(
       "placeholder",
     );
+    expect(statSync(join(cwd, ".env.local")).mode & 0o777).toBe(0o600);
   });
 });

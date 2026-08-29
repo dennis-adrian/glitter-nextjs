@@ -25,7 +25,7 @@ const reusableComponents = [
 const components = [
   {
     name: "UploadThingImageButton",
-    kind: "Primitive",
+    kind: "Legacy primitive",
     endpoint: "6 single-image endpoints",
     location: "app/components/uploads/uploadthing-image-button.tsx",
   },
@@ -117,11 +117,12 @@ function UploadInventory() {
         <p className="text-xs font-semibold uppercase tracking-wider text-primary">
           Component catalog
         </p>
-        <h1 className="text-3xl font-bold">UploadThing image components</h1>
+        <h1 className="text-3xl font-bold">Image upload components</h1>
         <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          The network layer is mocked only inside Storybook. File selection,
-          previews, progress, callbacks, and validation remain interactive, so
-          every story runs without Clerk or UploadThing credentials.
+          Storybook showcases transport-agnostic components with an injected
+          upload adapter. File selection, previews, progress, callbacks, and
+          validation stay interactive without wiring auth, UploadThing, or
+          server actions into stories.
         </p>
       </div>
 
@@ -131,11 +132,14 @@ function UploadInventory() {
       >
         <div>
           <h2 id="reusable-components-title" className="text-xl font-semibold">
-            Four reusable components
+            Four independent components
           </h2>
           <p className="text-sm text-muted-foreground">
-            Storybook-only prototypes with an injected upload adapter. They are
-            not connected to application forms or UploadThing.
+            Self-contained UI under{" "}
+            <code className="text-xs">stories/uploads/components</code>. Each
+            takes state via props and an injected{" "}
+            <code className="text-xs">upload</code> function — no auth, server
+            actions, or upload transport inside the component.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -152,11 +156,11 @@ function UploadInventory() {
 
       <div>
         <h2 className="text-xl font-semibold">
-          Current implementation inventory
+          Application inventory (not showcased here)
         </h2>
         <p className="text-sm text-muted-foreground">
-          Existing upload surfaces these components are intended to consolidate
-          later.
+          Existing upload surfaces still coupled to UploadThing and server
+          actions. These are consolidation targets, not Storybook stories.
         </p>
       </div>
 
@@ -211,7 +215,7 @@ export const AllComponents: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("heading", { name: "UploadThing image components" }),
+      canvas.getByRole("heading", { name: "Image upload components" }),
     ).toBeVisible();
     await expect(canvas.getAllByRole("row")).toHaveLength(
       components.length + 1,

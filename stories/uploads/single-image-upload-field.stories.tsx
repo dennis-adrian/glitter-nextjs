@@ -4,7 +4,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 
 import type { ImageFit } from "@/stories/uploads/components/image-object-position";
 import { SingleImageUploadField } from "@/stories/uploads/components/single-image-upload-field";
-import { storybookUploadAdapter } from "@/stories/uploads/components/storybook-upload-adapter";
+import { storybookUploadAdapter } from "@/stories/uploads/storybook-upload-adapter";
 import type { UploadedImage } from "@/stories/uploads/components/upload-types";
 
 function SingleImageStory({

@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { Button } from "@/app/components/ui/button";
-import { Progress } from "@/app/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { FittedImage } from "@/stories/uploads/components/fitted-image";
 import { ImagePreviewRemoveButton } from "@/stories/uploads/components/image-preview-remove-button";
 import {

@@ -3,8 +3,8 @@
 import { ImageIcon, Loader2Icon, UploadIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { Button } from "@/app/components/ui/button";
-import { Progress } from "@/app/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { FittedImage } from "@/stories/uploads/components/fitted-image";
 import { ImageCropZoomSlider } from "@/stories/uploads/components/image-crop-zoom-slider";
