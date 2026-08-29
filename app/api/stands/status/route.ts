@@ -1,8 +1,8 @@
-import { cleanupExpiredHolds } from "@/app/lib/stands/hold-actions";
 import { db } from "@/db";
-import { stands } from "@/db/schema";
+import { festivalSectors, stands } from "@/db/schema";
+import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { eq } from "drizzle-orm";
-import { unstable_cache } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -10,23 +10,12 @@ const QuerySchema = z.object({
   sectorId: z.coerce.number().int().positive(),
 });
 
-let lastCleanupTime = 0;
-const CLEANUP_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-const STAND_STATUS_CACHE_SECONDS = 1;
-
-type StandStatusRow = Pick<typeof stands.$inferSelect, "id" | "status">;
-
-const getCachedSectorStandStatuses = unstable_cache(
-  async (sectorId: number): Promise<StandStatusRow[]> =>
-    db
-      .select({ id: stands.id, status: stands.status })
-      .from(stands)
-      .where(eq(stands.festivalSectorId, sectorId)),
-  ["sector-stand-statuses"],
-  { revalidate: STAND_STATUS_CACHE_SECONDS },
-);
-
 export async function GET(request: NextRequest) {
+  const actor = await getCurrentUserProfile();
+  if (!actor) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const parsed = QuerySchema.safeParse({
     sectorId: searchParams.get("sectorId"),
@@ -36,21 +25,49 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
   }
 
-  // Throttled cleanup: run at most once every 2 minutes (fire-and-forget)
-  const now = Date.now();
-  if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
-    lastCleanupTime = now;
-    cleanupExpiredHolds().catch(console.error);
+  const sector = await db.query.festivalSectors.findFirst({
+    where: eq(festivalSectors.id, parsed.data.sectorId),
+    columns: { id: true, festivalId: true },
+  });
+  if (!sector) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Return lightweight stand statuses for the sector. A stand with a hidden
-  // reservation is genuinely reserved, so its real status is reported here;
-  // only the reservation's identity is withheld (at the data layer) until the
-  // reveal time passes.
-  const sectorStands = await getCachedSectorStandStatuses(parsed.data.sectorId);
+  if (!canViewAdminReservationData({ id: actor.id, role: actor.role })) {
+    if (actor.status !== "verified") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+  }
 
-  return NextResponse.json({
-    stands: sectorStands,
-    timestamp: Date.now(),
-  });
+  const sectorStands = await db
+    .select({
+      standId: stands.id,
+      effectiveStatus: stands.status,
+      updatedAt: stands.updatedAt,
+    })
+    .from(stands)
+    .where(eq(stands.festivalSectorId, parsed.data.sectorId));
+
+  const availableCount = sectorStands.filter(
+    (stand) => stand.effectiveStatus === "available",
+  ).length;
+
+  return NextResponse.json(
+    {
+      stands: sectorStands.map((stand) => ({
+        id: stand.standId,
+        status: stand.effectiveStatus,
+        standId: stand.standId,
+        effectiveStatus: stand.effectiveStatus,
+        updatedAt: stand.updatedAt,
+      })),
+      availableCount,
+      timestamp: Date.now(),
+    },
+    {
+      headers: {
+        "Cache-Control": "private, no-store",
+      },
+    },
+  );
 }

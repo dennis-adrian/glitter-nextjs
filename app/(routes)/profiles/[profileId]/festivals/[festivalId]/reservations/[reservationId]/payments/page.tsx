@@ -34,13 +34,40 @@ export default async function Page(props: {
   const invoices = await fetchInvoicesByReservation(
     validatedParams.data.reservationId,
   );
+  if (invoices.length === 0) notFound();
+
   const ownerInvoices = invoices.filter(
     (invoice) => invoice.userId === profile.id,
   );
+  const isOwner = ownerInvoices.length > 0;
+  const visibleInvoices = isOwner ? ownerInvoices : invoices;
 
-  if (ownerInvoices.length === 0) {
-    redirect(
-      `/profiles/${validatedParams.data.profileId}/festivals/${validatedParams.data.festivalId}/invoices`,
+  if (!isOwner) {
+    return (
+      <>
+        <StepIndicator
+          step={3}
+          totalSteps={3}
+          backLabel="Ver mi reserva"
+          backHref="/my_profile"
+        />
+        <div className="container p-4 md:p-6">
+          <h1 className="text-3xl font-bold mb-4">Factura de la reserva</h1>
+          <p className="text-muted-foreground mb-8">
+            Podés ver el estado del pago, pero solo quien figura en la factura
+            puede enviar el comprobante.
+          </p>
+          {visibleInvoices.map((invoice) => (
+            <div key={invoice.id} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <ProductDetails festival={festival} invoice={invoice} />
+              <PaymentSummary
+                invoice={invoice}
+                festivalId={validatedParams.data.festivalId}
+              />
+            </div>
+          ))}
+        </div>
+      </>
     );
   }
 
@@ -59,7 +86,7 @@ export default async function Page(props: {
         />
         <div className="p-20">
           <p className="text-center text-2xl font-bold text-gray-500">
-            No tienes pagos pendientes
+            No tenés pagos pendientes
           </p>
         </div>
       </>
@@ -80,8 +107,8 @@ export default async function Page(props: {
             <div key={invoice.id} className="container p-4 md:p-6">
               <h1 className="text-3xl font-bold mb-8">
                 {invoice.amount === 0
-                  ? "Confirma tu Reserva"
-                  : "Completa tu Pago"}
+                  ? "Solicitá la revisión de tu reserva"
+                  : "Completá el pago"}
               </h1>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="flex flex-col gap-6">

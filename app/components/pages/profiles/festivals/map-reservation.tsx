@@ -1,18 +1,15 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import MapTabsClient from "@/app/components/festivals/reservations/map-tabs-client";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
-import { profileNeedsTermsReacceptance } from "@/app/lib/festival-terms/require-current";
-import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import { getSelfServicePageDenial } from "@/app/lib/reservations/entry";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { standHolds } from "@/db/schema";
 import { and, eq, gt } from "drizzle-orm";
-import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 
 type MapReservationPageProps = {
@@ -29,41 +26,21 @@ export default async function MapReservationPage(
   const festival = await fetchBaseFestival(props.festivalId);
   if (!festival) notFound();
 
-  const reservationStartDate = DateTime.fromJSDate(
-    festival.reservationsStartDate,
-  );
-  const currentTime = DateTime.now();
-  if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
-    return <ReservationNotAllowed festival={festival} />;
-  }
-
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) notFound();
 
-  const inFestival = isProfileInFestival(festival.id, forProfile);
-  if (!inFestival) {
-    return (
-      <div className="text-muted-foreground flex pt-8 justify-center">
-        No estás habilitado para participar en este evento
-      </div>
-    );
-  }
-
-  if (
-    currentProfile?.role !== "admin" &&
-    (await profileNeedsTermsReacceptance(festival, forProfile))
-  ) {
+  const denial = await getSelfServicePageDenial({
+    actor: currentProfile
+      ? { id: currentProfile.id, role: currentProfile.role }
+      : null,
+    targetProfile: forProfile,
+    festival,
+  });
+  if (denial === "TERMS_STALE") {
     return <TermsReacceptanceRequired festivalId={festival.id} />;
   }
-
-  const eligibility = await getReservationEligibility({
-    userId: forProfile.id,
-    festivalId: festival.id,
-  });
-  if (!eligibility.eligible) {
-    return (
-      <ReservationNotAllowed festival={festival} sanctionBlock={eligibility} />
-    );
+  if (denial) {
+    return <ReservationNotAllowed festival={festival} policyCode={denial} />;
   }
 
   const subcategoryIds = forProfile.profileSubcategories.map(

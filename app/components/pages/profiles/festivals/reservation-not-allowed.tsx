@@ -8,6 +8,10 @@ import {
 } from "@/app/components/ui/card";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
+import {
+  RESERVATION_ERROR_MESSAGES,
+  type ReservationErrorCode,
+} from "@/app/lib/reservations/errors";
 import type { ReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility-logic";
 import { DateTime } from "luxon";
 import dynamic from "next/dynamic";
@@ -19,12 +23,36 @@ const CopyLinkButtonComponent = dynamic(
 
 type ReservationNotAllowedProps = {
   festival: FestivalBase;
+  policyCode?: ReservationErrorCode;
   sanctionBlock?: Extract<ReservationEligibility, { eligible: false }>;
 };
 
 export default function ReservationNotAllowed(
   props: ReservationNotAllowedProps,
 ) {
+  if (props.policyCode && props.policyCode !== "RESERVATIONS_NOT_OPEN") {
+    return (
+      <div className="container flex flex-col items-center justify-center p-4 md:p-6">
+        <Card className="max-w-[600px] w-full">
+          <CardHeader>
+            <CardTitle className="text-center text-xl">
+              {props.festival.name}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-center text-sm text-muted-foreground">
+              {props.policyCode === "RESERVATIONS_NOT_OPEN"
+                ? `Vas a poder reservar desde ${formatDate(
+                    props.festival.reservationsStartDate,
+                  ).toLocaleString(DateTime.DATETIME_MED)}.`
+                : RESERVATION_ERROR_MESSAGES[props.policyCode]}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (props.sanctionBlock) {
     return (
       <SanctionReservationBlocked
@@ -63,7 +91,7 @@ export default function ReservationNotAllowed(
             today.startOf("day").toMillis() ? (
               <div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
                 <span>
-                  Copia y guarda el enlace de esta página para volver el día en
+                  Copiá y guardá el enlace de esta página para volver el día en
                   que se habiliten las reservas.
                 </span>
                 <CopyLinkButtonComponent />
@@ -73,12 +101,12 @@ export default function ReservationNotAllowed(
                 <span className="mb-2">
                   Las reservas se habilitarán a las{" "}
                   {formattedStartDate.toLocaleString(DateTime.TIME_SIMPLE)}.
-                  Puedes copiar el enlace de esta página para regresar luego.
+                  Podés copiar el enlace de esta página para regresar luego.
                 </span>
                 <CopyLinkButtonComponent />
                 <div className="text-xs text-muted-foreground italic mt-1">
-                  Si te quedaste en la página, te aconsejamos recargarla cuando
-                  las reservas ya estén habilitadas.
+                  Si te quedaste en la página, recargala cuando las reservas ya
+                  estén habilitadas.
                 </div>
               </div>
             )}
@@ -126,7 +154,7 @@ function SanctionReservationBlocked({
             {block.reason === "reservation_delay" && (
               <div className="flex flex-col items-center gap-2 text-sm">
                 <span>
-                  Copia el enlace de esta página para volver cuando puedas
+                  Copiá el enlace de esta página para volver cuando puedas
                   reservar.
                 </span>
                 <CopyLinkButtonComponent />

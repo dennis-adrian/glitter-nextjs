@@ -286,7 +286,7 @@ export default function HoldConfirmationClient({
       let cancelled = false;
       (async () => {
         try {
-          await cancelStandHold(hold.id, profile.id);
+          await cancelStandHold(hold.id);
           toast.info("Tu reserva temporal expiró");
         } catch (error) {
           console.error("Error expiring hold", error);
@@ -330,12 +330,8 @@ export default function HoldConfirmationClient({
     if (isSubmitting) return;
     startSubmitTransition(async () => {
       try {
-        const res = await confirmStandHold(
-          hold.id,
-          profile.id,
-          selectedPartnerId,
-        );
-        if (res.success && res.reservationId) {
+        const res = await confirmStandHold(hold.id, selectedPartnerId);
+        if (res.success && res.data.reservationId) {
           confetti({
             particleCount: 100,
             spread: 70,
@@ -349,12 +345,18 @@ export default function HoldConfirmationClient({
             stand_price: stand.price,
             profile_category: profile.category,
             has_partner: !!selectedPartnerId,
-            reservation_id: res.reservationId,
+            reservation_id: res.data.reservationId,
           });
           toast.success(res.message);
           router.replace(
-            `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+            `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.data.reservationId}/payments`,
           );
+        } else if (
+          !res.success &&
+          (res.code === "PARTNER_NOT_ELIGIBLE" ||
+            res.code === "PARTNER_ALREADY_RESERVED")
+        ) {
+          toast.error(res.message);
         } else {
           toast.info(res.message);
           router.replace(mapUrl);
@@ -369,7 +371,7 @@ export default function HoldConfirmationClient({
     if (isSubmitting) return;
     startSubmitTransition(async () => {
       try {
-        const res = await cancelStandHold(hold.id, profile.id);
+        const res = await cancelStandHold(hold.id);
         if (res.success) {
           captureClientEvent(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
             festival_id: festival.id,

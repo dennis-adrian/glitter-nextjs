@@ -3,6 +3,7 @@ import {
   StandWithReservationsWithParticipants,
 } from "@/app/api/stands/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
+import { standMatchesParticipant } from "@/app/lib/reservations/policy";
 
 export type StandLabelParts = Pick<StandBase, "label" | "standNumber">;
 
@@ -17,22 +18,18 @@ export function canStandBeReserved(
 ) {
   if (!profile) return false;
 
-  const profileCategory =
-    profile.category === "new_artist" ? "illustration" : profile.category;
-
-  if (stand.standCategory !== profileCategory || stand.status !== "available") {
+  if (stand.status !== "available") {
     return false;
   }
 
-  if (stand.participationType !== profile.participationType) {
-    return false;
-  }
-
-  if (stand.standSubcategories.length > 0) {
-    return subcategoryIds.some((id) =>
-      stand.standSubcategories.some((sc) => sc.subcategoryId === id),
-    );
-  }
-
-  return true;
+  return standMatchesParticipant({
+    standCategory: stand.standCategory,
+    participationType: stand.participationType,
+    eligibleSubcategoryIds: stand.standSubcategories.map(
+      (sc) => sc.subcategoryId,
+    ),
+    profileCategory: profile.category,
+    profileParticipationType: profile.participationType,
+    profileSubcategoryIds: subcategoryIds,
+  });
 }

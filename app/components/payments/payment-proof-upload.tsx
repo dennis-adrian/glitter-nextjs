@@ -73,7 +73,18 @@ export default function PaymentProofUpload({
       } else if (endpoint === "storeOrderPayment") {
         res = await startStoreOrderPaymentUpload([selectedFile]);
       } else {
-        res = await startReservationPaymentUpload([selectedFile]);
+        const invoiceId = uploadInput?.["invoiceId"];
+        if (typeof invoiceId !== "number") {
+          toast.error(
+            "Faltan datos para subir el comprobante. Recargá la página e intentá de nuevo.",
+          );
+          setIsUploading(false);
+          onUploading(false);
+          return;
+        }
+        res = await startReservationPaymentUpload([selectedFile], {
+          invoiceId,
+        });
       }
       if (!res || !res[0]) {
         toast.error("Error al subir el comprobante. Intentá de nuevo.");
