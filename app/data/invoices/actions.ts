@@ -358,18 +358,32 @@ export async function createPayment(
 
   try {
     const outcome = await db.transaction(async (tx) => {
-      const invoice = await tx.query.invoices.findFirst({
-        where: eq(invoices.id, invoiceId),
+      const [lockedInvoice] = await tx
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, invoiceId))
+        .limit(1)
+        .for("update");
+      if (!lockedInvoice) return reservationFailure("VALIDATION");
+
+      const reservation = await tx.query.standReservations.findFirst({
+        where: eq(standReservations.id, lockedInvoice.reservationId),
         with: {
-          payments: true,
-          reservation: {
-            with: {
-              participants: true,
-            },
-          },
+          participants: true,
         },
       });
-      if (!invoice) return reservationFailure("VALIDATION");
+      if (!reservation) return reservationFailure("VALIDATION");
+
+      const invoicePayments = await tx.query.payments.findMany({
+        where: eq(payments.invoiceId, lockedInvoice.id),
+        orderBy: [desc(payments.createdAt), desc(payments.id)],
+      });
+
+      const invoice = {
+        ...lockedInvoice,
+        payments: invoicePayments,
+        reservation,
+      };
 
       if (
         !canSubmitInvoiceSettlement({
@@ -391,7 +405,7 @@ export async function createPayment(
         return reservationFailure("INVOICE_NOT_PENDING");
       }
 
-      const currentPayment = invoice.payments[invoice.payments.length - 1];
+      const currentPayment = invoice.payments[0];
       if (currentPayment) {
         await tx
           .update(payments)

@@ -36,10 +36,27 @@ export async function POST(req: Request) {
     });
   }
 
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, message: "Invalid payment data" }),
+      { status: 400 },
+    );
+  }
+
+  if (body == null || typeof body !== "object") {
+    return new Response(
+      JSON.stringify({ success: false, message: "Invalid payment data" }),
+      { status: 400 },
+    );
+  }
+
+  const payload = body as Record<string, unknown>;
   const validatedPayment = PaymentSchema.safeParse({
-    invoiceId: body.invoiceId ?? body.payment?.invoiceId,
-    voucherUrl: body.voucherUrl ?? body.payment?.voucherUrl,
+    invoiceId: payload.invoiceId ?? (payload.payment as { invoiceId?: unknown } | undefined)?.invoiceId,
+    voucherUrl: payload.voucherUrl ?? (payload.payment as { voucherUrl?: unknown } | undefined)?.voucherUrl,
   });
   if (!validatedPayment.success) {
     return new Response(
