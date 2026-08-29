@@ -610,7 +610,7 @@ export default function FestivalTermsEditor({
             <AlertDialogTitle>¿Publicar esta versión?</AlertDialogTitle>
             <AlertDialogDescription>
               {staleAcceptanceCount > 0
-                ? `Hay ${staleAcceptanceCount} inscripción${staleAcceptanceCount === 1 ? "" : "es"} en festivales activos que deberán volver a aceptar los términos.`
+                ? `Hay ${staleAcceptanceCount} ${staleAcceptanceCount === 1 ? "inscripción" : "inscripciones"} en festivales activos que deberán volver a aceptar los términos.`
                 : "No hay inscripciones en festivales activos que deban volver a aceptar por ahora."}{" "}
               Los participantes de festivales nuevos seguirán aceptando términos
               al inscribirse.

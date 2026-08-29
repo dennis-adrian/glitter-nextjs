@@ -62,7 +62,7 @@ export function BannerImageUpload({
         )}
       </div>
       <UploadThingImageButton
-        endpoint="imageUploader"
+        endpoint="bannerImage"
         hasImage={Boolean(imageUrl)}
         onUploadComplete={onChange}
         successMessage={successMessage}

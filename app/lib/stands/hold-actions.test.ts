@@ -21,8 +21,12 @@ vi.mock("@/app/api/stands/actions", () => ({
   fetchStandById: vi.fn(),
 }));
 
+const fetchPublishedFestivalTermsVersion = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ id: 1 }),
+);
+
 vi.mock("@/app/lib/festival-terms/queries", () => ({
-  fetchPublishedFestivalTermsVersion: vi.fn().mockResolvedValue({ id: 1 }),
+  fetchPublishedFestivalTermsVersion,
 }));
 
 vi.mock("@/app/vendors/resend", () => ({
@@ -48,6 +52,7 @@ import {
   confirmStandHold,
   createStandHold,
 } from "@/app/lib/stands/hold-actions";
+import { NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE } from "@/app/lib/festival-terms/acceptance";
 import { FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE } from "@/app/lib/festivals/participant-terms";
 
 function withParticipantTermsQuery(
@@ -98,6 +103,8 @@ describe("stand hold sanction enforcement", () => {
     authMock.mockReset();
     eligibilityMock.mockReset();
     transactionMock.mockReset();
+    fetchPublishedFestivalTermsVersion.mockReset();
+    fetchPublishedFestivalTermsVersion.mockResolvedValue({ id: 1 });
   });
 
   it("rejects a stand whose canonical festival differs from the request", async () => {
@@ -372,5 +379,38 @@ describe("stand hold sanction enforcement", () => {
       message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
     });
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects hold creation when no published terms version exists", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    fetchPublishedFestivalTermsVersion.mockResolvedValue(null);
+    const insert = vi.fn();
+    const findFirst = vi.fn().mockResolvedValue({ termsVersionId: 1 });
+    const tx = withParticipantTermsQuery({
+      select: vi.fn(() =>
+        standSelection([{ id: 7, status: "available", festivalId: 10 }]),
+      ),
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ status: "verified" }),
+        },
+        userRequests: {
+          findFirst,
+        },
+      },
+      insert,
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await createStandHold(7, 3, 10);
+
+    expect(result).toEqual({
+      success: false,
+      message: NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE,
+    });
+    expect(insert).not.toHaveBeenCalled();
+    expect(findFirst).not.toHaveBeenCalled();
   });
 });

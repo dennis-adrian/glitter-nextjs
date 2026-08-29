@@ -22,8 +22,11 @@ describe("sync-env-local", () => {
   it("treats invented placeholder keys as unusable", () => {
     expect(isPlaceholderValue("sk_test_placeholder_not_real")).toBe(true);
     expect(isPlaceholderValue("pk_test_placeholder_not_real")).toBe(true);
-    expect(isPlaceholderValue("")).toBe(true);
+    expect(isPlaceholderValue("placeholder_not_real")).toBe(true);
+    expect(isPlaceholderValue("")).toBe(false);
     expect(isPlaceholderValue("sk_test_realishvalue1234567890")).toBe(false);
+    expect(isPlaceholderValue("https://via.placeholder.com/150")).toBe(false);
+    expect(isPlaceholderValue("feature_not_real_users")).toBe(false);
   });
 
   it("prefers a real process/parent secret over a placeholder file or shell value", () => {
@@ -72,11 +75,17 @@ describe("sync-env-local", () => {
         CLERK_SECRET_KEY: "sk_test_placeholder_not_real",
         PATH: "/usr/bin",
         NODE_ENV: "test",
+        SEED_DEMO_PASSWORD: "",
+        UNRELATED_TOOL_URL: "https://via.placeholder.com/150",
+        UNRELATED_PLACEHOLDER: "sk_test_placeholder_not_real",
       },
     );
     expect(child.CLERK_SECRET_KEY).toBe("sk_test_injected_from_daemon");
     expect(child.PATH).toBe("/usr/bin");
     expect(child.NODE_ENV).toBe("test");
+    expect(child.SEED_DEMO_PASSWORD).toBe("");
+    expect(child.UNRELATED_TOOL_URL).toBe("https://via.placeholder.com/150");
+    expect(child.UNRELATED_PLACEHOLDER).toBe("sk_test_placeholder_not_real");
   });
 
   it("forces local Postgres URLs for Cloud Agent child processes", () => {
@@ -192,6 +201,9 @@ describe("sync-env-local", () => {
       CLERK_SECRET_KEY: "sk_test_placeholder_not_real",
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_placeholder_not_real",
       PATH: "/usr/bin",
+      SEED_DEMO_PASSWORD: "",
+      UNRELATED_TOOL_URL: "https://via.placeholder.com/150",
+      UNRELATED_PLACEHOLDER: "sk_test_placeholder_not_real",
     };
 
     const result = applySyncedEnvToProcess({
@@ -212,6 +224,13 @@ describe("sync-env-local", () => {
       "pk_test_injected_from_daemon",
     );
     expect(processEnv.PATH).toBe("/usr/bin");
+    expect(processEnv.SEED_DEMO_PASSWORD).toBe("");
+    expect(processEnv.UNRELATED_TOOL_URL).toBe(
+      "https://via.placeholder.com/150",
+    );
+    expect(processEnv.UNRELATED_PLACEHOLDER).toBe(
+      "sk_test_placeholder_not_real",
+    );
     expect(processEnv.POSTGRES_URL).toContain("glitter_dev");
     expect(readFileSync(join(cwd, ".env.local"), "utf8")).not.toContain(
       "placeholder",

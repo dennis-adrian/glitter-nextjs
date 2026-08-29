@@ -25,10 +25,6 @@ vi.mock("next/cache", () => ({
 vi.mock("@/app/lib/users/helpers", () => ({
   requireAdminOrFestivalAdmin,
 }));
-vi.mock("@/db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/db")>();
-  return actual;
-});
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -59,7 +55,7 @@ const festivalIds: number[] = [];
 
 describeDatabase("festival participant terms actions", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl;
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";

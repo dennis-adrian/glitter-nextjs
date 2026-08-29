@@ -11,6 +11,7 @@ import {
   FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
   isFestivalParticipantTermsEnabled,
 } from "@/app/lib/festivals/participant-terms";
+import { NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE } from "@/app/lib/festival-terms/acceptance";
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
@@ -37,6 +38,7 @@ async function rejectIfTermsStale(
   actor: { role: string } | null | undefined,
   participantIds: readonly number[],
   festivalId: number,
+  publishedVersionId: number | null | undefined,
   tx: HoldTx,
 ) {
   if (actor?.role === "admin" || actor?.role === "festival_admin") {
@@ -54,7 +56,13 @@ async function rejectIfTermsStale(
     };
   }
 
-  const publishedTerms = await fetchPublishedFestivalTermsVersion();
+  if (publishedVersionId == null) {
+    return {
+      success: false as const,
+      message: NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE,
+    };
+  }
+
   for (const userId of [...new Set(participantIds)]) {
     const participation = await tx.query.userRequests.findFirst({
       where: and(
@@ -64,7 +72,7 @@ async function rejectIfTermsStale(
       ),
       columns: { termsVersionId: true },
     });
-    if (!publishedTerms || participation?.termsVersionId !== publishedTerms.id) {
+    if (participation?.termsVersionId !== publishedVersionId) {
       return {
         success: false as const,
         message: STALE_TERMS_MESSAGE,
@@ -157,6 +165,7 @@ export async function createStandHold(
   }
 
   try {
+    const publishedTerms = await fetchPublishedFestivalTermsVersion();
     const result = await db.transaction(async (tx) => {
       const [stand] = await tx
         .select({
@@ -197,6 +206,7 @@ export async function createStandHold(
         actor,
         [userId],
         festivalId,
+        publishedTerms?.id ?? null,
         tx,
       );
       if (staleTerms) return staleTerms;
@@ -356,6 +366,7 @@ export async function confirmStandHold(
   }
 
   try {
+    const publishedTerms = await fetchPublishedFestivalTermsVersion();
     const result = await db.transaction(async (tx) => {
       // Validate the hold is still active
       const [hold] = await tx
@@ -407,6 +418,7 @@ export async function confirmStandHold(
         actor,
         participantIds,
         hold.festivalId,
+        publishedTerms?.id ?? null,
         tx,
       );
       if (staleTerms) return staleTerms;

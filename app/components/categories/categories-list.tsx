@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import StatusDot from "@/app/components/atoms/status-dot";
@@ -252,12 +252,14 @@ export default function CategoriesList({ categories }: CategoriesListProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [items, setItems] = useState(categories);
+  const [previousCategories, setPreviousCategories] = useState(categories);
   const [pendingId, setPendingDelete] = useState<AdminCategory | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
+  if (categories !== previousCategories) {
+    setPreviousCategories(categories);
     setItems(categories);
-  }, [categories]);
+  }
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();

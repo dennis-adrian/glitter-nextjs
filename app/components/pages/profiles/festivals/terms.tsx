@@ -48,7 +48,8 @@ export default async function TermsPage(props: TermsPageProps) {
     );
   }
 
-  const canAcceptTerms = festival.status === "active";
+  const canAcceptTerms =
+    festival.status === "active" && isFestivalParticipantTermsEnabled(festival);
 
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) notFound();

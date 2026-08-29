@@ -69,6 +69,9 @@ export function needsFestivalTermsReacceptance(
   return request.termsVersionId !== currentVersionId;
 }
 
+export const NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE =
+  "No hay una versión publicada de los términos y condiciones. Intentá de nuevo más tarde.";
+
 export type EnrollmentTermsWrite =
   | { type: "error"; message: string }
   | { type: "insert" }
@@ -82,8 +85,7 @@ export function nextEnrollmentTermsWrite(
   if (publishedVersionId == null) {
     return {
       type: "error",
-      message:
-        "No hay una versión publicada de los términos y condiciones. Intentá de nuevo más tarde.",
+      message: NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE,
     };
   }
   if (!existing) return { type: "insert" };

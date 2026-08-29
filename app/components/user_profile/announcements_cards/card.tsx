@@ -27,10 +27,6 @@ export default async function Card({ profile }: { profile: ProfileType }) {
   const festival = await fetchFestival({});
   if (!festival) return null;
 
-  if (!isFestivalParticipantTermsEnabled(festival)) {
-    return null;
-  }
-
   if (await profileNeedsTermsReacceptance(festival, profile)) {
     return (
       <TermsCard festival={festival} profile={profile} isReacceptance />
@@ -65,7 +61,11 @@ export default async function Card({ profile }: { profile: ProfileType }) {
     }
 
     return <ReserveStandCard festival={festival} profile={profile} />;
-  } else {
+  }
+
+  if (isFestivalParticipantTermsEnabled(festival)) {
     return <TermsCard festival={festival} profile={profile} />;
   }
+
+  return null;
 }

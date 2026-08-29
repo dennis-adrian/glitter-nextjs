@@ -148,13 +148,16 @@ export async function ensureDefaultFestivalTerms() {
       if (published) return published;
     }
 
-    const [document] =
-      current != null
-        ? [current]
-        : await tx
-            .insert(festivalTermsDocuments)
-            .values({ slug: FESTIVAL_TERMS_DOCUMENT_SLUG })
-            .returning();
+    let document = current;
+    if (!document) {
+      await tx
+        .insert(festivalTermsDocuments)
+        .values({ slug: FESTIVAL_TERMS_DOCUMENT_SLUG })
+        .onConflictDoNothing({ target: festivalTermsDocuments.slug });
+      document = await tx.query.festivalTermsDocuments.findFirst({
+        where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
+      });
+    }
 
     if (!document) {
       throw new Error("No se pudo crear el documento de términos");

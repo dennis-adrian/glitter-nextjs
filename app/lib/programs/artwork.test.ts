@@ -20,6 +20,10 @@ describe("isAllowedProgramArtworkUrl", () => {
     "/img\\windows.png",
     "/api/foo",
     "https://example.com/banner.jpg",
+    "/img/../secret",
+    "/img/foo/../../etc/passwd",
+    "/img/%2e%2e/secret",
+    "/img/%2e%2e%2fsecret",
   ])("rejects unsafe or remote-disallowed URLs: %s", (url) => {
     expect(isAllowedProgramArtworkUrl(url)).toBe(false);
   });

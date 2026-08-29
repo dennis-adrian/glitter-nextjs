@@ -8,14 +8,37 @@ const ALLOWED_REMOTE_ARTWORK_HOSTS = new Set([
   "ufs.sh",
 ]);
 
+const LOCAL_ARTWORK_ORIGIN = "https://glitter.invalid";
+
+function isAllowedLocalArtworkPath(input: string): boolean {
+  if (input.includes("\\") || input.includes(":")) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(input, LOCAL_ARTWORK_ORIGIN);
+    if (parsed.origin !== LOCAL_ARTWORK_ORIGIN) {
+      return false;
+    }
+
+    const decodedPathname = decodeURIComponent(parsed.pathname);
+    const normalizedPathname = new URL(decodedPathname, LOCAL_ARTWORK_ORIGIN)
+      .pathname;
+
+    return normalizedPathname.startsWith("/img/");
+  } catch {
+    return false;
+  }
+}
+
 export function isAllowedProgramArtworkUrl(
   input: string | null | undefined,
 ): input is string {
   if (!input) return false;
 
   // Same-origin public assets (Storybook mocks, placeholders under /img/...).
-  if (input.startsWith("/img/") && !input.startsWith("//")) {
-    return !input.includes("\\") && !input.includes(":");
+  if (isAllowedLocalArtworkPath(input)) {
+    return true;
   }
 
   try {

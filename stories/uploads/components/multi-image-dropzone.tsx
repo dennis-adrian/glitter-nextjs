@@ -74,10 +74,16 @@ export function MultiImageDropzone({
     }
 
     const accepted: SelectedImage[] = [];
+    const messages: string[] = [];
+    if (files.length > availableSlots) {
+      messages.push(
+        `Solo se añadieron ${availableSlots} de ${files.length} imágenes.`,
+      );
+    }
     for (const file of files.slice(0, availableSlots)) {
       const validationError = validateImage(file, maxSize);
       if (validationError) {
-        setError(`${file.name}: ${validationError}`);
+        messages.push(`${file.name}: ${validationError}`);
         continue;
       }
       const previewUrl = URL.createObjectURL(file);
@@ -85,12 +91,8 @@ export function MultiImageDropzone({
       accepted.push({ file, previewUrl });
     }
 
-    if (files.length > availableSlots) {
-      setError(
-        `Solo se añadieron ${availableSlots} de ${files.length} imágenes.`,
-      );
-    } else if (accepted.length > 0) {
-      setError(undefined);
+    if (messages.length > 0) {
+      setError(messages.join(" "));
     }
 
     setSelected((current) => [...current, ...accepted]);

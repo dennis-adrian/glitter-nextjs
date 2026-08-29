@@ -1,7 +1,11 @@
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { pool, db } from "@/db";
 
-import { backfillCategoryCatalog } from "./backfill-categories";
+import {
+  backfillCategoryCatalog,
+  categoryCatalogBackfillCompleted,
+  markCategoryCatalogBackfillCompleted,
+} from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
 import { ensureDefaultFestivalTerms } from "@/app/lib/festival-terms/persist";
 
@@ -45,8 +49,6 @@ async function ensureProductSlugConstraints() {
   }
 }
 
-const CATEGORY_CATALOG_BACKFILL = "0236_manageable_categories";
-
 async function catalogMigrationPending(): Promise<boolean> {
   const client = await pool.connect();
   try {
@@ -57,48 +59,6 @@ async function catalogMigrationPending(): Promise<boolean> {
          AND column_name = 'description_json'`,
     );
     return col.rows.length === 0;
-  } finally {
-    client.release();
-  }
-}
-
-async function ensureCategoryCatalogBackfillMarker() {
-  const client = await pool.connect();
-  try {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS category_catalog_backfill (
-        name text PRIMARY KEY,
-        completed_at timestamp NOT NULL DEFAULT now()
-      )
-    `);
-  } finally {
-    client.release();
-  }
-}
-
-async function categoryCatalogBackfillCompleted(): Promise<boolean> {
-  await ensureCategoryCatalogBackfillMarker();
-  const client = await pool.connect();
-  try {
-    const { rows } = await client.query(
-      `SELECT 1 FROM category_catalog_backfill WHERE name = $1`,
-      [CATEGORY_CATALOG_BACKFILL],
-    );
-    return rows.length > 0;
-  } finally {
-    client.release();
-  }
-}
-
-async function markCategoryCatalogBackfillCompleted() {
-  await ensureCategoryCatalogBackfillMarker();
-  const client = await pool.connect();
-  try {
-    await client.query(
-      `INSERT INTO category_catalog_backfill (name) VALUES ($1)
-       ON CONFLICT (name) DO NOTHING`,
-      [CATEGORY_CATALOG_BACKFILL],
-    );
   } finally {
     client.release();
   }

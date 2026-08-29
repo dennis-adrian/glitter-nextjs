@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import { db } from "@/db";
+import { db, pool } from "@/db";
 import { subcategories } from "@/db/schema";
 import {
   HARDCODED_CATEGORY_COPY,
@@ -14,6 +14,50 @@ import {
   normalizeCategoryLabel,
 } from "@/app/lib/categories/label";
 
+export const CATEGORY_CATALOG_BACKFILL = "0236_manageable_categories";
+
+export async function ensureCategoryCatalogBackfillMarker() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS category_catalog_backfill (
+        name text PRIMARY KEY,
+        completed_at timestamp NOT NULL DEFAULT now()
+      )
+    `);
+  } finally {
+    client.release();
+  }
+}
+
+export async function categoryCatalogBackfillCompleted(): Promise<boolean> {
+  await ensureCategoryCatalogBackfillMarker();
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT 1 FROM category_catalog_backfill WHERE name = $1`,
+      [CATEGORY_CATALOG_BACKFILL],
+    );
+    return rows.length > 0;
+  } finally {
+    client.release();
+  }
+}
+
+export async function markCategoryCatalogBackfillCompleted() {
+  await ensureCategoryCatalogBackfillMarker();
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO category_catalog_backfill (name) VALUES ($1)
+       ON CONFLICT (name) DO NOTHING`,
+      [CATEGORY_CATALOG_BACKFILL],
+    );
+  } finally {
+    client.release();
+  }
+}
+
 export async function backfillCategoryCatalog() {
   const rows = await db.select().from(subcategories);
   const unmatched = unmatchedHardcodedTitles(rows);
@@ -24,37 +68,50 @@ export async function backfillCategoryCatalog() {
     );
   }
 
+  const alreadyClassified = await categoryCatalogBackfillCompleted();
+
   for (const row of rows) {
     const seed = findSeedCopy(row.label, row.category);
-    const isExclusive =
-      labelContainsNormalized(row.label, "skincare") ||
-      labelContainsNormalized(row.label, "skin care");
-    const isAdminAssignableOnly = labelContainsNormalized(
-      row.label,
-      "sublimacion",
-    );
-
     const patch: {
-      isExclusive: boolean;
-      isAdminAssignableOnly: boolean;
+      isExclusive?: boolean;
+      isAdminAssignableOnly?: boolean;
       visibility?: "listed";
       descriptionHtml?: string;
       descriptionJson?: unknown;
       updatedAt: Date;
     } = {
-      isExclusive,
-      isAdminAssignableOnly,
       updatedAt: new Date(),
     };
 
-    if (isAdminAssignableOnly) {
-      patch.visibility = "listed";
+    if (!alreadyClassified) {
+      const isExclusive =
+        labelContainsNormalized(row.label, "skincare") ||
+        labelContainsNormalized(row.label, "skin care");
+      const isAdminAssignableOnly = labelContainsNormalized(
+        row.label,
+        "sublimacion",
+      );
+
+      patch.isExclusive = isExclusive;
+      patch.isAdminAssignableOnly = isAdminAssignableOnly;
+      if (isAdminAssignableOnly) {
+        patch.visibility = "listed";
+      }
     }
 
     if (seed && !row.descriptionHtml) {
       patch.descriptionHtml =
         seed.htmlOverride ?? paragraphsToHtml(seed.paragraphs);
       patch.descriptionJson = paragraphsToCompactBlocks(seed.paragraphs);
+    }
+
+    if (
+      patch.isExclusive === undefined &&
+      patch.isAdminAssignableOnly === undefined &&
+      patch.visibility === undefined &&
+      patch.descriptionHtml === undefined
+    ) {
+      continue;
     }
 
     await db

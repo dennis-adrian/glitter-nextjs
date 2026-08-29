@@ -8,6 +8,7 @@ import { twMerge } from "tailwind-merge";
 import { UploadButton } from "@/app/vendors/uploadthing";
 
 export type ImageUploadEndpoint =
+  | "bannerImage"
   | "externalParticipantImage"
   | "imageUploader"
   | "profilePicture"

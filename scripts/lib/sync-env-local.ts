@@ -59,7 +59,8 @@ export const ENV_KEY_ORDER = [
   "PLAYWRIGHT_ADMIN_STORAGE_STATE",
 ] as const;
 
-const PLACEHOLDER_RE = /placeholder|_not_real/i;
+/** Fabricated values of the form `*_placeholder_not_real` — never a substring match. */
+const PLACEHOLDER_RE = /(?:^|_)placeholder_not_real$/i;
 
 export function isCloudAgentEnv(
   env: NodeJS.Dict<string> = process.env,
@@ -70,13 +71,12 @@ export function isCloudAgentEnv(
 }
 
 export function isPlaceholderValue(value: string | undefined): boolean {
-  if (value == null) return true;
-  const trimmed = value.trim();
-  if (trimmed === "") return true;
-  return PLACEHOLDER_RE.test(trimmed);
+  if (value == null) return false;
+  return PLACEHOLDER_RE.test(value.trim());
 }
 
 export function isUsableSecretValue(value: string | undefined): boolean {
+  if (value == null || value.trim() === "") return false;
   return !isPlaceholderValue(value);
 }
 
@@ -115,6 +115,17 @@ export function cloudSecretNames(env: NodeJS.Dict<string> = process.env): string
     }
   }
   return [...names];
+}
+
+function managedSyncKeys(
+  processEnv: NodeJS.Dict<string>,
+  fileValues: Record<string, string> = {},
+): Set<string> {
+  return new Set<string>([
+    ...ENV_KEY_ORDER,
+    ...cloudSecretNames(processEnv),
+    ...Object.keys(fileValues),
+  ]);
 }
 
 /** Decode escapes produced by `encodeEnvValue` (`\\`, `\"`, `\\n`). */
@@ -272,20 +283,23 @@ export function envForChildProcess(
   fileValues: Record<string, string>,
   processEnv: NodeJS.Dict<string> = process.env,
 ): Record<string, string> {
+  const managedKeys = managedSyncKeys(processEnv, fileValues);
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(processEnv)) {
     if (value == null) continue;
-    if (isPlaceholderValue(value) && isUsableSecretValue(fileValues[key])) {
-      env[key] = fileValues[key]!;
+    if (managedKeys.has(key) && isPlaceholderValue(value)) {
+      if (isUsableSecretValue(fileValues[key])) {
+        env[key] = fileValues[key]!;
+      }
       continue;
     }
-    if (isPlaceholderValue(value)) continue;
     env[key] = value;
   }
   for (const [key, value] of Object.entries(fileValues)) {
-    if (!isUsableSecretValue(env[key]) && isUsableSecretValue(value)) {
-      env[key] = value;
-    }
+    if (!isUsableSecretValue(value)) continue;
+    const current = env[key];
+    if (current !== undefined && !isPlaceholderValue(current)) continue;
+    env[key] = value;
   }
   if (isCloudAgentEnv(processEnv)) {
     applyLocalPostgresDefaults(env, processEnv);
@@ -355,17 +369,22 @@ export function applySyncedEnvToProcess(options?: {
   const fileValues = existsSync(result.path)
     ? parseEnvFile(readFileSync(result.path, "utf8"))
     : {};
+  const managedKeys = managedSyncKeys(processEnv, fileValues);
 
   for (const [key, value] of Object.entries(target)) {
-    if (typeof value === "string" && isPlaceholderValue(value)) {
+    if (
+      managedKeys.has(key) &&
+      typeof value === "string" &&
+      isPlaceholderValue(value)
+    ) {
       delete target[key];
     }
   }
   for (const [key, value] of Object.entries(fileValues)) {
     if (!isUsableSecretValue(value)) continue;
-    if (!isUsableSecretValue(target[key])) {
-      target[key] = value;
-    }
+    const current = target[key];
+    if (current !== undefined && !isPlaceholderValue(current)) continue;
+    target[key] = value;
   }
   if (result.cloudAgent || isCloudAgentEnv(target)) {
     applyLocalPostgresDefaults(target as Record<string, string>, processEnv);

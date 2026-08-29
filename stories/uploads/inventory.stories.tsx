@@ -38,7 +38,7 @@ const components = [
   {
     name: "BannerImageUpload",
     kind: "Reusable form control",
-    endpoint: "imageUploader",
+    endpoint: "bannerImage",
     location: "app/components/uploads/banner-image-upload.tsx",
   },
   {

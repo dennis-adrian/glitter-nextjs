@@ -5,7 +5,15 @@ USING (
 		SELECT id,
 			ROW_NUMBER() OVER (
 				PARTITION BY user_id, festival_id, type
-				ORDER BY updated_at DESC, created_at DESC, id DESC
+				ORDER BY
+					CASE status
+						WHEN 'accepted' THEN 0
+						WHEN 'pending' THEN 1
+						ELSE 2
+					END,
+					updated_at DESC,
+					created_at DESC,
+					id DESC
 			) AS rn
 		FROM "user_requests"
 		WHERE festival_id IS NOT NULL

@@ -29,6 +29,20 @@ function revalidateCategoryPaths() {
   revalidatePath("/dashboard/categories");
 }
 
+async function cleanupCategoryImage(url: string) {
+  try {
+    const result = await deleteFile(url);
+    if (!result.success) {
+      console.error("Failed to delete category image from storage", {
+        url,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to delete category image from storage", error);
+  }
+}
+
 async function nextSortOrder(area: ManagementArea): Promise<number> {
   const [row] = await db
     .select({
@@ -142,18 +156,6 @@ export async function updateCategory(id: number, input: unknown) {
         updatedAt: new Date(),
       })
       .where(eq(subcategories.id, id));
-
-    const previousImage = existing.imageUrl;
-    const nextImage = data.imageUrl || null;
-    if (previousImage && previousImage !== nextImage) {
-      await deleteFile(previousImage);
-    }
-
-    revalidateCategoryPaths();
-    return {
-      success: true as const,
-      message: "Categoría actualizada correctamente",
-    };
   } catch (error) {
     console.error("Error updating category", error);
     if (isUniqueViolation(error)) {
@@ -167,6 +169,18 @@ export async function updateCategory(id: number, input: unknown) {
       message: "Error al actualizar la categoría",
     };
   }
+
+  const previousImage = existing.imageUrl;
+  const nextImage = data.imageUrl || null;
+  if (previousImage && previousImage !== nextImage) {
+    await cleanupCategoryImage(previousImage);
+  }
+
+  revalidateCategoryPaths();
+  return {
+    success: true as const,
+    message: "Categoría actualizada correctamente",
+  };
 }
 
 export async function setCategoryVisibility(
@@ -238,8 +252,9 @@ export async function deleteCategory(id: number) {
     return { success: false as const, message: "No autorizado" };
   }
 
+  let result;
   try {
-    const result = await db.transaction(async (tx) => {
+    result = await db.transaction(async (tx) => {
       const current = await loadCategoryWithCounts(id, tx);
       if (!current) {
         return { success: false as const, message: "La categoría no existe" };
@@ -265,22 +280,22 @@ export async function deleteCategory(id: number) {
         label: current.label,
       };
     });
-
-    if (!result.success) {
-      return result;
-    }
-
-    if (result.imageUrl) {
-      await deleteFile(result.imageUrl);
-    }
-
-    revalidateCategoryPaths();
-    return {
-      success: true as const,
-      message: `Se eliminó ${result.label}`,
-    };
   } catch (error) {
     console.error("Error deleting category", error);
     return { success: false as const, message: "Error al eliminar la categoría" };
   }
+
+  if (!result.success) {
+    return result;
+  }
+
+  if (result.imageUrl) {
+    await cleanupCategoryImage(result.imageUrl);
+  }
+
+  revalidateCategoryPaths();
+  return {
+    success: true as const,
+    message: `Se eliminó ${result.label}`,
+  };
 }

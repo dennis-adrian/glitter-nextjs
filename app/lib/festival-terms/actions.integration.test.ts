@@ -206,8 +206,13 @@ describeDatabase("festival terms draft save concurrency", () => {
         eq(festivalTermsVersions.status, "published"),
       ),
     });
+    if (!previousPublished) {
+      throw new Error(
+        "Expected a published festival terms version before mutating it.",
+      );
+    }
     restoreDocumentId = document.id;
-    seedPublishedIdToRestore = previousPublished?.id ?? null;
+    seedPublishedIdToRestore = previousPublished.id;
 
     await db
       .update(festivalTermsVersions)
