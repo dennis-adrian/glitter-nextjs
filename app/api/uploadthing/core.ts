@@ -22,6 +22,17 @@ const f = createUploadthing();
 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
+  festivalArtwork: f({
+    image: { maxFileSize: "4MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const profile = await requireAdminOrFestivalAdmin();
+      if (!profile) throw new UploadThingError("No autorizado");
+      return { userId: profile.id };
+    })
+    .onUploadComplete(({ file }) => ({
+      imageUrl: (file as { url: string }).url,
+    })),
   landingPageImageUploader: f({
     image: { maxFileSize: "4MB", maxFileCount: 1 },
   })
