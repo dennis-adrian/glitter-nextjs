@@ -10,6 +10,7 @@ import {
   CarouselContent,
   CarouselItem,
 } from "@/app/components/ui/carousel";
+import SmoothScrollLink from "@/app/components/ui/smooth-scroll-link";
 import type { MarketingBannerRow } from "@/app/lib/marketing_banners/definitions";
 import { resolveSlideImages } from "@/app/lib/marketing_banners/resolve-slide-images";
 
@@ -70,6 +71,40 @@ function SlideImages({
   );
 }
 
+function BannerLink({
+  banner,
+  children,
+}: {
+  banner: MarketingBannerRow;
+  children: React.ReactNode;
+}) {
+  const commonProps = {
+    className: linkFrameClass,
+    "aria-label": slideAlt(banner),
+  };
+
+  if (banner.href.startsWith("#") && banner.href.length > 1) {
+    return (
+      <SmoothScrollLink {...commonProps} targetId={banner.href.slice(1)}>
+        {children}
+      </SmoothScrollLink>
+    );
+  }
+
+  return (
+    <Link
+      {...commonProps}
+      href={banner.href}
+      prefetch={false}
+      {...(banner.openInNewTab
+        ? { target: "_blank", rel: "noopener noreferrer" }
+        : {})}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export default function MarketingBannerCarousel({ banners }: Props) {
   const plugin = useRef(
     Autoplay({ delay: 5500, stopOnInteraction: true, stopOnMouseEnter: true }),
@@ -88,17 +123,9 @@ export default function MarketingBannerCarousel({ banners }: Props) {
       <CarouselContent className="ml-0">
         {banners.map((banner, slideIndex) => (
           <CarouselItem key={banner.id} className="pl-0">
-            <Link
-              href={banner.href}
-              className={linkFrameClass}
-              aria-label={slideAlt(banner)}
-              prefetch={false}
-              {...(banner.openInNewTab
-                ? { target: "_blank", rel: "noopener noreferrer" }
-                : {})}
-            >
+            <BannerLink banner={banner}>
               <SlideImages banner={banner} slideIndex={slideIndex} />
-            </Link>
+            </BannerLink>
           </CarouselItem>
         ))}
       </CarouselContent>

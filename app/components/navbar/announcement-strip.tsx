@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import type { LandingPageContentV1 } from "@/app/lib/landing_content/definitions";
+import SmoothScrollLink from "@/app/components/ui/smooth-scroll-link";
 
 type Announcement = LandingPageContentV1["announcement"];
 type AnnouncementItem = Announcement["items"][number];
@@ -13,18 +14,32 @@ type AnnouncementItem = Announcement["items"][number];
 function AnnouncementLine({ item }: { item: AnnouncementItem }) {
   if (!item.href) return <p>{item.text}</p>;
 
-  return (
-    <Link
-      href={item.href}
-      className="inline-flex items-center justify-center gap-1 rounded-sm font-semibold underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-    >
+  const isSectionLink = item.href.startsWith("#") && item.href.length > 1;
+  const content = (
+    <>
       <span>{item.text}</span>
-      {item.href.startsWith("#") ? (
+      {isSectionLink ? (
         <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
       ) : (
         <ArrowUpRightIcon aria-hidden="true" className="size-4 shrink-0" />
       )}
       <span className="sr-only">Abrir anuncio</span>
+    </>
+  );
+  const className =
+    "inline-flex items-center justify-center gap-1 rounded-sm font-semibold underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white";
+
+  if (isSectionLink) {
+    return (
+      <SmoothScrollLink className={className} targetId={item.href.slice(1)}>
+        {content}
+      </SmoothScrollLink>
+    );
+  }
+
+  return (
+    <Link href={item.href} className={className}>
+      {content}
     </Link>
   );
 }

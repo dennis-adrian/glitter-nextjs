@@ -11,6 +11,7 @@ import Link from "next/link";
 import MarketingBannerCarousel from "@/app/components/marketing/marketing-banner-carousel";
 import PreviewLandingBar from "@/app/components/landing/preview-landing-bar";
 import { Button } from "@/app/components/ui/button";
+import SmoothScrollLink from "@/app/components/ui/smooth-scroll-link";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { formatDate } from "@/app/lib/formatters";
 import {
@@ -105,6 +106,30 @@ function DestinationArrow({ href }: { href: string }) {
   return <Icon aria-hidden="true" className="size-4" />;
 }
 
+function LandingLink({
+  children,
+  className,
+  href,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  href: string;
+}) {
+  if (href.startsWith("#") && href.length > 1) {
+    return (
+      <SmoothScrollLink className={className} targetId={href.slice(1)}>
+        {children}
+      </SmoothScrollLink>
+    );
+  }
+
+  return (
+    <Link className={className} href={href}>
+      {children}
+    </Link>
+  );
+}
+
 function Hero({
   value,
   eventHref,
@@ -134,17 +159,19 @@ function Hero({
             <div className="mt-6 flex flex-wrap items-center gap-4">
               {value.primaryCta.show ? (
                 <Button asChild size="lg" variant="cta">
-                  <Link href={href}>{value.primaryCta.label}</Link>
+                  <LandingLink href={href}>
+                    {value.primaryCta.label}
+                  </LandingLink>
                 </Button>
               ) : null}
               {value.secondaryCta.show ? (
-                <Link
+                <LandingLink
                   href={value.secondaryCta.href}
                   className="inline-flex items-center gap-1 font-semibold text-brand-primary underline-offset-4 hover:underline"
                 >
                   {value.secondaryCta.label}
                   <DestinationArrow href={value.secondaryCta.href} />
-                </Link>
+                </LandingLink>
               ) : null}
             </div>
           ) : null}
@@ -310,17 +337,17 @@ function Event({
                     variant="cta"
                     className="w-full gap-2 sm:w-fit"
                   >
-                    <Link href={resolveCtaHref(value.primaryCta)!}>
+                    <LandingLink href={resolveCtaHref(value.primaryCta)!}>
                       {value.primaryCta.label}
                       <DestinationArrow
                         href={resolveCtaHref(value.primaryCta)!}
                       />
-                    </Link>
+                    </LandingLink>
                   </Button>
                 ) : null}
                 {value.secondaryCta.show &&
                 resolveCtaHref(value.secondaryCta) ? (
-                  <Link
+                  <LandingLink
                     href={resolveCtaHref(value.secondaryCta)!}
                     className="inline-flex min-h-12 w-full items-center justify-center gap-1 font-semibold text-brand-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary sm:w-fit"
                   >
@@ -328,7 +355,7 @@ function Event({
                     <DestinationArrow
                       href={resolveCtaHref(value.secondaryCta)!}
                     />
-                  </Link>
+                  </LandingLink>
                 ) : null}
               </div>
             ) : null}
@@ -372,13 +399,13 @@ function Audience({
                 {card.description}
               </p>
               {card.cta.show ? (
-                <Link
+                <LandingLink
                   href={card.cta.href}
                   className="mt-4 inline-flex w-fit items-center gap-1 text-sm font-semibold text-brand-coral underline-offset-4 hover:underline"
                 >
                   {card.cta.label}
                   <DestinationArrow href={card.cta.href} />
-                </Link>
+                </LandingLink>
               ) : null}
             </article>
           ))}
@@ -512,13 +539,13 @@ function Family({
                     {card.description}
                   </p>
                   {card.showCta && href ? (
-                    <Link
+                    <LandingLink
                       href={href}
                       className={`mt-7 inline-flex min-h-12 items-center gap-1 rounded-full px-6 py-3 text-sm font-bold transition-[background-color,transform] hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current motion-reduce:transform-none ${theme.cta}`}
                     >
                       {theme.ctaLabel}
                       <ArrowUpRightIcon className="size-4" aria-hidden="true" />
-                    </Link>
+                    </LandingLink>
                   ) : null}
                 </div>
 
@@ -755,9 +782,9 @@ function FooterList({
       <ul className="mt-3 space-y-3 text-sm text-brand-neutral">
         {links.map((link) => (
           <li key={`${link.label}-${link.href}`}>
-            <Link href={link.href} className="hover:text-brand-primary">
+            <LandingLink href={link.href} className="hover:text-brand-primary">
               {link.label}
-            </Link>
+            </LandingLink>
           </li>
         ))}
       </ul>
