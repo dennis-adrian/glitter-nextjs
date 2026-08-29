@@ -1328,66 +1328,126 @@ export default function LandingEditor({
           </AccordionItem>
           <AccordionItem value="event">
             <AccordionTrigger>Próximo evento</AccordionTrigger>
-            <AccordionContent className="grid gap-4 md:grid-cols-2">
-              <Field
-                label="Texto del botón"
-                name="sections.eventSpotlight.primaryCtaLabel"
-                register={register}
-              />
-              <Toggle
-                label="Mostrar botón"
-                checked={content.sections.eventSpotlight.showCta}
-                onChange={(value) =>
-                  setValue("sections.eventSpotlight.showCta", value, {
-                    shouldDirty: true,
-                  })
-                }
-                help="Ocultalo hasta que el evento tenga un destino listo."
-              />
-              <label className="grid gap-1.5">
-                <span className="text-sm font-medium">Fuente</span>
-                <select
-                  className="h-10 rounded-md border bg-background px-3"
-                  value={content.sections.eventSpotlight.source}
-                  onChange={(event) => {
-                    const source = event.target.value as "active" | "selected";
-                    setValue("sections.eventSpotlight.source", source, {
-                      shouldDirty: true,
-                    });
-                    if (source === "active") {
-                      setValue("sections.eventSpotlight.festivalId", null, {
-                        shouldDirty: true,
-                      });
-                    }
-                  }}
-                >
-                  <option value="active">Festival activo automático</option>
-                  <option value="selected">Festival seleccionado</option>
-                </select>
-              </label>
-              {content.sections.eventSpotlight.source === "selected" ? (
+            <AccordionContent className="space-y-5">
+              <p className="text-sm text-muted-foreground">
+                Mostrá hasta dos acciones. Cada una puede llevar a la página, la
+                inscripción o un enlace personalizado.
+              </p>
+              <div className="grid gap-4 xl:grid-cols-2">
+                {(["primaryCta", "secondaryCta"] as const).map((ctaKey) => {
+                  const cta = content.sections.eventSpotlight[ctaKey];
+                  const name =
+                    ctaKey === "primaryCta"
+                      ? "CTA principal"
+                      : "CTA secundario";
+                  return (
+                    <fieldset
+                      key={ctaKey}
+                      className="grid gap-4 rounded-xl border p-4"
+                    >
+                      <legend className="px-1 font-medium">{name}</legend>
+                      <Toggle
+                        label={`Mostrar ${name}`}
+                        checked={cta.show}
+                        onChange={(value) =>
+                          setValue(
+                            `sections.eventSpotlight.${ctaKey}.show`,
+                            value,
+                            { shouldDirty: true },
+                          )
+                        }
+                        help="Podés ocultarlo sin perder su configuración."
+                      />
+                      <Field
+                        label="Texto del botón"
+                        name={`sections.eventSpotlight.${ctaKey}.label`}
+                        register={register}
+                      />
+                      <label className="grid gap-1.5">
+                        <span className="text-sm font-medium">Destino</span>
+                        <select
+                          className="h-10 rounded-md border bg-background px-3"
+                          value={cta.destination}
+                          onChange={(event) =>
+                            setValue(
+                              `sections.eventSpotlight.${ctaKey}.destination`,
+                              event.target.value as typeof cta.destination,
+                              { shouldDirty: true },
+                            )
+                          }
+                        >
+                          <option value="registration">Inscripción</option>
+                          <option value="festival">Página del festival</option>
+                          <option value="custom">Enlace personalizado</option>
+                        </select>
+                      </label>
+                      {cta.destination === "custom" ? (
+                        <>
+                          <Field
+                            label="Enlace personalizado"
+                            name={`sections.eventSpotlight.${ctaKey}.href`}
+                            register={register}
+                            description="Podés usar una ruta, URL o sección de inicio."
+                          />
+                          <SectionLinkPicker
+                            href={cta.href}
+                            name={`sections.eventSpotlight.${ctaKey}.href`}
+                            setValue={setValue}
+                          />
+                        </>
+                      ) : null}
+                    </fieldset>
+                  );
+                })}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-1.5">
-                  <span className="text-sm font-medium">Festival</span>
+                  <span className="text-sm font-medium">Fuente</span>
                   <select
                     className="h-10 rounded-md border bg-background px-3"
-                    {...register("sections.eventSpotlight.festivalId", {
-                      setValueAs: (value) => (value ? Number(value) : null),
-                    })}
+                    value={content.sections.eventSpotlight.source}
+                    onChange={(event) => {
+                      const source = event.target.value as
+                        | "active"
+                        | "selected";
+                      setValue("sections.eventSpotlight.source", source, {
+                        shouldDirty: true,
+                      });
+                      if (source === "active") {
+                        setValue("sections.eventSpotlight.festivalId", null, {
+                          shouldDirty: true,
+                        });
+                      }
+                    }}
                   >
-                    <option value="">Elegí un festival</option>
-                    {festivals.map((festival) => (
-                      <option key={festival.id} value={festival.id}>
-                        {festival.name} · {festival.status}
-                      </option>
-                    ))}
+                    <option value="active">Festival activo automático</option>
+                    <option value="selected">Festival seleccionado</option>
                   </select>
                 </label>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Se muestra el festival activo. Si no hay uno, la sección se
-                  oculta.
-                </p>
-              )}
+                {content.sections.eventSpotlight.source === "selected" ? (
+                  <label className="grid gap-1.5">
+                    <span className="text-sm font-medium">Festival</span>
+                    <select
+                      className="h-10 rounded-md border bg-background px-3"
+                      {...register("sections.eventSpotlight.festivalId", {
+                        setValueAs: (value) => (value ? Number(value) : null),
+                      })}
+                    >
+                      <option value="">Elegí un festival</option>
+                      {festivals.map((festival) => (
+                        <option key={festival.id} value={festival.id}>
+                          {festival.name} · {festival.status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Se muestra el festival activo. Si no hay uno, la sección se
+                    oculta.
+                  </p>
+                )}
+              </div>
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="audience">

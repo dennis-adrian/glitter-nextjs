@@ -117,8 +117,18 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
       enabled: true,
       source: "active",
       festivalId: null,
-      primaryCtaLabel: "Reservá tu lugar",
-      showCta: true,
+      primaryCta: {
+        label: "Reservá tu lugar",
+        destination: "registration",
+        href: null,
+        show: true,
+      },
+      secondaryCta: {
+        label: "Ver festival",
+        destination: "festival",
+        href: null,
+        show: false,
+      },
     },
     audience: {
       enabled: true,

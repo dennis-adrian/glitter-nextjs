@@ -15,6 +15,12 @@ export type LandingSectionBackground = "default" | "none" | "purple" | "coral";
 
 export type LinkContent = { label: string; href: string };
 export type CardCtaContent = LinkContent & { show: boolean };
+export type EventCtaContent = {
+  label: string;
+  destination: "festival" | "registration" | "custom";
+  href: string | null;
+  show: boolean;
+};
 export type ImageContent = {
   url: string;
   alt: string;
@@ -52,8 +58,8 @@ export type LandingPageContentV1 = {
       enabled: boolean;
       source: "active" | "selected";
       festivalId: number | null;
-      primaryCtaLabel: string;
-      showCta: boolean;
+      primaryCta: EventCtaContent;
+      secondaryCta: EventCtaContent;
     };
     audience: {
       enabled: boolean;

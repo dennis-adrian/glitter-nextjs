@@ -40,6 +40,22 @@ const cardCta = z.strictObject({
   href: safeHref,
   show: z.boolean().default(true),
 });
+const eventCta = z
+  .strictObject({
+    label: text(120),
+    destination: z.enum(["festival", "registration", "custom"]),
+    href: nullableHref,
+    show: z.boolean().default(true),
+  })
+  .superRefine((value, ctx) => {
+    if (value.destination === "custom" && value.href === null) {
+      ctx.addIssue({
+        code: "custom",
+        message: "El enlace personalizado requiere una URL o ruta",
+        path: ["href"],
+      });
+    }
+  });
 const sectionBackground = z.enum(["default", "none", "purple", "coral"]);
 const defaultSectionBackgrounds = {
   marketing_banners: "default",
@@ -91,6 +107,59 @@ const announcement = z.preprocess(
     .default({ display: "stacked", rotationIntervalSeconds: 6, items: [] }),
 );
 
+const eventSpotlight = z.preprocess(
+  (value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return value;
+    }
+    const record = value as Record<string, unknown>;
+    if ("primaryCta" in record || "secondaryCta" in record) return value;
+
+    const { primaryCtaLabel, showCta, ...rest } = record;
+    const label =
+      typeof primaryCtaLabel === "string" && primaryCtaLabel.trim()
+        ? primaryCtaLabel
+        : "Reservá tu lugar";
+    const show = typeof showCta === "boolean" ? showCta : true;
+    const destination =
+      label.trim().toLowerCase() === "ver festival"
+        ? "festival"
+        : "registration";
+    return {
+      ...rest,
+      primaryCta: {
+        label,
+        destination,
+        href: null,
+        show,
+      },
+      secondaryCta: {
+        label: "Ver festival",
+        destination: "festival",
+        href: null,
+        show: false,
+      },
+    };
+  },
+  z
+    .strictObject({
+      enabled: z.boolean(),
+      source: z.enum(["active", "selected"]),
+      festivalId: z.number().int().positive().nullable(),
+      primaryCta: eventCta,
+      secondaryCta: eventCta,
+    })
+    .superRefine((value, ctx) => {
+      if ((value.source === "selected") !== (value.festivalId !== null))
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "La fuente seleccionada requiere un festival y la automática no admite uno",
+          path: ["festivalId"],
+        });
+    }),
+);
+
 export const landingPageContentSchema = z.strictObject({
   schemaVersion: z.literal(1),
   announcement,
@@ -126,23 +195,7 @@ export const landingPageContentSchema = z.strictObject({
     .default(defaultSectionBackgrounds),
   sections: z.strictObject({
     marketingBanners: z.strictObject({ enabled: z.boolean() }),
-    eventSpotlight: z
-      .strictObject({
-        enabled: z.boolean(),
-        source: z.enum(["active", "selected"]),
-        festivalId: z.number().int().positive().nullable(),
-        primaryCtaLabel: text(120),
-        showCta: z.boolean().default(true),
-      })
-      .superRefine((value, ctx) => {
-        if ((value.source === "selected") !== (value.festivalId !== null))
-          ctx.addIssue({
-            code: "custom",
-            message:
-              "La fuente seleccionada requiere un festival y la automática no admite uno",
-            path: ["festivalId"],
-          });
-      }),
+    eventSpotlight,
     audience: z.strictObject({
       enabled: z.boolean(),
       heading: text(120),

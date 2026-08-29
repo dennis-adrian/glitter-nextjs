@@ -191,6 +191,13 @@ function Event({
     festival.publicRegistration && festival.status === "active"
       ? `${href}/registration`
       : href;
+  const resolveCtaHref = (
+    cta: LandingPageContentV1["sections"]["eventSpotlight"]["primaryCta"],
+  ) => {
+    if (cta.destination === "festival") return href;
+    if (cta.destination === "registration") return register;
+    return cta.href;
+  };
   const location =
     [festival.locationLabel, festival.address].filter(Boolean).join(" · ") ||
     "Ubicación por confirmar";
@@ -212,7 +219,7 @@ function Event({
           }`}
         >
           {art ? (
-            <div className="relative isolate bg-brand-ink px-5 py-6 sm:px-8 sm:py-8 md:px-6 lg:px-8 lg:py-10">
+            <div className="relative isolate flex items-center bg-brand-ink px-5 py-6 sm:px-8 sm:py-8 md:px-6 lg:px-8 lg:py-10">
               <div className="relative mx-auto aspect-3/4 w-full max-w-[360px] overflow-hidden rounded-[16px] shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
                 <Image
                   src={art}
@@ -269,26 +276,63 @@ function Event({
                 </div>
               )}
 
-              <div className="flex min-h-28 items-center rounded-[18px] border border-brand-border bg-brand-lavender/45 px-5 py-4">
-                <p className="flex items-start gap-3 font-display text-lg font-bold leading-6 text-brand-ink sm:text-xl">
-                  <MapPinIcon className="mt-0.5 size-5 shrink-0 text-brand-primary" />
-                  <span>{location}</span>
-                </p>
+              <div className="flex min-h-28 items-center rounded-[18px] border border-brand-border bg-brand-lavender/45">
+                {festival.locationUrl ? (
+                  <a
+                    href={festival.locationUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Abrir ${location} en Maps`}
+                    className="flex min-h-28 w-full items-center gap-3 rounded-[18px] px-5 py-4 transition-colors hover:bg-brand-lavender/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+                  >
+                    <MapPinIcon className="size-5 shrink-0 text-brand-primary" />
+                    <span className="font-display text-lg font-bold leading-6 text-brand-ink sm:text-xl">
+                      {location}
+                    </span>
+                    <ArrowUpRightIcon
+                      aria-hidden="true"
+                      className="ml-auto size-4 shrink-0 text-brand-primary"
+                    />
+                  </a>
+                ) : (
+                  <p className="flex items-start gap-3 font-display text-lg font-bold leading-6 text-brand-ink sm:text-xl">
+                    <MapPinIcon className="mt-0.5 size-5 shrink-0 text-brand-primary" />
+                    <span>{location}</span>
+                  </p>
+                )}
               </div>
             </div>
 
-            {value.showCta ? (
-              <Button
-                asChild
-                size="lg"
-                variant="cta"
-                className="mt-8 w-full gap-2 sm:w-fit"
-              >
-                <Link href={register}>
-                  {value.primaryCtaLabel}
-                  <ArrowRightIcon aria-hidden="true" className="size-4" />
-                </Link>
-              </Button>
+            {value.primaryCta.show || value.secondaryCta.show ? (
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                {value.primaryCta.show && resolveCtaHref(value.primaryCta) ? (
+                  <Button
+                    asChild
+                    size="lg"
+                    variant="cta"
+                    className="w-full gap-2 sm:w-fit"
+                  >
+                    <Link href={resolveCtaHref(value.primaryCta)!}>
+                      {value.primaryCta.label}
+                      <DestinationArrow
+                        href={resolveCtaHref(value.primaryCta)!}
+                      />
+                    </Link>
+                  </Button>
+                ) : null}
+                {value.secondaryCta.show &&
+                resolveCtaHref(value.secondaryCta) ? (
+                  <Link
+                    href={resolveCtaHref(value.secondaryCta)!}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-brand-primary px-6 py-3 text-sm font-bold text-brand-primary transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-brand-lavender/60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary motion-reduce:transform-none sm:w-fit"
+                  >
+                    {value.secondaryCta.label}
+                    <DestinationArrow
+                      href={resolveCtaHref(value.secondaryCta)!}
+                    />
+                  </Link>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </article>

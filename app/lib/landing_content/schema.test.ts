@@ -88,6 +88,38 @@ describe("landing page content schema", () => {
     }
   });
 
+  it("migrates the legacy next-event CTA and validates custom destinations", () => {
+    const legacy = structuredClone(DEFAULT_LANDING_PAGE_CONTENT) as {
+      sections: { eventSpotlight: Record<string, unknown> };
+    };
+    legacy.sections.eventSpotlight = {
+      enabled: true,
+      source: "active",
+      festivalId: null,
+      primaryCtaLabel: "Ver festival",
+      showCta: false,
+    };
+
+    const migrated = parseLandingPageContent(legacy);
+    expect(migrated.success).toBe(true);
+    if (migrated.success) {
+      expect(migrated.data.sections.eventSpotlight.primaryCta).toEqual({
+        label: "Ver festival",
+        destination: "festival",
+        href: null,
+        show: false,
+      });
+      expect(migrated.data.sections.eventSpotlight.secondaryCta.show).toBe(
+        false,
+      );
+    }
+
+    const invalid = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    invalid.sections.eventSpotlight.primaryCta.destination = "custom";
+    invalid.sections.eventSpotlight.primaryCta.href = null;
+    expect(parseLandingPageContent(invalid).success).toBe(false);
+  });
+
   it("retires legacy X links from saved footer content", () => {
     const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
     content.footer.socialLinks.push({
