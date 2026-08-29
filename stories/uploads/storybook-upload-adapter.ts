@@ -1,7 +1,7 @@
 import type { ImageUploadAdapter } from "@/stories/uploads/components/upload-types";
 
 const imagePool = [
-  "/img/banner-caceria-de-sellos.png",
+  "/img/festicker-banner.png",
   "/img/glitter-mascot-with-stand.png",
   "/img/landing/mascot-comic.png",
   "/img/profile-default-banner.png",

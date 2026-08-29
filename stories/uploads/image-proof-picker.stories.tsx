@@ -10,7 +10,7 @@ const existingProof: UploadedImage = {
   id: "existing-proof",
   name: "comprobante.png",
   size: 245_000,
-  url: "/img/banner-caceria-de-sellos.png",
+  url: "/img/festicker-banner.png",
 };
 
 function ProofStory({ initialImage }: { initialImage?: UploadedImage }) {

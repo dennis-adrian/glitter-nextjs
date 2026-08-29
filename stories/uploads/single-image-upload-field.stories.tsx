@@ -12,7 +12,7 @@ function SingleImageStory({
   fit = "contain",
   initialImage,
 }: {
-  previewShape?: "circle" | "landscape" | "square";
+  previewShape?: "circle" | "landscape" | "portrait" | "square";
   fit?: ImageFit;
   initialImage?: UploadedImage;
 }) {
@@ -86,6 +86,12 @@ export const LandscapeArtwork: Story = {
       canvas.getByRole("img", { name: "Vista previa de imagen del perfil" }),
     ).toHaveAttribute("data-image-fit", "contain");
   },
+};
+
+export const PortraitPoster: Story = {
+  render: () => (
+    <SingleImageStory previewShape="portrait" initialImage={existingImage} />
+  ),
 };
 
 export const CoverReposition: Story = {

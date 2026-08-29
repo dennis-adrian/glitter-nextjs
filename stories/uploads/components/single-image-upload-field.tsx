@@ -34,7 +34,7 @@ type SingleImageUploadFieldProps = {
   confirmLabel?: string;
   accept?: string;
   maxSize?: number;
-  previewShape?: "circle" | "landscape" | "square";
+  previewShape?: "circle" | "landscape" | "portrait" | "square";
   /**
    * How the image sits in the preview frame. `contain` (default) shows the
    * whole image. `cover` fills the frame — use it for avatars and cropped
@@ -42,17 +42,20 @@ type SingleImageUploadFieldProps = {
    */
   fit?: ImageFit;
   disabled?: boolean;
+  onUploadingChange?: (isUploading: boolean) => void;
 };
 
 const previewColumnClasses = {
   circle: "w-48",
   landscape: "w-full",
+  portrait: "w-56 max-w-full",
   square: "w-48",
 } as const;
 
 const previewShapeClasses = {
   circle: "aspect-square w-full rounded-full",
   landscape: "aspect-video w-full rounded-xl",
+  portrait: "aspect-[3/4] w-full rounded-xl",
   square: "aspect-square w-full rounded-xl",
 } as const;
 
@@ -74,6 +77,7 @@ export function SingleImageUploadField({
   previewShape = "square",
   fit = "contain",
   disabled = false,
+  onUploadingChange,
 }: SingleImageUploadFieldProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -145,6 +149,7 @@ export function SingleImageUploadField({
     if (!selectedFile) return;
 
     setIsUploading(true);
+    onUploadingChange?.(true);
     setError(undefined);
     setProgress(0);
     try {
@@ -164,6 +169,7 @@ export function SingleImageUploadField({
       setError("No se pudo subir la imagen. Intentá de nuevo.");
     } finally {
       setIsUploading(false);
+      onUploadingChange?.(false);
       setProgress(0);
     }
   }

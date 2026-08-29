@@ -1,4 +1,4 @@
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Figtree, Gabarito, Inter, Space_Grotesk } from "next/font/google";
 import localFont from "next/font/local";
 
 export const junegull = localFont({
@@ -26,4 +26,16 @@ export const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-space-grotesk",
+});
+
+export const figtree = Figtree({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-figtree",
+});
+
+export const gabarito = Gabarito({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-gabarito",
 });

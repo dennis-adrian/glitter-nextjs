@@ -5,7 +5,14 @@ export function assertValidHref(
   if (!href) {
     return { ok: false, message: "La URL no puede estar vacía." };
   }
-  if (href.startsWith("/")) {
+  if (href.length > 2048 || /[\u0000-\u001f\u007f]/.test(href)) {
+    return { ok: false, message: "La URL no es válida." };
+  }
+  if (
+    ((href.startsWith("/") && !href.startsWith("//")) ||
+      href.startsWith("#")) &&
+    !href.includes("\\")
+  ) {
     if (href.length > 2048) {
       return { ok: false, message: "La URL es demasiado larga." };
     }
