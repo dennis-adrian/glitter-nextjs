@@ -150,6 +150,9 @@ export async function createStandHold(
         .for("update");
 
       if (!stand) return reservationFailure("STAND_NOT_FOUND");
+      if (stand.festivalId == null) {
+        return reservationFailure("STAND_WRONG_FESTIVAL");
+      }
 
       await reconcileExpiredHolds(tx, {
         standId: stand.id,
@@ -172,6 +175,9 @@ export async function createStandHold(
         .limit(1)
         .for("update");
       if (!freshStand) return reservationFailure("STAND_NOT_FOUND");
+      if (freshStand.festivalId == null) {
+        return reservationFailure("STAND_WRONG_FESTIVAL");
+      }
 
       const blocked = await denySelfServiceMutation(tx, {
         actor: { id: actor.id, role: actor.role },

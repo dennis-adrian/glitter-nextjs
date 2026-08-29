@@ -41,11 +41,7 @@ export default function ReservationNotAllowed(
           </CardHeader>
           <CardContent>
             <p className="text-center text-sm text-muted-foreground">
-              {props.policyCode === "RESERVATIONS_NOT_OPEN"
-                ? `Vas a poder reservar desde ${formatDate(
-                    props.festival.reservationsStartDate,
-                  ).toLocaleString(DateTime.DATETIME_MED)}.`
-                : RESERVATION_ERROR_MESSAGES[props.policyCode]}
+              {RESERVATION_ERROR_MESSAGES[props.policyCode]}
             </p>
           </CardContent>
         </Card>
