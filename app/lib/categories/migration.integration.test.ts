@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CANONICAL_LABEL_ENVIRONMENT_SQL,
   CANONICAL_LABEL_SQL,
+  normalizeCategoryLabel,
 } from "@/app/lib/categories/label";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -254,8 +255,16 @@ describeDatabase("manageable categories migration", () => {
     }
   });
 
-  it("treats a combining mark outside U+0300–U+036F as a canonical duplicate", async () => {
-    const cafeWithExtendedMark = "Cafe\u{1AB0}";
+  it("matches Unicode mark and non-breaking-space canonicalization", async () => {
+    for (const label of ["Cafe\u{1E944}", "\u00A0Cafe\u00A0/\u00A0Bar\u00A0"]) {
+      const result = await client!.query<{ canonical: string }>(
+        `SELECT ${CANONICAL_LABEL_SQL} AS canonical FROM (SELECT $1::text AS "name") input`,
+        [label],
+      );
+      expect(result.rows[0]?.canonical).toBe(normalizeCategoryLabel(label));
+    }
+
+    const cafeWithExtendedMark = "Cafe\u{1E944}";
 
     await client!.query("BEGIN");
     try {

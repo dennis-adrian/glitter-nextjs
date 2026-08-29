@@ -199,10 +199,21 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                   organización evaluará tu participación en el sector
                   gastronómico y te notificará si has sido aprobado.
                 </>
-              ) : (
+              ) : enrolled ? (
                 <>
                   Gracias por aceptar los términos y condiciones. Para continuar
                   con tu reserva hacé clic en el botón de abajo.
+                </>
+              ) : participationRequest?.status === "rejected" ? (
+                <>
+                  Gracias por aceptar los términos y condiciones. Tu
+                  postulación para participar en este festival no fue aprobada.
+                </>
+              ) : (
+                <>
+                  Gracias por aceptar los términos y condiciones. Te avisaremos
+                  por correo electrónico cuando puedas continuar con tu
+                  reserva.
                 </>
               )}
             </div>

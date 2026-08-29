@@ -151,7 +151,10 @@ describe("label normalization", () => {
     expect(labelsMatch("Sublimación colaborativa", "sublimacion colaborativa")).toBe(
       true,
     );
-    expect(normalizeCategoryLabel("Cafe\u{1AB0}")).toBe("cafe");
+    expect(normalizeCategoryLabel("Cafe\u{1E944}")).toBe("cafe");
+    expect(normalizeCategoryLabel("\u00A0Cafe\u00A0/\u00A0Bar\u00A0")).toBe(
+      "cafe bar",
+    );
   });
 
   it("treats the same trimmed lowercase label as a collision inside one área", () => {
@@ -180,7 +183,9 @@ describe("label normalization", () => {
     ]);
     expect(formatCanonicalDuplicateReport(duplicates)).toContain("ids=1,2");
     expect(CANONICAL_LABEL_SQL).toContain("normalize(\"name\", NFD)");
-    expect(CANONICAL_LABEL_SQL).toContain("\\1AB0-\\1AFF");
+    expect(CANONICAL_LABEL_SQL).toContain("\\0591-\\05BD");
+    expect(CANONICAL_LABEL_SQL).toContain("\\+01E944-\\+01E94A");
+    expect(CANONICAL_LABEL_SQL).toContain("U&'[\\00A0[:space:]]+'");
     expect(CANONICAL_LABEL_ENVIRONMENT_SQL).toContain("130000");
     expect(CANONICAL_LABEL_ENVIRONMENT_SQL).toContain("UTF8");
     expect(CANONICAL_LABEL_ENVIRONMENT_SQL).toContain("standard_conforming_strings");

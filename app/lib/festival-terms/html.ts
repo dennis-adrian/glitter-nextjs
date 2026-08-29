@@ -105,14 +105,15 @@ function renderBlock(block: BlockNode): string {
   }
 
   const inner = renderInline(block.content);
+  const nested = groupBlocks(block.children ?? []);
   if (block.type === "heading") {
     const level = block.props?.level === 3 ? 3 : block.props?.level === 1 ? 1 : 2;
-    return `<h${level}>${inner}</h${level}>`;
+    return `<h${level}>${inner}</h${level}>${nested}`;
   }
   if (block.type === "paragraph") {
-    return inner ? `<p>${inner}</p>` : "";
+    return inner ? `<p>${inner}</p>${nested}` : nested;
   }
-  return inner;
+  return `${inner}${nested}`;
 }
 
 export function blocksToSeedHtml(blocks: unknown): string {

@@ -4,7 +4,13 @@ import {
   blocksToSeedHtml,
   richTextBodyHasVisibleContent,
 } from "@/app/lib/festival-terms/html";
-import { bold, bullet, link, paragraph } from "@/app/lib/festival-terms/blocks";
+import {
+  bold,
+  bullet,
+  heading,
+  link,
+  paragraph,
+} from "@/app/lib/festival-terms/blocks";
 
 describe("blocksToSeedHtml", () => {
   it("renders paragraphs, emphasis, links, and lists", () => {
@@ -49,6 +55,27 @@ describe("blocksToSeedHtml", () => {
     const html = blocksToSeedHtml([{ type: "divider" }]);
     expect(html).toBe("<hr />");
     expect(richTextBodyHasVisibleContent([{ type: "divider" }])).toBe(true);
+  });
+
+  it("renders nested children of headings and paragraphs", () => {
+    const nestedOnlyParagraph = {
+      type: "paragraph",
+      content: [],
+      children: [paragraph("Hijo")],
+    };
+    const headingWithChildren = {
+      ...heading(2, "Titulo"),
+      children: [paragraph("Detalle")],
+    };
+
+    const nestedHtml = blocksToSeedHtml([nestedOnlyParagraph]);
+    expect(nestedHtml).toBe("<p>Hijo</p>");
+    expect(richTextBodyHasVisibleContent([nestedOnlyParagraph])).toBe(true);
+
+    const headingHtml = blocksToSeedHtml([headingWithChildren]);
+    expect(headingHtml).toContain("<h2>Titulo</h2>");
+    expect(headingHtml).toContain("<p>Detalle</p>");
+    expect(richTextBodyHasVisibleContent([headingWithChildren])).toBe(true);
   });
 });
 
