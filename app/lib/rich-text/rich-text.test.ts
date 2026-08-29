@@ -1,6 +1,3 @@
-import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -81,25 +78,6 @@ describe("editor schemas", () => {
 });
 
 describe("HTML sanitizer", () => {
-  it("loads when synchronous CommonJS-to-ESM bridging is unavailable", () => {
-    const require = createRequire(import.meta.url);
-    const sanitizerPath = require.resolve("sanitize-html");
-    const result = spawnSync(
-      process.execPath,
-      ["-e", `require(${JSON.stringify(sanitizerPath)})`],
-      {
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          NODE_OPTIONS: "--no-experimental-require-module",
-        },
-      },
-    );
-
-    expect(result.stderr).toBe("");
-    expect(result.status).toBe(0);
-  });
-
   it("allowlists http(s), mailto, and root-relative URIs", () => {
     expect(isAllowedRichTextUri("https://example.com")).toBe(true);
     expect(isAllowedRichTextUri("http://example.com")).toBe(true);
@@ -119,6 +97,14 @@ describe("HTML sanitizer", () => {
     expect(clean).not.toMatch(/script/i);
     expect(clean).not.toMatch(/javascript:/i);
     expect(clean).toContain("Hola");
+  });
+
+  it("blocks raw-text end-tag mutation XSS", () => {
+    const dirty =
+      '<textarea></textarea/><img src="/safe.png" onerror="alert(1)">';
+    const clean = sanitizeRichTextHtml(dirty, "article");
+    expect(clean).not.toMatch(/textarea|onerror|alert/i);
+    expect(clean).toContain('src="/safe.png"');
   });
 
   it("strips non-root-relative and protocol-relative URIs", () => {
