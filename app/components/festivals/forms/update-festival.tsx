@@ -24,6 +24,7 @@ import TextareaInput from "../../form/fields/textarea";
 import {
   BuildingIcon,
   CalendarDaysIcon,
+  ImageIcon,
   Loader2,
   MapPinIcon,
   PlusIcon,
@@ -35,6 +36,7 @@ import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
 import SectorImageUpload from "../sectors/sector-image-upload";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEffect, useRef, useState, useTransition } from "react";
+import FestivalPosterUpload from "@/app/components/festivals/festival-poster-upload";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -107,6 +109,7 @@ const FormSchema = z.object({
   entrepreneurshipStandUrl: z.string().optional(),
   festivalCode: z.string().optional(),
   festivalBannerUrl: z.string().optional(),
+  posterUrl: z.string().optional(),
   festivalSectors: z
     .array(
       z.object({
@@ -197,6 +200,7 @@ export default function UpdateFestivalForm({
   const deletedSectorIdsRef = useRef<number[]>([]);
   const datesSectionRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [isPosterUploading, setIsPosterUploading] = useState(false);
   const [pendingSectorRemoval, setPendingSectorRemoval] = useState<{
     index: number;
     standsCount: number;
@@ -231,6 +235,7 @@ export default function UpdateFestivalForm({
       entrepreneurshipStandUrl: festival.entrepreneurshipStandUrl || "",
       festivalCode: festival.festivalCode || "",
       festivalBannerUrl: festival.festivalBannerUrl || "",
+      posterUrl: festival.posterUrl || "",
       dates: festival.festivalDates.map((date) => ({
         id: date.id,
         date: DateTime.fromJSDate(date.startDate).toFormat("yyyy-MM-dd"),
@@ -479,6 +484,35 @@ export default function UpdateFestivalForm({
                 />
               </div>
 
+              <div className="space-y-4 rounded-lg border p-4">
+                <div className="space-y-1">
+                  <h3 className="flex items-center gap-2 text-xl font-semibold">
+                    <ImageIcon className="size-5" aria-hidden="true" />
+                    Imagen del festival
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Este póster aparece en la página pública y en las tarjetas
+                    del festival.
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="posterUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FestivalPosterUpload
+                        value={field.value || null}
+                        onChange={(imageUrl) => field.onChange(imageUrl || "")}
+                        onUploadingChange={setIsPosterUploading}
+                        disabled={isSubmitting || isPending}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               {/* Location Information Section */}
               <div className="space-y-4 p-4 border rounded-lg">
                 <h3 className="font-semibold text-xl flex items-center gap-2">
@@ -704,7 +738,12 @@ export default function UpdateFestivalForm({
                 type="submit"
                 size="lg"
                 className="w-full md:w-auto"
-                disabled={isSubmitting || isPending || !form.formState.isDirty}
+                disabled={
+                  isSubmitting ||
+                  isPending ||
+                  isPosterUploading ||
+                  !form.formState.isDirty
+                }
               >
                 {(isSubmitting || isPending) && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -1,5 +1,7 @@
+import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
 import { fetchProgramsNavTarget } from "@/app/lib/programs/data";
 
 /**
@@ -27,13 +29,15 @@ async function resolveProgramsHref(): Promise<string | null> {
 }
 
 export default async function Navbar() {
-  const programsHref = await resolveProgramsHref();
+  const [programsHref, landingContent] = await Promise.all([
+    resolveProgramsHref(),
+    getPublishedLandingContent(),
+  ]);
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background">
-      <nav className="container m-auto flex h-16 w-full items-center px-4 py-3 md:h-20 md:px-6 md:py-4">
-        <NavbarClient programsHref={programsHref} />
-      </nav>
-    </header>
+    <div data-site-navbar className="sticky top-0 z-50">
+      <AnnouncementStrip announcement={landingContent.announcement} />
+      <NavbarClient programsHref={programsHref} />
+    </div>
   );
 }

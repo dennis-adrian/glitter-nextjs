@@ -187,6 +187,19 @@ const NavbarNavigationMenu = ({
                 </Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+                <Link href="/dashboard/landing">
+                  <div className="flex items-center">
+                    <ImagesIcon className="w-4 h-4 mr-1" />
+                    Contenido de inicio
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
           </>
         )}
         {/* Every programs destination behind one trigger, for both admin
@@ -339,6 +352,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/banners"
                 >
                   Banners de la página de inicio y del portal
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Contenido de inicio"
+                  href="/dashboard/landing"
+                >
+                  Textos, secciones, imágenes y SEO de la portada
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Funcionalidades"
