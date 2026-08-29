@@ -38,7 +38,6 @@ async function rejectIfTermsStale(
   actor: { role: string } | null | undefined,
   participantIds: readonly number[],
   festivalId: number,
-  publishedVersionId: number | null | undefined,
   tx: HoldTx,
 ) {
   if (actor?.role === "admin" || actor?.role === "festival_admin") {
@@ -56,6 +55,8 @@ async function rejectIfTermsStale(
     };
   }
 
+  const publishedTerms = await fetchPublishedFestivalTermsVersion(tx);
+  const publishedVersionId = publishedTerms?.id ?? null;
   if (publishedVersionId == null) {
     return {
       success: false as const,
@@ -168,7 +169,6 @@ export async function createStandHold(
   }
 
   try {
-    const publishedTerms = await fetchPublishedFestivalTermsVersion();
     const result = await db.transaction(async (tx) => {
       const [stand] = await tx
         .select({
@@ -209,7 +209,6 @@ export async function createStandHold(
         actor,
         [userId],
         festivalId,
-        publishedTerms?.id ?? null,
         tx,
       );
       if (staleTerms) return staleTerms;
@@ -369,7 +368,6 @@ export async function confirmStandHold(
   }
 
   try {
-    const publishedTerms = await fetchPublishedFestivalTermsVersion();
     const result = await db.transaction(async (tx) => {
       // Validate the hold is still active
       const [hold] = await tx
@@ -421,7 +419,6 @@ export async function confirmStandHold(
         actor,
         participantIds,
         hold.festivalId,
-        publishedTerms?.id ?? null,
         tx,
       );
       if (staleTerms) return staleTerms;

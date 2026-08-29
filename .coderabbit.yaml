@@ -1,4 +1,5 @@
 reviews:
   auto_review:
+    # Auto-review is disabled to prevent cloud agents from triggering reviews on every push
     enabled: false
     base_branches: [develop, main]

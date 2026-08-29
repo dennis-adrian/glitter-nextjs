@@ -13,8 +13,11 @@ export default async function EditCategoryPage({ params }: Props) {
   }
 
   const { id: raw } = await params;
-  const id = Number.parseInt(raw, 10);
-  if (!Number.isFinite(id) || id < 1) {
+  if (!/^\d+$/.test(raw)) {
+    notFound();
+  }
+  const id = Number(raw);
+  if (!Number.isSafeInteger(id) || id < 1) {
     notFound();
   }
 

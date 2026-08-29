@@ -126,6 +126,7 @@ describe("stand hold sanction enforcement", () => {
       message: "El espacio no pertenece a este festival",
     });
     expect(eligibilityMock).not.toHaveBeenCalled();
+    expect(fetchPublishedFestivalTermsVersion).not.toHaveBeenCalled();
   });
 
   it("rejects direct hold creation when the primary participant is blocked", async () => {
@@ -262,6 +263,7 @@ describe("stand hold sanction enforcement", () => {
       message:
         "Tenés que aceptar la versión actual de los términos y condiciones.",
     });
+    expect(fetchPublishedFestivalTermsVersion).toHaveBeenCalledWith(tx);
     expect(insert).not.toHaveBeenCalled();
     expect(eligibilityMock).not.toHaveBeenCalled();
   });
@@ -301,6 +303,7 @@ describe("stand hold sanction enforcement", () => {
         "Tenés que aceptar la versión actual de los términos y condiciones.",
       reservationId: undefined,
     });
+    expect(fetchPublishedFestivalTermsVersion).toHaveBeenCalledWith(tx);
     expect(insert).not.toHaveBeenCalled();
   });
 
@@ -344,6 +347,7 @@ describe("stand hold sanction enforcement", () => {
       reservationId: undefined,
     });
     expect(findFirst).toHaveBeenCalledTimes(2);
+    expect(fetchPublishedFestivalTermsVersion).toHaveBeenCalledWith(tx);
     expect(insert).not.toHaveBeenCalled();
     expect(eligibilityMock).not.toHaveBeenCalled();
   });
@@ -378,6 +382,7 @@ describe("stand hold sanction enforcement", () => {
       success: false,
       message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
     });
+    expect(fetchPublishedFestivalTermsVersion).not.toHaveBeenCalled();
     expect(insert).not.toHaveBeenCalled();
   });
 
@@ -410,6 +415,7 @@ describe("stand hold sanction enforcement", () => {
       success: false,
       message: NO_PUBLISHED_FESTIVAL_TERMS_MESSAGE,
     });
+    expect(fetchPublishedFestivalTermsVersion).toHaveBeenCalledWith(tx);
     expect(insert).not.toHaveBeenCalled();
     expect(findFirst).not.toHaveBeenCalled();
   });

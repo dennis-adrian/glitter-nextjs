@@ -184,7 +184,7 @@ const SelectedCategoryCard = ({
             ))}
           </div>
         )}
-        {subcategories.some((row) => row.isExclusive) && (
+        {selectedSubcategories.some((row) => row.isExclusive) && (
           <p className="text-xs md:text-sm text-muted-foreground mt-3">
             * Las categorías exclusivas no se pueden seleccionar junto con otras
             categorías.

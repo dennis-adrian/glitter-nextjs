@@ -1,7 +1,8 @@
 try {
   if (
-    process.env.CLOUD_AGENT_ALL_SECRET_NAMES ||
-    process.env.CLOUD_AGENT_INJECTED_SECRET_NAMES
+    process.env.NODE_ENV === "development" &&
+    (process.env.CLOUD_AGENT_ALL_SECRET_NAMES ||
+      process.env.CLOUD_AGENT_INJECTED_SECRET_NAMES)
   ) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- needs sync load before exports execute
     const { applySyncedEnvToProcess } = require("./scripts/lib/sync-env-local");

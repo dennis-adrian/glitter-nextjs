@@ -15,6 +15,10 @@ import {
   users,
 } from "@/db/schema";
 
+type TermsQueryExecutor =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const versionWithAuthors = {
   publishedBy: {
     columns: { id: true, displayName: true },
@@ -29,17 +33,21 @@ function sortSections(sections: FestivalTermsSection[]) {
   return [...sections].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-export async function fetchFestivalTermsDocument() {
-  return db.query.festivalTermsDocuments.findFirst({
+export async function fetchFestivalTermsDocument(
+  executor: TermsQueryExecutor = db,
+) {
+  return executor.query.festivalTermsDocuments.findFirst({
     where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
   });
 }
 
-export async function fetchPublishedFestivalTermsVersion(): Promise<FestivalTermsVersionWithSections | null> {
-  const document = await fetchFestivalTermsDocument();
+export async function fetchPublishedFestivalTermsVersion(
+  executor: TermsQueryExecutor = db,
+): Promise<FestivalTermsVersionWithSections | null> {
+  const document = await fetchFestivalTermsDocument(executor);
   if (!document) return null;
 
-  const version = await db.query.festivalTermsVersions.findFirst({
+  const version = await executor.query.festivalTermsVersions.findFirst({
     where: and(
       eq(festivalTermsVersions.documentId, document.id),
       eq(festivalTermsVersions.status, "published"),

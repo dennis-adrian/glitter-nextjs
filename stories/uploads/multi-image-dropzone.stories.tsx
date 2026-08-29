@@ -16,7 +16,8 @@ function DropzoneStory({ maxFiles = 5 }: { maxFiles?: number }) {
         title="Galería del evento"
       />
       <output className="text-sm text-muted-foreground">
-        Último lote: {uploadedCount} imágenes
+        Último lote: {uploadedCount}{" "}
+        {uploadedCount === 1 ? "imagen" : "imágenes"}
       </output>
     </div>
   );
@@ -65,6 +66,6 @@ export const InteractionTest: Story = {
     await waitFor(() =>
       expect(canvas.getByText("1 imagen subida")).toBeVisible(),
     );
-    await expect(canvas.getByText("Último lote: 1 imágenes")).toBeVisible();
+    await expect(canvas.getByText("Último lote: 1 imagen")).toBeVisible();
   },
 };
