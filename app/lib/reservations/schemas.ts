@@ -13,15 +13,18 @@ export const moneyAmountSchema = z
 
 export const holdStandIdSchema = z.object({
   standId: positiveIntSchema,
+  idempotencyKey: uuidSchema.optional(),
 });
 
 export const holdIdSchema = z.object({
   holdId: positiveIntSchema,
+  idempotencyKey: uuidSchema.optional(),
 });
 
 export const confirmHoldSchema = z.object({
   holdId: positiveIntSchema,
   partnerId: positiveIntSchema.optional(),
+  idempotencyKey: uuidSchema.optional(),
 });
 
 export const invoiceIdSchema = z.object({
@@ -31,6 +34,8 @@ export const invoiceIdSchema = z.object({
 export const submitPaymentProofSchema = z.object({
   invoiceId: positiveIntSchema,
   voucherUrl: z.url(),
+  fileKey: z.string().trim().min(1).max(500).optional(),
+  idempotencyKey: uuidSchema.optional(),
 });
 
 export const applyDiscountSchema = z.object({
@@ -91,4 +96,44 @@ export function parseUnknown<T>(
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { success: false };
   return { success: true, data: parsed.data };
+}
+
+export function parseHoldStandInput(input: unknown) {
+  const asObject = parseUnknown(holdStandIdSchema, input);
+  if (asObject.success) return asObject;
+  const asId = parseUnknown(positiveIntSchema, input);
+  if (asId.success) {
+    return { success: true as const, data: { standId: asId.data } };
+  }
+  return { success: false as const };
+}
+
+export function parseHoldIdInput(input: unknown) {
+  const asObject = parseUnknown(holdIdSchema, input);
+  if (asObject.success) return asObject;
+  const asId = parseUnknown(positiveIntSchema, input);
+  if (asId.success) {
+    return { success: true as const, data: { holdId: asId.data } };
+  }
+  return { success: false as const };
+}
+
+export function parseConfirmHoldInput(
+  holdIdInput: unknown,
+  partnerIdInput?: unknown,
+) {
+  const asObject = parseUnknown(confirmHoldSchema, holdIdInput);
+  if (asObject.success) return asObject;
+  const holdId = parseUnknown(positiveIntSchema, holdIdInput);
+  if (!holdId.success) return { success: false as const };
+  let partnerId: number | undefined;
+  if (partnerIdInput !== undefined && partnerIdInput !== null) {
+    const partner = parseUnknown(positiveIntSchema, partnerIdInput);
+    if (!partner.success) return { success: false as const };
+    partnerId = partner.data;
+  }
+  return {
+    success: true as const,
+    data: { holdId: holdId.data, partnerId, idempotencyKey: undefined },
+  };
 }

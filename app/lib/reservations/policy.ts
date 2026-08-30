@@ -34,6 +34,7 @@ export type SelfServiceEligibilityInput = {
   enrollment: SelfServiceEnrollmentSnapshot | null;
   sanctionBlocked: boolean;
   hasLiveSelfServiceReservation: boolean;
+  hasRejectedFestivalReservation: boolean;
 };
 
 export type SelfServiceEligibilityResult =
@@ -149,6 +150,10 @@ export function evaluateSelfServiceEligibility(
     return { allowed: false, code: "SANCTION_BLOCKED" };
   }
 
+  if (input.hasRejectedFestivalReservation) {
+    return { allowed: false, code: "RESERVATION_REJECTED" };
+  }
+
   if (input.hasLiveSelfServiceReservation) {
     return { allowed: false, code: "ALREADY_RESERVED" };
   }
@@ -156,10 +161,29 @@ export function evaluateSelfServiceEligibility(
   return { allowed: true };
 }
 
+export function evaluatePartnerSearchDenial(input: {
+  status: string;
+  role: string;
+  category: string;
+  enrolled: boolean;
+  festivalReservation?: "live" | "rejected";
+}): ReservationErrorCode | undefined {
+  if (input.festivalReservation) return "PARTNER_ALREADY_RESERVED";
+  if (input.status !== "verified") return "PARTNER_NOT_ELIGIBLE";
+  if (input.role === "admin") return "PARTNER_NOT_ELIGIBLE";
+  if (!input.enrolled) return "PARTNER_NOT_ELIGIBLE";
+  if (input.category !== "illustration" && input.category !== "new_artist") {
+    return "PARTNER_NOT_ELIGIBLE";
+  }
+  return undefined;
+}
+
 export function mapPartnerEligibilityCode(
   code: ReservationErrorCode,
 ): ReservationErrorCode {
-  if (code === "ALREADY_RESERVED") return "PARTNER_ALREADY_RESERVED";
+  if (code === "ALREADY_RESERVED" || code === "RESERVATION_REJECTED") {
+    return "PARTNER_ALREADY_RESERVED";
+  }
   if (
     code === "UNAUTHENTICATED" ||
     code === "UNAUTHORIZED" ||
@@ -207,4 +231,41 @@ export function canMutateReservationCollaborators(input: {
   if (isGlobalAdmin(input.actor)) return true;
   if (isFestivalAdmin(input.actor)) return false;
   return input.participantUserIds.includes(input.actor.id);
+}
+
+export function isLiveSelfServiceSource(source: string): boolean {
+  return source === "user_reservation" || source === "legacy_unknown";
+}
+
+export function summarizeFestivalParticipations(
+  rows: ReadonlyArray<{
+    festivalId: number;
+    status: string;
+    source: string;
+  }>,
+  festivalId: number,
+): {
+  hasLiveSelfServiceReservation: boolean;
+  hasRejectedFestivalReservation: boolean;
+  hasAnyFestivalReservation: boolean;
+} {
+  let hasLiveSelfServiceReservation = false;
+  let hasRejectedFestivalReservation = false;
+  let hasAnyFestivalReservation = false;
+
+  for (const row of rows) {
+    if (row.festivalId !== festivalId) continue;
+    hasAnyFestivalReservation = true;
+    if (row.status === "rejected") {
+      hasRejectedFestivalReservation = true;
+    } else if (isLiveSelfServiceSource(row.source)) {
+      hasLiveSelfServiceReservation = true;
+    }
+  }
+
+  return {
+    hasLiveSelfServiceReservation,
+    hasRejectedFestivalReservation,
+    hasAnyFestivalReservation,
+  };
 }

@@ -13,6 +13,7 @@ import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
   invoices,
+  invoiceSettlementSubmissions,
   payments,
   reservationParticipants,
   standReservations,
@@ -20,6 +21,7 @@ import {
 import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   reservationFailure,
+  reservationSuccess,
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
 import {
@@ -32,6 +34,8 @@ import {
   parseUnknown,
   submitPaymentProofSchema,
 } from "@/app/lib/reservations/schemas";
+import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { roundMoney } from "@/app/lib/reservations/money";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { revalidatePath } from "next/cache";
 import {
@@ -137,18 +141,35 @@ export async function adminAttachPaymentVoucher(
         await tx
           .update(payments)
           .set({
-            amount: invoice.amount,
+            amount: roundMoney(invoice.amount),
             date: new Date(),
             voucherUrl,
+            uploadedByUserId: profile.id,
             updatedAt: new Date(),
           })
           .where(eq(payments.id, currentPayment.id));
-      } else {
-        await tx.insert(payments).values({
+        await tx.insert(invoiceSettlementSubmissions).values({
           invoiceId,
-          amount: invoice.amount,
-          date: new Date(),
+          paymentId: currentPayment.id,
           voucherUrl,
+          uploadedByUserId: profile.id,
+        });
+      } else {
+        const [payment] = await tx
+          .insert(payments)
+          .values({
+            invoiceId,
+            amount: roundMoney(invoice.amount),
+            date: new Date(),
+            voucherUrl,
+            uploadedByUserId: profile.id,
+          })
+          .returning({ id: payments.id });
+        await tx.insert(invoiceSettlementSubmissions).values({
+          invoiceId,
+          paymentId: payment.id,
+          voucherUrl,
+          uploadedByUserId: profile.id,
         });
       }
 
@@ -354,7 +375,7 @@ export async function createPayment(
   );
   if (!parsed.success) return reservationFailure("VALIDATION");
 
-  const { invoiceId, voucherUrl } = parsed.data;
+  const { invoiceId, voucherUrl, fileKey, idempotencyKey } = parsed.data;
 
   try {
     const outcome = await db.transaction(async (tx) => {
@@ -406,13 +427,34 @@ export async function createPayment(
       }
 
       const currentPayment = invoice.payments[0];
+      if (idempotencyKey) {
+        const [existingSubmission] = await tx
+          .select({ id: invoiceSettlementSubmissions.id })
+          .from(invoiceSettlementSubmissions)
+          .where(
+            and(
+              eq(invoiceSettlementSubmissions.idempotencyKey, idempotencyKey),
+              eq(invoiceSettlementSubmissions.invoiceId, invoice.id),
+              eq(invoiceSettlementSubmissions.uploadedByUserId, actor.id),
+            ),
+          )
+          .limit(1);
+        if (existingSubmission) {
+          return { kind: "replayed" as const };
+        }
+      }
+
+      let paymentId = currentPayment?.id;
       if (currentPayment) {
         await tx
           .update(payments)
           .set({
-            amount: invoice.amount,
+            amount: roundMoney(invoice.amount),
             date: new Date(),
             voucherUrl,
+            fileKey: fileKey ?? currentPayment.fileKey,
+            uploadedByUserId: actor.id,
+            idempotencyKey,
             updatedAt: new Date(),
           })
           .where(
@@ -422,13 +464,38 @@ export async function createPayment(
             ),
           );
       } else {
-        await tx.insert(payments).values({
-          invoiceId: invoice.id,
-          amount: invoice.amount,
-          date: new Date(),
-          voucherUrl,
-        });
+        const [payment] = await tx
+          .insert(payments)
+          .values({
+            invoiceId: invoice.id,
+            amount: roundMoney(invoice.amount),
+            date: new Date(),
+            voucherUrl,
+            fileKey,
+            uploadedByUserId: actor.id,
+            idempotencyKey,
+          })
+          .returning({ id: payments.id });
+        paymentId = payment.id;
       }
+
+      await tx.insert(invoiceSettlementSubmissions).values({
+        invoiceId: invoice.id,
+        paymentId,
+        voucherUrl,
+        fileKey,
+        uploadedByUserId: actor.id,
+        idempotencyKey,
+      });
+
+      await insertStandReservationEvent(tx, {
+        reservationId: invoice.reservationId,
+        actorUserId: actor.id,
+        eventType: "payment_submitted",
+        fromStatus: invoice.reservation.status,
+        toStatus: "verification_payment",
+        payload: { invoiceId: invoice.id, paymentId: paymentId ?? null },
+      });
 
       await tx
         .update(standReservations)
@@ -446,13 +513,19 @@ export async function createPayment(
         .where(eq(invoices.id, invoice.id));
 
       return {
-        success: true as const,
+        kind: "created" as const,
         previousVoucherUrl: currentPayment?.voucherUrl,
         userId: invoice.userId,
       };
     });
 
-    if (!outcome.success) return outcome;
+    if ("success" in outcome) return outcome;
+    if (outcome.kind === "replayed") {
+      return reservationSuccess(
+        undefined,
+        "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+      );
+    }
 
     if (
       outcome.previousVoucherUrl &&

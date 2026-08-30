@@ -12,6 +12,7 @@ import {
   evaluateSelfServiceEligibility,
   mapPartnerEligibilityCode,
   standMatchesParticipant,
+  summarizeFestivalParticipations,
   type ReservationActor,
 } from "@/app/lib/reservations/policy";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
@@ -27,7 +28,7 @@ import {
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-async function loadLiveSelfServiceReservation(
+async function loadFestivalParticipations(
   tx: DbTx,
   userId: number,
   festivalId: number,
@@ -46,11 +47,9 @@ async function loadLiveSelfServiceReservation(
     },
   });
 
-  return memberships.some(
-    (row) =>
-      row.reservation.festivalId === festivalId &&
-      row.reservation.status !== "rejected" &&
-      row.reservation.source === "user_reservation",
+  return summarizeFestivalParticipations(
+    memberships.map((row) => row.reservation),
+    festivalId,
   );
 }
 
@@ -110,7 +109,7 @@ export async function denySelfServiceMutation(
       )
     : { eligible: true as const };
 
-  const hasLiveSelfServiceReservation = await loadLiveSelfServiceReservation(
+  const participation = await loadFestivalParticipations(
     tx,
     input.userId,
     input.festivalId,
@@ -128,7 +127,8 @@ export async function denySelfServiceMutation(
     publishedTermsVersionId: publishedTerms?.id ?? null,
     enrollment: enrollment ?? null,
     sanctionBlocked: !eligibility.eligible,
-    hasLiveSelfServiceReservation,
+    hasLiveSelfServiceReservation: participation.hasLiveSelfServiceReservation,
+    hasRejectedFestivalReservation: participation.hasRejectedFestivalReservation,
   });
 
   if (result.allowed) return null;

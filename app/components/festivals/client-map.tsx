@@ -77,7 +77,7 @@ export default function ClientMap({
   useEffect(() => {
     if (!profile) return;
     let cancelled = false;
-    getActiveHold(profile.id, festival.id)
+    getActiveHold(festival.id)
       .then((hold) => {
         if (!cancelled) setActiveHold(hold);
       })

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  evaluatePartnerSearchDenial,
   evaluateSelfServiceEligibility,
   mapPartnerEligibilityCode,
   standMatchesParticipant,
+  summarizeFestivalParticipations,
   type SelfServiceEligibilityInput,
 } from "@/app/lib/reservations/policy";
 
@@ -32,6 +34,7 @@ function allowedInput(
     },
     sanctionBlocked: false,
     hasLiveSelfServiceReservation: false,
+    hasRejectedFestivalReservation: false,
     ...overrides,
   };
 }
@@ -150,7 +153,7 @@ describe("evaluateSelfServiceEligibility", () => {
     ).toEqual({ allowed: false, code: "TERMS_STALE" });
   });
 
-  it("denies sanctions and live self-service reservations", () => {
+  it("denies sanctions, live self-service reservations, and rejected festival reservations", () => {
     expect(
       evaluateSelfServiceEligibility(allowedInput({ sanctionBlocked: true })),
     ).toEqual({ allowed: false, code: "SANCTION_BLOCKED" });
@@ -159,6 +162,11 @@ describe("evaluateSelfServiceEligibility", () => {
         allowedInput({ hasLiveSelfServiceReservation: true }),
       ),
     ).toEqual({ allowed: false, code: "ALREADY_RESERVED" });
+    expect(
+      evaluateSelfServiceEligibility(
+        allowedInput({ hasRejectedFestivalReservation: true }),
+      ),
+    ).toEqual({ allowed: false, code: "RESERVATION_REJECTED" });
   });
 
   it("rejects festival_admin mutate-on-behalf but allows view", () => {
@@ -280,9 +288,93 @@ describe("standMatchesParticipant", () => {
   });
 });
 
+describe("summarizeFestivalParticipations", () => {
+  it("treats a rejected festival reservation as blocking further participation", () => {
+    expect(
+      summarizeFestivalParticipations(
+        [
+          { festivalId: 10, status: "rejected", source: "user_reservation" },
+          { festivalId: 9, status: "pending", source: "user_reservation" },
+        ],
+        10,
+      ),
+    ).toEqual({
+      hasLiveSelfServiceReservation: false,
+      hasRejectedFestivalReservation: true,
+      hasAnyFestivalReservation: true,
+    });
+  });
+
+  it("keeps a live self-service reservation distinct from a rejected one", () => {
+    expect(
+      summarizeFestivalParticipations(
+        [{ festivalId: 10, status: "pending", source: "user_reservation" }],
+        10,
+      ),
+    ).toEqual({
+      hasLiveSelfServiceReservation: true,
+      hasRejectedFestivalReservation: false,
+      hasAnyFestivalReservation: true,
+    });
+  });
+});
+
+describe("evaluatePartnerSearchDenial", () => {
+  const eligible = {
+    status: "verified",
+    role: "user",
+    category: "illustration",
+    enrolled: true,
+  };
+
+  it("allows an enrolled illustrator without a festival reservation", () => {
+    expect(evaluatePartnerSearchDenial(eligible)).toBeUndefined();
+  });
+
+  it("shows live reservations as already reserved instead of hiding them", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        festivalReservation: "live",
+      }),
+    ).toBe("PARTNER_ALREADY_RESERVED");
+  });
+
+  it("shows rejected reservations as already reserved instead of hiding them", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        festivalReservation: "rejected",
+      }),
+    ).toBe("PARTNER_ALREADY_RESERVED");
+  });
+
+  it("prefers the reservation reason over missing terms enrollment", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        enrolled: false,
+        festivalReservation: "live",
+      }),
+    ).toBe("PARTNER_ALREADY_RESERVED");
+  });
+
+  it("keeps unenrolled people visible but not selectable", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        enrolled: false,
+      }),
+    ).toBe("PARTNER_NOT_ELIGIBLE");
+  });
+});
+
 describe("mapPartnerEligibilityCode", () => {
   it("maps already reserved to the partner-specific code", () => {
     expect(mapPartnerEligibilityCode("ALREADY_RESERVED")).toBe(
+      "PARTNER_ALREADY_RESERVED",
+    );
+    expect(mapPartnerEligibilityCode("RESERVATION_REJECTED")).toBe(
       "PARTNER_ALREADY_RESERVED",
     );
     expect(mapPartnerEligibilityCode("TERMS_STALE")).toBe(

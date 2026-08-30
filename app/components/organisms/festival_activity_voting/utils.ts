@@ -1,4 +1,4 @@
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import type { ReservationStandRefDto } from "@/app/lib/reservations/dto";
 import { UserCategory } from "@/app/api/users/definitions";
 import { StandVotingItem } from "@/app/lib/festival_activites/definitions";
 import {
@@ -34,7 +34,7 @@ export function getValidParticipantsForVariant(
 
 export function mapStandsAndParticipantsToVotingItem(
   participants: ParticipantWithUserAndProofs[],
-  reservations: ReservationWithParticipantsAndUsersAndStand[],
+  reservations: ReservationStandRefDto[],
 ): StandVotingItem[] {
   const votingItems = participants.map((participant) => {
     const reservation = reservations.find((reservation) =>

@@ -6,6 +6,7 @@ import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/que
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
 import {
   evaluateSelfServiceEligibility,
+  summarizeFestivalParticipations,
   type ReservationActor,
 } from "@/app/lib/reservations/policy";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
@@ -44,6 +45,7 @@ export async function getSelfServicePageDenial(input: {
   );
 
   let hasLiveSelfServiceReservation = false;
+  let hasRejectedFestivalReservation = false;
   let sanctionBlocked = false;
   if (input.targetProfile && input.festival) {
     const eligibility = await getReservationEligibility({
@@ -62,12 +64,13 @@ export async function getSelfServicePageDenial(input: {
         },
       },
     });
-    hasLiveSelfServiceReservation = memberships.some(
-      (row) =>
-        row.reservation.festivalId === input.festival!.id &&
-        row.reservation.status !== "rejected" &&
-        row.reservation.source === "user_reservation",
+    const participation = summarizeFestivalParticipations(
+      memberships.map((row) => row.reservation),
+      input.festival.id,
     );
+    hasLiveSelfServiceReservation = participation.hasLiveSelfServiceReservation;
+    hasRejectedFestivalReservation =
+      participation.hasRejectedFestivalReservation;
   }
 
   const result = evaluateSelfServiceEligibility({
@@ -89,6 +92,7 @@ export async function getSelfServicePageDenial(input: {
       : null,
     sanctionBlocked,
     hasLiveSelfServiceReservation,
+    hasRejectedFestivalReservation,
   });
 
   return result.allowed ? null : result.code;

@@ -2,15 +2,14 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 import { fetchSectorWithStandsAndReservations } from "@/app/lib/festival_sectors/actions";
-import {
-  fetchBaseFestival,
-  fetchRecentSharedStandPartners,
-} from "@/app/lib/festivals/actions";
-import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
-import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { fetchHoldWithStand } from "@/app/lib/reservations/hold-service";
+import { getSelfServicePageDenial } from "@/app/lib/reservations/entry";
+import { searchRecentPartners } from "@/app/lib/reservations/partner-search";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
+import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
 
 type HoldConfirmationPageProps = {
   profileId: number;
@@ -31,14 +30,18 @@ export default async function HoldConfirmationPage(
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) notFound();
 
-  const eligibility = await getReservationEligibility({
-    userId: forProfile.id,
-    festivalId: festival.id,
+  const denial = await getSelfServicePageDenial({
+    actor: currentProfile
+      ? { id: currentProfile.id, role: currentProfile.role }
+      : null,
+    targetProfile: forProfile,
+    festival,
   });
-  if (!eligibility.eligible) {
-    return (
-      <ReservationNotAllowed festival={festival} sanctionBlock={eligibility} />
-    );
+  if (denial === "TERMS_STALE") {
+    return <TermsReacceptanceRequired festivalId={festival.id} />;
+  }
+  if (denial) {
+    return <ReservationNotAllowed festival={festival} policyCode={denial} />;
   }
 
   // Fetch and validate the hold
@@ -101,10 +104,7 @@ export default async function HoldConfirmationPage(
         }
       : computeCanvasBounds(sector.stands);
 
-  const recentPartners = await fetchRecentSharedStandPartners(
-    festival.id,
-    forProfile.id,
-  );
+  const recentPartners = await searchRecentPartners(festival.id);
 
   return (
     <div className="container p-3 md:p-6">

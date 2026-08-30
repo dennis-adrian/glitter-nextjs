@@ -106,11 +106,9 @@ export async function fetchDiscountCode(id: number) {
 export async function validateAndApplyDiscountCode({
   code,
   invoiceId,
-  festivalId,
 }: {
   code: string;
   invoiceId: number;
-  festivalId: number;
 }) {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser) {
@@ -164,12 +162,6 @@ export async function validateAndApplyDiscountCode({
 
       if (invoice.userId !== currentUser.id && currentUser.role !== "admin") {
         return { success: false, message: "No autorizado para esta factura." };
-      }
-      if (invoice.festivalId !== festivalId) {
-        return {
-          success: false,
-          message: "Código de descuento inválido o inactivo.",
-        };
       }
 
       if (invoice.status !== "pending") {

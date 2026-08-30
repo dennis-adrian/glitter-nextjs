@@ -2,12 +2,12 @@
 
 import {
   cancelStandHold as cancelStandHoldService,
-  cleanupExpiredHolds as cleanupExpiredHoldsService,
   confirmStandHold as confirmStandHoldService,
   createStandHold as createStandHoldService,
-  fetchHoldWithStand as fetchHoldWithStandService,
   getActiveHold as getActiveHoldService,
 } from "@/app/lib/reservations/hold-service";
+import { parseUnknown, positiveIntSchema } from "@/app/lib/reservations/schemas";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export async function createStandHold(standIdInput: unknown) {
   return createStandHoldService(standIdInput);
@@ -24,18 +24,10 @@ export async function confirmStandHold(
   return confirmStandHoldService(holdIdInput, partnerIdInput);
 }
 
-export async function fetchHoldWithStand(
-  holdId: number,
-  userId: number,
-  festivalId: number,
-) {
-  return fetchHoldWithStandService(holdId, userId, festivalId);
-}
-
-export async function getActiveHold(userId: number, festivalId: number) {
-  return getActiveHoldService(userId, festivalId);
-}
-
-export async function cleanupExpiredHolds() {
-  return cleanupExpiredHoldsService();
+export async function getActiveHold(festivalIdInput: unknown) {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+  const parsed = parseUnknown(positiveIntSchema, festivalIdInput);
+  if (!parsed.success) return null;
+  return getActiveHoldService(actor.id, parsed.data);
 }

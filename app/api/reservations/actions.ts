@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, not, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -16,121 +16,19 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/reservation-confirmation";
 import React from "react";
-import {
-  ReservationWithParticipantsAndUsersAndStand,
-  ReservationWithParticipantsAndUsersAndStandAndCollaborators,
-  ReservationWithParticipantsAndUsersAndStandAndFestival,
-} from "@/app/api/reservations/definitions";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import { getUserName } from "@/app/lib/users/utils";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import {
   parseUnknown,
   positiveIntSchema,
+  rejectReservationSchema,
 } from "@/app/lib/reservations/schemas";
-
-export async function fetchConfirmedReservationsByFestival(
-  festivalId: number,
-): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {
-  try {
-    return db.query.standReservations.findMany({
-      where: and(
-        eq(standReservations.festivalId, festivalId),
-        eq(standReservations.status, "accepted"),
-      ),
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        collaborators: {
-          with: {
-            collaborator: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
-
-export async function fetchValidReservationsByFestival(
-  festivalId: number,
-): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {
-  try {
-    return db.query.standReservations.findMany({
-      where: and(
-        eq(standReservations.festivalId, festivalId),
-        not(eq(standReservations.status, "rejected")),
-      ),
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        collaborators: {
-          with: {
-            collaborator: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
-
-export async function fetchReservation(
-  id: number,
-): Promise<
-  ReservationWithParticipantsAndUsersAndStandAndFestival | undefined | null
-> {
-  try {
-    return await db.query.standReservations.findFirst({
-      where: eq(standReservations.id, id),
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        festival: {
-          with: {
-            festivalDates: true,
-          },
-        },
-        scheduledTasks: true,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
 
 export async function updateReservation(
   id: unknown,
@@ -243,10 +141,12 @@ async function applyConfirmReservationMutations(
     reservationId,
     standId,
     paidInvoiceId,
+    actorUserId,
   }: {
     reservationId: number;
     standId: number;
     paidInvoiceId?: number;
+    actorUserId?: number | null;
   },
 ) {
   const updatedReservations = await tx
@@ -265,6 +165,13 @@ async function applyConfirmReservationMutations(
       "No se encontró una reserva coincidente para el espacio indicado.",
     );
   }
+
+  await insertStandReservationEvent(tx, {
+    reservationId,
+    actorUserId: actorUserId ?? null,
+    eventType: "confirmed",
+    toStatus: "accepted",
+  });
 
   const updatedStands = await tx
     .update(stands)
@@ -420,6 +327,7 @@ export async function confirmReservation(
         reservationId,
         standId,
         paidInvoiceId,
+        actorUserId: profile?.id,
       });
       // Side effects run after the caller's transaction commits.
       return { success: true, message: "Reserva confirmada" };
@@ -430,6 +338,7 @@ export async function confirmReservation(
         reservationId,
         standId,
         paidInvoiceId,
+        actorUserId: profile?.id,
       });
     });
   } catch (error) {
@@ -477,29 +386,30 @@ export async function confirmReservation(
   return { success: true, message: "Reserva confirmada" };
 }
 
-export async function rejectReservation(
-  reservation: ReservationWithParticipantsAndUsersAndStandAndFestival,
-  reason?: string,
-) {
+export async function rejectReservation(input: unknown) {
   const profile = await getCurrentUserProfile();
   if (!canMutateAdminReservations(profile)) {
     return { success: false, message: "No autorizado para cancelar la reserva." };
   }
 
-  const parsed = parseUnknown(positiveIntSchema, reservation?.id);
-  if (!parsed.success || parsed.data !== reservation.id) {
+  const parsed = parseUnknown(rejectReservationSchema, input);
+  if (!parsed.success) {
     return { success: false, message: "Datos inválidos." };
   }
 
-  try {
-    const canonical = await db.query.standReservations.findFirst({
-      where: eq(standReservations.id, parsed.data),
-      columns: { id: true, standId: true },
-    });
-    if (!canonical || canonical.standId !== reservation.standId) {
-      return { success: false, message: "La reserva no coincide con el espacio." };
-    }
+  const canonical = await db.query.standReservations.findFirst({
+    where: eq(standReservations.id, parsed.data.reservationId),
+    with: {
+      stand: true,
+      festival: { with: { festivalDates: true } },
+      participants: { with: { user: true } },
+    },
+  });
+  if (!canonical) {
+    return { success: false, message: "La reserva no existe." };
+  }
 
+  try {
     await db.transaction(async (tx) => {
       await tx
         .delete(scheduledTasks)
@@ -518,42 +428,58 @@ export async function rejectReservation(
         .update(stands)
         .set({ status: "available" })
         .where(eq(stands.id, canonical.standId));
-    });
 
-    const participantsWithEmail = reservation.participants.filter((p) =>
-      p.user?.email?.trim(),
-    );
-    const sendPromises = participantsWithEmail.map((participant) => {
-      const email = participant.user!.email!.trim();
-      const userName = getUserName(participant.user);
-      return sendEmail({
-        to: [email],
-        from: "Equipo Glitter <equipo@productoraglitter.com>",
-        subject: `${userName}, tu reserva ha sido cancelada`,
-        react: ReservationRejectionEmailTemplate({
-          festival: reservation.festival,
-          profile: participant.user,
-          stand: reservation.stand,
-          reason,
-        }) as React.ReactElement,
+      await insertStandReservationEvent(tx, {
+        reservationId: canonical.id,
+        actorUserId: profile!.id,
+        eventType: "rejected",
+        fromStatus: canonical.status,
+        toStatus: "rejected",
+        payload: parsed.data.reason ? { reason: parsed.data.reason } : null,
       });
-    });
-    const results = await Promise.allSettled(sendPromises);
-    results.forEach((result, index) => {
-      if (result.status === "rejected") {
-        const participant = participantsWithEmail[index];
-        const userName = participant
-          ? getUserName(participant.user)
-          : "unknown";
-        console.error(
-          `[rejectReservation] Failed to send rejection email to ${userName}:`,
-          result.reason,
-        );
-      }
     });
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al cancelar la reserva" };
+  }
+
+  // Post-commit side effects must never fail a cancellation that already
+  // committed: guard them and log without propagating, then always revalidate
+  // and return success.
+  try {
+    const participantsWithEmail = canonical.participants.filter((p) =>
+      p.user?.email?.trim(),
+    );
+    // Wrap each send in an async boundary so sync EmailTemplate / sendEmail
+    // errors become rejections instead of escaping Promise.allSettled construction.
+    const results = await Promise.allSettled(
+      participantsWithEmail.map((participant) =>
+        (async () => {
+          const email = participant.user.email.trim();
+          const userName = getUserName(participant.user);
+          return sendEmail({
+            to: [email],
+            from: "Equipo Glitter <equipo@productoraglitter.com>",
+            subject: `${userName}, tu reserva ha sido cancelada`,
+            react: ReservationRejectionEmailTemplate({
+              festival: canonical.festival,
+              profile: participant.user,
+              stand: canonical.stand,
+              reason: parsed.data.reason,
+            }) as React.ReactElement,
+          });
+        })(),
+      ),
+    );
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error(
+          `[rejectReservation] Failed to send rejection email for recipient #${index}`,
+        );
+      }
+    });
+  } catch (error) {
+    console.error("[rejectReservation] Post-commit processing failed:", error);
   }
 
   revalidatePath("/dashboard/festivals/[id]/reservations", "page");

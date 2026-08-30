@@ -12,7 +12,6 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import {
   FullReservation,
-  ReservationWithParticipantsAndUsersAndStand,
 } from "@/app/api/reservations/definitions";
 import { ReservationStatus } from "@/app/api/user_requests/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -221,112 +220,6 @@ export async function fetchReservationsByFestivalId(
           },
         },
         scheduledTasks: true,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-  try {
-    return await db.query.standReservations.findMany({
-      where: eq(standReservations.festivalId, festivalId),
-      with: {
-        stand: true,
-        festival: {
-          with: {
-            festivalDates: true,
-          },
-        },
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-                profileSubcategories: {
-                  with: {
-                    subcategory: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        externalParticipants: {
-          with: {
-            externalParticipant: true,
-          },
-        },
-        collaborators: {
-          with: {
-            collaborator: true,
-          },
-        },
-        invoices: {
-          with: {
-            payments: true,
-          },
-        },
-        scheduledTasks: true,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
-
-/**
- * Fetches all reservations for a festival with data that can be accessed by public users or visitors.
- * @param festivalId - The ID of the festival to fetch reservations for.
- * @returns An array of reservations with stands, participants and users.
- */
-export async function fetchPublicReservationsByFestivalId(
-  festivalId: number,
-): Promise<ReservationWithParticipantsAndUsersAndStand[]> {
-  try {
-    return await db.query.standReservations.findMany({
-      where: eq(standReservations.festivalId, festivalId),
-      with: {
-        stand: true,
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        externalParticipants: {
-          with: {
-            externalParticipant: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-  try {
-    return await db.query.standReservations.findMany({
-      where: eq(standReservations.festivalId, festivalId),
-      with: {
-        stand: true,
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        externalParticipants: {
-          with: {
-            externalParticipant: true,
-          },
-        },
       },
     });
   } catch (error) {
