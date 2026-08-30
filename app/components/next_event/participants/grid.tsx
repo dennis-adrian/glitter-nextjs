@@ -1,5 +1,6 @@
-import { fetchPublicFestivalParticipantSummaries } from "@/app/lib/reservations/queries";
 import { ParticipantCard } from "@/app/components/next_event/participants/card";
+import { compareParticipantDisplayNames } from "@/app/components/next_event/participants/compare-display-names";
+import { fetchPublicFestivalParticipantSummaries } from "@/app/lib/reservations/queries";
 
 export async function Participants({ festivalId }: { festivalId: number }) {
   const participants = await fetchPublicFestivalParticipantSummaries(festivalId);
@@ -7,10 +8,7 @@ export async function Participants({ festivalId }: { festivalId: number }) {
   return (
     <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6 xl:grid-cols-4">
       {participants
-        .sort(
-          (a, b) =>
-            a.displayName?.localeCompare(b.displayName || "") || 0,
-        )
+        .sort(compareParticipantDisplayNames)
         .map((user) => (
           <ParticipantCard key={user.id} profile={user} />
         ))}
