@@ -41,6 +41,10 @@ vi.mock("@/app/api/reservations/actions", () => ({
 }));
 
 import { createPayment, confirmFreeInvoice } from "@/app/data/invoices/actions";
+import {
+  invoices,
+  invoiceSettlementSubmissions,
+} from "@/db/schema";
 
 type LockedInvoice = {
   id: number;
@@ -66,7 +70,38 @@ type CreatePaymentTxOptions = {
     createdAt: Date;
     updatedAt: Date;
   }>;
+  existingSettlement?: { id: number } | null;
 };
+
+function sqlMentionsColumn(value: unknown, columnName: string): boolean {
+  const seen = new Set<unknown>();
+  const visit = (node: unknown): boolean => {
+    if (node == null || seen.has(node)) return false;
+    if (typeof node !== "object") return false;
+    seen.add(node);
+    if ((node as { name?: string }).name === columnName) return true;
+    return Object.values(node as Record<string, unknown>).some(visit);
+  };
+  return visit(value);
+}
+
+function sqlPrimitiveValues(value: unknown): unknown[] {
+  const seen = new Set<unknown>();
+  const values: unknown[] = [];
+  const visit = (node: unknown) => {
+    if (node == null || seen.has(node)) return;
+    if (typeof node !== "object") {
+      values.push(node);
+      return;
+    }
+    seen.add(node);
+    for (const child of Object.values(node as Record<string, unknown>)) {
+      visit(child);
+    }
+  };
+  visit(value);
+  return values;
+}
 
 function createPaymentTxMock(options: CreatePaymentTxOptions) {
   const reservation = options.reservation ?? {
@@ -78,12 +113,28 @@ function createPaymentTxMock(options: CreatePaymentTxOptions) {
 
   return {
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => ({
-            for: vi.fn().mockResolvedValue([options.invoice]),
-          })),
-        })),
+      from: vi.fn((table: unknown) => ({
+        where: vi.fn((clause: unknown) => {
+          if (table === invoiceSettlementSubmissions) {
+            settlementWhereClauses.push(clause);
+            return {
+              limit: vi
+                .fn()
+                .mockResolvedValue(
+                  options.existingSettlement
+                    ? [options.existingSettlement]
+                    : [],
+                ),
+            };
+          }
+          return {
+            limit: vi.fn(() => ({
+              for: vi.fn().mockResolvedValue(
+                table === invoices ? [options.invoice] : [],
+              ),
+            })),
+          };
+        }),
       })),
     })),
     query: {
@@ -102,7 +153,9 @@ function createPaymentTxMock(options: CreatePaymentTxOptions) {
     insert: vi.fn(() => ({
       values: (values: unknown) => {
         insertedValues.push(values);
-        return Promise.resolve();
+        return {
+          returning: vi.fn().mockResolvedValue([{ id: 99 }]),
+        };
       },
     })),
     update: vi.fn(() => ({
@@ -118,6 +171,7 @@ function createPaymentTxMock(options: CreatePaymentTxOptions) {
 
 const insertedValues: unknown[] = [];
 const updateSets: unknown[] = [];
+const settlementWhereClauses: unknown[] = [];
 
 describe("createPayment authorization", () => {
   beforeEach(() => {
@@ -125,6 +179,7 @@ describe("createPayment authorization", () => {
     transactionMock.mockReset();
     insertedValues.length = 0;
     updateSets.length = 0;
+    settlementWhereClauses.length = 0;
   });
 
   it("rejects unauthenticated callers", async () => {
@@ -185,14 +240,15 @@ describe("createPayment authorization", () => {
       reservationId: 123,
     });
 
-    expect(insertedValues).toEqual([
-      {
-        invoiceId: 9,
-        amount: 150,
-        date: expect.any(Date),
-        voucherUrl: "https://files.example.com/f/abc",
-      },
-    ]);
+    expect(insertedValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          invoiceId: 9,
+          amount: 150,
+          voucherUrl: "https://files.example.com/f/abc",
+        }),
+      ]),
+    );
     expect(updateSets).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ status: "verification_payment" }),
@@ -242,8 +298,21 @@ describe("createPayment authorization", () => {
       voucherUrl: "https://files.example.com/replacement.pdf",
     });
 
-    expect(insertedValues).toHaveLength(0);
-    expect(updateSets.length).toBeGreaterThan(0);
+    expect(insertedValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          invoiceId: 9,
+          voucherUrl: "https://files.example.com/replacement.pdf",
+        }),
+      ]),
+    );
+    expect(updateSets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          voucherUrl: "https://files.example.com/replacement.pdf",
+        }),
+      ]),
+    );
   });
 
   it("moves a pending invoice into review after a voucher is sent", async () => {
@@ -271,6 +340,102 @@ describe("createPayment authorization", () => {
     expect(updateSets).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ status: "verification_payment" }),
+      ]),
+    );
+  });
+
+  it("replays only when the same invoice, uploader, and key already exist", async () => {
+    const idempotencyKey = "11111111-1111-4111-8111-111111111111";
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback(
+          createPaymentTxMock({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "pending",
+              amount: 150,
+              reservationId: 4,
+            },
+            existingSettlement: { id: 21 },
+          }),
+        ),
+    );
+
+    const result = await createPayment({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      message: "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+    });
+    expect(settlementWhereClauses).toHaveLength(1);
+    expect(
+      sqlMentionsColumn(settlementWhereClauses[0], "idempotency_key"),
+    ).toBe(true);
+    expect(sqlMentionsColumn(settlementWhereClauses[0], "invoice_id")).toBe(
+      true,
+    );
+    expect(
+      sqlMentionsColumn(settlementWhereClauses[0], "uploaded_by_user_id"),
+    ).toBe(true);
+    expect(sqlPrimitiveValues(settlementWhereClauses[0])).toEqual(
+      expect.arrayContaining([idempotencyKey, 9, 8]),
+    );
+    expect(insertedValues).toHaveLength(0);
+    expect(updateSets).toHaveLength(0);
+  });
+
+  it("stores a new submission when the same key is not scoped to this invoice and uploader", async () => {
+    const idempotencyKey = "11111111-1111-4111-8111-111111111111";
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback(
+          createPaymentTxMock({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "pending",
+              amount: 150,
+              reservationId: 4,
+            },
+            existingSettlement: null,
+          }),
+        ),
+    );
+
+    const result = await createPayment({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result).not.toMatchObject({
+      message: "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+    });
+    expect(settlementWhereClauses).toHaveLength(1);
+    expect(
+      sqlMentionsColumn(settlementWhereClauses[0], "idempotency_key"),
+    ).toBe(true);
+    expect(sqlMentionsColumn(settlementWhereClauses[0], "invoice_id")).toBe(
+      true,
+    );
+    expect(
+      sqlMentionsColumn(settlementWhereClauses[0], "uploaded_by_user_id"),
+    ).toBe(true);
+    expect(insertedValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          invoiceId: 9,
+          uploadedByUserId: 8,
+          idempotencyKey,
+        }),
       ]),
     );
   });

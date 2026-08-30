@@ -431,7 +431,13 @@ export async function createPayment(
         const [existingSubmission] = await tx
           .select({ id: invoiceSettlementSubmissions.id })
           .from(invoiceSettlementSubmissions)
-          .where(eq(invoiceSettlementSubmissions.idempotencyKey, idempotencyKey))
+          .where(
+            and(
+              eq(invoiceSettlementSubmissions.idempotencyKey, idempotencyKey),
+              eq(invoiceSettlementSubmissions.invoiceId, invoice.id),
+              eq(invoiceSettlementSubmissions.uploadedByUserId, actor.id),
+            ),
+          )
           .limit(1);
         if (existingSubmission) {
           return { kind: "replayed" as const };
