@@ -51,7 +51,7 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> = 
   PARTNER_NOT_ELIGIBLE:
     "La persona que elegiste no puede participar en esta reserva.",
   PARTNER_ALREADY_RESERVED:
-    "La persona que elegiste ya tiene una reserva vigente en este festival.",
+    "La persona que elegiste ya tiene una reserva en este festival.",
   ALREADY_RESERVED: "Ya tenés una reserva vigente en este festival.",
   CONFLICT_RETRY:
     "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",

@@ -161,10 +161,29 @@ export function evaluateSelfServiceEligibility(
   return { allowed: true };
 }
 
+export function evaluatePartnerSearchDenial(input: {
+  status: string;
+  role: string;
+  category: string;
+  enrolled: boolean;
+  festivalReservation?: "live" | "rejected";
+}): ReservationErrorCode | undefined {
+  if (input.festivalReservation) return "PARTNER_ALREADY_RESERVED";
+  if (input.status !== "verified") return "PARTNER_NOT_ELIGIBLE";
+  if (input.role === "admin") return "PARTNER_NOT_ELIGIBLE";
+  if (!input.enrolled) return "PARTNER_NOT_ELIGIBLE";
+  if (input.category !== "illustration" && input.category !== "new_artist") {
+    return "PARTNER_NOT_ELIGIBLE";
+  }
+  return undefined;
+}
+
 export function mapPartnerEligibilityCode(
   code: ReservationErrorCode,
 ): ReservationErrorCode {
-  if (code === "ALREADY_RESERVED") return "PARTNER_ALREADY_RESERVED";
+  if (code === "ALREADY_RESERVED" || code === "RESERVATION_REJECTED") {
+    return "PARTNER_ALREADY_RESERVED";
+  }
   if (
     code === "UNAUTHENTICATED" ||
     code === "UNAUTHORIZED" ||

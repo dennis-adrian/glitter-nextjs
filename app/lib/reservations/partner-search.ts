@@ -4,6 +4,7 @@ import { and, eq, inArray, not, sql } from "drizzle-orm";
 
 import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
+import { evaluatePartnerSearchDenial } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
@@ -88,24 +89,6 @@ async function enrolledUserIds(
   return new Set(rows.map((row) => row.userId));
 }
 
-function partnerDenial(input: {
-  status: string;
-  role: string;
-  category: string;
-  enrolled: boolean;
-  festivalReservation?: "live" | "rejected";
-}): ReservationErrorCode | undefined {
-  if (input.festivalReservation === "rejected") return "PARTNER_NOT_ELIGIBLE";
-  if (input.festivalReservation === "live") return "PARTNER_ALREADY_RESERVED";
-  if (input.status !== "verified") return "PARTNER_NOT_ELIGIBLE";
-  if (input.role === "admin") return "PARTNER_NOT_ELIGIBLE";
-  if (!input.enrolled) return "PARTNER_NOT_ELIGIBLE";
-  if (input.category !== "illustration" && input.category !== "new_artist") {
-    return "PARTNER_NOT_ELIGIBLE";
-  }
-  return undefined;
-}
-
 export async function searchPotentialPartnersForActor(
   festivalId: number,
   query: string,
@@ -123,8 +106,6 @@ export async function searchPotentialPartnersForActor(
 
   try {
     return await db.transaction(async (tx) => {
-      const reservedByUser = await festivalReservationByUserId(tx, festivalId);
-      const reservedIds = [...reservedByUser.keys()];
       const normalizedQuery = trimmed.replace(/\s+/g, "").toLowerCase();
 
       const matchedUsers = await tx
@@ -142,9 +123,6 @@ export async function searchPotentialPartnersForActor(
             eq(users.status, "verified"),
             not(eq(users.role, "admin")),
             not(eq(users.id, actor.id)),
-            reservedIds.length > 0
-              ? not(inArray(users.id, reservedIds))
-              : sql`true`,
             sql`${users.displayName} is not null`,
             sql`similarity(
               replace(lower(${users.displayName}), ' ', ''),
@@ -163,20 +141,25 @@ export async function searchPotentialPartnersForActor(
         )
         .limit(PARTNER_SEARCH_LIMIT);
 
-      const enrolled = await enrolledUserIds(
+      if (!matchedUsers.length) return [];
+
+      const matchedIds = matchedUsers.map((user) => user.id);
+      const reservedByUser = await festivalReservationByUserId(
         tx,
         festivalId,
-        matchedUsers.map((user) => user.id),
+        matchedIds,
       );
+      const enrolled = await enrolledUserIds(tx, festivalId, matchedIds);
 
       return matchedUsers.map((user) =>
         toDto(
           user,
-          partnerDenial({
+          evaluatePartnerSearchDenial({
             status: user.status,
             role: user.role,
             category: user.category,
             enrolled: enrolled.has(user.id),
+            festivalReservation: reservedByUser.get(user.id),
           }),
         ),
       );
@@ -261,7 +244,7 @@ export async function searchRecentPartners(
       return recent.map((user) =>
         toDto(
           { id: user.userId, displayName: user.displayName, imageUrl: user.imageUrl },
-          partnerDenial({
+          evaluatePartnerSearchDenial({
             status: user.status,
             role: user.role,
             category: user.category,

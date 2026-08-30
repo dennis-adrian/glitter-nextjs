@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  evaluatePartnerSearchDenial,
   evaluateSelfServiceEligibility,
   mapPartnerEligibilityCode,
   standMatchesParticipant,
@@ -318,13 +319,63 @@ describe("summarizeFestivalParticipations", () => {
   });
 });
 
+describe("evaluatePartnerSearchDenial", () => {
+  const eligible = {
+    status: "verified",
+    role: "user",
+    category: "illustration",
+    enrolled: true,
+  };
+
+  it("allows an enrolled illustrator without a festival reservation", () => {
+    expect(evaluatePartnerSearchDenial(eligible)).toBeUndefined();
+  });
+
+  it("shows live reservations as already reserved instead of hiding them", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        festivalReservation: "live",
+      }),
+    ).toBe("PARTNER_ALREADY_RESERVED");
+  });
+
+  it("shows rejected reservations as already reserved instead of hiding them", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        festivalReservation: "rejected",
+      }),
+    ).toBe("PARTNER_ALREADY_RESERVED");
+  });
+
+  it("prefers the reservation reason over missing terms enrollment", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        enrolled: false,
+        festivalReservation: "live",
+      }),
+    ).toBe("PARTNER_ALREADY_RESERVED");
+  });
+
+  it("keeps unenrolled people visible but not selectable", () => {
+    expect(
+      evaluatePartnerSearchDenial({
+        ...eligible,
+        enrolled: false,
+      }),
+    ).toBe("PARTNER_NOT_ELIGIBLE");
+  });
+});
+
 describe("mapPartnerEligibilityCode", () => {
   it("maps already reserved to the partner-specific code", () => {
     expect(mapPartnerEligibilityCode("ALREADY_RESERVED")).toBe(
       "PARTNER_ALREADY_RESERVED",
     );
     expect(mapPartnerEligibilityCode("RESERVATION_REJECTED")).toBe(
-      "PARTNER_NOT_ELIGIBLE",
+      "PARTNER_ALREADY_RESERVED",
     );
     expect(mapPartnerEligibilityCode("TERMS_STALE")).toBe(
       "PARTNER_NOT_ELIGIBLE",
