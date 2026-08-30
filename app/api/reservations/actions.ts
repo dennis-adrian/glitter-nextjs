@@ -397,20 +397,19 @@ export async function rejectReservation(input: unknown) {
     return { success: false, message: "Datos inválidos." };
   }
 
-  let canonical;
-  try {
-    canonical = await db.query.standReservations.findFirst({
-      where: eq(standReservations.id, parsed.data.reservationId),
-      with: {
-        stand: true,
-        festival: { with: { festivalDates: true } },
-        participants: { with: { user: true } },
-      },
-    });
-    if (!canonical) {
-      return { success: false, message: "La reserva no existe." };
-    }
+  const canonical = await db.query.standReservations.findFirst({
+    where: eq(standReservations.id, parsed.data.reservationId),
+    with: {
+      stand: true,
+      festival: { with: { festivalDates: true } },
+      participants: { with: { user: true } },
+    },
+  });
+  if (!canonical) {
+    return { success: false, message: "La reserva no existe." };
+  }
 
+  try {
     await db.transaction(async (tx) => {
       await tx
         .delete(scheduledTasks)
@@ -442,10 +441,6 @@ export async function rejectReservation(input: unknown) {
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al cancelar la reserva" };
-  }
-
-  if (!canonical) {
-    return { success: false, message: "La reserva no existe." };
   }
 
   // Post-commit side effects must never fail a cancellation that already
