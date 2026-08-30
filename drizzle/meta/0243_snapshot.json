@@ -1,5 +1,5 @@
 {
-  "id": "ba208179-8e53-4a52-bda3-9ad24e44a93c",
+  "id": "ae52d425-927f-4631-a791-0a47bc77a3e1",
   "prevId": "ca168c63-03f5-4eac-b480-08fb8dacbb48",
   "version": "7",
   "dialect": "postgresql",
@@ -3983,6 +3983,172 @@
           "tableTo": "discount_codes",
           "columnsFrom": [
             "discount_code_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.landing_page_drafts": {
+      "name": "landing_page_drafts",
+      "schema": "",
+      "columns": {
+        "page_key": {
+          "name": "page_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "landing_page_drafts_updated_by_user_id_users_id_fk": {
+          "name": "landing_page_drafts_updated_by_user_id_users_id_fk",
+          "tableFrom": "landing_page_drafts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.landing_page_publications": {
+      "name": "landing_page_publications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "page_key": {
+          "name": "page_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_draft_version": {
+          "name": "source_draft_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_by_user_id": {
+          "name": "published_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "landing_page_publications_page_key_id_idx": {
+          "name": "landing_page_publications_page_key_id_idx",
+          "columns": [
+            {
+              "expression": "page_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "landing_page_publications_published_by_user_id_idx": {
+          "name": "landing_page_publications_published_by_user_id_idx",
+          "columns": [
+            {
+              "expression": "published_by_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "landing_page_publications_published_by_user_id_users_id_fk": {
+          "name": "landing_page_publications_published_by_user_id_users_id_fk",
+          "tableFrom": "landing_page_publications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "published_by_user_id"
           ],
           "columnsTo": [
             "id"
@@ -13701,7 +13867,6 @@
       "schema": "public",
       "values": [
         "pending",
-        "verification_payment",
         "paid",
         "cancelled"
       ]

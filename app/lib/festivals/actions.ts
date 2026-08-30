@@ -292,6 +292,7 @@ export async function updateFestival(
           entrepreneurshipStandUrl: data.entrepreneurshipStandUrl || null,
           festivalCode: data.festivalCode || null,
           festivalBannerUrl: data.festivalBannerUrl || null,
+          posterUrl: data.posterUrl || null,
           updatedAt: new Date(),
         })
         .where(eq(festivals.id, data.id))

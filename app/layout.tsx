@@ -8,7 +8,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
 
 import { Toaster } from "@/components/ui/sonner";
-import { inter, spaceGrotesk } from "@/ui/fonts";
+import { figtree, gabarito, inter, spaceGrotesk } from "@/ui/fonts";
 
 import Navbar from "@/app/components/navbar/navbar";
 import Footer from "@/app/components/footer";
@@ -39,13 +39,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
+      <body
+        className={`${figtree.variable} ${gabarito.variable} ${inter.variable} ${spaceGrotesk.variable} font-sans`}
+      >
         <Suspense fallback={<div className="min-h-screen" />}>
           <ClerkProvider localization={esMX}>
-            <Suspense fallback={<div className="h-16 md:h-20" />}>
+            <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
               <Navbar />
             </Suspense>
-            <main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
+            <main className="min-h-[calc(100vh-76px-180px)] md:min-h-[calc(100vh-76px-290px)] lg:min-h-[calc(100vh-84px-290px)]">
               {children}
             </main>
             <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>

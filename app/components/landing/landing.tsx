@@ -1,53 +1,29 @@
-import Carousel from "@/app/components/landing/carousel";
-import EventFeatures from "@/app/components/landing/event-features";
-import NoFestivalBanner from "@/app/components/landing/no-festival-banner";
-import MarketingBannerCarousel from "@/app/components/marketing/marketing-banner-carousel";
-import { RedirectButton } from "@/app/components/redirect-button";
-import { getActiveFestival } from "@/app/lib/festivals/helpers";
+import LandingV4 from "@/app/components/landing/landing-v4";
+import type { LandingPageContentV1 } from "@/app/lib/landing_content/definitions";
+import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
+import { resolveLandingFestivals } from "@/app/lib/landing_content/resolve";
 import { fetchMarketingBannersForLanding } from "@/app/lib/marketing_banners/actions";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import Image from "next/image";
 
-export default async function Landing() {
-  const [festival, profile] = await Promise.all([
-    getActiveFestival(),
-    getCurrentUserProfile(),
+export default async function Landing({
+  content,
+  preview = false,
+}: {
+  content?: LandingPageContentV1;
+  preview?: boolean;
+}) {
+  const landingContent = content ?? (await getPublishedLandingContent());
+  const [resolved, marketingBanners] = await Promise.all([
+    resolveLandingFestivals(landingContent, preview),
+    fetchMarketingBannersForLanding(false),
   ]);
-  const marketingBanners = await fetchMarketingBannersForLanding(!!profile);
 
   return (
-    <div className="container p-4 md:p-6">
-      {marketingBanners.length > 0 && (
-        <div className="mb-6 w-full">
-          <MarketingBannerCarousel banners={marketingBanners} />
-        </div>
-      )}
-      {festival ? (
-        <section className="text-center">
-          <div className="mt-8">
-            <div>
-              <h1 className="text-4xl font-bold md:text-6xl text-shadow-xs shadow-primary-200">
-                Nuestros festivales
-              </h1>
-              <p className="my-2 leading-6">
-                eventos creados para brindar un espacio acogedor y seguro para
-                artistas
-              </p>
-            </div>
-            <div className="pt-4 md:pt-8">
-              <Carousel />
-            </div>
-            <div className="py-4 md:py-14">
-              <h1 className="text-4xl font-bold md:text-6xl text-shadow-xs shadow-gray-400 my-6 md:my-0">
-                El mejor lugar para encontrar
-              </h1>
-              <EventFeatures />
-            </div>
-          </div>
-        </section>
-      ) : (
-        <NoFestivalBanner />
-      )}
-    </div>
+    <LandingV4
+      content={landingContent}
+      marketingBanners={marketingBanners}
+      spotlight={resolved.spotlight}
+      family={resolved.family}
+      preview={preview}
+    />
   );
 }

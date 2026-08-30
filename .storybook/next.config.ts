@@ -1,29 +1,10 @@
 import type { NextConfig } from "next";
 
+import { REMOTE_IMAGE_HOST_PATTERNS } from "../app/lib/images/remote-hosts";
+
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "img.clerk.com",
-      },
-      {
-        protocol: "https",
-        hostname: "files.edgestore.dev",
-      },
-      {
-        protocol: "https",
-        hostname: "utfs.io",
-      },
-      {
-        protocol: "https",
-        hostname: "ufs.sh",
-      },
-      {
-        protocol: "https",
-        hostname: "**.ufs.sh",
-      },
-    ],
+    remotePatterns: [...REMOTE_IMAGE_HOST_PATTERNS],
   },
 };
 

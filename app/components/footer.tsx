@@ -10,6 +10,8 @@ import { cn } from "@/app/lib/utils";
 export default function Footer() {
   const pathname = usePathname();
 
+  if (pathname === "/") return null;
+
   // Hide footer on festival registration pages
   const shouldHide =
     pathname?.includes("festivals") && pathname.includes("registration");
