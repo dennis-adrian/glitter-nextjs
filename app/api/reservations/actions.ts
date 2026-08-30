@@ -397,8 +397,9 @@ export async function rejectReservation(input: unknown) {
     return { success: false, message: "Datos inválidos." };
   }
 
+  let canonical;
   try {
-    const canonical = await db.query.standReservations.findFirst({
+    canonical = await db.query.standReservations.findFirst({
       where: eq(standReservations.id, parsed.data.reservationId),
       with: {
         stand: true,
@@ -438,26 +439,43 @@ export async function rejectReservation(input: unknown) {
         payload: parsed.data.reason ? { reason: parsed.data.reason } : null,
       });
     });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al cancelar la reserva" };
+  }
 
+  if (!canonical) {
+    return { success: false, message: "La reserva no existe." };
+  }
+
+  // Post-commit side effects must never fail a cancellation that already
+  // committed: guard them and log without propagating, then always revalidate
+  // and return success.
+  try {
     const participantsWithEmail = canonical.participants.filter((p) =>
       p.user?.email?.trim(),
     );
-    const sendPromises = participantsWithEmail.map((participant) => {
-      const email = participant.user.email.trim();
-      const userName = getUserName(participant.user);
-      return sendEmail({
-        to: [email],
-        from: "Equipo Glitter <equipo@productoraglitter.com>",
-        subject: `${userName}, tu reserva ha sido cancelada`,
-        react: ReservationRejectionEmailTemplate({
-          festival: canonical.festival,
-          profile: participant.user,
-          stand: canonical.stand,
-          reason: parsed.data.reason,
-        }) as React.ReactElement,
-      });
-    });
-    const results = await Promise.allSettled(sendPromises);
+    // Wrap each send in an async boundary so sync EmailTemplate / sendEmail
+    // errors become rejections instead of escaping Promise.allSettled construction.
+    const results = await Promise.allSettled(
+      participantsWithEmail.map((participant) =>
+        (async () => {
+          const email = participant.user.email.trim();
+          const userName = getUserName(participant.user);
+          return sendEmail({
+            to: [email],
+            from: "Equipo Glitter <equipo@productoraglitter.com>",
+            subject: `${userName}, tu reserva ha sido cancelada`,
+            react: ReservationRejectionEmailTemplate({
+              festival: canonical.festival,
+              profile: participant.user,
+              stand: canonical.stand,
+              reason: parsed.data.reason,
+            }) as React.ReactElement,
+          });
+        })(),
+      ),
+    );
     results.forEach((result, index) => {
       if (result.status === "rejected") {
         console.error(
@@ -466,8 +484,7 @@ export async function rejectReservation(input: unknown) {
       }
     });
   } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al cancelar la reserva" };
+    console.error("[rejectReservation] Post-commit processing failed:", error);
   }
 
   revalidatePath("/dashboard/festivals/[id]/reservations", "page");
