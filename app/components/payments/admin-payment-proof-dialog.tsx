@@ -106,6 +106,7 @@ export default function AdminPaymentProofDialog({
           </label>
           <PaymentProofUpload
             submitLabel="Guardar comprobante"
+            uploadInput={{ invoiceId: invoice.id }}
             onUploadComplete={handleUploadComplete}
             onUploading={setIsUploading}
           />

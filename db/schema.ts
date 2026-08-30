@@ -1230,6 +1230,7 @@ export const scheduledTasksRelations = relations(scheduledTasks, ({ one }) => ({
 
 export const invoiceStatusEnum = pgEnum("invoice_status", [
   "pending",
+  "verification_payment",
   "paid",
   "cancelled",
 ]);

@@ -6,8 +6,16 @@ import { discountCodes, invoices, standReservations } from "@/db/schema";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { NewDiscountCode } from "./definitions";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { consumeActionRateLimit } from "@/app/lib/rate-limit";
+import {
+  applyDiscountSchema,
+  parseUnknown,
+} from "@/app/lib/reservations/schemas";
 
 export async function fetchDiscountCodes() {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) return [];
   try {
     return await db.query.discountCodes.findMany({
       orderBy: [asc(discountCodes.createdAt)],
@@ -23,6 +31,11 @@ export async function fetchDiscountCodes() {
 }
 
 export async function createDiscountCode(data: NewDiscountCode) {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
+    return { success: false, message: "No autorizado." };
+  }
+
   const normalizedCode = data.code.trim().toLowerCase();
   try {
     await db.insert(discountCodes).values({ ...data, code: normalizedCode });
@@ -45,6 +58,10 @@ export async function updateDiscountCode(
   id: number,
   data: Partial<NewDiscountCode>,
 ) {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
+    return { success: false, message: "No autorizado." };
+  }
   const normalizedData =
     data.code !== undefined
       ? { ...data, code: data.code.trim().toLowerCase() }
@@ -70,6 +87,8 @@ export async function updateDiscountCode(
 }
 
 export async function fetchDiscountCode(id: number) {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) return null;
   try {
     return await db.query.discountCodes.findFirst({
       where: eq(discountCodes.id, id),
@@ -98,13 +117,30 @@ export async function validateAndApplyDiscountCode({
     return { success: false, message: "Usuario no autenticado." };
   }
 
+  const parsed = parseUnknown(applyDiscountSchema, { code, invoiceId });
+  if (!parsed.success) {
+    return { success: false, message: "Código de descuento inválido o inactivo." };
+  }
+
+  const allowed = await consumeActionRateLimit({
+    key: `discount-apply:user:${currentUser.id}`,
+    limit: 15,
+    windowMs: 60_000,
+  }).catch(() => false);
+  if (!allowed) {
+    return { success: false, message: "Código de descuento inválido o inactivo." };
+  }
+
+  const normalizedCode = parsed.data.code.trim().toLowerCase();
+
   try {
     const result = await db.transaction(async (tx) => {
-      // Fetch invoice to validate it has no discount yet
       const [invoice] = await tx
         .select({
           id: invoices.id,
           originalAmount: invoices.originalAmount,
+          discountAmount: invoices.discountAmount,
+          amount: invoices.amount,
           discountCodeId: invoices.discountCodeId,
           status: invoices.status,
           userId: invoices.userId,
@@ -115,11 +151,15 @@ export async function validateAndApplyDiscountCode({
           standReservations,
           eq(standReservations.id, invoices.reservationId),
         )
-        .where(eq(invoices.id, invoiceId))
-        .limit(1);
+        .where(eq(invoices.id, parsed.data.invoiceId))
+        .limit(1)
+        .for("update");
 
       if (!invoice) {
-        return { success: false, message: "Factura no encontrada." };
+        return {
+          success: false,
+          message: "Código de descuento inválido o inactivo.",
+        };
       }
 
       if (invoice.userId !== currentUser.id && currentUser.role !== "admin") {
@@ -128,30 +168,40 @@ export async function validateAndApplyDiscountCode({
       if (invoice.festivalId !== festivalId) {
         return {
           success: false,
-          message: "La factura no corresponde a este festival.",
+          message: "Código de descuento inválido o inactivo.",
         };
       }
 
       if (invoice.status !== "pending") {
         return {
           success: false,
-          message: "No se puede aplicar un descuento a una factura ya pagada.",
+          message: "Código de descuento inválido o inactivo.",
         };
       }
       if (invoice.discountCodeId !== null) {
+        const already = await tx.query.discountCodes.findFirst({
+          where: eq(discountCodes.id, invoice.discountCodeId),
+        });
+        if (already && already.code === normalizedCode) {
+          return {
+            success: true,
+            message: "Código de descuento aplicado correctamente.",
+            discountAmount: invoice.discountAmount,
+            newAmount: invoice.amount,
+          };
+        }
         return {
           success: false,
-          message: "Esta reserva ya tiene un código de descuento aplicado.",
+          message: "Código de descuento inválido o inactivo.",
         };
       }
 
-      // Lock and fetch the discount code row
       const [discountCode] = await tx
         .select()
         .from(discountCodes)
         .where(
           and(
-            eq(sql`lower(${discountCodes.code})`, code.toLowerCase()),
+            eq(sql`lower(${discountCodes.code})`, normalizedCode),
             eq(discountCodes.isActive, true),
           ),
         )
@@ -165,58 +215,53 @@ export async function validateAndApplyDiscountCode({
         };
       }
 
-      // Check expiration
       if (discountCode.expiresAt < new Date()) {
         return {
           success: false,
-          message: "El código de descuento ha expirado.",
+          message: "Código de descuento inválido o inactivo.",
         };
       }
 
-      // Check usage limit
       if (
         discountCode.maxUses !== null &&
         discountCode.currentUses >= discountCode.maxUses
       ) {
         return {
           success: false,
-          message: "El código de descuento ha alcanzado su límite de uso.",
+          message: "Código de descuento inválido o inactivo.",
         };
       }
 
-      // Check festival scope
       if (
         discountCode.festivalId !== null &&
-        discountCode.festivalId !== festivalId
+        discountCode.festivalId !== invoice.festivalId
       ) {
         return {
           success: false,
-          message: "El código de descuento no es válido para este festival.",
+          message: "Código de descuento inválido o inactivo.",
         };
       }
 
-      // Check user scope
       if (
         discountCode.userId !== null &&
-        discountCode.userId !== currentUser.id &&
-        currentUser.role !== "admin"
+        discountCode.userId !== invoice.userId
       ) {
         return {
           success: false,
-          message: "El código de descuento no es válido para este usuario.",
+          message: "Código de descuento inválido o inactivo.",
         };
       }
 
-      // Compute discount amount
       const originalAmount = invoice.originalAmount;
       const rawDiscount =
         discountCode.discountUnit === "percentage"
           ? originalAmount * (discountCode.discountValue / 100)
           : discountCode.discountValue;
-      const discountAmount = Math.min(originalAmount, Math.max(0, rawDiscount));
-      const newAmount = originalAmount - discountAmount;
+      const discountAmount =
+        Math.round(Math.min(originalAmount, Math.max(0, rawDiscount)) * 100) /
+        100;
+      const newAmount = Math.round((originalAmount - discountAmount) * 100) / 100;
 
-      // Apply discount to invoice
       await tx
         .update(invoices)
         .set({
@@ -225,9 +270,8 @@ export async function validateAndApplyDiscountCode({
           discountCodeId: discountCode.id,
           updatedAt: new Date(),
         })
-        .where(eq(invoices.id, invoiceId));
+        .where(eq(invoices.id, invoice.id));
 
-      // Increment usage count
       await tx
         .update(discountCodes)
         .set({

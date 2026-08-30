@@ -8,6 +8,7 @@ import { UploadIcon } from "lucide-react";
 
 type CompletePaymentButtonProps = {
   invoice: InvoiceWithPaymentsAndStand;
+  label?: string;
 };
 export default function CompletePaymentButton(
   props: CompletePaymentButtonProps,
@@ -16,7 +17,7 @@ export default function CompletePaymentButton(
   return (
     <>
       <Button className="w-full" onClick={() => setUploadPaymentVoucher(true)}>
-        Ya hice el pago
+        {props.label ?? "Ya hice el pago"}
         <UploadIcon className="ml-2 w-4 h-4" />
       </Button>
       <UploadPaymentVoucherModal

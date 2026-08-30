@@ -45,18 +45,30 @@ export function PaymentSummary({ invoice, festivalId }: PaymentSummaryProps) {
           </div>
         </div>
 
-        {!hasDiscount && (
+        {!hasDiscount && invoice.status === "pending" && (
           <div className="mt-4">
             <DiscountCodeInput invoiceId={invoice.id} festivalId={festivalId} />
           </div>
         )}
 
         <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-          <p className="font-medium mb-1">El pago confirmará la reserva</p>
-          <p className="text-muted-foreground">
-            Una vez realizado el pago, puede tomar hasta 48 horas para que se
-            actualice el estado de la reserva.
-          </p>
+          {invoice.status === "verification_payment" ? (
+            <>
+              <p className="font-medium mb-1">El pago está en revisión</p>
+              <p className="text-muted-foreground">
+                Recibimos tu comprobante. Puede tomar hasta 48 horas confirmar
+                la reserva.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium mb-1">El pago confirmará la reserva</p>
+              <p className="text-muted-foreground">
+                Una vez realizado el pago, puede tomar hasta 48 horas para que
+                se actualice el estado de la reserva.
+              </p>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

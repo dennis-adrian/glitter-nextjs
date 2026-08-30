@@ -2,6 +2,7 @@
 
 import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { db } from "@/db";
 import {
@@ -26,6 +27,11 @@ import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import {
+  parseUnknown,
+  positiveIntSchema,
+} from "@/app/lib/reservations/schemas";
 
 export async function fetchConfirmedReservationsByFestival(
   festivalId: number,
@@ -127,25 +133,53 @@ export async function fetchReservation(
 }
 
 export async function updateReservation(
-  id: number,
-  data: ReservationWithParticipantsAndUsersAndStand,
+  id: unknown,
+  data: unknown,
 ): Promise<{ success: boolean; message: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(profile)) {
+    return { success: false, message: "No autorizado para actualizar la reserva." };
+  }
+
+  const idParsed = parseUnknown(positiveIntSchema, id);
+  const dataParsed = parseUnknown(
+    z.object({
+      status: z.enum(["pending", "verification_payment", "accepted", "rejected"]),
+    }),
+    data,
+  );
+  if (!idParsed.success || !dataParsed.success) {
+    return { success: false, message: "Datos inválidos." };
+  }
+
   try {
-    const { status, standId } = data;
     await db.transaction(async (tx) => {
+      const [reservation] = await tx
+        .select()
+        .from(standReservations)
+        .where(eq(standReservations.id, idParsed.data))
+        .limit(1)
+        .for("update");
+      if (!reservation) {
+        throw new Error("not_found");
+      }
+
+      const { status } = dataParsed.data;
       await tx
         .update(standReservations)
         .set({
           status,
           ...(status === "rejected" ? { revealAt: null } : {}),
         })
-        .where(eq(standReservations.id, id));
+        .where(eq(standReservations.id, reservation.id));
 
-      const standStatus = status === "accepted" ? "confirmed" : "available";
+      const standStatus = ["accepted", "verification_payment"].includes(status)
+        ? "confirmed"
+        : "available";
       await tx
         .update(stands)
         .set({ status: standStatus })
-        .where(eq(stands.id, standId));
+        .where(eq(stands.id, reservation.standId));
     });
   } catch (error) {
     console.error(error);
@@ -156,24 +190,41 @@ export async function updateReservation(
   return { success: true, message: "Reserva actualizada" };
 }
 
-export async function deleteReservation(
-  reservationId: number,
-  standId: number,
-) {
+export async function deleteReservation(reservationIdInput: unknown) {
+  const profile = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(profile)) {
+    return { success: false, message: "No autorizado para eliminar la reserva." };
+  }
+
+  const parsed = parseUnknown(positiveIntSchema, reservationIdInput);
+  if (!parsed.success) {
+    return { success: false, message: "Datos inválidos." };
+  }
+
   try {
     await db.transaction(async (tx) => {
+      const [reservation] = await tx
+        .select()
+        .from(standReservations)
+        .where(eq(standReservations.id, parsed.data))
+        .limit(1)
+        .for("update");
+      if (!reservation) {
+        throw new Error("not_found");
+      }
+
       await tx
         .delete(scheduledTasks)
-        .where(eq(scheduledTasks.reservationId, reservationId));
+        .where(eq(scheduledTasks.reservationId, reservation.id));
 
       await tx
         .delete(standReservations)
-        .where(eq(standReservations.id, reservationId));
+        .where(eq(standReservations.id, reservation.id));
 
       await tx
         .update(stands)
         .set({ status: "available" })
-        .where(eq(stands.id, standId));
+        .where(eq(stands.id, reservation.standId));
     });
   } catch (error) {
     console.error(error);
@@ -333,11 +384,34 @@ export async function confirmReservation(
   tx?: ConfirmReservationTx,
 ) {
   const profile = await getCurrentUserProfile();
-  if (!profile || profile.role !== "admin") {
+  if (!canMutateAdminReservations(profile)) {
     return {
       success: false,
       message: "No autorizado para confirmar la reserva.",
     };
+  }
+
+  const reservationRow = await db.query.standReservations.findFirst({
+    where: eq(standReservations.id, reservationId),
+    columns: { id: true, standId: true },
+  });
+  if (!reservationRow) {
+    return { success: false, message: "La reserva no existe." };
+  }
+  if (standId !== reservationRow.standId) {
+    return { success: false, message: "La reserva no coincide con el espacio." };
+  }
+  if (paidInvoiceId !== undefined) {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, paidInvoiceId),
+      columns: { id: true, reservationId: true },
+    });
+    if (!invoice || invoice.reservationId !== reservationId) {
+      return {
+        success: false,
+        message: "El pago no corresponde a esta reserva.",
+      };
+    }
   }
 
   try {
@@ -407,11 +481,29 @@ export async function rejectReservation(
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival,
   reason?: string,
 ) {
+  const profile = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(profile)) {
+    return { success: false, message: "No autorizado para cancelar la reserva." };
+  }
+
+  const parsed = parseUnknown(positiveIntSchema, reservation?.id);
+  if (!parsed.success || parsed.data !== reservation.id) {
+    return { success: false, message: "Datos inválidos." };
+  }
+
   try {
+    const canonical = await db.query.standReservations.findFirst({
+      where: eq(standReservations.id, parsed.data),
+      columns: { id: true, standId: true },
+    });
+    if (!canonical || canonical.standId !== reservation.standId) {
+      return { success: false, message: "La reserva no coincide con el espacio." };
+    }
+
     await db.transaction(async (tx) => {
       await tx
         .delete(scheduledTasks)
-        .where(eq(scheduledTasks.reservationId, reservation.id));
+        .where(eq(scheduledTasks.reservationId, canonical.id));
 
       await tx
         .update(standReservations)
@@ -420,12 +512,12 @@ export async function rejectReservation(
           revealAt: null,
           updatedAt: sql`now()`,
         })
-        .where(eq(standReservations.id, reservation.id));
+        .where(eq(standReservations.id, canonical.id));
 
       await tx
         .update(stands)
         .set({ status: "available" })
-        .where(eq(stands.id, reservation.standId));
+        .where(eq(stands.id, canonical.standId));
     });
 
     const participantsWithEmail = reservation.participants.filter((p) =>

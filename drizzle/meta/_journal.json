@@ -1702,6 +1702,13 @@
       "when": 1788025343411,
       "tag": "0243_reflective_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1788056696845,
+      "tag": "0244_sturdy_shooting_star",
+      "breakpoints": true
     }
   ]
 }

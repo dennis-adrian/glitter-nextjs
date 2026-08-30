@@ -53,6 +53,7 @@ export default async function PaymentsPage(props: {
         <TabsList>
           <TabsTrigger value="all">Todos</TabsTrigger>
           <TabsTrigger value="paid">Pagados</TabsTrigger>
+          <TabsTrigger value="verification_payment">En revisión</TabsTrigger>
           <TabsTrigger value="pending">Pendientes</TabsTrigger>
           <TabsTrigger value="cancelled">Cancelados</TabsTrigger>
         </TabsList>
@@ -61,6 +62,13 @@ export default async function PaymentsPage(props: {
         </TabsContent>
         <TabsContent value="paid">
           <PaymentsTable invoices={invoices} status="paid" isAdmin={isAdmin} />
+        </TabsContent>
+        <TabsContent value="verification_payment">
+          <PaymentsTable
+            invoices={invoices}
+            status="verification_payment"
+            isAdmin={isAdmin}
+          />
         </TabsContent>
         <TabsContent value="pending">
           <PaymentsTable

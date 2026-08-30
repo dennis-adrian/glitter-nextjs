@@ -150,12 +150,12 @@ export function StandInfoCard({
     if (!canReserve || isPending) return;
     startTransition(async () => {
       try {
-        const res = await createStandHold(stand.id, profile.id, festival.id);
-        if (res.success && res.holdId) {
-          onHoldChange?.({ id: res.holdId, standId: stand.id });
+        const res = await createStandHold(stand.id);
+        if (res.success && res.data.holdId) {
+          onHoldChange?.({ id: res.data.holdId, standId: stand.id });
           onClose();
           router.replace(
-            `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.holdId}`,
+            `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.data.holdId}`,
           );
         } else {
           toast.error(res.message);

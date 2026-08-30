@@ -13,6 +13,7 @@ export default function PaymentStatus({
   const status = mapPaymentStatusToDisplayPaymentStatus(invoice, reservation);
   const statusColors: Record<typeof status, string> = {
     Pendiente: "bg-gray-500 hover:bg-gray-400",
+    "En revisión": "bg-blue-500 hover:bg-blue-400",
     Pagado: "bg-green-500 hover:bg-green-400",
     Atrasado: "bg-red-600 hover:bg-red-500",
     Cancelado: "bg-gray-500 hover:bg-gray-400",

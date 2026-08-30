@@ -2,19 +2,16 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import ClientMap from "@/app/components/festivals/client-map";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
-import { profileNeedsTermsReacceptance } from "@/app/lib/festival-terms/require-current";
-import { formatDate } from "@/app/lib/formatters";
+import { getSelfServicePageDenial } from "@/app/lib/reservations/entry";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { standHolds } from "@/db/schema";
 import { and, eq, gt } from "drizzle-orm";
-import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 
 type SectorReservationPageProps = {
@@ -32,31 +29,21 @@ export default async function SectorReservationPage(
   const festival = await fetchBaseFestival(props.festivalId);
   if (!festival) notFound();
 
-  const reservationStartDate = formatDate(
-    festival.reservationsStartDate,
-  ).toJSDate();
-  const currentTime = DateTime.now().toJSDate();
-  if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
-    return <ReservationNotAllowed festival={festival} />;
-  }
-
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) notFound();
 
-  const inFestival = isProfileInFestival(festival.id, forProfile);
-  if (!inFestival) {
-    return (
-      <div className="text-muted-foreground flex pt-8 justify-center">
-        No estás habilitado para participar en este evento
-      </div>
-    );
-  }
-
-  if (
-    currentProfile?.role !== "admin" &&
-    (await profileNeedsTermsReacceptance(festival, forProfile))
-  ) {
+  const denial = await getSelfServicePageDenial({
+    actor: currentProfile
+      ? { id: currentProfile.id, role: currentProfile.role }
+      : null,
+    targetProfile: forProfile,
+    festival,
+  });
+  if (denial === "TERMS_STALE") {
     return <TermsReacceptanceRequired festivalId={festival.id} />;
+  }
+  if (denial) {
+    return <ReservationNotAllowed festival={festival} policyCode={denial} />;
   }
 
   const subcategoryIds = forProfile.profileSubcategories.map(

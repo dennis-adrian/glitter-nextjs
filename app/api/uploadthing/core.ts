@@ -7,6 +7,7 @@ import { z } from "zod";
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { canAcceptInvoiceProof } from "@/app/lib/payments/helpers";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
@@ -14,7 +15,7 @@ import {
   VOUCHER_BLOCKER_LABELS,
 } from "@/app/lib/programs/vouchers";
 import { db } from "@/db";
-import { orders, productImages, sessionPurchases } from "@/db/schema";
+import { invoices, orders, productImages, sessionPurchases } from "@/db/schema";
 
 const f = createUploadthing();
 
@@ -77,14 +78,13 @@ export const ourFileRouter = {
       };
     }),
   reservationPayment: f({ image: { maxFileSize: "4MB" } })
-    .middleware(async ({ req }) => {
-      // This code runs on your server before upload
+    .input(z.object({ invoiceId: z.number().int().positive() }))
+    .middleware(async ({ input }) => {
       const user = await currentUser();
 
-      // Throw if user isn't signed in
       if (!user) {
         throw new UploadThingError(
-          "You must be logged in to upload a profile picture",
+          "Tenés que iniciar sesión para subir un comprobante",
         );
       }
 
@@ -92,16 +92,39 @@ export const ourFileRouter = {
 
       if (!profile) {
         throw new UploadThingError(
-          "You must have a profile to upload a payment proof",
+          "Tenés que tener un perfil para subir un comprobante",
         );
       }
 
-      return { profile };
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, input.invoiceId),
+        with: {
+          reservation: true,
+        },
+      });
+      if (
+        !invoice ||
+        (invoice.userId !== profile.id && profile.role !== "admin")
+      ) {
+        throw new UploadThingError("Factura no encontrada");
+      }
+      if (!canAcceptInvoiceProof(invoice.status)) {
+        throw new UploadThingError("Esta factura ya no admite un comprobante");
+      }
+      if (
+        invoice.reservation.status !== "pending" &&
+        invoice.reservation.status !== "verification_payment"
+      ) {
+        throw new UploadThingError("Esta reserva ya no admite un comprobante");
+      }
+
+      return { profileId: profile.id, invoiceId: invoice.id };
     })
     .onUploadComplete(({ metadata, file }) => {
       return {
         results: {
-          profileId: metadata.profile.id,
+          profileId: metadata.profileId,
+          invoiceId: metadata.invoiceId,
           imageUrl: (file as { url: string }).url,
         },
       };

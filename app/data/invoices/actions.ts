@@ -5,12 +5,10 @@ import {
   InvoiceWithParticipants,
   InvoiceWithPaymentsAndStand,
   InvoiceWithPaymentsAndStandAndProfile,
-  NewPayment,
   ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
-import { updateReservationStatus } from "@/app/lib/reservations/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
@@ -20,7 +18,20 @@ import {
   standReservations,
 } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { UTApi } from "uploadthing/server";
+import {
+  reservationFailure,
+  type ReservationActionResult,
+} from "@/app/lib/reservations/errors";
+import {
+  canSubmitInvoiceSettlement,
+  canViewAdminReservationData,
+  canViewInvoiceRecord,
+} from "@/app/lib/reservations/policy";
+import {
+  invoiceIdSchema,
+  parseUnknown,
+  submitPaymentProofSchema,
+} from "@/app/lib/reservations/schemas";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { revalidatePath } from "next/cache";
 import {
@@ -31,6 +42,7 @@ import {
   attemptStorageCleanupJob,
   enqueueStorageCleanupJob,
 } from "@/app/lib/uploadthing/actions";
+import { countOutstandingInvoices, canAcceptInvoiceProof } from "@/app/lib/payments/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export async function updateInvoiceStatus(
@@ -42,7 +54,7 @@ export async function updateInvoiceStatus(
     return { success: false, message: "No autorizado." };
   }
 
-  if (!["pending", "paid", "cancelled"].includes(status)) {
+  if (!["pending", "verification_payment", "paid", "cancelled"].includes(status)) {
     return { success: false, message: "Estado de pago inválido." };
   }
 
@@ -155,6 +167,11 @@ export async function adminAttachPaymentVoucher(
         await tx
           .update(invoices)
           .set({ status: "paid", updatedAt: new Date() })
+          .where(eq(invoices.id, invoiceId));
+      } else if (invoice.status === "pending") {
+        await tx
+          .update(invoices)
+          .set({ status: "verification_payment", updatedAt: new Date() })
           .where(eq(invoices.id, invoiceId));
       }
     });
@@ -276,6 +293,14 @@ export async function adminRemovePaymentVoucher(
 export async function fetchLatestInvoiceByProfileId(
   profileId: number,
 ): Promise<InvoiceWithPaymentsAndStand | undefined | null> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+  if (
+    actor.id !== profileId &&
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return null;
+  }
   try {
     return await db.query.invoices.findFirst({
       with: {
@@ -304,145 +329,328 @@ export async function fetchLatestInvoiceByProfileId(
   }
 }
 
-export async function createPayment(data: {
-  payment: NewPayment;
-  oldVoucherUrl?: string;
-  reservationId: number;
-  standId: number;
-}) {
-  const { payment, oldVoucherUrl, reservationId, standId } = data;
+function normalizePaymentProofInput(input: unknown) {
+  if (input && typeof input === "object" && "payment" in input) {
+    const nested = input as {
+      payment?: { invoiceId?: unknown; voucherUrl?: unknown };
+    };
+    return {
+      invoiceId: nested.payment?.invoiceId,
+      voucherUrl: nested.payment?.voucherUrl,
+    };
+  }
+  return input;
+}
+
+export async function createPayment(
+  input: unknown,
+): Promise<ReservationActionResult> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+
+  const parsed = parseUnknown(
+    submitPaymentProofSchema,
+    normalizePaymentProofInput(input),
+  );
+  if (!parsed.success) return reservationFailure("VALIDATION");
+
+  const { invoiceId, voucherUrl } = parsed.data;
+
   try {
-    await db.transaction(async (tx) => {
-      if (payment.id) {
+    const outcome = await db.transaction(async (tx) => {
+      const [lockedInvoice] = await tx
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, invoiceId))
+        .limit(1)
+        .for("update");
+      if (!lockedInvoice) return reservationFailure("VALIDATION");
+
+      const reservation = await tx.query.standReservations.findFirst({
+        where: eq(standReservations.id, lockedInvoice.reservationId),
+        with: {
+          participants: true,
+        },
+      });
+      if (!reservation) return reservationFailure("VALIDATION");
+
+      const invoicePayments = await tx.query.payments.findMany({
+        where: eq(payments.invoiceId, lockedInvoice.id),
+        orderBy: [desc(payments.createdAt), desc(payments.id)],
+      });
+
+      const invoice = {
+        ...lockedInvoice,
+        payments: invoicePayments,
+        reservation,
+      };
+
+      if (
+        !canSubmitInvoiceSettlement({
+          actor: { id: actor.id, role: actor.role },
+          invoiceOwnerUserId: invoice.userId,
+        })
+      ) {
+        return reservationFailure("INVOICE_NOT_OWNED");
+      }
+
+      if (!canAcceptInvoiceProof(invoice.status)) {
+        return reservationFailure("INVOICE_NOT_PENDING");
+      }
+
+      if (
+        invoice.reservation.status !== "pending" &&
+        invoice.reservation.status !== "verification_payment"
+      ) {
+        return reservationFailure("INVOICE_NOT_PENDING");
+      }
+
+      const currentPayment = invoice.payments[0];
+      if (currentPayment) {
         await tx
           .update(payments)
           .set({
-            amount: payment.amount,
-            date: payment.date,
-            voucherUrl: payment.voucherUrl,
+            amount: invoice.amount,
+            date: new Date(),
+            voucherUrl,
             updatedAt: new Date(),
           })
-          .where(eq(payments.id, payment.id));
+          .where(
+            and(
+              eq(payments.id, currentPayment.id),
+              eq(payments.invoiceId, invoice.id),
+            ),
+          );
       } else {
-        await tx.insert(payments).values(payment);
+        await tx.insert(payments).values({
+          invoiceId: invoice.id,
+          amount: invoice.amount,
+          date: new Date(),
+          voucherUrl,
+        });
       }
 
       await tx
+        .update(standReservations)
+        .set({ status: "verification_payment", updatedAt: new Date() })
+        .where(
+          and(
+            eq(standReservations.id, invoice.reservationId),
+            eq(standReservations.standId, invoice.reservation.standId),
+          ),
+        );
+
+      await tx
         .update(invoices)
-        .set({ status: "paid" })
-        .where(eq(invoices.id, payment.invoiceId));
+        .set({ status: "verification_payment", updatedAt: new Date() })
+        .where(eq(invoices.id, invoice.id));
+
+      return {
+        success: true as const,
+        previousVoucherUrl: currentPayment?.voucherUrl,
+        userId: invoice.userId,
+      };
     });
 
-    if (oldVoucherUrl) {
-      const [_, key] = oldVoucherUrl.split("/f/");
-      await new UTApi().deleteFiles(key);
-    }
+    if (!outcome.success) return outcome;
 
-    const invoice = await fetchInvoice(payment.invoiceId);
-    if (invoice) {
-      await sendEmail({
-        to: [invoice.user.email],
-        from: "Reservas Glitter <reservas@productoraglitter.com>",
-        subject: "Tu pago ha sido registrado",
-        react: PaymentConfirmationForUserEmailTemplate({
-          invoice,
-        }),
-      });
-
-      const admins = await fetchAdminUsers();
-      const adminEmails = admins.map((admin) => admin.email);
-      if (adminEmails.length > 0) {
-        await sendEmail({
-          to: [...adminEmails],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: `${invoice.user.displayName} hizo el pago de su reserva`,
-          react: PaymentConfirmationForAdminsEmailTemplate({
-            invoice,
-          }),
+    if (
+      outcome.previousVoucherUrl &&
+      outcome.previousVoucherUrl !== voucherUrl
+    ) {
+      try {
+        await enqueueStorageCleanupJob({
+          entityType: "invoice_voucher",
+          entityId: invoiceId,
+          fileUrl: outcome.previousVoucherUrl,
+        });
+      } catch (error) {
+        console.error("[createPayment] voucher cleanup enqueue failed", {
+          invoiceId,
         });
       }
     }
 
-    await updateReservationStatus({
-      standId,
-      reservationId,
-      status: "verification_payment",
-    });
-  } catch (error) {
-    console.error("Error creating payment", error);
-    return {
-      message: "No se pudo guardar el pago. Intenta nuevamente",
-      success: false,
-    };
-  }
-
-  const successMessage = payments.id
-    ? "Pago actualizado con éxito"
-    : "Pago creado con éxito";
-  return { success: true, message: successMessage };
-}
-
-export async function confirmFreeInvoice(data: {
-  invoiceId: number;
-  reservationId: number;
-  standId: number;
-}): Promise<{ success: boolean; message: string }> {
-  const { invoiceId, reservationId, standId } = data;
-  try {
-    const invoice = await fetchInvoice(invoiceId);
-    if (!invoice || invoice.amount !== 0) {
-      return {
-        success: false,
-        message: "El monto de la factura no es cero. Recarga la página.",
-      };
-    }
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(invoices)
-        .set({ status: "paid" })
-        .where(eq(invoices.id, invoiceId));
-    });
-
-    await sendEmail({
-      to: [invoice.user.email],
-      from: "Reservas Glitter <reservas@productoraglitter.com>",
-      subject: "Tu reserva ha sido confirmada",
-      react: PaymentConfirmationForUserEmailTemplate({ invoice }),
-    });
-
-    const admins = await fetchAdminUsers();
-    const adminEmails = admins.map((admin) => admin.email);
-    if (adminEmails.length > 0) {
-      await sendEmail({
-        to: [...adminEmails],
-        from: "Reservas Glitter <reservas@productoraglitter.com>",
-        subject: `${invoice.user.displayName} confirmó su reserva gratuita`,
-        react: PaymentConfirmationForAdminsEmailTemplate({ invoice }),
+    try {
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, invoiceId),
+        with: {
+          payments: true,
+          user: true,
+          reservation: {
+            with: {
+              stand: true,
+              festival: { with: { festivalDates: true } },
+              participants: { with: { user: true } },
+            },
+          },
+        },
+      });
+      if (invoice) {
+        await sendEmail({
+          to: [invoice.user.email],
+          from: "Reservas Glitter <reservas@productoraglitter.com>",
+          subject: "Tu pago ha sido registrado",
+          react: PaymentConfirmationForUserEmailTemplate({ invoice }),
+        });
+        const admins = await fetchAdminUsers();
+        const adminEmails = admins.map((admin) => admin.email).filter(Boolean);
+        if (adminEmails.length > 0) {
+          await sendEmail({
+            to: [...adminEmails],
+            from: "Reservas Glitter <reservas@productoraglitter.com>",
+            subject: `${invoice.user.displayName} hizo el pago de su reserva`,
+            react: PaymentConfirmationForAdminsEmailTemplate({ invoice }),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("[createPayment] post-commit notification failed", {
+        invoiceId,
+        actorId: actor.id,
       });
     }
 
-    await updateReservationStatus({
-      standId,
-      reservationId,
-      status: "verification_payment",
+    revalidatePath("/profiles");
+    return {
+      success: true,
+      data: undefined,
+      message: "Comprobante enviado. Tu reserva está en revisión.",
+    };
+  } catch (error) {
+    console.error("Error creating payment", error);
+    return reservationFailure("CONFLICT_RETRY");
+  }
+}
+
+export async function confirmFreeInvoice(
+  input: unknown,
+): Promise<ReservationActionResult> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+
+  const nested =
+    input && typeof input === "object" && "invoiceId" in input
+      ? input
+      : input;
+  const parsed = parseUnknown(invoiceIdSchema, nested);
+  if (!parsed.success) return reservationFailure("VALIDATION");
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const invoice = await tx.query.invoices.findFirst({
+        where: eq(invoices.id, parsed.data.invoiceId),
+        with: {
+          reservation: {
+            with: { participants: true },
+          },
+        },
+      });
+      if (!invoice) return reservationFailure("VALIDATION");
+
+      if (
+        !canSubmitInvoiceSettlement({
+          actor: { id: actor.id, role: actor.role },
+          invoiceOwnerUserId: invoice.userId,
+        })
+      ) {
+        return reservationFailure("INVOICE_NOT_OWNED");
+      }
+
+      if (invoice.status === "verification_payment") {
+        return reservationFailure("PAYMENT_ALREADY_SUBMITTED");
+      }
+
+      if (invoice.status !== "pending") {
+        return reservationFailure("INVOICE_NOT_PENDING");
+      }
+
+      if (Number(invoice.amount) !== 0) {
+        return reservationFailure("INVOICE_NOT_PENDING");
+      }
+
+      await tx
+        .update(standReservations)
+        .set({ status: "verification_payment", updatedAt: new Date() })
+        .where(eq(standReservations.id, invoice.reservationId));
+
+      await tx
+        .update(invoices)
+        .set({ status: "verification_payment", updatedAt: new Date() })
+        .where(eq(invoices.id, invoice.id));
+
+      return { success: true as const, userId: invoice.userId };
     });
+
+    if (!outcome.success) return outcome;
+
+    try {
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, parsed.data.invoiceId),
+        with: {
+          payments: true,
+          user: true,
+          reservation: {
+            with: {
+              stand: true,
+              festival: { with: { festivalDates: true } },
+              participants: { with: { user: true } },
+            },
+          },
+        },
+      });
+      if (invoice) {
+        await sendEmail({
+          to: [invoice.user.email],
+          from: "Reservas Glitter <reservas@productoraglitter.com>",
+          subject: "Tu reserva está en revisión",
+          react: PaymentConfirmationForUserEmailTemplate({ invoice }),
+        });
+        const admins = await fetchAdminUsers();
+        const adminEmails = admins.map((admin) => admin.email).filter(Boolean);
+        if (adminEmails.length > 0) {
+          await sendEmail({
+            to: [...adminEmails],
+            from: "Reservas Glitter <reservas@productoraglitter.com>",
+            subject: `${invoice.user.displayName} solicitó revisión de una reserva sin costo`,
+            react: PaymentConfirmationForAdminsEmailTemplate({ invoice }),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("[confirmFreeInvoice] post-commit notification failed", {
+        invoiceId: parsed.data.invoiceId,
+        actorId: actor.id,
+      });
+    }
+
+    revalidatePath("/profiles");
+    return {
+      success: true,
+      data: undefined,
+      message: "Tu reserva está en revisión.",
+    };
   } catch (error) {
     console.error("Error confirming free invoice", error);
-    return {
-      success: false,
-      message: "No se pudo confirmar la reserva. Intenta nuevamente.",
-    };
+    return reservationFailure("CONFLICT_RETRY");
   }
-
-  return { success: true, message: "Reserva confirmada" };
 }
 
 export async function fetchInvoicesByReservation(
   reservationId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return [];
+
   try {
-    return await db.query.invoices.findMany({
+    const reservation = await db.query.standReservations.findFirst({
+      where: eq(standReservations.id, reservationId),
+      with: { participants: true },
+    });
+    if (!reservation) return [];
+
+    const participantUserIds = reservation.participants.map((p) => p.userId);
+    const invoicesForReservation = await db.query.invoices.findMany({
       with: {
         payments: true,
         reservation: {
@@ -462,6 +670,14 @@ export async function fetchInvoicesByReservation(
       },
       where: eq(invoices.reservationId, reservationId),
     });
+
+    return invoicesForReservation.filter((invoice) =>
+      canViewInvoiceRecord({
+        actor: { id: actor.id, role: actor.role },
+        invoiceOwnerUserId: invoice.userId,
+        participantUserIds,
+      }),
+    );
   } catch (error) {
     console.error("Error fetching invoices by reservation", error);
     return [];
@@ -471,8 +687,11 @@ export async function fetchInvoicesByReservation(
 export async function fetchInvoice(
   id: number,
 ): Promise<InvoiceWithPaymentsAndStandAndProfile | undefined | null> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+
   try {
-    return await db.query.invoices.findFirst({
+    const invoice = await db.query.invoices.findFirst({
       where: eq(invoices.id, id),
       with: {
         payments: true,
@@ -492,6 +711,19 @@ export async function fetchInvoice(
         user: true,
       },
     });
+    if (!invoice) return null;
+    if (
+      !canViewInvoiceRecord({
+        actor: { id: actor.id, role: actor.role },
+        invoiceOwnerUserId: invoice.userId,
+        participantUserIds: invoice.reservation.participants.map(
+          (participant) => participant.userId,
+        ),
+      })
+    ) {
+      return null;
+    }
+    return invoice;
   } catch (error) {
     console.error(error);
     return null;
@@ -502,6 +734,14 @@ export async function fetchReservationsWithInvoicesByProfileAndFestival(
   profileId: number,
   festivalId: number,
 ): Promise<ReservationWithStandAndInvoicesAndFestival[]> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return [];
+  if (
+    actor.id !== profileId &&
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return [];
+  }
   try {
     const reservationIdsSubquery = db
       .select({ id: reservationParticipants.reservationId })
@@ -555,7 +795,7 @@ export async function fetchOutstandingInvoiceCountByProfileAndFestival(
   );
   const outstandingInvoiceCount = nonRejectedReservations.reduce(
     (count, reservation) =>
-      count + reservation.invoices.filter((i) => i.status === "pending").length,
+      count + countOutstandingInvoices(reservation.invoices),
     0,
   );
   return {
@@ -567,6 +807,14 @@ export async function fetchOutstandingInvoiceCountByProfileAndFestival(
 export async function fetchPendingInvoicesByProfile(
   profileId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return [];
+  if (
+    actor.id !== profileId &&
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return [];
+  }
   try {
     return await db.query.invoices.findMany({
       where: and(
@@ -601,6 +849,13 @@ export async function fetchPendingInvoicesByProfile(
 export async function fetchInvoicesByFestival(
   festivalId: number,
 ): Promise<InvoiceWithParticipants[]> {
+  const actor = await getCurrentUserProfile();
+  if (
+    !actor ||
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return [];
+  }
   try {
     const reservationsSubquery = db
       .select({ id: standReservations.id })

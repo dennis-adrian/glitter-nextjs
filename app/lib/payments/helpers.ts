@@ -9,11 +9,23 @@ export function getInvoiceStatusLabel(status: InvoiceStatus) {
   switch (status) {
     case "pending":
       return "Pendiente";
+    case "verification_payment":
+      return "En revisión";
     case "paid":
       return "Pagado";
     case "cancelled":
       return "Cancelado";
   }
+}
+
+export function canAcceptInvoiceProof(status: InvoiceStatus) {
+  return status === "pending" || status === "verification_payment";
+}
+
+export function countOutstandingInvoices(
+  invoices: Array<{ status: InvoiceStatus }>,
+) {
+  return invoices.filter((invoice) => invoice.status === "pending").length;
 }
 
 export function getPaymentQrCodeUrlByCategory(
@@ -68,17 +80,18 @@ export function mapPaymentStatusToDisplayPaymentStatus(
   switch (invoice.status) {
     case "pending":
       return DisplayPaymentStatus.PENDING;
+    case "verification_payment":
+      return DisplayPaymentStatus.UNDER_REVIEW;
     case "paid":
       return DisplayPaymentStatus.PAID;
     case "cancelled":
       return DisplayPaymentStatus.CANCELLED;
-    default:
-      return DisplayPaymentStatus.NONE;
   }
 }
 
 export enum DisplayPaymentStatus {
   PENDING = "Pendiente",
+  UNDER_REVIEW = "En revisión",
   PAID = "Pagado",
   CANCELLED = "Cancelado",
   OUTSTANDING = "Atrasado",

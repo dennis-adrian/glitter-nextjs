@@ -106,7 +106,12 @@ export async function createAdminReservation(params: {
           message: "El espacio no pertenece a este festival",
         };
       }
-      if (lockedStand.status === "reserved") {
+      if (
+        lockedStand.status === "reserved" ||
+        lockedStand.status === "held" ||
+        lockedStand.status === "confirmed" ||
+        lockedStand.status === "disabled"
+      ) {
         return {
           success: false,
           message: "El espacio ya está reservado",
@@ -134,7 +139,12 @@ export async function createAdminReservation(params: {
 
       const [reservation] = await tx
         .insert(standReservations)
-        .values({ festivalId, standId, revealAt })
+        .values({
+          festivalId,
+          standId,
+          source: "admin_assignment",
+          revealAt,
+        })
         .returning();
 
       await tx.insert(reservationParticipants).values(
