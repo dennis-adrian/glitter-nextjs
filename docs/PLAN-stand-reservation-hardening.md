@@ -42,7 +42,7 @@ Phase 0–2 delivered the security containment, canonical participant policy, ad
 | Phase | Goal | Status |
 | --- | --- | --- |
 | 0 — Immediate security containment | Auth, ownership, Zod, no caller-supplied objects | **Implemented** (legacy payment route still present, hardened) |
-| 1 — Canonical policy and participant flow | Shared policy for pages, holds, confirmation, partners | **Implemented** (see rejected-reservation divergence in §0.3) |
+| 1 — Canonical policy and participant flow | Shared policy for pages, holds, confirmation, partners | **Implemented** |
 | 2 — Additive schema, preflight, data repair | Columns, money, events, scripts, unique hold/stand indexes | **Implemented** (two planned unique indexes still open) |
 | 3 — Transaction and payment rewrite | Locks, settlement commands, outbox, UploadThing callback | **Next** |
 | 4 — Cleanup, privacy, and performance | Cron-safe polling, DTOs, indexes, latency budgets | Partial early work only |
@@ -67,13 +67,13 @@ Do this work in this order. Later phases stay blocked on the command and lock mo
 6. **Close remaining Phase 2 constraints after a clean preflight:**
    - Partial unique `(festival_id, owner_user_id) WHERE source = 'user_reservation' AND status <> 'rejected'`
    - Unique active festival index `UNIQUE WHERE status = 'active'`
-7. **Decide the rejected-reservation rule** (see §0.3) before writing more policy tests that freeze the current block.
 
-### 0.3 Known divergences and carry-overs
+Keep the §1 festival-participation lock in every Phase 3 policy and confirmation test: a reservation in any status, including `rejected`, blocks later self-service and partner adds. The unique owner index still excludes `rejected` because rejected rows remain and must not collide with a later admin-assigned reservation.
+
+### 0.3 Carry-overs (not product divergences)
 
 | Topic | Plan | As-built | Action |
 | --- | --- | --- | --- |
-| Rejected reservation rebooking | A rejected reservation releases the stand and does **not** block a later self-service reservation | `evaluateSelfServiceEligibility` denies with `RESERVATION_REJECTED` when `hasRejectedFestivalReservation` is true. Copy says the participant cannot reserve again. Partner search also treats a rejected partner reservation as `PARTNER_ALREADY_RESERVED`. | Product confirmation required. The locked §1 decision still says rebooking is allowed. Phase 3 should not add more tests that treat the block as canonical until this is reconfirmed. |
 | Module layout | Thin `"use server"` actions + server-only services named in §4.1 | Policy/errors/schemas/hold-service exist. Authorization lives in `policy.ts` + `tx-eligibility.ts`. Confirmation lives in `hold-service.ts`. Payments live in `app/data/invoices/actions.ts`. Admin create lives in `admin-actions.ts`. | Finish the split in Phase 3; do not treat missing filenames as missing behavior. |
 | `/api/payments` | Remove after the Server Action is canonical | Route still exists; it now authenticates and delegates to `createPayment`. UI already uses the Server Action. | Remove in Phase 6 after Phase 3 settlement rewrite. |
 | Settlement table | Kind, status, reviewer, evidence snapshot, one submitted row per invoice | Table stores invoice/payment/file/uploader/idempotency only. Zero-value review uses `confirmFreeInvoice` and sets invoice + reservation to `verification_payment` without a settlement row. | Phase 3 schema follow-up. |
@@ -136,6 +136,7 @@ Schema landed in `drizzle/0245_cold_mysterio.sql` (additive columns/tables/money
 | Active participant | `users.status = verified`. `paused`, `banned`, `pending`, and `rejected` cannot reserve. | Implemented — `evaluateSelfServiceEligibility` |
 | Festival enrollment | A current `user_requests` row with `type = festival_participation` and `status = accepted` is required. Terms acceptance alone is not enrollment. | Implemented |
 | Self-service reservation count | A participant can belong to at most one non-rejected **self-service** reservation per festival, whether primary participant or partner. | Implemented in queries; DB unique on owner still missing |
+| Festival participation lock | Any reservation in the current festival — `pending`, `verification_payment`, `accepted` (confirmed), or `rejected` — permanently blocks that person from later self-service and from being added as a partner. Rejecting a reservation releases the **stand**; it does not restore the **person**. | Implemented — `RESERVATION_REJECTED` / `PARTNER_ALREADY_RESERVED`; locked 2026-08-30 |
 | Admin-created reservations | Admins can create additional reservations for the same participant. Participant pages must continue supporting lists, not singular assumptions. | Implemented — `source = admin_assignment` |
 | Stand occupancy | A stand can have at most one non-rejected reservation, regardless of source. | Implemented — `stand_reservations_live_stand_unique` |
 | Payment authority | The invoice owner pays. Partners can view the invoice but cannot submit or replace its payment proof. | Implemented — `canSubmitInvoiceSettlement` / `canViewInvoiceRecord` |
@@ -143,7 +144,7 @@ Schema landed in `drizzle/0245_cold_mysterio.sql` (additive columns/tables/money
 | Admin assignment window | Separate from participant self-service. Admin assignment can prepare reservations before opening, with explicit source/audit metadata. | Implemented — `createAdminReservation` + `revealAt` |
 | Hold duration | Configurable per festival, default **5 minutes**. The server-provided `expiresAt` is canonical. | Implemented — `festivals.reservation_hold_minutes` |
 | Flow steps | Three: **Elegí tu espacio**, **Confirmá tu reserva**, then **Completá el pago** or **Solicitá revisión** for a zero-value invoice. | Partial — confirmation/payment exist; PRD still describes four steps / 3 minutes |
-| Rejected reservation | Releases the stand and no longer blocks a participant or partner from a later self-service reservation. | **Diverges** — current policy blocks rebooking |
+| Rejected reservation | Releases the stand so another participant can take it. The rejected person cannot make a new self-service reservation or be added as a partner in that festival. | Implemented — locked 2026-08-30; matches shipped policy |
 | Terms unavailable | Self-service is unavailable. The map must show a clear blocked state instead of allowing selection and failing later. | Implemented — `ReservationNotAllowed` |
 | Zero-value invoice | Owner submits it for admin review. Admin verifies the participant's entitlement before the invoice is marked paid and the reservation accepted. | Partial — `confirmFreeInvoice` submits for review; no unified settlement approval command |
 | Revalidation | Eligibility, terms, sanctions, enrollment, occupancy, and price are checked again inside the confirmation transaction. | Implemented — `denySelfServiceMutation` in `confirmStandHold` |
@@ -156,7 +157,13 @@ Schema landed in `drizzle/0245_cold_mysterio.sql` (additive columns/tables/money
 | Zero-value invoice | Requires admin review before confirmation. The review verifies the participant's right to the discount/free entitlement. | Partial — participant submit exists; admin still uses generic invoice updates |
 | Hold duration | Configurable per festival; default 5 minutes. | Implemented |
 
-These decisions are implementation requirements, not rollout options.
+### 1.2 Product confirmation — locked 2026-08-30
+
+| Topic | Confirmed decision | Status |
+| --- | --- | --- |
+| Festival participation lock | A participant with a reservation in **any** status in the current festival (`pending`, `verification_payment`, `accepted` / confirmed, `rejected`) can no longer participate through self-service. They cannot create a new reservation and cannot be added as a stand partner by another participant. Cancellation/rejection frees the stand only. | Implemented |
+
+These decisions are implementation requirements, not rollout options. Admin assignment remains a separate audited path (see the admin-created reservations row in §1). This confirmation applies to participant self-service and to one participant adding another as partner.
 
 ---
 
@@ -168,7 +175,7 @@ The feature is complete only when all of these hold:
 2. Every mutation authenticates the actor, validates runtime input, loads canonical records, and authorizes the exact resource. — **Partial**
 3. Self-service confirmation succeeds only for verified, enrolled, eligible participants during the active/open festival. — **Implemented**
 4. UI category/subcategory/participation-type restrictions are identical to server restrictions. — **Implemented** (`standMatchesParticipant`)
-5. One stand cannot have two live reservations; one participant cannot join two live self-service reservations in one festival. — **Partial** (stand unique exists; owner unique does not)
+5. One stand cannot have two live reservations; one participant cannot join two live self-service reservations in one festival; a rejected (or otherwise existing) reservation in that festival also blocks later self-service and partner adds. — **Partial** (stand unique exists; owner unique does not; participation lock is implemented in policy)
 6. Retrying a successful request returns the same result and never duplicates reservations, invoices, payments, tasks, or email jobs. — **Partial** (hold/confirm/payment idempotency keys exist; emails are not outbox-deduped)
 7. Provider failures after commit never turn a successful reservation/payment into a reported failure. — **Partial** (emails are try/caught after commit; still synchronous)
 8. Expired holds cannot block a stand even when cron and polling are delayed. — **Partial** (effective status + in-transaction cleanup; cron exists)
@@ -335,7 +342,7 @@ The map loader calls the same read-only evaluator used by mutations. It returns 
 6. Festival participant terms are enabled and a published version exists.
 7. Accepted `festival_participation` enrollment exists with current `termsVersionId`.
 8. No active ban or reservation-delay sanction blocks the participant.
-9. No non-rejected self-service reservation already contains the participant.
+9. The participant has no reservation in this festival in any status, including `rejected`. A live self-service reservation returns `ALREADY_RESERVED`; a rejected reservation returns `RESERVATION_REJECTED`.
 
 Render a specific blocked state for each expected denial. Do not load maps, stands, partners, or reservation PII after a denial.
 
@@ -353,7 +360,7 @@ Render a specific blocked state for each expected denial. Do not load maps, stan
 6. Re-run all canonical participant/festival eligibility checks in the transaction.
 7. Validate stand belongs to festival and is `available` after reconciliation.
 8. Validate stand category, participation type, and subcategory rules with the same pure helper the UI uses.
-9. Reject if participant already belongs to a non-rejected self-service reservation.
+9. Reject if the participant already belongs to any reservation in this festival, including a rejected one.
 10. If an unexpired hold exists on the same stand, return it idempotently.
 11. If an unexpired hold exists on another stand, verify the new stand first, then release the old hold while locking old and new stands in ascending ID order.
 12. Insert hold with canonical price snapshot and expiration.
@@ -376,7 +383,7 @@ The old hold must never be lost because the newly requested stand became unavail
 5. Validate hold owner, non-expiration, stand/festival relation, and stand status `held`.
 6. Resolve primary participant plus optional partner.
 7. Acquire `(festivalId, userId)` advisory locks for every participant in ascending user-ID order.
-8. Re-run festival active/open, verified status, accepted enrollment/current terms, sanctions, stand eligibility, and existing self-service reservation checks for every participant while the eligibility rows are locked.
+8. Re-run festival active/open, verified status, accepted enrollment/current terms, sanctions, stand eligibility, and festival-participation-lock checks for every participant (owner and partner) while the eligibility rows are locked. A reservation in any status, including `rejected`, denies the participant.
 9. Re-read stand category/participation/subcategories and compare with the primary participant.
 10. Use the hold's price snapshot, not current stand price.
 11. Insert reservation with `source = user_reservation`, canonical owner, price snapshot, and idempotency key.
@@ -397,12 +404,12 @@ Partner search is advisory; confirmation is authoritative. A selectable partner 
 - Have accepted enrollment/current terms for the same festival.
 - Pass sanctions/reservation-delay checks.
 - Match the sharing categories permitted by product.
-- Not belong to another non-rejected self-service reservation in that festival.
+- Not belong to any reservation in that festival, including a rejected one.
 - Not equal the primary participant.
 
-Rejected reservations never count. Admin-assigned additional reservations do not automatically disqualify a participant from their one self-service reservation unless product changes the locked rule.
+A rejected reservation still counts against the person. Partner search must return them as not selectable (`PARTNER_ALREADY_RESERVED`) rather than hiding them or treating them as available. Admin-assigned additional reservations remain a separate admin path and do not restore self-service or partner eligibility for someone who already has a festival reservation.
 
-**Status:** Partial. `partner-search.ts` returns `PartnerSearchResultDto` with `selectable` + `denialCode`. Rate-limited in `participant-actions.ts`. **Diverges** on rejected reservations: a partner with only a rejected reservation is treated as already reserved.
+**Status:** Implemented for the participation lock. `partner-search.ts` returns `PartnerSearchResultDto` with `selectable` + `denialCode` and treats a rejected partner reservation as already reserved. Rate-limited in `participant-actions.ts`. Trigram index and client sequencing remain later work.
 
 ---
 
@@ -464,7 +471,7 @@ Constraints/indexes:
 - Index `(festival_id, status, stand_id)`. — Not started
 - Composite FK or explicit transaction assertion that stand and reservation festival match. — Partial (application checks)
 
-Do not add a blanket unique `(userId, festivalId)` across participants; existing product requirements intentionally allow admin-created additional reservations. Self-service partner races are serialized with participant advisory locks and canonical membership queries.
+Do not add a blanket unique `(userId, festivalId)` across participants; existing product requirements intentionally allow admin-created additional reservations. The owner unique index still excludes `rejected` because rejected rows remain and admin assignment can add another live reservation. The festival participation lock — no later self-service or partner add after any reservation, including `rejected` — is enforced in policy and confirmation, not by that unique index. Self-service partner races are serialized with participant advisory locks and canonical membership queries.
 
 ### 6.4 Reservation events
 
@@ -865,12 +872,12 @@ Search action:
 - Requires trimmed query length `2..80`.
 - Rate-limits per user.
 - Returns at most five DTOs.
-- Filters rejected reservations correctly.
+- Treats any existing festival reservation, including `rejected`, as not selectable.
 - Uses a matching trigram expression index.
 
 Recent partners use the same DTO and authorization. Do not serialize complete user rows through RSC props.
 
-**Status:** Partial. DTO, auth, query-length, rate limit, and max-five results are implemented. Rejected-reservation filtering **diverges** (see §0.3). Trigram index is Phase 4.
+**Status:** Partial. DTO, auth, query-length, rate limit, max-five results, and the rejected-reservation participation lock are implemented. Trigram index is Phase 4.
 
 ---
 
@@ -935,6 +942,7 @@ Provide dedicated screens for:
 - Terms stale: `Aceptá la versión actual de los términos para reservar.`
 - Not enrolled: `No estás habilitado para participar en este festival.`
 - Already reserved: show every current reservation and separate admin-assigned entries.
+- Reservation rejected: `RESERVATION_REJECTED` blocked state. The person cannot start a new self-service reservation.
 - No eligible sectors/stands: explain why and offer profile/admin contact path.
 - Connectivity stale: keep map visible, disable confirmation until refreshed.
 
@@ -1056,7 +1064,7 @@ Policy matrix:
 - Terms disabled/missing/current/stale.
 - Ban/delay/warning sanctions.
 - Category, participation type, unrestricted/restricted/matching subcategory.
-- Rejected vs live reservation.
+- Rejected vs live reservation (both block later self-service and partner add).
 - Admin-assigned vs self-service reservation.
 - Primary and partner combinations.
 - Voseo copy guard.
@@ -1118,7 +1126,7 @@ Seed deterministic verified, paused, banned, pending, enrolled, unenrolled, sanc
 - Simultaneous browsers competing for one stand.
 - Refresh/reopen with active hold.
 - Expired hold recovery.
-- Rejected reservation rebooking.
+- Rejected reservation cannot rebook and cannot be added as a partner.
 - Direct URL/API/Server Action authorization attempts.
 - Admin assignment followed by participant self-service reservation.
 - Keyboard-only and mobile flow.
@@ -1197,13 +1205,13 @@ Carry-over into Phase 3/6: `/api/payments` still exists as a hardened adapter; g
 - Build policy/error/copy modules.
 - Enforce active/open/verified/enrolled/current terms/sanctions/category/existing reservation in hold and confirmation.
 - Separate self-service from admin acting-on-behalf flow.
-- Fix rejected-reservation logic everywhere.
+- Enforce the festival participation lock: any reservation status, including rejected, blocks later self-service and partner add.
 - Fix terms-disabled and archived route states.
 - Add idempotency at service boundary where possible before schema constraints.
 
 Exit: UI and direct action calls produce the same policy result.
 
-Carry-over: rejected reservations currently **block** later self-service. That matches the as-built tests and **diverges** from the locked §1 decision. Reconfirm before Phase 3 freezes more tests.
+The festival participation lock is locked and implemented. Phase 3 tests should treat `RESERVATION_REJECTED` and partner `PARTNER_ALREADY_RESERVED` as canonical.
 
 ### Phase 2 — Additive schema, preflight, and data repair
 
@@ -1347,7 +1355,7 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 | Admin duplicates and wrong source | §6.3, §7, §9 | Partial — `admin_assignment` + `legacy_unknown` dual-write |
 | Post-commit email/provider false failures | §6.6, §14, Phase 3 | Not started (caught sync send only) |
 | Partner/map PII overfetch | §11, Phase 4 | Partial |
-| Rejected reservation inconsistencies | §1, §5.4, Phase 1 | **Diverges** — currently blocks rebooking |
+| Rejected reservation inconsistencies | §1, §5.4, Phase 1 | Implemented — any reservation status locks the person; reject only releases the stand |
 | Fragile cleanup and polling | §10, Phase 4 | Partial — cron + read-only status |
 | Price/terms/status races | §5.2–5.3, §6.2–6.3 | Partial — revalidation exists; advisory locks do not |
 | Floating-point money | §6.5, Phase 2 | Implemented |
@@ -1365,6 +1373,7 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 ## 20. Definition of done
 
 - [x] Product confirmed §1.1 decisions on 2026-08-29.
+- [x] Product confirmed the festival participation lock on 2026-08-30 (§1.2): any reservation status in the current festival, including `rejected`, blocks later self-service and partner add.
 - [x] Phases 0–2 shipped on `develop` (PR #472, 2026-08-30 audit).
 - [ ] Every reservation-related Server Action/API route has auth, runtime validation, canonical ownership, and negative tests.
 - [x] Participant self-service policy is centralized and used by pages, holds, confirmation, and partner search.
@@ -1385,13 +1394,10 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 
 ---
 
-## 21. Open product question before Phase 3 coding
+## 21. Locked product note — 2026-08-30
 
-**Rejected reservation rebooking.** §1 still says a rejected reservation must not block a later self-service reservation. The shipped Phase 1 policy denies with `RESERVATION_REJECTED` and partner search treats a rejected partner as already reserved.
+The earlier draft of this plan said a rejected reservation should allow later self-service. That is **not** the product rule.
 
-Pick one before implementing Phase 3 policy/lock tests:
+Confirmed: a participant with a reservation in any status in the current festival (`pending`, `verification_payment`, `accepted` / confirmed, `rejected`) can no longer participate through self-service. They cannot create a new reservation and cannot be added as a stand partner by another participant. Rejection or cancellation frees the stand for someone else; it does not restore the original participant or partner.
 
-1. Keep the locked §1 rule and change `evaluateSelfServiceEligibility` / partner search so rejected rows never count; or
-2. Change the locked decision and keep the current block, including voseo copy.
-
-Until that is confirmed, Phase 3 should not add more tests that treat either behavior as newly canonical beyond what already exists.
+The shipped Phase 1 policy already matches this rule (`RESERVATION_REJECTED`, partner `PARTNER_ALREADY_RESERVED`). Treat those codes as canonical in Phase 3 tests.
