@@ -36,6 +36,7 @@ vi.mock("@/app/emails/reservation-rejection", () => ({
 
 import {
   deleteReservation,
+  rejectReservation,
   updateReservation,
 } from "@/app/api/reservations/actions";
 
@@ -53,6 +54,18 @@ describe("admin reservation mutations", () => {
     currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
     await expect(
       updateReservation(3, { status: "accepted" }),
+    ).resolves.toMatchObject({ success: false });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects rejectReservation without a reservation object", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    await expect(
+      rejectReservation({
+        id: 3,
+        standId: 9,
+        participants: [],
+      }),
     ).resolves.toMatchObject({ success: false });
     expect(transactionMock).not.toHaveBeenCalled();
   });

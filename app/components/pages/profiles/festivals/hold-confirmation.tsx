@@ -2,11 +2,9 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 import { fetchSectorWithStandsAndReservations } from "@/app/lib/festival_sectors/actions";
-import {
-  fetchBaseFestival,
-  fetchRecentSharedStandPartners,
-} from "@/app/lib/festivals/actions";
-import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { fetchHoldWithStand } from "@/app/lib/reservations/hold-service";
+import { searchRecentPartners } from "@/app/lib/reservations/partner-search";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
@@ -101,10 +99,7 @@ export default async function HoldConfirmationPage(
         }
       : computeCanvasBounds(sector.stands);
 
-  const recentPartners = await fetchRecentSharedStandPartners(
-    festival.id,
-    forProfile.id,
-  );
+  const recentPartners = await searchRecentPartners(festival.id);
 
   return (
     <div className="container p-3 md:p-6">

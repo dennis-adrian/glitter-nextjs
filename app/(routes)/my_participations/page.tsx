@@ -1,4 +1,4 @@
-import { fetchValidReservationsByFestival } from "@/app/api/reservations/actions";
+import { fetchActorReservationsByFestival } from "@/app/lib/reservations/queries";
 import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/app/api/reservations/definitions";
 import { UpcomingFestivalCard } from "@/app/components/organisms/upcoming-festival";
 import { RedirectButton } from "@/app/components/redirect-button";
@@ -35,7 +35,7 @@ export default async function Page() {
       activeFestival.id,
     );
     [validReservations, festivalActivities] = await Promise.all([
-      fetchValidReservationsByFestival(activeFestival.id),
+      fetchActorReservationsByFestival(activeFestival.id),
       fetchFestivalActivitiesByFestivalId(activeFestival.id),
     ]);
   }

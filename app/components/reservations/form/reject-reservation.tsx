@@ -30,7 +30,10 @@ export function RejectReservationForm({
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const res = await rejectReservation(reservation, data.reason);
+    const res = await rejectReservation({
+      reservationId: reservation.id,
+      reason: data.reason,
+    });
     if (res.success) {
       toast.success(res.message);
       onSuccess();

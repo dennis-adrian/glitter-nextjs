@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import ActivityVotingResults from "@/app/components/festivals/festival_activities/activity-voting-results";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
-import { fetchPublicReservationsByFestivalId } from "@/app/lib/reservations/actions";
+import { fetchFestivalReservationStandRefs } from "@/app/lib/reservations/queries";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -26,7 +26,7 @@ export default async function Page({ params }: ResultsPageProps) {
 
   const reservations =
     activity.type === "best_stand"
-      ? await fetchPublicReservationsByFestivalId(festivalId)
+      ? await fetchFestivalReservationStandRefs(festivalId)
       : [];
 
   return (

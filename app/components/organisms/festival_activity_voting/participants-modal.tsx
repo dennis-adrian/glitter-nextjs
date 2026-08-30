@@ -1,6 +1,6 @@
 "use client";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import type { ReservationStandRefDto } from "@/app/lib/reservations/dto";
 import { BaseProfile } from "@/app/api/users/definitions";
 import ConfirmVoteModal from "@/app/components/organisms/festival_activity_voting/confirm-vote-modal";
 import { mapStandsAndParticipantsToVotingItem } from "@/app/components/organisms/festival_activity_voting/utils";
@@ -32,7 +32,7 @@ type ParticipantsModalProps = {
   currentProfile: BaseProfile;
   open: boolean;
   variant: ActivityDetailsWithParticipants;
-  reservations: ReservationWithParticipantsAndUsersAndStand[];
+  reservations: ReservationStandRefDto[];
   participants: ParticipantWithUserAndProofs[];
   onOpenChange: (open: boolean) => void;
   onVotingSuccess: () => void;
