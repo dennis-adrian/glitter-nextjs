@@ -210,4 +210,67 @@ describe("stand hold authorization and eligibility wiring", () => {
     expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
     expect(insert).not.toHaveBeenCalled();
   });
+
+  it("replays the live self-service reservation when the hold is already gone", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const insert = vi.fn();
+    const select = vi
+      .fn()
+      .mockImplementationOnce(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([{ id: 88 }]));
+    const tx = { select, insert };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await confirmStandHold(20);
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { reservationId: 88 },
+    });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing reservation instead of ALREADY_RESERVED on confirm retry", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    denySelfServiceMock.mockResolvedValue(
+      reservationFailure("ALREADY_RESERVED"),
+    );
+    const insert = vi.fn();
+    const select = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        selectChain([
+          {
+            id: 20,
+            standId: 7,
+            festivalId: 10,
+            userId: 3,
+            standFestivalId: 10,
+            standPrice: 100,
+            standStatus: "held",
+            standCategory: "illustration",
+            participationType: "standard",
+          },
+        ]),
+      )
+      .mockImplementationOnce(() => selectChain([{ id: 88 }]));
+    const tx = { select, insert };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await confirmStandHold({
+      holdId: 20,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { reservationId: 88 },
+    });
+    expect(insert).not.toHaveBeenCalled();
+  });
 });

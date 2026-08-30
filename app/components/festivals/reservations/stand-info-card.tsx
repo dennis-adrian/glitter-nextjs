@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, Maximize2Icon, X } from "lucide-react";
+import { useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -145,12 +146,36 @@ export function StandInfoCard({
   // Groups only form on stands somebody already holds, so this card never shows
   // a joined unit as reservable — only its label widens to name both stands.
   const cardStands = groupStands?.length ? groupStands : [stand];
+  const holdIntentKeyRef = useRef<{ standId: number; key: string } | null>(
+    null,
+  );
+
+  const idempotencyKeyForStand = (standId: number) => {
+    if (
+      !holdIntentKeyRef.current ||
+      holdIntentKeyRef.current.standId !== standId
+    ) {
+      holdIntentKeyRef.current = { standId, key: crypto.randomUUID() };
+    }
+    return holdIntentKeyRef.current.key;
+  };
 
   const handleSelectStand = () => {
     if (!canReserve || isPending) return;
     startTransition(async () => {
       try {
-        const res = await createStandHold(stand.id);
+        const res = await createStandHold({
+          standId: stand.id,
+          idempotencyKey: idempotencyKeyForStand(stand.id),
+        });
+        if (res.success && res.data.reservationId) {
+          toast.success(res.message);
+          onClose();
+          router.replace(
+            `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.data.reservationId}/payments`,
+          );
+          return;
+        }
         if (res.success && res.data.holdId) {
           onHoldChange?.({ id: res.data.holdId, standId: stand.id });
           onClose();

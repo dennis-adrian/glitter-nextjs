@@ -308,11 +308,17 @@ export default function HoldConfirmationClient({
       minimumFractionDigits: 2,
     }).format(price);
 
+  const confirmIntentKeyRef = useRef(crypto.randomUUID());
+
   const handleConfirm = () => {
     if (isSubmitting) return;
     startSubmitTransition(async () => {
       try {
-        const res = await confirmStandHold(hold.id, selectedPartnerId);
+        const res = await confirmStandHold({
+          holdId: hold.id,
+          partnerId: selectedPartnerId,
+          idempotencyKey: confirmIntentKeyRef.current,
+        });
         if (res.success && res.data.reservationId) {
           confetti({
             particleCount: 100,

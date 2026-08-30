@@ -31,7 +31,7 @@ export async function createAdminReservation(params: {
   if (!currentProfile || currentProfile.role !== "admin") {
     return {
       success: false,
-      message: "No tienes permisos para realizar esta acción",
+      message: "No tenés permisos para realizar esta acción",
     };
   }
 
@@ -217,7 +217,7 @@ export async function extendReservationPaymentDeadline(params: {
   if (!currentProfile || currentProfile.role !== "admin") {
     return {
       success: false,
-      message: "No tienes permisos para realizar esta acción",
+      message: "No tenés permisos para realizar esta acción",
     };
   }
 
