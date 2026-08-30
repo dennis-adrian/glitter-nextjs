@@ -34,6 +34,7 @@ export type SelfServiceEligibilityInput = {
   enrollment: SelfServiceEnrollmentSnapshot | null;
   sanctionBlocked: boolean;
   hasLiveSelfServiceReservation: boolean;
+  hasRejectedFestivalReservation: boolean;
 };
 
 export type SelfServiceEligibilityResult =
@@ -149,6 +150,10 @@ export function evaluateSelfServiceEligibility(
     return { allowed: false, code: "SANCTION_BLOCKED" };
   }
 
+  if (input.hasRejectedFestivalReservation) {
+    return { allowed: false, code: "RESERVATION_REJECTED" };
+  }
+
   if (input.hasLiveSelfServiceReservation) {
     return { allowed: false, code: "ALREADY_RESERVED" };
   }
@@ -211,4 +216,37 @@ export function canMutateReservationCollaborators(input: {
 
 export function isLiveSelfServiceSource(source: string): boolean {
   return source === "user_reservation" || source === "legacy_unknown";
+}
+
+export function summarizeFestivalParticipations(
+  rows: ReadonlyArray<{
+    festivalId: number;
+    status: string;
+    source: string;
+  }>,
+  festivalId: number,
+): {
+  hasLiveSelfServiceReservation: boolean;
+  hasRejectedFestivalReservation: boolean;
+  hasAnyFestivalReservation: boolean;
+} {
+  let hasLiveSelfServiceReservation = false;
+  let hasRejectedFestivalReservation = false;
+  let hasAnyFestivalReservation = false;
+
+  for (const row of rows) {
+    if (row.festivalId !== festivalId) continue;
+    hasAnyFestivalReservation = true;
+    if (row.status === "rejected") {
+      hasRejectedFestivalReservation = true;
+    } else if (isLiveSelfServiceSource(row.source)) {
+      hasLiveSelfServiceReservation = true;
+    }
+  }
+
+  return {
+    hasLiveSelfServiceReservation,
+    hasRejectedFestivalReservation,
+    hasAnyFestivalReservation,
+  };
 }

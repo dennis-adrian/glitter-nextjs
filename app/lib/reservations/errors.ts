@@ -8,6 +8,7 @@ export const RESERVATION_ERROR_CODES = [
   "TERMS_UNAVAILABLE",
   "TERMS_STALE",
   "SANCTION_BLOCKED",
+  "RESERVATION_REJECTED",
   "STAND_NOT_FOUND",
   "STAND_WRONG_FESTIVAL",
   "STAND_NOT_ELIGIBLE",
@@ -38,6 +39,8 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> = 
     "Los términos todavía no están disponibles. Volvé a intentar más tarde.",
   TERMS_STALE: "Aceptá la versión actual de los términos para reservar.",
   SANCTION_BLOCKED: "No podés reservar en este festival por una sanción activa.",
+  RESERVATION_REJECTED:
+    "Tu reserva en este festival fue cancelada. No podés volver a participar.",
   STAND_NOT_FOUND: "Este espacio no existe.",
   STAND_WRONG_FESTIVAL: "El espacio no pertenece a este festival.",
   STAND_NOT_ELIGIBLE: "Este espacio no corresponde a tu categoría de participación.",

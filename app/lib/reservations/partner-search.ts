@@ -34,25 +34,38 @@ function toDto(
   };
 }
 
-async function liveSelfServiceUserIds(
+async function festivalReservationByUserId(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   festivalId: number,
+  userIds?: number[],
 ) {
+  const conditions = [eq(standReservations.festivalId, festivalId)];
+  if (userIds && userIds.length > 0) {
+    conditions.push(inArray(reservationParticipants.userId, userIds));
+  }
+
   const rows = await tx
-    .select({ userId: reservationParticipants.userId })
+    .select({
+      userId: reservationParticipants.userId,
+      status: standReservations.status,
+    })
     .from(reservationParticipants)
     .innerJoin(
       standReservations,
       eq(standReservations.id, reservationParticipants.reservationId),
     )
-    .where(
-      and(
-        eq(standReservations.festivalId, festivalId),
-        sql`${standReservations.status} <> 'rejected'`,
-        eq(standReservations.source, "user_reservation"),
-      ),
-    );
-  return new Set(rows.map((row) => row.userId));
+    .where(and(...conditions));
+
+  const byUser = new Map<number, "rejected" | "live">();
+  for (const row of rows) {
+    const current = byUser.get(row.userId);
+    if (row.status === "rejected") {
+      if (current !== "live") byUser.set(row.userId, "rejected");
+    } else {
+      byUser.set(row.userId, "live");
+    }
+  }
+  return byUser;
 }
 
 async function enrolledUserIds(
@@ -80,9 +93,10 @@ function partnerDenial(input: {
   role: string;
   category: string;
   enrolled: boolean;
-  reserved: boolean;
+  festivalReservation?: "live" | "rejected";
 }): ReservationErrorCode | undefined {
-  if (input.reserved) return "PARTNER_ALREADY_RESERVED";
+  if (input.festivalReservation === "rejected") return "PARTNER_NOT_ELIGIBLE";
+  if (input.festivalReservation === "live") return "PARTNER_ALREADY_RESERVED";
   if (input.status !== "verified") return "PARTNER_NOT_ELIGIBLE";
   if (input.role === "admin") return "PARTNER_NOT_ELIGIBLE";
   if (!input.enrolled) return "PARTNER_NOT_ELIGIBLE";
@@ -109,7 +123,8 @@ export async function searchPotentialPartnersForActor(
 
   try {
     return await db.transaction(async (tx) => {
-      const reservedIds = await liveSelfServiceUserIds(tx, festivalId);
+      const reservedByUser = await festivalReservationByUserId(tx, festivalId);
+      const reservedIds = [...reservedByUser.keys()];
       const normalizedQuery = trimmed.replace(/\s+/g, "").toLowerCase();
 
       const matchedUsers = await tx
@@ -127,6 +142,9 @@ export async function searchPotentialPartnersForActor(
             eq(users.status, "verified"),
             not(eq(users.role, "admin")),
             not(eq(users.id, actor.id)),
+            reservedIds.length > 0
+              ? not(inArray(users.id, reservedIds))
+              : sql`true`,
             sql`${users.displayName} is not null`,
             sql`similarity(
               replace(lower(${users.displayName}), ' ', ''),
@@ -159,7 +177,6 @@ export async function searchPotentialPartnersForActor(
             role: user.role,
             category: user.category,
             enrolled: enrolled.has(user.id),
-            reserved: reservedIds.has(user.id),
           }),
         ),
       );
@@ -230,7 +247,11 @@ export async function searchRecentPartners(
         .slice(0, limit);
       if (!recent.length) return [];
 
-      const reservedIds = await liveSelfServiceUserIds(tx, festivalId);
+      const reservedByUser = await festivalReservationByUserId(
+        tx,
+        festivalId,
+        recent.map((row) => row.userId),
+      );
       const enrolled = await enrolledUserIds(
         tx,
         festivalId,
@@ -245,7 +266,7 @@ export async function searchRecentPartners(
             role: user.role,
             category: user.category,
             enrolled: enrolled.has(user.userId),
-            reserved: reservedIds.has(user.userId),
+            festivalReservation: reservedByUser.get(user.userId),
           }),
         ),
       );
