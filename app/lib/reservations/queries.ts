@@ -75,7 +75,10 @@ export async function fetchFestivalReservationStandRefs(
   if (!actor) return [];
 
   const rows = await db.query.standReservations.findMany({
-    where: eq(standReservations.festivalId, festivalId),
+    where: and(
+      eq(standReservations.festivalId, festivalId),
+      eq(standReservations.status, "accepted"),
+    ),
     columns: { id: true },
     with: {
       stand: {
