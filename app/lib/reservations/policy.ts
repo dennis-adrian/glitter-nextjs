@@ -208,3 +208,7 @@ export function canMutateReservationCollaborators(input: {
   if (isFestivalAdmin(input.actor)) return false;
   return input.participantUserIds.includes(input.actor.id);
 }
+
+export function isLiveSelfServiceSource(source: string): boolean {
+  return source === "user_reservation" || source === "legacy_unknown";
+}

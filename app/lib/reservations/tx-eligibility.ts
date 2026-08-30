@@ -10,6 +10,7 @@ import {
 } from "@/app/lib/reservations/errors";
 import {
   evaluateSelfServiceEligibility,
+  isLiveSelfServiceSource,
   mapPartnerEligibilityCode,
   standMatchesParticipant,
   type ReservationActor,
@@ -50,7 +51,7 @@ async function loadLiveSelfServiceReservation(
     (row) =>
       row.reservation.festivalId === festivalId &&
       row.reservation.status !== "rejected" &&
-      row.reservation.source === "user_reservation",
+      isLiveSelfServiceSource(row.reservation.source),
   );
 }
 

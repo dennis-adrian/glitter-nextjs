@@ -6,6 +6,7 @@ import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/que
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
 import {
   evaluateSelfServiceEligibility,
+  isLiveSelfServiceSource,
   type ReservationActor,
 } from "@/app/lib/reservations/policy";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
@@ -66,7 +67,7 @@ export async function getSelfServicePageDenial(input: {
       (row) =>
         row.reservation.festivalId === input.festival!.id &&
         row.reservation.status !== "rejected" &&
-        row.reservation.source === "user_reservation",
+        isLiveSelfServiceSource(row.reservation.source),
     );
   }
 

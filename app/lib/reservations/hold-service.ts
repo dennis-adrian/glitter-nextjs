@@ -6,11 +6,13 @@ import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
   reservationFailure,
   reservationSuccess,
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
+import { roundMoney } from "@/app/lib/reservations/money";
 import {
   parseConfirmHoldInput,
   parseHoldIdInput,
@@ -24,6 +26,7 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
+  festivals,
   invoices,
   reservationParticipants,
   scheduledTasks,
@@ -61,7 +64,7 @@ async function findLiveSelfServiceReservation(
   const conditions = [
     eq(reservationParticipants.userId, userId),
     sql`${standReservations.status} <> 'rejected'`,
-    eq(standReservations.source, "user_reservation"),
+    sql`${standReservations.source} IN ('user_reservation', 'legacy_unknown')`,
   ];
   if (festivalId != null) {
     conditions.push(eq(standReservations.festivalId, festivalId));
@@ -229,6 +232,27 @@ export async function createStandHold(
         return reservationFailure("STAND_WRONG_FESTIVAL");
       }
 
+      const idempotencyKey = parsed.data.idempotencyKey;
+      if (idempotencyKey) {
+        const [holdByKey] = await tx
+          .select({ id: standHolds.id, standId: standHolds.standId })
+          .from(standHolds)
+          .where(
+            and(
+              eq(standHolds.idempotencyKey, idempotencyKey),
+              eq(standHolds.userId, actor.id),
+              gt(standHolds.expiresAt, now),
+            ),
+          )
+          .limit(1);
+        if (holdByKey) {
+          return reservationSuccess(
+            { holdId: holdByKey.id, alreadyHeld: true },
+            "Ya tenés este espacio en espera",
+          );
+        }
+      }
+
       const blocked = await denySelfServiceMutation(tx, {
         actor: { id: actor.id, role: actor.role },
         userId: actor.id,
@@ -310,7 +334,16 @@ export async function createStandHold(
         return reservationFailure("STAND_UNAVAILABLE");
       }
 
-      const expiresAt = new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);
+      const [festivalHold] = await tx
+        .select({
+          reservationHoldMinutes: festivals.reservationHoldMinutes,
+        })
+        .from(festivals)
+        .where(eq(festivals.id, freshStand.festivalId))
+        .limit(1);
+      const holdMinutes =
+        festivalHold?.reservationHoldMinutes ?? HOLD_DURATION_MINUTES;
+      const expiresAt = new Date(now.getTime() + holdMinutes * 60 * 1000);
       const [hold] = await tx
         .insert(standHolds)
         .values({
@@ -318,6 +351,8 @@ export async function createStandHold(
           userId: actor.id,
           festivalId: freshStand.festivalId,
           expiresAt,
+          priceAmountSnapshot: roundMoney(freshStand.price ?? 0),
+          idempotencyKey: parsed.data.idempotencyKey,
         })
         .returning();
 
@@ -382,13 +417,33 @@ export async function confirmStandHold(
 ): Promise<ReservationActionResult<{ reservationId: number }>> {
   const parsed = parseConfirmHoldInput(holdIdInput, partnerIdInput);
   if (!parsed.success) return reservationFailure("VALIDATION");
-  const { holdId, partnerId } = parsed.data;
+      const { holdId, partnerId, idempotencyKey } = parsed.data;
 
   const { actor, denial } = await requireSelfServiceActor();
   if (!actor || denial) return denial!;
 
   try {
     const result = await db.transaction(async (tx) => {
+      if (idempotencyKey) {
+        const [reservationByKey] = await tx
+          .select({ id: standReservations.id })
+          .from(standReservations)
+          .where(
+            and(
+              eq(standReservations.idempotencyKey, idempotencyKey),
+              eq(standReservations.ownerUserId, actor.id),
+              sql`${standReservations.status} <> 'rejected'`,
+            ),
+          )
+          .limit(1);
+        if (reservationByKey) {
+          return reservationSuccess(
+            { reservationId: reservationByKey.id },
+            "Ya tenés una reserva vigente en este festival.",
+          );
+        }
+      }
+
       const [hold] = await tx
         .select({
           id: standHolds.id,
@@ -474,7 +529,7 @@ export async function confirmStandHold(
       }
 
       const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
-      const standPrice = hold.standPrice ?? 0;
+      const standPrice = roundMoney(hold.standPrice ?? 0);
 
       const [reservation] = await tx
         .insert(standReservations)
@@ -482,6 +537,9 @@ export async function confirmStandHold(
           festivalId: hold.festivalId,
           standId: hold.standId,
           source: "user_reservation",
+          ownerUserId: actor.id,
+          priceAmountSnapshot: roundMoney(standPrice),
+          idempotencyKey,
         })
         .returning();
 
@@ -491,6 +549,14 @@ export async function confirmStandHold(
           reservationId: reservation.id,
         })),
       );
+
+      await insertStandReservationEvent(tx, {
+        reservationId: reservation.id,
+        actorUserId: actor.id,
+        eventType: "created",
+        toStatus: "pending",
+        payload: { standId: hold.standId, partnerId: partnerId ?? null },
+      });
 
       const updatedStands = await tx
         .update(stands)
@@ -503,6 +569,7 @@ export async function confirmStandHold(
 
       await tx.insert(invoices).values({
         date: new Date(),
+        dueAt: sql`now() + interval '5 days'`,
         userId: actor.id,
         reservationId: reservation.id,
         originalAmount: standPrice,

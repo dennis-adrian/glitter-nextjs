@@ -142,6 +142,122 @@ async function main() {
     });
   }
 
+  const reservedWithoutLive = await db.execute<{ id: number }>(sql`
+    SELECT stands.id
+    FROM stands
+    WHERE stands.status IN ('reserved', 'confirmed')
+      AND NOT EXISTS (
+        SELECT 1 FROM stand_reservations
+        WHERE stand_reservations.stand_id = stands.id
+          AND stand_reservations.status <> 'rejected'
+      )
+  `);
+  if (reservedWithoutLive.rows.length > 0) {
+    findings.push({
+      name: "stand_reserved_without_live_reservation",
+      count: reservedWithoutLive.rows.length,
+      ids: reservedWithoutLive.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const availableWithLive = await db.execute<{ id: number }>(sql`
+    SELECT stands.id
+    FROM stands
+    WHERE stands.status = 'available'
+      AND EXISTS (
+        SELECT 1 FROM stand_reservations
+        WHERE stand_reservations.stand_id = stands.id
+          AND stand_reservations.status <> 'rejected'
+      )
+  `);
+  if (availableWithLive.rows.length > 0) {
+    findings.push({
+      name: "stand_available_with_live_reservation",
+      count: availableWithLive.rows.length,
+      ids: availableWithLive.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const heldWithoutHold = await db.execute<{ id: number }>(sql`
+    SELECT stands.id
+    FROM stands
+    WHERE stands.status = 'held'
+      AND NOT EXISTS (
+        SELECT 1 FROM stand_holds
+        WHERE stand_holds.stand_id = stands.id
+          AND stand_holds.expires_at > now()
+      )
+  `);
+  if (heldWithoutHold.rows.length > 0) {
+    findings.push({
+      name: "stand_held_without_live_hold",
+      count: heldWithoutHold.rows.length,
+      ids: heldWithoutHold.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const verificationWithoutSettlement = await db.execute<{ id: number }>(sql`
+    SELECT stand_reservations.id
+    FROM stand_reservations
+    WHERE stand_reservations.status = 'verification_payment'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM invoices
+        INNER JOIN payments ON payments.invoice_id = invoices.id
+        WHERE invoices.reservation_id = stand_reservations.id
+      )
+  `);
+  if (verificationWithoutSettlement.rows.length > 0) {
+    findings.push({
+      name: "verification_payment_without_settlement",
+      count: verificationWithoutSettlement.rows.length,
+      ids: verificationWithoutSettlement.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const multipleSettlements = await db.execute<{ invoice_id: number }>(sql`
+    SELECT invoice_id
+    FROM payments
+    GROUP BY invoice_id
+    HAVING count(*) > 1
+  `);
+  if (multipleSettlements.rows.length > 0) {
+    findings.push({
+      name: "multiple_submitted_settlements",
+      count: multipleSettlements.rows.length,
+      ids: multipleSettlements.rows.map((row) => Number(row.invoice_id)),
+    });
+  }
+
+  const adminShapedUserReservation = await db.execute<{ id: number }>(sql`
+    SELECT id
+    FROM stand_reservations
+    WHERE source = 'user_reservation'
+      AND reveal_at IS NOT NULL
+  `);
+  if (adminShapedUserReservation.rows.length > 0) {
+    findings.push({
+      name: "admin_shaped_user_reservation",
+      count: adminShapedUserReservation.rows.length,
+      ids: adminShapedUserReservation.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const expiredHoldStatusDrift = await db.execute<{ id: number }>(sql`
+    SELECT stand_holds.id
+    FROM stand_holds
+    INNER JOIN stands ON stands.id = stand_holds.stand_id
+    WHERE stand_holds.expires_at <= now()
+      AND stands.status = 'held'
+  `);
+  if (expiredHoldStatusDrift.rows.length > 0) {
+    findings.push({
+      name: "expired_hold_status_drift",
+      count: expiredHoldStatusDrift.rows.length,
+      ids: expiredHoldStatusDrift.rows.map((row) => Number(row.id)),
+    });
+  }
+
   for (const finding of findings) {
     console.log(
       JSON.stringify({

@@ -34,6 +34,8 @@ export const invoiceIdSchema = z.object({
 export const submitPaymentProofSchema = z.object({
   invoiceId: positiveIntSchema,
   voucherUrl: z.url(),
+  fileKey: z.string().trim().min(1).max(500).optional(),
+  idempotencyKey: uuidSchema.optional(),
 });
 
 export const applyDiscountSchema = z.object({

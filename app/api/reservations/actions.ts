@@ -22,6 +22,7 @@ import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import {
   parseUnknown,
@@ -140,10 +141,12 @@ async function applyConfirmReservationMutations(
     reservationId,
     standId,
     paidInvoiceId,
+    actorUserId,
   }: {
     reservationId: number;
     standId: number;
     paidInvoiceId?: number;
+    actorUserId?: number | null;
   },
 ) {
   const updatedReservations = await tx
@@ -162,6 +165,13 @@ async function applyConfirmReservationMutations(
       "No se encontró una reserva coincidente para el espacio indicado.",
     );
   }
+
+  await insertStandReservationEvent(tx, {
+    reservationId,
+    actorUserId: actorUserId ?? null,
+    eventType: "confirmed",
+    toStatus: "accepted",
+  });
 
   const updatedStands = await tx
     .update(stands)
@@ -317,6 +327,7 @@ export async function confirmReservation(
         reservationId,
         standId,
         paidInvoiceId,
+        actorUserId: profile?.id,
       });
       // Side effects run after the caller's transaction commits.
       return { success: true, message: "Reserva confirmada" };
@@ -327,6 +338,7 @@ export async function confirmReservation(
         reservationId,
         standId,
         paidInvoiceId,
+        actorUserId: profile?.id,
       });
     });
   } catch (error) {
@@ -416,6 +428,15 @@ export async function rejectReservation(input: unknown) {
         .update(stands)
         .set({ status: "available" })
         .where(eq(stands.id, canonical.standId));
+
+      await insertStandReservationEvent(tx, {
+        reservationId: canonical.id,
+        actorUserId: profile!.id,
+        eventType: "rejected",
+        fromStatus: canonical.status,
+        toStatus: "rejected",
+        payload: parsed.data.reason ? { reason: parsed.data.reason } : null,
+      });
     });
 
     const participantsWithEmail = canonical.participants.filter((p) =>

@@ -241,6 +241,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     const insert = vi.fn();
     const select = vi
       .fn()
+      .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() =>
         selectChain([
           {

@@ -19,6 +19,10 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+function money(columnName: string) {
+  return numeric(columnName, { precision: 12, scale: 2, mode: "number" });
+}
+
 export const userRoleEnum = pgEnum("user_role", [
   "admin",
   "artist",
@@ -356,6 +360,9 @@ export const festivals = pgTable(
     reservationsStartDate: timestamp("reservations_start_date")
       .defaultNow()
       .notNull(),
+    reservationHoldMinutes: integer("reservation_hold_minutes")
+      .default(5)
+      .notNull(),
     generalMapUrl: text("general_map_url"),
     mascotUrl: text("mascot_url"),
     festivalType: festivalTypeEnum("festival_type")
@@ -377,7 +384,13 @@ export const festivals = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (festivals) => [index("name_idx").on(festivals.name)],
+  (festivals) => [
+    index("name_idx").on(festivals.name),
+    check(
+      "festivals_reservation_hold_minutes_range",
+      sql`${festivals.reservationHoldMinutes} >= 1 AND ${festivals.reservationHoldMinutes} <= 30`,
+    ),
+  ],
 );
 export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   userRequests: many(userRequests),
@@ -596,7 +609,23 @@ export const reservationStatusEnum = pgEnum("reservation_status", [
 export const reservationSourceEnum = pgEnum("reservation_source", [
   "user_reservation",
   "admin_assignment",
+  "legacy_unknown",
 ]);
+export const standReservationEventTypeEnum = pgEnum(
+  "stand_reservation_event_type",
+  [
+    "created",
+    "confirmed",
+    "rejected",
+    "status_changed",
+    "payment_submitted",
+    "deadline_extended",
+  ],
+);
+export const reservationNotificationJobStatusEnum = pgEnum(
+  "reservation_notification_job_status",
+  ["pending", "processing", "completed", "failed"],
+);
 export const externalParticipantTypeEnum = pgEnum("external_participant_type", [
   "institution",
   "social_organization",
@@ -873,7 +902,7 @@ export const stands = pgTable(
     height: real("height"),
     positionLeft: real("position_left"),
     positionTop: real("position_top"),
-    price: real("price").notNull().default(0),
+    price: money("price").notNull().default(0),
     participationType: participationTypeEnum("participation_type")
       .default("standard")
       .notNull(),
@@ -956,15 +985,20 @@ export const standHolds = pgTable(
       .notNull()
       .references(() => festivals.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at").notNull(),
+    priceAmountSnapshot: money("price_amount_snapshot"),
+    idempotencyKey: text("idempotency_key"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (standHolds) => [
-    index("stand_holds_stand_idx").on(standHolds.standId),
-    index("stand_holds_user_festival_idx").on(
+    uniqueIndex("stand_holds_stand_idx").on(standHolds.standId),
+    uniqueIndex("stand_holds_user_festival_idx").on(
       standHolds.userId,
       standHolds.festivalId,
     ),
+    uniqueIndex("stand_holds_idempotency_key_unique")
+      .on(standHolds.idempotencyKey)
+      .where(sql`${standHolds.idempotencyKey} IS NOT NULL`),
   ],
 );
 export const standHoldsRelations = relations(standHolds, ({ one }) => ({
@@ -994,6 +1028,11 @@ export const standReservations = pgTable(
     source: reservationSourceEnum("source")
       .default("user_reservation")
       .notNull(),
+    ownerUserId: integer("owner_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    priceAmountSnapshot: money("price_amount_snapshot"),
+    idempotencyKey: text("idempotency_key"),
     // When set and in the future, the reservation is hidden from participants:
     // the stand appears "available" and participant identity is withheld until
     // this moment. null means the reservation is visible immediately.
@@ -1006,6 +1045,13 @@ export const standReservations = pgTable(
       t.id,
       t.festivalId,
     ),
+    uniqueIndex("stand_reservations_live_stand_unique")
+      .on(t.standId)
+      .where(sql`${t.status} <> 'rejected'`),
+    index("stand_reservations_owner_user_id_idx").on(t.ownerUserId),
+    uniqueIndex("stand_reservations_idempotency_key_unique")
+      .on(t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} IS NOT NULL`),
   ],
 );
 export const standReservationsRelations = relations(
@@ -1019,12 +1065,54 @@ export const standReservationsRelations = relations(
       fields: [standReservations.festivalId],
       references: [festivals.id],
     }),
+    owner: one(users, {
+      fields: [standReservations.ownerUserId],
+      references: [users.id],
+    }),
     participants: many(reservationParticipants),
     externalParticipants: many(reservationExternalParticipants),
     invoices: many(invoices),
     scheduledTasks: many(scheduledTasks),
     collaborators: many(reservationCollaborators),
     participantProducts: many(participantProducts),
+    events: many(standReservationEvents),
+  }),
+);
+
+export const standReservationEvents = pgTable(
+  "stand_reservation_events",
+  {
+    id: serial("id").primaryKey(),
+    reservationId: integer("reservation_id")
+      .notNull()
+      .references(() => standReservations.id, { onDelete: "cascade" }),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    eventType: standReservationEventTypeEnum("event_type").notNull(),
+    fromStatus: reservationStatusEnum("from_status"),
+    toStatus: reservationStatusEnum("to_status"),
+    payload: jsonb("payload"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("stand_reservation_events_reservation_id_created_at_idx").on(
+      table.reservationId,
+      table.createdAt,
+    ),
+  ],
+);
+export const standReservationEventsRelations = relations(
+  standReservationEvents,
+  ({ one }) => ({
+    reservation: one(standReservations, {
+      fields: [standReservationEvents.reservationId],
+      references: [standReservations.id],
+    }),
+    actor: one(users, {
+      fields: [standReservationEvents.actorUserId],
+      references: [users.id],
+    }),
   }),
 );
 
@@ -1236,10 +1324,11 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
 ]);
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
-  originalAmount: real("original_amount").default(0).notNull(),
-  discountAmount: real("discount_amount").default(0).notNull(),
-  amount: real("amount").notNull(),
+  originalAmount: money("original_amount").default(0).notNull(),
+  discountAmount: money("discount_amount").default(0).notNull(),
+  amount: money("amount").notNull(),
   date: timestamp("date").notNull(),
+  dueAt: timestamp("due_at"),
   status: invoiceStatusEnum("status").default("pending").notNull(),
   userId: integer("user_id")
     .notNull()
@@ -1268,25 +1357,138 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
     references: [discountCodes.id],
   }),
   payments: many(payments),
+  settlementSubmissions: many(invoiceSettlementSubmissions),
 }));
 
-export const payments = pgTable("payments", {
-  id: serial("id").primaryKey(),
-  amount: real("amount").notNull(),
-  date: timestamp("date").notNull(),
-  invoiceId: integer("invoice_id")
-    .notNull()
-    .references(() => invoices.id, { onDelete: "cascade" }),
-  voucherUrl: text("voucher_url").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const payments = pgTable(
+  "payments",
+  {
+    id: serial("id").primaryKey(),
+    amount: money("amount").notNull(),
+    date: timestamp("date").notNull(),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    voucherUrl: text("voucher_url").notNull(),
+    fileKey: text("file_key"),
+    uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    idempotencyKey: text("idempotency_key"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("payments_invoice_id_idx").on(t.invoiceId),
+    uniqueIndex("payments_idempotency_key_unique")
+      .on(t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} IS NOT NULL`),
+  ],
+);
 export const paymentsRelations = relations(payments, ({ one }) => ({
   invoice: one(invoices, {
     fields: [payments.invoiceId],
     references: [invoices.id],
   }),
+  uploadedBy: one(users, {
+    fields: [payments.uploadedByUserId],
+    references: [users.id],
+  }),
 }));
+
+export const invoiceSettlementSubmissions = pgTable(
+  "invoice_settlement_submissions",
+  {
+    id: serial("id").primaryKey(),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    paymentId: integer("payment_id").references(() => payments.id, {
+      onDelete: "set null",
+    }),
+    voucherUrl: text("voucher_url").notNull(),
+    fileKey: text("file_key"),
+    uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    idempotencyKey: text("idempotency_key"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("invoice_settlement_submissions_invoice_id_idx").on(t.invoiceId),
+    uniqueIndex("invoice_settlement_submissions_idempotency_key_unique")
+      .on(t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} IS NOT NULL`),
+  ],
+);
+export const invoiceSettlementSubmissionsRelations = relations(
+  invoiceSettlementSubmissions,
+  ({ one }) => ({
+    invoice: one(invoices, {
+      fields: [invoiceSettlementSubmissions.invoiceId],
+      references: [invoices.id],
+    }),
+    payment: one(payments, {
+      fields: [invoiceSettlementSubmissions.paymentId],
+      references: [payments.id],
+    }),
+    uploadedBy: one(users, {
+      fields: [invoiceSettlementSubmissions.uploadedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const reservationNotificationJobs = pgTable(
+  "reservation_notification_jobs",
+  {
+    id: serial("id").primaryKey(),
+    deduplicationKey: text("deduplication_key").notNull(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reservationId: integer("reservation_id").references(
+      () => standReservations.id,
+      { onDelete: "set null" },
+    ),
+    notificationKind: text("notification_kind").notNull(),
+    recipientEmail: text("recipient_email").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: reservationNotificationJobStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    lastError: text("last_error"),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    completedAt: timestamp("completed_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("reservation_notification_jobs_deduplication_key_unique").on(
+      table.deduplicationKey,
+    ),
+    index("reservation_notification_jobs_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+  ],
+);
+export const reservationNotificationJobsRelations = relations(
+  reservationNotificationJobs,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [reservationNotificationJobs.userId],
+      references: [users.id],
+    }),
+    reservation: one(standReservations, {
+      fields: [reservationNotificationJobs.reservationId],
+      references: [standReservations.id],
+    }),
+  }),
+);
 
 export const storageCleanupJobStatusEnum = pgEnum(
   "storage_cleanup_job_status",
@@ -3638,7 +3840,7 @@ export const discountCodes = pgTable("discount_codes", {
   discountUnit: discountUnitEnum("discount_unit")
     .default("percentage")
     .notNull(),
-  discountValue: real("discount_value").notNull(),
+  discountValue: money("discount_value").notNull(),
   maxUses: integer("max_uses"),
   currentUses: integer("current_uses").default(0).notNull(),
   festivalId: integer("festival_id").references(() => festivals.id, {
