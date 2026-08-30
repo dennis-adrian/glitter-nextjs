@@ -6,7 +6,7 @@
  *   pnpm exec tsx scripts/backfill-reservation-hardening.ts --batch-size 200
  */
 import { loadEnvConfig } from "@next/env";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { roundMoney } from "@/app/lib/reservations/money";
 import { db } from "@/db";
@@ -18,6 +18,10 @@ import {
   standReservations,
   stands,
 } from "@/db/schema";
+import {
+  nextOwnerBackfillAfterId,
+  ownerBackfillHasMore,
+} from "@/scripts/lib/owner-backfill-keyset";
 
 loadEnvConfig(process.cwd());
 
@@ -35,6 +39,8 @@ function log(message: string, extra?: Record<string, unknown>) {
   console.log(JSON.stringify({ message, dryRun, ...extra }));
 }
 
+let ownerAfterId = 0;
+
 async function backfillOwners(counts: Counts) {
   const rows = await db
     .select({
@@ -42,7 +48,13 @@ async function backfillOwners(counts: Counts) {
       ownerUserId: standReservations.ownerUserId,
     })
     .from(standReservations)
-    .where(isNull(standReservations.ownerUserId))
+    .where(
+      and(
+        isNull(standReservations.ownerUserId),
+        gt(standReservations.id, ownerAfterId),
+      ),
+    )
+    .orderBy(asc(standReservations.id))
     .limit(batchSize);
 
   for (const row of rows) {
@@ -69,7 +81,8 @@ async function backfillOwners(counts: Counts) {
       );
     counts.owner_updated += 1;
   }
-  return rows.length === batchSize;
+  ownerAfterId = nextOwnerBackfillAfterId(ownerAfterId, rows);
+  return ownerBackfillHasMore(rows.length, batchSize);
 }
 
 async function backfillPriceSnapshots(counts: Counts) {
