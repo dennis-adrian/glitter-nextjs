@@ -134,6 +134,6 @@ export function parseConfirmHoldInput(
   }
   return {
     success: true as const,
-    data: { holdId: holdId.data, partnerId },
+    data: { holdId: holdId.data, partnerId, idempotencyKey: undefined },
   };
 }

@@ -62,7 +62,7 @@ describe("reservation runtime schemas", () => {
   it("accepts confirm input as positional ids or a keyed object", () => {
     expect(parseConfirmHoldInput(20, 4)).toEqual({
       success: true,
-      data: { holdId: 20, partnerId: 4 },
+      data: { holdId: 20, partnerId: 4, idempotencyKey: undefined },
     });
     expect(
       parseConfirmHoldInput({
