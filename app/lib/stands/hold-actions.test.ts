@@ -217,7 +217,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     const select = vi
       .fn()
       .mockImplementationOnce(() => selectChain([]))
-      .mockImplementationOnce(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([{ festivalId: 10 }]))
       .mockImplementationOnce(() => selectChain([{ id: 88 }]));
     const tx = { select, insert };
     transactionMock.mockImplementation(
@@ -231,6 +231,28 @@ describe("stand hold authorization and eligibility wiring", () => {
       data: { reservationId: 88 },
     });
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns HOLD_EXPIRED when the hold is gone and no owned hold exists", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const insert = vi.fn();
+    const select = vi
+      .fn()
+      .mockImplementationOnce(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([]));
+    const tx = { select, insert };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await confirmStandHold(20);
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "HOLD_EXPIRED",
+    });
+    expect(insert).not.toHaveBeenCalled();
+    expect(select).toHaveBeenCalledTimes(2);
   });
 
   it("returns the existing reservation instead of ALREADY_RESERVED on confirm retry", async () => {

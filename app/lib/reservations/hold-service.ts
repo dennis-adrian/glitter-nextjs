@@ -474,10 +474,13 @@ export async function confirmStandHold(
           .from(standHolds)
           .where(and(eq(standHolds.id, holdId), eq(standHolds.userId, actor.id)))
           .limit(1);
+        if (ownedHold?.festivalId == null) {
+          return reservationFailure("HOLD_EXPIRED");
+        }
         const replayed = await replayLiveSelfServiceReservation(
           tx,
           actor.id,
-          ownedHold?.festivalId,
+          ownedHold.festivalId,
         );
         if (replayed) return replayed;
         return reservationFailure("HOLD_EXPIRED");
