@@ -319,7 +319,19 @@ async function main() {
         FROM participations p
         INNER JOIN users u ON u.id = p.user_id
         WHERE p.reservation_id = sr.id
-          AND (sr.owner_user_id IS NULL OR p.user_id <> sr.owner_user_id)
+          AND (
+            (sr.owner_user_id IS NOT NULL AND p.user_id <> sr.owner_user_id)
+            OR (
+              sr.owner_user_id IS NULL
+              AND p.id <> (
+                SELECT p2.id
+                FROM participations p2
+                WHERE p2.reservation_id = sr.id
+                ORDER BY p2.id
+                LIMIT 1
+              )
+            )
+          )
           AND u.category NOT IN ('illustration', 'new_artist')
       )
     )
