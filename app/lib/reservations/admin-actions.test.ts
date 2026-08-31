@@ -28,6 +28,7 @@ vi.mock("@/app/api/users/actions", () => ({
 
 vi.mock("@/app/lib/reservations/locks", () => ({
   lockFestivalRow: vi.fn(),
+  lockFestivalTermsDocument: vi.fn(),
   lockParticipants: vi.fn(),
   lockParticipantEligibilityRows: vi.fn(),
   lockStandRows: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock("next/cache", () => ({
 
 import {
   lockFestivalRow,
+  lockFestivalTermsDocument,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -170,6 +172,9 @@ describe("createAdminReservation sanction enforcement", () => {
       order.push("festival");
       return null;
     });
+    vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
+      order.push("terms");
+    });
     vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
       order.push("eligibilityRows");
     });
@@ -202,6 +207,7 @@ describe("createAdminReservation sanction enforcement", () => {
     expect(order).toEqual([
       "participants",
       "festival",
+      "terms",
       "eligibilityRows",
       "stand",
       "eligibilityCheck",

@@ -23,6 +23,9 @@ vi.mock("@/app/lib/reservations/locks", () => ({
   lockFestivalRow: vi.fn(async () => {
     lockCallOrder.current.push("festival");
   }),
+  lockFestivalTermsDocument: vi.fn(async () => {
+    lockCallOrder.current.push("terms");
+  }),
   lockParticipantEligibilityRows: vi.fn(async () => {
     lockCallOrder.current.push("eligibility");
   }),
@@ -43,6 +46,10 @@ vi.mock("@/app/lib/reservations/events", () => ({
   insertStandReservationEvent: insertEventMock,
 }));
 
+vi.mock("@/app/lib/sanctions/reservation-eligibility", () => ({
+  getReservationEligibility: vi.fn().mockResolvedValue({ eligible: true }),
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
@@ -51,6 +58,7 @@ import {
   applyReservationCancellation,
   cancelReservation,
   lockAndApplyReservationCancellation,
+  updateReservationPartner,
 } from "@/app/lib/reservations/admin-service";
 import {
   lockFestivalRow,
@@ -58,6 +66,7 @@ import {
   lockParticipants,
   lockStandRows,
 } from "@/app/lib/reservations/locks";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 
 const pendingReservation = {
   id: 9,
@@ -148,6 +157,7 @@ describe("cancelReservation lock ordering", () => {
     expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -174,9 +184,10 @@ describe("cancelReservation lock ordering", () => {
 
     expect(result.success).toBe(true);
     expect(tx.update).not.toHaveBeenCalled();
-    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+    expect(lockCallOrder.current.slice(0, 6)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
       "reservation",
@@ -213,6 +224,7 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
     expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -253,6 +265,7 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
     expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -300,6 +313,7 @@ describe("applyReservationCancellation lock ordering", () => {
     expect(lockCallOrder.current).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -336,5 +350,130 @@ describe("applyReservationCancellation lock ordering", () => {
       tx,
       expect.objectContaining({ userId: 3 }),
     );
+  });
+});
+
+function partnerEditTx(options?: {
+  partnerUser?: { id: number; status: string } | null;
+  otherMemberships?: { reservationId: number }[];
+}) {
+  const reservation = {
+    ...pendingReservation,
+    ownerUserId: 3,
+  };
+  let selectCalls = 0;
+  const select = vi.fn(() => {
+    selectCalls += 1;
+    if (selectCalls === 1 || selectCalls === 4) {
+      return selectChain([reservation], () => {
+        lockCallOrder.current.push("reservation");
+      });
+    }
+    if (selectCalls === 2) {
+      return selectChain([{ id: 1, userId: 3 }]);
+    }
+    if (selectCalls === 3) {
+      return selectChain([{ userId: 3 }]);
+    }
+    if (selectCalls === 5) {
+      return selectChain(
+        options?.partnerUser === null
+          ? []
+          : [options?.partnerUser ?? { id: 4, status: "verified" }],
+      );
+    }
+    return selectChain(options?.otherMemberships ?? []);
+  });
+  return {
+    select,
+    insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue([]) })),
+    delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+    })),
+  };
+}
+
+describe("updateReservationPartner", () => {
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    insertEventMock.mockReset();
+    vi.mocked(getReservationEligibility).mockReset();
+    vi.mocked(getReservationEligibility).mockResolvedValue({
+      eligible: true,
+      reason: null,
+      sanctionIds: [],
+      message: "",
+    } as never);
+    vi.mocked(lockFestivalRow).mockClear();
+    vi.mocked(lockParticipants).mockClear();
+    vi.mocked(lockParticipantEligibilityRows).mockClear();
+    vi.mocked(lockStandRows).mockClear();
+    insertEventMock.mockResolvedValue(undefined);
+  });
+
+  it("rejects festival_admin callers", async () => {
+    currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+    expect(result).toEqual({ success: false, message: "No autorizado" });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("locks participants, festival, terms, eligibility, and stand before the reservation row", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = partnerEditTx();
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+
+    expect(result.success).toBe(true);
+    const reservationLockAt = lockCallOrder.current.indexOf("reservation");
+    expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
+      "advisory",
+      "festival",
+      "terms",
+      "eligibility",
+      "stand",
+    ]);
+    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 4]);
+    expect(lockStandRows).toHaveBeenCalledWith(tx, [7]);
+    expect(tx.insert).toHaveBeenCalled();
+  });
+
+  it("rejects a sanctioned partner without writing", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    vi.mocked(getReservationEligibility).mockResolvedValue({
+      eligible: false,
+      reason: "ban",
+      sanctionIds: [30],
+      message: "Bloqueado por sanción",
+    } as never);
+    const tx = partnerEditTx();
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "El compañero seleccionado no puede participar en esta reserva. Bloqueado por sanción",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
   });
 });

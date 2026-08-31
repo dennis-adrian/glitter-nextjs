@@ -36,6 +36,9 @@ vi.mock("@/app/lib/reservations/locks", () => ({
   lockFestivalRow: vi.fn(async () => {
     lockCallOrder.current.push("festival");
   }),
+  lockFestivalTermsDocument: vi.fn(async () => {
+    lockCallOrder.current.push("terms");
+  }),
   lockParticipantEligibilityRows: vi.fn(async () => {
     lockCallOrder.current.push("eligibility");
   }),
@@ -446,6 +449,7 @@ describe("submitPaymentProof", () => {
     expect(lockCallOrder.current).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -541,9 +545,10 @@ describe("adminConfirmReservation", () => {
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
 
-    expect(lockCallOrder.current.slice(0, 4)).toEqual([
+    expect(lockCallOrder.current.slice(0, 5)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -592,9 +597,10 @@ describe("approveInvoiceSettlement", () => {
     const result = await approveInvoiceSettlement({ submissionId: 21 });
 
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
-    expect(lockCallOrder.current.slice(0, 4)).toEqual([
+    expect(lockCallOrder.current.slice(0, 5)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -624,9 +630,10 @@ describe("approveInvoiceSettlement", () => {
 
     const result = await approveInvoiceSettlement({ submissionId: 21 });
     expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_PENDING" });
-    expect(lockCallOrder.current.slice(0, 4)).toEqual([
+    expect(lockCallOrder.current.slice(0, 5)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -675,9 +682,10 @@ describe("rejectInvoiceSettlement", () => {
     });
 
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
-    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+    expect(lockCallOrder.current.slice(0, 6)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
       "submission",

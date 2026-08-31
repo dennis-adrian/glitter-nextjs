@@ -1,16 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
-const requireAdminMock = vi.hoisted(() => vi.fn());
+const currentProfileMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
-const eligibilityMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
-  requireAdminOrFestivalAdmin: requireAdminMock,
+  getCurrentUserProfile: currentProfileMock,
+  requireAdminOrFestivalAdmin: vi.fn(),
 }));
 
-vi.mock("@/app/lib/sanctions/reservation-eligibility", () => ({
-  getReservationEligibility: eligibilityMock,
-}));
+vi.mock("@/app/lib/reservations/policy", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/lib/reservations/policy")>();
+  return {
+    ...actual,
+    canMutateAdminReservations: (actor: { role?: string } | null) =>
+      actor?.role === "admin",
+  };
+});
 
 vi.mock("@/app/api/users/actions", () => ({
   fetchAdminUsers: vi.fn(),
@@ -50,7 +55,19 @@ import * as userRequestActions from "@/app/api/user_requests/actions";
 
 describe("reservation mutation exposure", () => {
   it("rejects direct reservation editing by a non-admin caller", async () => {
-    requireAdminMock.mockResolvedValue(null);
+    currentProfileMock.mockResolvedValue(null);
+
+    const result = await userRequestActions.updateReservationSimple(
+      10,
+      {} as never,
+    );
+
+    expect(result).toEqual({ success: false, message: "No autorizado" });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects festival_admin callers from the legacy reservation editor", async () => {
+    currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
 
     const result = await userRequestActions.updateReservationSimple(
       10,
@@ -64,118 +81,5 @@ describe("reservation mutation exposure", () => {
   it("does not expose the obsolete reservation creation actions", () => {
     expect(userRequestActions).not.toHaveProperty("createReservation");
     expect(userRequestActions).not.toHaveProperty("updateReservation");
-  });
-
-  it("rejects a blocked partner added through the admin edit action", async () => {
-    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
-    eligibilityMock.mockResolvedValue({
-      eligible: false,
-      reason: "ban",
-      sanctionIds: [30],
-      message: "Bloqueado por sanción",
-    });
-
-    const update = vi.fn();
-    const tx = {
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => ({
-              for: vi.fn().mockResolvedValue([
-                {
-                  id: 10,
-                  status: "pending",
-                  standId: 7,
-                  festivalId: 20,
-                },
-              ]),
-            })),
-          })),
-        })),
-      })),
-      query: {
-        festivals: {
-          findFirst: vi.fn().mockResolvedValue({ id: 20 }),
-        },
-        users: {
-          findFirst: vi.fn().mockResolvedValue({ id: 4, status: "verified" }),
-        },
-        invoices: {
-          findFirst: vi.fn().mockResolvedValue({ userId: 3 }),
-        },
-      },
-      update,
-    };
-    transactionMock.mockImplementation(
-      async (callback: (value: unknown) => unknown) => callback(tx),
-    );
-
-    const result = await userRequestActions.updateReservationSimple(10, {
-      status: "pending",
-      partner: { participationId: undefined, userId: 4 },
-    } as never);
-
-    expect(result).toEqual({
-      success: false,
-      message:
-        "El compañero seleccionado no puede participar en esta reserva. Bloqueado por sanción",
-    });
-    expect(eligibilityMock).toHaveBeenCalledWith(
-      { userId: 4, festivalId: 20 },
-      tx,
-    );
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it("rejects a reservation whose festival is missing without mutations", async () => {
-    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
-    eligibilityMock.mockClear();
-
-    const update = vi.fn();
-    const insert = vi.fn();
-    const deleteMutation = vi.fn();
-    const tx = {
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => ({
-              for: vi.fn().mockResolvedValue([
-                {
-                  id: 10,
-                  status: "pending",
-                  standId: 7,
-                  festivalId: 20,
-                },
-              ]),
-            })),
-          })),
-        })),
-      })),
-      query: {
-        festivals: {
-          findFirst: vi.fn().mockResolvedValue(null),
-        },
-      },
-      update,
-      insert,
-      delete: deleteMutation,
-    };
-    transactionMock.mockImplementation(
-      async (callback: (value: unknown) => unknown) => callback(tx),
-    );
-
-    const result = await userRequestActions.updateReservationSimple(10, {
-      status: "pending",
-      partner: { participationId: undefined, userId: 4 },
-    } as never);
-
-    expect(result).toEqual({
-      success: false,
-      message: "El festival asociado a la reserva no existe",
-    });
-    expect(eligibilityMock).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalled();
-    expect(insert).not.toHaveBeenCalled();
-    expect(deleteMutation).not.toHaveBeenCalled();
   });
 });

@@ -199,12 +199,13 @@ async function main() {
   const verificationWithoutSettlement = await db.execute<{ id: number }>(sql`
     SELECT stand_reservations.id
     FROM stand_reservations
+    INNER JOIN invoices ON invoices.reservation_id = stand_reservations.id
     WHERE stand_reservations.status = 'verification_payment'
       AND NOT EXISTS (
         SELECT 1
-        FROM invoices
-        INNER JOIN payments ON payments.invoice_id = invoices.id
-        WHERE invoices.reservation_id = stand_reservations.id
+        FROM invoice_settlement_submissions
+        WHERE invoice_settlement_submissions.invoice_id = invoices.id
+          AND invoice_settlement_submissions.status = 'submitted'
       )
   `);
   if (verificationWithoutSettlement.rows.length > 0) {
@@ -215,9 +216,41 @@ async function main() {
     });
   }
 
+  const zeroValueNonZero = await db.execute<{ id: number }>(sql`
+    SELECT invoice_settlement_submissions.id
+    FROM invoice_settlement_submissions
+    INNER JOIN invoices ON invoices.id = invoice_settlement_submissions.invoice_id
+    WHERE invoice_settlement_submissions.kind = 'zero_value_entitlement'
+      AND invoice_settlement_submissions.status = 'submitted'
+      AND invoices.amount <> 0
+  `);
+  if (zeroValueNonZero.rows.length > 0) {
+    findings.push({
+      name: "zero_value_settlement_invoice_not_zero",
+      count: zeroValueNonZero.rows.length,
+      ids: zeroValueNonZero.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const proofWithoutPayment = await db.execute<{ id: number }>(sql`
+    SELECT id
+    FROM invoice_settlement_submissions
+    WHERE kind = 'payment_proof'
+      AND status = 'submitted'
+      AND (payment_id IS NULL OR file_key IS NULL)
+  `);
+  if (proofWithoutPayment.rows.length > 0) {
+    findings.push({
+      name: "proof_settlement_missing_payment_or_file",
+      count: proofWithoutPayment.rows.length,
+      ids: proofWithoutPayment.rows.map((row) => Number(row.id)),
+    });
+  }
+
   const multipleSettlements = await db.execute<{ invoice_id: number }>(sql`
     SELECT invoice_id
-    FROM payments
+    FROM invoice_settlement_submissions
+    WHERE status = 'submitted'
     GROUP BY invoice_id
     HAVING count(*) > 1
   `);
@@ -256,6 +289,128 @@ async function main() {
       count: expiredHoldStatusDrift.rows.length,
       ids: expiredHoldStatusDrift.rows.map((row) => Number(row.id)),
     });
+  }
+
+  const idempotencyTables = {
+    stand_holds: sql`stand_holds`,
+    stand_reservations: sql`stand_reservations`,
+    payments: sql`payments`,
+    invoice_settlement_submissions: sql`invoice_settlement_submissions`,
+  } as const;
+  for (const [table, tableSql] of Object.entries(idempotencyTables)) {
+    const duplicates = await db.execute<{ fingerprint: string; n: number }>(sql`
+      SELECT md5(idempotency_key) AS fingerprint, count(*)::int AS n
+      FROM ${tableSql}
+      WHERE idempotency_key IS NOT NULL
+      GROUP BY idempotency_key
+      HAVING count(*) > 1
+    `);
+    if (duplicates.rows.length > 0) {
+      findings.push({
+        name: `duplicate_idempotency_key_${table}`,
+        count: duplicates.rows.length,
+        ids: [],
+      });
+    }
+  }
+
+  const requiredIndexes: Array<{
+    name: string;
+    table: string;
+    keys: string[];
+  }> = [
+    {
+      name: "invoice_settlement_submissions_idempotency_key_unique",
+      table: "invoice_settlement_submissions",
+      keys: ["idempotency_key"],
+    },
+    {
+      name: "payments_idempotency_key_unique",
+      table: "payments",
+      keys: ["idempotency_key"],
+    },
+    {
+      name: "stand_holds_idempotency_key_unique",
+      table: "stand_holds",
+      keys: ["idempotency_key"],
+    },
+    {
+      name: "stand_reservations_live_stand_unique",
+      table: "stand_reservations",
+      keys: ["stand_id"],
+    },
+    {
+      name: "stand_reservations_idempotency_key_unique",
+      table: "stand_reservations",
+      keys: ["idempotency_key"],
+    },
+    {
+      name: "stand_holds_stand_idx",
+      table: "stand_holds",
+      keys: ["stand_id"],
+    },
+    {
+      name: "stand_holds_user_festival_idx",
+      table: "stand_holds",
+      keys: ["user_id", "festival_id"],
+    },
+  ];
+
+  const catalogIndexes = await db.execute<{
+    indexname: string;
+    tablename: string;
+    indexdef: string;
+    indisunique: boolean;
+    indisvalid: boolean;
+    indisready: boolean;
+  }>(sql`
+    SELECT
+      pg_class.relname AS indexname,
+      tables.relname AS tablename,
+      pg_get_indexdef(pg_index.indexrelid) AS indexdef,
+      pg_index.indisunique,
+      pg_index.indisvalid,
+      pg_index.indisready
+    FROM pg_index
+    INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
+    INNER JOIN pg_class AS tables ON tables.oid = pg_index.indrelid
+    INNER JOIN pg_namespace ON pg_namespace.oid = tables.relnamespace
+    WHERE pg_namespace.nspname = 'public'
+      AND pg_class.relname IN (${sql.join(
+        requiredIndexes.map((index) => sql`${index.name}`),
+        sql`, `,
+      )})
+  `);
+  const catalogByName = new Map(
+    catalogIndexes.rows.map((row) => [row.indexname, row]),
+  );
+  for (const required of requiredIndexes) {
+    const found = catalogByName.get(required.name);
+    if (!found) {
+      findings.push({
+        name: `missing_index_${required.name}`,
+        count: 1,
+        ids: [],
+      });
+      continue;
+    }
+    const def = found.indexdef.replace(/\s+/g, " ").toLowerCase();
+    const keysOk = required.keys.every((key) => def.includes(key));
+    const tableOk =
+      found.tablename === required.table || def.includes(required.table);
+    if (
+      !found.indisvalid ||
+      !found.indisready ||
+      !found.indisunique ||
+      !keysOk ||
+      !tableOk
+    ) {
+      findings.push({
+        name: `invalid_index_${required.name}`,
+        count: 1,
+        ids: [],
+      });
+    }
   }
 
   for (const finding of findings) {

@@ -9,6 +9,7 @@ import {
 } from "@/app/lib/reservations/errors";
 import {
   lockFestivalRow,
+  lockFestivalTermsDocument,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -266,6 +267,7 @@ export async function createStandHold(
 
       await lockParticipants(tx, stand.festivalId, [actor.id]);
       await lockFestivalRow(tx, stand.festivalId);
+      await lockFestivalTermsDocument(tx);
       await lockParticipantEligibilityRows(tx, stand.festivalId, [actor.id]);
       await lockStandRows(tx, [stand.id]);
 
@@ -583,6 +585,7 @@ export async function confirmStandHold(
       const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
       await lockParticipants(tx, holdPreview.festivalId, participantIds);
       await lockFestivalRow(tx, holdPreview.festivalId);
+      await lockFestivalTermsDocument(tx);
       await lockParticipantEligibilityRows(
         tx,
         holdPreview.festivalId,

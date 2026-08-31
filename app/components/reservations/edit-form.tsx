@@ -26,8 +26,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { adminConfirmReservationByReservationIdAction } from "@/app/lib/reservations/payment-actions";
+import { updateReservationPartner } from "@/app/lib/reservations/admin-actions";
 import { planReservationEditSubmit } from "@/app/components/reservations/edit-form-submit";
-import { updateReservationSimple } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { BaseProfile } from "@/app/api/users/definitions";
@@ -78,8 +78,13 @@ export default function EditReservationForm({
       nextStatus: data.status,
     });
 
-    if (plan.kind === "unsupported_combination") {
+    if (plan.kind === "unsupported_combination" || plan.kind === "unsupported_status") {
       toast.error(plan.message);
+      return;
+    }
+
+    if (plan.kind === "noop") {
+      toast.success("No hay cambios para guardar.");
       return;
     }
 
@@ -115,10 +120,9 @@ export default function EditReservationForm({
       return;
     }
 
-    const res = await updateReservationSimple(reservation.id, {
-      ...reservation,
-      ...data,
-      partner: updatedPartner,
+    const res = await updateReservationPartner({
+      reservationId: reservation.id,
+      partnerUserId: updatedPartner.userId ?? null,
     });
     if (res.success) {
       toast.success(res.message, {
@@ -191,7 +195,7 @@ export default function EditReservationForm({
         {showInput && !partner && (
           <>
             <Label htmlFor="first-participant">
-              Busca el compañero de espacio
+              Buscá el compañero de espacio
             </Label>
             <SearchInput
               id="first-participant"
@@ -222,14 +226,14 @@ export default function EditReservationForm({
                 name="status"
                 render={({ field }) => (
                   <FormItem className="grid gap-2">
-                    <FormLabel>Elige una opción</FormLabel>
+                    <FormLabel>Elegí una opción</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Elige una opción" />
+                          <SelectValue placeholder="Elegí una opción" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>

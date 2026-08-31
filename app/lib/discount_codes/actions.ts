@@ -10,6 +10,7 @@ import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { consumeActionRateLimit } from "@/app/lib/rate-limit";
 import {
   lockFestivalRow,
+  lockFestivalTermsDocument,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -172,6 +173,7 @@ export async function validateAndApplyDiscountCode({
         invoicePreview.userId,
       ]);
       await lockFestivalRow(tx, invoicePreview.festivalId);
+      await lockFestivalTermsDocument(tx);
       await lockParticipantEligibilityRows(tx, invoicePreview.festivalId, [
         invoicePreview.userId,
       ]);

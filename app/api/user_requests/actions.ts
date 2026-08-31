@@ -27,7 +27,8 @@ import {
 import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
-import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { getCurrentUserProfile, requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { nextEnrollmentTermsWrite } from "@/app/lib/festival-terms/acceptance";
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import {
@@ -155,8 +156,8 @@ export async function updateReservationSimple(
   id: number,
   data: ReservationUpdateSimple,
 ) {
-  const actor = await requireAdminOrFestivalAdmin();
-  if (!actor) {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
     return { success: false, message: "No autorizado" };
   }
   if (!Number.isInteger(id) || id <= 0) {
