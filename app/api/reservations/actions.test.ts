@@ -8,6 +8,7 @@ const findFirstMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 const rejectionEmailTemplateMock = vi.hoisted(() => vi.fn(() => null));
+const insertStandReservationEventMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -38,6 +39,10 @@ vi.mock("@/app/emails/reservation-rejection", () => ({
   default: rejectionEmailTemplateMock,
 }));
 
+vi.mock("@/app/lib/reservations/events", () => ({
+  insertStandReservationEvent: insertStandReservationEventMock,
+}));
+
 import {
   deleteReservation,
   rejectReservation,
@@ -53,6 +58,7 @@ describe("admin reservation mutations", () => {
     revalidatePathMock.mockReset();
     rejectionEmailTemplateMock.mockReset();
     rejectionEmailTemplateMock.mockReturnValue(null);
+    insertStandReservationEventMock.mockReset();
   });
 
   it("rejects unauthenticated and festival_admin callers", async () => {
@@ -91,7 +97,7 @@ describe("admin reservation mutations", () => {
         { user: { email: "ada@example.com", displayName: "Ada" } },
       ],
     });
-    transactionMock.mockResolvedValue(undefined);
+    transactionMock.mockResolvedValue({ changed: true });
     rejectionEmailTemplateMock.mockImplementation(() => {
       throw new Error("sync template failure");
     });
@@ -109,4 +115,100 @@ describe("admin reservation mutations", () => {
       "page",
     );
   });
+
+  it("uses the locked reservation status for the audit event fromStatus", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    findFirstMock.mockResolvedValue({
+      id: 3,
+      standId: 9,
+      status: "pending",
+      stand: { label: "A", standNumber: 1 },
+      festival: { name: "Fest" },
+      participants: [],
+    });
+    const tx = reservationLockTx({
+      id: 3,
+      standId: 9,
+      status: "verification_payment",
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await expect(rejectReservation({ reservationId: 3 })).resolves.toEqual({
+      success: true,
+      message: "Reserva cancelada correctamente",
+    });
+    expect(insertStandReservationEventMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        reservationId: 3,
+        fromStatus: "verification_payment",
+        toStatus: "rejected",
+        eventType: "rejected",
+      }),
+    );
+    expect(tx.update).toHaveBeenCalled();
+  });
+
+  it("does not insert a duplicate event when the locked reservation is already rejected", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    findFirstMock.mockResolvedValue({
+      id: 3,
+      standId: 9,
+      status: "pending",
+      stand: { label: "A", standNumber: 1 },
+      festival: { name: "Fest" },
+      participants: [
+        { user: { email: "ada@example.com", displayName: "Ada" } },
+      ],
+    });
+    const tx = reservationLockTx({
+      id: 3,
+      standId: 9,
+      status: "rejected",
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await expect(rejectReservation({ reservationId: 3 })).resolves.toEqual({
+      success: true,
+      message: "Reserva cancelada correctamente",
+    });
+    expect(insertStandReservationEventMock).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.delete).not.toHaveBeenCalled();
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith(
+      "/dashboard/festivals/[id]/reservations",
+      "page",
+    );
+  });
 });
+
+function reservationLockTx(locked: {
+  id: number;
+  standId: number;
+  status: string;
+} | null) {
+  return {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            for: vi.fn().mockResolvedValue(locked ? [locked] : []),
+          })),
+        })),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue(undefined),
+    })),
+  };
+}

@@ -70,6 +70,36 @@ export const addCollaborator = async (
   try {
     response = await db.transaction(async (tx) => {
       if (parsed.data.collaboratorId) {
+        const associations = await tx.query.reservationCollaborators.findMany({
+          where: eq(
+            reservationCollaborators.collaboratorId,
+            parsed.data.collaboratorId,
+          ),
+          with: {
+            reservation: {
+              with: { participants: true },
+            },
+          },
+        });
+
+        const canReuseCollaborator = associations.some(
+          (association) =>
+            association.reservationId === parsed.data.reservationId ||
+            canMutateReservationCollaborators({
+              actor: { id: actor.id, role: actor.role },
+              participantUserIds: association.reservation.participants.map(
+                (participant) => participant.userId,
+              ),
+            }),
+        );
+
+        if (!canReuseCollaborator) {
+          return {
+            success: false,
+            message: "No estás autorizado para agregar esta persona.",
+          };
+        }
+
         await tx.insert(reservationCollaborators).values({
           reservationId: parsed.data.reservationId,
           collaboratorId: parsed.data.collaboratorId,

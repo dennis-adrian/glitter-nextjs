@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Maximize2Icon, X } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -146,16 +146,42 @@ export function StandInfoCard({
   // Groups only form on stands somebody already holds, so this card never shows
   // a joined unit as reservable — only its label widens to name both stands.
   const cardStands = groupStands?.length ? groupStands : [stand];
-  const holdIntentKeyRef = useRef<{ standId: number; key: string } | null>(
-    null,
-  );
+  const holdMinutes = festival.reservationHoldMinutes ?? 5;
+  const holdIntentKeyRef = useRef<{
+    standId: number;
+    key: string;
+    expiresAt: number;
+  } | null>(null);
+  const prevActiveHoldRef = useRef(activeHold);
+
+  useEffect(() => {
+    const prev = prevActiveHoldRef.current;
+    if (
+      prev &&
+      !activeHold &&
+      holdIntentKeyRef.current?.standId === prev.standId
+    ) {
+      holdIntentKeyRef.current = {
+        ...holdIntentKeyRef.current,
+        expiresAt: 0,
+      };
+    }
+    prevActiveHoldRef.current = activeHold;
+  }, [activeHold]);
 
   const idempotencyKeyForStand = (standId: number) => {
-    if (
-      !holdIntentKeyRef.current ||
-      holdIntentKeyRef.current.standId !== standId
-    ) {
-      holdIntentKeyRef.current = { standId, key: crypto.randomUUID() };
+    const now = Date.now();
+    const hasLiveHoldOnStand = activeHold?.standId === standId;
+    const cached = holdIntentKeyRef.current;
+    const holdExpired =
+      cached != null && now >= cached.expiresAt && !hasLiveHoldOnStand;
+
+    if (!cached || cached.standId !== standId || holdExpired) {
+      holdIntentKeyRef.current = {
+        standId,
+        key: crypto.randomUUID(),
+        expiresAt: now + holdMinutes * 60 * 1000,
+      };
     }
     return holdIntentKeyRef.current.key;
   };
@@ -164,10 +190,17 @@ export function StandInfoCard({
     if (!canReserve || isPending) return;
     startTransition(async () => {
       try {
+        const idempotencyKey = idempotencyKeyForStand(stand.id);
         const res = await createStandHold({
           standId: stand.id,
-          idempotencyKey: idempotencyKeyForStand(stand.id),
+          idempotencyKey,
         });
+        if (res.success && res.data.holdId) {
+          const cached = holdIntentKeyRef.current;
+          if (cached?.standId === stand.id) {
+            cached.expiresAt = Date.now() + holdMinutes * 60 * 1000;
+          }
+        }
         if (res.success && res.data.reservationId) {
           toast.success(res.message);
           onClose();

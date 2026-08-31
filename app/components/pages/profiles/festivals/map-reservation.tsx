@@ -36,11 +36,17 @@ export default async function MapReservationPage(
     targetProfile: forProfile,
     festival,
   });
-  if (denial === "TERMS_STALE") {
+  if (denial?.code === "TERMS_STALE") {
     return <TermsReacceptanceRequired festivalId={festival.id} />;
   }
   if (denial) {
-    return <ReservationNotAllowed festival={festival} policyCode={denial} />;
+    return (
+      <ReservationNotAllowed
+        festival={festival}
+        policyCode={denial.code}
+        sanctionBlock={denial.sanctionBlock}
+      />
+    );
   }
 
   const subcategoryIds = forProfile.profileSubcategories.map(

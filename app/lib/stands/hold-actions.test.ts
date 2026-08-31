@@ -176,12 +176,16 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await confirmStandHold(20, 4);
+    const result = await confirmStandHold({ holdId: 20, partnerId: 4 });
 
     expect(result).toMatchObject({
       success: false,
       code: "PARTNER_NOT_ELIGIBLE",
     });
+    expect(denySelfServiceMock).toHaveBeenLastCalledWith(
+      tx,
+      expect.objectContaining({ userId: 4, asPartner: true }),
+    );
     expect(insert).not.toHaveBeenCalled();
   });
 
@@ -224,7 +228,7 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await confirmStandHold(20);
+    const result = await confirmStandHold({ holdId: 20 });
 
     expect(result).toMatchObject({
       success: true,
@@ -245,7 +249,7 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await confirmStandHold(20);
+    const result = await confirmStandHold({ holdId: 20 });
 
     expect(result).toMatchObject({
       success: false,
@@ -253,6 +257,28 @@ describe("stand hold authorization and eligibility wiring", () => {
     });
     expect(insert).not.toHaveBeenCalled();
     expect(select).toHaveBeenCalledTimes(2);
+  });
+
+  it("replays a confirmation by idempotency key before resolving the hold", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const select = vi.fn(() => selectChain([{ id: 88 }]));
+    const tx = { select, insert: vi.fn() };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await confirmStandHold({
+      holdId: 20,
+      partnerId: 4,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { reservationId: 88 },
+    });
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(denySelfServiceMock).not.toHaveBeenCalled();
   });
 
   it("returns the existing reservation instead of ALREADY_RESERVED on confirm retry", async () => {

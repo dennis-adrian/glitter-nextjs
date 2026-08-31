@@ -59,11 +59,7 @@ describe("reservation runtime schemas", () => {
     ).toBe(false);
   });
 
-  it("accepts confirm input as positional ids or a keyed object", () => {
-    expect(parseConfirmHoldInput(20, 4)).toEqual({
-      success: true,
-      data: { holdId: 20, partnerId: 4, idempotencyKey: undefined },
-    });
+  it("accepts structured confirm input with a partner and idempotency key", () => {
     expect(
       parseConfirmHoldInput({
         holdId: 20,
@@ -78,5 +74,6 @@ describe("reservation runtime schemas", () => {
         idempotencyKey: "11111111-1111-4111-8111-111111111111",
       },
     });
+    expect(parseConfirmHoldInput(20).success).toBe(false);
   });
 });

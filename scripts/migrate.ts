@@ -4,7 +4,9 @@ import { pool, db } from "@/db";
 import {
   backfillCategoryCatalog,
   categoryCatalogBackfillCompleted,
+  invoiceVerificationPaymentBackfillCompleted,
   markCategoryCatalogBackfillCompleted,
+  markInvoiceVerificationPaymentBackfillCompleted,
 } from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
 import { ensureDefaultFestivalTerms } from "@/app/lib/festival-terms/persist";
@@ -90,7 +92,7 @@ async function ensureFestivalTermsArchivedEnum() {
 async function backfillInvoiceVerificationPayment() {
   const client = await pool.connect();
   try {
-    // 0243 adds invoice_status.verification_payment. Postgres refuses to use a
+    // 0244 adds invoice_status.verification_payment. Postgres refuses to use a
     // newly ADD VALUE'd label until that transaction commits, so this UPDATE
     // cannot live in the same Drizzle migration file as the ALTER TYPE.
     await client.query(`
@@ -101,12 +103,6 @@ async function backfillInvoiceVerificationPayment() {
         AND i.status = 'pending'
         AND r.status = 'verification_payment'
     `);
-  } catch (error: unknown) {
-    const pgError = error as { code?: string };
-    // Type or label may not exist on a brand-new DB until 0243 runs; migrate()
-    // already applied it before this runs. 42704 = undefined_object.
-    if (pgError.code === "42704") return;
-    throw error;
   } finally {
     client.release();
   }
@@ -124,10 +120,15 @@ async function main() {
     const catalogBackfillDone = catalogPending
       ? false
       : await categoryCatalogBackfillCompleted();
+    const invoiceBackfillDone =
+      await invoiceVerificationPaymentBackfillCompleted();
 
     await ensureFestivalTermsArchivedEnum();
     await migrate(db, { migrationsFolder: "./drizzle" });
-    await backfillInvoiceVerificationPayment();
+    if (!invoiceBackfillDone) {
+      await backfillInvoiceVerificationPayment();
+      await markInvoiceVerificationPaymentBackfillCompleted();
+    }
     await backfillProductSlugs();
     await ensureProductSlugConstraints();
     if (catalogPending || !catalogBackfillDone) {

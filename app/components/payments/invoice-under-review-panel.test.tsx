@@ -65,6 +65,52 @@ describe("InvoiceUnderReviewPanel", () => {
     expect(link.getAttribute("href")).toBe("https://files.example.com/voucher.pdf");
   });
 
+  it("links to the latest payment voucher even when payments are unordered", () => {
+    const older = {
+      ...baseInvoice.payments[0],
+      id: 10,
+      voucherUrl: "https://files.example.com/old.pdf",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    };
+    const newer = {
+      ...baseInvoice.payments[0],
+      id: 11,
+      voucherUrl: "https://files.example.com/new.pdf",
+      createdAt: new Date("2026-02-01T00:00:00.000Z"),
+    };
+    const newestWithoutVoucher = {
+      ...baseInvoice.payments[0],
+      id: 12,
+      voucherUrl: "",
+      createdAt: new Date("2026-03-01T00:00:00.000Z"),
+    };
+
+    const { rerender } = render(
+      <InvoiceUnderReviewPanel
+        invoice={{ ...baseInvoice, payments: [older, newer] }}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("link", { name: "Ver el comprobante enviado" })
+        .getAttribute("href"),
+    ).toBe("https://files.example.com/new.pdf");
+
+    rerender(
+      <InvoiceUnderReviewPanel
+        invoice={{
+          ...baseInvoice,
+          payments: [newer, newestWithoutVoucher, older],
+        }}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("link", { name: "Ver el comprobante enviado" })
+        .getAttribute("href"),
+    ).toBe("https://files.example.com/new.pdf");
+  });
+
   it("hides the voucher link when showVoucher is false", () => {
     render(
       <InvoiceUnderReviewPanel

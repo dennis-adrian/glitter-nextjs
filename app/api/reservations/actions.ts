@@ -410,10 +410,25 @@ export async function rejectReservation(input: unknown) {
   }
 
   try {
-    await db.transaction(async (tx) => {
+    const outcome = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(standReservations)
+        .where(eq(standReservations.id, canonical.id))
+        .limit(1)
+        .for("update");
+
+      if (!locked) {
+        throw new Error("not_found");
+      }
+
+      if (locked.status === "rejected") {
+        return { changed: false as const };
+      }
+
       await tx
         .delete(scheduledTasks)
-        .where(eq(scheduledTasks.reservationId, canonical.id));
+        .where(eq(scheduledTasks.reservationId, locked.id));
 
       await tx
         .update(standReservations)
@@ -422,22 +437,29 @@ export async function rejectReservation(input: unknown) {
           revealAt: null,
           updatedAt: sql`now()`,
         })
-        .where(eq(standReservations.id, canonical.id));
+        .where(eq(standReservations.id, locked.id));
 
       await tx
         .update(stands)
         .set({ status: "available" })
-        .where(eq(stands.id, canonical.standId));
+        .where(eq(stands.id, locked.standId));
 
       await insertStandReservationEvent(tx, {
-        reservationId: canonical.id,
+        reservationId: locked.id,
         actorUserId: profile!.id,
         eventType: "rejected",
-        fromStatus: canonical.status,
+        fromStatus: locked.status,
         toStatus: "rejected",
         payload: parsed.data.reason ? { reason: parsed.data.reason } : null,
       });
+
+      return { changed: true as const };
     });
+
+    if (!outcome.changed) {
+      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
+      return { success: true, message: "Reserva cancelada correctamente" };
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al cancelar la reserva" };

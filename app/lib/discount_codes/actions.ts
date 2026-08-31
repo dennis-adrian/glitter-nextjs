@@ -120,13 +120,20 @@ export async function validateAndApplyDiscountCode({
     return { success: false, message: "Código de descuento inválido o inactivo." };
   }
 
+  const rateLimitUnavailable = Symbol("discountApplyRateLimitUnavailable");
   const allowed = await consumeActionRateLimit({
     key: `discount-apply:user:${currentUser.id}`,
     limit: 15,
     windowMs: 60_000,
-  }).catch(() => false);
-  if (!allowed) {
+  }).catch(() => rateLimitUnavailable);
+  if (allowed === rateLimitUnavailable) {
     return { success: false, message: "Código de descuento inválido o inactivo." };
+  }
+  if (!allowed) {
+    return {
+      success: false,
+      message: "Demasiados intentos. Esperá un minuto e intentá de nuevo.",
+    };
   }
 
   const normalizedCode = parsed.data.code.trim().toLowerCase();

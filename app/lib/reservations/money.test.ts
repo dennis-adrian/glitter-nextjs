@@ -6,6 +6,8 @@ import { isLiveSelfServiceSource } from "@/app/lib/reservations/policy";
 describe("reservation money rounding", () => {
   it("rounds to cents", () => {
     expect(roundMoney(10.005)).toBe(10.01);
+    expect(roundMoney(1.005)).toBe(1.01);
+    expect(roundMoney(10.075)).toBe(10.08);
     expect(roundMoney(99.994)).toBe(99.99);
   });
 });

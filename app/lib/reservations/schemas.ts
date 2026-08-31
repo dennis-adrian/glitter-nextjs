@@ -27,6 +27,8 @@ export const confirmHoldSchema = z.object({
   idempotencyKey: uuidSchema.optional(),
 });
 
+export type ConfirmStandHoldInput = z.infer<typeof confirmHoldSchema>;
+
 export const invoiceIdSchema = z.object({
   invoiceId: positiveIntSchema,
 });
@@ -118,22 +120,6 @@ export function parseHoldIdInput(input: unknown) {
   return { success: false as const };
 }
 
-export function parseConfirmHoldInput(
-  holdIdInput: unknown,
-  partnerIdInput?: unknown,
-) {
-  const asObject = parseUnknown(confirmHoldSchema, holdIdInput);
-  if (asObject.success) return asObject;
-  const holdId = parseUnknown(positiveIntSchema, holdIdInput);
-  if (!holdId.success) return { success: false as const };
-  let partnerId: number | undefined;
-  if (partnerIdInput !== undefined && partnerIdInput !== null) {
-    const partner = parseUnknown(positiveIntSchema, partnerIdInput);
-    if (!partner.success) return { success: false as const };
-    partnerId = partner.data;
-  }
-  return {
-    success: true as const,
-    data: { holdId: holdId.data, partnerId, idempotencyKey: undefined },
-  };
+export function parseConfirmHoldInput(input: unknown) {
+  return parseUnknown(confirmHoldSchema, input);
 }

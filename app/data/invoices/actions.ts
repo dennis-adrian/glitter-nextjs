@@ -122,7 +122,9 @@ export async function adminAttachPaymentVoucher(
     let cleanupJobId: number | undefined;
 
     await db.transaction(async (tx) => {
+      let paymentId: number;
       if (currentPayment) {
+        paymentId = currentPayment.id;
         // The previous voucher is orphaned in storage once we overwrite it;
         // enqueue a cleanup job so the old file is removed after commit.
         const previousVoucherUrl = currentPayment.voucherUrl;
@@ -165,6 +167,7 @@ export async function adminAttachPaymentVoucher(
             uploadedByUserId: profile.id,
           })
           .returning({ id: payments.id });
+        paymentId = payment.id;
         await tx.insert(invoiceSettlementSubmissions).values({
           invoiceId,
           paymentId: payment.id,
@@ -190,6 +193,25 @@ export async function adminAttachPaymentVoucher(
           .set({ status: "paid", updatedAt: new Date() })
           .where(eq(invoices.id, invoiceId));
       } else if (invoice.status === "pending") {
+        await insertStandReservationEvent(tx, {
+          reservationId: invoice.reservationId,
+          actorUserId: profile.id,
+          eventType: "payment_submitted",
+          fromStatus: invoice.reservation.status,
+          toStatus: "verification_payment",
+          payload: { invoiceId: invoice.id, paymentId },
+        });
+
+        await tx
+          .update(standReservations)
+          .set({ status: "verification_payment", updatedAt: new Date() })
+          .where(
+            and(
+              eq(standReservations.id, invoice.reservationId),
+              eq(standReservations.standId, invoice.reservation.standId),
+            ),
+          );
+
         await tx
           .update(invoices)
           .set({ status: "verification_payment", updatedAt: new Date() })
