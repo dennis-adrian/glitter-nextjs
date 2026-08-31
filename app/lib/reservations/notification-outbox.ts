@@ -215,10 +215,7 @@ async function deliverJob(
     return;
   }
 
-  if (
-    (kind === "settlement_rejected" || kind === "reservation_rejected") &&
-    owner
-  ) {
+  if (kind === "reservation_rejected" && owner) {
     await sendEmail({
       to: [recipientEmail],
       from: FROM,
@@ -230,6 +227,26 @@ async function deliverJob(
         reason: undefined,
       }),
     });
+    return;
+  }
+
+  if (kind === "settlement_rejected") {
+    if (reservation.status === "rejected" && owner) {
+      await sendEmail({
+        to: [recipientEmail],
+        from: FROM,
+        subject: "Tu reserva fue rechazada",
+        react: ReservationRejectionEmailTemplate({
+          festival,
+          profile: owner,
+          stand: reservation.stand,
+          reason: undefined,
+        }),
+      });
+      return;
+    }
+    // Proof sent back for correction: reservation stays pending. Do not send
+    // the cancellation template.
     return;
   }
 
