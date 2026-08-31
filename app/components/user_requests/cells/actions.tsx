@@ -71,14 +71,14 @@ export function ActionsCell({ request }: { request: UserRequest }) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={request.status === "accepted"} asChild>
+        <DropdownMenuItem disabled={request.status !== "pending"} asChild>
           <form className="w-full" action={() => review("accepted")}>
             <button className="w-full text-left" type="submit">
               Aprobar
             </button>
           </form>
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={request.status === "rejected"} asChild>
+        <DropdownMenuItem disabled={request.status !== "pending"} asChild>
           <form className="w-full" action={() => review("rejected")}>
             <button className="w-full text-left" type="submit">
               Rechazar
