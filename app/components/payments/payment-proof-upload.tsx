@@ -21,7 +21,11 @@ export default function PaymentProofUpload({
     extra?: { submissionId?: number },
   ) => Promise<void> | void;
   onUploading: (isUploading: boolean) => void;
-  endpoint?: "reservationPayment" | "storeOrderPayment" | "guestOrderPayment";
+  endpoint?:
+    | "reservationPayment"
+    | "adminReservationPayment"
+    | "storeOrderPayment"
+    | "guestOrderPayment";
   submitLabel?: string;
   uploadInput?: Record<string, unknown>;
 }) {
@@ -32,6 +36,8 @@ export default function PaymentProofUpload({
 
   const { startUpload: startReservationPaymentUpload } =
     useUploadThing("reservationPayment");
+  const { startUpload: startAdminReservationPaymentUpload } =
+    useUploadThing("adminReservationPayment");
   const { startUpload: startStoreOrderPaymentUpload } =
     useUploadThing("storeOrderPayment");
   const { startUpload: startGuestOrderPaymentUpload } =
@@ -85,7 +91,9 @@ export default function PaymentProofUpload({
           onUploading(false);
           return;
         }
-        res = await startReservationPaymentUpload([selectedFile], {
+        res = await (endpoint === "adminReservationPayment"
+          ? startAdminReservationPaymentUpload
+          : startReservationPaymentUpload)([selectedFile], {
           invoiceId,
         });
       }

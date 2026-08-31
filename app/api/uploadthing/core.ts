@@ -7,7 +7,7 @@ import { z } from "zod";
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
-import { canAcceptInvoiceProof } from "@/app/lib/payments/helpers";
+import { resolveReservationPaymentUpload } from "@/app/lib/payments/helpers";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
@@ -103,26 +103,86 @@ export const ourFileRouter = {
           reservation: true,
         },
       });
-      if (
-        !invoice ||
-        (invoice.userId !== profile.id && profile.role !== "admin")
-      ) {
-        throw new UploadThingError("Factura no encontrada");
-      }
-      if (!canAcceptInvoiceProof(invoice.status)) {
-        throw new UploadThingError("Esta factura ya no admite un comprobante");
-      }
-      if (
-        invoice.reservation.status !== "pending" &&
-        invoice.reservation.status !== "verification_payment"
-      ) {
-        throw new UploadThingError("Esta reserva ya no admite un comprobante");
+      const resolved = resolveReservationPaymentUpload({
+        invoice,
+        profile: { id: profile.id, role: profile.role },
+      });
+      if (!resolved.ok) {
+        throw new UploadThingError(resolved.message);
       }
 
       return {
         profileId: profile.id,
         role: profile.role,
-        invoiceId: invoice.id,
+        invoiceId: resolved.invoiceId,
+      };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      const uploaded = file as { url?: string; ufsUrl?: string; key?: string };
+      const voucherUrl = uploaded.ufsUrl ?? uploaded.url;
+      if (!voucherUrl) {
+        throw new UploadThingError("No se pudo leer la URL del comprobante");
+      }
+
+      const result = await submitPaymentProof(
+        {
+          invoiceId: metadata.invoiceId,
+          voucherUrl,
+          fileKey: uploaded.key,
+        },
+        { id: metadata.profileId, role: metadata.role },
+      );
+      if (!result.success) {
+        throw new UploadThingError(result.message);
+      }
+
+      return {
+        results: {
+          profileId: metadata.profileId,
+          invoiceId: metadata.invoiceId,
+          imageUrl: voucherUrl,
+          submissionId: result.data.submissionId,
+        },
+      };
+    }),
+  adminReservationPayment: f({ image: { maxFileSize: "4MB" } })
+    .input(z.object({ invoiceId: z.number().int().positive() }))
+    .middleware(async ({ input }) => {
+      const user = await currentUser();
+
+      if (!user) {
+        throw new UploadThingError(
+          "Tenés que iniciar sesión para subir un comprobante",
+        );
+      }
+
+      const profile = await fetchUserProfile(user.id);
+
+      if (!profile) {
+        throw new UploadThingError(
+          "Tenés que tener un perfil para subir un comprobante",
+        );
+      }
+
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, input.invoiceId),
+        with: {
+          reservation: true,
+        },
+      });
+      const resolved = resolveReservationPaymentUpload({
+        invoice,
+        profile: { id: profile.id, role: profile.role },
+        adminPath: true,
+      });
+      if (!resolved.ok) {
+        throw new UploadThingError(resolved.message);
+      }
+
+      return {
+        profileId: profile.id,
+        role: profile.role,
+        invoiceId: resolved.invoiceId,
       };
     })
     .onUploadComplete(async ({ metadata, file }) => {

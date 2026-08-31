@@ -27,11 +27,13 @@ loadEnvConfig(process.cwd());
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
-const batchSizeArg = args.find((arg) => arg.startsWith("--batch-size="));
-const batchSize = Math.max(
-  1,
-  Number.parseInt(batchSizeArg?.split("=")[1] ?? "200", 10) || 200,
-);
+const batchSizeEqualsArg = args.find((arg) => arg.startsWith("--batch-size="));
+const batchSizeFlagIndex = args.indexOf("--batch-size");
+const batchSizeRaw =
+  batchSizeEqualsArg?.split("=")[1] ??
+  (batchSizeFlagIndex !== -1 ? args[batchSizeFlagIndex + 1] : undefined) ??
+  "200";
+const batchSize = Math.max(1, Number.parseInt(batchSizeRaw, 10) || 200);
 
 type Counts = Record<string, number>;
 

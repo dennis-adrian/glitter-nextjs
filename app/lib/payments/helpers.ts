@@ -22,6 +22,51 @@ export function canAcceptInvoiceProof(status: InvoiceStatus) {
   return status === "pending" || status === "verification_payment";
 }
 
+type ReservationPaymentUploadInvoice = {
+  id: number;
+  userId: number;
+  status: InvoiceStatus;
+  reservation: { status: string };
+};
+
+export function resolveReservationPaymentUpload(input: {
+  invoice: ReservationPaymentUploadInvoice | null | undefined;
+  profile: { id: number; role: string };
+  adminPath?: boolean;
+}): { ok: true; invoiceId: number } | { ok: false; message: string } {
+  const { invoice, profile, adminPath = false } = input;
+
+  if (adminPath) {
+    if (profile.role !== "admin") {
+      return { ok: false, message: "No autorizado" };
+    }
+    if (!invoice) {
+      return { ok: false, message: "Factura no encontrada" };
+    }
+    return { ok: true, invoiceId: invoice.id };
+  }
+
+  if (!invoice || (invoice.userId !== profile.id && profile.role !== "admin")) {
+    return { ok: false, message: "Factura no encontrada" };
+  }
+  if (!canAcceptInvoiceProof(invoice.status)) {
+    return {
+      ok: false,
+      message: "Esta factura ya no admite un comprobante",
+    };
+  }
+  if (
+    invoice.reservation.status !== "pending" &&
+    invoice.reservation.status !== "verification_payment"
+  ) {
+    return {
+      ok: false,
+      message: "Esta reserva ya no admite un comprobante",
+    };
+  }
+  return { ok: true, invoiceId: invoice.id };
+}
+
 export function countOutstandingInvoices(
   invoices: Array<{ status: InvoiceStatus }>,
 ) {

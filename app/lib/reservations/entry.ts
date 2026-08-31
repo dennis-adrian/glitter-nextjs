@@ -9,9 +9,17 @@ import {
   summarizeFestivalParticipations,
   type ReservationActor,
 } from "@/app/lib/reservations/policy";
-import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import {
+  getReservationEligibility,
+  type ReservationEligibility,
+} from "@/app/lib/sanctions/reservation-eligibility";
 import { db } from "@/db";
 import { reservationParticipants } from "@/db/schema";
+
+export type SelfServicePageDenial = {
+  code: ReservationErrorCode;
+  sanctionBlock?: Extract<ReservationEligibility, { eligible: false }>;
+};
 
 export async function getSelfServicePageDenial(input: {
   actor: ReservationActor | null;
@@ -32,7 +40,7 @@ export async function getSelfServicePageDenial(input: {
     participantTermsEnabled: boolean;
   } | null;
   now?: Date;
-}): Promise<ReservationErrorCode | null> {
+}): Promise<SelfServicePageDenial | null> {
   const now = input.now ?? new Date();
   const publishedTerms = input.festival?.participantTermsEnabled
     ? await fetchPublishedFestivalTermsVersion()
@@ -47,6 +55,7 @@ export async function getSelfServicePageDenial(input: {
   let hasLiveSelfServiceReservation = false;
   let hasRejectedFestivalReservation = false;
   let sanctionBlocked = false;
+  let sanctionBlock: Extract<ReservationEligibility, { eligible: false }> | undefined;
   if (input.targetProfile && input.festival) {
     const eligibility = await getReservationEligibility({
       userId: input.targetProfile.id,
@@ -54,6 +63,9 @@ export async function getSelfServicePageDenial(input: {
       now,
     });
     sanctionBlocked = !eligibility.eligible;
+    if (!eligibility.eligible) {
+      sanctionBlock = eligibility;
+    }
 
     const memberships = await db.query.reservationParticipants.findMany({
       where: eq(reservationParticipants.userId, input.targetProfile.id),
@@ -95,5 +107,14 @@ export async function getSelfServicePageDenial(input: {
     hasRejectedFestivalReservation,
   });
 
-  return result.allowed ? null : result.code;
+  if (result.allowed) {
+    return null;
+  }
+
+  return {
+    code: result.code,
+    ...(result.code === "SANCTION_BLOCKED" && sanctionBlock
+      ? { sanctionBlock }
+      : {}),
+  };
 }

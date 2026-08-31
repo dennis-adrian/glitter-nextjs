@@ -17,6 +17,7 @@ import {
 const PARTNER_QUERY_MIN = 2;
 const PARTNER_QUERY_MAX = 80;
 const PARTNER_SEARCH_LIMIT = 5;
+const PARTNER_SEARCH_CANDIDATE_LIMIT = 25;
 
 function toDto(
   row: {
@@ -139,7 +140,7 @@ export async function searchPotentialPartnersForActor(
             ${normalizedQuery}
           ) DESC`,
         )
-        .limit(PARTNER_SEARCH_LIMIT);
+        .limit(PARTNER_SEARCH_CANDIDATE_LIMIT);
 
       if (!matchedUsers.length) return [];
 
@@ -151,7 +152,7 @@ export async function searchPotentialPartnersForActor(
       );
       const enrolled = await enrolledUserIds(tx, festivalId, matchedIds);
 
-      return matchedUsers.map((user) =>
+      const evaluated = matchedUsers.map((user) =>
         toDto(
           user,
           evaluatePartnerSearchDenial({
@@ -163,6 +164,10 @@ export async function searchPotentialPartnersForActor(
           }),
         ),
       );
+
+      return [...evaluated]
+        .sort((a, b) => Number(b.selectable) - Number(a.selectable))
+        .slice(0, PARTNER_SEARCH_LIMIT);
     });
   } catch (error) {
     console.error("Error searching potential partners for festival", error);

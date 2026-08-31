@@ -30,6 +30,15 @@ type ReservationNotAllowedProps = {
 export default function ReservationNotAllowed(
   props: ReservationNotAllowedProps,
 ) {
+  if (props.sanctionBlock) {
+    return (
+      <SanctionReservationBlocked
+        festival={props.festival}
+        block={props.sanctionBlock}
+      />
+    );
+  }
+
   if (props.policyCode && props.policyCode !== "RESERVATIONS_NOT_OPEN") {
     return (
       <div className="container flex flex-col items-center justify-center p-4 md:p-6">
@@ -46,15 +55,6 @@ export default function ReservationNotAllowed(
           </CardContent>
         </Card>
       </div>
-    );
-  }
-
-  if (props.sanctionBlock) {
-    return (
-      <SanctionReservationBlocked
-        festival={props.festival}
-        block={props.sanctionBlock}
-      />
     );
   }
 

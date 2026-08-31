@@ -78,27 +78,31 @@ export default function ActionsCell(props: ActionsCellProps) {
               <DropdownMenuSeparator />
             </>
           )}
-          {props.invoice.reservation.status !== "accepted" ? (
-            <DropdownMenuItem
-              onClick={() => setOpenConfirmReservationModal(true)}
-            >
-              <CheckCheckIcon className="h-4 w-4 mr-1" />
-              Confirmar reserva
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem disabled>
-              <BadgeCheckIcon className="h-4 w-4 mr-1" />
-              Reserva confirmada
-            </DropdownMenuItem>
-          )}
+          {props.invoice.reservation.status !== "accepted"
+            ? props.isAdmin && (
+                <DropdownMenuItem
+                  onClick={() => setOpenConfirmReservationModal(true)}
+                >
+                  <CheckCheckIcon className="h-4 w-4 mr-1" />
+                  Confirmar reserva
+                </DropdownMenuItem>
+              )
+            : (
+                <DropdownMenuItem disabled>
+                  <BadgeCheckIcon className="h-4 w-4 mr-1" />
+                  Reserva confirmada
+                </DropdownMenuItem>
+              )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <ConfirmReservationModal
-        show={openConfirmReservationModal}
-        onOpenChange={setOpenConfirmReservationModal}
-        invoice={props.invoice}
-        canMarkAsPaid={props.isAdmin}
-      />
+      {props.isAdmin && (
+        <ConfirmReservationModal
+          show={openConfirmReservationModal}
+          onOpenChange={setOpenConfirmReservationModal}
+          invoice={props.invoice}
+          canMarkAsPaid={props.isAdmin}
+        />
+      )}
       {props.isAdmin && (
         <>
           <ApplyDiscountDialog

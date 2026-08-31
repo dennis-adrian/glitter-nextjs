@@ -21,7 +21,7 @@ import {
   standReservations,
   stands,
 } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function createAdminReservation(params: {
@@ -338,7 +338,12 @@ export async function extendReservationPaymentDeadline(params: {
       await tx
         .update(invoices)
         .set({ dueAt: newDueDate, updatedAt: new Date() })
-        .where(eq(invoices.reservationId, reservationRow.id));
+        .where(
+          and(
+            eq(invoices.reservationId, reservationRow.id),
+            inArray(invoices.status, ["pending", "verification_payment"]),
+          ),
+        );
 
       await insertStandReservationEvent(tx, {
         reservationId: reservationRow.id,

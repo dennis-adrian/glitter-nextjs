@@ -14,9 +14,9 @@ export default function InvoiceUnderReviewPanel({
   allowReplace = true,
   showVoucher = true,
 }: InvoiceUnderReviewPanelProps) {
-  const voucherUrl = invoice.payments.find(
-    (payment) => payment.voucherUrl,
-  )?.voucherUrl;
+  const voucherUrl = [...invoice.payments]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .findLast((payment) => payment.voucherUrl)?.voucherUrl;
   const isFree = Number(invoice.amount) === 0;
 
   return (

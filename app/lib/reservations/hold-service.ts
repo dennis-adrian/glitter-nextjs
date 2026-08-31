@@ -21,6 +21,7 @@ import {
   parseConfirmHoldInput,
   parseHoldIdInput,
   parseHoldStandInput,
+  type ConfirmStandHoldInput,
 } from "@/app/lib/reservations/schemas";
 import {
   denyIfStandNotEligibleForProfile,
@@ -418,12 +419,11 @@ export async function cancelStandHold(
 }
 
 export async function confirmStandHold(
-  holdIdInput: unknown,
-  partnerIdInput?: unknown,
+  input: ConfirmStandHoldInput,
 ): Promise<ReservationActionResult<{ reservationId: number }>> {
-  const parsed = parseConfirmHoldInput(holdIdInput, partnerIdInput);
+  const parsed = parseConfirmHoldInput(input);
   if (!parsed.success) return reservationFailure("VALIDATION");
-      const { holdId, partnerId, idempotencyKey } = parsed.data;
+  const { holdId, partnerId, idempotencyKey } = parsed.data;
 
   const { actor, denial } = await requireSelfServiceActor();
   if (!actor || denial) return denial!;
