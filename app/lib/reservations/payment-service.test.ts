@@ -180,15 +180,17 @@ function createTx(options: {
                   },
                 ]
               : [];
+            const limited = Object.assign(Promise.resolve(rows), {
+              for: vi.fn(() => {
+                lockCallOrder.current.push("submission");
+                return Promise.resolve(rows);
+              }),
+            });
             return Object.assign(Promise.resolve(rows), {
-              limit: vi.fn(() =>
-                Object.assign(Promise.resolve(rows), {
-                  for: vi.fn(() => {
-                    lockCallOrder.current.push("submission");
-                    return Promise.resolve(rows);
-                  }),
-                }),
-              ),
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => limited),
+              })),
+              limit: vi.fn(() => limited),
             });
           }
           if (table === payments) {
@@ -728,6 +730,8 @@ describe("rejectInvoiceSettlement", () => {
 });
 
 describe("correctSettlementProof", () => {
+  const idempotencyKey = "11111111-1111-4111-8111-111111111111";
+
   beforeEach(() => {
     lockCallOrder.current = [];
     currentProfileMock.mockReset();
@@ -757,7 +761,11 @@ describe("correctSettlementProof", () => {
 
   it("rejects an empty reason", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    const result = await correctSettlementProof({ invoiceId: 9, reason: " " });
+    const result = await correctSettlementProof({
+      invoiceId: 9,
+      reason: " ",
+      idempotencyKey,
+    });
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
     expect(transactionMock).not.toHaveBeenCalled();
   });
@@ -797,6 +805,7 @@ describe("correctSettlementProof", () => {
     const result = await correctSettlementProof({
       invoiceId: 9,
       reason: "comprobante incorrecto",
+      idempotencyKey,
     });
 
     expect(result).toMatchObject({
@@ -848,6 +857,7 @@ describe("correctSettlementProof", () => {
     const result = await correctSettlementProof({
       invoiceId: 9,
       reason: "comprobante incorrecto",
+      idempotencyKey,
     });
 
     expect(result.success).toBe(true);

@@ -178,15 +178,21 @@ describe("reservation runtime schemas", () => {
       parseUnknown(correctSettlementProofSchema, {
         invoiceId: 9,
         reason: "comprobante ilegible",
+        idempotencyKey: SAMPLE_KEY,
       }),
     ).toEqual({
       success: true,
-      data: { invoiceId: 9, reason: "comprobante ilegible" },
+      data: {
+        invoiceId: 9,
+        reason: "comprobante ilegible",
+        idempotencyKey: SAMPLE_KEY,
+      },
     });
     expect(
       parseUnknown(correctSettlementProofSchema, {
         invoiceId: 9,
         reason: " ",
+        idempotencyKey: SAMPLE_KEY,
       }).success,
     ).toBe(false);
   });
