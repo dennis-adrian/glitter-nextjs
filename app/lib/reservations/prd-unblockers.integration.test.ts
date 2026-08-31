@@ -1053,7 +1053,11 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       .from(payments)
       .where(eq(payments.invoiceId, invoice.id));
     expect(paymentRows.length).toBeGreaterThan(0);
-    expect(reservation.status).toBe(freshInvoice.status);
+    expect([
+      ["accepted", "paid"],
+      ["pending", "pending"],
+      ["pending", "verification_payment"],
+    ]).toContainEqual([reservation.status, freshInvoice.status]);
     const submitted = await integrationDb!
       .select()
       .from(invoiceSettlementSubmissions)
@@ -1063,6 +1067,10 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     if (reservation.status === "accepted") {
       expect(freshInvoice.status).toBe("paid");
       expect(submittedOpen).toHaveLength(0);
+      expect(approveResult.success).toBe(true);
+    } else {
+      expect(reservation.status).toBe("pending");
+      expect(["pending", "verification_payment"]).toContain(freshInvoice.status);
     }
   }, 20_000);
 
