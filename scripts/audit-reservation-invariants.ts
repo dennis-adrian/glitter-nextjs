@@ -18,7 +18,47 @@ import {
 
 loadEnvConfig(process.cwd());
 
-type Finding = { name: string; count: number; ids: number[] };
+type Finding = {
+  name: string;
+  count: number;
+  ids: number[];
+  fingerprint?: string;
+};
+
+function asIdList(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    return value.map(Number).filter((id) => Number.isFinite(id));
+  }
+  if (typeof value === "string") {
+    return value
+      .replace(/[{}]/g, "")
+      .split(",")
+      .map((part) => Number(part.trim()))
+      .filter((id) => Number.isFinite(id));
+  }
+  return [];
+}
+
+function normalizeIndexPredicate(expr: string | null | undefined): string {
+  if (!expr) return "";
+  return expr
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/"/g, "")
+    .replace(/\b[a-z_][a-z0-9_]*\./g, "")
+    .replace(/[()]/g, "")
+    .trim();
+}
+
+function keysMatch(actual: unknown, expected: string[]): boolean {
+  const keys = Array.isArray(actual)
+    ? actual.map((key) => String(key))
+    : [];
+  return (
+    keys.length === expected.length &&
+    keys.every((key, index) => key === expected[index])
+  );
+}
 
 async function main() {
   const findings: Finding[] = [];
@@ -197,15 +237,18 @@ async function main() {
   }
 
   const verificationWithoutSettlement = await db.execute<{ id: number }>(sql`
-    SELECT stand_reservations.id
+    SELECT DISTINCT stand_reservations.id
     FROM stand_reservations
-    INNER JOIN invoices ON invoices.reservation_id = stand_reservations.id
+    LEFT JOIN invoices ON invoices.reservation_id = stand_reservations.id
     WHERE stand_reservations.status = 'verification_payment'
-      AND NOT EXISTS (
-        SELECT 1
-        FROM invoice_settlement_submissions
-        WHERE invoice_settlement_submissions.invoice_id = invoices.id
-          AND invoice_settlement_submissions.status = 'submitted'
+      AND (
+        invoices.id IS NULL
+        OR NOT EXISTS (
+          SELECT 1
+          FROM invoice_settlement_submissions
+          WHERE invoice_settlement_submissions.invoice_id = invoices.id
+            AND invoice_settlement_submissions.status = 'submitted'
+        )
       )
   `);
   if (verificationWithoutSettlement.rows.length > 0) {
@@ -291,23 +334,32 @@ async function main() {
     });
   }
 
+  type DuplicateKeyRow = {
+    fingerprint: string;
+    ids: unknown;
+    n: number;
+  };
   const compositeIdempotencyTables = {
     payments: sql`payments`,
     invoice_settlement_submissions: sql`invoice_settlement_submissions`,
   } as const;
   for (const [table, tableSql] of Object.entries(compositeIdempotencyTables)) {
-    const duplicates = await db.execute<{ n: number }>(sql`
-      SELECT count(*)::int AS n
+    const duplicates = await db.execute<DuplicateKeyRow>(sql`
+      SELECT
+        md5(idempotency_key) AS fingerprint,
+        array_agg(id ORDER BY id) AS ids,
+        count(*)::int AS n
       FROM ${tableSql}
       WHERE idempotency_key IS NOT NULL
       GROUP BY invoice_id, idempotency_key
       HAVING count(*) > 1
     `);
-    if (duplicates.rows.length > 0) {
+    for (const row of duplicates.rows) {
       findings.push({
         name: `duplicate_idempotency_key_${table}`,
-        count: duplicates.rows.length,
-        ids: [],
+        count: Number(row.n),
+        ids: asIdList(row.ids),
+        fingerprint: row.fingerprint,
       });
     }
   }
@@ -317,18 +369,22 @@ async function main() {
     stand_reservations: sql`stand_reservations`,
   } as const;
   for (const [table, tableSql] of Object.entries(uniqueKeyTables)) {
-    const duplicates = await db.execute<{ n: number }>(sql`
-      SELECT count(*)::int AS n
+    const duplicates = await db.execute<DuplicateKeyRow>(sql`
+      SELECT
+        md5(idempotency_key) AS fingerprint,
+        array_agg(id ORDER BY id) AS ids,
+        count(*)::int AS n
       FROM ${tableSql}
       WHERE idempotency_key IS NOT NULL
       GROUP BY idempotency_key
       HAVING count(*) > 1
     `);
-    if (duplicates.rows.length > 0) {
+    for (const row of duplicates.rows) {
       findings.push({
         name: `duplicate_idempotency_key_${table}`,
-        count: duplicates.rows.length,
-        ids: [],
+        count: Number(row.n),
+        ids: asIdList(row.ids),
+        fingerprint: row.fingerprint,
       });
     }
   }
@@ -337,64 +393,81 @@ async function main() {
     name: string;
     table: string;
     keys: string[];
+    predicate: string;
   }> = [
     {
       name: "invoice_settlement_submissions_invoice_id_idempotency_key_unique",
       table: "invoice_settlement_submissions",
       keys: ["invoice_id", "idempotency_key"],
+      predicate: "idempotency_key is not null",
     },
     {
       name: "payments_invoice_id_idempotency_key_unique",
       table: "payments",
       keys: ["invoice_id", "idempotency_key"],
+      predicate: "idempotency_key is not null",
     },
     {
       name: "stand_holds_idempotency_key_unique",
       table: "stand_holds",
       keys: ["idempotency_key"],
+      predicate: "idempotency_key is not null",
     },
     {
       name: "stand_reservations_live_stand_unique",
       table: "stand_reservations",
       keys: ["stand_id"],
+      predicate: "status <> 'rejected'",
     },
     {
       name: "stand_reservations_idempotency_key_unique",
       table: "stand_reservations",
       keys: ["idempotency_key"],
+      predicate: "idempotency_key is not null",
     },
     {
       name: "stand_reservation_events_reservation_id_idempotency_key_unique",
       table: "stand_reservation_events",
       keys: ["reservation_id", "idempotency_key"],
+      predicate: "idempotency_key is not null",
     },
     {
       name: "stand_holds_stand_idx",
       table: "stand_holds",
       keys: ["stand_id"],
+      predicate: "",
     },
     {
       name: "stand_holds_user_festival_idx",
       table: "stand_holds",
       keys: ["user_id", "festival_id"],
+      predicate: "",
     },
   ];
 
   const catalogIndexes = await db.execute<{
     indexname: string;
     tablename: string;
-    indexdef: string;
     indisunique: boolean;
     indisvalid: boolean;
     indisready: boolean;
+    predicate: string | null;
+    key_columns: unknown;
   }>(sql`
     SELECT
       pg_class.relname AS indexname,
       tables.relname AS tablename,
-      pg_get_indexdef(pg_index.indexrelid) AS indexdef,
       pg_index.indisunique,
       pg_index.indisvalid,
-      pg_index.indisready
+      pg_index.indisready,
+      pg_get_expr(pg_index.indpred, pg_index.indrelid) AS predicate,
+      (
+        SELECT coalesce(array_agg(pg_attribute.attname::text ORDER BY k.ordinality), '{}')
+        FROM unnest(pg_index.indkey) WITH ORDINALITY AS k(attnum, ordinality)
+        INNER JOIN pg_attribute
+          ON pg_attribute.attrelid = pg_index.indrelid
+         AND pg_attribute.attnum = k.attnum
+      ) AS key_columns
     FROM pg_index
     INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
     INNER JOIN pg_class AS tables ON tables.oid = pg_index.indrelid
@@ -419,16 +492,17 @@ async function main() {
       });
       continue;
     }
-    const def = found.indexdef.replace(/\s+/g, " ").toLowerCase();
-    const keysOk = required.keys.every((key) => def.includes(key));
-    const tableOk =
-      found.tablename === required.table || def.includes(required.table);
+    const keysOk = keysMatch(found.key_columns, required.keys);
+    const predicateOk =
+      normalizeIndexPredicate(found.predicate) === required.predicate;
+    const tableOk = found.tablename === required.table;
     if (
       !found.indisvalid ||
       !found.indisready ||
       !found.indisunique ||
       !keysOk ||
-      !tableOk
+      !tableOk ||
+      !predicateOk
     ) {
       findings.push({
         name: `invalid_index_${required.name}`,
@@ -444,6 +518,7 @@ async function main() {
         finding: finding.name,
         count: finding.count,
         ids: finding.ids.slice(0, 50),
+        ...(finding.fingerprint ? { fingerprint: finding.fingerprint } : {}),
       }),
     );
   }

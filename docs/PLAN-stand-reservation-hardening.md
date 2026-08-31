@@ -634,13 +634,14 @@ After `0246` is applied, the same audit must inspect `pg_catalog.pg_index` and t
 | `payments_invoice_id_idempotency_key_unique` (`0248`) | `invoice_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_holds_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_reservations_live_stand_unique` | `stand_id` | `status <> 'rejected'` |
+| `stand_reservations_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_reservation_events_reservation_id_idempotency_key_unique` (`0248`) | `reservation_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_holds_stand_idx` | `stand_id` | none |
 | `stand_holds_user_festival_idx` | `user_id`, `festival_id` | none |
 
 Never print participant PII; IDs and state are sufficient.
 
-**Status:** Implemented. `scripts/audit-reservation-invariants.ts` checks settlement state against `invoice_settlement_submissions`, reports duplicate non-null idempotency-key groups (fingerprints only), and validates the required `0246` indexes in `pg_catalog` (`indisunique` / `indisvalid` / `indisready`, table, and key columns).
+**Status:** Implemented. `scripts/audit-reservation-invariants.ts` checks settlement state against `invoice_settlement_submissions` (including `verification_payment` rows with no invoice), reports duplicate non-null idempotency-key groups with a key fingerprint and affected row IDs, and validates the required `0246`/`0248` indexes in `pg_catalog` (`indisunique` / `indisvalid` / `indisready`, table, exact ordered keys, and normalized `indpred`).
 
 ### 7.2 Repair rules
 
