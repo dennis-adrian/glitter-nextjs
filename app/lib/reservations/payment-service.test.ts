@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
+const selectMock = vi.hoisted(() => vi.fn());
 const enqueueNotificationsMock = vi.hoisted(() => vi.fn());
 const scheduleJobsMock = vi.hoisted(() => vi.fn());
 const insertEventMock = vi.hoisted(() => vi.fn());
@@ -18,6 +19,7 @@ vi.mock("@/app/lib/users/helpers", () => ({
 vi.mock("@/db", () => ({
   db: {
     transaction: transactionMock,
+    select: selectMock,
     query: {
       invoices: { findFirst: vi.fn() },
     },
@@ -63,6 +65,8 @@ vi.mock("next/cache", () => ({
 
 import {
   adminConfirmReservation,
+  approveInvoiceSettlement,
+  findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
   submitPaymentProof,
   submitZeroValueInvoiceForReview,
@@ -506,5 +510,42 @@ describe("rejectInvoiceSettlement", () => {
 
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
     expect(scheduleJobsMock).not.toHaveBeenCalled();
+  });
+});
+
+function selectChain(rows: unknown[]) {
+  const limited = Object.assign(Promise.resolve(rows), {
+    limit: vi.fn(() => Promise.resolve(rows)),
+  });
+  const ordered = Object.assign(Promise.resolve(rows), {
+    limit: vi.fn(() => Promise.resolve(rows)),
+    orderBy: vi.fn(() => limited),
+  });
+  return {
+    from: vi.fn(() => ({
+      innerJoin: vi.fn(() => ({
+        where: vi.fn(() => ordered),
+      })),
+    })),
+  };
+}
+
+describe("findSubmittedSettlementInvoiceIdForReservation", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+  });
+
+  it("returns the invoice id of a submitted settlement for that reservation", async () => {
+    selectMock.mockReturnValue(selectChain([{ invoiceId: 20 }]));
+    await expect(
+      findSubmittedSettlementInvoiceIdForReservation(4),
+    ).resolves.toBe(20);
+  });
+
+  it("returns null when the reservation has no submitted settlement", async () => {
+    selectMock.mockReturnValue(selectChain([]));
+    await expect(
+      findSubmittedSettlementInvoiceIdForReservation(4),
+    ).resolves.toBeNull();
   });
 });

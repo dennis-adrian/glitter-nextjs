@@ -10,7 +10,12 @@ import {
   reservationSuccess,
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
-import { lockFestivalRow, lockParticipants, lockStandRows } from "@/app/lib/reservations/locks";
+import {
+  lockFestivalRow,
+  lockParticipantEligibilityRows,
+  lockParticipants,
+  lockStandRows,
+} from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
   enqueueAdminAndOwnerNotifications,
@@ -88,11 +93,23 @@ async function loadInvoiceAggregate(tx: DbTx, invoiceId: number) {
     .limit(1);
   if (!reservationPreview) return null;
 
-  await lockFestivalRow(tx, reservationPreview.festivalId);
-  await lockStandRows(tx, [reservationPreview.standId]);
-  await lockParticipants(tx, reservationPreview.festivalId, [
+  const participantPreview = await tx
+    .select({ userId: reservationParticipants.userId })
+    .from(reservationParticipants)
+    .where(eq(reservationParticipants.reservationId, reservationPreview.id));
+  const userIds = [
     invoicePreview.userId,
-  ]);
+    ...participantPreview.map((row) => row.userId),
+  ];
+
+  await lockParticipants(tx, reservationPreview.festivalId, userIds);
+  await lockFestivalRow(tx, reservationPreview.festivalId);
+  await lockParticipantEligibilityRows(
+    tx,
+    reservationPreview.festivalId,
+    userIds,
+  );
+  await lockStandRows(tx, [reservationPreview.standId]);
 
   const [invoice] = await tx
     .select()
@@ -675,6 +692,55 @@ export async function approveInvoiceSettlement(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      const [submissionPreview] = await tx
+        .select({
+          id: invoiceSettlementSubmissions.id,
+          invoiceId: invoiceSettlementSubmissions.invoiceId,
+        })
+        .from(invoiceSettlementSubmissions)
+        .where(eq(invoiceSettlementSubmissions.id, parsed.data.submissionId))
+        .limit(1);
+      if (!submissionPreview) return reservationFailure("VALIDATION");
+
+      const [invoicePreview] = await tx
+        .select({
+          userId: invoices.userId,
+          reservationId: invoices.reservationId,
+        })
+        .from(invoices)
+        .where(eq(invoices.id, submissionPreview.invoiceId))
+        .limit(1);
+      if (!invoicePreview) return reservationFailure("VALIDATION");
+
+      const [reservationPreview] = await tx
+        .select({
+          id: standReservations.id,
+          festivalId: standReservations.festivalId,
+          standId: standReservations.standId,
+        })
+        .from(standReservations)
+        .where(eq(standReservations.id, invoicePreview.reservationId))
+        .limit(1);
+      if (!reservationPreview) return reservationFailure("VALIDATION");
+
+      const participantRows = await tx
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationPreview.id));
+      const userIds = [
+        invoicePreview.userId,
+        ...participantRows.map((row) => row.userId),
+      ];
+
+      await lockParticipants(tx, reservationPreview.festivalId, userIds);
+      await lockFestivalRow(tx, reservationPreview.festivalId);
+      await lockParticipantEligibilityRows(
+        tx,
+        reservationPreview.festivalId,
+        userIds,
+      );
+      await lockStandRows(tx, [reservationPreview.standId]);
+
       const [submission] = await tx
         .select()
         .from(invoiceSettlementSubmissions)
@@ -1177,4 +1243,25 @@ export async function findSubmittedSettlementId(invoiceId: number) {
     )
     .limit(1);
   return row?.id ?? null;
+}
+
+export async function findSubmittedSettlementInvoiceIdForReservation(
+  reservationId: number,
+) {
+  const [row] = await db
+    .select({ invoiceId: invoiceSettlementSubmissions.invoiceId })
+    .from(invoiceSettlementSubmissions)
+    .innerJoin(
+      invoices,
+      eq(invoices.id, invoiceSettlementSubmissions.invoiceId),
+    )
+    .where(
+      and(
+        eq(invoices.reservationId, reservationId),
+        eq(invoiceSettlementSubmissions.status, "submitted"),
+      ),
+    )
+    .orderBy(desc(invoiceSettlementSubmissions.createdAt))
+    .limit(1);
+  return row?.invoiceId ?? null;
 }

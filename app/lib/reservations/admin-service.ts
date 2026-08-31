@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
   lockFestivalRow,
+  lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
 } from "@/app/lib/reservations/locks";
@@ -126,6 +127,26 @@ export async function cancelReservation(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      const [preview] = await tx
+        .select()
+        .from(standReservations)
+        .where(eq(standReservations.id, parsed.data.reservationId))
+        .limit(1);
+      if (!preview) {
+        return { ok: false as const, message: "La reserva no existe." };
+      }
+
+      const participants = await tx
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, preview.id));
+      const userIds = participants.map((participant) => participant.userId);
+
+      await lockParticipants(tx, preview.festivalId, userIds);
+      await lockFestivalRow(tx, preview.festivalId);
+      await lockParticipantEligibilityRows(tx, preview.festivalId, userIds);
+      await lockStandRows(tx, [preview.standId]);
+
       const [reservation] = await tx
         .select()
         .from(standReservations)
