@@ -924,8 +924,22 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       userCount: 2,
       standCount: 1,
       roles: ["user", "admin"],
+      enrollmentStatus: "pending",
     });
-    const hold = await holdFor(owner, stand.id, trackRequestKey);
+
+    const [hold] = await integrationDb!
+      .insert(standHolds)
+      .values({
+        standId: stand.id,
+        userId: owner.id,
+        festivalId: festival.id,
+        expiresAt: new Date(Date.now() + 5 * 60_000),
+      })
+      .returning();
+    await integrationDb!
+      .update(stands)
+      .set({ status: "held" })
+      .where(eq(stands.id, stand.id));
 
     const [reviewResult, confirmResult] = await withDeadlockTimeout(
       Promise.all([
@@ -947,15 +961,12 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       .from(userRequests)
       .where(eq(userRequests.id, enrollment.id));
     expect(request.status).toBe("rejected");
+    expect(confirmResult.success).toBe(false);
     const live = await integrationDb!
       .select()
       .from(standReservations)
       .where(eq(standReservations.standId, stand.id));
-    if (confirmResult.success) {
-      expect(live).toHaveLength(1);
-    } else {
-      expect(live).toHaveLength(0);
-    }
+    expect(live).toHaveLength(0);
   }, 20_000);
 
   it("lets exactly one of proof removal and approval win", async () => {
