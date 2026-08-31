@@ -60,6 +60,34 @@ function canAcceptInvoiceProof(status: string) {
 }
 
 async function loadInvoiceAggregate(tx: DbTx, invoiceId: number) {
+  const [invoicePreview] = await tx
+    .select({
+      id: invoices.id,
+      userId: invoices.userId,
+      reservationId: invoices.reservationId,
+    })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1);
+  if (!invoicePreview) return null;
+
+  const [reservationPreview] = await tx
+    .select({
+      id: standReservations.id,
+      festivalId: standReservations.festivalId,
+      standId: standReservations.standId,
+    })
+    .from(standReservations)
+    .where(eq(standReservations.id, invoicePreview.reservationId))
+    .limit(1);
+  if (!reservationPreview) return null;
+
+  await lockFestivalRow(tx, reservationPreview.festivalId);
+  await lockStandRows(tx, [reservationPreview.standId]);
+  await lockParticipants(tx, reservationPreview.festivalId, [
+    invoicePreview.userId,
+  ]);
+
   const [invoice] = await tx
     .select()
     .from(invoices)
@@ -75,10 +103,6 @@ async function loadInvoiceAggregate(tx: DbTx, invoiceId: number) {
     .limit(1)
     .for("update");
   if (!reservation) return null;
-
-  await lockFestivalRow(tx, reservation.festivalId);
-  await lockStandRows(tx, [reservation.standId]);
-  await lockParticipants(tx, reservation.festivalId, [invoice.userId]);
 
   const participants = await tx
     .select({ userId: reservationParticipants.userId })
@@ -162,17 +186,22 @@ export async function submitPaymentProof(
       }
       if (idempotencyKey) {
         const [existing] = await tx
-          .select({ id: invoiceSettlementSubmissions.id })
+          .select({
+            id: invoiceSettlementSubmissions.id,
+            uploadedByUserId: invoiceSettlementSubmissions.uploadedByUserId,
+          })
           .from(invoiceSettlementSubmissions)
           .where(
             and(
               eq(invoiceSettlementSubmissions.idempotencyKey, idempotencyKey),
               eq(invoiceSettlementSubmissions.invoiceId, invoice.id),
-              eq(invoiceSettlementSubmissions.uploadedByUserId, actor.id),
             ),
           )
           .limit(1);
         if (existing) {
+          if (existing.uploadedByUserId !== actor.id) {
+            return reservationFailure("VALIDATION");
+          }
           return { kind: "replayed" as const, submissionId: existing.id };
         }
       }
@@ -353,7 +382,10 @@ export async function submitZeroValueInvoiceForReview(
 
       if (parsed.data.idempotencyKey) {
         const [existing] = await tx
-          .select({ id: invoiceSettlementSubmissions.id })
+          .select({
+            id: invoiceSettlementSubmissions.id,
+            uploadedByUserId: invoiceSettlementSubmissions.uploadedByUserId,
+          })
           .from(invoiceSettlementSubmissions)
           .where(
             and(
@@ -366,6 +398,9 @@ export async function submitZeroValueInvoiceForReview(
           )
           .limit(1);
         if (existing) {
+          if (existing.uploadedByUserId !== actor.id) {
+            return reservationFailure("VALIDATION");
+          }
           return { kind: "replayed" as const, submissionId: existing.id, jobIds: [] };
         }
       }

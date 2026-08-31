@@ -80,6 +80,7 @@ type LockedInvoice = {
 type ExistingSettlement = {
   id: number;
   invoiceId?: number;
+  uploadedByUserId?: number;
   status?: string;
   kind?: string;
   paymentId?: number | null;
@@ -128,6 +129,8 @@ function createTx(options: {
                   {
                     id: submission.id,
                     invoiceId: submission.invoiceId ?? options.invoice.id,
+                    uploadedByUserId:
+                      submission.uploadedByUserId ?? options.invoice.userId,
                     status: submission.status ?? "submitted",
                     kind: submission.kind ?? "payment_proof",
                     paymentId: submission.paymentId ?? null,
@@ -159,16 +162,18 @@ function createTx(options: {
           if (table === reservationParticipants) {
             return Promise.resolve([]);
           }
+          const rows =
+            table === invoices
+              ? [options.invoice]
+              : table === standReservations
+                ? [reservation]
+                : [];
           return {
-            limit: vi.fn(() => ({
-              for: vi.fn().mockResolvedValue(
-                table === invoices
-                  ? [options.invoice]
-                  : table === standReservations
-                    ? [reservation]
-                    : [],
-              ),
-            })),
+            limit: vi.fn(() =>
+              Object.assign(Promise.resolve(rows), {
+                for: vi.fn().mockResolvedValue(rows),
+              }),
+            ),
           };
         }),
       })),
@@ -334,7 +339,7 @@ describe("submitPaymentProof", () => {
             amount: 150,
             reservationId: 4,
           },
-          existingSettlement: { id: 21 },
+          existingSettlement: { id: 21, uploadedByUserId: 8 },
         }),
       ),
     );
@@ -349,6 +354,33 @@ describe("submitPaymentProof", () => {
       success: true,
       message: "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
     });
+  });
+
+  it("rejects when the same invoice and key belong to another uploader", async () => {
+    const idempotencyKey = "11111111-1111-4111-8111-111111111111";
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
+      callback(
+        createTx({
+          invoice: {
+            id: 9,
+            userId: 8,
+            status: "pending",
+            amount: 150,
+            reservationId: 4,
+          },
+          existingSettlement: { id: 21, uploadedByUserId: 99 },
+        }),
+      ),
+    );
+
+    const result = await submitPaymentProof({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey,
+    });
+
+    expect(result).toMatchObject({ success: false, code: "VALIDATION" });
   });
 });
 

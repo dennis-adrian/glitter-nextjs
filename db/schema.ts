@@ -1119,8 +1119,8 @@ export const standReservationEvents = pgTable(
       table.reservationId,
       table.createdAt,
     ),
-    uniqueIndex("stand_reservation_events_idempotency_key_unique")
-      .on(table.idempotencyKey)
+    uniqueIndex("stand_reservation_events_reservation_id_idempotency_key_unique")
+      .on(table.reservationId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
   ],
 );
@@ -1402,8 +1402,8 @@ export const payments = pgTable(
   },
   (t) => [
     index("payments_invoice_id_idx").on(t.invoiceId),
-    uniqueIndex("payments_idempotency_key_unique")
-      .on(t.idempotencyKey)
+    uniqueIndex("payments_invoice_id_idempotency_key_unique")
+      .on(t.invoiceId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
     uniqueIndex("payments_file_key_unique")
       .on(t.fileKey)
@@ -1454,8 +1454,8 @@ export const invoiceSettlementSubmissions = pgTable(
   },
   (t) => [
     index("invoice_settlement_submissions_invoice_id_idx").on(t.invoiceId),
-    uniqueIndex("invoice_settlement_submissions_idempotency_key_unique")
-      .on(t.idempotencyKey)
+    uniqueIndex("invoice_settlement_submissions_invoice_id_idempotency_key_unique")
+      .on(t.invoiceId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
     uniqueIndex("invoice_settlement_submissions_one_submitted")
       .on(t.invoiceId)
