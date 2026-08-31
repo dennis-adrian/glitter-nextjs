@@ -44,6 +44,7 @@ export default function RemovePaymentProofDialog({
       const result = await correctSettlementProofAction({
         invoiceId: invoice.id,
         reason: trimmed,
+        idempotencyKey: crypto.randomUUID(),
       });
       if (!result.success) {
         toast.error(result.message);
@@ -54,6 +55,8 @@ export default function RemovePaymentProofDialog({
       setReason("");
       onOpenChange(false);
       router.refresh();
+    } catch {
+      toast.error("Error al corregir el comprobante");
     } finally {
       setIsRemoving(false);
     }
