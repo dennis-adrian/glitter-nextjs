@@ -1,6 +1,7 @@
 import CompletePaymentButton from "@/app/components/payments/complete-payment-button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
+import { isActivePaymentProof } from "@/app/lib/payments/helpers";
 import { ClockIcon } from "lucide-react";
 
 type InvoiceUnderReviewPanelProps = {
@@ -16,7 +17,7 @@ export default function InvoiceUnderReviewPanel({
 }: InvoiceUnderReviewPanelProps) {
   const voucherUrl = [...invoice.payments]
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-    .findLast((payment) => payment.voucherUrl)?.voucherUrl;
+    .findLast(isActivePaymentProof)?.voucherUrl;
   const isFree = Number(invoice.amount) === 0;
 
   return (

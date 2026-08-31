@@ -5,6 +5,7 @@ import {
   countOutstandingInvoices,
   DisplayPaymentStatus,
   getInvoiceStatusLabel,
+  isActivePaymentProof,
   mapPaymentStatusToDisplayPaymentStatus,
   resolveReservationPaymentUpload,
 } from "@/app/lib/payments/helpers";
@@ -71,6 +72,29 @@ describe("invoice settlement status", () => {
         reservation("verification_payment"),
       ),
     ).toBe(DisplayPaymentStatus.UNDER_REVIEW);
+  });
+});
+
+describe("isActivePaymentProof", () => {
+  it("requires both voucherUrl and fileKey", () => {
+    expect(
+      isActivePaymentProof({
+        voucherUrl: "https://files.example.com/voucher.pdf",
+        fileKey: "uploadthing-key",
+      }),
+    ).toBe(true);
+    expect(
+      isActivePaymentProof({
+        voucherUrl: "https://files.example.com/voucher.pdf",
+        fileKey: null,
+      }),
+    ).toBe(false);
+    expect(
+      isActivePaymentProof({
+        voucherUrl: "",
+        fileKey: "uploadthing-key",
+      }),
+    ).toBe(false);
   });
 });
 

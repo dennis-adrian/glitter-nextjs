@@ -16,6 +16,7 @@ import {
   MoreHorizontalIcon,
 } from "lucide-react";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { isActivePaymentProof } from "@/app/lib/payments/helpers";
 import { useState } from "react";
 import ConfirmReservationModal from "@/app/components/payments/confirm-reservation-modal";
 import ApplyDiscountDialog from "@/app/components/payments/apply-discount-dialog";
@@ -33,9 +34,7 @@ export default function ActionsCell(props: ActionsCellProps) {
   const [openDiscountDialog, setOpenDiscountDialog] = useState(false);
   const [openProofDialog, setOpenProofDialog] = useState(false);
   const [openRemoveProofDialog, setOpenRemoveProofDialog] = useState(false);
-  const hasPaymentProof = props.invoice.payments.some(
-    (payment) => payment.voucherUrl,
-  );
+  const hasPaymentProof = props.invoice.payments.some(isActivePaymentProof);
 
   return (
     <>

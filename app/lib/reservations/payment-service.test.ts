@@ -759,14 +759,20 @@ describe("correctSettlementProof", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("rejects an empty reason", async () => {
+  it("rejects an empty reason or missing idempotency key", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    const result = await correctSettlementProof({
+    const emptyReason = await correctSettlementProof({
       invoiceId: 9,
       reason: " ",
       idempotencyKey,
     });
-    expect(result).toMatchObject({ success: false, code: "VALIDATION" });
+    expect(emptyReason).toMatchObject({ success: false, code: "VALIDATION" });
+
+    const missingKey = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+    });
+    expect(missingKey).toMatchObject({ success: false, code: "VALIDATION" });
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
@@ -865,17 +871,137 @@ describe("correctSettlementProof", () => {
     expect(tx.updates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ status: "rejected" }),
+        expect.objectContaining({ fileKey: null }),
         expect.objectContaining({ status: "pending" }),
       ]),
+    );
+    expect(claimRequestMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        requestKey: `correctSettlementProof:9:${idempotencyKey}`,
+        scope: expect.objectContaining({
+          invoiceId: 9,
+          idempotencyKey,
+          submissionId: 21,
+        }),
+      }),
     );
     expect(insertEventMock).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
         eventType: "settlement_rejected",
+        idempotencyKey,
         payload: expect.objectContaining({ correction: "remove_proof" }),
       }),
     );
-    expect(completeRequestMock).toHaveBeenCalled();
+    expect(completeRequestMock).toHaveBeenCalledWith(
+      tx,
+      `correctSettlementProof:9:${idempotencyKey}`,
+      { invoiceId: 9 },
+    );
+  });
+
+  it("replays when the registry returns a completed correction", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    claimRequestMock.mockResolvedValue({ kind: "replayed" });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback(
+          createTx({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "verification_payment",
+              amount: 150,
+              reservationId: 4,
+            },
+            reservation: {
+              standId: 7,
+              status: "verification_payment",
+              festivalId: 10,
+            },
+          }),
+        ),
+    );
+
+    const first = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+    const second = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    expect(claimRequestMock).toHaveBeenCalledTimes(2);
+    expect(claimRequestMock.mock.calls[0]?.[1]?.requestKey).toBe(
+      `correctSettlementProof:9:${idempotencyKey}`,
+    );
+    expect(claimRequestMock.mock.calls[1]?.[1]?.requestKey).toBe(
+      `correctSettlementProof:9:${idempotencyKey}`,
+    );
+    expect(insertEventMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a new correction when a different idempotency key is used", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const otherKey = "22222222-2222-4222-8222-222222222222";
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback(
+          createTx({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "verification_payment",
+              amount: 150,
+              reservationId: 4,
+            },
+            reservation: {
+              standId: 7,
+              status: "verification_payment",
+              festivalId: 10,
+            },
+            existingSettlement: {
+              id: 21,
+              invoiceId: 9,
+              status: "submitted",
+              kind: "payment_proof",
+              paymentId: 3,
+            },
+          }),
+        ),
+    );
+
+    await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+    await correctSettlementProof({
+      invoiceId: 9,
+      reason: "otro motivo",
+      idempotencyKey: otherKey,
+    });
+
+    expect(claimRequestMock).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({
+        requestKey: `correctSettlementProof:9:${idempotencyKey}`,
+      }),
+    );
+    expect(claimRequestMock).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        requestKey: `correctSettlementProof:9:${otherKey}`,
+      }),
+    );
   });
 });
 

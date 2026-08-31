@@ -142,3 +142,10 @@ export enum DisplayPaymentStatus {
   OUTSTANDING = "Atrasado",
   NONE = "--",
 }
+
+export function isActivePaymentProof(payment: {
+  voucherUrl: string;
+  fileKey?: string | null;
+}) {
+  return Boolean(payment.voucherUrl && payment.fileKey);
+}

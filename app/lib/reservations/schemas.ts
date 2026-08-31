@@ -57,6 +57,7 @@ export const adminConfirmReservationSchema = z.object({
 export const correctSettlementProofSchema = z.object({
   invoiceId: positiveIntSchema,
   reason: z.string().trim().min(1).max(1000),
+  idempotencyKey: uuidSchema,
 });
 
 export const reviewFestivalParticipationRequestSchema = z.object({
