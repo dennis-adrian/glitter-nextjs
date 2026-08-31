@@ -23,6 +23,7 @@ export default function ConfirmFreeReservationButton({
   const [isPending, startTransition] = useTransition();
   const [isConfirming, setIsConfirming] = useState(false);
   const form = useForm();
+  const [confirmIntentKey] = useState(() => crypto.randomUUID());
 
   const action: () => void = form.handleSubmit(() => {
     setIsConfirming(true);
@@ -31,6 +32,7 @@ export default function ConfirmFreeReservationButton({
       try {
         res = await confirmFreeInvoice({
           invoiceId: invoice.id,
+          idempotencyKey: confirmIntentKey,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? ` ${error.message}` : "";

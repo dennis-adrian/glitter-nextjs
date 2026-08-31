@@ -61,7 +61,7 @@ export function canViewAdminReservationData(
 
 export function canMutateAdminReservations(
   actor: ReservationActor | null | undefined,
-): boolean {
+): actor is ReservationActor {
   return isGlobalAdmin(actor);
 }
 

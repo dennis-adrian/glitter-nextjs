@@ -13,7 +13,7 @@ export const moneyAmountSchema = z
 
 export const holdStandIdSchema = z.object({
   standId: positiveIntSchema,
-  idempotencyKey: uuidSchema.optional(),
+  idempotencyKey: uuidSchema,
 });
 
 export const holdIdSchema = z.object({
@@ -24,7 +24,7 @@ export const holdIdSchema = z.object({
 export const confirmHoldSchema = z.object({
   holdId: positiveIntSchema,
   partnerId: positiveIntSchema.optional(),
-  idempotencyKey: uuidSchema.optional(),
+  idempotencyKey: uuidSchema,
 });
 
 export type ConfirmStandHoldInput = z.infer<typeof confirmHoldSchema>;
@@ -33,11 +33,59 @@ export const invoiceIdSchema = z.object({
   invoiceId: positiveIntSchema,
 });
 
-export const submitPaymentProofSchema = z.object({
+export const submitPaymentProofSchema = z
+  .object({
+    invoiceId: positiveIntSchema,
+    voucherUrl: z.url(),
+    fileKey: z.string().trim().min(1).max(500).optional(),
+    idempotencyKey: uuidSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.idempotencyKey && !value.fileKey) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["idempotencyKey"],
+        message: "idempotencyKey or fileKey is required",
+      });
+    }
+  });
+
+export const submitZeroValueInvoiceSchema = z.object({
   invoiceId: positiveIntSchema,
-  voucherUrl: z.url(),
-  fileKey: z.string().trim().min(1).max(500).optional(),
-  idempotencyKey: uuidSchema.optional(),
+  idempotencyKey: uuidSchema,
+});
+
+export const adminConfirmReservationSchema = z.object({
+  invoiceId: positiveIntSchema,
+  idempotencyKey: uuidSchema,
+  markAsPaid: z.boolean().optional(),
+  voucherUrl: z.url().optional(),
+});
+
+export const submissionIdSchema = z.object({
+  submissionId: positiveIntSchema,
+});
+
+export const rejectSettlementSchema = z.object({
+  submissionId: positiveIntSchema,
+  reason: z.string().trim().min(1).max(1000),
+  correction: z.discriminatedUnion("type", [
+    z.object({ type: z.literal("keep_amount") }),
+    z.object({ type: z.literal("restore_amount") }),
+    z.object({
+      type: z.literal("set_amount"),
+      amount: moneyAmountSchema,
+    }),
+    z.object({
+      type: z.literal("cancel_reservation"),
+      reason: z.string().trim().max(1000).optional(),
+    }),
+  ]),
+});
+
+export const cancelReservationSchema = z.object({
+  reservationId: positiveIntSchema,
+  reason: z.string().trim().max(1000).optional(),
 });
 
 export const applyDiscountSchema = z.object({
@@ -73,6 +121,7 @@ export const createAdminReservationSchema = z.object({
   ownerUserId: positiveIntSchema,
   partnerId: positiveIntSchema.optional(),
   revealAt: z.coerce.date().nullable().optional(),
+  idempotencyKey: uuidSchema,
 });
 
 export const extendDeadlineSchema = z.object({
@@ -101,13 +150,7 @@ export function parseUnknown<T>(
 }
 
 export function parseHoldStandInput(input: unknown) {
-  const asObject = parseUnknown(holdStandIdSchema, input);
-  if (asObject.success) return asObject;
-  const asId = parseUnknown(positiveIntSchema, input);
-  if (asId.success) {
-    return { success: true as const, data: { standId: asId.data } };
-  }
-  return { success: false as const };
+  return parseUnknown(holdStandIdSchema, input);
 }
 
 export function parseHoldIdInput(input: unknown) {

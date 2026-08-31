@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 
 import { Loader2Icon, PlusCircleIcon, Trash2Icon } from "lucide-react";
 
+import { rejectReservation } from "@/app/api/reservations/actions";
 import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import {
@@ -24,6 +25,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { adminConfirmReservationByReservationIdAction } from "@/app/lib/reservations/payment-actions";
+import { planReservationEditSubmit } from "@/app/components/reservations/edit-form-submit";
 import { updateReservationSimple } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -49,6 +52,7 @@ export default function EditReservationForm({
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
   const router = useRouter();
+  const [confirmIntentKey] = useState(() => crypto.randomUUID());
   const [partner, setPartner] = useState<Artist | undefined>(
     reservation.participants[1]?.user,
   );
@@ -65,6 +69,52 @@ export default function EditReservationForm({
       participationId: reservation.participants[1]?.id,
       userId: partner?.id,
     };
+    const originalPartnerUserId = reservation.participants[1]?.user.id;
+    const partnerChanged = updatedPartner.userId !== originalPartnerUserId;
+    const statusChanged = data.status !== reservation.status;
+    const plan = planReservationEditSubmit({
+      statusChanged,
+      partnerChanged,
+      nextStatus: data.status,
+    });
+
+    if (plan.kind === "unsupported_combination") {
+      toast.error(plan.message);
+      return;
+    }
+
+    if (plan.kind === "reject") {
+      const res = await rejectReservation({
+        reservationId: reservation.id,
+        reason: "Actualización administrativa",
+      });
+      if (res.success) {
+        toast.success(res.message);
+        router.replace(
+          `/dashboard/festivals/${reservation.festivalId}/reservations`,
+        );
+      } else {
+        toast.error(res.message);
+      }
+      return;
+    }
+
+    if (plan.kind === "confirm") {
+      const res = await adminConfirmReservationByReservationIdAction({
+        reservationId: reservation.id,
+        idempotencyKey: confirmIntentKey,
+      });
+      if (res.success) {
+        toast.success(res.message);
+        router.replace(
+          `/dashboard/festivals/${reservation.festivalId}/reservations`,
+        );
+      } else {
+        toast.error(res.message);
+      }
+      return;
+    }
+
     const res = await updateReservationSimple(reservation.id, {
       ...reservation,
       ...data,
