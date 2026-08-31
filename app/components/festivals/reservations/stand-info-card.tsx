@@ -156,13 +156,10 @@ export function StandInfoCard({
 
   useEffect(() => {
     const prev = prevActiveHoldRef.current;
-    if (
-      prev &&
-      !activeHold &&
-      holdIntentKeyRef.current?.standId === prev.standId
-    ) {
+    const cached = holdIntentKeyRef.current;
+    if (prev && !activeHold && cached?.standId === prev.standId) {
       holdIntentKeyRef.current = {
-        ...holdIntentKeyRef.current,
+        ...cached,
         expiresAt: 0,
       };
     }
@@ -177,13 +174,15 @@ export function StandInfoCard({
       cached != null && now >= cached.expiresAt && !hasLiveHoldOnStand;
 
     if (!cached || cached.standId !== standId || holdExpired) {
-      holdIntentKeyRef.current = {
+      const next = {
         standId,
         key: crypto.randomUUID(),
         expiresAt: now + holdMinutes * 60 * 1000,
       };
+      holdIntentKeyRef.current = next;
+      return next.key;
     }
-    return holdIntentKeyRef.current.key;
+    return cached.key;
   };
 
   const handleSelectStand = () => {
