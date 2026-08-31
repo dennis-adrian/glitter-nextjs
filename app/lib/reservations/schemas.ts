@@ -88,6 +88,11 @@ export const cancelReservationSchema = z.object({
   reason: z.string().trim().max(1000).optional(),
 });
 
+export const updateReservationPartnerSchema = z.object({
+  reservationId: positiveIntSchema,
+  partnerUserId: positiveIntSchema.nullable(),
+});
+
 export const applyDiscountSchema = z.object({
   invoiceId: positiveIntSchema,
   code: z.string().trim().min(1).max(64),

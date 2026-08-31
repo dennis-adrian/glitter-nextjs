@@ -101,18 +101,28 @@ describe("admin reservation mutations", () => {
       callback({
         select: () => ({
           from: () => ({
-            where: () => ({
-              limit: () => ({
-                for: async () => [
+            where: () =>
+              Object.assign(
+                Promise.resolve([
                   {
                     id: 3,
                     standId: 9,
                     festivalId: 1,
                     status: "pending",
                   },
-                ],
-              }),
-            }),
+                ]),
+                {
+                  limit: () =>
+                    Promise.resolve([
+                      {
+                        id: 3,
+                        standId: 9,
+                        festivalId: 1,
+                        status: "pending",
+                      },
+                    ]),
+                },
+              ),
           }),
         }),
       }),

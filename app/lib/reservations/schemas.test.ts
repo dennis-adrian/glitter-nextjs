@@ -7,6 +7,7 @@ import {
   rejectSettlementSchema,
   submitPaymentProofSchema,
   submitZeroValueInvoiceSchema,
+  updateReservationPartnerSchema,
 } from "@/app/lib/reservations/schemas";
 
 const SAMPLE_KEY = "11111111-1111-4111-8111-111111111111";
@@ -131,5 +132,31 @@ describe("reservation runtime schemas", () => {
         correction: { type: "cancel_reservation" },
       }).success,
     ).toBe(true);
+  });
+
+  it("accepts a nullable partner user id for admin partner edits", () => {
+    expect(
+      parseUnknown(updateReservationPartnerSchema, {
+        reservationId: 9,
+        partnerUserId: 4,
+      }),
+    ).toEqual({
+      success: true,
+      data: { reservationId: 9, partnerUserId: 4 },
+    });
+    expect(
+      parseUnknown(updateReservationPartnerSchema, {
+        reservationId: 9,
+        partnerUserId: null,
+      }),
+    ).toEqual({
+      success: true,
+      data: { reservationId: 9, partnerUserId: null },
+    });
+    expect(
+      parseUnknown(updateReservationPartnerSchema, {
+        reservationId: 9,
+      }).success,
+    ).toBe(false);
   });
 });

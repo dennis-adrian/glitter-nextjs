@@ -20,9 +20,8 @@ import {
 type FestivalTermsTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * First key of the advisory lock that serializes festival-terms
- * initialization, so a hash of the document slug cannot collide with the same
- * number used as a lock key elsewhere. Arbitrary, and only has to stay stable.
+ * Must match `FESTIVAL_TERMS_LOCK_NAMESPACE` in `app/lib/reservations/locks.ts`
+ * so confirmation and terms publication cannot race.
  */
 const FESTIVAL_TERMS_INIT_LOCK_NAMESPACE = 5822;
 

@@ -41,6 +41,7 @@ vi.mock("@/app/lib/festivals/actions", () => ({
 
 vi.mock("@/app/lib/reservations/locks", () => ({
   lockFestivalRow: vi.fn(),
+  lockFestivalTermsDocument: vi.fn(),
   lockParticipantEligibilityRows: vi.fn(),
   lockParticipants: vi.fn(),
   lockStandRows: vi.fn(),
@@ -74,6 +75,7 @@ vi.mock("next/cache", () => ({
 import { reservationFailure } from "@/app/lib/reservations/errors";
 import {
   lockFestivalRow,
+  lockFestivalTermsDocument,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -123,6 +125,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     completeRequestMock.mockReset();
     abandonRequestMock.mockReset();
     vi.mocked(lockFestivalRow).mockReset();
+    vi.mocked(lockFestivalTermsDocument).mockReset();
     vi.mocked(lockParticipantEligibilityRows).mockReset();
     vi.mocked(lockParticipants).mockReset();
     vi.mocked(lockStandRows).mockReset();
@@ -214,6 +217,9 @@ describe("stand hold authorization and eligibility wiring", () => {
       order.push("festival");
       return null;
     });
+    vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
+      order.push("terms");
+    });
     vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
       order.push("eligibilityRows");
     });
@@ -243,6 +249,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     expect(order).toEqual([
       "participants",
       "festival",
+      "terms",
       "eligibilityRows",
       "stand",
       "eligibilityCheck",
@@ -258,6 +265,9 @@ describe("stand hold authorization and eligibility wiring", () => {
     vi.mocked(lockFestivalRow).mockImplementation(async () => {
       order.push("festival");
       return null;
+    });
+    vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
+      order.push("terms");
     });
     vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
       order.push("eligibilityRows");
@@ -296,6 +306,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     expect(order).toEqual([
       "participants",
       "festival",
+      "terms",
       "eligibilityRows",
       "stand",
       "eligibilityCheck",

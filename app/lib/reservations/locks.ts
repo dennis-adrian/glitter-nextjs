@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, sql } from "drizzle-orm";
 
+import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import { db } from "@/db";
 import { festivals, stands, userRequests, users } from "@/db/schema";
 
@@ -9,6 +10,9 @@ type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Distinct from tickets (4711) and festival-terms (5822). */
 export const RESERVATION_PARTICIPANT_LOCK_NAMESPACE = 6933;
+
+/** Must match the terms-publication lock in `festival-terms/persist.ts`. */
+export const FESTIVAL_TERMS_LOCK_NAMESPACE = 5822;
 
 export async function lockParticipants(
   tx: DbTx,
@@ -33,6 +37,26 @@ export async function lockFestivalRow(tx: DbTx, festivalId: number) {
     .limit(1)
     .for("update");
   return row ?? null;
+}
+
+export async function lockFestivalTermsDocument(tx: DbTx) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${FESTIVAL_TERMS_LOCK_NAMESPACE}, hashtext(${FESTIVAL_TERMS_DOCUMENT_SLUG}))`,
+  );
+}
+
+export async function lockUserRows(tx: DbTx, userIds: readonly number[]) {
+  const unique = [
+    ...new Set(userIds.filter((id) => Number.isInteger(id) && id > 0)),
+  ].sort((a, b) => a - b);
+  for (const userId of unique) {
+    await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+      .for("update");
+  }
 }
 
 export async function lockParticipantEligibilityRows(

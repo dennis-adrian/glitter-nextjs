@@ -12,6 +12,7 @@ import {
 } from "@/app/lib/reservations/errors";
 import {
   lockFestivalRow,
+  lockFestivalTermsDocument,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -104,6 +105,7 @@ async function loadInvoiceAggregate(tx: DbTx, invoiceId: number) {
 
   await lockParticipants(tx, reservationPreview.festivalId, userIds);
   await lockFestivalRow(tx, reservationPreview.festivalId);
+  await lockFestivalTermsDocument(tx);
   await lockParticipantEligibilityRows(
     tx,
     reservationPreview.festivalId,
@@ -734,6 +736,7 @@ export async function approveInvoiceSettlement(
 
       await lockParticipants(tx, reservationPreview.festivalId, userIds);
       await lockFestivalRow(tx, reservationPreview.festivalId);
+      await lockFestivalTermsDocument(tx);
       await lockParticipantEligibilityRows(
         tx,
         reservationPreview.festivalId,

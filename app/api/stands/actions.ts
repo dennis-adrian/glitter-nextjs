@@ -5,7 +5,7 @@ import {
   FestivalWithDates,
   FestivalWithUserRequests,
 } from "@/app/lib/festivals/definitions";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { lockFestivalRow, lockStandRows } from "@/app/lib/reservations/locks";
 import { db } from "@/db";
 import {
   reservationParticipants,
@@ -191,11 +191,24 @@ export async function updateStand(
     if (parsed.standCategory !== undefined)
       setData.standCategory = parsed.standCategory;
 
-    const [updated] = await db
-      .update(stands)
-      .set(setData)
-      .where(eq(stands.id, parsed.id))
-      .returning();
+    const updated = await db.transaction(async (tx) => {
+      const [preview] = await tx
+        .select({ id: stands.id, festivalId: stands.festivalId })
+        .from(stands)
+        .where(eq(stands.id, parsed.id))
+        .limit(1);
+      if (!preview) return null;
+      if (preview.festivalId != null) {
+        await lockFestivalRow(tx, preview.festivalId);
+      }
+      await lockStandRows(tx, [preview.id]);
+      const [row] = await tx
+        .update(stands)
+        .set(setData)
+        .where(eq(stands.id, parsed.id))
+        .returning();
+      return row ?? null;
+    });
 
     if (!updated) {
       return { success: false, message: "Espacio no encontrado" };
@@ -300,15 +313,22 @@ export async function bulkUpdateStands(
       setData.standCategory = patch.standCategory;
 
     const result = await db.transaction(async (tx) => {
-      const rows = await tx
+      await lockFestivalRow(tx, festivalId);
+      const locked = await lockStandRows(tx, uniqueIds);
+      if (locked.length !== uniqueIds.length) {
+        return {
+          success: false as const,
+          message: "Uno o más espacios no pertenecen a este festival.",
+        };
+      }
+
+      const belonging = await tx
         .select({ id: stands.id })
         .from(stands)
         .where(
           and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
-        )
-        .for("update");
-
-      if (rows.length !== uniqueIds.length) {
+        );
+      if (belonging.length !== uniqueIds.length) {
         return {
           success: false as const,
           message: "Uno o más espacios no pertenecen a este festival.",

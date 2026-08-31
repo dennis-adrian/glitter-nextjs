@@ -243,8 +243,7 @@ export async function rejectReservation(input: unknown) {
         .select()
         .from(standReservations)
         .where(eq(standReservations.id, parsed.data.reservationId))
-        .limit(1)
-        .for("update");
+        .limit(1);
       if (!reservation) {
         return { ok: false as const, message: "La reserva no existe." };
       }

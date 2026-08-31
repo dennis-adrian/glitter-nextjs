@@ -1,11 +1,13 @@
 "use server";
 
 import { fetchStandById } from "@/app/api/stands/actions";
+import { updateReservationPartner as updateReservationPartnerService } from "@/app/lib/reservations/admin-service";
 import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
   lockFestivalRow,
+  lockFestivalTermsDocument,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -160,6 +162,7 @@ export async function createAdminReservation(
 
       await lockParticipants(tx, festivalId, participantIds);
       await lockFestivalRow(tx, festivalId);
+      await lockFestivalTermsDocument(tx);
       await lockParticipantEligibilityRows(tx, festivalId, participantIds);
       await lockStandRows(tx, [standId]);
 
@@ -455,4 +458,8 @@ export async function extendReservationPaymentDeadline(params: {
       message: "No se pudo extender el plazo de pago",
     };
   }
+}
+
+export async function updateReservationPartner(input: unknown) {
+  return updateReservationPartnerService(input);
 }

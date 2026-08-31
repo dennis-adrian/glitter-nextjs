@@ -49,6 +49,10 @@ import {
   transitionFestivalStatus,
 } from "./status-transitions";
 import { groupVisitorEmails } from "./utils";
+import {
+  lockFestivalRow,
+  lockFestivalTermsDocument,
+} from "@/app/lib/reservations/locks";
 import { recalculateReservationEligibleAtForFestival } from "@/app/lib/sanctions/festival-counting";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
@@ -966,11 +970,17 @@ export async function updateFestivalParticipantTerms(
   }
 
   try {
-    const [updatedFestival] = await db
-      .update(festivals)
-      .set({ participantTermsEnabled, updatedAt: new Date() })
-      .where(eq(festivals.id, festivalId))
-      .returning({ festivalId: festivals.id });
+    const updatedFestival = await db.transaction(async (tx) => {
+      const locked = await lockFestivalRow(tx, festivalId);
+      if (!locked) return null;
+      await lockFestivalTermsDocument(tx);
+      const [row] = await tx
+        .update(festivals)
+        .set({ participantTermsEnabled, updatedAt: new Date() })
+        .where(eq(festivals.id, festivalId))
+        .returning({ festivalId: festivals.id });
+      return row ?? null;
+    });
 
     if (!updatedFestival) {
       return { success: false, message: "Festival no encontrado" };

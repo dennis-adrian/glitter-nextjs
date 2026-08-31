@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   COMBINED_SETTLEMENT_AND_PARTNER_MESSAGE,
+  UNSUPPORTED_STATUS_MESSAGE,
   planReservationEditSubmit,
 } from "@/app/components/reservations/edit-form-submit";
 
 describe("planReservationEditSubmit", () => {
-  it("rejects combined partner and accepted status changes", () => {
+  it("rejects combined partner and status changes", () => {
     expect(
       planReservationEditSubmit({
         statusChanged: true,
@@ -17,14 +18,12 @@ describe("planReservationEditSubmit", () => {
       kind: "unsupported_combination",
       message: COMBINED_SETTLEMENT_AND_PARTNER_MESSAGE,
     });
-  });
 
-  it("rejects combined partner and rejected status changes", () => {
     expect(
       planReservationEditSubmit({
         statusChanged: true,
         partnerChanged: true,
-        nextStatus: "rejected",
+        nextStatus: "pending",
       }),
     ).toEqual({
       kind: "unsupported_combination",
@@ -50,37 +49,47 @@ describe("planReservationEditSubmit", () => {
     ).toEqual({ kind: "reject" });
   });
 
-  it("keeps generic updates for partner-only and non-settlement status mixes", () => {
+  it("routes partner-only edits through the partner command", () => {
     expect(
       planReservationEditSubmit({
         statusChanged: false,
         partnerChanged: true,
         nextStatus: "pending",
       }),
-    ).toEqual({ kind: "generic" });
+    ).toEqual({ kind: "partner" });
+  });
 
-    expect(
-      planReservationEditSubmit({
-        statusChanged: true,
-        partnerChanged: true,
-        nextStatus: "pending",
-      }),
-    ).toEqual({ kind: "generic" });
-
-    expect(
-      planReservationEditSubmit({
-        statusChanged: true,
-        partnerChanged: true,
-        nextStatus: "verification_payment",
-      }),
-    ).toEqual({ kind: "generic" });
-
+  it("rejects payment-status edits from the reservation form", () => {
     expect(
       planReservationEditSubmit({
         statusChanged: true,
         partnerChanged: false,
         nextStatus: "pending",
       }),
-    ).toEqual({ kind: "generic" });
+    ).toEqual({
+      kind: "unsupported_status",
+      message: UNSUPPORTED_STATUS_MESSAGE,
+    });
+
+    expect(
+      planReservationEditSubmit({
+        statusChanged: true,
+        partnerChanged: false,
+        nextStatus: "verification_payment",
+      }),
+    ).toEqual({
+      kind: "unsupported_status",
+      message: UNSUPPORTED_STATUS_MESSAGE,
+    });
+  });
+
+  it("returns noop when nothing changed", () => {
+    expect(
+      planReservationEditSubmit({
+        statusChanged: false,
+        partnerChanged: false,
+        nextStatus: "pending",
+      }),
+    ).toEqual({ kind: "noop" });
   });
 });

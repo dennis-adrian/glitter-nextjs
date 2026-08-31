@@ -63,6 +63,13 @@ export async function updateUserStatusWithAudit(
     userUpdates?: Partial<typeof users.$inferInsert>;
   },
 ) {
+  await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+    .for("update");
+
   const [updated] = await tx
     .update(users)
     .set({

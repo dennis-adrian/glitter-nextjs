@@ -31,6 +31,7 @@ vi.mock("@/app/lib/rate-limit", () => ({
 
 vi.mock("@/app/lib/reservations/locks", () => ({
   lockFestivalRow: vi.fn(),
+  lockFestivalTermsDocument: vi.fn(),
   lockParticipantEligibilityRows: vi.fn(),
   lockParticipants: vi.fn(),
   lockStandRows: vi.fn(),
@@ -43,6 +44,7 @@ import {
 } from "@/app/lib/discount_codes/actions";
 import {
   lockFestivalRow,
+  lockFestivalTermsDocument,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -103,6 +105,7 @@ describe("validateAndApplyDiscountCode lock order", () => {
     transactionMock.mockReset();
     consumeActionRateLimitMock.mockReset();
     vi.mocked(lockFestivalRow).mockReset();
+    vi.mocked(lockFestivalTermsDocument).mockReset();
     vi.mocked(lockParticipantEligibilityRows).mockReset();
     vi.mocked(lockParticipants).mockReset();
     vi.mocked(lockStandRows).mockReset();
@@ -118,6 +121,9 @@ describe("validateAndApplyDiscountCode lock order", () => {
     vi.mocked(lockFestivalRow).mockImplementation(async () => {
       order.push("festival");
       return null;
+    });
+    vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
+      order.push("terms");
     });
     vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
       order.push("eligibilityRows");
@@ -151,6 +157,7 @@ describe("validateAndApplyDiscountCode lock order", () => {
     expect(order).toEqual([
       "participants",
       "festival",
+      "terms",
       "eligibilityRows",
       "stand",
     ]);
