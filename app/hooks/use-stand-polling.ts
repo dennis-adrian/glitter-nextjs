@@ -1,55 +1,140 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-type StandStatusUpdate = { id: number; status: string };
+import { LatestRequest } from "@/app/lib/reservations/latest-request";
+import {
+  STAND_STATUS_POLL_INTERVAL_MS,
+  STAND_STATUS_STALE_AFTER_MS,
+  isNewerPollVersion,
+  nextPollBackoffMs,
+  type StandStatusPollResult,
+} from "@/app/lib/stands/status-poll";
+
+export type { StandStatusPollResult };
 
 export function useStandPolling(
   sectorId: number | null,
-  intervalMs: number = 4000,
-  onUpdate: (stands: StandStatusUpdate[]) => void,
-) {
+  intervalMs: number = STAND_STATUS_POLL_INTERVAL_MS,
+  onUpdate: (result: StandStatusPollResult) => void,
+): { stale: boolean } {
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => {
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
-  const poll = useCallback(async () => {
-    if (!sectorId) return;
-    try {
-      const res = await fetch(`/api/stands/status?sectorId=${sectorId}`);
-      if (res.ok) {
-        const data = await res.json();
-        onUpdateRef.current(data.stands);
-      }
-    } catch (error) {
-      console.error("Stand polling error", error);
+  const [stale, setStale] = useState(false);
+  const inFlightRef = useRef(false);
+  const appliedVersionRef = useRef(0);
+  const lastSuccessAtRef = useRef<number | null>(null);
+  const startedAtRef = useRef<number>(Date.now());
+  const failureCountRef = useRef(0);
+  const trackerRef = useRef(new LatestRequest());
+
+  const markStaleIfNeeded = useCallback(() => {
+    const anchor = lastSuccessAtRef.current ?? startedAtRef.current;
+    if (Date.now() - anchor >= STAND_STATUS_STALE_AFTER_MS) {
+      setStale(true);
     }
-  }, [sectorId]);
+  }, []);
 
   useEffect(() => {
     if (!sectorId) return;
 
-    // Initial poll
-    poll();
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let controller: AbortController | null = null;
+    trackerRef.current = new LatestRequest();
+    appliedVersionRef.current = 0;
+    lastSuccessAtRef.current = null;
+    startedAtRef.current = Date.now();
+    failureCountRef.current = 0;
+    inFlightRef.current = false;
+    setStale(false);
 
-    let timer = setInterval(poll, intervalMs);
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(timer);
-      } else {
-        // Catch up immediately when tab becomes visible, then resume interval
-        poll();
-        timer = setInterval(poll, intervalMs);
+    const clearTimer = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    const schedule = (delay: number) => {
+      if (cancelled) return;
+      clearTimer();
+      timer = setTimeout(() => {
+        void poll();
+      }, delay);
     };
-  }, [sectorId, intervalMs, poll]);
+
+    const poll = async () => {
+      if (cancelled || document.hidden) return;
+      if (inFlightRef.current) return;
+
+      controller?.abort();
+      const ac = new AbortController();
+      controller = ac;
+      const token = trackerRef.current.next();
+      inFlightRef.current = true;
+
+      try {
+        const res = await fetch(`/api/stands/status?sectorId=${sectorId}`, {
+          signal: ac.signal,
+          cache: "no-store",
+        });
+        if (!trackerRef.current.isCurrent(token) || cancelled) return;
+        if (!res.ok) throw new Error(`stand-status ${res.status}`);
+        const data = (await res.json()) as StandStatusPollResult;
+        if (!trackerRef.current.isCurrent(token) || cancelled) return;
+        if (!isNewerPollVersion(data.version, appliedVersionRef.current)) {
+          failureCountRef.current = 0;
+          lastSuccessAtRef.current = Date.now();
+          schedule(intervalMs);
+          return;
+        }
+        appliedVersionRef.current = data.version;
+        failureCountRef.current = 0;
+        lastSuccessAtRef.current = Date.now();
+        setStale(false);
+        onUpdateRef.current(data);
+        schedule(intervalMs);
+      } catch (error) {
+        if (ac.signal.aborted || cancelled) return;
+        failureCountRef.current += 1;
+        markStaleIfNeeded();
+        console.error("Stand polling error", error);
+        schedule(nextPollBackoffMs(failureCountRef.current, intervalMs));
+      } finally {
+        if (trackerRef.current.isCurrent(token)) {
+          inFlightRef.current = false;
+        }
+      }
+    };
+
+    void poll();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearTimer();
+        controller?.abort();
+        inFlightRef.current = false;
+        return;
+      }
+      void poll();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      cancelled = true;
+      clearTimer();
+      controller?.abort();
+      inFlightRef.current = false;
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange,
+      );
+    };
+  }, [sectorId, intervalMs, markStaleIfNeeded]);
+
+  return { stale };
 }

@@ -1,101 +1,90 @@
-import { db } from "@/db";
-import { festivalSectors, standHolds, stands } from "@/db/schema";
-import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
-import { deriveEffectiveStandStatus } from "@/app/lib/stands/effective-status";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { and, eq, gt, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+
+import { consumeActionRateLimit } from "@/app/lib/rate-limit";
+import {
+  STAND_STATUS_RATE_LIMIT,
+  authorizeStandStatusPoll,
+  buildStandStatusPollResult,
+} from "@/app/lib/stands/status-poll";
+import {
+  getFestivalSectorForStatus,
+  hasAcceptedFestivalEnrollment,
+  loadSectorStandStatusRows,
+} from "@/app/lib/stands/status-service";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const QuerySchema = z.object({
   sectorId: z.coerce.number().int().positive(),
 });
 
+const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
+
 export async function GET(request: NextRequest) {
   const actor = await getCurrentUserProfile();
-  if (!actor) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const searchParams = request.nextUrl.searchParams;
   const parsed = QuerySchema.safeParse({
     sectorId: searchParams.get("sectorId"),
   });
-
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
-  }
-
-  const sector = await db.query.festivalSectors.findFirst({
-    where: eq(festivalSectors.id, parsed.data.sectorId),
-    columns: { id: true, festivalId: true },
-  });
-  if (!sector) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  if (!canViewAdminReservationData({ id: actor.id, role: actor.role })) {
-    if (actor.status !== "verified") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-  }
-
-  const now = new Date();
-  const sectorStands = await db
-    .select({
-      standId: stands.id,
-      storedStatus: stands.status,
-      updatedAt: stands.updatedAt,
-    })
-    .from(stands)
-    .where(eq(stands.festivalSectorId, parsed.data.sectorId));
-
-  const standIds = sectorStands.map((stand) => stand.standId);
-  const activeHoldRows =
-    standIds.length === 0
-      ? []
-      : await db
-          .select({ standId: standHolds.standId })
-          .from(standHolds)
-          .where(
-            and(
-              inArray(standHolds.standId, standIds),
-              gt(standHolds.expiresAt, now),
-            ),
-          );
-  const activeHoldStandIds = new Set(
-    activeHoldRows.map((hold) => hold.standId),
-  );
-
-  const standsWithEffectiveStatus = sectorStands.map((stand) => {
-    const effectiveStatus = deriveEffectiveStandStatus(
-      stand.storedStatus,
-      stand.standId,
-      activeHoldStandIds,
+    return NextResponse.json(
+      { error: "Invalid parameters" },
+      { status: 400, headers: PRIVATE_NO_STORE },
     );
-    return {
-      id: stand.standId,
-      status: effectiveStatus,
-      standId: stand.standId,
-      effectiveStatus,
-      updatedAt: stand.updatedAt,
-    };
+  }
+
+  const sector = await getFestivalSectorForStatus(parsed.data.sectorId);
+  if (!sector) {
+    return NextResponse.json(
+      { error: "Not found" },
+      { status: 404, headers: PRIVATE_NO_STORE },
+    );
+  }
+
+  const enrolled =
+    actor != null && sector.festivalId != null
+      ? await hasAcceptedFestivalEnrollment(actor.id, sector.festivalId)
+      : false;
+  const auth = authorizeStandStatusPoll({
+    actor: actor
+      ? { id: actor.id, role: actor.role, status: actor.status }
+      : null,
+    enrolled,
+  });
+  if (auth === "unauthenticated") {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: PRIVATE_NO_STORE },
+    );
+  }
+  if (auth === "forbidden") {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 403, headers: PRIVATE_NO_STORE },
+    );
+  }
+
+  const allowed = await consumeActionRateLimit({
+    key: `${STAND_STATUS_RATE_LIMIT.keyPrefix}${actor!.id}`,
+    limit: STAND_STATUS_RATE_LIMIT.limit,
+    windowMs: STAND_STATUS_RATE_LIMIT.windowMs,
+  }).catch(() => false);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: { ...PRIVATE_NO_STORE, "Retry-After": "5" },
+      },
+    );
+  }
+
+  const version = Date.now();
+  const rows = await loadSectorStandStatusRows(parsed.data.sectorId, new Date());
+  const payload = buildStandStatusPollResult({
+    ...rows,
+    version,
   });
 
-  const availableCount = standsWithEffectiveStatus.filter(
-    (stand) => stand.effectiveStatus === "available",
-  ).length;
-
-  return NextResponse.json(
-    {
-      stands: standsWithEffectiveStatus,
-      availableCount,
-      timestamp: Date.now(),
-    },
-    {
-      headers: {
-        "Cache-Control": "private, no-store",
-      },
-    },
-  );
+  return NextResponse.json(payload, { headers: PRIVATE_NO_STORE });
 }
