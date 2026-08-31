@@ -4,7 +4,10 @@ import { eq } from "drizzle-orm";
 
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
-import { lockParticipantsBeforeRegistryClaim, lockReservationAggregate } from "@/app/lib/reservations/locks";
+import {
+  lockParticipantsBeforeRegistryClaim,
+  lockReservationAggregate,
+} from "@/app/lib/reservations/locks";
 import { standHasLiveOccupancy } from "@/app/lib/reservations/occupancy";
 import {
   abandonRequest,
@@ -222,6 +225,9 @@ export async function createExternalParticipantReservation(
           standId,
           status: "accepted",
           source: "admin_assignment",
+          priceAmountSnapshot: roundMoney(lockedStand.price ?? 0),
+          individualPriceSnapshot: roundMoney(lockedStand.price ?? 0),
+          bookedParticipantCount: 1,
           revealAt,
         })
         .returning({ id: standReservations.id });

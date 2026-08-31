@@ -605,6 +605,8 @@ export const reservationStatusEnum = pgEnum("reservation_status", [
   "verification_payment",
   "accepted",
   "rejected",
+  "cancelled",
+  "released",
 ]);
 export const reservationSourceEnum = pgEnum("reservation_source", [
   "user_reservation",
@@ -693,9 +695,7 @@ export const festivalTermsVersions = pgTable(
       .notNull()
       .references(() => festivalTermsDocuments.id, { onDelete: "restrict" }),
     versionNumber: integer("version_number").notNull(),
-    status: festivalTermsVersionStatusEnum("status")
-      .default("draft")
-      .notNull(),
+    status: festivalTermsVersionStatusEnum("status").default("draft").notNull(),
     changelog: text("changelog"),
     publishedAt: timestamp("published_at"),
     publishedByUserId: integer("published_by_user_id").references(
@@ -756,9 +756,7 @@ export const festivalTermsSections = pgTable(
       .references(() => festivalTermsVersions.id, { onDelete: "cascade" }),
     sortOrder: integer("sort_order").notNull().default(0),
     kind: festivalTermsSectionKindEnum("kind").default("rich_text").notNull(),
-    layout: festivalTermsSectionLayoutEnum("layout")
-      .default("plain")
-      .notNull(),
+    layout: festivalTermsSectionLayoutEnum("layout").default("plain").notNull(),
     title: text("title"),
     bodyJson: jsonb("body_json"),
     bodyHtml: text("body_html"),
@@ -961,6 +959,8 @@ export const standRelations = relations(stands, ({ many, one }) => ({
   }),
   festivalActivityVotes: many(festivalActivityVotes),
   holds: many(standHolds),
+  holdMembers: many(standHoldMembers),
+  reservationMembers: many(standReservationMembers),
   standSubcategories: many(standSubcategories),
 }));
 
@@ -1002,7 +1002,12 @@ export const standHolds = pgTable(
       .notNull()
       .references(() => festivals.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at").notNull(),
+    // Transitional single-member adapter. A database trigger persists the
+    // matching stand_hold_members row; Phase 3 removes this column once every
+    // reader resolves members through the aggregate.
     priceAmountSnapshot: money("price_amount_snapshot"),
+    individualPriceSnapshot: money("individual_price_snapshot"),
+    sharedPriceSnapshot: money("shared_price_snapshot"),
     idempotencyKey: text("idempotency_key"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1023,7 +1028,7 @@ export const standHolds = pgTable(
     ),
   ],
 );
-export const standHoldsRelations = relations(standHolds, ({ one }) => ({
+export const standHoldsRelations = relations(standHolds, ({ one, many }) => ({
   stand: one(stands, {
     fields: [standHolds.standId],
     references: [stands.id],
@@ -1036,7 +1041,44 @@ export const standHoldsRelations = relations(standHolds, ({ one }) => ({
     fields: [standHolds.festivalId],
     references: [festivals.id],
   }),
+  members: many(standHoldMembers),
 }));
+
+/**
+ * Aggregate members for stand capacity holds. Phase 0B deliberately caps this
+ * at one member while legacy callers still use stand_holds.stand_id. The cap is
+ * removed together with that adapter when full-table booking lands.
+ */
+export const standHoldMembers = pgTable(
+  "stand_hold_members",
+  {
+    id: serial("id").primaryKey(),
+    holdId: integer("hold_id")
+      .notNull()
+      .references(() => standHolds.id, { onDelete: "cascade" }),
+    standId: integer("stand_id")
+      .notNull()
+      .references(() => stands.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("stand_hold_members_hold_id_unique").on(t.holdId),
+    uniqueIndex("stand_hold_members_stand_id_unique").on(t.standId),
+  ],
+);
+export const standHoldMembersRelations = relations(
+  standHoldMembers,
+  ({ one }) => ({
+    hold: one(standHolds, {
+      fields: [standHoldMembers.holdId],
+      references: [standHolds.id],
+    }),
+    stand: one(stands, {
+      fields: [standHoldMembers.standId],
+      references: [stands.id],
+    }),
+  }),
+);
 
 export const standReservations = pgTable(
   "stand_reservations",
@@ -1054,6 +1096,11 @@ export const standReservations = pgTable(
       onDelete: "set null",
     }),
     priceAmountSnapshot: money("price_amount_snapshot"),
+    individualPriceSnapshot: money("individual_price_snapshot"),
+    sharedPriceSnapshot: money("shared_price_snapshot"),
+    bookedParticipantCount: smallint("booked_participant_count")
+      .default(1)
+      .notNull(),
     idempotencyKey: text("idempotency_key"),
     // When set and in the future, the reservation is hidden from participants:
     // the stand appears "available" and participant identity is withheld until
@@ -1067,9 +1114,11 @@ export const standReservations = pgTable(
       t.id,
       t.festivalId,
     ),
-    uniqueIndex("stand_reservations_live_stand_unique")
+    uniqueIndex("stand_reservations_capacity_stand_unique")
       .on(t.standId)
-      .where(sql`${t.status} <> 'rejected'`),
+      .where(
+        sql`${t.status} IN ('pending', 'verification_payment', 'accepted')`,
+      ),
     index("stand_reservations_owner_user_id_idx").on(t.ownerUserId),
     uniqueIndex("stand_reservations_idempotency_key_unique")
       .on(t.idempotencyKey)
@@ -1098,6 +1147,44 @@ export const standReservationsRelations = relations(
     collaborators: many(reservationCollaborators),
     participantProducts: many(participantProducts),
     events: many(standReservationEvents),
+    members: many(standReservationMembers),
+  }),
+);
+
+/**
+ * Aggregate members for stand reservations. It is one-to-one until full-table
+ * confirmation is introduced, which keeps this migration compatible with the
+ * hardened single-stand flows.
+ */
+export const standReservationMembers = pgTable(
+  "stand_reservation_members",
+  {
+    id: serial("id").primaryKey(),
+    reservationId: integer("reservation_id")
+      .notNull()
+      .references(() => standReservations.id, { onDelete: "cascade" }),
+    standId: integer("stand_id")
+      .notNull()
+      .references(() => stands.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("stand_reservation_members_reservation_id_unique").on(
+      t.reservationId,
+    ),
+  ],
+);
+export const standReservationMembersRelations = relations(
+  standReservationMembers,
+  ({ one }) => ({
+    reservation: one(standReservations, {
+      fields: [standReservationMembers.reservationId],
+      references: [standReservations.id],
+    }),
+    stand: one(stands, {
+      fields: [standReservationMembers.standId],
+      references: [stands.id],
+    }),
   }),
 );
 
@@ -1123,7 +1210,9 @@ export const standReservationEvents = pgTable(
       table.reservationId,
       table.createdAt,
     ),
-    uniqueIndex("stand_reservation_events_reservation_id_idempotency_key_unique")
+    uniqueIndex(
+      "stand_reservation_events_reservation_id_idempotency_key_unique",
+    )
       .on(table.reservationId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
   ],
@@ -1397,9 +1486,12 @@ export const payments = pgTable(
       .references(() => invoices.id, { onDelete: "cascade" }),
     voucherUrl: text("voucher_url").notNull(),
     fileKey: text("file_key"),
-    uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    uploadedByUserId: integer("uploaded_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
     idempotencyKey: text("idempotency_key"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1437,18 +1529,24 @@ export const invoiceSettlementSubmissions = pgTable(
     }),
     voucherUrl: text("voucher_url"),
     fileKey: text("file_key"),
-    uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    uploadedByUserId: integer("uploaded_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
     kind: settlementSubmissionKindEnum("kind")
       .default("payment_proof")
       .notNull(),
     status: settlementSubmissionStatusEnum("status")
       .default("submitted")
       .notNull(),
-    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    reviewedByUserId: integer("reviewed_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
     reviewedAt: timestamp("reviewed_at"),
     rejectionReason: text("rejection_reason"),
     evidenceSnapshot: jsonb("evidence_snapshot"),
@@ -1458,7 +1556,9 @@ export const invoiceSettlementSubmissions = pgTable(
   },
   (t) => [
     index("invoice_settlement_submissions_invoice_id_idx").on(t.invoiceId),
-    uniqueIndex("invoice_settlement_submissions_invoice_id_idempotency_key_unique")
+    uniqueIndex(
+      "invoice_settlement_submissions_invoice_id_idempotency_key_unique",
+    )
       .on(t.invoiceId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
     uniqueIndex("invoice_settlement_submissions_one_submitted")

@@ -69,7 +69,8 @@ function guardedRevalidate() {
 
 async function requireSelfServiceActor() {
   const actor = await getCurrentUserProfile();
-  if (!actor) return { actor: null, denial: reservationFailure("UNAUTHENTICATED") };
+  if (!actor)
+    return { actor: null, denial: reservationFailure("UNAUTHENTICATED") };
   return { actor, denial: null };
 }
 
@@ -80,7 +81,7 @@ async function findLiveSelfServiceReservation(
 ) {
   const conditions = [
     eq(reservationParticipants.userId, userId),
-    sql`${standReservations.status} <> 'rejected'`,
+    sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
     sql`${standReservations.source} IN ('user_reservation', 'legacy_unknown')`,
   ];
   if (festivalId != null) {
@@ -163,7 +164,10 @@ async function reconcileExpiredHolds(
       .select({ id: standHolds.id })
       .from(standHolds)
       .where(
-        and(eq(standHolds.standId, hold.standId), gt(standHolds.expiresAt, input.now)),
+        and(
+          eq(standHolds.standId, hold.standId),
+          gt(standHolds.expiresAt, input.now),
+        ),
       )
       .limit(1);
     const [liveReservation] = await tx
@@ -172,7 +176,7 @@ async function reconcileExpiredHolds(
       .where(
         and(
           eq(standReservations.standId, hold.standId),
-          sql`${standReservations.status} <> 'rejected'`,
+          sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
         ),
       )
       .limit(1);
@@ -182,9 +186,7 @@ async function reconcileExpiredHolds(
   }
 }
 
-export async function createStandHold(
-  standIdInput: unknown,
-): Promise<
+export async function createStandHold(standIdInput: unknown): Promise<
   ReservationActionResult<{
     holdId?: number;
     alreadyHeld?: boolean;
@@ -391,7 +393,9 @@ export async function createStandHold(
           return finish(reservationFailure("STAND_UNAVAILABLE"));
         }
 
-        await tx.delete(standHolds).where(eq(standHolds.id, existingHold[0].id));
+        await tx
+          .delete(standHolds)
+          .where(eq(standHolds.id, existingHold[0].id));
         await releaseStandIfVacant(tx, oldStandId, now);
       }
 
@@ -423,6 +427,7 @@ export async function createStandHold(
           festivalId: freshStand.festivalId,
           expiresAt,
           priceAmountSnapshot: roundMoney(freshStand.price ?? 0),
+          individualPriceSnapshot: roundMoney(freshStand.price ?? 0),
           idempotencyKey,
         })
         .returning();
@@ -633,7 +638,9 @@ export async function confirmStandHold(
         const [ownedHold] = await tx
           .select({ festivalId: standHolds.festivalId })
           .from(standHolds)
-          .where(and(eq(standHolds.id, holdId), eq(standHolds.userId, actor.id)))
+          .where(
+            and(eq(standHolds.id, holdId), eq(standHolds.userId, actor.id)),
+          )
           .limit(1);
         if (ownedHold?.festivalId == null) {
           return finish(reservationFailure("HOLD_EXPIRED"));
@@ -757,6 +764,11 @@ export async function confirmStandHold(
           source: "user_reservation",
           ownerUserId: actor.id,
           priceAmountSnapshot: roundMoney(standPrice),
+          individualPriceSnapshot: roundMoney(
+            hold.individualPriceSnapshot ?? standPrice,
+          ),
+          sharedPriceSnapshot: hold.sharedPriceSnapshot,
+          bookedParticipantCount: participantIds.length,
           idempotencyKey,
         })
         .returning();
@@ -842,7 +854,9 @@ export async function confirmStandHold(
       guardedRevalidate();
       return reservationFailure("CONFLICT_RETRY");
     }
-    scheduleReservationNotificationJobs(payload.jobIds ?? payload.data?.jobIds ?? []);
+    scheduleReservationNotificationJobs(
+      payload.jobIds ?? payload.data?.jobIds ?? [],
+    );
     guardedRevalidate();
     return reservationSuccess({ reservationId }, payload.message);
   } catch (error) {
@@ -862,9 +876,9 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
     if (expiredHolds.length === 0) return { expired: 0 };
 
     await db.transaction(async (tx) => {
-      const standIds = [...new Set(expiredHolds.map((hold) => hold.standId))].sort(
-        (a, b) => a - b,
-      );
+      const standIds = [
+        ...new Set(expiredHolds.map((hold) => hold.standId)),
+      ].sort((a, b) => a - b);
       for (const standId of standIds) {
         await tx
           .select({ id: stands.id })
@@ -880,7 +894,10 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
           .select({ id: standHolds.id })
           .from(standHolds)
           .where(
-            and(eq(standHolds.standId, hold.standId), gt(standHolds.expiresAt, now)),
+            and(
+              eq(standHolds.standId, hold.standId),
+              gt(standHolds.expiresAt, now),
+            ),
           )
           .limit(1);
         const [liveReservation] = await tx
@@ -889,7 +906,7 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
           .where(
             and(
               eq(standReservations.standId, hold.standId),
-              sql`${standReservations.status} <> 'rejected'`,
+              sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
             ),
           )
           .limit(1);

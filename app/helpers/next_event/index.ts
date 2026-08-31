@@ -69,7 +69,9 @@ export function profileHasReservationMade(
   return profile?.participations?.some((participation) => {
     return (
       participation?.reservation?.festivalId === festivalId &&
-      participation?.reservation?.status !== "rejected"
+      (participation?.reservation?.status === "pending" ||
+        participation?.reservation?.status === "verification_payment" ||
+        participation?.reservation?.status === "accepted")
     );
   });
 }

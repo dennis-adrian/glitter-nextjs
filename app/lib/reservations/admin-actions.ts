@@ -9,7 +9,10 @@ import {
 import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
-import { lockParticipantsBeforeRegistryClaim, lockReservationAggregate } from "@/app/lib/reservations/locks";
+import {
+  lockParticipantsBeforeRegistryClaim,
+  lockReservationAggregate,
+} from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
   enqueueAdminAndOwnerNotifications,
@@ -39,7 +42,11 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export { cancelReservation, extendReservationPaymentDeadline, updateReservationPartner };
+export {
+  cancelReservation,
+  extendReservationPaymentDeadline,
+  updateReservationPartner,
+};
 
 export async function createAdminReservation(
   params: unknown,
@@ -246,6 +253,8 @@ export async function createAdminReservation(
           source: "admin_assignment",
           ownerUserId: userId,
           priceAmountSnapshot: roundMoney(lockedStand.price ?? 0),
+          individualPriceSnapshot: roundMoney(lockedStand.price ?? 0),
+          bookedParticipantCount: participantIds.length,
           revealAt,
         })
         .returning();
