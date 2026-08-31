@@ -10,6 +10,7 @@ import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { consumeActionRateLimit } from "@/app/lib/rate-limit";
 import {
   lockFestivalRow,
+  lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
 } from "@/app/lib/reservations/locks";
@@ -167,8 +168,11 @@ export async function validateAndApplyDiscountCode({
         };
       }
 
-      await lockFestivalRow(tx, invoicePreview.festivalId);
       await lockParticipants(tx, invoicePreview.festivalId, [
+        invoicePreview.userId,
+      ]);
+      await lockFestivalRow(tx, invoicePreview.festivalId);
+      await lockParticipantEligibilityRows(tx, invoicePreview.festivalId, [
         invoicePreview.userId,
       ]);
       await lockStandRows(tx, [invoicePreview.standId]);
