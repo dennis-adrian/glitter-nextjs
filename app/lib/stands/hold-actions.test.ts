@@ -41,6 +41,7 @@ vi.mock("@/app/lib/festivals/actions", () => ({
 
 vi.mock("@/app/lib/reservations/locks", () => ({
   lockFestivalRow: vi.fn(),
+  lockParticipantEligibilityRows: vi.fn(),
   lockParticipants: vi.fn(),
   lockStandRows: vi.fn(),
 }));
@@ -70,11 +71,17 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+import { reservationFailure } from "@/app/lib/reservations/errors";
+import {
+  lockFestivalRow,
+  lockParticipantEligibilityRows,
+  lockParticipants,
+  lockStandRows,
+} from "@/app/lib/reservations/locks";
 import {
   confirmStandHold,
   createStandHold,
 } from "@/app/lib/stands/hold-actions";
-import { reservationFailure } from "@/app/lib/reservations/errors";
 
 const HOLD_KEY = "11111111-1111-4111-8111-111111111111";
 const CONFIRM_KEY = "22222222-2222-4222-8222-222222222222";
@@ -115,6 +122,10 @@ describe("stand hold authorization and eligibility wiring", () => {
     claimRequestMock.mockReset();
     completeRequestMock.mockReset();
     abandonRequestMock.mockReset();
+    vi.mocked(lockFestivalRow).mockReset();
+    vi.mocked(lockParticipantEligibilityRows).mockReset();
+    vi.mocked(lockParticipants).mockReset();
+    vi.mocked(lockStandRows).mockReset();
     denySelfServiceMock.mockResolvedValue(null);
     denyStandMock.mockResolvedValue(null);
     claimRequestMock.mockResolvedValue({ kind: "claimed" });
@@ -191,6 +202,51 @@ describe("stand hold authorization and eligibility wiring", () => {
       expect.objectContaining({ userId: 3, festivalId: 10 }),
     );
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("locks festival and participant eligibility rows before the stand", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const order: string[] = [];
+    vi.mocked(lockParticipants).mockImplementation(async () => {
+      order.push("participants");
+    });
+    vi.mocked(lockFestivalRow).mockImplementation(async () => {
+      order.push("festival");
+      return null;
+    });
+    vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
+      order.push("eligibilityRows");
+    });
+    vi.mocked(lockStandRows).mockImplementation(async () => {
+      order.push("stand");
+      return [];
+    });
+    denySelfServiceMock.mockImplementation(async () => {
+      order.push("eligibilityCheck");
+      return reservationFailure("SANCTION_BLOCKED");
+    });
+    const select = vi
+      .fn()
+      .mockImplementationOnce(() => selectChain([availableStand]))
+      .mockImplementationOnce(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([availableStand]));
+    const tx = { select, insert: vi.fn(), delete: vi.fn(), update: vi.fn() };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await createStandHold({
+      standId: 7,
+      idempotencyKey: HOLD_KEY,
+    });
+
+    expect(order).toEqual([
+      "participants",
+      "festival",
+      "eligibilityRows",
+      "stand",
+      "eligibilityCheck",
+    ]);
   });
 
   it("rejects a partner who fails eligibility during confirmation", async () => {

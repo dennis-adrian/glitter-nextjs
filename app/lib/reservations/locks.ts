@@ -1,9 +1,9 @@
 import "server-only";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { festivals, stands } from "@/db/schema";
+import { festivals, stands, userRequests, users } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -33,6 +33,37 @@ export async function lockFestivalRow(tx: DbTx, festivalId: number) {
     .limit(1)
     .for("update");
   return row ?? null;
+}
+
+export async function lockParticipantEligibilityRows(
+  tx: DbTx,
+  festivalId: number,
+  userIds: readonly number[],
+) {
+  const unique = [
+    ...new Set(userIds.filter((id) => Number.isInteger(id) && id > 0)),
+  ].sort((a, b) => a - b);
+  for (const userId of unique) {
+    await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+      .for("update");
+  }
+  for (const userId of unique) {
+    await tx
+      .select({ id: userRequests.id })
+      .from(userRequests)
+      .where(
+        and(
+          eq(userRequests.userId, userId),
+          eq(userRequests.festivalId, festivalId),
+        ),
+      )
+      .orderBy(userRequests.id)
+      .for("update");
+  }
 }
 
 export async function lockStandRows(tx: DbTx, standIds: readonly number[]) {

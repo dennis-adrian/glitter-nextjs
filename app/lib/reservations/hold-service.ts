@@ -9,6 +9,7 @@ import {
 } from "@/app/lib/reservations/errors";
 import {
   lockFestivalRow,
+  lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
 } from "@/app/lib/reservations/locks";
@@ -256,16 +257,17 @@ export async function createStandHold(
         })
         .from(stands)
         .where(eq(stands.id, standId))
-        .limit(1)
-        .for("update");
+        .limit(1);
 
       if (!stand) return finish(reservationFailure("STAND_NOT_FOUND"));
       if (stand.festivalId == null) {
         return finish(reservationFailure("STAND_WRONG_FESTIVAL"));
       }
 
-      await lockFestivalRow(tx, stand.festivalId);
       await lockParticipants(tx, stand.festivalId, [actor.id]);
+      await lockFestivalRow(tx, stand.festivalId);
+      await lockParticipantEligibilityRows(tx, stand.festivalId, [actor.id]);
+      await lockStandRows(tx, [stand.id]);
 
       await reconcileExpiredHolds(tx, {
         standId: stand.id,
