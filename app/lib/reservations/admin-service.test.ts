@@ -300,7 +300,7 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
       reason: "fuera de reglamento",
     });
 
-    expect(result).toEqual({ ok: true, jobIds: [42] });
+    expect(result).toEqual({ ok: true, jobIds: [42, 42] });
     const reservationLockAt = lockCallOrder.current.indexOf("reservation");
     expect(reservationLockAt).toBeGreaterThan(-1);
     expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
@@ -366,7 +366,7 @@ describe("applyReservationCancellation writes without re-locking", () => {
     expect(lockReservationAggregateMock).not.toHaveBeenCalled();
     expect(tx.update).toHaveBeenCalled();
     expect(releaseStandMock).toHaveBeenCalledWith(tx, 7);
-    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -637,6 +637,6 @@ describe("extendReservationPaymentDeadline", () => {
     );
     expect(enqueueMock).toHaveBeenCalled();
     expect(completeRequestMock).toHaveBeenCalled();
-    expect(scheduleJobsMock).toHaveBeenCalledWith([42]);
+    expect(scheduleJobsMock).toHaveBeenCalledWith([42, 42]);
   });
 });

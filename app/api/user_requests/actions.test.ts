@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
+vi.mock("@/app/lib/user_requests/review-service", () => ({
+  reviewFestivalParticipationRequest: vi.fn(),
+  reviewBecomeArtistRequest: vi.fn(),
+}));
+
 const currentProfileMock = vi.hoisted(() => vi.fn());
 const requireAdminMock = vi.hoisted(() => vi.fn());
 const requireAdminOrFestivalAdminMock = vi.hoisted(() => vi.fn());
