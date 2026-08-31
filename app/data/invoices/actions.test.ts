@@ -3,27 +3,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
-const transactionMock = vi.hoisted(() => vi.fn());
+const submitPaymentProofMock = vi.hoisted(() => vi.fn());
+const submitZeroValueMock = vi.hoisted(() => vi.fn());
+const findSubmittedMock = vi.hoisted(() => vi.fn());
+const approveMock = vi.hoisted(() => vi.fn());
+const rejectMock = vi.hoisted(() => vi.fn());
+const cancelReservationMock = vi.hoisted(() => vi.fn());
+const findFirstMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
 }));
 
+vi.mock("@/app/lib/reservations/payment-service", () => ({
+  submitPaymentProof: submitPaymentProofMock,
+  submitZeroValueInvoiceForReview: submitZeroValueMock,
+  findSubmittedSettlementId: findSubmittedMock,
+  approveInvoiceSettlement: approveMock,
+  rejectInvoiceSettlement: rejectMock,
+}));
+
+vi.mock("@/app/lib/reservations/admin-service", () => ({
+  cancelReservation: cancelReservationMock,
+}));
+
 vi.mock("@/db", () => ({
   db: {
-    transaction: transactionMock,
     query: {
-      invoices: { findFirst: vi.fn() },
+      invoices: { findFirst: findFirstMock },
     },
   },
-}));
-
-vi.mock("@/app/api/users/actions", () => ({
-  fetchAdminUsers: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock("@/app/vendors/resend", () => ({
-  sendEmail: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -35,442 +44,130 @@ vi.mock("@/app/lib/uploadthing/actions", () => ({
   attemptStorageCleanupJob: vi.fn(),
 }));
 
-vi.mock("@/app/api/reservations/actions", () => ({
-  confirmReservation: vi.fn(),
-  sendReservationConfirmationEmails: vi.fn(),
-}));
-
-import { createPayment, confirmFreeInvoice } from "@/app/data/invoices/actions";
 import {
-  invoices,
-  invoiceSettlementSubmissions,
-} from "@/db/schema";
+  adminAttachPaymentVoucher,
+  confirmFreeInvoice,
+  createPayment,
+  updateInvoiceStatus,
+} from "@/app/data/invoices/actions";
 
-type LockedInvoice = {
-  id: number;
-  userId: number;
-  status: "pending" | "verification_payment" | "paid" | "cancelled";
-  amount: number | string;
-  reservationId: number;
-};
-
-type CreatePaymentTxOptions = {
-  invoice: LockedInvoice;
-  reservation?: {
-    standId: number;
-    status: string;
-    participants: unknown[];
-  };
-  payments?: Array<{
-    id: number;
-    invoiceId: number;
-    amount: number | string;
-    date: Date;
-    voucherUrl: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }>;
-  existingSettlement?: { id: number } | null;
-};
-
-function sqlMentionsColumn(value: unknown, columnName: string): boolean {
-  const seen = new Set<unknown>();
-  const visit = (node: unknown): boolean => {
-    if (node == null || seen.has(node)) return false;
-    if (typeof node !== "object") return false;
-    seen.add(node);
-    if ((node as { name?: string }).name === columnName) return true;
-    return Object.values(node as Record<string, unknown>).some(visit);
-  };
-  return visit(value);
-}
-
-function sqlPrimitiveValues(value: unknown): unknown[] {
-  const seen = new Set<unknown>();
-  const values: unknown[] = [];
-  const visit = (node: unknown) => {
-    if (node == null || seen.has(node)) return;
-    if (typeof node !== "object") {
-      values.push(node);
-      return;
-    }
-    seen.add(node);
-    for (const child of Object.values(node as Record<string, unknown>)) {
-      visit(child);
-    }
-  };
-  visit(value);
-  return values;
-}
-
-function createPaymentTxMock(options: CreatePaymentTxOptions) {
-  const reservation = options.reservation ?? {
-    standId: 7,
-    status: "pending",
-    participants: [],
-  };
-  const invoicePayments = options.payments ?? [];
-
-  return {
-    select: vi.fn(() => ({
-      from: vi.fn((table: unknown) => ({
-        where: vi.fn((clause: unknown) => {
-          if (table === invoiceSettlementSubmissions) {
-            settlementWhereClauses.push(clause);
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue(
-                  options.existingSettlement
-                    ? [options.existingSettlement]
-                    : [],
-                ),
-            };
-          }
-          return {
-            limit: vi.fn(() => ({
-              for: vi.fn().mockResolvedValue(
-                table === invoices ? [options.invoice] : [],
-              ),
-            })),
-          };
-        }),
-      })),
-    })),
-    query: {
-      standReservations: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: options.invoice.reservationId,
-          standId: reservation.standId,
-          status: reservation.status,
-          participants: reservation.participants,
-        }),
-      },
-      payments: {
-        findMany: vi.fn().mockResolvedValue(invoicePayments),
-      },
-    },
-    insert: vi.fn(() => ({
-      values: (values: unknown) => {
-        insertedValues.push(values);
-        return {
-          returning: vi.fn().mockResolvedValue([{ id: 99 }]),
-        };
-      },
-    })),
-    update: vi.fn(() => ({
-      set: (values: unknown) => {
-        updateSets.push(values);
-        return {
-          where: vi.fn().mockResolvedValue([]),
-        };
-      },
-    })),
-  };
-}
-
-const insertedValues: unknown[] = [];
-const updateSets: unknown[] = [];
-const settlementWhereClauses: unknown[] = [];
-
-describe("createPayment authorization", () => {
+describe("invoice action delegation", () => {
   beforeEach(() => {
     currentProfileMock.mockReset();
-    transactionMock.mockReset();
-    insertedValues.length = 0;
-    updateSets.length = 0;
-    settlementWhereClauses.length = 0;
+    submitPaymentProofMock.mockReset();
+    submitZeroValueMock.mockReset();
+    findSubmittedMock.mockReset();
+    approveMock.mockReset();
+    rejectMock.mockReset();
+    cancelReservationMock.mockReset();
+    findFirstMock.mockReset();
   });
 
-  it("rejects unauthenticated callers", async () => {
-    currentProfileMock.mockResolvedValue(null);
-    const result = await createPayment({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/f/abc",
-    });
-    expect(result).toMatchObject({ success: false, code: "UNAUTHENTICATED" });
-    expect(transactionMock).not.toHaveBeenCalled();
-  });
-
-  it("rejects a caller who does not own the invoice", async () => {
-    currentProfileMock.mockResolvedValue({ id: 2, role: "user" });
-    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
-      callback(
-        createPaymentTxMock({
-          invoice: {
-            id: 9,
-            userId: 8,
-            status: "pending",
-            amount: 150,
-            reservationId: 4,
-          },
-        }),
-      ),
-    );
-
-    const result = await createPayment({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/f/abc",
-    });
-    expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_OWNED" });
-  });
-
-  it("ignores a caller-supplied amount and uses the canonical invoice amount", async () => {
-    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(
-      async (callback: (value: unknown) => unknown) =>
-        callback(
-          createPaymentTxMock({
-            invoice: {
-              id: 9,
-              userId: 8,
-              status: "pending",
-              amount: 150,
-              reservationId: 4,
-            },
-          }),
-        ),
-    );
-
-    await createPayment({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/f/abc",
-      amount: 1,
-      standId: 99,
-      reservationId: 123,
-    });
-
-    expect(insertedValues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          invoiceId: 9,
-          amount: 150,
-          voucherUrl: "https://files.example.com/f/abc",
-        }),
-      ]),
-    );
-    expect(updateSets).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ status: "verification_payment" }),
-      ]),
-    );
-  });
-
-  it("updates the newest payment row when multiple payments exist", async () => {
-    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(
-      async (callback: (value: unknown) => unknown) =>
-        callback(
-          createPaymentTxMock({
-            invoice: {
-              id: 9,
-              userId: 8,
-              status: "pending",
-              amount: 150,
-              reservationId: 4,
-            },
-            payments: [
-              {
-                id: 11,
-                invoiceId: 9,
-                amount: 150,
-                date: new Date("2026-01-02T00:00:00.000Z"),
-                voucherUrl: "https://files.example.com/new.pdf",
-                createdAt: new Date("2026-01-02T00:00:00.000Z"),
-                updatedAt: new Date("2026-01-02T00:00:00.000Z"),
-              },
-              {
-                id: 10,
-                invoiceId: 9,
-                amount: 150,
-                date: new Date("2026-01-01T00:00:00.000Z"),
-                voucherUrl: "https://files.example.com/old.pdf",
-                createdAt: new Date("2026-01-01T00:00:00.000Z"),
-                updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-              },
-            ],
-          }),
-        ),
-    );
-
-    await createPayment({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/replacement.pdf",
-    });
-
-    expect(insertedValues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          invoiceId: 9,
-          voucherUrl: "https://files.example.com/replacement.pdf",
-        }),
-      ]),
-    );
-    expect(updateSets).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          voucherUrl: "https://files.example.com/replacement.pdf",
-        }),
-      ]),
-    );
-  });
-
-  it("moves a pending invoice into review after a voucher is sent", async () => {
-    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
-      callback(
-        createPaymentTxMock({
-          invoice: {
-            id: 9,
-            userId: 8,
-            status: "pending",
-            amount: 150,
-            reservationId: 4,
-          },
-        }),
-      ),
-    );
-
-    const result = await createPayment({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/f/abc",
-    });
-
-    expect(result.success).toBe(true);
-    expect(updateSets).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ status: "verification_payment" }),
-      ]),
-    );
-  });
-
-  it("replays only when the same invoice, uploader, and key already exist", async () => {
-    const idempotencyKey = "11111111-1111-4111-8111-111111111111";
-    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(
-      async (callback: (value: unknown) => unknown) =>
-        callback(
-          createPaymentTxMock({
-            invoice: {
-              id: 9,
-              userId: 8,
-              status: "pending",
-              amount: 150,
-              reservationId: 4,
-            },
-            existingSettlement: { id: 21 },
-          }),
-        ),
-    );
-
-    const result = await createPayment({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/f/abc",
-      idempotencyKey,
-    });
-
-    expect(result).toMatchObject({
+  it("createPayment forwards normalized proof input to the payment service", async () => {
+    submitPaymentProofMock.mockResolvedValue({
       success: true,
-      message: "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+      data: { submissionId: 4 },
+      message: "ok",
     });
-    expect(settlementWhereClauses).toHaveLength(1);
-    expect(
-      sqlMentionsColumn(settlementWhereClauses[0], "idempotency_key"),
-    ).toBe(true);
-    expect(sqlMentionsColumn(settlementWhereClauses[0], "invoice_id")).toBe(
-      true,
-    );
-    expect(
-      sqlMentionsColumn(settlementWhereClauses[0], "uploaded_by_user_id"),
-    ).toBe(true);
-    expect(sqlPrimitiveValues(settlementWhereClauses[0])).toEqual(
-      expect.arrayContaining([idempotencyKey, 9, 8]),
-    );
-    expect(insertedValues).toHaveLength(0);
-    expect(updateSets).toHaveLength(0);
-  });
 
-  it("stores a new submission when the same key is not scoped to this invoice and uploader", async () => {
-    const idempotencyKey = "11111111-1111-4111-8111-111111111111";
-    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(
-      async (callback: (value: unknown) => unknown) =>
-        callback(
-          createPaymentTxMock({
-            invoice: {
-              id: 9,
-              userId: 8,
-              status: "pending",
-              amount: 150,
-              reservationId: 4,
-            },
-            existingSettlement: null,
-          }),
-        ),
-    );
+    await createPayment({
+      payment: {
+        invoiceId: 9,
+        voucherUrl: "https://files.example.com/f/abc",
+      },
+    });
 
-    const result = await createPayment({
+    expect(submitPaymentProofMock).toHaveBeenCalledWith({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
-      idempotencyKey,
+    });
+  });
+
+  it("confirmFreeInvoice forwards the invoice id to zero-value review", async () => {
+    submitZeroValueMock.mockResolvedValue({
+      success: true,
+      data: { submissionId: 2 },
+      message: "ok",
     });
 
-    expect(result.success).toBe(true);
-    expect(result).not.toMatchObject({
-      message: "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+    await confirmFreeInvoice({ invoiceId: 9 });
+    expect(submitZeroValueMock).toHaveBeenCalledWith({ invoiceId: 9 });
+  });
+
+  it("updateInvoiceStatus approves the submitted settlement when marking paid", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    findSubmittedMock.mockResolvedValue(21);
+    approveMock.mockResolvedValue({
+      success: true,
+      data: undefined,
+      message: "La reserva fue confirmada.",
     });
-    expect(settlementWhereClauses).toHaveLength(1);
-    expect(
-      sqlMentionsColumn(settlementWhereClauses[0], "idempotency_key"),
-    ).toBe(true);
-    expect(sqlMentionsColumn(settlementWhereClauses[0], "invoice_id")).toBe(
+
+    const result = await updateInvoiceStatus(9, "paid");
+    expect(approveMock).toHaveBeenCalledWith({ submissionId: 21 });
+    expect(result).toEqual({
+      success: true,
+      message: "La reserva fue confirmada.",
+    });
+  });
+
+  it("updateInvoiceStatus rejects a submitted settlement back to pending", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    findSubmittedMock.mockResolvedValue(21);
+    rejectMock.mockResolvedValue({
+      success: true,
+      data: undefined,
+      message: "La solicitud fue rechazada.",
+    });
+
+    await updateInvoiceStatus(9, "pending");
+    expect(rejectMock).toHaveBeenCalledWith({
+      submissionId: 21,
+      reason: "Revisión administrativa",
+      correction: { type: "keep_amount" },
+    });
+  });
+
+  it("updateInvoiceStatus cancels the reservation when there is no submitted settlement", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    findSubmittedMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue({ reservationId: 4 });
+    cancelReservationMock.mockResolvedValue({
+      success: true,
+      message: "Reserva cancelada. El espacio quedó disponible.",
+    });
+
+    const result = await updateInvoiceStatus(9, "cancelled");
+    expect(cancelReservationMock).toHaveBeenCalledWith({
+      reservationId: 4,
+      reason: "Cancelado desde el estado de pago",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("adminAttachPaymentVoucher submits proof and optionally approves it", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    submitPaymentProofMock.mockResolvedValue({
+      success: true,
+      data: { submissionId: 8 },
+      message: "ok",
+    });
+    approveMock.mockResolvedValue({
+      success: true,
+      data: undefined,
+      message: "La reserva fue confirmada.",
+    });
+
+    const result = await adminAttachPaymentVoucher(
+      9,
+      "https://files.example.com/f/abc",
       true,
     );
-    expect(
-      sqlMentionsColumn(settlementWhereClauses[0], "uploaded_by_user_id"),
-    ).toBe(true);
-    expect(insertedValues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          invoiceId: 9,
-          uploadedByUserId: 8,
-          idempotencyKey,
-        }),
-      ]),
+    expect(submitPaymentProofMock).toHaveBeenCalledWith(
+      { invoiceId: 9, voucherUrl: "https://files.example.com/f/abc" },
+      { id: 1, role: "admin" },
     );
-  });
-});
-
-describe("confirmFreeInvoice", () => {
-  beforeEach(() => {
-    currentProfileMock.mockReset();
-    transactionMock.mockReset();
-  });
-
-  it("rejects a second review request on an in-review invoice", async () => {
-    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
-      callback({
-        query: {
-          invoices: {
-            findFirst: vi.fn().mockResolvedValue({
-              id: 9,
-              userId: 8,
-              status: "verification_payment",
-              amount: 0,
-              reservationId: 4,
-              reservation: { standId: 7, status: "verification_payment", participants: [] },
-            }),
-          },
-        },
-        update: vi.fn(),
-      }),
-    );
-
-    const result = await confirmFreeInvoice({ invoiceId: 9 });
-    expect(result).toMatchObject({
-      success: false,
-      code: "PAYMENT_ALREADY_SUBMITTED",
-    });
+    expect(approveMock).toHaveBeenCalledWith({ submissionId: 8 });
+    expect(result.success).toBe(true);
   });
 });

@@ -1,14 +1,18 @@
 "use server";
 
 import { fetchStandById } from "@/app/api/stands/actions";
-import { fetchBaseProfileById } from "@/app/api/users/actions";
+import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
-import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { lockFestivalRow, lockParticipants } from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
+import {
+  enqueueAdminAndOwnerNotifications,
+  enqueueReservationNotification,
+  scheduleReservationNotificationJobs,
+} from "@/app/lib/reservations/notification-outbox";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
   invoices,
@@ -102,6 +106,8 @@ export async function createAdminReservation(params: {
       if (!lockedStand) {
         return { success: false, message: "El espacio no existe" };
       }
+      await lockFestivalRow(tx, festivalId);
+      await lockParticipants(tx, festivalId, participantIds);
       if (lockedStand.festivalId !== festivalId) {
         return {
           success: false,
@@ -188,18 +194,31 @@ export async function createAdminReservation(params: {
         taskType: "stand_reservation",
       });
 
-      return reservation.id;
+      const admins = await fetchAdminUsers();
+      const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
+        kind: "reservation_created",
+        reservationId: reservation.id,
+        ownerUserId: userId,
+        ownerEmail: null,
+        adminEmails: admins.map((admin) => ({
+          id: admin.id,
+          email: admin.email,
+        })),
+      });
+
+      return { reservationId: reservation.id, jobIds };
     });
 
-    if (typeof result === "object" && result && result.success === false) {
+    if (typeof result === "object" && result && "success" in result && result.success === false) {
       return result;
     }
 
-    const reservationId = result as number;
+    const created = result as { reservationId: number; jobIds: number[] };
+    scheduleReservationNotificationJobs(created.jobIds);
     revalidatePath("/dashboard/festivals");
     revalidatePath(`/dashboard/festivals/${festivalId}/reservations`);
 
-    return { success: true, message: "Reserva creada", reservationId };
+    return { success: true, message: "Reserva creada", reservationId: created.reservationId };
   } catch (error: unknown) {
     console.error("Error creating admin reservation", error);
     // Concurrent reservation or unique constraint: treat as already reserved
@@ -333,48 +352,33 @@ export async function extendReservationPaymentDeadline(params: {
         payload: { dueAt: newDueDate.toISOString() },
       });
 
-      return { ok: true as const, reservation: reservationRow };
+      const jobIds: number[] = [];
+      const seen = new Set<string>();
+      for (const participant of reservationRow.participants) {
+        const email = participant.user?.email?.trim();
+        if (!email || !participant.user) continue;
+        const key = email.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const jobId = await enqueueReservationNotification(tx, {
+          kind: "deadline_extended",
+          reservationId: reservationRow.id,
+          userId: participant.user.id,
+          recipientEmail: email,
+          payload: { dueAt: newDueDate.toISOString() },
+          deduplicationKey: `deadline_extended:${reservationRow.id}:${newDueDate.toISOString()}:${key}`,
+        });
+        if (jobId) jobIds.push(jobId);
+      }
+
+      return { ok: true as const, jobIds };
     });
 
     if (!outcome.ok) {
       return { success: false, message: outcome.message };
     }
 
-    const reservation = outcome.reservation;
-
-    const targets: {
-      to: string;
-      profile: NonNullable<(typeof reservation.participants)[number]["user"]>;
-    }[] = [];
-    for (const p of reservation.participants) {
-      const email = p.user?.email?.trim();
-      if (!email) continue;
-      if (!p.user) continue;
-      targets.push({ to: email, profile: p.user });
-    }
-    const seen = new Set<string>();
-    const uniqueTargets = targets.filter(({ to }) => {
-      const key = to.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    await Promise.allSettled(
-      uniqueTargets.map(({ to, profile }) =>
-        sendEmail({
-          to: [to],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: "Nueva fecha límite de pago para tu reserva",
-          react: ReservationPaymentExtensionTemplate({
-            profile,
-            reservation,
-            newDueDate,
-          }) as React.ReactElement,
-        }),
-      ),
-    );
-
+    scheduleReservationNotificationJobs(outcome.jobIds);
     revalidatePath("/dashboard/festivals/[id]/reservations", "page");
     revalidatePath("/dashboard/festivals/[id]/payments", "page");
 

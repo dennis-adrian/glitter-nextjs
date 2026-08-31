@@ -23,6 +23,19 @@ vi.mock("@/app/lib/festivals/actions", () => ({
 
 vi.mock("@/app/api/users/actions", () => ({
   fetchBaseProfileById: fetchProfileMock,
+  fetchAdminUsers: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/app/lib/reservations/locks", () => ({
+  lockFestivalRow: vi.fn(),
+  lockParticipants: vi.fn(),
+  lockStandRows: vi.fn(),
+}));
+
+vi.mock("@/app/lib/reservations/notification-outbox", () => ({
+  enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
+  enqueueReservationNotification: vi.fn(),
+  scheduleReservationNotificationJobs: vi.fn(),
 }));
 
 vi.mock("@/app/lib/sanctions/reservation-eligibility", () => ({

@@ -16,7 +16,10 @@ export default function PaymentProofUpload({
   uploadInput,
 }: {
   voucherImageUrl?: string;
-  onUploadComplete: (imageUrl: string) => Promise<void> | void;
+  onUploadComplete: (
+    imageUrl: string,
+    extra?: { submissionId?: number },
+  ) => Promise<void> | void;
   onUploading: (isUploading: boolean) => void;
   endpoint?:
     | "reservationPayment"
@@ -98,12 +101,17 @@ export default function PaymentProofUpload({
         toast.error("Error al subir el comprobante. Intentá de nuevo.");
         return;
       }
-      const imageUrl = res[0].serverData?.results?.imageUrl;
+      const results = res[0].serverData?.results as
+        | { imageUrl?: string; submissionId?: number }
+        | undefined;
+      const imageUrl = results?.imageUrl;
       if (!imageUrl) {
         toast.error("Error al subir el comprobante. Intentá de nuevo.");
         return;
       }
-      await onUploadComplete(imageUrl);
+      await onUploadComplete(imageUrl, {
+        submissionId: results?.submissionId,
+      });
     } catch {
       toast.error("Error al subir el comprobante. Intentá de nuevo.");
     } finally {

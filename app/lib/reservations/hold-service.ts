@@ -1,18 +1,22 @@
 import "server-only";
 
-import { fetchStandById } from "@/app/api/stands/actions";
-import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
-import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
-import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { fetchAdminUsers } from "@/app/api/users/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
   reservationFailure,
   reservationSuccess,
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
+import {
+  lockFestivalRow,
+  lockParticipants,
+  lockStandRows,
+} from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
+import {
+  enqueueAdminAndOwnerNotifications,
+  scheduleReservationNotificationJobs,
+} from "@/app/lib/reservations/notification-outbox";
 import {
   parseConfirmHoldInput,
   parseHoldIdInput,
@@ -24,7 +28,6 @@ import {
   denySelfServiceMutation,
 } from "@/app/lib/reservations/tx-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
   festivals,
@@ -207,6 +210,9 @@ export async function createStandHold(
       if (stand.festivalId == null) {
         return reservationFailure("STAND_WRONG_FESTIVAL");
       }
+
+      await lockFestivalRow(tx, stand.festivalId);
+      await lockParticipants(tx, stand.festivalId, [actor.id]);
 
       await reconcileExpiredHolds(tx, {
         standId: stand.id,
@@ -444,31 +450,33 @@ export async function confirmStandHold(
         }
       }
 
-      const [hold] = await tx
-        .select({
-          id: standHolds.id,
-          standId: standHolds.standId,
-          festivalId: standHolds.festivalId,
-          userId: standHolds.userId,
-          standFestivalId: stands.festivalId,
-          standPrice: stands.price,
-          standStatus: stands.status,
-          standCategory: stands.standCategory,
-          participationType: stands.participationType,
-        })
+      const holdSelect = {
+        id: standHolds.id,
+        standId: standHolds.standId,
+        festivalId: standHolds.festivalId,
+        userId: standHolds.userId,
+        priceAmountSnapshot: standHolds.priceAmountSnapshot,
+        standFestivalId: stands.festivalId,
+        standPrice: stands.price,
+        standStatus: stands.status,
+        standCategory: stands.standCategory,
+        participationType: stands.participationType,
+      } as const;
+
+      const holdWhere = and(
+        eq(standHolds.id, holdId),
+        eq(standHolds.userId, actor.id),
+        gt(standHolds.expiresAt, new Date()),
+      );
+
+      const [holdPreview] = await tx
+        .select(holdSelect)
         .from(standHolds)
         .innerJoin(stands, eq(stands.id, standHolds.standId))
-        .where(
-          and(
-            eq(standHolds.id, holdId),
-            eq(standHolds.userId, actor.id),
-            gt(standHolds.expiresAt, new Date()),
-          ),
-        )
-        .limit(1)
-        .for("update");
+        .where(holdWhere)
+        .limit(1);
 
-      if (!hold) {
+      if (!holdPreview) {
         const [ownedHold] = await tx
           .select({ festivalId: standHolds.festivalId })
           .from(standHolds)
@@ -481,6 +489,44 @@ export async function confirmStandHold(
           tx,
           actor.id,
           ownedHold.festivalId,
+        );
+        if (replayed) return replayed;
+        return reservationFailure("HOLD_EXPIRED");
+      }
+      if (holdPreview.festivalId !== holdPreview.standFestivalId) {
+        return reservationFailure("STAND_WRONG_FESTIVAL");
+      }
+      if (holdPreview.standStatus !== "held") {
+        return reservationFailure("STAND_UNAVAILABLE");
+      }
+
+      await lockFestivalRow(tx, holdPreview.festivalId);
+      await lockStandRows(tx, [holdPreview.standId]);
+      await lockParticipants(
+        tx,
+        holdPreview.festivalId,
+        partnerId ? [actor.id, partnerId] : [actor.id],
+      );
+
+      const lockedHoldWhere = and(
+        eq(standHolds.id, holdId),
+        eq(standHolds.userId, actor.id),
+        gt(standHolds.expiresAt, new Date()),
+      );
+
+      const [hold] = await tx
+        .select(holdSelect)
+        .from(standHolds)
+        .innerJoin(stands, eq(stands.id, standHolds.standId))
+        .where(lockedHoldWhere)
+        .limit(1)
+        .for("update");
+
+      if (!hold) {
+        const replayed = await replayLiveSelfServiceReservation(
+          tx,
+          actor.id,
+          holdPreview.festivalId,
         );
         if (replayed) return replayed;
         return reservationFailure("HOLD_EXPIRED");
@@ -532,7 +578,9 @@ export async function confirmStandHold(
       }
 
       const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
-      const standPrice = roundMoney(hold.standPrice ?? 0);
+      const standPrice = roundMoney(
+        hold.priceAmountSnapshot ?? hold.standPrice ?? 0,
+      );
 
       const [reservation] = await tx
         .insert(standReservations)
@@ -589,55 +637,45 @@ export async function confirmStandHold(
 
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
 
-      return reservationSuccess(
-        { reservationId: reservation.id, festivalId: hold.festivalId, standId: hold.standId },
-        "Reserva creada",
-      );
+      const admins = await fetchAdminUsers();
+      const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
+        kind: "reservation_created",
+        reservationId: reservation.id,
+        ownerUserId: actor.id,
+        ownerEmail: null,
+        adminEmails: admins.map((admin) => ({
+          id: admin.id,
+          email: admin.email,
+        })),
+      });
+
+      return {
+        success: true as const,
+        reservationId: reservation.id,
+        jobIds,
+        message: "Reserva creada",
+      };
     });
 
-    if (
-      result.success &&
-      "festivalId" in result.data &&
-      typeof result.data.festivalId === "number" &&
-      "standId" in result.data &&
-      typeof result.data.standId === "number"
-    ) {
-      try {
-        const festival = await fetchBaseFestival(result.data.festivalId);
-        const creator = await fetchBaseProfileById(actor.id);
-        const stand = await fetchStandById(result.data.standId);
-        const admins = await fetchAdminUsers();
-        const adminEmails = admins.map((admin) => admin.email).filter(Boolean);
-        if (adminEmails.length > 0) {
-          await sendEmail({
-            to: [...adminEmails],
-            from: "Reservas Glitter <reservas@productoraglitter.com>",
-            subject: "Nueva reserva creada",
-            react: ReservationCreatedEmailTemplate({
-              festivalName: festival?.name || "Festival",
-              reservationId: result.data.reservationId,
-              creatorName: creator?.displayName || "Usuario",
-              standName: stand != null ? formatStandLabel(stand) : "sin stand",
-              standCategory: getCategoryOccupationLabel(stand?.standCategory, {
-                singular: false,
-              }),
-            }) as React.ReactElement,
-          });
-        }
-      } catch (error) {
-        console.error("[confirmStandHold] post-commit notification failed", {
-          reservationId: result.data.reservationId,
-          actorId: actor.id,
-        });
-      }
+    if (!result.success) {
+      guardedRevalidate();
+      return result;
     }
 
+    const payload = result as {
+      data?: { reservationId: number; jobIds?: number[] };
+      reservationId?: number;
+      jobIds?: number[];
+      message: string;
+    };
+    const reservationId = payload.reservationId ?? payload.data?.reservationId;
+    if (reservationId == null) {
+      guardedRevalidate();
+      return reservationFailure("CONFLICT_RETRY");
+    }
+    scheduleReservationNotificationJobs(payload.jobIds ?? payload.data?.jobIds ?? []);
     guardedRevalidate();
-    if (!result.success) return result;
-    return reservationSuccess(
-      { reservationId: result.data.reservationId },
-      result.message,
-    );
+    return reservationSuccess({ reservationId }, payload.message);
   } catch (error) {
     console.error("Error confirming stand hold", error);
     return reservationFailure("CONFLICT_RETRY");

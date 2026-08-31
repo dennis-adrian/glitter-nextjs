@@ -29,6 +29,18 @@ vi.mock("@/app/lib/festivals/actions", () => ({
   fetchBaseFestival: vi.fn(),
 }));
 
+vi.mock("@/app/lib/reservations/locks", () => ({
+  lockFestivalRow: vi.fn(),
+  lockParticipants: vi.fn(),
+  lockStandRows: vi.fn(),
+}));
+
+vi.mock("@/app/lib/reservations/notification-outbox", () => ({
+  enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
+  enqueueReservationNotification: vi.fn(),
+  scheduleReservationNotificationJobs: vi.fn(),
+}));
+
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: vi.fn(),
 }));
@@ -287,24 +299,22 @@ describe("stand hold authorization and eligibility wiring", () => {
       reservationFailure("ALREADY_RESERVED"),
     );
     const insert = vi.fn();
+    const holdRow = {
+      id: 20,
+      standId: 7,
+      festivalId: 10,
+      userId: 3,
+      standFestivalId: 10,
+      standPrice: 100,
+      standStatus: "held",
+      standCategory: "illustration",
+      participationType: "standard",
+    };
     const select = vi
       .fn()
       .mockImplementationOnce(() => selectChain([]))
-      .mockImplementationOnce(() =>
-        selectChain([
-          {
-            id: 20,
-            standId: 7,
-            festivalId: 10,
-            userId: 3,
-            standFestivalId: 10,
-            standPrice: 100,
-            standStatus: "held",
-            standCategory: "illustration",
-            participationType: "standard",
-          },
-        ]),
-      )
+      .mockImplementationOnce(() => selectChain([holdRow]))
+      .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([{ id: 88 }]));
     const tx = { select, insert };
     transactionMock.mockImplementation(

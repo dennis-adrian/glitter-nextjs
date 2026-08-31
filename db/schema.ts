@@ -620,7 +620,20 @@ export const standReservationEventTypeEnum = pgEnum(
     "status_changed",
     "payment_submitted",
     "deadline_extended",
+    "settlement_submitted",
+    "settlement_approved",
+    "settlement_rejected",
+    "accepted",
+    "deleted",
   ],
+);
+export const settlementSubmissionKindEnum = pgEnum(
+  "settlement_submission_kind",
+  ["payment_proof", "zero_value_entitlement"],
+);
+export const settlementSubmissionStatusEnum = pgEnum(
+  "settlement_submission_status",
+  ["submitted", "approved", "rejected"],
 );
 export const reservationNotificationJobStatusEnum = pgEnum(
   "reservation_notification_job_status",
@@ -999,6 +1012,11 @@ export const standHolds = pgTable(
     uniqueIndex("stand_holds_idempotency_key_unique")
       .on(standHolds.idempotencyKey)
       .where(sql`${standHolds.idempotencyKey} IS NOT NULL`),
+    index("stand_holds_expires_at_idx").on(standHolds.expiresAt),
+    check(
+      "stand_holds_expires_after_created",
+      sql`${standHolds.expiresAt} > ${standHolds.createdAt}`,
+    ),
   ],
 );
 export const standHoldsRelations = relations(standHolds, ({ one }) => ({
@@ -1093,6 +1111,7 @@ export const standReservationEvents = pgTable(
     fromStatus: reservationStatusEnum("from_status"),
     toStatus: reservationStatusEnum("to_status"),
     payload: jsonb("payload"),
+    idempotencyKey: text("idempotency_key"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
@@ -1100,6 +1119,9 @@ export const standReservationEvents = pgTable(
       table.reservationId,
       table.createdAt,
     ),
+    uniqueIndex("stand_reservation_events_reservation_id_idempotency_key_unique")
+      .on(table.reservationId, table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
   ],
 );
 export const standReservationEventsRelations = relations(
@@ -1380,9 +1402,12 @@ export const payments = pgTable(
   },
   (t) => [
     index("payments_invoice_id_idx").on(t.invoiceId),
-    uniqueIndex("payments_idempotency_key_unique")
-      .on(t.idempotencyKey)
+    uniqueIndex("payments_invoice_id_idempotency_key_unique")
+      .on(t.invoiceId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
+    uniqueIndex("payments_file_key_unique")
+      .on(t.fileKey)
+      .where(sql`${t.fileKey} IS NOT NULL`),
   ],
 );
 export const paymentsRelations = relations(payments, ({ one }) => ({
@@ -1406,19 +1431,39 @@ export const invoiceSettlementSubmissions = pgTable(
     paymentId: integer("payment_id").references(() => payments.id, {
       onDelete: "set null",
     }),
-    voucherUrl: text("voucher_url").notNull(),
+    voucherUrl: text("voucher_url"),
     fileKey: text("file_key"),
     uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    kind: settlementSubmissionKindEnum("kind")
+      .default("payment_proof")
+      .notNull(),
+    status: settlementSubmissionStatusEnum("status")
+      .default("submitted")
+      .notNull(),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reviewedAt: timestamp("reviewed_at"),
+    rejectionReason: text("rejection_reason"),
+    evidenceSnapshot: jsonb("evidence_snapshot"),
     idempotencyKey: text("idempotency_key"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
     index("invoice_settlement_submissions_invoice_id_idx").on(t.invoiceId),
-    uniqueIndex("invoice_settlement_submissions_idempotency_key_unique")
-      .on(t.idempotencyKey)
+    uniqueIndex("invoice_settlement_submissions_invoice_id_idempotency_key_unique")
+      .on(t.invoiceId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
+    uniqueIndex("invoice_settlement_submissions_one_submitted")
+      .on(t.invoiceId)
+      .where(sql`${t.status} = 'submitted'`),
+    check(
+      "invoice_settlement_submissions_kind_payment_id",
+      sql`(${t.kind} = 'payment_proof' AND ${t.paymentId} IS NOT NULL) OR (${t.kind} = 'zero_value_entitlement' AND ${t.paymentId} IS NULL)`,
+    ),
   ],
 );
 export const invoiceSettlementSubmissionsRelations = relations(
@@ -1434,6 +1479,10 @@ export const invoiceSettlementSubmissionsRelations = relations(
     }),
     uploadedBy: one(users, {
       fields: [invoiceSettlementSubmissions.uploadedByUserId],
+      references: [users.id],
+    }),
+    reviewedBy: one(users, {
+      fields: [invoiceSettlementSubmissions.reviewedByUserId],
       references: [users.id],
     }),
   }),
