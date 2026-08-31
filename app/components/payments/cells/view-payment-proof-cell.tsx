@@ -1,6 +1,6 @@
 import PaymentProofModal from "@/app/components/payments/payment-proof-modal";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
-import { isActivePaymentProof } from "@/app/lib/payments/helpers";
+import { findLatestActivePaymentProof } from "@/app/lib/payments/helpers";
 import { EyeIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -9,7 +9,7 @@ type ViewPaymentProofCellProps = {
 };
 export default function ViewPaymentProofCell(props: ViewPaymentProofCellProps) {
   const [showProofModal, setShowProofModal] = useState(false);
-  const payment = props.invoice.payments.find(isActivePaymentProof);
+  const payment = findLatestActivePaymentProof(props.invoice.payments);
 
   return (
     <>
