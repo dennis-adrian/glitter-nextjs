@@ -5,12 +5,14 @@ import {
   POSTHOG_SHUTDOWN_TIMEOUT_MS,
 } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
+import { uuidSchema } from "@/app/lib/reservations/schemas";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { z } from "zod";
 
 const PaymentSchema = z.object({
   invoiceId: z.number().int().positive(),
   voucherUrl: z.url(),
+  idempotencyKey: uuidSchema,
 });
 
 export type CreatePaymentRequestType = z.infer<typeof PaymentSchema>;
@@ -54,9 +56,17 @@ export async function POST(req: Request) {
   }
 
   const payload = body as Record<string, unknown>;
+  const nestedPayment = payload.payment as
+    | {
+        invoiceId?: unknown;
+        voucherUrl?: unknown;
+        idempotencyKey?: unknown;
+      }
+    | undefined;
   const validatedPayment = PaymentSchema.safeParse({
-    invoiceId: payload.invoiceId ?? (payload.payment as { invoiceId?: unknown } | undefined)?.invoiceId,
-    voucherUrl: payload.voucherUrl ?? (payload.payment as { voucherUrl?: unknown } | undefined)?.voucherUrl,
+    invoiceId: payload.invoiceId ?? nestedPayment?.invoiceId,
+    voucherUrl: payload.voucherUrl ?? nestedPayment?.voucherUrl,
+    idempotencyKey: payload.idempotencyKey ?? nestedPayment?.idempotencyKey,
   });
   if (!validatedPayment.success) {
     return new Response(
@@ -75,6 +85,7 @@ export async function POST(req: Request) {
   const result = await createPayment({
     invoiceId: data.invoiceId,
     voucherUrl: data.voucherUrl,
+    idempotencyKey: data.idempotencyKey,
   });
   if (!result.success) {
     return new Response(JSON.stringify(result), { status: 400 });
