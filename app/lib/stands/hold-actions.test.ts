@@ -2,6 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+const claimRequestMock = vi.hoisted(() => vi.fn());
+const completeRequestMock = vi.hoisted(() => vi.fn());
+const abandonRequestMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/app/lib/reservations/request-registry", () => ({
+  claimRequest: claimRequestMock,
+  completeRequest: completeRequestMock,
+  abandonRequest: abandonRequestMock,
+}));
+
 const authMock = vi.hoisted(() => vi.fn());
 const denySelfServiceMock = vi.hoisted(() => vi.fn());
 const denyStandMock = vi.hoisted(() => vi.fn());
@@ -66,6 +76,9 @@ import {
 } from "@/app/lib/stands/hold-actions";
 import { reservationFailure } from "@/app/lib/reservations/errors";
 
+const HOLD_KEY = "11111111-1111-4111-8111-111111111111";
+const CONFIRM_KEY = "22222222-2222-4222-8222-222222222222";
+
 function selectChain(rows: unknown[]) {
   const thenable = Object.assign(Promise.resolve(rows), {
     limit: vi.fn(() =>
@@ -99,17 +112,31 @@ describe("stand hold authorization and eligibility wiring", () => {
     denySelfServiceMock.mockReset();
     denyStandMock.mockReset();
     transactionMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
     denySelfServiceMock.mockResolvedValue(null);
     denyStandMock.mockResolvedValue(null);
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
   });
 
   it("rejects unauthenticated hold creation", async () => {
     authMock.mockResolvedValue(null);
-    const result = await createStandHold(7);
+    const result = await createStandHold({
+      standId: 7,
+      idempotencyKey: HOLD_KEY,
+    });
     expect(result).toMatchObject({
       success: false,
       code: "UNAUTHENTICATED",
     });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects hold creation without an idempotency key", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const result = await createStandHold(7);
+    expect(result).toMatchObject({ success: false, code: "VALIDATION" });
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
@@ -122,7 +149,10 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await createStandHold(7);
+    const result = await createStandHold({
+      standId: 7,
+      idempotencyKey: HOLD_KEY,
+    });
     expect(result).toMatchObject({ success: false, code: "STAND_NOT_FOUND" });
   });
 
@@ -147,7 +177,10 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await createStandHold(7);
+    const result = await createStandHold({
+      standId: 7,
+      idempotencyKey: HOLD_KEY,
+    });
 
     expect(result).toMatchObject({
       success: false,
@@ -160,11 +193,13 @@ describe("stand hold authorization and eligibility wiring", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("rejects confirmation when the partner is ineligible", async () => {
+  it("rejects a partner who fails eligibility during confirmation", async () => {
     authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
-    denySelfServiceMock
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(reservationFailure("PARTNER_NOT_ELIGIBLE"));
+    denySelfServiceMock.mockResolvedValue(null);
+    denySelfServiceMock.mockResolvedValueOnce(null);
+    denySelfServiceMock.mockResolvedValueOnce(
+      reservationFailure("PARTNER_NOT_ELIGIBLE"),
+    );
     const insert = vi.fn();
     const tx = {
       select: vi.fn(() =>
@@ -188,7 +223,11 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await confirmStandHold({ holdId: 20, partnerId: 4 });
+    const result = await confirmStandHold({
+      holdId: 20,
+      partnerId: 4,
+      idempotencyKey: CONFIRM_KEY,
+    });
 
     expect(result).toMatchObject({
       success: false,
@@ -222,7 +261,10 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await createStandHold(7);
+    const result = await createStandHold({
+      standId: 7,
+      idempotencyKey: HOLD_KEY,
+    });
     expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
     expect(insert).not.toHaveBeenCalled();
   });
@@ -240,7 +282,10 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await confirmStandHold({ holdId: 20 });
+    const result = await confirmStandHold({
+      holdId: 20,
+      idempotencyKey: CONFIRM_KEY,
+    });
 
     expect(result).toMatchObject({
       success: true,
@@ -261,7 +306,10 @@ describe("stand hold authorization and eligibility wiring", () => {
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
 
-    const result = await confirmStandHold({ holdId: 20 });
+    const result = await confirmStandHold({
+      holdId: 20,
+      idempotencyKey: CONFIRM_KEY,
+    });
 
     expect(result).toMatchObject({
       success: false,
@@ -271,9 +319,13 @@ describe("stand hold authorization and eligibility wiring", () => {
     expect(select).toHaveBeenCalledTimes(2);
   });
 
-  it("replays a confirmation by idempotency key before resolving the hold", async () => {
+  it("replays a confirmation from the request registry before resolving the hold", async () => {
     authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
-    const select = vi.fn(() => selectChain([{ id: 88 }]));
+    claimRequestMock.mockResolvedValue({
+      kind: "replayed",
+      resultIds: { reservationId: 88 },
+    });
+    const select = vi.fn();
     const tx = { select, insert: vi.fn() };
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
@@ -282,14 +334,14 @@ describe("stand hold authorization and eligibility wiring", () => {
     const result = await confirmStandHold({
       holdId: 20,
       partnerId: 4,
-      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      idempotencyKey: CONFIRM_KEY,
     });
 
     expect(result).toMatchObject({
       success: true,
       data: { reservationId: 88 },
     });
-    expect(select).toHaveBeenCalledTimes(1);
+    expect(select).not.toHaveBeenCalled();
     expect(denySelfServiceMock).not.toHaveBeenCalled();
   });
 
@@ -312,7 +364,6 @@ describe("stand hold authorization and eligibility wiring", () => {
     };
     const select = vi
       .fn()
-      .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([{ id: 88 }]));
@@ -323,7 +374,7 @@ describe("stand hold authorization and eligibility wiring", () => {
 
     const result = await confirmStandHold({
       holdId: 20,
-      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      idempotencyKey: CONFIRM_KEY,
     });
 
     expect(result).toMatchObject({
