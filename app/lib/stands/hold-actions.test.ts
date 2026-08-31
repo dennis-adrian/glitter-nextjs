@@ -249,6 +249,62 @@ describe("stand hold authorization and eligibility wiring", () => {
     ]);
   });
 
+  it("locks festival and participant eligibility rows before the stand on confirm", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    const order: string[] = [];
+    vi.mocked(lockParticipants).mockImplementation(async () => {
+      order.push("participants");
+    });
+    vi.mocked(lockFestivalRow).mockImplementation(async () => {
+      order.push("festival");
+      return null;
+    });
+    vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
+      order.push("eligibilityRows");
+    });
+    vi.mocked(lockStandRows).mockImplementation(async () => {
+      order.push("stand");
+      return [];
+    });
+    denySelfServiceMock.mockImplementation(async () => {
+      order.push("eligibilityCheck");
+      return reservationFailure("SANCTION_BLOCKED");
+    });
+    const holdRow = {
+      id: 20,
+      standId: 7,
+      festivalId: 10,
+      userId: 3,
+      standFestivalId: 10,
+      standPrice: 100,
+      standStatus: "held",
+      standCategory: "illustration",
+      participationType: "standard",
+    };
+    const select = vi.fn(() => selectChain([holdRow]));
+    const tx = { select, insert: vi.fn() };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await confirmStandHold({
+      holdId: 20,
+      partnerId: 4,
+      idempotencyKey: CONFIRM_KEY,
+    });
+
+    expect(order).toEqual([
+      "participants",
+      "festival",
+      "eligibilityRows",
+      "stand",
+      "eligibilityCheck",
+    ]);
+    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 4]);
+    expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 4]);
+    expect(lockStandRows).toHaveBeenCalledWith(tx, [7]);
+  });
+
   it("rejects a partner who fails eligibility during confirmation", async () => {
     authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
     denySelfServiceMock.mockResolvedValue(null);

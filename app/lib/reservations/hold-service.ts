@@ -579,13 +579,15 @@ export async function confirmStandHold(
         return finish(reservationFailure("STAND_UNAVAILABLE"));
       }
 
+      const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
+      await lockParticipants(tx, holdPreview.festivalId, participantIds);
       await lockFestivalRow(tx, holdPreview.festivalId);
-      await lockStandRows(tx, [holdPreview.standId]);
-      await lockParticipants(
+      await lockParticipantEligibilityRows(
         tx,
         holdPreview.festivalId,
-        partnerId ? [actor.id, partnerId] : [actor.id],
+        participantIds,
       );
+      await lockStandRows(tx, [holdPreview.standId]);
 
       const lockedHoldWhere = and(
         eq(standHolds.id, holdId),
@@ -664,7 +666,6 @@ export async function confirmStandHold(
         if (partnerBlocked) return finish(partnerBlocked);
       }
 
-      const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
       const standPrice = roundMoney(
         hold.priceAmountSnapshot ?? hold.standPrice ?? 0,
       );
