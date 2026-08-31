@@ -361,6 +361,7 @@ export async function extendReservationPaymentDeadline(params: {
           userId: participant.user.id,
           recipientEmail: email,
           payload: { dueAt: newDueDate.toISOString() },
+          deduplicationKey: `deadline_extended:${reservationRow.id}:${newDueDate.toISOString()}:${key}`,
         });
         if (jobId) jobIds.push(jobId);
       }
