@@ -128,5 +128,9 @@ describe("admin reservation mutations", () => {
       "/dashboard/festivals/[id]/reservations",
       "page",
     );
+    expect(revalidatePathMock).toHaveBeenCalledWith(
+      "/dashboard/festivals/[id]/payments",
+      "page",
+    );
   });
 });
