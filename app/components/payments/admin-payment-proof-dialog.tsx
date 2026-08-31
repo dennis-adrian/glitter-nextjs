@@ -47,6 +47,7 @@ export default function AdminPaymentProofDialog({
     if (submittedMarkAsPaid) {
       if (!extra?.submissionId) {
         toast.error("No se pudo confirmar el pago. Recargá e intentá de nuevo.");
+        router.refresh();
         return;
       }
       const result = await approveInvoiceSettlementAction({
@@ -54,6 +55,7 @@ export default function AdminPaymentProofDialog({
       });
       if (!result.success) {
         toast.error(result.message);
+        router.refresh();
         return;
       }
     }
