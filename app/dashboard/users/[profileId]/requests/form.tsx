@@ -28,19 +28,25 @@ import {
 import { Button } from "@/app/components/ui/button";
 
 const FormSchema = z.object({
-  status: z.enum(["pending", "accepted", "rejected"]),
+  status: z.enum(["accepted", "rejected"]),
 });
+
+function defaultReviewStatus(
+  status: UserRequest["status"],
+): "accepted" | "rejected" {
+  return status === "rejected" ? "rejected" : "accepted";
+}
 
 export default function UserRequestForm({ request }: { request: UserRequest }) {
   const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      status: request.status,
+      status: defaultReviewStatus(request.status),
     },
   });
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
-    if (data.status === "pending") {
+    if (data.status !== "accepted" && data.status !== "rejected") {
       toast.error("No se puede volver una solicitud a pendiente.");
       return;
     }
@@ -80,7 +86,6 @@ export default function UserRequestForm({ request }: { request: UserRequest }) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="pending">Pendiente</SelectItem>
                   <SelectItem value="accepted">Aprobado</SelectItem>
                   <SelectItem value="rejected">Rechazado</SelectItem>
                 </SelectContent>
