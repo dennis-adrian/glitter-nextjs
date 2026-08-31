@@ -9,6 +9,11 @@ import { NewDiscountCode } from "./definitions";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { consumeActionRateLimit } from "@/app/lib/rate-limit";
 import {
+  lockFestivalRow,
+  lockParticipants,
+  lockStandRows,
+} from "@/app/lib/reservations/locks";
+import {
   applyDiscountSchema,
   parseUnknown,
 } from "@/app/lib/reservations/schemas";
@@ -140,6 +145,34 @@ export async function validateAndApplyDiscountCode({
 
   try {
     const result = await db.transaction(async (tx) => {
+      const [invoicePreview] = await tx
+        .select({
+          id: invoices.id,
+          userId: invoices.userId,
+          festivalId: standReservations.festivalId,
+          standId: standReservations.standId,
+        })
+        .from(invoices)
+        .innerJoin(
+          standReservations,
+          eq(standReservations.id, invoices.reservationId),
+        )
+        .where(eq(invoices.id, parsed.data.invoiceId))
+        .limit(1);
+
+      if (!invoicePreview) {
+        return {
+          success: false,
+          message: "Código de descuento inválido o inactivo.",
+        };
+      }
+
+      await lockFestivalRow(tx, invoicePreview.festivalId);
+      await lockParticipants(tx, invoicePreview.festivalId, [
+        invoicePreview.userId,
+      ]);
+      await lockStandRows(tx, [invoicePreview.standId]);
+
       const [invoice] = await tx
         .select({
           id: invoices.id,
