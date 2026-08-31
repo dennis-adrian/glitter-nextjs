@@ -26,6 +26,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { adminConfirmReservationByReservationIdAction } from "@/app/lib/reservations/payment-actions";
+import { planReservationEditSubmit } from "@/app/components/reservations/edit-form-submit";
 import { updateReservationSimple } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -71,39 +72,47 @@ export default function EditReservationForm({
     const originalPartnerUserId = reservation.participants[1]?.user.id;
     const partnerChanged = updatedPartner.userId !== originalPartnerUserId;
     const statusChanged = data.status !== reservation.status;
+    const plan = planReservationEditSubmit({
+      statusChanged,
+      partnerChanged,
+      nextStatus: data.status,
+    });
 
-    if (statusChanged && !partnerChanged) {
-      if (data.status === "rejected") {
-        const res = await rejectReservation({
-          reservationId: reservation.id,
-          reason: "Actualización administrativa",
-        });
-        if (res.success) {
-          toast.success(res.message);
-          router.replace(
-            `/dashboard/festivals/${reservation.festivalId}/reservations`,
-          );
-        } else {
-          toast.error(res.message);
-        }
-        return;
-      }
+    if (plan.kind === "unsupported_combination") {
+      toast.error(plan.message);
+      return;
+    }
 
-      if (data.status === "accepted") {
-        const res = await adminConfirmReservationByReservationIdAction({
-          reservationId: reservation.id,
-          idempotencyKey: confirmIntentKeyRef.current,
-        });
-        if (res.success) {
-          toast.success(res.message);
-          router.replace(
-            `/dashboard/festivals/${reservation.festivalId}/reservations`,
-          );
-        } else {
-          toast.error(res.message);
-        }
-        return;
+    if (plan.kind === "reject") {
+      const res = await rejectReservation({
+        reservationId: reservation.id,
+        reason: "Actualización administrativa",
+      });
+      if (res.success) {
+        toast.success(res.message);
+        router.replace(
+          `/dashboard/festivals/${reservation.festivalId}/reservations`,
+        );
+      } else {
+        toast.error(res.message);
       }
+      return;
+    }
+
+    if (plan.kind === "confirm") {
+      const res = await adminConfirmReservationByReservationIdAction({
+        reservationId: reservation.id,
+        idempotencyKey: confirmIntentKeyRef.current,
+      });
+      if (res.success) {
+        toast.success(res.message);
+        router.replace(
+          `/dashboard/festivals/${reservation.festivalId}/reservations`,
+        );
+      } else {
+        toast.error(res.message);
+      }
+      return;
     }
 
     const res = await updateReservationSimple(reservation.id, {
