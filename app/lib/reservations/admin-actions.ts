@@ -117,6 +117,7 @@ export async function createAdminReservation(
   if (partnerId && partnerId !== userId) participantIds.push(partnerId);
 
   try {
+    const admins = await fetchAdminUsers();
     const result = await db.transaction(async (tx) => {
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
@@ -259,7 +260,6 @@ export async function createAdminReservation(
         taskType: "stand_reservation",
       });
 
-      const admins = await fetchAdminUsers();
       const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
         kind: "reservation_created",
         reservationId: reservation.id,

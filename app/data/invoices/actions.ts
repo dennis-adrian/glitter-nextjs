@@ -118,38 +118,6 @@ export async function updateInvoiceStatus(
   }
 }
 
-/** @deprecated Admin UI uses UploadThing + settlement actions; kept for tests/compatibility. */
-export async function adminAttachPaymentVoucher(
-  invoiceId: number,
-  voucherUrl: string,
-  markAsPaid: boolean,
-): Promise<{ success: boolean; message: string }> {
-  const profile = await getCurrentUserProfile();
-  if (!profile || profile.role !== "admin") {
-    return { success: false, message: "No autorizado." };
-  }
-
-  const submitted = await submitPaymentProof(
-    { invoiceId, voucherUrl },
-    { id: profile.id, role: profile.role },
-  );
-  if (!submitted.success) {
-    return { success: false, message: submitted.message };
-  }
-  if (markAsPaid) {
-    const approved = await approveInvoiceSettlement({
-      submissionId: submitted.data.submissionId,
-    });
-    return {
-      success: approved.success,
-      message: approved.success
-        ? "Comprobante guardado correctamente."
-        : approved.message,
-    };
-  }
-  return { success: true, message: "Comprobante guardado correctamente." };
-}
-
 export async function adminRemovePaymentVoucher(
   invoiceId: number,
 ): Promise<{ success: boolean; message: string }> {
@@ -271,11 +239,19 @@ export async function fetchLatestInvoiceByProfileId(
 function normalizePaymentProofInput(input: unknown) {
   if (input && typeof input === "object" && "payment" in input) {
     const nested = input as {
-      payment?: { invoiceId?: unknown; voucherUrl?: unknown };
+      payment?: {
+        invoiceId?: unknown;
+        voucherUrl?: unknown;
+        idempotencyKey?: unknown;
+      };
+      idempotencyKey?: unknown;
     };
+    const idempotencyKey =
+      nested.idempotencyKey ?? nested.payment?.idempotencyKey;
     return {
       invoiceId: nested.payment?.invoiceId,
       voucherUrl: nested.payment?.voucherUrl,
+      ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
     };
   }
   return input;

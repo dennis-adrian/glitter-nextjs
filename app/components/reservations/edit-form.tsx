@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Loader2Icon, PlusCircleIcon, Trash2Icon } from "lucide-react";
@@ -52,7 +52,7 @@ export default function EditReservationForm({
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
   const router = useRouter();
-  const confirmIntentKeyRef = useRef(crypto.randomUUID());
+  const [confirmIntentKey] = useState(() => crypto.randomUUID());
   const [partner, setPartner] = useState<Artist | undefined>(
     reservation.participants[1]?.user,
   );
@@ -102,7 +102,7 @@ export default function EditReservationForm({
     if (plan.kind === "confirm") {
       const res = await adminConfirmReservationByReservationIdAction({
         reservationId: reservation.id,
-        idempotencyKey: confirmIntentKeyRef.current,
+        idempotencyKey: confirmIntentKey,
       });
       if (res.success) {
         toast.success(res.message);

@@ -165,7 +165,10 @@ function createTx(options: {
             return Object.assign(Promise.resolve(rows), {
               limit: vi.fn(() =>
                 Object.assign(Promise.resolve(rows), {
-                  for: vi.fn().mockResolvedValue(rows),
+                  for: vi.fn(() => {
+                    lockCallOrder.current.push("submission");
+                    return Promise.resolve(rows);
+                  }),
                 }),
               ),
             });
@@ -632,6 +635,7 @@ describe("approveInvoiceSettlement", () => {
 
 describe("rejectInvoiceSettlement", () => {
   beforeEach(() => {
+    lockCallOrder.current = [];
     currentProfileMock.mockReset();
     transactionMock.mockReset();
     enqueueNotificationsMock.mockReset();
@@ -671,6 +675,13 @@ describe("rejectInvoiceSettlement", () => {
     });
 
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
+    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+      "submission",
+    ]);
     expect(scheduleJobsMock).not.toHaveBeenCalled();
   });
 });

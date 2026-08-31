@@ -1,8 +1,9 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { RESERVATION_ERROR_MESSAGES } from "@/app/lib/reservations/errors";
 import {
   lockFestivalRow,
   lockParticipantEligibilityRows,
@@ -36,34 +37,126 @@ type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type ReservationEventType =
   (typeof standReservationEventTypeEnum.enumValues)[number];
 type ReservationStatus = (typeof reservationStatusEnum.enumValues)[number];
+type CancellationReservation = {
+  id: number;
+  standId: number;
+  festivalId: number;
+  status: string;
+};
 
-export async function applyReservationCancellation(
+function participantIdSet(ids: readonly number[]) {
+  return [
+    ...new Set(ids.filter((id) => Number.isInteger(id) && id > 0)),
+  ].sort((a, b) => a - b);
+}
+
+function sameParticipantIdSet(
+  left: readonly number[],
+  right: readonly number[],
+) {
+  const a = participantIdSet(left);
+  const b = participantIdSet(right);
+  return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+async function readReservationParticipantIds(
+  tx: DbTx,
+  reservationId: number,
+) {
+  const participants = await tx
+    .select({ userId: reservationParticipants.userId })
+    .from(reservationParticipants)
+    .where(eq(reservationParticipants.reservationId, reservationId));
+  return participants.map((participant) => participant.userId);
+}
+
+async function acquireCancellationLocks(
+  tx: DbTx,
+  reservation: Pick<CancellationReservation, "festivalId" | "standId">,
+  userIds: readonly number[],
+) {
+  await lockParticipants(tx, reservation.festivalId, userIds);
+  await lockFestivalRow(tx, reservation.festivalId);
+  await lockParticipantEligibilityRows(
+    tx,
+    reservation.festivalId,
+    userIds,
+  );
+  await lockStandRows(tx, [reservation.standId]);
+}
+
+export async function lockAndApplyReservationCancellation(
   tx: DbTx,
   input: {
-    reservation: {
-      id: number;
-      standId: number;
-      festivalId: number;
-      status: string;
-    };
+    reservationId: number;
     actorUserId: number;
     eventType: ReservationEventType;
     reason?: string;
     payload?: Record<string, unknown> | null;
   },
-): Promise<number[]> {
-  await lockFestivalRow(tx, input.reservation.festivalId);
-  await lockStandRows(tx, [input.reservation.standId]);
+): Promise<{ ok: true; jobIds: number[] } | { ok: false; message: string }> {
+  const [preview] = await tx
+    .select()
+    .from(standReservations)
+    .where(eq(standReservations.id, input.reservationId))
+    .limit(1);
+  if (!preview) {
+    return { ok: false as const, message: "La reserva no existe." };
+  }
 
-  const participants = await tx
-    .select({ userId: reservationParticipants.userId })
-    .from(reservationParticipants)
-    .where(eq(reservationParticipants.reservationId, input.reservation.id));
-  await lockParticipants(
-    tx,
-    input.reservation.festivalId,
-    participants.map((participant) => participant.userId),
-  );
+  const previewUserIds = await readReservationParticipantIds(tx, preview.id);
+
+  await acquireCancellationLocks(tx, preview, previewUserIds);
+
+  const [reservation] = await tx
+    .select()
+    .from(standReservations)
+    .where(eq(standReservations.id, input.reservationId))
+    .limit(1)
+    .for("update");
+  if (!reservation) {
+    return { ok: false as const, message: "La reserva no existe." };
+  }
+  if (reservation.status === "rejected") {
+    return { ok: true as const, jobIds: [] as number[] };
+  }
+
+  const lockedUserIds = await readReservationParticipantIds(tx, reservation.id);
+  if (!sameParticipantIdSet(previewUserIds, lockedUserIds)) {
+    return {
+      ok: false as const,
+      message: RESERVATION_ERROR_MESSAGES.CONFLICT_RETRY,
+    };
+  }
+
+  const jobIds = await applyReservationCancellation(tx, {
+    reservation,
+    actorUserId: input.actorUserId,
+    eventType: input.eventType,
+    reason: input.reason,
+    payload: input.payload,
+    participantUserIds: lockedUserIds,
+  });
+  return { ok: true as const, jobIds };
+}
+
+export async function applyReservationCancellation(
+  tx: DbTx,
+  input: {
+    reservation: CancellationReservation;
+    actorUserId: number;
+    eventType: ReservationEventType;
+    reason?: string;
+    payload?: Record<string, unknown> | null;
+    participantUserIds?: readonly number[];
+  },
+): Promise<number[]> {
+  const userIds =
+    input.participantUserIds !== undefined
+      ? [...input.participantUserIds]
+      : await readReservationParticipantIds(tx, input.reservation.id);
+
+  await acquireCancellationLocks(tx, input.reservation, userIds);
 
   await tx
     .delete(scheduledTasks)
@@ -91,14 +184,18 @@ export async function applyReservationCancellation(
       input.payload ?? (input.reason ? { reason: input.reason } : null),
   });
 
-  const recipients = await tx
-    .select({ id: users.id, email: users.email })
-    .from(reservationParticipants)
-    .innerJoin(users, eq(users.id, reservationParticipants.userId))
-    .where(eq(reservationParticipants.reservationId, input.reservation.id));
+  const recipients =
+    userIds.length === 0
+      ? []
+      : await tx
+          .select({ id: users.id, email: users.email })
+          .from(users)
+          .where(inArray(users.id, userIds));
 
+  const allowedRecipientIds = new Set(participantIdSet(userIds));
   const jobIds: number[] = [];
   for (const recipient of recipients) {
+    if (!allowedRecipientIds.has(recipient.id)) continue;
     const jobId = await enqueueReservationNotification(tx, {
       kind: "reservation_rejected",
       reservationId: input.reservation.id,
@@ -126,48 +223,14 @@ export async function cancelReservation(
   }
 
   try {
-    const outcome = await db.transaction(async (tx) => {
-      const [preview] = await tx
-        .select()
-        .from(standReservations)
-        .where(eq(standReservations.id, parsed.data.reservationId))
-        .limit(1);
-      if (!preview) {
-        return { ok: false as const, message: "La reserva no existe." };
-      }
-
-      const participants = await tx
-        .select({ userId: reservationParticipants.userId })
-        .from(reservationParticipants)
-        .where(eq(reservationParticipants.reservationId, preview.id));
-      const userIds = participants.map((participant) => participant.userId);
-
-      await lockParticipants(tx, preview.festivalId, userIds);
-      await lockFestivalRow(tx, preview.festivalId);
-      await lockParticipantEligibilityRows(tx, preview.festivalId, userIds);
-      await lockStandRows(tx, [preview.standId]);
-
-      const [reservation] = await tx
-        .select()
-        .from(standReservations)
-        .where(eq(standReservations.id, parsed.data.reservationId))
-        .limit(1)
-        .for("update");
-      if (!reservation) {
-        return { ok: false as const, message: "La reserva no existe." };
-      }
-      if (reservation.status === "rejected") {
-        return { ok: true as const, jobIds: [] as number[] };
-      }
-
-      const jobIds = await applyReservationCancellation(tx, {
-        reservation,
+    const outcome = await db.transaction(async (tx) =>
+      lockAndApplyReservationCancellation(tx, {
+        reservationId: parsed.data.reservationId,
         actorUserId,
         eventType: "deleted",
         reason: parsed.data.reason,
-      });
-      return { ok: true as const, jobIds };
-    });
+      }),
+    );
 
     if (!outcome.ok) {
       return { success: false, message: outcome.message };

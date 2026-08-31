@@ -779,6 +779,19 @@ export async function rejectInvoiceSettlement(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      const [submissionPreview] = await tx
+        .select({ invoiceId: invoiceSettlementSubmissions.invoiceId })
+        .from(invoiceSettlementSubmissions)
+        .where(eq(invoiceSettlementSubmissions.id, parsed.data.submissionId))
+        .limit(1);
+      if (!submissionPreview) return reservationFailure("VALIDATION");
+
+      const aggregate = await loadInvoiceAggregate(
+        tx,
+        submissionPreview.invoiceId,
+      );
+      if (!aggregate) return reservationFailure("VALIDATION");
+
       const [submission] = await tx
         .select()
         .from(invoiceSettlementSubmissions)
@@ -790,8 +803,6 @@ export async function rejectInvoiceSettlement(
         return reservationFailure("INVOICE_NOT_PENDING");
       }
 
-      const aggregate = await loadInvoiceAggregate(tx, submission.invoiceId);
-      if (!aggregate) return reservationFailure("VALIDATION");
       const { invoice, reservation } = aggregate;
 
       if (submission.kind === "zero_value_entitlement") {

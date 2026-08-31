@@ -7,6 +7,7 @@ const transactionMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 const cancelReservationMock = vi.hoisted(() => vi.fn());
 const applyCancellationMock = vi.hoisted(() => vi.fn());
+const applyLockedCancellationMock = vi.hoisted(() => vi.fn());
 const scheduleJobsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
@@ -37,6 +38,7 @@ vi.mock("@/app/emails/reservation-confirmation", () => ({
 vi.mock("@/app/lib/reservations/admin-service", () => ({
   cancelReservation: cancelReservationMock,
   applyReservationCancellation: applyCancellationMock,
+  lockAndApplyReservationCancellation: applyLockedCancellationMock,
 }));
 
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
@@ -56,6 +58,7 @@ describe("admin reservation mutations", () => {
     revalidatePathMock.mockReset();
     cancelReservationMock.mockReset();
     applyCancellationMock.mockReset();
+    applyLockedCancellationMock.mockReset();
     scheduleJobsMock.mockReset();
   });
 
@@ -96,33 +99,22 @@ describe("admin reservation mutations", () => {
 
   it("still succeeds and revalidates after a committed rejection", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    applyCancellationMock.mockResolvedValue([11]);
-    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
-      callback({
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              limit: () => ({
-                for: async () => [
-                  {
-                    id: 3,
-                    standId: 9,
-                    festivalId: 1,
-                    status: "pending",
-                  },
-                ],
-              }),
-            }),
-          }),
-        }),
-      }),
+    applyLockedCancellationMock.mockResolvedValue({ ok: true, jobIds: [11] });
+    const tx = {};
+    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
+      callback(tx),
     );
 
     await expect(rejectReservation({ reservationId: 3 })).resolves.toEqual({
       success: true,
       message: "Reserva cancelada correctamente",
     });
-    expect(applyCancellationMock).toHaveBeenCalledOnce();
+    expect(applyLockedCancellationMock).toHaveBeenCalledWith(tx, {
+      reservationId: 3,
+      actorUserId: 1,
+      eventType: "rejected",
+      reason: undefined,
+    });
     expect(scheduleJobsMock).toHaveBeenCalledWith([11]);
     expect(revalidatePathMock).toHaveBeenCalledWith(
       "/dashboard/festivals/[id]/reservations",

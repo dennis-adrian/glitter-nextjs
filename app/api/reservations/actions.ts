@@ -20,7 +20,10 @@ import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
-import { applyReservationCancellation, cancelReservation } from "@/app/lib/reservations/admin-service";
+import {
+  cancelReservation,
+  lockAndApplyReservationCancellation,
+} from "@/app/lib/reservations/admin-service";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import { scheduleReservationNotificationJobs } from "@/app/lib/reservations/notification-outbox";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
@@ -238,28 +241,14 @@ export async function rejectReservation(input: unknown) {
   }
 
   try {
-    const outcome = await db.transaction(async (tx) => {
-      const [reservation] = await tx
-        .select()
-        .from(standReservations)
-        .where(eq(standReservations.id, parsed.data.reservationId))
-        .limit(1)
-        .for("update");
-      if (!reservation) {
-        return { ok: false as const, message: "La reserva no existe." };
-      }
-      if (reservation.status === "rejected") {
-        return { ok: true as const, jobIds: [] as number[] };
-      }
-
-      const jobIds = await applyReservationCancellation(tx, {
-        reservation,
+    const outcome = await db.transaction(async (tx) =>
+      lockAndApplyReservationCancellation(tx, {
+        reservationId: parsed.data.reservationId,
         actorUserId,
         eventType: "rejected",
         reason: parsed.data.reason,
-      });
-      return { ok: true as const, jobIds };
-    });
+      }),
+    );
 
     if (!outcome.ok) {
       return { success: false, message: outcome.message };

@@ -45,11 +45,12 @@ vi.mock("@/app/lib/uploadthing/actions", () => ({
 }));
 
 import {
-  adminAttachPaymentVoucher,
   confirmFreeInvoice,
   createPayment,
   updateInvoiceStatus,
 } from "@/app/data/invoices/actions";
+
+const SAMPLE_KEY = "11111111-1111-4111-8111-111111111111";
 
 describe("invoice action delegation", () => {
   beforeEach(() => {
@@ -74,12 +75,56 @@ describe("invoice action delegation", () => {
       payment: {
         invoiceId: 9,
         voucherUrl: "https://files.example.com/f/abc",
+        idempotencyKey: SAMPLE_KEY,
       },
     });
 
     expect(submitPaymentProofMock).toHaveBeenCalledWith({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: SAMPLE_KEY,
+    });
+  });
+
+  it("createPayment forwards a top-level idempotencyKey on nested payment payloads", async () => {
+    submitPaymentProofMock.mockResolvedValue({
+      success: true,
+      data: { submissionId: 4 },
+      message: "ok",
+    });
+
+    await createPayment({
+      idempotencyKey: SAMPLE_KEY,
+      payment: {
+        invoiceId: 9,
+        voucherUrl: "https://files.example.com/f/abc",
+      },
+    });
+
+    expect(submitPaymentProofMock).toHaveBeenCalledWith({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: SAMPLE_KEY,
+    });
+  });
+
+  it("createPayment forwards a flat proof payload including idempotencyKey", async () => {
+    submitPaymentProofMock.mockResolvedValue({
+      success: true,
+      data: { submissionId: 4 },
+      message: "ok",
+    });
+
+    await createPayment({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: SAMPLE_KEY,
+    });
+
+    expect(submitPaymentProofMock).toHaveBeenCalledWith({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: SAMPLE_KEY,
     });
   });
 
@@ -142,32 +187,6 @@ describe("invoice action delegation", () => {
       reservationId: 4,
       reason: "Cancelado desde el estado de pago",
     });
-    expect(result.success).toBe(true);
-  });
-
-  it("adminAttachPaymentVoucher submits proof and optionally approves it", async () => {
-    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    submitPaymentProofMock.mockResolvedValue({
-      success: true,
-      data: { submissionId: 8 },
-      message: "ok",
-    });
-    approveMock.mockResolvedValue({
-      success: true,
-      data: undefined,
-      message: "La reserva fue confirmada.",
-    });
-
-    const result = await adminAttachPaymentVoucher(
-      9,
-      "https://files.example.com/f/abc",
-      true,
-    );
-    expect(submitPaymentProofMock).toHaveBeenCalledWith(
-      { invoiceId: 9, voucherUrl: "https://files.example.com/f/abc" },
-      { id: 1, role: "admin" },
-    );
-    expect(approveMock).toHaveBeenCalledWith({ submissionId: 8 });
     expect(result.success).toBe(true);
   });
 });

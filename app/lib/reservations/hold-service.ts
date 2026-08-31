@@ -474,6 +474,7 @@ export async function confirmStandHold(
   if (!actor || denial) return denial!;
 
   try {
+    const admins = await fetchAdminUsers();
     const result = await db.transaction(async (tx) => {
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
@@ -725,7 +726,6 @@ export async function confirmStandHold(
 
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
 
-      const admins = await fetchAdminUsers();
       const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
         kind: "reservation_created",
         reservationId: reservation.id,

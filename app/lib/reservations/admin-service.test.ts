@@ -47,7 +47,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { cancelReservation } from "@/app/lib/reservations/admin-service";
+import {
+  applyReservationCancellation,
+  cancelReservation,
+  lockAndApplyReservationCancellation,
+} from "@/app/lib/reservations/admin-service";
 import {
   lockFestivalRow,
   lockParticipantEligibilityRows,
@@ -82,8 +86,12 @@ function selectChain(rows: unknown[], onForUpdate?: () => void) {
   };
 }
 
-function cancellationTx(reservation = pendingReservation) {
+function cancellationTx(
+  reservation = pendingReservation,
+  participantReads?: Array<Array<{ userId: number }>>,
+) {
   let selectCalls = 0;
+  const defaultParticipants = [{ userId: 3 }, { userId: 5 }];
   const select = vi.fn(() => {
     selectCalls += 1;
     if (selectCalls === 1 || selectCalls === 3) {
@@ -92,7 +100,8 @@ function cancellationTx(reservation = pendingReservation) {
       });
     }
     if (selectCalls === 2 || selectCalls === 4) {
-      return selectChain([{ userId: 3 }, { userId: 5 }]);
+      const readIndex = selectCalls === 2 ? 0 : 1;
+      return selectChain(participantReads?.[readIndex] ?? defaultParticipants);
     }
     return selectChain([{ id: 3, email: "owner@example.com" }]);
   });
@@ -145,6 +154,10 @@ describe("cancelReservation lock ordering", () => {
     expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
     expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 5]);
     expect(lockStandRows).toHaveBeenCalledWith(tx, [7]);
+    expect(insertEventMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ eventType: "deleted" }),
+    );
   });
 
   it("re-checks reservation status after locks and skips an already-rejected row", async () => {
@@ -168,5 +181,160 @@ describe("cancelReservation lock ordering", () => {
       "stand",
       "reservation",
     ]);
+  });
+});
+
+describe("lockAndApplyReservationCancellation rejected event", () => {
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    enqueueMock.mockReset();
+    insertEventMock.mockReset();
+    vi.mocked(lockFestivalRow).mockClear();
+    vi.mocked(lockParticipants).mockClear();
+    vi.mocked(lockParticipantEligibilityRows).mockClear();
+    vi.mocked(lockStandRows).mockClear();
+    enqueueMock.mockResolvedValue(42);
+    insertEventMock.mockResolvedValue(undefined);
+  });
+
+  it("locks festival, participants, and stand before the reservation row", async () => {
+    const tx = cancellationTx();
+
+    const result = await lockAndApplyReservationCancellation(tx as never, {
+      reservationId: 9,
+      actorUserId: 1,
+      eventType: "rejected",
+      reason: "fuera de reglamento",
+    });
+
+    expect(result).toEqual({ ok: true, jobIds: [42] });
+    const reservationLockAt = lockCallOrder.current.indexOf("reservation");
+    expect(reservationLockAt).toBeGreaterThan(-1);
+    expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+    ]);
+    expect(insertEventMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: "rejected",
+        payload: { reason: "fuera de reglamento" },
+      }),
+    );
+  });
+
+  it("does not cancel when the participant set changes between the preview and reservation-locked reads", async () => {
+    const tx = cancellationTx(pendingReservation, [
+      [{ userId: 3 }, { userId: 5 }],
+      [{ userId: 3 }, { userId: 5 }, { userId: 7 }],
+    ]);
+
+    const result = await lockAndApplyReservationCancellation(tx as never, {
+      reservationId: 9,
+      actorUserId: 1,
+      eventType: "rejected",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
+    });
+    expect(lockParticipants).toHaveBeenCalledTimes(1);
+    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
+    expect(lockParticipants).not.toHaveBeenCalledWith(
+      tx,
+      10,
+      expect.arrayContaining([7]),
+    );
+    const reservationLockAt = lockCallOrder.current.indexOf("reservation");
+    expect(reservationLockAt).toBeGreaterThan(-1);
+    expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+    ]);
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(insertEventMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyReservationCancellation lock ordering", () => {
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    enqueueMock.mockReset();
+    insertEventMock.mockReset();
+    vi.mocked(lockFestivalRow).mockClear();
+    vi.mocked(lockParticipants).mockClear();
+    vi.mocked(lockParticipantEligibilityRows).mockClear();
+    vi.mocked(lockStandRows).mockClear();
+    enqueueMock.mockResolvedValue(42);
+    insertEventMock.mockResolvedValue(undefined);
+  });
+
+  it("locks participants, festival, eligibility, and stand in canonical order", async () => {
+    const tx = {
+      select: vi
+        .fn()
+        .mockImplementationOnce(() =>
+          selectChain([{ userId: 3 }, { userId: 5 }]),
+        )
+        .mockImplementationOnce(() =>
+          selectChain([{ id: 3, email: "owner@example.com" }]),
+        ),
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      })),
+    };
+
+    await applyReservationCancellation(tx as never, {
+      reservation: pendingReservation,
+      actorUserId: 1,
+      eventType: "rejected",
+    });
+
+    expect(lockCallOrder.current).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+    ]);
+    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
+    expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 5]);
+  });
+
+  it("uses a provided reservation-locked participant set instead of a second membership read", async () => {
+    const tx = {
+      select: vi.fn().mockImplementationOnce(() =>
+        selectChain([
+          { id: 3, email: "owner@example.com" },
+          { id: 7, email: "added@example.com" },
+        ]),
+      ),
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      })),
+    };
+
+    await applyReservationCancellation(tx as never, {
+      reservation: pendingReservation,
+      actorUserId: 1,
+      eventType: "rejected",
+      participantUserIds: [3, 5],
+    });
+
+    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
+    expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 5]);
+    expect(tx.select).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ userId: 3 }),
+    );
   });
 });
