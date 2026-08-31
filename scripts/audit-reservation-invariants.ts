@@ -46,6 +46,7 @@ function normalizeIndexPredicate(expr: string | null | undefined): string {
     .replace(/\s+/g, " ")
     .replace(/"/g, "")
     .replace(/\b[a-z_][a-z0-9_]*\./g, "")
+    .replace(/::[a-z_][a-z0-9_]*/g, "")
     .replace(/[()]/g, "")
     .trim();
 }
