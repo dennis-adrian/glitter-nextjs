@@ -10,6 +10,7 @@ import {
 import {
   lockFestivalRow,
   lockParticipants,
+  lockStandRows,
 } from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
@@ -449,32 +450,33 @@ export async function confirmStandHold(
         }
       }
 
-      const [hold] = await tx
-        .select({
-          id: standHolds.id,
-          standId: standHolds.standId,
-          festivalId: standHolds.festivalId,
-          userId: standHolds.userId,
-          priceAmountSnapshot: standHolds.priceAmountSnapshot,
-          standFestivalId: stands.festivalId,
-          standPrice: stands.price,
-          standStatus: stands.status,
-          standCategory: stands.standCategory,
-          participationType: stands.participationType,
-        })
+      const holdSelect = {
+        id: standHolds.id,
+        standId: standHolds.standId,
+        festivalId: standHolds.festivalId,
+        userId: standHolds.userId,
+        priceAmountSnapshot: standHolds.priceAmountSnapshot,
+        standFestivalId: stands.festivalId,
+        standPrice: stands.price,
+        standStatus: stands.status,
+        standCategory: stands.standCategory,
+        participationType: stands.participationType,
+      } as const;
+
+      const holdWhere = and(
+        eq(standHolds.id, holdId),
+        eq(standHolds.userId, actor.id),
+        gt(standHolds.expiresAt, new Date()),
+      );
+
+      const [holdPreview] = await tx
+        .select(holdSelect)
         .from(standHolds)
         .innerJoin(stands, eq(stands.id, standHolds.standId))
-        .where(
-          and(
-            eq(standHolds.id, holdId),
-            eq(standHolds.userId, actor.id),
-            gt(standHolds.expiresAt, new Date()),
-          ),
-        )
-        .limit(1)
-        .for("update");
+        .where(holdWhere)
+        .limit(1);
 
-      if (!hold) {
+      if (!holdPreview) {
         const [ownedHold] = await tx
           .select({ festivalId: standHolds.festivalId })
           .from(standHolds)
@@ -491,19 +493,44 @@ export async function confirmStandHold(
         if (replayed) return replayed;
         return reservationFailure("HOLD_EXPIRED");
       }
+      if (holdPreview.festivalId !== holdPreview.standFestivalId) {
+        return reservationFailure("STAND_WRONG_FESTIVAL");
+      }
+      if (holdPreview.standStatus !== "held") {
+        return reservationFailure("STAND_UNAVAILABLE");
+      }
+
+      await lockFestivalRow(tx, holdPreview.festivalId);
+      await lockStandRows(tx, [holdPreview.standId]);
+      await lockParticipants(
+        tx,
+        holdPreview.festivalId,
+        partnerId ? [actor.id, partnerId] : [actor.id],
+      );
+
+      const [hold] = await tx
+        .select(holdSelect)
+        .from(standHolds)
+        .innerJoin(stands, eq(stands.id, standHolds.standId))
+        .where(holdWhere)
+        .limit(1)
+        .for("update");
+
+      if (!hold) {
+        const replayed = await replayLiveSelfServiceReservation(
+          tx,
+          actor.id,
+          holdPreview.festivalId,
+        );
+        if (replayed) return replayed;
+        return reservationFailure("HOLD_EXPIRED");
+      }
       if (hold.festivalId !== hold.standFestivalId) {
         return reservationFailure("STAND_WRONG_FESTIVAL");
       }
       if (hold.standStatus !== "held") {
         return reservationFailure("STAND_UNAVAILABLE");
       }
-
-      await lockFestivalRow(tx, hold.festivalId);
-      await lockParticipants(
-        tx,
-        hold.festivalId,
-        partnerId ? [actor.id, partnerId] : [actor.id],
-      );
 
       if (partnerId === actor.id) {
         return reservationFailure("PARTNER_NOT_ELIGIBLE");

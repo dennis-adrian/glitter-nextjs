@@ -273,24 +273,22 @@ describe("stand hold authorization and eligibility wiring", () => {
       reservationFailure("ALREADY_RESERVED"),
     );
     const insert = vi.fn();
+    const holdRow = {
+      id: 20,
+      standId: 7,
+      festivalId: 10,
+      userId: 3,
+      standFestivalId: 10,
+      standPrice: 100,
+      standStatus: "held",
+      standCategory: "illustration",
+      participationType: "standard",
+    };
     const select = vi
       .fn()
       .mockImplementationOnce(() => selectChain([]))
-      .mockImplementationOnce(() =>
-        selectChain([
-          {
-            id: 20,
-            standId: 7,
-            festivalId: 10,
-            userId: 3,
-            standFestivalId: 10,
-            standPrice: 100,
-            standStatus: "held",
-            standCategory: "illustration",
-            participationType: "standard",
-          },
-        ]),
-      )
+      .mockImplementationOnce(() => selectChain([holdRow]))
+      .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([{ id: 88 }]));
     const tx = { select, insert };
     transactionMock.mockImplementation(
