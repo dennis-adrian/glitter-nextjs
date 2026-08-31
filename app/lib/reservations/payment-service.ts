@@ -864,7 +864,7 @@ async function insertZeroValueSubmissionInTx(
   tx: DbTx,
   input: {
     invoice: typeof invoices.$inferSelect;
-    reservation: { id: number; standId: number; festivalId: number; status: string };
+    reservation: typeof standReservations.$inferSelect;
     actorUserId: number;
     idempotencyKey: string;
   },
@@ -923,7 +923,7 @@ async function insertPaymentProofSubmissionInTx(
   tx: DbTx,
   input: {
     invoice: typeof invoices.$inferSelect;
-    reservation: { id: number; standId: number; festivalId: number; status: string };
+    reservation: typeof standReservations.$inferSelect;
     actorUserId: number;
     voucherUrl: string;
     idempotencyKey: string;
@@ -1135,6 +1135,14 @@ export async function adminConfirmReservation(
 
       const approved = await approveSubmissionInTx(tx, submission, actor.id);
       if ("success" in approved) return finish(approved);
+      if (approved.kind === "replayed") {
+        return finish({
+          kind: "replayed",
+          reservationId: reservation.id,
+          invoiceId: invoice.id,
+          jobIds: approved.jobIds,
+        });
+      }
       return finish({
         kind: "approved",
         reservationId: approved.reservationId,
