@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import { applyReservationCancellation } from "@/app/lib/reservations/admin-service";
@@ -1249,7 +1249,12 @@ export async function adminConfirmReservation(
             fileKey: payments.fileKey,
           })
           .from(payments)
-          .where(eq(payments.invoiceId, invoice.id))
+          .where(
+            and(
+              eq(payments.invoiceId, invoice.id),
+              isNotNull(payments.fileKey),
+            ),
+          )
           .orderBy(desc(payments.createdAt), desc(payments.id))
           .limit(1);
         const proofUrl = currentPayment?.voucherUrl ?? null;
@@ -1315,17 +1320,37 @@ export async function correctSettlementProof(
 
   const parsed = parseUnknown(correctSettlementProofSchema, input);
   if (!parsed.success) return reservationFailure("VALIDATION");
-  const { invoiceId, reason } = parsed.data;
-  const requestKey = `correctSettlementProof:${invoiceId}`;
+  const { invoiceId, reason, idempotencyKey } = parsed.data;
 
   try {
     const outcome = await db.transaction(async (tx) => {
       await lockInvoiceClaimKeys(tx, invoiceId, [actor.id]);
+
+      const [targetSubmission] = await tx
+        .select({ id: invoiceSettlementSubmissions.id })
+        .from(invoiceSettlementSubmissions)
+        .where(
+          and(
+            eq(invoiceSettlementSubmissions.invoiceId, invoiceId),
+            eq(invoiceSettlementSubmissions.status, "submitted"),
+          ),
+        )
+        .orderBy(
+          desc(invoiceSettlementSubmissions.id),
+          desc(invoiceSettlementSubmissions.createdAt),
+        )
+        .limit(1);
+
+      const requestKey = `correctSettlementProof:${invoiceId}:${idempotencyKey}`;
       const claim = await claimRequest(tx, {
         requestKey,
         operation: "correctSettlementProof",
         actorUserId: actor.id,
-        scope: { invoiceId },
+        scope: {
+          invoiceId,
+          idempotencyKey,
+          submissionId: targetSubmission?.id ?? null,
+        },
       });
       if (claim.kind === "conflict") {
         return reservationFailure("CONFLICT_RETRY");
@@ -1396,6 +1421,13 @@ export async function correctSettlementProof(
           .where(eq(invoiceSettlementSubmissions.id, row.id));
       }
 
+      if (latestPayment?.fileKey) {
+        await tx
+          .update(payments)
+          .set({ fileKey: null, updatedAt: new Date() })
+          .where(eq(payments.id, latestPayment.id));
+      }
+
       await tx
         .update(standReservations)
         .set({ status: "pending", updatedAt: new Date() })
@@ -1416,7 +1448,7 @@ export async function correctSettlementProof(
           correction: "remove_proof",
           reason,
         },
-        idempotencyKey: requestKey,
+        idempotencyKey,
       });
 
       const ownerEmail = await userEmail(tx, invoice.userId);

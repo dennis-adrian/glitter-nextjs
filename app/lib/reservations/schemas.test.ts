@@ -195,6 +195,12 @@ describe("reservation runtime schemas", () => {
         idempotencyKey: SAMPLE_KEY,
       }).success,
     ).toBe(false);
+    expect(
+      parseUnknown(correctSettlementProofSchema, {
+        invoiceId: 9,
+        reason: "comprobante ilegible",
+      }).success,
+    ).toBe(false);
   });
 
   it("parses a future deadline as a Date", () => {

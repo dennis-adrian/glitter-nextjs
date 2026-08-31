@@ -1011,6 +1011,8 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       .from(invoiceSettlementSubmissions)
       .where(eq(invoiceSettlementSubmissions.invoiceId, invoice.id));
 
+    const correctionKey = randomUUID();
+    trackRequestKey(correctionKey);
     const reuploadKey = randomUUID();
     trackRequestKey(reuploadKey);
     const [approveResult, correctResult, reuploadResult] =
@@ -1023,6 +1025,7 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
             correctSettlementProof({
               invoiceId: invoice.id,
               reason: "archivo ilegible",
+              idempotencyKey: correctionKey,
             }),
           ),
           withActor(owner, () =>
