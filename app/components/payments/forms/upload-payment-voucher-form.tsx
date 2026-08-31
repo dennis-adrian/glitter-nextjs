@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ export default function UploadPaymentVoucherForm(
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const form = useForm();
-  const paymentIntentKeyRef = useRef(crypto.randomUUID());
+  const [paymentIntentKey] = useState(() => crypto.randomUUID());
 
   const action = form.handleSubmit(async () => {
     const voucherUrl = props.newVoucherUrl;
@@ -37,7 +37,7 @@ export default function UploadPaymentVoucherForm(
       const res = await createPayment({
         invoiceId: props.invoice.id,
         voucherUrl,
-        idempotencyKey: paymentIntentKeyRef.current,
+        idempotencyKey: paymentIntentKey,
       });
 
       if (res.success) {

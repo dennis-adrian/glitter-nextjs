@@ -7,7 +7,7 @@ import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { useRouter } from "next/navigation";
-import { useRef } from "react";
+import { useState } from "react";
 
 type ConfirmReservationFormProps = {
   invoice: InvoiceWithParticipants;
@@ -17,7 +17,7 @@ type ConfirmReservationFormProps = {
 export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
   const form = useForm();
   const router = useRouter();
-  const confirmIntentKeyRef = useRef(crypto.randomUUID());
+  const [confirmIntentKey] = useState(() => crypto.randomUUID());
 
   const action = form.handleSubmit(async () => {
     const voucherUrl = props.invoice.payments.find(
@@ -26,7 +26,7 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
     const result = await adminConfirmReservationAction({
       invoiceId: props.invoice.id,
       markAsPaid: props.markAsPaid,
-      idempotencyKey: confirmIntentKeyRef.current,
+      idempotencyKey: confirmIntentKey,
       voucherUrl,
     });
     if (result.success) {
