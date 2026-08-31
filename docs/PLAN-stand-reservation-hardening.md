@@ -44,7 +44,7 @@ The shipped work delivered security containment, canonical participant policy, a
 | 0 — Immediate security containment | Auth, ownership, Zod, no caller-supplied objects | **Implemented** (legacy payment route still present, hardened) |
 | 1 — Canonical policy and participant flow | Shared policy for pages, holds, confirmation, partners | **Implemented** |
 | 2 — Additive schema, preflight, data repair | Columns, money, events, scripts, unique hold/stand indexes | **Partial** — code shipped; environment repair, clean preflight, and constraint rollout remain |
-| 3 — Transaction and payment rewrite | Locks, settlement commands, outbox, UploadThing callback | **Next** |
+| 3 — Transaction and payment rewrite | Locks, settlement commands, outbox, UploadThing callback | **Partial — in progress** — settlement service, request registry, and notification outbox shipped (PR #475/#476); UploadThing callback and concurrency matrix remain |
 | 4 — Cleanup, privacy, and performance | Cron-safe polling, DTOs, indexes, latency budgets | Partial early work only |
 | 5 — UX, accessibility, and documentation | Recoverable errors, list view, voseo, Playwright, PRDs | Partial copy/error work only |
 | 6 — Rollout and deletion of legacy paths | Flag, rehearsal, remove `/api/payments` and compatibility | Not started |
@@ -93,6 +93,8 @@ app/lib/reservations/queries.ts
 app/lib/reservations/dto.ts
 app/lib/reservations/errors.ts
 app/lib/reservations/hold-service.ts
+app/lib/reservations/payment-service.ts
+app/lib/reservations/payment-actions.ts
 app/lib/reservations/participant-actions.ts
 app/api/cron/morning/standHoldExpiration/route.ts
 scripts/audit-reservation-invariants.ts
@@ -106,7 +108,6 @@ Planned files not created (behavior lives elsewhere or is still pending):
 | `authorization.ts` | `policy.ts` (`canMutateAdminReservations`, invoice/collaborator helpers) |
 | `reservation-service.ts` | `hold-service.ts` (`confirmStandHold`) |
 | `admin-service.ts` | `admin-actions.ts` (still `"use server"`) |
-| `payment-service.ts` / `payment-actions.ts` | `app/data/invoices/actions.ts` |
 | `notification-outbox.ts` | Table only |
 | `health.ts` | `scripts/audit-reservation-invariants.ts` |
 | `app/api/cron/morning/reservationNotifications/route.ts` | Not started. Existing `reservationReminders` cron is a separate reminder job. |
@@ -532,15 +533,15 @@ Add `invoice_settlement_submissions` with immutable submission/evidence fields a
 | `id` | serial PK | | Implemented |
 | `invoice_id` | FK invoices | Canonical invoice being reviewed. | Implemented |
 | `payment_id` | FK payments nullable | Required only for `payment_proof`. | Implemented |
-| `kind` | settlement kind | Proof or zero-value entitlement. | Not started |
-| `status` | settlement status | Admin review state. | Not started |
-| `submitted_by_user_id` | FK users | Must equal invoice owner for self-service. | Partial — `uploaded_by_user_id` |
-| `reviewed_by_user_id` | FK users nullable | Admin reviewer. | Not started |
-| `reviewed_at` | timestamp nullable | | Not started |
-| `rejection_reason` | text nullable | Sanitized admin reason. | Not started |
-| `evidence_snapshot` | jsonb | Canonical IDs/amounts/scope at submission; no copied PII. | Not started |
+| `kind` | settlement kind | Proof or zero-value entitlement. | Implemented |
+| `status` | settlement status | Admin review state. | Implemented |
+| `submitted_by_user_id` | FK users | Must equal invoice owner for self-service. | Partial — column is `uploaded_by_user_id` |
+| `reviewed_by_user_id` | FK users nullable | Admin reviewer. | Implemented |
+| `reviewed_at` | timestamp nullable | | Implemented |
+| `rejection_reason` | text nullable | Sanitized admin reason. | Implemented |
+| `evidence_snapshot` | jsonb | Canonical IDs/amounts/scope at submission; no copied PII. | Implemented |
 | `idempotency_key` | text; required for new writes | Deduplicates participant submission/retry. | Partial — nullable for legacy rows, partial unique when not null, and public schema still accepts omission |
-| timestamps | timestamps | | Partial — `created_at` only |
+| timestamps | timestamps | | Implemented — `created_at` and `updated_at` |
 
 Constraints:
 
