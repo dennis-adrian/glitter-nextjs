@@ -4,7 +4,12 @@ import { fetchStandById } from "@/app/api/stands/actions";
 import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
-import { lockFestivalRow, lockParticipants } from "@/app/lib/reservations/locks";
+import {
+  lockFestivalRow,
+  lockParticipantEligibilityRows,
+  lockParticipants,
+  lockStandRows,
+} from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
   enqueueAdminAndOwnerNotifications,
@@ -153,7 +158,11 @@ export async function createAdminReservation(
         return outcome;
       };
 
-      // Lock stand row and re-check status inside transaction to avoid race
+      await lockParticipants(tx, festivalId, participantIds);
+      await lockFestivalRow(tx, festivalId);
+      await lockParticipantEligibilityRows(tx, festivalId, participantIds);
+      await lockStandRows(tx, [standId]);
+
       const [lockedStand] = await tx
         .select()
         .from(stands)
@@ -164,8 +173,6 @@ export async function createAdminReservation(
       if (!lockedStand) {
         return finish({ success: false, message: "El espacio no existe" });
       }
-      await lockFestivalRow(tx, festivalId);
-      await lockParticipants(tx, festivalId, participantIds);
       if (lockedStand.festivalId !== festivalId) {
         return finish({
           success: false,
