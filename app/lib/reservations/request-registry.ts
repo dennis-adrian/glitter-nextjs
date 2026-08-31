@@ -103,9 +103,16 @@ export async function claimRequest(
     actorUserId: number;
     scope: RequestScope;
   },
+  options?: {
+    /** Integration-test seam: invoked after the first registry lookup. */
+    testHooks?: {
+      afterInitialLookup?: () => void | Promise<void>;
+    };
+  },
 ): Promise<ClaimRequestResult> {
   const scope = canonicalizeScope(input.scope);
   const existing = await loadRequestRow(tx, input.requestKey);
+  await options?.testHooks?.afterInitialLookup?.();
   if (existing) {
     return interpretExisting({
       row: existing,

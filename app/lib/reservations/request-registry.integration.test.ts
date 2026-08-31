@@ -94,15 +94,16 @@ describeDatabase("claimRequest concurrent duplicate insert", () => {
     };
 
     let winnerInserted = false;
-    let loserMayClaim = false;
+    let resolveClaimBPastInitialLookup!: () => void;
+    const claimBPastInitialLookup = new Promise<void>((resolve) => {
+      resolveClaimBPastInitialLookup = resolve;
+    });
 
     const claimA = dbA!.transaction(async (tx) => {
       const claim = await claimRequest(tx, claimInput);
       if (claim.kind === "claimed") {
         winnerInserted = true;
-        while (!loserMayClaim) {
-          await sleep(5);
-        }
+        await claimBPastInitialLookup;
         await completeRequest(tx, requestKey, { reservationId: 100 });
       }
       return claim;
@@ -112,8 +113,13 @@ describeDatabase("claimRequest concurrent duplicate insert", () => {
       while (!winnerInserted) {
         await sleep(5);
       }
-      loserMayClaim = true;
-      return claimRequest(tx, claimInput);
+      return claimRequest(tx, claimInput, {
+        testHooks: {
+          afterInitialLookup: () => {
+            resolveClaimBPastInitialLookup();
+          },
+        },
+      });
     });
 
     const [resultA, resultB] = await Promise.all([claimA, claimB]);
