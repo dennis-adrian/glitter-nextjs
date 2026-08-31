@@ -291,6 +291,148 @@ async function main() {
     });
   }
 
+  const tooManyParticipants = await db.execute<{ id: number; n: number }>(sql`
+    SELECT reservation_id AS id, count(*)::int AS n
+    FROM participations
+    GROUP BY reservation_id
+    HAVING count(*) > 2
+  `);
+  if (tooManyParticipants.rows.length > 0) {
+    findings.push({
+      name: "reservation_more_than_two_participants",
+      count: tooManyParticipants.rows.length,
+      ids: tooManyParticipants.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const nonIllustrationPartner = await db.execute<{ id: number }>(sql`
+    SELECT sr.id
+    FROM stand_reservations sr
+    INNER JOIN stands ON stands.id = sr.stand_id
+    WHERE (
+      SELECT count(*) FROM participations p WHERE p.reservation_id = sr.id
+    ) > 1
+    AND (
+      stands.stand_category NOT IN ('illustration', 'new_artist')
+      OR EXISTS (
+        SELECT 1
+        FROM participations p
+        INNER JOIN users u ON u.id = p.user_id
+        WHERE p.reservation_id = sr.id
+          AND (
+            (sr.owner_user_id IS NOT NULL AND p.user_id <> sr.owner_user_id)
+            OR (
+              sr.owner_user_id IS NULL
+              AND p.id <> (
+                SELECT p2.id
+                FROM participations p2
+                WHERE p2.reservation_id = sr.id
+                ORDER BY p2.id
+                LIMIT 1
+              )
+            )
+          )
+          AND u.category NOT IN ('illustration', 'new_artist')
+      )
+    )
+  `);
+  if (nonIllustrationPartner.rows.length > 0) {
+    findings.push({
+      name: "non_illustration_partner_on_shared_reservation",
+      count: nonIllustrationPartner.rows.length,
+      ids: nonIllustrationPartner.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const paidInvoiceNotAccepted = await db
+    .select({ id: invoices.id })
+    .from(invoices)
+    .innerJoin(
+      standReservations,
+      eq(standReservations.id, invoices.reservationId),
+    )
+    .where(
+      and(eq(invoices.status, "paid"), ne(standReservations.status, "accepted")),
+    );
+  if (paidInvoiceNotAccepted.length > 0) {
+    findings.push({
+      name: "paid_invoice_reservation_not_accepted",
+      count: paidInvoiceNotAccepted.length,
+      ids: paidInvoiceNotAccepted.map((row) => row.id),
+    });
+  }
+
+  const pendingReservationPaidInvoice = await db
+    .select({ id: standReservations.id })
+    .from(standReservations)
+    .innerJoin(invoices, eq(invoices.reservationId, standReservations.id))
+    .where(
+      and(eq(standReservations.status, "pending"), eq(invoices.status, "paid")),
+    );
+  if (pendingReservationPaidInvoice.length > 0) {
+    findings.push({
+      name: "pending_reservation_invoice_paid",
+      count: pendingReservationPaidInvoice.length,
+      ids: pendingReservationPaidInvoice.map((row) => row.id),
+    });
+  }
+
+  const verificationMismatch = await db.execute<{ id: number }>(sql`
+    SELECT stand_reservations.id
+    FROM stand_reservations
+    INNER JOIN invoices ON invoices.reservation_id = stand_reservations.id
+    WHERE (
+      stand_reservations.status = 'verification_payment'
+      AND invoices.status <> 'verification_payment'
+    ) OR (
+      invoices.status = 'verification_payment'
+      AND stand_reservations.status <> 'verification_payment'
+    )
+  `);
+  if (verificationMismatch.rows.length > 0) {
+    findings.push({
+      name: "verification_payment_status_mismatch",
+      count: verificationMismatch.rows.length,
+      ids: verificationMismatch.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const proofSettlementMissingPaymentRow = await db.execute<{ id: number }>(sql`
+    SELECT invoice_settlement_submissions.id
+    FROM invoice_settlement_submissions
+    LEFT JOIN payments ON payments.id = invoice_settlement_submissions.payment_id
+    WHERE invoice_settlement_submissions.kind = 'payment_proof'
+      AND invoice_settlement_submissions.status = 'submitted'
+      AND payments.id IS NULL
+  `);
+  if (proofSettlementMissingPaymentRow.rows.length > 0) {
+    findings.push({
+      name: "submitted_proof_settlement_payment_row_missing",
+      count: proofSettlementMissingPaymentRow.rows.length,
+      ids: proofSettlementMissingPaymentRow.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const paymentOutsideLifecycle = await db.execute<{ id: number }>(sql`
+    SELECT payments.id
+    FROM payments
+    INNER JOIN invoices ON invoices.id = payments.invoice_id
+    WHERE invoices.status IN ('verification_payment', 'paid')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM invoice_settlement_submissions
+        WHERE invoice_settlement_submissions.invoice_id = invoices.id
+          AND invoice_settlement_submissions.kind = 'payment_proof'
+      )
+  `);
+  if (paymentOutsideLifecycle.rows.length > 0) {
+    findings.push({
+      name: "payment_without_proof_settlement_lifecycle",
+      count: paymentOutsideLifecycle.rows.length,
+      ids: paymentOutsideLifecycle.rows.map((row) => Number(row.id)),
+    });
+  }
+
   const multipleSettlements = await db.execute<{ invoice_id: number }>(sql`
     SELECT invoice_id
     FROM invoice_settlement_submissions

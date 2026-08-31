@@ -70,7 +70,7 @@ export function ExtendDeadlineForm({
     try {
       const res = await extendReservationPaymentDeadline({
         reservationId,
-        newDueDate: new Date(data.newDueDate),
+        dueAt: new Date(data.newDueDate),
       });
       if (res.success) {
         toast.success(res.message);

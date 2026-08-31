@@ -1,6 +1,6 @@
 "use client";
 
-import { deleteReservation } from "@/app/api/reservations/actions";
+import { cancelReservation } from "@/app/lib/reservations/admin-actions";
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 
 import { useForm } from "react-hook-form";
@@ -18,7 +18,7 @@ export function DeleteReservationForm({
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-    const res = await deleteReservation(reservation.id);
+    const res = await cancelReservation({ reservationId: reservation.id });
     if (res.success) {
       toast.success(res.message);
       onSuccess();

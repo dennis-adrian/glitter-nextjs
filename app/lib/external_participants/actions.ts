@@ -1,47 +1,18 @@
 "use server";
 
 import { db } from "@/db";
-import {
-  externalParticipants,
-  reservationExternalParticipants,
-  standReservations,
-  stands,
-} from "@/db/schema";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { externalParticipants } from "@/db/schema";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
+import { createExternalParticipantReservation as assignExternalParticipantReservation } from "@/app/lib/reservations/capacity-service";
 
 import {
   externalParticipantInputSchema,
   ExternalParticipantInput,
 } from "./schema";
 import type { ExternalParticipant } from "./definitions";
-
-const AssignmentSchema = z
-  .object({
-    festivalId: z.coerce.number().int().positive(),
-    standId: z.coerce.number().int().positive(),
-    externalParticipantId: z.coerce.number().int().positive().optional(),
-    externalParticipant: externalParticipantInputSchema.optional(),
-    // Moment before which the reservation stays hidden from participants.
-    // Omit (undefined) to fall back to the festival's reservation start date;
-    // pass null to make the reservation visible immediately.
-    revealAt: z.coerce.date().nullish(),
-  })
-  .refine(
-    (data) => {
-      const hasId = data.externalParticipantId != null;
-      const hasNew = data.externalParticipant != null;
-      return hasId !== hasNew;
-    },
-    {
-      message:
-        "Indicá un participante existente o los datos de uno nuevo, no ambos",
-    },
-  );
 
 export type FetchExternalParticipantResult =
   | { found: true; participant: ExternalParticipant }
@@ -267,146 +238,6 @@ export async function updateExternalParticipant(
   }
 }
 
-export async function createExternalParticipantReservation(
-  input: z.infer<typeof AssignmentSchema>,
-): Promise<{ success: boolean; message: string; reservationId?: number }> {
-  const currentProfile = await requireExternalParticipantManager();
-  if (!currentProfile) {
-    return {
-      success: false,
-      message: "No tienes permisos para realizar esta acción",
-    };
-  }
-
-  const parsed = AssignmentSchema.safeParse(input);
-  if (!parsed.success) {
-    return {
-      success: false,
-      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
-    };
-  }
-
-  const { festivalId, standId, externalParticipantId, externalParticipant } =
-    parsed.data;
-
-  const festival = await fetchBaseFestival(festivalId);
-  if (!festival) {
-    return { success: false, message: "El festival no existe" };
-  }
-  const revealAt =
-    parsed.data.revealAt === undefined
-      ? festival.reservationsStartDate
-      : parsed.data.revealAt;
-
-  try {
-    const reservationId = await db.transaction(async (tx) => {
-      const [lockedStand] = await tx
-        .select()
-        .from(stands)
-        .where(and(eq(stands.id, standId), eq(stands.festivalId, festivalId)))
-        .limit(1)
-        .for("update");
-
-      if (!lockedStand) {
-        throw new Error("STAND_NOT_FOUND");
-      }
-
-      if (lockedStand.status !== "available") {
-        throw new Error("STAND_NOT_AVAILABLE");
-      }
-
-      let participantId = externalParticipantId;
-
-      if (participantId) {
-        const existing = await tx.query.externalParticipants.findFirst({
-          where: eq(externalParticipants.id, participantId),
-        });
-        if (!existing) {
-          throw new Error("EXTERNAL_PARTICIPANT_NOT_FOUND");
-        }
-      } else if (externalParticipant) {
-        const [created] = await tx
-          .insert(externalParticipants)
-          .values(
-            mapExternalParticipantInput(externalParticipant, currentProfile.id),
-          )
-          .returning({ id: externalParticipants.id });
-
-        participantId = created.id;
-      }
-
-      if (!participantId) {
-        throw new Error("EXTERNAL_PARTICIPANT_REQUIRED");
-      }
-
-      const [reservation] = await tx
-        .insert(standReservations)
-        .values({
-          festivalId,
-          standId,
-          status: "accepted",
-          source: "admin_assignment",
-          revealAt,
-        })
-        .returning({ id: standReservations.id });
-
-      await tx.insert(reservationExternalParticipants).values({
-        externalParticipantId: participantId,
-        reservationId: reservation.id,
-      });
-
-      await tx
-        .update(stands)
-        .set({ status: "confirmed", updatedAt: new Date() })
-        .where(eq(stands.id, standId));
-
-      return reservation.id;
-    });
-
-    revalidatePath("/dashboard/external_participants");
-    revalidatePath("/dashboard/festivals");
-    revalidatePath(`/dashboard/festivals/${festivalId}`);
-    revalidatePath(`/dashboard/festivals/${festivalId}/reservations`);
-    revalidatePath("/", "layout");
-
-    return {
-      success: true,
-      message: "Reserva externa creada",
-      reservationId,
-    };
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === "STAND_NOT_FOUND") {
-        return { success: false, message: "El espacio no existe" };
-      }
-      if (error.message === "STAND_NOT_AVAILABLE") {
-        return {
-          success: false,
-          message: "El espacio no está disponible",
-        };
-      }
-      if (error.message === "EXTERNAL_PARTICIPANT_NOT_FOUND") {
-        return {
-          success: false,
-          message: "El participante externo no existe",
-        };
-      }
-    }
-
-    if (externalParticipant?.imageUrl) {
-      await deleteOrphanImage(
-        externalParticipant.imageUrl,
-        "Failed to delete uploaded image after reservation create failure",
-      );
-    }
-
-    logExternalParticipantError("createExternalParticipantReservation", error, {
-      festivalId,
-      standId,
-    });
-    return {
-      success: false,
-      message: "Ups! No pudimos crear la reserva externa",
-    };
-  }
+export async function createExternalParticipantReservation(input: unknown) {
+  return assignExternalParticipantReservation(input);
 }

@@ -1521,7 +1521,10 @@ export const reservationRequestRegistry = pgTable(
         'submitPaymentProof',
         'submitZeroValueInvoice',
         'createAdminReservation',
-        'adminConfirmReservation'
+        'adminConfirmReservation',
+        'extendReservationPaymentDeadline',
+        'createExternalParticipantReservation',
+        'correctSettlementProof'
       )`,
     ),
   ],

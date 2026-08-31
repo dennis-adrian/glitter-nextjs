@@ -14,6 +14,7 @@ import {
 } from "@/app/components/ui/drawer-dialog";
 import { approveInvoiceSettlementAction } from "@/app/lib/reservations/payment-actions";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { isActivePaymentProof } from "@/app/lib/payments/helpers";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { useRouter } from "next/navigation";
 
@@ -87,7 +88,7 @@ export default function AdminPaymentProofDialog({
           </DrawerDialogDescription>
         </DrawerDialogHeader>
         <div className="space-y-4 px-4 pb-6 md:px-0 md:pb-0">
-          {invoice.payments.some((payment) => payment.voucherUrl) && (
+          {invoice.payments.some(isActivePaymentProof) && (
             <p className="mb-3 text-xs text-muted-foreground">
               Al guardar un nuevo comprobante, se reemplazará el actual.
             </p>

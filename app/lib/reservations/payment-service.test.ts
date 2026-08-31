@@ -33,20 +33,34 @@ vi.mock("@/app/api/users/actions", () => ({
 const lockCallOrder = vi.hoisted(() => ({ current: [] as string[] }));
 
 vi.mock("@/app/lib/reservations/locks", () => ({
-  lockFestivalRow: vi.fn(async () => {
-    lockCallOrder.current.push("festival");
-  }),
-  lockFestivalTermsDocument: vi.fn(async () => {
-    lockCallOrder.current.push("terms");
-  }),
-  lockParticipantEligibilityRows: vi.fn(async () => {
-    lockCallOrder.current.push("eligibility");
-  }),
-  lockParticipants: vi.fn(async () => {
-    lockCallOrder.current.push("advisory");
-  }),
-  lockStandRows: vi.fn(async () => {
-    lockCallOrder.current.push("stand");
+  uniqueSortedIds: (ids: readonly number[]) =>
+    [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))].sort(
+      (a, b) => a - b,
+    ),
+  lockParticipantsBeforeRegistryClaim: vi.fn(),
+  lockReservationAggregate: vi.fn(async (_tx: unknown, preview: { userIds: readonly number[]; submissionIds?: readonly number[] }) => {
+    lockCallOrder.current.push("advisory", "festival", "terms", "eligibility", "stand");
+    if ((preview.submissionIds?.length ?? 0) > 0) {
+      lockCallOrder.current.push("submission");
+    }
+    const userIds = [
+      ...new Set(preview.userIds.filter((id) => Number.isInteger(id) && id > 0)),
+    ].sort((a, b) => a - b);
+    return {
+      ok: true,
+      locked: {
+        festivalId: 10,
+        userIds,
+        standIds: [7],
+        holdIds: [],
+        reservationIds: [4],
+        invoiceIds: [9],
+        paymentIds: [],
+        submissionIds: preview.submissionIds ?? [],
+        scheduledTaskIds: [],
+        participantsByReservationId: new Map(),
+      },
+    };
   }),
 }));
 
@@ -80,6 +94,7 @@ vi.mock("next/cache", () => ({
 import {
   adminConfirmReservation,
   approveInvoiceSettlement,
+  correctSettlementProof,
   findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
   submitPaymentProof,
@@ -165,23 +180,26 @@ function createTx(options: {
                   },
                 ]
               : [];
+            const limited = Object.assign(Promise.resolve(rows), {
+              for: vi.fn(() => {
+                lockCallOrder.current.push("submission");
+                return Promise.resolve(rows);
+              }),
+            });
             return Object.assign(Promise.resolve(rows), {
-              limit: vi.fn(() =>
-                Object.assign(Promise.resolve(rows), {
-                  for: vi.fn(() => {
-                    lockCallOrder.current.push("submission");
-                    return Promise.resolve(rows);
-                  }),
-                }),
-              ),
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => limited),
+              })),
+              limit: vi.fn(() => limited),
             });
           }
           if (table === payments) {
-            return {
+            const paymentRows = invoicePayments;
+            return Object.assign(Promise.resolve(paymentRows), {
               orderBy: vi.fn(() => ({
                 limit: vi.fn().mockResolvedValue(invoicePayments.slice(0, 1)),
               })),
-            };
+            });
           }
           if (table === users) {
             return {
@@ -225,6 +243,9 @@ function createTx(options: {
         };
       },
     })),
+    delete: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue([]),
+    })),
   };
 
   return tx;
@@ -249,6 +270,8 @@ describe("submitPaymentProof", () => {
     currentProfileMock.mockResolvedValue(null);
     const result = await submitPaymentProof({
       invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       voucherUrl: "https://files.example.com/f/abc",
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
@@ -274,6 +297,8 @@ describe("submitPaymentProof", () => {
 
     const result = await submitPaymentProof({
       invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       voucherUrl: "https://files.example.com/f/abc",
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
@@ -297,6 +322,8 @@ describe("submitPaymentProof", () => {
 
     const result = await submitPaymentProof({
       invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       voucherUrl: "https://files.example.com/f/abc",
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
@@ -323,6 +350,8 @@ describe("submitPaymentProof", () => {
 
     await submitPaymentProof({
       invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       voucherUrl: "https://files.example.com/f/abc",
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
       amount: 1,
@@ -376,6 +405,8 @@ describe("submitPaymentProof", () => {
 
     await submitPaymentProof({
       invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       voucherUrl: "https://files.example.com/replacement.pdf",
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
@@ -412,6 +443,8 @@ describe("submitPaymentProof", () => {
 
     const result = await submitPaymentProof({
       invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       voucherUrl: "https://files.example.com/f/abc",
       idempotencyKey,
     });
@@ -442,6 +475,8 @@ describe("submitPaymentProof", () => {
 
     await submitPaymentProof({
       invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       voucherUrl: "https://files.example.com/f/abc",
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
@@ -691,6 +726,282 @@ describe("rejectInvoiceSettlement", () => {
       "submission",
     ]);
     expect(scheduleJobsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("correctSettlementProof", () => {
+  const idempotencyKey = "11111111-1111-4111-8111-111111111111";
+
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    enqueueNotificationsMock.mockReset();
+    scheduleJobsMock.mockReset();
+    insertEventMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
+    enqueueNotificationsMock.mockResolvedValue([1]);
+  });
+
+  it("rejects unauthenticated and festival_admin callers", async () => {
+    currentProfileMock.mockResolvedValue(null);
+    await expect(
+      correctSettlementProof({ invoiceId: 9, reason: "ilegible" }),
+    ).resolves.toMatchObject({ success: false, code: "UNAUTHORIZED" });
+
+    currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
+    await expect(
+      correctSettlementProof({ invoiceId: 9, reason: "ilegible" }),
+    ).resolves.toMatchObject({ success: false, code: "UNAUTHORIZED" });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty reason or missing idempotency key", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const emptyReason = await correctSettlementProof({
+      invoiceId: 9,
+      reason: " ",
+      idempotencyKey,
+    });
+    expect(emptyReason).toMatchObject({ success: false, code: "VALIDATION" });
+
+    const missingKey = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+    });
+    expect(missingKey).toMatchObject({ success: false, code: "VALIDATION" });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a paid accepted reservation without deleting payments", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = createTx({
+      invoice: {
+        id: 9,
+        userId: 8,
+        status: "paid",
+        amount: 150,
+        reservationId: 4,
+      },
+      reservation: {
+        standId: 7,
+        status: "accepted",
+        festivalId: 10,
+      },
+      payments: [
+        {
+          id: 3,
+          invoiceId: 9,
+          amount: 150,
+          date: new Date(),
+          voucherUrl: "https://files.example.com/f/abc",
+          fileKey: "uploadthing-key",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "INVOICE_NOT_PENDING",
+    });
+    expect(tx.delete).not.toHaveBeenCalled();
+  });
+
+  it("rejects submitted settlements, moves reservation and invoice to pending, and keeps payments", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = createTx({
+      invoice: {
+        id: 9,
+        userId: 8,
+        status: "verification_payment",
+        amount: 150,
+        reservationId: 4,
+      },
+      reservation: {
+        standId: 7,
+        status: "verification_payment",
+        festivalId: 10,
+      },
+      existingSettlement: {
+        id: 21,
+        invoiceId: 9,
+        status: "submitted",
+        kind: "payment_proof",
+        paymentId: 3,
+      },
+      payments: [
+        {
+          id: 3,
+          invoiceId: 9,
+          amount: 150,
+          date: new Date(),
+          voucherUrl: "https://files.example.com/f/abc",
+          fileKey: "uploadthing-key",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+
+    expect(result.success).toBe(true);
+    expect(tx.delete).not.toHaveBeenCalled();
+    expect(tx.updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "rejected" }),
+        expect.objectContaining({ fileKey: null }),
+        expect.objectContaining({ status: "pending" }),
+      ]),
+    );
+    expect(claimRequestMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        requestKey: `correctSettlementProof:9:${idempotencyKey}`,
+        scope: expect.objectContaining({
+          invoiceId: 9,
+          idempotencyKey,
+          submissionId: 21,
+        }),
+      }),
+    );
+    expect(insertEventMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: "settlement_rejected",
+        idempotencyKey,
+        payload: expect.objectContaining({ correction: "remove_proof" }),
+      }),
+    );
+    expect(completeRequestMock).toHaveBeenCalledWith(
+      tx,
+      `correctSettlementProof:9:${idempotencyKey}`,
+      { invoiceId: 9 },
+    );
+  });
+
+  it("replays when the registry returns a completed correction", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    claimRequestMock.mockResolvedValue({ kind: "replayed" });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback(
+          createTx({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "verification_payment",
+              amount: 150,
+              reservationId: 4,
+            },
+            reservation: {
+              standId: 7,
+              status: "verification_payment",
+              festivalId: 10,
+            },
+          }),
+        ),
+    );
+
+    const first = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+    const second = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    expect(claimRequestMock).toHaveBeenCalledTimes(2);
+    expect(claimRequestMock.mock.calls[0]?.[1]?.requestKey).toBe(
+      `correctSettlementProof:9:${idempotencyKey}`,
+    );
+    expect(claimRequestMock.mock.calls[1]?.[1]?.requestKey).toBe(
+      `correctSettlementProof:9:${idempotencyKey}`,
+    );
+    expect(insertEventMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a new correction when a different idempotency key is used", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const otherKey = "22222222-2222-4222-8222-222222222222";
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback(
+          createTx({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "verification_payment",
+              amount: 150,
+              reservationId: 4,
+            },
+            reservation: {
+              standId: 7,
+              status: "verification_payment",
+              festivalId: 10,
+            },
+            existingSettlement: {
+              id: 21,
+              invoiceId: 9,
+              status: "submitted",
+              kind: "payment_proof",
+              paymentId: 3,
+            },
+          }),
+        ),
+    );
+
+    await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+    await correctSettlementProof({
+      invoiceId: 9,
+      reason: "otro motivo",
+      idempotencyKey: otherKey,
+    });
+
+    expect(claimRequestMock).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({
+        requestKey: `correctSettlementProof:9:${idempotencyKey}`,
+      }),
+    );
+    expect(claimRequestMock).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        requestKey: `correctSettlementProof:9:${otherKey}`,
+      }),
+    );
   });
 });
 

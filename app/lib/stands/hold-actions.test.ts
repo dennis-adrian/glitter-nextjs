@@ -40,10 +40,17 @@ vi.mock("@/app/lib/festivals/actions", () => ({
 }));
 
 vi.mock("@/app/lib/reservations/locks", () => ({
+  uniqueSortedIds: (ids: readonly number[]) =>
+    [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))].sort(
+      (a, b) => a - b,
+    ),
   lockFestivalRow: vi.fn(),
   lockFestivalTermsDocument: vi.fn(),
+  lockHoldRows: vi.fn(),
   lockParticipantEligibilityRows: vi.fn(),
   lockParticipants: vi.fn(),
+  lockParticipantsBeforeRegistryClaim: vi.fn(),
+  lockReservationAggregate: vi.fn(),
   lockStandRows: vi.fn(),
 }));
 
@@ -72,12 +79,28 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+vi.mock("@/app/lib/reservations/occupancy", () => ({
+  releaseStandIfVacant: vi.fn(),
+}));
+
+vi.mock("@/app/lib/reservations/partner-eligibility", () => ({
+  assertReservationPartner: vi.fn(),
+}));
+
+vi.mock("@/app/lib/reservations/events", () => ({
+  insertStandReservationEvent: vi.fn(),
+}));
+
 import { reservationFailure } from "@/app/lib/reservations/errors";
+import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import {
   lockFestivalRow,
   lockFestivalTermsDocument,
+  lockHoldRows,
   lockParticipantEligibilityRows,
   lockParticipants,
+  lockParticipantsBeforeRegistryClaim,
+  lockReservationAggregate,
   lockStandRows,
 } from "@/app/lib/reservations/locks";
 import {
@@ -126,12 +149,32 @@ describe("stand hold authorization and eligibility wiring", () => {
     abandonRequestMock.mockReset();
     vi.mocked(lockFestivalRow).mockReset();
     vi.mocked(lockFestivalTermsDocument).mockReset();
+    vi.mocked(lockHoldRows).mockReset();
     vi.mocked(lockParticipantEligibilityRows).mockReset();
     vi.mocked(lockParticipants).mockReset();
+    vi.mocked(lockParticipantsBeforeRegistryClaim).mockReset();
+    vi.mocked(lockReservationAggregate).mockReset();
     vi.mocked(lockStandRows).mockReset();
+    vi.mocked(assertReservationPartner).mockReset();
     denySelfServiceMock.mockResolvedValue(null);
     denyStandMock.mockResolvedValue(null);
+    vi.mocked(assertReservationPartner).mockResolvedValue(null);
     claimRequestMock.mockResolvedValue({ kind: "claimed" });
+    vi.mocked(lockReservationAggregate).mockResolvedValue({
+      ok: true,
+      locked: {
+        festivalId: 10,
+        userIds: [3],
+        standIds: [7],
+        holdIds: [20],
+        reservationIds: [],
+        invoiceIds: [],
+        paymentIds: [],
+        submissionIds: [],
+        scheduledTaskIds: [],
+        participantsByReservationId: new Map(),
+      },
+    });
   });
 
   it("rejects unauthenticated hold creation", async () => {
@@ -177,14 +220,16 @@ describe("stand hold authorization and eligibility wiring", () => {
     );
     const insert = vi.fn();
     const select = vi
-      .fn()
+      .fn(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([availableStand]))
+      .mockImplementationOnce(() => selectChain([availableStand]))
+      .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([availableStand]));
     const tx = {
       select,
       insert,
-      delete: vi.fn(),
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
       update: vi.fn(),
     };
     transactionMock.mockImplementation(
@@ -227,16 +272,27 @@ describe("stand hold authorization and eligibility wiring", () => {
       order.push("stand");
       return [];
     });
+    vi.mocked(lockHoldRows).mockImplementation(async () => {
+      order.push("holds");
+      return [];
+    });
     denySelfServiceMock.mockImplementation(async () => {
       order.push("eligibilityCheck");
       return reservationFailure("SANCTION_BLOCKED");
     });
     const select = vi
-      .fn()
+      .fn(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([availableStand]))
       .mockImplementationOnce(() => selectChain([availableStand]))
       .mockImplementationOnce(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([availableStand]));
-    const tx = { select, insert: vi.fn(), delete: vi.fn(), update: vi.fn() };
+    const tx = {
+      select,
+      insert: vi.fn(),
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      update: vi.fn(),
+    };
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -252,7 +308,11 @@ describe("stand hold authorization and eligibility wiring", () => {
       "terms",
       "eligibilityRows",
       "stand",
+      "holds",
       "eligibilityCheck",
+    ]);
+    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(tx, 10, [
+      3,
     ]);
   });
 
@@ -276,6 +336,34 @@ describe("stand hold authorization and eligibility wiring", () => {
       order.push("stand");
       return [];
     });
+    vi.mocked(lockReservationAggregate).mockImplementation(
+      async (tx, preview) => {
+        await lockParticipants(tx, preview.festivalId, preview.userIds);
+        await lockFestivalRow(tx, preview.festivalId);
+        await lockFestivalTermsDocument(tx);
+        await lockParticipantEligibilityRows(
+          tx,
+          preview.festivalId,
+          preview.userIds,
+        );
+        await lockStandRows(tx, preview.standIds);
+        return {
+          ok: true as const,
+          locked: {
+            festivalId: preview.festivalId,
+            userIds: [...preview.userIds],
+            standIds: [...preview.standIds],
+            holdIds: [...(preview.holdIds ?? [])],
+            reservationIds: [],
+            invoiceIds: [],
+            paymentIds: [],
+            submissionIds: [],
+            scheduledTaskIds: [],
+            participantsByReservationId: new Map(),
+          },
+        };
+      },
+    );
     denySelfServiceMock.mockImplementation(async () => {
       order.push("eligibilityCheck");
       return reservationFailure("SANCTION_BLOCKED");
@@ -311,6 +399,9 @@ describe("stand hold authorization and eligibility wiring", () => {
       "stand",
       "eligibilityCheck",
     ]);
+    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(tx, 10, [
+      3, 4,
+    ]);
     expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 4]);
     expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 4]);
     expect(lockStandRows).toHaveBeenCalledWith(tx, [7]);
@@ -318,9 +409,7 @@ describe("stand hold authorization and eligibility wiring", () => {
 
   it("rejects a partner who fails eligibility during confirmation", async () => {
     authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
-    denySelfServiceMock.mockResolvedValue(null);
-    denySelfServiceMock.mockResolvedValueOnce(null);
-    denySelfServiceMock.mockResolvedValueOnce(
+    vi.mocked(assertReservationPartner).mockResolvedValue(
       reservationFailure("PARTNER_NOT_ELIGIBLE"),
     );
     const insert = vi.fn();
@@ -356,9 +445,13 @@ describe("stand hold authorization and eligibility wiring", () => {
       success: false,
       code: "PARTNER_NOT_ELIGIBLE",
     });
-    expect(denySelfServiceMock).toHaveBeenLastCalledWith(
+    expect(assertReservationPartner).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({ userId: 4, asPartner: true }),
+      expect.objectContaining({
+        partnerUserId: 4,
+        ownerUserId: 3,
+        mode: "self_service",
+      }),
     );
     expect(insert).not.toHaveBeenCalled();
   });
@@ -372,13 +465,17 @@ describe("stand hold authorization and eligibility wiring", () => {
     denySelfServiceMock.mockResolvedValue(reservationFailure("UNAUTHORIZED"));
     const insert = vi.fn();
     const select = vi
-      .fn()
+      .fn(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([availableStand]))
+      .mockImplementationOnce(() => selectChain([availableStand]))
+      .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([availableStand]));
     const tx = {
       select,
       insert,
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      update: vi.fn(),
     };
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
@@ -397,6 +494,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     const insert = vi.fn();
     const select = vi
       .fn()
+      .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([{ festivalId: 10 }]))
       .mockImplementationOnce(() => selectChain([{ id: 88 }]));
@@ -423,6 +521,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     const select = vi
       .fn()
       .mockImplementationOnce(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([]))
       .mockImplementationOnce(() => selectChain([]));
     const tx = { select, insert };
     transactionMock.mockImplementation(
@@ -439,7 +538,7 @@ describe("stand hold authorization and eligibility wiring", () => {
       code: "HOLD_EXPIRED",
     });
     expect(insert).not.toHaveBeenCalled();
-    expect(select).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenCalledTimes(3);
   });
 
   it("replays a confirmation from the request registry before resolving the hold", async () => {
@@ -448,7 +547,7 @@ describe("stand hold authorization and eligibility wiring", () => {
       kind: "replayed",
       resultIds: { reservationId: 88 },
     });
-    const select = vi.fn();
+    const select = vi.fn(() => selectChain([{ festivalId: 10 }]));
     const tx = { select, insert: vi.fn() };
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
@@ -464,7 +563,9 @@ describe("stand hold authorization and eligibility wiring", () => {
       success: true,
       data: { reservationId: 88 },
     });
-    expect(select).not.toHaveBeenCalled();
+    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(tx, 10, [
+      3, 4,
+    ]);
     expect(denySelfServiceMock).not.toHaveBeenCalled();
   });
 
@@ -487,6 +588,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     };
     const select = vi
       .fn()
+      .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([{ id: 88 }]));

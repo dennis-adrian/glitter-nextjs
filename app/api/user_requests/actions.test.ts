@@ -1,11 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
+vi.mock("@/app/lib/user_requests/review-service", () => ({
+  reviewFestivalParticipationRequest: vi.fn(),
+  reviewBecomeArtistRequest: vi.fn(),
+}));
+
 const currentProfileMock = vi.hoisted(() => vi.fn());
-const transactionMock = vi.hoisted(() => vi.fn());
+const requireAdminMock = vi.hoisted(() => vi.fn());
+const requireAdminOrFestivalAdminMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
-  requireAdminOrFestivalAdmin: vi.fn(),
+  requireAdmin: requireAdminMock,
+  requireAdminOrFestivalAdmin: requireAdminOrFestivalAdminMock,
 }));
 
 vi.mock("@/app/lib/reservations/policy", async (importOriginal) => {
@@ -25,25 +34,18 @@ vi.mock("@/app/vendors/resend", () => ({
   sendEmail: vi.fn(),
 }));
 
-vi.mock("@/app/emails/festival-participation-approved", () => ({
-  default: vi.fn(),
-}));
-
-vi.mock("@/app/emails/festival-participation-rejected", () => ({
-  default: vi.fn(),
-}));
-
 vi.mock("@/app/emails/terms-acceptance", () => ({
-  default: vi.fn(),
-}));
-
-vi.mock("@/app/emails/reservation-confirmation", () => ({
   default: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
   db: {
-    transaction: transactionMock,
+    transaction: vi.fn(),
+    query: {
+      users: { findFirst: vi.fn() },
+      festivals: { findFirst: vi.fn() },
+      userRequests: { findFirst: vi.fn(), findMany: vi.fn() },
+    },
   },
 }));
 
@@ -54,32 +56,10 @@ vi.mock("next/cache", () => ({
 import * as userRequestActions from "@/app/api/user_requests/actions";
 
 describe("reservation mutation exposure", () => {
-  it("rejects direct reservation editing by a non-admin caller", async () => {
-    currentProfileMock.mockResolvedValue(null);
-
-    const result = await userRequestActions.updateReservationSimple(
-      10,
-      {} as never,
-    );
-
-    expect(result).toEqual({ success: false, message: "No autorizado" });
-    expect(transactionMock).not.toHaveBeenCalled();
-  });
-
-  it("rejects festival_admin callers from the legacy reservation editor", async () => {
-    currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
-
-    const result = await userRequestActions.updateReservationSimple(
-      10,
-      {} as never,
-    );
-
-    expect(result).toEqual({ success: false, message: "No autorizado" });
-    expect(transactionMock).not.toHaveBeenCalled();
-  });
-
-  it("does not expose the obsolete reservation creation actions", () => {
+  it("does not expose the obsolete reservation mutation actions", () => {
     expect(userRequestActions).not.toHaveProperty("createReservation");
     expect(userRequestActions).not.toHaveProperty("updateReservation");
+    expect(userRequestActions).not.toHaveProperty("updateReservationSimple");
+    expect(userRequestActions).not.toHaveProperty("updateUserRequest");
   });
 });

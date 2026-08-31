@@ -7,6 +7,7 @@ import { cancelReservation } from "@/app/lib/reservations/admin-service";
 import {
   adminConfirmReservation,
   approveInvoiceSettlement,
+  correctSettlementProof,
   findSubmittedSettlementId,
   findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
@@ -41,6 +42,10 @@ export async function rejectInvoiceSettlementAction(input: unknown) {
 
 export async function adminConfirmReservationAction(input: unknown) {
   return adminConfirmReservation(input);
+}
+
+export async function correctSettlementProofAction(input: unknown) {
+  return correctSettlementProof(input);
 }
 
 const adminInvoiceStatusSchema = z.object({

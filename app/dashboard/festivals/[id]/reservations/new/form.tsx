@@ -117,6 +117,7 @@ export default function CreateReservationForm({
 }: Props) {
   const router = useRouter();
   const [adminCreateIntentKey] = useState(() => crypto.randomUUID());
+  const [externalCreateIntentKey] = useState(() => crypto.randomUUID());
 
   const userOptions = users.map((u) => ({
     value: String(u.id),
@@ -210,6 +211,7 @@ export default function CreateReservationForm({
         standId: Number(data.standId),
         externalParticipantId: Number(data.externalParticipantId),
         revealAt: data.revealAt ? fromDateTimeLocal(data.revealAt) : null,
+        idempotencyKey: externalCreateIntentKey,
       });
 
       if (result.success) {
@@ -234,6 +236,7 @@ export default function CreateReservationForm({
       festivalId,
       standId: Number(data.standId),
       revealAt: data.revealAt ? fromDateTimeLocal(data.revealAt) : null,
+      idempotencyKey: externalCreateIntentKey,
       externalParticipant: {
         displayName: data.displayName,
         type: data.type as ExternalParticipant["type"],

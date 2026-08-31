@@ -10,10 +10,16 @@ import {
 import {
   lockFestivalRow,
   lockFestivalTermsDocument,
+  lockHoldRows,
   lockParticipantEligibilityRows,
   lockParticipants,
+  lockParticipantsBeforeRegistryClaim,
+  lockReservationAggregate,
   lockStandRows,
+  uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
+import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
+import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
   enqueueAdminAndOwnerNotifications,
@@ -171,10 +177,7 @@ async function reconcileExpiredHolds(
       )
       .limit(1);
     if (!liveHold && !liveReservation) {
-      await tx
-        .update(stands)
-        .set({ status: "available", updatedAt: input.now })
-        .where(and(eq(stands.id, hold.standId), eq(stands.status, "held")));
+      await releaseStandIfVacant(tx, hold.standId, input.now);
     }
   }
 }
@@ -200,6 +203,17 @@ export async function createStandHold(
 
   try {
     const result = await db.transaction(async (tx) => {
+      const [standPreview] = await tx
+        .select({ festivalId: stands.festivalId })
+        .from(stands)
+        .where(eq(stands.id, standId))
+        .limit(1);
+      if (standPreview?.festivalId != null) {
+        await lockParticipantsBeforeRegistryClaim(tx, standPreview.festivalId, [
+          actor.id,
+        ]);
+      }
+
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
         operation: "createOrReplaceStandHold",
@@ -265,11 +279,34 @@ export async function createStandHold(
         return finish(reservationFailure("STAND_WRONG_FESTIVAL"));
       }
 
+      const existingHoldPreview = await tx
+        .select({
+          id: standHolds.id,
+          standId: standHolds.standId,
+        })
+        .from(standHolds)
+        .where(
+          and(
+            eq(standHolds.userId, actor.id),
+            eq(standHolds.festivalId, stand.festivalId),
+            gt(standHolds.expiresAt, now),
+          ),
+        );
+
+      const standIdsToLock = uniqueSortedIds([
+        stand.id,
+        ...existingHoldPreview.map((hold) => hold.standId),
+      ]);
+
       await lockParticipants(tx, stand.festivalId, [actor.id]);
       await lockFestivalRow(tx, stand.festivalId);
       await lockFestivalTermsDocument(tx);
       await lockParticipantEligibilityRows(tx, stand.festivalId, [actor.id]);
-      await lockStandRows(tx, [stand.id]);
+      await lockStandRows(tx, standIdsToLock);
+      await lockHoldRows(
+        tx,
+        existingHoldPreview.map((hold) => hold.id),
+      );
 
       await reconcileExpiredHolds(tx, {
         standId: stand.id,
@@ -350,28 +387,12 @@ export async function createStandHold(
 
       if (existingHold.length > 0) {
         const oldStandId = existingHold[0].standId;
-        const [firstId, secondId] =
-          oldStandId < freshStand.id
-            ? [oldStandId, freshStand.id]
-            : [freshStand.id, oldStandId];
-        if (firstId !== freshStand.id) {
-          await tx
-            .select({ id: stands.id })
-            .from(stands)
-            .where(eq(stands.id, firstId))
-            .limit(1)
-            .for("update");
-        }
-
         if (freshStand.status !== "available") {
           return finish(reservationFailure("STAND_UNAVAILABLE"));
         }
 
         await tx.delete(standHolds).where(eq(standHolds.id, existingHold[0].id));
-        await tx
-          .update(stands)
-          .set({ status: "available", updatedAt: now })
-          .where(and(eq(stands.id, oldStandId), eq(stands.status, "held")));
+        await releaseStandIfVacant(tx, oldStandId, now);
       }
 
       const [currentStand] = await tx
@@ -438,26 +459,65 @@ export async function cancelStandHold(
   if (!actor || denial) return denial!;
 
   try {
-    await db.transaction(async (tx) => {
-      const [hold] = await tx
-        .select({ id: standHolds.id, standId: standHolds.standId })
+    const outcome = await db.transaction(async (tx) => {
+      const [preview] = await tx
+        .select({
+          id: standHolds.id,
+          standId: standHolds.standId,
+          festivalId: standHolds.festivalId,
+          userId: standHolds.userId,
+        })
         .from(standHolds)
-        .where(
-          and(eq(standHolds.id, parsed.data.holdId), eq(standHolds.userId, actor.id)),
-        )
+        .where(eq(standHolds.id, parsed.data.holdId))
         .limit(1);
 
-      if (!hold) return;
+      if (!preview) {
+        return reservationSuccess(undefined, "Reserva temporal cancelada");
+      }
+      if (preview.userId !== actor.id) {
+        return reservationFailure("HOLD_NOT_OWNED");
+      }
+
+      const locked = await lockReservationAggregate(tx, {
+        festivalId: preview.festivalId,
+        userIds: [actor.id],
+        standIds: [preview.standId],
+        holdIds: [preview.id],
+      });
+      if (!locked.ok) return reservationFailure("CONFLICT_RETRY");
+
+      const [hold] = await tx
+        .select({
+          id: standHolds.id,
+          standId: standHolds.standId,
+          festivalId: standHolds.festivalId,
+          userId: standHolds.userId,
+        })
+        .from(standHolds)
+        .where(eq(standHolds.id, preview.id))
+        .limit(1)
+        .for("update");
+
+      if (!hold) {
+        return reservationSuccess(undefined, "Reserva temporal cancelada");
+      }
+      if (hold.userId !== actor.id) {
+        return reservationFailure("HOLD_NOT_OWNED");
+      }
+      if (
+        hold.standId !== preview.standId ||
+        hold.festivalId !== preview.festivalId
+      ) {
+        return reservationFailure("CONFLICT_RETRY");
+      }
 
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
-      await tx
-        .update(stands)
-        .set({ status: "available", updatedAt: new Date() })
-        .where(and(eq(stands.id, hold.standId), eq(stands.status, "held")));
+      await releaseStandIfVacant(tx, hold.standId);
+      return reservationSuccess(undefined, "Reserva temporal cancelada");
     });
 
     guardedRevalidate();
-    return reservationSuccess(undefined, "Reserva temporal cancelada");
+    return outcome;
   } catch (error) {
     console.error("Error cancelling stand hold", error);
     return reservationFailure("CONFLICT_RETRY");
@@ -478,6 +538,21 @@ export async function confirmStandHold(
   try {
     const admins = await fetchAdminUsers();
     const result = await db.transaction(async (tx) => {
+      const [holdPreviewForLock] = await tx
+        .select({ festivalId: standHolds.festivalId })
+        .from(standHolds)
+        .where(eq(standHolds.id, holdId))
+        .limit(1);
+      if (holdPreviewForLock?.festivalId != null) {
+        await lockParticipantsBeforeRegistryClaim(
+          tx,
+          holdPreviewForLock.festivalId,
+          normalizedPartnerId != null
+            ? [actor.id, normalizedPartnerId]
+            : [actor.id],
+        );
+      }
+
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
         operation: "confirmStandHold",
@@ -583,15 +658,13 @@ export async function confirmStandHold(
       }
 
       const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
-      await lockParticipants(tx, holdPreview.festivalId, participantIds);
-      await lockFestivalRow(tx, holdPreview.festivalId);
-      await lockFestivalTermsDocument(tx);
-      await lockParticipantEligibilityRows(
-        tx,
-        holdPreview.festivalId,
-        participantIds,
-      );
-      await lockStandRows(tx, [holdPreview.standId]);
+      const locked = await lockReservationAggregate(tx, {
+        festivalId: holdPreview.festivalId,
+        userIds: participantIds,
+        standIds: [holdPreview.standId],
+        holdIds: [holdPreview.id],
+      });
+      if (!locked.ok) return finish(reservationFailure("CONFLICT_RETRY"));
 
       const lockedHoldWhere = and(
         eq(standHolds.id, holdId),
@@ -627,8 +700,20 @@ export async function confirmStandHold(
         return finish(reservationFailure("STAND_UNAVAILABLE"));
       }
 
-      if (partnerId === actor.id) {
-        return finish(reservationFailure("PARTNER_NOT_ELIGIBLE"));
+      if (partnerId) {
+        if (partnerId === actor.id) {
+          return finish(reservationFailure("PARTNER_NOT_ELIGIBLE"));
+        }
+        const partnerBlocked = await assertReservationPartner(tx, {
+          festivalId: hold.festivalId,
+          ownerUserId: actor.id,
+          partnerUserId: partnerId,
+          standCategory: hold.standCategory,
+          existingParticipantUserIds: [actor.id],
+          mode: "self_service",
+          actor: { id: actor.id, role: actor.role },
+        });
+        if (partnerBlocked) return finish(partnerBlocked);
       }
 
       const ownerBlocked = await denySelfServiceMutation(tx, {
@@ -659,16 +744,6 @@ export async function confirmStandHold(
         userId: actor.id,
       });
       if (ineligibleStand) return finish(ineligibleStand);
-
-      if (partnerId) {
-        const partnerBlocked = await denySelfServiceMutation(tx, {
-          actor: { id: actor.id, role: actor.role },
-          userId: partnerId,
-          festivalId: hold.festivalId,
-          asPartner: true,
-        });
-        if (partnerBlocked) return finish(partnerBlocked);
-      }
 
       const standPrice = roundMoney(
         hold.priceAmountSnapshot ?? hold.standPrice ?? 0,
@@ -819,10 +894,7 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
           )
           .limit(1);
         if (!liveHold && !liveReservation) {
-          await tx
-            .update(stands)
-            .set({ status: "available", updatedAt: now })
-            .where(and(eq(stands.id, hold.standId), eq(stands.status, "held")));
+          await releaseStandIfVacant(tx, hold.standId, now);
         }
       }
     });
