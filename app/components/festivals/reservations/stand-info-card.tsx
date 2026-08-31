@@ -16,6 +16,10 @@ import { profileHasReservation } from "@/app/helpers/next_event";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 import { formatStandsLabel } from "@/app/lib/stands/groups";
+import {
+  nextHoldIntent,
+  type HoldIntentCache,
+} from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
 
 type ActiveHold = { id: number; standId: number } | null;
@@ -147,11 +151,7 @@ export function StandInfoCard({
   // a joined unit as reservable — only its label widens to name both stands.
   const cardStands = groupStands?.length ? groupStands : [stand];
   const holdMinutes = festival.reservationHoldMinutes ?? 5;
-  const holdIntentKeyRef = useRef<{
-    standId: number;
-    key: string;
-    expiresAt: number;
-  } | null>(null);
+  const holdIntentKeyRef = useRef<HoldIntentCache | null>(null);
   const prevActiveHoldRef = useRef(activeHold);
 
   useEffect(() => {
@@ -167,22 +167,15 @@ export function StandInfoCard({
   }, [activeHold]);
 
   const idempotencyKeyForStand = (standId: number) => {
-    const now = Date.now();
-    const hasLiveHoldOnStand = activeHold?.standId === standId;
-    const cached = holdIntentKeyRef.current;
-    const holdExpired =
-      cached != null && now >= cached.expiresAt && !hasLiveHoldOnStand;
-
-    if (!cached || cached.standId !== standId || holdExpired) {
-      const next = {
-        standId,
-        key: crypto.randomUUID(),
-        expiresAt: now + holdMinutes * 60 * 1000,
-      };
-      holdIntentKeyRef.current = next;
-      return next.key;
-    }
-    return cached.key;
+    const next = nextHoldIntent(
+      holdIntentKeyRef.current,
+      standId,
+      Date.now(),
+      holdMinutes * 60 * 1000,
+      () => crypto.randomUUID(),
+    );
+    holdIntentKeyRef.current = next;
+    return next.key;
   };
 
   const handleSelectStand = () => {
