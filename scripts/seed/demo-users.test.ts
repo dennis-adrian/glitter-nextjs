@@ -80,6 +80,12 @@ describe("DEMO_USERS", () => {
     expect(new Set(participants.map((user) => user.category))).toEqual(
       new Set(["illustration", "gastronomy", "entrepreneurship"]),
     );
+    expect(
+      participants.filter((user) => user.category === "illustration"),
+    ).toHaveLength(2);
+    expect(DEMO_USERS.some((user) => user.key === "illustration_partner")).toBe(
+      true,
+    );
     expect(DEMO_USERS.some((user) => user.category === "new_artist")).toBe(
       false,
     );

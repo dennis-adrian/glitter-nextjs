@@ -37,6 +37,7 @@ pnpm env:sync
 - After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Storefront products and other domain fixtures are not seeded yet.
 - Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (loads `.env.local`, needs a migrated `TEST_DATABASE_URL`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
 - `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file and `CLAUDE.md`; commit that change rather than fighting it.
+- Reservation-hardening fixture: `pnpm seed` also upserts the **Glitter Demo** festival (open reservations, category sectors, hidden `revealAt` occupant, stale hold, partner search). Storefront products are not seeded.
 
 ## Development seed (demo users)
 
@@ -44,5 +45,7 @@ pnpm env:sync
 
 - Gate: requires `CLERK_SECRET_KEY` starting with `sk_test_`, and refuses `VERCEL_ENV`/`NODE_ENV=production` (or `ALLOW_DEV_SEED=false`).
 - Password: `SEED_DEMO_PASSWORD`, or default `Glitter-Dev-Seed-1!` when unset.
-- Accounts: `admin+clerk_test@example.com` (admin), `festival-admin+clerk_test@example.com`, verified participants (role `user`) `illustration+clerk_test@example.com` / `gastronomy+clerk_test@example.com` / `entrepreneurship+clerk_test@example.com`, and `pending+clerk_test@example.com`. The unused `artist` role and deprecated `new_artist` category are not seeded.
+- Accounts: `admin+clerk_test@example.com` (admin), `festival-admin+clerk_test@example.com`, verified participants (role `user`) `illustration+clerk_test@example.com` / `illustration-partner+clerk_test@example.com` / `gastronomy+clerk_test@example.com` / `entrepreneurship+clerk_test@example.com`, and `pending+clerk_test@example.com`. The unused `artist` role and deprecated `new_artist` category are not seeded.
 - OTP for `+clerk_test` addresses on Clerk development instances is `424242`.
+- Festival fixture (`Glitter Demo`): one `active` festival with reservations already open, published participant terms, accepted enrollments for the verified participants above, and three sectors (Ilustración / Gastronomía / Emprendimiento) with 12 stands each. Illustration includes a visible occupant, a `revealAt`-hidden occupant (occupied, no identity), a disabled stand, a stale expired hold (`status: held`), and a two-stand joint group. Local-only occupant profiles (`+seed@example.test`) are not Clerk logins.
+- Map URL after sign-in as Ilustración Demo: `/portal` → reservation card, or `/profiles/{profileId}/festivals/{festivalId}/reservations/new`. Partner search query: `Compañero`.

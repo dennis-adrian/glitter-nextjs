@@ -1290,6 +1290,7 @@ Shipped:
 - Browser-safe map/confirmation DTOs and column-limited queries.
 - Covering indexes in `0251` including the partner-search trigram expression.
 - Query-layer budgets measured under §12.4 locally (see §2.1).
+- Dev/agent verification fixture: `pnpm seed` upserts **Glitter Demo** (open reservations, three category sectors, hidden `revealAt` occupant, stale expired hold, partner-search user). See the seed section in AGENTS.md.
 
 Exit: no stale hold blocks availability; payload/privacy and latency targets pass for the query layer. Full RSC/production p75 still needs a live reservation-window rehearsal.
 
