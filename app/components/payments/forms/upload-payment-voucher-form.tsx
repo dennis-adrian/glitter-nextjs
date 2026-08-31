@@ -1,14 +1,15 @@
 "use client";
 
+import { useRef, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { createPayment } from "@/app/data/invoices/actions";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { SendHorizonal } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 
 type UploadPaymentVoucherFormProps = {
   invoice: InvoiceWithPaymentsAndStand;
@@ -23,6 +24,7 @@ export default function UploadPaymentVoucherForm(
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const form = useForm();
+  const paymentIntentKeyRef = useRef(crypto.randomUUID());
 
   const action = form.handleSubmit(async () => {
     const voucherUrl = props.newVoucherUrl;
@@ -35,6 +37,7 @@ export default function UploadPaymentVoucherForm(
       const res = await createPayment({
         invoiceId: props.invoice.id,
         voucherUrl,
+        idempotencyKey: paymentIntentKeyRef.current,
       });
 
       if (res.success) {

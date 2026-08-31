@@ -8,7 +8,7 @@ import { confirmFreeInvoice } from "@/app/data/invoices/actions";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ export default function ConfirmFreeReservationButton({
   const [isPending, startTransition] = useTransition();
   const [isConfirming, setIsConfirming] = useState(false);
   const form = useForm();
+  const confirmIntentKeyRef = useRef(crypto.randomUUID());
 
   const action: () => void = form.handleSubmit(() => {
     setIsConfirming(true);
@@ -31,6 +32,7 @@ export default function ConfirmFreeReservationButton({
       try {
         res = await confirmFreeInvoice({
           invoiceId: invoice.id,
+          idempotencyKey: confirmIntentKeyRef.current,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? ` ${error.message}` : "";

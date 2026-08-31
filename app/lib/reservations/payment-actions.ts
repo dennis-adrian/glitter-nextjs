@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  adminConfirmReservation,
   approveInvoiceSettlement,
   rejectInvoiceSettlement,
   submitPaymentProof,
@@ -21,4 +22,8 @@ export async function approveInvoiceSettlementAction(input: unknown) {
 
 export async function rejectInvoiceSettlementAction(input: unknown) {
   return rejectInvoiceSettlement(input);
+}
+
+export async function adminConfirmReservationAction(input: unknown) {
+  return adminConfirmReservation(input);
 }

@@ -42,6 +42,12 @@ vi.mock("@/app/lib/sanctions/reservation-eligibility", () => ({
   getReservationEligibility: eligibilityMock,
 }));
 
+vi.mock("@/app/lib/reservations/request-registry", () => ({
+  claimRequest: vi.fn().mockResolvedValue({ kind: "claimed" }),
+  completeRequest: vi.fn(),
+  abandonRequest: vi.fn(),
+}));
+
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: vi.fn(),
 }));
@@ -116,8 +122,9 @@ describe("createAdminReservation sanction enforcement", () => {
     const result = await createAdminReservation({
       festivalId: 10,
       standId: 7,
-      userId: 3,
+      ownerUserId: 3,
       partnerId: 4,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
 
     expect(result).toEqual({

@@ -26,7 +26,13 @@ import {
   submissionIdSchema,
   submitPaymentProofSchema,
   submitZeroValueInvoiceSchema,
+  adminConfirmReservationSchema,
 } from "@/app/lib/reservations/schemas";
+import {
+  abandonRequest,
+  claimRequest,
+  completeRequest,
+} from "@/app/lib/reservations/request-registry";
 import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -152,8 +158,55 @@ export async function submitPaymentProof(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      const requestKey = idempotencyKey ?? fileKey;
+      if (!requestKey) return reservationFailure("VALIDATION");
+
+      const claim = await claimRequest(tx, {
+        requestKey,
+        operation: "submitPaymentProof",
+        actorUserId: actor.id,
+        scope: {
+          invoiceId,
+          kind: "payment_proof",
+          fileKey: fileKey ?? null,
+        },
+      });
+      if (claim.kind === "conflict") {
+        return reservationFailure("CONFLICT_RETRY");
+      }
+      if (claim.kind === "replayed") {
+        const submissionId = claim.resultIds.submissionId;
+        if (typeof submissionId !== "number") {
+          return reservationFailure("CONFLICT_RETRY");
+        }
+        return { kind: "replayed" as const, submissionId };
+      }
+
+      const finishCreated = async (
+        created:
+          | { kind: "replayed"; submissionId: number }
+          | {
+              kind: "created";
+              submissionId: number;
+              previousVoucherUrl?: string | null;
+              jobIds: number[];
+            }
+          | ReturnType<typeof reservationFailure>,
+      ) => {
+        if ("success" in created && created.success === false) {
+          await abandonRequest(tx, requestKey);
+          return created;
+        }
+        if ("kind" in created) {
+          await completeRequest(tx, requestKey, {
+            submissionId: created.submissionId,
+          });
+        }
+        return created;
+      };
+
       const aggregate = await loadInvoiceAggregate(tx, invoiceId);
-      if (!aggregate) return reservationFailure("VALIDATION");
+      if (!aggregate) return finishCreated(reservationFailure("VALIDATION"));
       const { invoice, reservation } = aggregate;
 
       if (
@@ -162,16 +215,16 @@ export async function submitPaymentProof(
           invoiceOwnerUserId: invoice.userId,
         })
       ) {
-        return reservationFailure("INVOICE_NOT_OWNED");
+        return finishCreated(reservationFailure("INVOICE_NOT_OWNED"));
       }
       if (!canAcceptInvoiceProof(invoice.status)) {
-        return reservationFailure("INVOICE_NOT_PENDING");
+        return finishCreated(reservationFailure("INVOICE_NOT_PENDING"));
       }
       if (
         reservation.status !== "pending" &&
         reservation.status !== "verification_payment"
       ) {
-        return reservationFailure("INVOICE_NOT_PENDING");
+        return finishCreated(reservationFailure("INVOICE_NOT_PENDING"));
       }
 
       if (fileKey) {
@@ -181,28 +234,10 @@ export async function submitPaymentProof(
           .where(eq(invoiceSettlementSubmissions.fileKey, fileKey))
           .limit(1);
         if (byFile) {
-          return { kind: "replayed" as const, submissionId: byFile.id };
-        }
-      }
-      if (idempotencyKey) {
-        const [existing] = await tx
-          .select({
-            id: invoiceSettlementSubmissions.id,
-            uploadedByUserId: invoiceSettlementSubmissions.uploadedByUserId,
-          })
-          .from(invoiceSettlementSubmissions)
-          .where(
-            and(
-              eq(invoiceSettlementSubmissions.idempotencyKey, idempotencyKey),
-              eq(invoiceSettlementSubmissions.invoiceId, invoice.id),
-            ),
-          )
-          .limit(1);
-        if (existing) {
-          if (existing.uploadedByUserId !== actor.id) {
-            return reservationFailure("VALIDATION");
-          }
-          return { kind: "replayed" as const, submissionId: existing.id };
+          return finishCreated({
+            kind: "replayed" as const,
+            submissionId: byFile.id,
+          });
         }
       }
 
@@ -302,12 +337,12 @@ export async function submitPaymentProof(
         payload: { invoiceId: invoice.id, submissionId: submission.id },
       });
 
-      return {
+      return finishCreated({
         kind: "created" as const,
         submissionId: submission.id,
         previousVoucherUrl: currentPayment?.voucherUrl,
         jobIds,
-      };
+      });
     });
 
     if ("success" in outcome) return outcome;
@@ -358,8 +393,47 @@ export async function submitZeroValueInvoiceForReview(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      const requestKey = parsed.data.idempotencyKey;
+      const claim = await claimRequest(tx, {
+        requestKey,
+        operation: "submitZeroValueInvoice",
+        actorUserId: actor.id,
+        scope: {
+          invoiceId: parsed.data.invoiceId,
+          kind: "zero_value_entitlement",
+        },
+      });
+      if (claim.kind === "conflict") {
+        return reservationFailure("CONFLICT_RETRY");
+      }
+      if (claim.kind === "replayed") {
+        const submissionId = claim.resultIds.submissionId;
+        if (typeof submissionId !== "number") {
+          return reservationFailure("CONFLICT_RETRY");
+        }
+        return { kind: "replayed" as const, submissionId, jobIds: [] as number[] };
+      }
+
+      const finish = async (
+        created:
+          | { kind: "replayed"; submissionId: number; jobIds: number[] }
+          | { kind: "created"; submissionId: number; jobIds: number[] }
+          | ReturnType<typeof reservationFailure>,
+      ) => {
+        if ("success" in created && created.success === false) {
+          await abandonRequest(tx, requestKey);
+          return created;
+        }
+        if ("kind" in created) {
+          await completeRequest(tx, requestKey, {
+            submissionId: created.submissionId,
+          });
+        }
+        return created;
+      };
+
       const aggregate = await loadInvoiceAggregate(tx, parsed.data.invoiceId);
-      if (!aggregate) return reservationFailure("VALIDATION");
+      if (!aggregate) return finish(reservationFailure("VALIDATION"));
       const { invoice, reservation } = aggregate;
 
       if (
@@ -368,41 +442,16 @@ export async function submitZeroValueInvoiceForReview(
           invoiceOwnerUserId: invoice.userId,
         })
       ) {
-        return reservationFailure("INVOICE_NOT_OWNED");
+        return finish(reservationFailure("INVOICE_NOT_OWNED"));
       }
       if (invoice.status === "verification_payment") {
-        return reservationFailure("PAYMENT_ALREADY_SUBMITTED");
+        return finish(reservationFailure("PAYMENT_ALREADY_SUBMITTED"));
       }
       if (invoice.status !== "pending") {
-        return reservationFailure("INVOICE_NOT_PENDING");
+        return finish(reservationFailure("INVOICE_NOT_PENDING"));
       }
       if (Number(invoice.amount) !== 0) {
-        return reservationFailure("INVOICE_NOT_PENDING");
-      }
-
-      if (parsed.data.idempotencyKey) {
-        const [existing] = await tx
-          .select({
-            id: invoiceSettlementSubmissions.id,
-            uploadedByUserId: invoiceSettlementSubmissions.uploadedByUserId,
-          })
-          .from(invoiceSettlementSubmissions)
-          .where(
-            and(
-              eq(
-                invoiceSettlementSubmissions.idempotencyKey,
-                parsed.data.idempotencyKey,
-              ),
-              eq(invoiceSettlementSubmissions.invoiceId, invoice.id),
-            ),
-          )
-          .limit(1);
-        if (existing) {
-          if (existing.uploadedByUserId !== actor.id) {
-            return reservationFailure("VALIDATION");
-          }
-          return { kind: "replayed" as const, submissionId: existing.id, jobIds: [] };
-        }
+        return finish(reservationFailure("INVOICE_NOT_PENDING"));
       }
 
       await rejectOlderSubmittedSettlements(tx, invoice.id);
@@ -465,7 +514,7 @@ export async function submitZeroValueInvoiceForReview(
         payload: { invoiceId: invoice.id, submissionId: submission.id },
       });
 
-      return { kind: "created" as const, submissionId: submission.id, jobIds };
+      return finish({ kind: "created" as const, submissionId: submission.id, jobIds });
     });
 
     if ("success" in outcome) return outcome;
@@ -546,6 +595,72 @@ async function applyAcceptedReservation(
   });
 }
 
+async function approveSubmissionInTx(
+  tx: DbTx,
+  submission: {
+    id: number;
+    invoiceId: number;
+    kind: string;
+    paymentId: number | null;
+    status: string;
+  },
+  actorUserId: number,
+) {
+  if (submission.status === "approved") {
+    return { kind: "replayed" as const, jobIds: [] as number[] };
+  }
+  if (submission.status !== "submitted") {
+    return reservationFailure("INVOICE_NOT_PENDING");
+  }
+
+  const aggregate = await loadInvoiceAggregate(tx, submission.invoiceId);
+  if (!aggregate) return reservationFailure("VALIDATION");
+  const { invoice, reservation } = aggregate;
+
+  if (submission.kind === "zero_value_entitlement") {
+    if (Number(invoice.amount) !== 0 || submission.paymentId != null) {
+      return reservationFailure("VALIDATION");
+    }
+  } else if (submission.paymentId == null) {
+    return reservationFailure("VALIDATION");
+  }
+
+  await tx
+    .update(invoiceSettlementSubmissions)
+    .set({
+      status: "approved",
+      reviewedByUserId: actorUserId,
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(invoiceSettlementSubmissions.id, submission.id));
+
+  await applyAcceptedReservation(
+    tx,
+    reservation.id,
+    reservation.standId,
+    invoice.id,
+    actorUserId,
+  );
+
+  const ownerEmail = await userEmail(tx, invoice.userId);
+  const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
+    kind: "settlement_approved",
+    reservationId: reservation.id,
+    ownerUserId: invoice.userId,
+    ownerEmail,
+    adminEmails: [],
+    payload: { invoiceId: invoice.id, submissionId: submission.id },
+  });
+  return {
+    kind: "approved" as const,
+    jobIds,
+    reservationId: reservation.id,
+    invoiceId: invoice.id,
+    submissionId: submission.id,
+  };
+}
+
 export async function approveInvoiceSettlement(
   input: unknown,
 ): Promise<ReservationActionResult> {
@@ -567,53 +682,10 @@ export async function approveInvoiceSettlement(
         .limit(1)
         .for("update");
       if (!submission) return reservationFailure("VALIDATION");
-      if (submission.status === "approved") {
-        return { kind: "replayed" as const, jobIds: [] as number[] };
-      }
-      if (submission.status !== "submitted") {
-        return reservationFailure("INVOICE_NOT_PENDING");
-      }
 
-      const aggregate = await loadInvoiceAggregate(tx, submission.invoiceId);
-      if (!aggregate) return reservationFailure("VALIDATION");
-      const { invoice, reservation } = aggregate;
-
-      if (submission.kind === "zero_value_entitlement") {
-        if (Number(invoice.amount) !== 0 || submission.paymentId != null) {
-          return reservationFailure("VALIDATION");
-        }
-      } else if (submission.paymentId == null) {
-        return reservationFailure("VALIDATION");
-      }
-
-      await tx
-        .update(invoiceSettlementSubmissions)
-        .set({
-          status: "approved",
-          reviewedByUserId: actorUserId,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(invoiceSettlementSubmissions.id, submission.id));
-
-      await applyAcceptedReservation(
-        tx,
-        reservation.id,
-        reservation.standId,
-        invoice.id,
-        actorUserId,
-      );
-
-      const ownerEmail = await userEmail(tx, invoice.userId);
-      const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
-        kind: "settlement_approved",
-        reservationId: reservation.id,
-        ownerUserId: invoice.userId,
-        ownerEmail,
-        adminEmails: [],
-        payload: { invoiceId: invoice.id, submissionId: submission.id },
-      });
-      return { kind: "approved" as const, jobIds };
+      const approved = await approveSubmissionInTx(tx, submission, actorUserId);
+      if ("success" in approved) return approved;
+      return { kind: approved.kind, jobIds: approved.jobIds };
     });
 
     if ("success" in outcome) return outcome;
@@ -769,6 +841,318 @@ export async function rejectInvoiceSettlement(
     return reservationSuccess(undefined, "La solicitud fue rechazada.");
   } catch (error) {
     console.error("Error rejecting settlement", error);
+    return reservationFailure("CONFLICT_RETRY");
+  }
+}
+
+async function findSubmittedSettlementInTx(tx: DbTx, invoiceId: number) {
+  const [row] = await tx
+    .select()
+    .from(invoiceSettlementSubmissions)
+    .where(
+      and(
+        eq(invoiceSettlementSubmissions.invoiceId, invoiceId),
+        eq(invoiceSettlementSubmissions.status, "submitted"),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return row ?? null;
+}
+
+async function insertZeroValueSubmissionInTx(
+  tx: DbTx,
+  input: {
+    invoice: typeof invoices.$inferSelect;
+    reservation: { id: number; standId: number; festivalId: number; status: string };
+    actorUserId: number;
+    idempotencyKey: string;
+  },
+) {
+  await rejectOlderSubmittedSettlements(tx, input.invoice.id);
+  const [submission] = await tx
+    .insert(invoiceSettlementSubmissions)
+    .values({
+      invoiceId: input.invoice.id,
+      paymentId: null,
+      uploadedByUserId: input.actorUserId,
+      kind: "zero_value_entitlement",
+      status: "submitted",
+      evidenceSnapshot: {
+        invoiceId: input.invoice.id,
+        reservationId: input.reservation.id,
+        standId: input.reservation.standId,
+        festivalId: input.reservation.festivalId,
+        ownerUserId: input.invoice.userId,
+        originalAmount: roundMoney(input.invoice.originalAmount),
+        discountAmount: roundMoney(input.invoice.discountAmount),
+        amount: 0,
+        discountCodeId: input.invoice.discountCodeId,
+      },
+      idempotencyKey: input.idempotencyKey,
+    })
+    .returning();
+
+  await insertStandReservationEvent(tx, {
+    reservationId: input.reservation.id,
+    actorUserId: input.actorUserId,
+    eventType: "settlement_submitted",
+    fromStatus: input.reservation.status,
+    toStatus: "verification_payment",
+    payload: {
+      invoiceId: input.invoice.id,
+      submissionId: submission.id,
+      kind: "zero_value_entitlement",
+    },
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  await tx
+    .update(standReservations)
+    .set({ status: "verification_payment", updatedAt: new Date() })
+    .where(eq(standReservations.id, input.reservation.id));
+  await tx
+    .update(invoices)
+    .set({ status: "verification_payment", updatedAt: new Date() })
+    .where(eq(invoices.id, input.invoice.id));
+
+  return submission;
+}
+
+async function insertPaymentProofSubmissionInTx(
+  tx: DbTx,
+  input: {
+    invoice: typeof invoices.$inferSelect;
+    reservation: { id: number; standId: number; festivalId: number; status: string };
+    actorUserId: number;
+    voucherUrl: string;
+    idempotencyKey: string;
+  },
+) {
+  const [currentPayment] = await tx
+    .select()
+    .from(payments)
+    .where(eq(payments.invoiceId, input.invoice.id))
+    .orderBy(desc(payments.createdAt), desc(payments.id))
+    .limit(1);
+
+  let paymentId = currentPayment?.id;
+  if (currentPayment) {
+    await tx
+      .update(payments)
+      .set({
+        amount: roundMoney(input.invoice.amount),
+        date: new Date(),
+        voucherUrl: input.voucherUrl,
+        uploadedByUserId: input.actorUserId,
+        idempotencyKey: input.idempotencyKey,
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, currentPayment.id));
+  } else {
+    const [payment] = await tx
+      .insert(payments)
+      .values({
+        invoiceId: input.invoice.id,
+        amount: roundMoney(input.invoice.amount),
+        date: new Date(),
+        voucherUrl: input.voucherUrl,
+        uploadedByUserId: input.actorUserId,
+        idempotencyKey: input.idempotencyKey,
+      })
+      .returning({ id: payments.id });
+    paymentId = payment.id;
+  }
+
+  await rejectOlderSubmittedSettlements(tx, input.invoice.id);
+  const [submission] = await tx
+    .insert(invoiceSettlementSubmissions)
+    .values({
+      invoiceId: input.invoice.id,
+      paymentId,
+      voucherUrl: input.voucherUrl,
+      uploadedByUserId: input.actorUserId,
+      kind: "payment_proof",
+      status: "submitted",
+      evidenceSnapshot: {
+        invoiceId: input.invoice.id,
+        reservationId: input.reservation.id,
+        standId: input.reservation.standId,
+        festivalId: input.reservation.festivalId,
+        amount: roundMoney(input.invoice.amount),
+        originalAmount: roundMoney(input.invoice.originalAmount),
+        discountAmount: roundMoney(input.invoice.discountAmount),
+      },
+      idempotencyKey: input.idempotencyKey,
+    })
+    .returning();
+
+  await insertStandReservationEvent(tx, {
+    reservationId: input.reservation.id,
+    actorUserId: input.actorUserId,
+    eventType: "settlement_submitted",
+    fromStatus: input.reservation.status,
+    toStatus: "verification_payment",
+    payload: {
+      invoiceId: input.invoice.id,
+      submissionId: submission.id,
+      kind: "payment_proof",
+    },
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  await tx
+    .update(standReservations)
+    .set({ status: "verification_payment", updatedAt: new Date() })
+    .where(eq(standReservations.id, input.reservation.id));
+  await tx
+    .update(invoices)
+    .set({ status: "verification_payment", updatedAt: new Date() })
+    .where(eq(invoices.id, input.invoice.id));
+
+  return submission;
+}
+
+export async function adminConfirmReservation(
+  input: unknown,
+): Promise<ReservationActionResult<{ reservationId: number; invoiceId: number }>> {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
+    return reservationFailure("UNAUTHORIZED");
+  }
+
+  const parsed = parseUnknown(adminConfirmReservationSchema, input);
+  if (!parsed.success) return reservationFailure("VALIDATION");
+  const { invoiceId, idempotencyKey, markAsPaid, voucherUrl } = parsed.data;
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const claim = await claimRequest(tx, {
+        requestKey: idempotencyKey,
+        operation: "adminConfirmReservation",
+        actorUserId: actor.id,
+        scope: {
+          invoiceId,
+          markAsPaid: markAsPaid === true,
+          voucherUrl: voucherUrl ?? null,
+        },
+      });
+      if (claim.kind === "conflict") {
+        return reservationFailure("CONFLICT_RETRY");
+      }
+      if (claim.kind === "replayed") {
+        const reservationId = claim.resultIds.reservationId;
+        const replayedInvoiceId = claim.resultIds.invoiceId;
+        if (
+          typeof reservationId !== "number" ||
+          typeof replayedInvoiceId !== "number"
+        ) {
+          return reservationFailure("CONFLICT_RETRY");
+        }
+        return {
+          kind: "replayed" as const,
+          reservationId,
+          invoiceId: replayedInvoiceId,
+          jobIds: [] as number[],
+        };
+      }
+
+      const finish = async (
+        created:
+          | {
+              kind: "replayed" | "approved";
+              reservationId: number;
+              invoiceId: number;
+              jobIds: number[];
+            }
+          | ReturnType<typeof reservationFailure>,
+      ) => {
+        if ("success" in created && created.success === false) {
+          await abandonRequest(tx, idempotencyKey);
+          return created;
+        }
+        if ("kind" in created) {
+          await completeRequest(tx, idempotencyKey, {
+            reservationId: created.reservationId,
+            invoiceId: created.invoiceId,
+          });
+        }
+        return created;
+      };
+
+      const aggregate = await loadInvoiceAggregate(tx, invoiceId);
+      if (!aggregate) return finish(reservationFailure("VALIDATION"));
+      const { invoice, reservation } = aggregate;
+
+      if (
+        reservation.status === "accepted" &&
+        invoice.status === "paid"
+      ) {
+        return finish({
+          kind: "replayed",
+          reservationId: reservation.id,
+          invoiceId: invoice.id,
+          jobIds: [],
+        });
+      }
+
+      let submission = await findSubmittedSettlementInTx(tx, invoice.id);
+
+      if (!submission && Number(invoice.amount) === 0) {
+        submission = await insertZeroValueSubmissionInTx(tx, {
+          invoice,
+          reservation,
+          actorUserId: actor.id,
+          idempotencyKey,
+        });
+      }
+
+      if (!submission) {
+        const [currentPayment] = await tx
+          .select({ voucherUrl: payments.voucherUrl })
+          .from(payments)
+          .where(eq(payments.invoiceId, invoice.id))
+          .orderBy(desc(payments.createdAt), desc(payments.id))
+          .limit(1);
+        const proofUrl = voucherUrl ?? currentPayment?.voucherUrl ?? null;
+        if (markAsPaid === true || proofUrl) {
+          if (!proofUrl) {
+            return finish(reservationFailure("VALIDATION"));
+          }
+          submission = await insertPaymentProofSubmissionInTx(tx, {
+            invoice,
+            reservation,
+            actorUserId: actor.id,
+            voucherUrl: proofUrl,
+            idempotencyKey,
+          });
+        }
+      }
+
+      if (!submission) {
+        return finish(reservationFailure("INVOICE_NOT_PENDING"));
+      }
+
+      const approved = await approveSubmissionInTx(tx, submission, actor.id);
+      if ("success" in approved) return finish(approved);
+      return finish({
+        kind: "approved",
+        reservationId: approved.reservationId,
+        invoiceId: approved.invoiceId,
+        jobIds: approved.jobIds,
+      });
+    });
+
+    if ("success" in outcome) return outcome;
+    scheduleReservationNotificationJobs(outcome.jobIds);
+    revalidatePath("/dashboard/festivals");
+    revalidatePath("/profiles");
+    return reservationSuccess(
+      { reservationId: outcome.reservationId, invoiceId: outcome.invoiceId },
+      "La reserva fue confirmada.",
+    );
+  } catch (error) {
+    console.error("Error confirming reservation as admin", error);
     return reservationFailure("CONFLICT_RETRY");
   }
 }

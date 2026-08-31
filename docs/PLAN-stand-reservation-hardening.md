@@ -792,11 +792,10 @@ Delete collaborator by the `(reservationId, collaboratorId)` join. Do not delete
 
 | Command | Status |
 | --- | --- |
-| `createAdminReservation` | Partial in `admin-actions.ts` — no required retry key, durable request record, or result replay |
-| `extendReservationDeadline` | Implemented as `extendReservationPaymentDeadline` |
-| `rejectReservation` | Implemented in `app/api/reservations/actions.ts` (canonical IDs only) |
-| `approveInvoiceSettlement` | Not started |
-| `rejectInvoiceSettlement` | Not started |
+| `createAdminReservation` | Implemented with required retry key and registry replay in `admin-actions.ts` |
+| `adminConfirmReservation` | Implemented in `payment-service.ts` + admin payment UI |
+| `approveInvoiceSettlement` | Implemented in `payment-service.ts` |
+| `rejectInvoiceSettlement` | Implemented in `payment-service.ts` |
 | `cancelReservation` | Not started (hard `deleteReservation` still exists) |
 
 Legacy generic paths still exported: `updateReservation`, `deleteReservation`, `updateReservationStatus`, `updateReservationSimple`. Phase 3 must stop calling them from UI and then delete them.
@@ -1087,7 +1086,7 @@ type ReservationActionResult<T> =
 - Admin approve/reject commands use expected state plus event idempotency.
 - Notification outbox deduplication prevents duplicate email.
 
-**Status:** Diverges. There is no shared cross-operation request registry. Hold, confirmation, and payment currently accept optional UUID keys and replay only when a key is supplied; confirmation replay does not prove the original `holdId`/partner pair, `confirmFreeInvoice` accepts no idempotency key, and `createAdminReservation` has no key or replay record. Phase 3 must require each key, persist normalized canonical scope/result data, remove null/omitted-key branches, reject actor/operation/scope mismatches with `CONFLICT_RETRY`, and add negative tests proving failures occur before operation-specific lookups or domain writes. Existing nullable columns remain for legacy rows, with partial unique indexes covering every required non-null key from new writes. UploadThing callback and outbox dedupe are also Phase 3.
+**Status:** Partial. Migration `0249` adds `reservation_request_registry` with globally unique keys, operation, actor, normalized scope, status, and result IDs. Hold, confirmation, payment, zero-value, admin create, and admin confirm integrate registry claim/replay before domain writes. Public mutations require non-null UUID keys (payment proof may use UploadThing `fileKey`). Scoped replay covers `standId` for holds and `(holdId, partnerId ?? null)` for confirmation. UploadThing callback and outbox dedupe remain follow-ups.
 
 ---
 
@@ -1269,16 +1268,15 @@ The owner-per-festival unique and single-active-festival unique remain Phase 2 w
 
 ### Phase 3 — Transaction and payment rewrite
 
-**Status: Next (not started as a phase).** Some prerequisites already exist: confirmation idempotency, `createAdminReservation`, `rejectReservation`, `confirmFreeInvoice` review submit, hold cron, money types.
+**Status: In progress (PR #475).** Shipped in this phase:
 
-- Implement lock ordering/advisory locks.
-- Implement idempotent confirmation.
-- Replace payment API/client-ID flow.
-- Implement authoritative UploadThing callback, unified settlement review, and zero-value entitlement review.
-- Replace synchronous provider work with outboxes.
-- Replace admin generic updates with explicit commands.
+- Shared `reservation_request_registry` (§14.2) with claim/replay before domain writes.
+- Required UUID idempotency keys on hold, confirm, zero-value, and client payment submits (`fileKey` for UploadThing).
+- Scoped hold/confirm replay via registry scope (`standId`; `(holdId, partnerId ?? null)`).
+- `adminConfirmReservation` settlement-backed admin confirm (zero-value submit+approve, submitted settlement approve, mark-as-paid proof path) with outbox notifications.
+- Legacy `confirmReservation` / `updateReservation` blocked from admin UI paths.
 
-Exit: retries, races, and provider failures preserve correct state.
+Remaining Phase 3 work: advisory locks (§4.4), authoritative UploadThing callback, full concurrency integration matrix, notification cron worker.
 
 ### Phase 4 — Cleanup, privacy, and performance
 

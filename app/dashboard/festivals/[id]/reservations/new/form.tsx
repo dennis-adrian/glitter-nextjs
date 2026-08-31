@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -115,6 +116,7 @@ export default function CreateReservationForm({
   reservationsStartDate,
 }: Props) {
   const router = useRouter();
+  const adminCreateIntentKeyRef = useRef(crypto.randomUUID());
 
   const userOptions = users.map((u) => ({
     value: String(u.id),
@@ -179,10 +181,11 @@ export default function CreateReservationForm({
 
       const result = await createAdminReservation({
         festivalId,
-        userId: Number(data.userId),
+        ownerUserId: Number(data.userId),
         standId: Number(data.standId),
         partnerId: data.partnerId ? Number(data.partnerId) : undefined,
         revealAt: data.revealAt ? fromDateTimeLocal(data.revealAt) : null,
+        idempotencyKey: adminCreateIntentKeyRef.current,
       });
 
       if (result.success) {

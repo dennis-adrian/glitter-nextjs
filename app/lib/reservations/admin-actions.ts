@@ -11,6 +11,15 @@ import {
   enqueueReservationNotification,
   scheduleReservationNotificationJobs,
 } from "@/app/lib/reservations/notification-outbox";
+import {
+  abandonRequest,
+  claimRequest,
+  completeRequest,
+} from "@/app/lib/reservations/request-registry";
+import {
+  createAdminReservationSchema,
+  parseUnknown,
+} from "@/app/lib/reservations/schemas";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -24,15 +33,9 @@ import {
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export async function createAdminReservation(params: {
-  festivalId: number;
-  standId: number;
-  userId: number;
-  partnerId?: number;
-  revealAt?: Date | null;
-}): Promise<{ success: boolean; message: string; reservationId?: number }> {
-  const { festivalId, standId, userId, partnerId } = params;
-
+export async function createAdminReservation(
+  params: unknown,
+): Promise<{ success: boolean; message: string; reservationId?: number }> {
   const currentProfile = await getCurrentUserProfile();
   if (!currentProfile || currentProfile.role !== "admin") {
     return {
@@ -40,6 +43,19 @@ export async function createAdminReservation(params: {
       message: "No tenés permisos para realizar esta acción",
     };
   }
+
+  const parsed = parseUnknown(createAdminReservationSchema, params);
+  if (!parsed.success) {
+    return { success: false, message: "Datos inválidos." };
+  }
+
+  const {
+    festivalId,
+    standId,
+    ownerUserId: userId,
+    partnerId,
+    idempotencyKey,
+  } = parsed.data;
 
   const stand = await fetchStandById(standId);
   if (!stand) {
@@ -59,9 +75,11 @@ export async function createAdminReservation(params: {
     return { success: false, message: "El festival no existe" };
   }
   const revealAt =
-    params.revealAt === undefined
+    parsed.data.revealAt === undefined
       ? festival.reservationsStartDate
-      : params.revealAt;
+      : parsed.data.revealAt;
+  const normalizedRevealAt =
+    revealAt instanceof Date ? revealAt.toISOString() : null;
 
   const forUser = await fetchBaseProfileById(userId);
   if (!forUser) {
@@ -95,6 +113,46 @@ export async function createAdminReservation(params: {
 
   try {
     const result = await db.transaction(async (tx) => {
+      const claim = await claimRequest(tx, {
+        requestKey: idempotencyKey,
+        operation: "createAdminReservation",
+        actorUserId: currentProfile.id,
+        scope: {
+          festivalId,
+          standId,
+          ownerUserId: userId,
+          partnerId: partnerId ?? null,
+          revealAt: normalizedRevealAt,
+        },
+      });
+      if (claim.kind === "conflict") {
+        return { success: false as const, message: "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo." };
+      }
+      if (claim.kind === "replayed") {
+        const reservationId = claim.resultIds.reservationId;
+        if (typeof reservationId !== "number") {
+          return { success: false as const, message: "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo." };
+        }
+        return { reservationId, jobIds: [] as number[] };
+      }
+
+      const finish = async (
+        outcome:
+          | { success: false; message: string }
+          | { reservationId: number; jobIds: number[] },
+      ) => {
+        if ("success" in outcome && outcome.success === false) {
+          await abandonRequest(tx, idempotencyKey);
+          return outcome;
+        }
+        if ("reservationId" in outcome) {
+          await completeRequest(tx, idempotencyKey, {
+            reservationId: outcome.reservationId,
+          });
+        }
+        return outcome;
+      };
+
       // Lock stand row and re-check status inside transaction to avoid race
       const [lockedStand] = await tx
         .select()
@@ -104,15 +162,15 @@ export async function createAdminReservation(params: {
         .for("update");
 
       if (!lockedStand) {
-        return { success: false, message: "El espacio no existe" };
+        return finish({ success: false, message: "El espacio no existe" });
       }
       await lockFestivalRow(tx, festivalId);
       await lockParticipants(tx, festivalId, participantIds);
       if (lockedStand.festivalId !== festivalId) {
-        return {
+        return finish({
           success: false,
           message: "El espacio no pertenece a este festival",
-        };
+        });
       }
       if (
         lockedStand.status === "reserved" ||
@@ -120,10 +178,10 @@ export async function createAdminReservation(params: {
         lockedStand.status === "confirmed" ||
         lockedStand.status === "disabled"
       ) {
-        return {
+        return finish({
           success: false,
           message: "El espacio ya está reservado",
-        };
+        });
       }
 
       for (const [index, participantId] of participantIds.entries()) {
@@ -135,13 +193,13 @@ export async function createAdminReservation(params: {
           tx,
         );
         if (!eligibility.eligible) {
-          return {
+          return finish({
             success: false,
             message:
               index === 0
                 ? eligibility.message
                 : `El compañero seleccionado no puede participar en esta reserva. ${eligibility.message}`,
-          };
+          });
         }
       }
 
@@ -206,7 +264,7 @@ export async function createAdminReservation(params: {
         })),
       });
 
-      return { reservationId: reservation.id, jobIds };
+      return finish({ reservationId: reservation.id, jobIds });
     });
 
     if (typeof result === "object" && result && "success" in result && result.success === false) {

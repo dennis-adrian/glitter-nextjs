@@ -7,6 +7,9 @@ const transactionMock = vi.hoisted(() => vi.fn());
 const enqueueNotificationsMock = vi.hoisted(() => vi.fn());
 const scheduleJobsMock = vi.hoisted(() => vi.fn());
 const insertEventMock = vi.hoisted(() => vi.fn());
+const claimRequestMock = vi.hoisted(() => vi.fn());
+const completeRequestMock = vi.hoisted(() => vi.fn());
+const abandonRequestMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -40,6 +43,12 @@ vi.mock("@/app/lib/reservations/events", () => ({
   insertStandReservationEvent: insertEventMock,
 }));
 
+vi.mock("@/app/lib/reservations/request-registry", () => ({
+  claimRequest: claimRequestMock,
+  completeRequest: completeRequestMock,
+  abandonRequest: abandonRequestMock,
+}));
+
 vi.mock("@/app/lib/reservations/admin-service", () => ({
   applyReservationCancellation: vi.fn().mockResolvedValue([]),
 }));
@@ -53,6 +62,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  adminConfirmReservation,
   rejectInvoiceSettlement,
   submitPaymentProof,
   submitZeroValueInvoiceForReview,
@@ -206,6 +216,10 @@ describe("submitPaymentProof", () => {
     enqueueNotificationsMock.mockReset();
     scheduleJobsMock.mockReset();
     insertEventMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
     enqueueNotificationsMock.mockResolvedValue([1]);
   });
 
@@ -214,6 +228,7 @@ describe("submitPaymentProof", () => {
     const result = await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
     expect(result).toMatchObject({ success: false, code: "UNAUTHENTICATED" });
     expect(transactionMock).not.toHaveBeenCalled();
@@ -238,8 +253,32 @@ describe("submitPaymentProof", () => {
     const result = await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
     expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_OWNED" });
+  });
+
+  it("returns CONFLICT_RETRY when the request registry rejects the key", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    claimRequestMock.mockResolvedValue({ kind: "conflict" });
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback(createTx({
+        invoice: {
+          id: 9,
+          userId: 8,
+          status: "pending",
+          amount: 150,
+          reservationId: 4,
+        },
+      })),
+    );
+
+    const result = await submitPaymentProof({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(result).toMatchObject({ success: false, code: "CONFLICT_RETRY" });
   });
 
   it("ignores a caller-supplied amount and uses the canonical invoice amount", async () => {
@@ -263,6 +302,7 @@ describe("submitPaymentProof", () => {
     await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
       amount: 1,
     });
 
@@ -315,6 +355,7 @@ describe("submitPaymentProof", () => {
     await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/replacement.pdf",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
 
     expect(tx?.updates).toEqual(
@@ -326,9 +367,13 @@ describe("submitPaymentProof", () => {
     );
   });
 
-  it("replays when the same invoice, uploader, and key already exist", async () => {
+  it("replays when the registry returns a completed submission", async () => {
     const idempotencyKey = "11111111-1111-4111-8111-111111111111";
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    claimRequestMock.mockResolvedValue({
+      kind: "replayed",
+      resultIds: { submissionId: 21 },
+    });
     transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
       callback(
         createTx({
@@ -339,7 +384,6 @@ describe("submitPaymentProof", () => {
             amount: 150,
             reservationId: 4,
           },
-          existingSettlement: { id: 21, uploadedByUserId: 8 },
         }),
       ),
     );
@@ -355,33 +399,6 @@ describe("submitPaymentProof", () => {
       message: "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
     });
   });
-
-  it("rejects when the same invoice and key belong to another uploader", async () => {
-    const idempotencyKey = "11111111-1111-4111-8111-111111111111";
-    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
-      callback(
-        createTx({
-          invoice: {
-            id: 9,
-            userId: 8,
-            status: "pending",
-            amount: 150,
-            reservationId: 4,
-          },
-          existingSettlement: { id: 21, uploadedByUserId: 99 },
-        }),
-      ),
-    );
-
-    const result = await submitPaymentProof({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/f/abc",
-      idempotencyKey,
-    });
-
-    expect(result).toMatchObject({ success: false, code: "VALIDATION" });
-  });
 });
 
 describe("submitZeroValueInvoiceForReview", () => {
@@ -389,6 +406,10 @@ describe("submitZeroValueInvoiceForReview", () => {
     currentProfileMock.mockReset();
     transactionMock.mockReset();
     enqueueNotificationsMock.mockResolvedValue([]);
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
   });
 
   it("rejects a second review request on an in-review invoice", async () => {
@@ -411,11 +432,35 @@ describe("submitZeroValueInvoiceForReview", () => {
       ),
     );
 
-    const result = await submitZeroValueInvoiceForReview({ invoiceId: 9 });
+    const result = await submitZeroValueInvoiceForReview({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
     expect(result).toMatchObject({
       success: false,
       code: "PAYMENT_ALREADY_SUBMITTED",
     });
+  });
+});
+
+describe("adminConfirmReservation", () => {
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    scheduleJobsMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
+  });
+
+  it("rejects non-admin callers", async () => {
+    currentProfileMock.mockResolvedValue({ id: 2, role: "user" });
+    const result = await adminConfirmReservation({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
   });
 });
 
