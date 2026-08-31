@@ -2,13 +2,13 @@
 
 import { memo, useRef, useState } from "react";
 
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import {
   JointGroup,
   buildJointGroupPath,
   getJointGroupBounds,
 } from "@/app/lib/stands/groups";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import type { MapStandLike } from "@/app/components/maps/map-types";
 import {
   SELECTED_FILL,
   SELECTED_RING,
@@ -26,22 +26,16 @@ import {
 import type { StandColors } from "./map-utils";
 
 type MapStandGroupProps = {
-  group: JointGroup;
+  group: JointGroup<MapStandLike>;
   selected?: boolean;
   highlighted?: boolean;
   highlightRequestId?: number;
   dimmed?: boolean;
   mapStandId?: number;
   colors?: StandColors;
-  onClick?: (stand: StandWithReservationsWithParticipants) => void;
-  onTouchTap?: (
-    stand: StandWithReservationsWithParticipants,
-    rect?: DOMRect,
-  ) => void;
-  onHoverChange?: (
-    stand: StandWithReservationsWithParticipants | null,
-    rect: DOMRect | null,
-  ) => void;
+  onClick?: { (stand: MapStandLike): void };
+  onTouchTap?: { (stand: MapStandLike, rect?: DOMRect): void };
+  onHoverChange?: { (stand: MapStandLike | null, rect: DOMRect | null): void };
 };
 
 const RING_PADDING = 0.8;

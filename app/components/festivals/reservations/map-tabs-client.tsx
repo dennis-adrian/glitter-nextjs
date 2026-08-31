@@ -2,60 +2,13 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ProfileType } from "@/app/api/users/definitions";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import ClientMap from "@/app/components/festivals/client-map";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
-import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
-
-type ActiveHold = { id: number; standId: number } | null;
+import type { FestivalReservationMapDto } from "@/app/lib/reservations/dto";
 
 type MapTabsClientProps = {
-  festival: FestivalBase;
-  profile: ProfileType;
-  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
-  activeHold: ActiveHold;
-  subcategoryIds: number[];
+  map: FestivalReservationMapDto;
 };
-
-function getMapBounds(
-  sector: FestivalSectorWithStandsWithReservationsWithParticipants,
-) {
-  if (
-    sector.mapOriginX != null &&
-    sector.mapOriginY != null &&
-    sector.mapWidth != null &&
-    sector.mapHeight != null
-  ) {
-    return {
-      minX: sector.mapOriginX,
-      minY: sector.mapOriginY,
-      width: sector.mapWidth,
-      height: sector.mapHeight,
-    };
-  }
-  return undefined;
-}
-
-function computeAvailableCount(
-  stands: StandWithReservationsWithParticipants[],
-  profile: ProfileType,
-  subcategoryIds: number[],
-): number {
-  const effectiveCategory =
-    profile.category === "new_artist" ? "illustration" : profile.category;
-  return stands.filter(
-    (s) =>
-      s.standCategory === effectiveCategory &&
-      s.participationType === profile.participationType &&
-      s.status === "available" &&
-      (s.standSubcategories.length === 0 ||
-        s.standSubcategories.some((sc) =>
-          subcategoryIds.includes(sc.subcategoryId),
-        )),
-  ).length;
-}
 
 function MapDisclaimer() {
   return (
@@ -67,32 +20,21 @@ function MapDisclaimer() {
   );
 }
 
-export default function MapTabsClient({
-  festival,
-  profile,
-  sectors,
-  activeHold,
-  subcategoryIds,
-}: MapTabsClientProps) {
-  const orderedSectors = [...sectors].sort(
-    (a, b) => a.orderInFestival - b.orderInFestival,
-  );
+export default function MapTabsClient({ map }: MapTabsClientProps) {
+  const orderedSectors = map.sectors;
   const [activeTabId, setActiveTabId] = useState(() => {
     const firstWithAvailable = orderedSectors.find(
-      (s) => computeAvailableCount(s.stands, profile, subcategoryIds) > 0,
+      (s) => s.availableCount > 0,
     );
     return (firstWithAvailable ?? orderedSectors[0])?.id ?? null;
   });
   const [standCounts, setStandCounts] = useState<Record<number, number>>(() =>
     Object.fromEntries(
-      sectors.map((s) => [
-        s.id,
-        computeAvailableCount(s.stands, profile, subcategoryIds),
-      ]),
+      orderedSectors.map((s) => [s.id, s.availableCount]),
     ),
   );
 
-  if (sectors.length === 0) {
+  if (orderedSectors.length === 0) {
     return (
       <div className="flex flex-col min-h-[calc(100dvh-4rem)]">
         <StepIndicator
@@ -102,7 +44,7 @@ export default function MapTabsClient({
           backHref="/my_profile"
         />
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          No tienes sectores habilitados para este festival
+          No tenés sectores habilitados para este festival
         </div>
       </div>
     );
@@ -117,7 +59,6 @@ export default function MapTabsClient({
         backHref="/my_profile"
       />
       <div className="max-w-3xl mx-auto px-4 py-4 md:py-6 w-full">
-        {/* Sector tab buttons */}
         <div className="flex gap-2 flex-wrap mb-4">
           {orderedSectors.map((sector) => {
             const isActive = sector.id === activeTabId;
@@ -149,29 +90,25 @@ export default function MapTabsClient({
           })}
         </div>
 
-        {/* Active sector map */}
         {orderedSectors.map((sector) =>
           sector.id === activeTabId ? (
             <div key={sector.id} className="flex flex-col items-center gap-2">
               <div className="w-full md:max-w-2xl mx-auto">
                 <ClientMap
-                  festival={festival}
-                  profile={profile}
+                  festival={map.festival}
+                  profile={map.profile}
                   sectorId={sector.id}
                   sectorName={sector.name}
                   stands={sector.stands}
-                  mapElements={sector.mapElements ?? []}
-                  activeHold={activeHold}
-                  subcategoryIds={subcategoryIds}
-                  mapBounds={getMapBounds(sector)}
-                  onStandsChange={(stands) =>
+                  mapElements={sector.mapElements}
+                  activeHold={map.activeHold}
+                  alreadyReserved={map.alreadyReserved}
+                  subcategoryIds={map.subcategoryIds}
+                  mapBounds={sector.mapBounds ?? undefined}
+                  onAvailableCountChange={(count) =>
                     setStandCounts((prev) => ({
                       ...prev,
-                      [sector.id]: computeAvailableCount(
-                        stands,
-                        profile,
-                        subcategoryIds,
-                      ),
+                      [sector.id]: count,
                     }))
                   }
                 />

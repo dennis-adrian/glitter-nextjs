@@ -10,17 +10,20 @@ import {
 } from "react";
 import { Loader2Icon } from "lucide-react";
 
-import { ProfileType } from "@/app/api/users/definitions";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
-import { MapElementBase } from "@/app/lib/map_elements/definitions";
+import type {
+  ReservationActiveHoldDto,
+  ReservationMapFestivalDto,
+  ReservationMapProfileDto,
+  ReservationMapStandDto,
+} from "@/app/lib/reservations/dto";
+import type { ReservationMapElementDto } from "@/app/lib/reservations/dto";
 import UserMap from "@/app/components/maps/user/user-map";
 import { StandInfoCard } from "@/app/components/festivals/reservations/stand-info-card";
 import { useStandPolling } from "@/app/hooks/use-stand-polling";
 import { getActiveHold } from "@/app/lib/stands/hold-actions";
 import { findJointGroup } from "@/app/lib/stands/groups";
 
-type ActiveHold = { id: number; standId: number } | null;
+type ActiveHold = ReservationActiveHoldDto | { id: number; standId: number } | null;
 
 export default function ClientMap({
   festival,
@@ -31,30 +34,35 @@ export default function ClientMap({
   mapElements,
   mapBounds,
   activeHold: initialActiveHold,
+  alreadyReserved,
   subcategoryIds = [],
-  onStandsChange,
+  onAvailableCountChange,
 }: {
-  festival: FestivalBase;
-  profile: ProfileType | null;
+  festival: ReservationMapFestivalDto;
+  profile: ReservationMapProfileDto;
   sectorId?: number;
   sectorName?: string;
-  stands: StandWithReservationsWithParticipants[];
-  mapElements?: MapElementBase[];
+  stands: ReservationMapStandDto[];
+  mapElements?: ReservationMapElementDto[];
   mapBounds?: { minX: number; minY: number; width: number; height: number };
   activeHold?: ActiveHold;
+  alreadyReserved: boolean;
   subcategoryIds?: number[];
-  onStandsChange?: (stands: StandWithReservationsWithParticipants[]) => void;
+  onAvailableCountChange?: (count: number) => void;
 }) {
   const [stands, setStands] = useState(initialStands);
-  const onStandsChangeRef = useRef(onStandsChange);
+  const onAvailableCountChangeRef = useRef(onAvailableCountChange);
 
   useEffect(() => {
-    onStandsChangeRef.current = onStandsChange;
-  }, [onStandsChange]);
+    onAvailableCountChangeRef.current = onAvailableCountChange;
+  }, [onAvailableCountChange]);
 
   useEffect(() => {
-    onStandsChangeRef.current?.(stands);
+    onAvailableCountChangeRef.current?.(
+      stands.filter((stand) => stand.effectiveStatus === "available").length,
+    );
   }, [stands]);
+
   const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
   const selectedStand =
     selectedStandId != null
@@ -73,7 +81,6 @@ export default function ClientMap({
     setActiveHold(hold);
   }, []);
 
-  // Fetch latest active hold on mount to handle stale server cache
   useEffect(() => {
     if (!profile) return;
     let cancelled = false;
@@ -90,18 +97,17 @@ export default function ClientMap({
     };
   }, [profile, festival.id]);
 
-  // Poll for stand status changes every 4 seconds
   useStandPolling(sectorId ?? null, 4000, (polledStands) => {
     setStands((prev) => {
       let changed = false;
       const updated = prev.map((s) => {
         const polled = polledStands.find((p) => p.id === s.id);
-        if (polled && polled.status !== s.status) {
+        if (polled && polled.status !== s.effectiveStatus) {
           changed = true;
           return {
             ...s,
-            status:
-              polled.status as StandWithReservationsWithParticipants["status"],
+            status: polled.status as ReservationMapStandDto["status"],
+            effectiveStatus: polled.status as ReservationMapStandDto["status"],
           };
         }
         return s;
@@ -111,7 +117,7 @@ export default function ClientMap({
   });
 
   const handleStandSelect = useCallback(
-    (stand: StandWithReservationsWithParticipants) => {
+    (stand: ReservationMapStandDto) => {
       if (isPending) return;
       setSelectedStandId(stand.id);
     },
@@ -148,6 +154,8 @@ export default function ClientMap({
           groupStands={selectedGroupStands}
           profile={profile}
           festival={festival}
+          alreadyReserved={alreadyReserved}
+          subcategoryIds={subcategoryIds}
           activeHold={activeHold}
           onHoldChange={handleHoldChange}
           onClose={() => setSelectedStandId(null)}

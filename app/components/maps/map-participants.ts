@@ -35,12 +35,14 @@ export function getActiveStandReservations(
   return stand.reservations?.filter((r) => r.status !== "rejected") ?? [];
 }
 
-export function hasExternalParticipants(
-  stand: StandWithReservationsWithParticipants,
-) {
-  return getActiveStandReservations(stand).some(
-    (reservation) => (reservation.externalParticipants?.length ?? 0) > 0,
-  );
+export function hasExternalParticipants(stand: {
+  hasExternalOccupant?: boolean;
+  reservations?: StandWithReservationsWithParticipants["reservations"];
+}) {
+  if (stand.hasExternalOccupant) return true;
+  return getActiveStandReservations(
+    stand as StandWithReservationsWithParticipants,
+  ).some((reservation) => (reservation.externalParticipants?.length ?? 0) > 0);
 }
 
 /** Whether any user participating in the stand belongs to the given set */

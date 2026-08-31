@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, memo, useRef, useState } from "react";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import type { MapStandLike } from "@/app/components/maps/map-types";
 import {
   STAND_SIZE,
   getStandPosition,
@@ -20,22 +20,16 @@ import type { StandColors } from "./map-utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 type MapStandProps = {
-  stand: StandWithReservationsWithParticipants;
+  stand: MapStandLike;
   canBeReserved: boolean;
   selected?: boolean;
   highlighted?: boolean;
   highlightRequestId?: number;
   dimmed?: boolean;
   colors?: StandColors;
-  onClick?: (stand: StandWithReservationsWithParticipants) => void;
-  onTouchTap?: (
-    stand: StandWithReservationsWithParticipants,
-    rect?: DOMRect,
-  ) => void;
-  onHoverChange?: (
-    stand: StandWithReservationsWithParticipants | null,
-    rect: DOMRect | null,
-  ) => void;
+  onClick?: { (stand: MapStandLike): void };
+  onTouchTap?: { (stand: MapStandLike, rect?: DOMRect): void };
+  onHoverChange?: { (stand: MapStandLike | null, rect: DOMRect | null): void };
 };
 
 const RING_PADDING = 0.8;

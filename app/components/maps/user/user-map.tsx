@@ -1,8 +1,10 @@
 "use client";
 
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
-import { MapElementBase } from "@/app/lib/map_elements/definitions";
+import type {
+  ReservationMapElementDto,
+  ReservationMapProfileDto,
+  ReservationMapStandDto,
+} from "@/app/lib/reservations/dto";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 
 import MapLegend from "@/app/components/maps/map-legend";
@@ -14,14 +16,14 @@ import { getExternalParticipantStandColors } from "@/app/components/maps/map-uti
 import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 
 type UserMapProps = {
-  stands: StandWithReservationsWithParticipants[];
-  mapElements?: MapElementBase[];
+  stands: ReservationMapStandDto[];
+  mapElements?: ReservationMapElementDto[];
   mapBounds?: MapBounds;
-  profile?: ProfileType | BaseProfile | null;
+  profile?: ReservationMapProfileDto | null;
   selectedStandId?: number | null;
   subcategoryIds?: number[];
-  onStandClick?: (stand: StandWithReservationsWithParticipants) => void;
-  onStandTouchTap?: (stand: StandWithReservationsWithParticipants) => void;
+  onStandClick?: (stand: ReservationMapStandDto) => void;
+  onStandTouchTap?: (stand: ReservationMapStandDto) => void;
 };
 
 export default function UserMap({

@@ -1,9 +1,12 @@
 import CategoryBadge from "@/app/components/category-badge";
-import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import type { UserCategory } from "@/app/api/users/definitions";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 
 type SectorTitleProps = {
-  sector: FestivalSectorWithStandsWithReservationsWithParticipants;
+  sector: {
+    name: string;
+    stands: Array<{ standCategory: UserCategory }>;
+  };
 };
 
 export default function FestivalSectorTitle(props: SectorTitleProps) {

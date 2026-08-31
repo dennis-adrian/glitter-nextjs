@@ -1,14 +1,12 @@
 "use client";
 
-import {
-  MapElementBase,
-  MAP_ELEMENT_TYPES,
-} from "@/app/lib/map_elements/definitions";
+import { MAP_ELEMENT_TYPES } from "@/app/lib/map_elements/definitions";
+import type { MapElementLike } from "@/app/components/maps/map-types";
 import MapElementIcon from "./map-element-icon";
 import { getLabelLayout } from "./map-element-label-utils";
 
 type MapElementProps = {
-  element: MapElementBase;
+  element: MapElementLike;
 };
 
 export default function MapElement({ element }: MapElementProps) {

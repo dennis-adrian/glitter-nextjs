@@ -4,16 +4,17 @@ import { ArrowRight, Maximize2Icon, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { createStandHold } from "@/app/lib/stands/hold-actions";
-import { ProfileType } from "@/app/api/users/definitions";
+import type {
+  ReservationActiveHoldDto,
+  ReservationMapFestivalDto,
+  ReservationMapProfileDto,
+  ReservationMapStandDto,
+} from "@/app/lib/reservations/dto";
 import CategoryBadge from "@/app/components/category-badge";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
-import { profileHasReservation } from "@/app/helpers/next_event";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { createStandHold } from "@/app/lib/stands/hold-actions";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 import { formatStandsLabel } from "@/app/lib/stands/groups";
 import {
@@ -22,18 +23,16 @@ import {
 } from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
 
-type ActiveHold = { id: number; standId: number } | null;
+type ActiveHold = ReservationActiveHoldDto | { id: number; standId: number } | null;
 
 type StandInfoCardProps = {
-  stand: StandWithReservationsWithParticipants;
+  stand: ReservationMapStandDto;
   sectorName: string;
-  /**
-   * Every stand of the joint group that was tapped, when the stand belongs to
-   * one. Defaults to just the tapped stand.
-   */
-  groupStands?: StandWithReservationsWithParticipants[];
-  profile: ProfileType;
-  festival: FestivalBase;
+  groupStands?: ReservationMapStandDto[];
+  profile: ReservationMapProfileDto;
+  festival: ReservationMapFestivalDto;
+  alreadyReserved: boolean;
+  subcategoryIds: number[];
   activeHold?: ActiveHold;
   onHoldChange?: (hold: ActiveHold) => void;
   onClose: () => void;
@@ -42,7 +41,7 @@ type StandInfoCardProps = {
 };
 
 function getStandDimensions(
-  standCategory: StandWithReservationsWithParticipants["standCategory"],
+  standCategory: ReservationMapStandDto["standCategory"],
 ): string {
   if (standCategory === "gastronomy") return "140cm x 70cm";
   return "60cm x 120cm";
@@ -62,37 +61,32 @@ function getReservationStatusLabel(status: string): string {
 }
 
 function getEligibilityMessage(
-  stand: StandWithReservationsWithParticipants,
-  profile: ProfileType,
-  festivalId: number,
+  stand: ReservationMapStandDto,
+  profile: ReservationMapProfileDto,
+  alreadyReserved: boolean,
+  subcategoryIds: number[],
   activeHold?: ActiveHold,
 ): string | null {
-  if (stand.status === "disabled") return "Espacio deshabilitado";
-  if (stand.status === "held" && stand.id !== activeHold?.standId)
+  if (stand.effectiveStatus === "disabled") return "Espacio deshabilitado";
+  if (stand.effectiveStatus === "held" && stand.id !== activeHold?.standId)
     return "Espacio en espera por otro participante";
-  if (!isProfileInFestival(festivalId, profile))
-    return "No estás habilitado para participar en este evento";
   if (
     profile.category !== stand.standCategory &&
     profile.category !== "new_artist"
   )
-    return "No puedes reservar en este espacio";
+    return "No podés reservar en este espacio";
   if (
     profile.category === "new_artist" &&
     stand.standCategory !== "illustration"
   )
-    return "No puedes reservar en este espacio";
-  if (stand.standSubcategories.length > 0) {
-    const userSubcategoryIds = profile.profileSubcategories.map(
-      (ps) => ps.subcategoryId,
+    return "No podés reservar en este espacio";
+  if (stand.eligibleSubcategoryIds.length > 0) {
+    const hasMatch = subcategoryIds.some((id) =>
+      stand.eligibleSubcategoryIds.includes(id),
     );
-    const hasMatch = userSubcategoryIds.some((id) =>
-      stand.standSubcategories.some((sc) => sc.subcategoryId === id),
-    );
-    if (!hasMatch) return "No puedes reservar en este espacio";
+    if (!hasMatch) return "No podés reservar en este espacio";
   }
-  if (profileHasReservation(profile, festivalId))
-    return "Ya tienes una reserva en este festival";
+  if (alreadyReserved) return "Ya tenés una reserva en este festival";
   return null;
 }
 
@@ -102,6 +96,8 @@ export function StandInfoCard({
   groupStands,
   profile,
   festival,
+  alreadyReserved,
+  subcategoryIds,
   activeHold,
   onHoldChange,
   onClose,
@@ -110,34 +106,28 @@ export function StandInfoCard({
 }: StandInfoCardProps) {
   const router = useRouter();
 
-  const isOwnHold = stand.status === "held" && stand.id === activeHold?.standId;
+  const isOwnHold =
+    stand.effectiveStatus === "held" && stand.id === activeHold?.standId;
 
   const isStandTaken =
-    stand.status === "reserved" ||
-    stand.status === "confirmed" ||
-    (stand.status === "held" && !isOwnHold);
+    stand.effectiveStatus === "reserved" ||
+    stand.effectiveStatus === "confirmed" ||
+    (stand.effectiveStatus === "held" && !isOwnHold);
 
-  const userSubcategoryIds = profile.profileSubcategories.map(
-    (ps) => ps.subcategoryId,
-  );
   const canReserve =
     !isStandTaken &&
     !isOwnHold &&
-    (profile.role === "admin" ||
-      (canStandBeReserved(stand, profile, userSubcategoryIds) &&
-        isProfileInFestival(festival.id, profile) &&
-        !profileHasReservation(profile, festival.id)));
+    canStandBeReserved(stand, profile, subcategoryIds) &&
+    !alreadyReserved;
 
   const eligibilityMessage = getEligibilityMessage(
     stand,
     profile,
-    festival.id,
+    alreadyReserved,
+    subcategoryIds,
     activeHold,
   );
-  const hasReservation = profileHasReservation(profile, festival.id);
-  const standReservation = stand.reservations?.find(
-    (r) => r.status !== "rejected",
-  );
+  const standReservationSummaries = stand.visibleParticipantSummaries;
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat("es-BO", {
@@ -147,10 +137,8 @@ export function StandInfoCard({
     }).format(price);
 
   const dimensions = getStandDimensions(stand.standCategory);
-  // Groups only form on stands somebody already holds, so this card never shows
-  // a joined unit as reservable — only its label widens to name both stands.
   const cardStands = groupStands?.length ? groupStands : [stand];
-  const holdMinutes = festival.reservationHoldMinutes ?? 5;
+  const holdMinutes = festival.holdMinutes;
   const holdIntentKeyRef = useRef<HoldIntentCache | null>(null);
   const prevActiveHoldRef = useRef(activeHold);
 
@@ -241,7 +229,6 @@ export function StandInfoCard({
         </Button>
 
         <div className="px-6 pb-6 flex flex-col gap-6">
-          {/* Header with category and price */}
           <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -252,12 +239,12 @@ export function StandInfoCard({
                 {isStandTaken && (
                   <span
                     className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                      stand.status === "held"
+                      stand.effectiveStatus === "held"
                         ? "bg-amber-50 text-amber-600"
                         : "bg-red-50 text-red-600"
                     }`}
                   >
-                    {stand.status === "held" ? "EN ESPERA" : "OCUPADO"}
+                    {stand.effectiveStatus === "held" ? "EN ESPERA" : "OCUPADO"}
                   </span>
                 )}
               </div>
@@ -283,7 +270,6 @@ export function StandInfoCard({
             )}
           </div>
 
-          {/* Details */}
           <div className="flex items-center gap-3">
             <Badge variant="outline">
               <Maximize2Icon className="h-3 w-3 mr-2 text-muted-foreground" />
@@ -293,18 +279,16 @@ export function StandInfoCard({
             </Badge>
           </div>
 
-          {/* Stand held by current user */}
           {isOwnHold && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
               <p className="text-sm text-amber-800">
-                Tienes este espacio reservado temporalmente. Confirma tu reserva
+                Tenés este espacio reservado temporalmente. Confirmá tu reserva
                 antes de que expire.
               </p>
             </div>
           )}
 
-          {/* Stand held by another user */}
-          {stand.status === "held" && !isOwnHold && (
+          {stand.effectiveStatus === "held" && !isOwnHold && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
               <p className="text-sm text-amber-800">
                 Otro participante está considerando este espacio. Volverá a
@@ -313,60 +297,63 @@ export function StandInfoCard({
             </div>
           )}
 
-          {/* Stand taken - show reserver info */}
-          {isStandTaken && stand.status !== "held" && standReservation && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-4">
-              <div className="mb-3 space-y-2">
-                {standReservation.participants.map((participant) => (
-                  <div key={participant.id} className="flex items-center gap-3">
-                    <Avatar className="h-12 w-12 border-red-200">
-                      <AvatarImage
-                        src={participant.user?.imageUrl}
-                        alt={participant.user?.displayName || "Participante"}
-                      />
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-600">
-                        Reservado por
-                      </p>
-                      <p className="text-base font-bold text-gray-900">
-                        {participant.user?.displayName || "Participante"}
-                      </p>
+          {isStandTaken &&
+            stand.effectiveStatus !== "held" &&
+            standReservationSummaries.length > 0 && (
+              <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+                <div className="mb-3 space-y-2">
+                  {standReservationSummaries.map((participant) => (
+                    <div
+                      key={`${participant.kind}-${participant.id}`}
+                      className="flex items-center gap-3"
+                    >
+                      <Avatar className="h-12 w-12 border-red-200">
+                        <AvatarImage
+                          src={participant.imageUrl ?? undefined}
+                          alt={participant.displayName || "Participante"}
+                        />
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-600">
+                          Reservado por
+                        </p>
+                        <p className="text-base font-bold text-gray-900">
+                          {participant.displayName || "Participante"}
+                        </p>
+                      </div>
                     </div>
+                  ))}
+                </div>
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Estado:</span>
+                    <span className="font-semibold text-gray-900">
+                      {getReservationStatusLabel(
+                        standReservationSummaries[0]?.reservationStatus ?? "",
+                      )}
+                    </span>
                   </div>
-                ))}
-              </div>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Estado:</span>
-                  <span className="font-semibold text-gray-900">
-                    {getReservationStatusLabel(standReservation.status)}
-                  </span>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Error message if not eligible (skip when message is already-reservation; shown in blue box below) */}
           {!canReserve &&
             !isStandTaken &&
             eligibilityMessage &&
-            !hasReservation && (
+            !alreadyReserved && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                 <p className="text-sm text-red-800">{eligibilityMessage}</p>
               </div>
             )}
 
-          {/* Already have reservation message */}
-          {hasReservation && !isStandTaken && (
+          {alreadyReserved && !isStandTaken && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <p className="text-sm text-blue">
-                Ya tienes una reserva en este festival
+              <p className="text-sm text-blue-800">
+                Ya tenés una reserva en este festival
               </p>
             </div>
           )}
 
-          {/* Action button */}
           {isOwnHold ? (
             <Button
               type="button"

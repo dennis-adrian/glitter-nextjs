@@ -35,7 +35,9 @@ export function getStandPosition(stand: StandWithPosition) {
 
 export function computeCanvasBounds(
   stands: StandWithPosition[],
-  mapElements?: MapElementBase[],
+  mapElements?: Array<
+    Pick<MapElementBase, "positionLeft" | "positionTop" | "width" | "height">
+  >,
 ): { minX: number; minY: number; width: number; height: number } {
   const positioned = stands.filter(
     (s) => s.positionLeft != null && s.positionTop != null,
