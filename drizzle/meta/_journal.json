@@ -1702,6 +1702,27 @@
       "when": 1788025343411,
       "tag": "0243_reflective_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1788056696845,
+      "tag": "0244_sturdy_shooting_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1788060901626,
+      "tag": "0245_cold_mysterio",
+      "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1788060951300,
+      "tag": "0246_magenta_rocket_raccoon",
+      "breakpoints": true
     }
   ]
 }

@@ -7,8 +7,9 @@ import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
 
 const STATUS_PRIORITY: Record<InvoiceWithPayments["status"], number> = {
   pending: 0,
-  paid: 1,
-  cancelled: 2,
+  verification_payment: 1,
+  paid: 2,
+  cancelled: 3,
 };
 
 type Props = {

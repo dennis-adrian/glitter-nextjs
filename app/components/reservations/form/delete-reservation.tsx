@@ -18,7 +18,7 @@ export function DeleteReservationForm({
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-    const res = await deleteReservation(reservation.id, reservation.standId);
+    const res = await deleteReservation(reservation.id);
     if (res.success) {
       toast.success(res.message);
       onSuccess();

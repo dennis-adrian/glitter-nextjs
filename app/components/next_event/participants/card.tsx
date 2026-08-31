@@ -1,4 +1,5 @@
 import { ProfileWithSocials } from "@/app/api/users/definitions";
+import type { PublicProfileSummaryDto } from "@/app/lib/reservations/dto";
 import {
   Card,
   CardHeader,
@@ -10,7 +11,11 @@ import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
 
-export function ParticipantCard({ profile }: { profile: ProfileWithSocials }) {
+export function ParticipantCard({
+  profile,
+}: {
+  profile: PublicProfileSummaryDto | ProfileWithSocials;
+}) {
   const socials = profile.userSocials.filter((social) => social.username);
 
   return (

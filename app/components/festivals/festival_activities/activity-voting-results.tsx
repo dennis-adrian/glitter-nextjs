@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ArrowLeftIcon, UsersIcon } from "lucide-react";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import type { ReservationStandRefDto } from "@/app/lib/reservations/dto";
 import VotingResultRow from "@/app/components/festivals/festival_activities/voting-result-row";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
 type ActivityVotingResultsProps = {
   activity: FestivalActivityWithDetailsAndParticipants;
-  reservations?: ReservationWithParticipantsAndUsersAndStand[];
+  reservations?: ReservationStandRefDto[];
 };
 
 export default function ActivityVotingResults({

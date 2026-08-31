@@ -5,17 +5,12 @@ import {
   POSTHOG_SHUTDOWN_TIMEOUT_MS,
 } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { z } from "zod";
 
 const PaymentSchema = z.object({
-  id: z.number().optional(),
-  amount: z.number(),
-  date: z.coerce.date(),
-  invoiceId: z.number(),
+  invoiceId: z.number().int().positive(),
   voucherUrl: z.url(),
-  oldVoucherUrl: z.url().optional(),
-  reservationId: z.number(),
-  standId: z.number(),
 });
 
 export type CreatePaymentRequestType = z.infer<typeof PaymentSchema>;
@@ -23,13 +18,46 @@ export type CreatePaymentRequestType = z.infer<typeof PaymentSchema>;
 export type CreatePaymentResponseType = {
   success: boolean;
   message: string;
-  errors?: any;
+  errors?: unknown;
 };
 
 export async function POST(req: Request) {
   const { userId: clerkId } = await auth();
-  const body = await req.json();
-  const validatedPayment = PaymentSchema.safeParse(body);
+  if (!clerkId) {
+    return new Response(JSON.stringify({ success: false, message: "Unauthorized" }), {
+      status: 401,
+    });
+  }
+
+  const profile = await getCurrentUserProfile();
+  if (!profile) {
+    return new Response(JSON.stringify({ success: false, message: "Unauthorized" }), {
+      status: 401,
+    });
+  }
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, message: "Invalid payment data" }),
+      { status: 400 },
+    );
+  }
+
+  if (body == null || typeof body !== "object") {
+    return new Response(
+      JSON.stringify({ success: false, message: "Invalid payment data" }),
+      { status: 400 },
+    );
+  }
+
+  const payload = body as Record<string, unknown>;
+  const validatedPayment = PaymentSchema.safeParse({
+    invoiceId: payload.invoiceId ?? (payload.payment as { invoiceId?: unknown } | undefined)?.invoiceId,
+    voucherUrl: payload.voucherUrl ?? (payload.payment as { voucherUrl?: unknown } | undefined)?.voucherUrl,
+  });
   if (!validatedPayment.success) {
     return new Response(
       JSON.stringify({
@@ -45,34 +73,20 @@ export async function POST(req: Request) {
 
   const { data } = validatedPayment;
   const result = await createPayment({
-    payment: {
-      id: data.id,
-      amount: data.amount,
-      date: data.date,
-      invoiceId: data.invoiceId,
-      voucherUrl: data.voucherUrl,
-    },
-    oldVoucherUrl: data.oldVoucherUrl,
-    reservationId: data.reservationId,
-    standId: data.standId,
+    invoiceId: data.invoiceId,
+    voucherUrl: data.voucherUrl,
   });
   if (!result.success) {
     return new Response(JSON.stringify(result), { status: 400 });
   }
 
-  // Past the success check, so the payment is already recorded. An unreachable
-  // PostHog must not turn that into a 500 the caller reads as a failed upload —
-  // same guard the other server-side captures already use.
   try {
     const posthog = getPostHogClient();
     posthog.capture({
-      distinctId: clerkId ?? `reservation_${data.reservationId}`,
+      distinctId: String(profile.id),
       event: POSTHOG_EVENTS.PAYMENT_UPLOADED,
       properties: {
-        reservation_id: data.reservationId,
-        stand_id: data.standId,
         invoice_id: data.invoiceId,
-        amount: data.amount,
       },
     });
     await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);

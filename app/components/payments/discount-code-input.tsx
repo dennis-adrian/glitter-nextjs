@@ -31,7 +31,6 @@ export default function DiscountCodeInput({
       const result = await validateAndApplyDiscountCode({
         code: code.trim(),
         invoiceId,
-        festivalId,
       });
 
       if (result.success) {

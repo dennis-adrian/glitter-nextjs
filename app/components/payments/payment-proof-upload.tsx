@@ -18,7 +18,11 @@ export default function PaymentProofUpload({
   voucherImageUrl?: string;
   onUploadComplete: (imageUrl: string) => Promise<void> | void;
   onUploading: (isUploading: boolean) => void;
-  endpoint?: "reservationPayment" | "storeOrderPayment" | "guestOrderPayment";
+  endpoint?:
+    | "reservationPayment"
+    | "adminReservationPayment"
+    | "storeOrderPayment"
+    | "guestOrderPayment";
   submitLabel?: string;
   uploadInput?: Record<string, unknown>;
 }) {
@@ -29,6 +33,8 @@ export default function PaymentProofUpload({
 
   const { startUpload: startReservationPaymentUpload } =
     useUploadThing("reservationPayment");
+  const { startUpload: startAdminReservationPaymentUpload } =
+    useUploadThing("adminReservationPayment");
   const { startUpload: startStoreOrderPaymentUpload } =
     useUploadThing("storeOrderPayment");
   const { startUpload: startGuestOrderPaymentUpload } =
@@ -73,7 +79,20 @@ export default function PaymentProofUpload({
       } else if (endpoint === "storeOrderPayment") {
         res = await startStoreOrderPaymentUpload([selectedFile]);
       } else {
-        res = await startReservationPaymentUpload([selectedFile]);
+        const invoiceId = uploadInput?.["invoiceId"];
+        if (typeof invoiceId !== "number") {
+          toast.error(
+            "Faltan datos para subir el comprobante. Recargá la página e intentá de nuevo.",
+          );
+          setIsUploading(false);
+          onUploading(false);
+          return;
+        }
+        res = await (endpoint === "adminReservationPayment"
+          ? startAdminReservationPaymentUpload
+          : startReservationPaymentUpload)([selectedFile], {
+          invoiceId,
+        });
       }
       if (!res || !res[0]) {
         toast.error("Error al subir el comprobante. Intentá de nuevo.");

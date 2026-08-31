@@ -1,4 +1,4 @@
-import { fetchReservation } from "@/app/api/reservations/actions";
+import { fetchReservationForAdmin } from "@/app/lib/reservations/queries";
 import EditReservationForm from "@/app/components/reservations/edit-form";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import {
@@ -25,7 +25,7 @@ import { fetchFestival } from "@/app/lib/festivals/actions";
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { id } = params;
-  const reservation = await fetchReservation(parseInt(id));
+  const reservation = await fetchReservationForAdmin(parseInt(id));
   if (!reservation) return <ResourceNotFound />;
 
   const festival = await fetchFestival({

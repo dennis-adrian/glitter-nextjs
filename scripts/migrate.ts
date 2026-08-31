@@ -4,7 +4,9 @@ import { pool, db } from "@/db";
 import {
   backfillCategoryCatalog,
   categoryCatalogBackfillCompleted,
+  invoiceVerificationPaymentBackfillCompleted,
   markCategoryCatalogBackfillCompleted,
+  markInvoiceVerificationPaymentBackfillCompleted,
 } from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
 import { ensureDefaultFestivalTerms } from "@/app/lib/festival-terms/persist";
@@ -87,6 +89,25 @@ async function ensureFestivalTermsArchivedEnum() {
   }
 }
 
+async function backfillInvoiceVerificationPayment() {
+  const client = await pool.connect();
+  try {
+    // 0244 adds invoice_status.verification_payment. Postgres refuses to use a
+    // newly ADD VALUE'd label until that transaction commits, so this UPDATE
+    // cannot live in the same Drizzle migration file as the ALTER TYPE.
+    await client.query(`
+      UPDATE invoices AS i
+      SET status = 'verification_payment', updated_at = now()
+      FROM stand_reservations AS r
+      WHERE i.reservation_id = r.id
+        AND i.status = 'pending'
+        AND r.status = 'verification_payment'
+    `);
+  } finally {
+    client.release();
+  }
+}
+
 async function main() {
   if (!process.env.POSTGRES_URL) {
     console.info("POSTGRES_URL is not set. Skipping migration.");
@@ -99,9 +120,15 @@ async function main() {
     const catalogBackfillDone = catalogPending
       ? false
       : await categoryCatalogBackfillCompleted();
+    const invoiceBackfillDone =
+      await invoiceVerificationPaymentBackfillCompleted();
 
     await ensureFestivalTermsArchivedEnum();
     await migrate(db, { migrationsFolder: "./drizzle" });
+    if (!invoiceBackfillDone) {
+      await backfillInvoiceVerificationPayment();
+      await markInvoiceVerificationPaymentBackfillCompleted();
+    }
     await backfillProductSlugs();
     await ensureProductSlugConstraints();
     if (catalogPending || !catalogBackfillDone) {

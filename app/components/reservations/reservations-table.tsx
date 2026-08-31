@@ -40,6 +40,10 @@ export default function ReservationsTable({
               label: DisplayPaymentStatus.PENDING,
             },
             {
+              value: DisplayPaymentStatus.UNDER_REVIEW,
+              label: DisplayPaymentStatus.UNDER_REVIEW,
+            },
+            {
               value: DisplayPaymentStatus.OUTSTANDING,
               label: DisplayPaymentStatus.OUTSTANDING,
             },

@@ -31,7 +31,8 @@ export default function ConfirmReservationModal({
 }: ConfirmReservationModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [markAsPaid, setMarkAsPaid] = useState(false);
-  const isPending = invoice.status === "pending";
+  const canSettleInvoice =
+    invoice.status === "pending" || invoice.status === "verification_payment";
   const standLabel = formatStandLabel(invoice.reservation.stand);
   const voucherUrl = invoice.payments.find(
     (payment) => payment.voucherUrl,
@@ -73,7 +74,7 @@ export default function ConfirmReservationModal({
             </a>
           )}
 
-          {isPending && canMarkAsPaid && (
+          {canSettleInvoice && canMarkAsPaid && (
             <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
               <Checkbox
                 checked={markAsPaid}
@@ -85,7 +86,9 @@ export default function ConfirmReservationModal({
                   Marcar el pago como pagado
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  El pago todavía figura como pendiente.
+                  {invoice.status === "verification_payment"
+                    ? "El comprobante está en revisión. Confirmá solo si el pago es válido."
+                    : "El pago todavía figura como pendiente."}
                 </span>
               </span>
             </label>
@@ -93,7 +96,7 @@ export default function ConfirmReservationModal({
 
           <ConfirmReservationForm
             invoice={invoice}
-            markAsPaid={isPending && markAsPaid}
+            markAsPaid={canSettleInvoice && markAsPaid}
             onSuccess={() => {
               setMarkAsPaid(false);
               onOpenChange(false);

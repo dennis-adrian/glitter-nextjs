@@ -31,20 +31,23 @@ import {
 } from "@/app/components/maps/map-utils";
 import { Button } from "@/app/components/ui/button";
 import { type SearchOption } from "@/app/components/ui/search-input/search-content";
-import { searchPotentialPartners } from "@/app/lib/festivals/actions";
+import { searchPotentialPartners } from "@/app/lib/reservations/participant-actions";
+import { RESERVATION_ERROR_MESSAGES } from "@/app/lib/reservations/errors";
 import {
   cancelStandHold,
   confirmStandHold,
 } from "@/app/lib/stands/hold-actions";
 import PartnerSelection from "./partner-selection";
-import { RecentSharedStandPartner } from "@/app/lib/festivals/definitions";
+import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
 import { cn } from "@/app/lib/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
-const TERMS_AND_CONDITIONS_REASON =
-  "No ha aceptado los términos y condiciones del festival";
-const RESERVED_STAND_REASON = "Ya tiene una reserva en este festival";
-const UNAVAILABLE_PARTNER_REASON = "No está disponible para compartir espacio";
+function partnerDisabledReason(
+  denialCode: PartnerSearchResultDto["denialCode"],
+) {
+  if (!denialCode) return undefined;
+  return RESERVATION_ERROR_MESSAGES[denialCode];
+}
 
 type ThumbnailStand = {
   id: number;
@@ -56,7 +59,7 @@ type ThumbnailStand = {
 };
 
 type HoldConfirmationClientProps = {
-  recentPartners: RecentSharedStandPartner[];
+  recentPartners: PartnerSearchResultDto[];
   hold: {
     id: number;
     expiresAt: string;
@@ -197,52 +200,31 @@ export default function HoldConfirmationClient({
       }
       try {
         setIsSearching(true);
-        const results = await searchPotentialPartners(
-          festival.id,
-          profile.id,
-          term,
-        );
+        const results = await searchPotentialPartners(festival.id, term);
         setDynamicPartnerOptions(
           results.map((p) => ({
             label: p.displayName || "Sin nombre",
             value: String(p.id),
             imageUrl: p.imageUrl,
-            disabled: !p.isEligible,
-            disabledReason: !p.isEligible
-              ? TERMS_AND_CONDITIONS_REASON
-              : undefined,
+            disabled: !p.selectable,
+            disabledReason: partnerDisabledReason(p.denialCode),
           })),
         );
       } finally {
         setIsSearching(false);
       }
     },
-    [festival.id, profile.id],
+    [festival.id],
   );
 
   const defaultPartnerOptions = useMemo(() => {
-    return recentPartners.map((partner): SearchOption => {
-      const isUnavailableByProfile = !partner.isSelectable;
-      const disabled =
-        partner.isReserved || !partner.isEligible || isUnavailableByProfile;
-      let disabledReason: string | undefined;
-
-      if (partner.isReserved) {
-        disabledReason = RESERVED_STAND_REASON;
-      } else if (!partner.isEligible) {
-        disabledReason = TERMS_AND_CONDITIONS_REASON;
-      } else if (isUnavailableByProfile) {
-        disabledReason = UNAVAILABLE_PARTNER_REASON;
-      }
-
-      return {
-        label: partner.displayName || "Sin nombre",
-        value: String(partner.id),
-        imageUrl: partner.imageUrl,
-        disabled,
-        disabledReason,
-      };
-    });
+    return recentPartners.map((partner): SearchOption => ({
+      label: partner.displayName || "Sin nombre",
+      value: String(partner.id),
+      imageUrl: partner.imageUrl,
+      disabled: !partner.selectable,
+      disabledReason: partnerDisabledReason(partner.denialCode),
+    }));
   }, [recentPartners]);
 
   const handleRefreshPartners = () => {
@@ -286,7 +268,7 @@ export default function HoldConfirmationClient({
       let cancelled = false;
       (async () => {
         try {
-          await cancelStandHold(hold.id, profile.id);
+          await cancelStandHold(hold.id);
           toast.info("Tu reserva temporal expiró");
         } catch (error) {
           console.error("Error expiring hold", error);
@@ -326,16 +308,18 @@ export default function HoldConfirmationClient({
       minimumFractionDigits: 2,
     }).format(price);
 
+  const confirmIntentKeyRef = useRef(crypto.randomUUID());
+
   const handleConfirm = () => {
     if (isSubmitting) return;
     startSubmitTransition(async () => {
       try {
-        const res = await confirmStandHold(
-          hold.id,
-          profile.id,
-          selectedPartnerId,
-        );
-        if (res.success && res.reservationId) {
+        const res = await confirmStandHold({
+          holdId: hold.id,
+          partnerId: selectedPartnerId,
+          idempotencyKey: confirmIntentKeyRef.current,
+        });
+        if (res.success && res.data.reservationId) {
           confetti({
             particleCount: 100,
             spread: 70,
@@ -349,12 +333,18 @@ export default function HoldConfirmationClient({
             stand_price: stand.price,
             profile_category: profile.category,
             has_partner: !!selectedPartnerId,
-            reservation_id: res.reservationId,
+            reservation_id: res.data.reservationId,
           });
           toast.success(res.message);
           router.replace(
-            `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+            `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.data.reservationId}/payments`,
           );
+        } else if (
+          !res.success &&
+          (res.code === "PARTNER_NOT_ELIGIBLE" ||
+            res.code === "PARTNER_ALREADY_RESERVED")
+        ) {
+          toast.error(res.message);
         } else {
           toast.info(res.message);
           router.replace(mapUrl);
@@ -369,7 +359,7 @@ export default function HoldConfirmationClient({
     if (isSubmitting) return;
     startSubmitTransition(async () => {
       try {
-        const res = await cancelStandHold(hold.id, profile.id);
+        const res = await cancelStandHold(hold.id);
         if (res.success) {
           captureClientEvent(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
             festival_id: festival.id,

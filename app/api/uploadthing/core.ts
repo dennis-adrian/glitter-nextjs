@@ -7,6 +7,7 @@ import { z } from "zod";
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { resolveReservationPaymentUpload } from "@/app/lib/payments/helpers";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
@@ -14,7 +15,7 @@ import {
   VOUCHER_BLOCKER_LABELS,
 } from "@/app/lib/programs/vouchers";
 import { db } from "@/db";
-import { orders, productImages, sessionPurchases } from "@/db/schema";
+import { invoices, orders, productImages, sessionPurchases } from "@/db/schema";
 
 const f = createUploadthing();
 
@@ -77,14 +78,13 @@ export const ourFileRouter = {
       };
     }),
   reservationPayment: f({ image: { maxFileSize: "4MB" } })
-    .middleware(async ({ req }) => {
-      // This code runs on your server before upload
+    .input(z.object({ invoiceId: z.number().int().positive() }))
+    .middleware(async ({ input }) => {
       const user = await currentUser();
 
-      // Throw if user isn't signed in
       if (!user) {
         throw new UploadThingError(
-          "You must be logged in to upload a profile picture",
+          "Tenés que iniciar sesión para subir un comprobante",
         );
       }
 
@@ -92,16 +92,76 @@ export const ourFileRouter = {
 
       if (!profile) {
         throw new UploadThingError(
-          "You must have a profile to upload a payment proof",
+          "Tenés que tener un perfil para subir un comprobante",
         );
       }
 
-      return { profile };
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, input.invoiceId),
+        with: {
+          reservation: true,
+        },
+      });
+      const resolved = resolveReservationPaymentUpload({
+        invoice,
+        profile: { id: profile.id, role: profile.role },
+      });
+      if (!resolved.ok) {
+        throw new UploadThingError(resolved.message);
+      }
+
+      return { profileId: profile.id, invoiceId: resolved.invoiceId };
     })
     .onUploadComplete(({ metadata, file }) => {
       return {
         results: {
-          profileId: metadata.profile.id,
+          profileId: metadata.profileId,
+          invoiceId: metadata.invoiceId,
+          imageUrl: (file as { url: string }).url,
+        },
+      };
+    }),
+  adminReservationPayment: f({ image: { maxFileSize: "4MB" } })
+    .input(z.object({ invoiceId: z.number().int().positive() }))
+    .middleware(async ({ input }) => {
+      const user = await currentUser();
+
+      if (!user) {
+        throw new UploadThingError(
+          "Tenés que iniciar sesión para subir un comprobante",
+        );
+      }
+
+      const profile = await fetchUserProfile(user.id);
+
+      if (!profile) {
+        throw new UploadThingError(
+          "Tenés que tener un perfil para subir un comprobante",
+        );
+      }
+
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, input.invoiceId),
+        with: {
+          reservation: true,
+        },
+      });
+      const resolved = resolveReservationPaymentUpload({
+        invoice,
+        profile: { id: profile.id, role: profile.role },
+        adminPath: true,
+      });
+      if (!resolved.ok) {
+        throw new UploadThingError(resolved.message);
+      }
+
+      return { profileId: profile.id, invoiceId: resolved.invoiceId };
+    })
+    .onUploadComplete(({ metadata, file }) => {
+      return {
+        results: {
+          profileId: metadata.profileId,
+          invoiceId: metadata.invoiceId,
           imageUrl: (file as { url: string }).url,
         },
       };

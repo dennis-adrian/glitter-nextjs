@@ -17,6 +17,8 @@ import {
 } from "@/app/lib/categories/label";
 
 export const CATEGORY_CATALOG_BACKFILL = "0236_manageable_categories";
+export const INVOICE_VERIFICATION_PAYMENT_BACKFILL =
+  "0244_invoice_verification_payment";
 
 export async function ensureCategoryCatalogBackfillMarker() {
   const client = await pool.connect();
@@ -54,6 +56,34 @@ export async function markCategoryCatalogBackfillCompleted() {
       `INSERT INTO category_catalog_backfill (name) VALUES ($1)
        ON CONFLICT (name) DO NOTHING`,
       [CATEGORY_CATALOG_BACKFILL],
+    );
+  } finally {
+    client.release();
+  }
+}
+
+export async function invoiceVerificationPaymentBackfillCompleted(): Promise<boolean> {
+  await ensureCategoryCatalogBackfillMarker();
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT 1 FROM category_catalog_backfill WHERE name = $1`,
+      [INVOICE_VERIFICATION_PAYMENT_BACKFILL],
+    );
+    return rows.length > 0;
+  } finally {
+    client.release();
+  }
+}
+
+export async function markInvoiceVerificationPaymentBackfillCompleted() {
+  await ensureCategoryCatalogBackfillMarker();
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO category_catalog_backfill (name) VALUES ($1)
+       ON CONFLICT (name) DO NOTHING`,
+      [INVOICE_VERIFICATION_PAYMENT_BACKFILL],
     );
   } finally {
     client.release();

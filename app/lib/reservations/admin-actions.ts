@@ -4,6 +4,8 @@ import { fetchStandById } from "@/app/api/stands/actions";
 import { fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
+import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { roundMoney } from "@/app/lib/reservations/money";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
@@ -15,7 +17,7 @@ import {
   standReservations,
   stands,
 } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function createAdminReservation(params: {
@@ -31,7 +33,7 @@ export async function createAdminReservation(params: {
   if (!currentProfile || currentProfile.role !== "admin") {
     return {
       success: false,
-      message: "No tienes permisos para realizar esta acción",
+      message: "No tenés permisos para realizar esta acción",
     };
   }
 
@@ -106,7 +108,12 @@ export async function createAdminReservation(params: {
           message: "El espacio no pertenece a este festival",
         };
       }
-      if (lockedStand.status === "reserved") {
+      if (
+        lockedStand.status === "reserved" ||
+        lockedStand.status === "held" ||
+        lockedStand.status === "confirmed" ||
+        lockedStand.status === "disabled"
+      ) {
         return {
           success: false,
           message: "El espacio ya está reservado",
@@ -134,7 +141,14 @@ export async function createAdminReservation(params: {
 
       const [reservation] = await tx
         .insert(standReservations)
-        .values({ festivalId, standId, revealAt })
+        .values({
+          festivalId,
+          standId,
+          source: "admin_assignment",
+          ownerUserId: userId,
+          priceAmountSnapshot: roundMoney(lockedStand.price ?? 0),
+          revealAt,
+        })
         .returning();
 
       await tx.insert(reservationParticipants).values(
@@ -144,6 +158,14 @@ export async function createAdminReservation(params: {
         })),
       );
 
+      await insertStandReservationEvent(tx, {
+        reservationId: reservation.id,
+        actorUserId: currentProfile.id,
+        eventType: "created",
+        toStatus: "pending",
+        payload: { source: "admin_assignment", standId, partnerId: partnerId ?? null },
+      });
+
       await tx
         .update(stands)
         .set({ status: "reserved", updatedAt: new Date() })
@@ -151,10 +173,11 @@ export async function createAdminReservation(params: {
 
       await tx.insert(invoices).values({
         date: new Date(),
+        dueAt: sql`now() + interval '5 days'`,
         userId,
         reservationId: reservation.id,
-        originalAmount: lockedStand.price ?? 0,
-        amount: lockedStand.price ?? 0,
+        originalAmount: roundMoney(lockedStand.price ?? 0),
+        amount: roundMoney(lockedStand.price ?? 0),
       });
 
       await tx.insert(scheduledTasks).values({
@@ -207,7 +230,7 @@ export async function extendReservationPaymentDeadline(params: {
   if (!currentProfile || currentProfile.role !== "admin") {
     return {
       success: false,
-      message: "No tienes permisos para realizar esta acción",
+      message: "No tenés permisos para realizar esta acción",
     };
   }
 
@@ -292,6 +315,23 @@ export async function extendReservationPaymentDeadline(params: {
           taskType: "stand_reservation",
         });
       }
+
+      await tx
+        .update(invoices)
+        .set({ dueAt: newDueDate, updatedAt: new Date() })
+        .where(
+          and(
+            eq(invoices.reservationId, reservationRow.id),
+            inArray(invoices.status, ["pending", "verification_payment"]),
+          ),
+        );
+
+      await insertStandReservationEvent(tx, {
+        reservationId: reservationRow.id,
+        actorUserId: currentProfile.id,
+        eventType: "deadline_extended",
+        payload: { dueAt: newDueDate.toISOString() },
+      });
 
       return { ok: true as const, reservation: reservationRow };
     });

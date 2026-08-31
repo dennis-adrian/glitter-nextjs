@@ -198,6 +198,18 @@ const getCardConfig = (
     };
   }
 
+  if (cardStatus === "pending_payment_approval") {
+    return {
+      ...STATUS_CONFIG[cardStatus],
+      banner: {
+        title: "Tu pago está en revisión",
+        description:
+          "Ya recibimos tu comprobante. Te avisamos por correo cuando se confirme la reserva.",
+        variant: "info",
+      },
+    };
+  }
+
   if (cardStatus === "pending_payment" && activeParticipations.length > 0) {
     if (outstandingInvoiceCount > 0) {
       const invoiceLabel =
@@ -291,9 +303,11 @@ export default function ReservationCard({
     reservationCount,
   );
 
+  const invoicesHref = `/profiles/${profile.id}/festivals/${activeFestival.id}/invoices`;
   const actionHref =
-    cardStatus === "pending_payment"
-      ? `/profiles/${profile.id}/festivals/${activeFestival.id}/invoices`
+    cardStatus === "pending_payment" ||
+    cardStatus === "pending_payment_approval"
+      ? invoicesHref
       : hasReservationCardStatuses.includes(cardStatus)
         ? `/my_participations`
         : `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`;
@@ -345,9 +359,11 @@ export default function ReservationCard({
               <Link href={actionHref}>
                 {cardStatus === "pending_payment"
                   ? "Completar el pago"
-                  : hasReservationCardStatuses.includes(cardStatus)
-                    ? "Ver mi reserva"
-                    : "Ir a página de reservas"}
+                  : cardStatus === "pending_payment_approval"
+                    ? "Ver estado del pago"
+                    : hasReservationCardStatuses.includes(cardStatus)
+                      ? "Ver mi reserva"
+                      : "Ir a página de reservas"}
                 <ArrowRightIcon className="w-3.5 h-3.5 shrink-0 ml-1" />
               </Link>
             </Button>

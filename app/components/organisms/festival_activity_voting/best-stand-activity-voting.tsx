@@ -1,6 +1,6 @@
 "use client";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import type { ReservationStandRefDto } from "@/app/lib/reservations/dto";
 import { BaseProfile } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
 import ParticipantsModal from "@/app/components/organisms/festival_activity_voting/participants-modal";
@@ -22,7 +22,7 @@ import { useState } from "react";
 type BestStandActivityVotingProps = {
   currentProfile: BaseProfile;
   activity: FestivalActivityWithDetailsAndParticipants;
-  reservations: ReservationWithParticipantsAndUsersAndStand[];
+  reservations: ReservationStandRefDto[];
 };
 
 export default function BestStandActivityVoting({

@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, Maximize2Icon, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -15,6 +16,10 @@ import { profileHasReservation } from "@/app/helpers/next_event";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 import { formatStandsLabel } from "@/app/lib/stands/groups";
+import {
+  nextHoldIntent,
+  type HoldIntentCache,
+} from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
 
 type ActiveHold = { id: number; standId: number } | null;
@@ -145,17 +150,62 @@ export function StandInfoCard({
   // Groups only form on stands somebody already holds, so this card never shows
   // a joined unit as reservable — only its label widens to name both stands.
   const cardStands = groupStands?.length ? groupStands : [stand];
+  const holdMinutes = festival.reservationHoldMinutes ?? 5;
+  const holdIntentKeyRef = useRef<HoldIntentCache | null>(null);
+  const prevActiveHoldRef = useRef(activeHold);
+
+  useEffect(() => {
+    const prev = prevActiveHoldRef.current;
+    const cached = holdIntentKeyRef.current;
+    if (prev && !activeHold && cached?.standId === prev.standId) {
+      holdIntentKeyRef.current = {
+        ...cached,
+        expiresAt: 0,
+      };
+    }
+    prevActiveHoldRef.current = activeHold;
+  }, [activeHold]);
+
+  const idempotencyKeyForStand = (standId: number) => {
+    const next = nextHoldIntent(
+      holdIntentKeyRef.current,
+      standId,
+      Date.now(),
+      holdMinutes * 60 * 1000,
+      () => crypto.randomUUID(),
+    );
+    holdIntentKeyRef.current = next;
+    return next.key;
+  };
 
   const handleSelectStand = () => {
     if (!canReserve || isPending) return;
     startTransition(async () => {
       try {
-        const res = await createStandHold(stand.id, profile.id, festival.id);
-        if (res.success && res.holdId) {
-          onHoldChange?.({ id: res.holdId, standId: stand.id });
+        const idempotencyKey = idempotencyKeyForStand(stand.id);
+        const res = await createStandHold({
+          standId: stand.id,
+          idempotencyKey,
+        });
+        if (res.success && res.data.holdId) {
+          const cached = holdIntentKeyRef.current;
+          if (cached?.standId === stand.id) {
+            cached.expiresAt = Date.now() + holdMinutes * 60 * 1000;
+          }
+        }
+        if (res.success && res.data.reservationId) {
+          toast.success(res.message);
           onClose();
           router.replace(
-            `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.holdId}`,
+            `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.data.reservationId}/payments`,
+          );
+          return;
+        }
+        if (res.success && res.data.holdId) {
+          onHoldChange?.({ id: res.data.holdId, standId: stand.id });
+          onClose();
+          router.replace(
+            `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.data.holdId}`,
           );
         } else {
           toast.error(res.message);

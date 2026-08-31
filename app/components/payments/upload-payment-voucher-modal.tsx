@@ -49,6 +49,7 @@ export default function UploadPaymentVoucherModal(
       <div className="mt-4">
         <PaymentProofUpload
           voucherImageUrl={voucherUrl}
+          uploadInput={{ invoiceId: props.invoice.id }}
           onUploadComplete={(newUrl) => {
             setHasUserUploaded(true);
             setVoucherUrl(newUrl);

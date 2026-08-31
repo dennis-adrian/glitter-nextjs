@@ -31,8 +31,6 @@ export default function ConfirmFreeReservationButton({
       try {
         res = await confirmFreeInvoice({
           invoiceId: invoice.id,
-          reservationId: invoice.reservationId,
-          standId: invoice.reservation.standId,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? ` ${error.message}` : "";
@@ -52,7 +50,7 @@ export default function ConfirmFreeReservationButton({
             reservation_id: invoice.reservationId,
             stand_id: invoice.reservation.standId,
           });
-          toast.success("Reserva confirmada con éxito.");
+          toast.success("Solicitud enviada. Tu reserva está en revisión.");
           router.push(
             `/profiles/${invoice.userId}/invoices/${invoice.id}/success`,
           );
@@ -72,7 +70,7 @@ export default function ConfirmFreeReservationButton({
           disabled={form.formState.isSubmitting || isConfirming || isPending}
           loading={form.formState.isSubmitting || isConfirming || isPending}
         >
-          Confirmar reserva
+            Solicitá revisión
           <CheckIcon className="h-4 w-4 ml-2" />
         </SubmitButton>
       </form>

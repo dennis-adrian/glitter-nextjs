@@ -2,7 +2,7 @@ import Title from "@/app/components/atoms/heading";
 import BestStandActivityVoting from "@/app/components/organisms/festival_activity_voting/best-stand-activity-voting";
 import FestivalStickerVoting from "@/app/components/organisms/festival_activity_voting/festival-sticker-voting";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
-import { fetchPublicReservationsByFestivalId } from "@/app/lib/reservations/actions";
+import { fetchFestivalReservationStandRefs } from "@/app/lib/reservations/queries";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -30,7 +30,7 @@ export default async function VotingPage({ params }: VotingPageProps) {
 
   const activity = await fetchFestivalActivity(activityId);
   const festivalReservations =
-    await fetchPublicReservationsByFestivalId(festivalId);
+    await fetchFestivalReservationStandRefs(festivalId);
   if (!activity || !activity.allowsVoting) return notFound();
 
   return (
