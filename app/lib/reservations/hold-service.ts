@@ -508,11 +508,17 @@ export async function confirmStandHold(
         partnerId ? [actor.id, partnerId] : [actor.id],
       );
 
+      const lockedHoldWhere = and(
+        eq(standHolds.id, holdId),
+        eq(standHolds.userId, actor.id),
+        gt(standHolds.expiresAt, new Date()),
+      );
+
       const [hold] = await tx
         .select(holdSelect)
         .from(standHolds)
         .innerJoin(stands, eq(stands.id, standHolds.standId))
-        .where(holdWhere)
+        .where(lockedHoldWhere)
         .limit(1)
         .for("update");
 
