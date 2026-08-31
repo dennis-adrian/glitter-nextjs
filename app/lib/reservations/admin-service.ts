@@ -591,7 +591,8 @@ export async function extendReservationPaymentDeadline(
           .update(scheduledTasks)
           .set({
             dueDate: dueAt,
-            reminderSentAt: sql`now()`,
+            reminderTime: new Date(dueAt.getTime() - 24 * 60 * 60 * 1000),
+            reminderSentAt: null,
             ranAfterDueDate: false,
             updatedAt: sql`now()`,
           })
@@ -599,8 +600,7 @@ export async function extendReservationPaymentDeadline(
       } else {
         await tx.insert(scheduledTasks).values({
           dueDate: dueAt,
-          reminderTime: sql`now()`,
-          reminderSentAt: sql`now()`,
+          reminderTime: new Date(dueAt.getTime() - 24 * 60 * 60 * 1000),
           profileId: creatorId,
           reservationId: reservation.id,
           taskType: "stand_reservation",

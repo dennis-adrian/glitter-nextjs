@@ -594,6 +594,7 @@ describe("extendReservationPaymentDeadline", () => {
 
   it("updates invoice due_at and the active scheduled task together", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const taskUpdateSets: unknown[] = [];
     const tx = tableAwareTx({
       participants: [{ userId: 3 }],
       invoices: [
@@ -608,6 +609,12 @@ describe("extendReservationPaymentDeadline", () => {
         },
       ],
     });
+    tx.update = vi.fn(() => ({
+      set: vi.fn((payload: unknown) => {
+        taskUpdateSets.push(payload);
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -616,6 +623,10 @@ describe("extendReservationPaymentDeadline", () => {
       reservationId: 9,
       dueAt: futureDueAt,
     });
+
+    const expectedReminderTime = new Date(
+      futureDueAt.getTime() - 24 * 60 * 60 * 1000,
+    );
 
     expect(result).toEqual({
       success: true,
@@ -629,6 +640,14 @@ describe("extendReservationPaymentDeadline", () => {
       "stand",
     ]);
     expect(tx.update).toHaveBeenCalled();
+    expect(taskUpdateSets).toContainEqual(
+      expect.objectContaining({
+        dueDate: futureDueAt,
+        reminderTime: expectedReminderTime,
+        reminderSentAt: null,
+        ranAfterDueDate: false,
+      }),
+    );
     expect(insertEventMock).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
@@ -639,5 +658,59 @@ describe("extendReservationPaymentDeadline", () => {
     expect(enqueueMock).toHaveBeenCalled();
     expect(completeRequestMock).toHaveBeenCalled();
     expect(scheduleJobsMock).toHaveBeenCalledWith([42, 42]);
+  });
+
+  it("inserts a new scheduled task with reminder fields when no active task exists", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const insertedTaskValues: unknown[] = [];
+    const tx = tableAwareTx({
+      participants: [{ userId: 3 }],
+      invoices: [
+        { id: 1, userId: 3, status: "pending", reservationId: 9 },
+      ],
+      tasks: [
+        {
+          id: 5,
+          dueDate: new Date(Date.now() + 60_000),
+          completedAt: new Date(),
+          taskType: "stand_reservation",
+        },
+      ],
+    });
+    tx.insert = vi.fn(() => ({
+      values: vi.fn((payload: unknown) => {
+        insertedTaskValues.push(payload);
+        return Promise.resolve([]);
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await extendReservationPaymentDeadline({
+      reservationId: 9,
+      dueAt: futureDueAt,
+    });
+
+    const expectedReminderTime = new Date(
+      futureDueAt.getTime() - 24 * 60 * 60 * 1000,
+    );
+
+    expect(result).toEqual({
+      success: true,
+      message: "Plazo de pago extendido",
+    });
+    expect(insertedTaskValues).toContainEqual(
+      expect.objectContaining({
+        dueDate: futureDueAt,
+        reminderTime: expectedReminderTime,
+        profileId: 3,
+        reservationId: 9,
+        taskType: "stand_reservation",
+      }),
+    );
+    expect(
+      (insertedTaskValues[0] as { reminderSentAt?: unknown }).reminderSentAt,
+    ).toBeUndefined();
   });
 });
