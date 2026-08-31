@@ -107,7 +107,7 @@ function createTx(options: {
     inserted,
     updates,
     settlementWhere,
-    select: vi.fn(() => ({)
+    select: vi.fn(() => ({
       from: vi.fn((table: unknown) => ({
         where: vi.fn((clause: unknown) => {
           if (table === invoiceSettlementSubmissions) {
