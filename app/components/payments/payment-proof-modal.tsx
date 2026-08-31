@@ -40,7 +40,6 @@ export default function PaymentProofModal(props: PaymentProofModalProps) {
       const result = await adminConfirmReservationAction({
         invoiceId: props.invoice.id,
         idempotencyKey: confirmIntentKey,
-        voucherUrl: props.imageUrl,
       });
       if (result.success) {
         toast.success("Reserva confirmada");

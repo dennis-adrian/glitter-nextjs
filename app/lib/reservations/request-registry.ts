@@ -14,6 +14,9 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "submitZeroValueInvoice",
   "createAdminReservation",
   "adminConfirmReservation",
+  "extendReservationPaymentDeadline",
+  "createExternalParticipantReservation",
+  "correctSettlementProof",
 ] as const;
 
 export type ReservationRequestOperation =

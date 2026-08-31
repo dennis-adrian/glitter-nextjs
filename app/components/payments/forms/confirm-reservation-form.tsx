@@ -20,14 +20,10 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
   const [confirmIntentKey] = useState(() => crypto.randomUUID());
 
   const action = form.handleSubmit(async () => {
-    const voucherUrl = props.invoice.payments.find(
-      (payment) => payment.voucherUrl,
-    )?.voucherUrl;
     const result = await adminConfirmReservationAction({
       invoiceId: props.invoice.id,
       markAsPaid: props.markAsPaid,
       idempotencyKey: confirmIntentKey,
-      voucherUrl,
     });
     if (result.success) {
       toast.success("Reserva confirmada");

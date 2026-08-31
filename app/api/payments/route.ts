@@ -1,21 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
-import { createPayment } from "@/app/data/invoices/actions";
-import {
-  getPostHogClient,
-  POSTHOG_SHUTDOWN_TIMEOUT_MS,
-} from "@/app/lib/posthog-server";
-import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { uuidSchema } from "@/app/lib/reservations/schemas";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { z } from "zod";
-
-const PaymentSchema = z.object({
-  invoiceId: z.number().int().positive(),
-  voucherUrl: z.url(),
-  idempotencyKey: uuidSchema,
-});
-
-export type CreatePaymentRequestType = z.infer<typeof PaymentSchema>;
+import { NextResponse } from "next/server";
 
 export type CreatePaymentResponseType = {
   success: boolean;
@@ -23,87 +6,13 @@ export type CreatePaymentResponseType = {
   errors?: unknown;
 };
 
-export async function POST(req: Request) {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) {
-    return new Response(JSON.stringify({ success: false, message: "Unauthorized" }), {
-      status: 401,
-    });
-  }
-
-  const profile = await getCurrentUserProfile();
-  if (!profile) {
-    return new Response(JSON.stringify({ success: false, message: "Unauthorized" }), {
-      status: 401,
-    });
-  }
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(
-      JSON.stringify({ success: false, message: "Invalid payment data" }),
-      { status: 400 },
-    );
-  }
-
-  if (body == null || typeof body !== "object") {
-    return new Response(
-      JSON.stringify({ success: false, message: "Invalid payment data" }),
-      { status: 400 },
-    );
-  }
-
-  const payload = body as Record<string, unknown>;
-  const nestedPayment = payload.payment as
-    | {
-        invoiceId?: unknown;
-        voucherUrl?: unknown;
-        idempotencyKey?: unknown;
-      }
-    | undefined;
-  const validatedPayment = PaymentSchema.safeParse({
-    invoiceId: payload.invoiceId ?? nestedPayment?.invoiceId,
-    voucherUrl: payload.voucherUrl ?? nestedPayment?.voucherUrl,
-    idempotencyKey: payload.idempotencyKey ?? nestedPayment?.idempotencyKey,
-  });
-  if (!validatedPayment.success) {
-    return new Response(
-      JSON.stringify({
-        message: "Invalid payment data",
-        errors: validatedPayment.error.issues,
-        success: false,
-      }),
-      {
-        status: 400,
-      },
-    );
-  }
-
-  const { data } = validatedPayment;
-  const result = await createPayment({
-    invoiceId: data.invoiceId,
-    voucherUrl: data.voucherUrl,
-    idempotencyKey: data.idempotencyKey,
-  });
-  if (!result.success) {
-    return new Response(JSON.stringify(result), { status: 400 });
-  }
-
-  try {
-    const posthog = getPostHogClient();
-    posthog.capture({
-      distinctId: String(profile.id),
-      event: POSTHOG_EVENTS.PAYMENT_UPLOADED,
-      properties: {
-        invoice_id: data.invoiceId,
-      },
-    });
-    await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
-  } catch (telemetryError) {
-    console.error("PostHog telemetry failed (payments)", telemetryError);
-  }
-
-  return new Response(JSON.stringify(result), { status: 200 });
+export async function POST() {
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        "Este endpoint ya no acepta comprobantes. Subí el archivo desde la reserva.",
+    },
+    { status: 410 },
+  );
 }

@@ -8,6 +8,9 @@ const fetchFestivalMock = vi.hoisted(() => vi.fn());
 const fetchProfileMock = vi.hoisted(() => vi.fn());
 const eligibilityMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
+const lockReservationAggregateMock = vi.hoisted(() => vi.fn());
+const assertPartnerMock = vi.hoisted(() => vi.fn());
+const occupancyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -27,11 +30,19 @@ vi.mock("@/app/api/users/actions", () => ({
 }));
 
 vi.mock("@/app/lib/reservations/locks", () => ({
-  lockFestivalRow: vi.fn(),
-  lockFestivalTermsDocument: vi.fn(),
-  lockParticipants: vi.fn(),
-  lockParticipantEligibilityRows: vi.fn(),
-  lockStandRows: vi.fn(),
+  lockReservationAggregate: lockReservationAggregateMock,
+}));
+
+vi.mock("@/app/lib/reservations/occupancy", () => ({
+  standHasLiveOccupancy: occupancyMock,
+}));
+
+vi.mock("@/app/lib/reservations/partner-eligibility", () => ({
+  assertReservationPartner: assertPartnerMock,
+}));
+
+vi.mock("@/app/lib/reservations/events", () => ({
+  insertStandReservationEvent: vi.fn(),
 }));
 
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
@@ -50,10 +61,6 @@ vi.mock("@/app/lib/reservations/request-registry", () => ({
   abandonRequest: vi.fn(),
 }));
 
-vi.mock("@/app/vendors/resend", () => ({
-  sendEmail: vi.fn(),
-}));
-
 vi.mock("@/db", () => ({
   db: {
     transaction: transactionMock,
@@ -64,13 +71,6 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import {
-  lockFestivalRow,
-  lockFestivalTermsDocument,
-  lockParticipantEligibilityRows,
-  lockParticipants,
-  lockStandRows,
-} from "@/app/lib/reservations/locks";
 import { createAdminReservation } from "@/app/lib/reservations/admin-actions";
 
 function availableStandTx() {
@@ -85,6 +85,7 @@ function availableStandTx() {
                 festivalId: 10,
                 status: "available",
                 price: 100,
+                standCategory: "illustration",
               },
             ]),
           })),
@@ -103,10 +104,13 @@ describe("createAdminReservation sanction enforcement", () => {
     fetchProfileMock.mockReset();
     eligibilityMock.mockReset();
     transactionMock.mockReset();
-    vi.mocked(lockFestivalRow).mockReset();
-    vi.mocked(lockParticipants).mockReset();
-    vi.mocked(lockParticipantEligibilityRows).mockReset();
-    vi.mocked(lockStandRows).mockReset();
+    lockReservationAggregateMock.mockReset();
+    assertPartnerMock.mockReset();
+    occupancyMock.mockReset();
+    occupancyMock.mockResolvedValue(false);
+    lockReservationAggregateMock.mockResolvedValue({ ok: true, locked: {} });
+    assertPartnerMock.mockResolvedValue(null);
+    eligibilityMock.mockResolvedValue({ eligible: true, message: "" });
   });
 
   it("rejects an administratively assigned partner with a blocking sanction", async () => {
@@ -117,18 +121,12 @@ describe("createAdminReservation sanction enforcement", () => {
       reservationsStartDate: new Date("2026-08-01T10:00:00.000Z"),
     });
     fetchProfileMock.mockResolvedValue({ status: "verified" });
-    eligibilityMock.mockImplementation(({ userId }: { userId: number }) =>
-      Promise.resolve(
-        userId === 3
-          ? { eligible: true }
-          : {
-              eligible: false,
-              reason: "ban",
-              sanctionIds: [22],
-              message: "Bloqueado por sanción",
-            },
-      ),
-    );
+    assertPartnerMock.mockResolvedValue({
+      success: false,
+      code: "PARTNER_NOT_ELIGIBLE",
+      message:
+        "La persona que elegiste no puede participar en esta reserva. Bloqueado por sanción",
+    });
 
     const tx = availableStandTx();
     transactionMock.mockImplementation(
@@ -146,17 +144,20 @@ describe("createAdminReservation sanction enforcement", () => {
     expect(result).toEqual({
       success: false,
       message:
-        "El compañero seleccionado no puede participar en esta reserva. Bloqueado por sanción",
+        "La persona que elegiste no puede participar en esta reserva. Bloqueado por sanción",
     });
-    expect(eligibilityMock).toHaveBeenNthCalledWith(
-      2,
-      { userId: 4, festivalId: 10 },
+    expect(assertPartnerMock).toHaveBeenCalledWith(
       tx,
+      expect.objectContaining({
+        partnerUserId: 4,
+        ownerUserId: 3,
+        mode: "admin",
+      }),
     );
     expect(tx.insert).not.toHaveBeenCalled();
   });
 
-  it("locks festival and participant eligibility rows before the stand", async () => {
+  it("locks the canonical aggregate before occupancy and eligibility checks", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
     fetchStandMock.mockResolvedValue({ id: 7, festivalId: 10 });
     fetchFestivalMock.mockResolvedValue({
@@ -165,22 +166,13 @@ describe("createAdminReservation sanction enforcement", () => {
     });
     fetchProfileMock.mockResolvedValue({ status: "verified" });
     const order: string[] = [];
-    vi.mocked(lockParticipants).mockImplementation(async () => {
-      order.push("participants");
+    lockReservationAggregateMock.mockImplementation(async () => {
+      order.push("aggregate");
+      return { ok: true, locked: {} };
     });
-    vi.mocked(lockFestivalRow).mockImplementation(async () => {
-      order.push("festival");
-      return null;
-    });
-    vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
-      order.push("terms");
-    });
-    vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
-      order.push("eligibilityRows");
-    });
-    vi.mocked(lockStandRows).mockImplementation(async () => {
-      order.push("stand");
-      return [];
+    occupancyMock.mockImplementation(async () => {
+      order.push("occupancy");
+      return false;
     });
     eligibilityMock.mockImplementation(async () => {
       order.push("eligibilityCheck");
@@ -204,17 +196,15 @@ describe("createAdminReservation sanction enforcement", () => {
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
 
-    expect(order).toEqual([
-      "participants",
-      "festival",
-      "terms",
-      "eligibilityRows",
-      "stand",
-      "eligibilityCheck",
-    ]);
-    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3]);
-    expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3]);
-    expect(lockStandRows).toHaveBeenCalledWith(tx, [7]);
+    expect(order).toEqual(["aggregate", "occupancy", "eligibilityCheck"]);
+    expect(lockReservationAggregateMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        festivalId: 10,
+        userIds: [3],
+        standIds: [7],
+      }),
+    );
     expect(tx.insert).not.toHaveBeenCalled();
   });
 });

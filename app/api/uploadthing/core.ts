@@ -123,12 +123,16 @@ export const ourFileRouter = {
       if (!voucherUrl) {
         throw new UploadThingError("No se pudo leer la URL del comprobante");
       }
+      if (!uploaded.key) {
+        throw new UploadThingError("No se pudo leer la identidad del archivo");
+      }
 
       const result = await submitPaymentProof(
         {
           invoiceId: metadata.invoiceId,
           voucherUrl,
           fileKey: uploaded.key,
+          source: "uploadthing" as const,
         },
         { id: metadata.profileId, role: metadata.role },
       );
@@ -191,12 +195,16 @@ export const ourFileRouter = {
       if (!voucherUrl) {
         throw new UploadThingError("No se pudo leer la URL del comprobante");
       }
+      if (!uploaded.key) {
+        throw new UploadThingError("No se pudo leer la identidad del archivo");
+      }
 
       const result = await submitPaymentProof(
         {
           invoiceId: metadata.invoiceId,
           voucherUrl,
           fileKey: uploaded.key,
+          source: "uploadthing" as const,
         },
         { id: metadata.profileId, role: metadata.role },
       );

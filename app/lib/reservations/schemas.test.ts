@@ -4,7 +4,11 @@ import {
   parseConfirmHoldInput,
   parseHoldStandInput,
   parseUnknown,
+  correctSettlementProofSchema,
+  extendDeadlineSchema,
   rejectSettlementSchema,
+  reviewBecomeArtistRequestSchema,
+  reviewFestivalParticipationRequestSchema,
   submitPaymentProofSchema,
   submitZeroValueInvoiceSchema,
   updateReservationPartnerSchema,
@@ -13,10 +17,12 @@ import {
 const SAMPLE_KEY = "11111111-1111-4111-8111-111111111111";
 
 describe("reservation runtime schemas", () => {
-  it("accepts invoiceId plus voucher URL and strips unknown payment identity fields", () => {
+  it("requires UploadThing fileKey and source with the voucher URL", () => {
     const parsed = parseUnknown(submitPaymentProofSchema, {
       invoiceId: 12,
       voucherUrl: "https://files.example.com/f/abc",
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
       idempotencyKey: SAMPLE_KEY,
       amount: 1,
       standId: 99,
@@ -27,26 +33,31 @@ describe("reservation runtime schemas", () => {
       data: {
         invoiceId: 12,
         voucherUrl: "https://files.example.com/f/abc",
+        fileKey: "uploadthing-key",
+        source: "uploadthing",
         idempotencyKey: SAMPLE_KEY,
       },
     });
   });
 
-  it("accepts payment proof when fileKey is the durable request identity", () => {
+  it("rejects payment proof without UploadThing source", () => {
     expect(
       parseUnknown(submitPaymentProofSchema, {
         invoiceId: 12,
         voucherUrl: "https://files.example.com/f/abc",
         fileKey: "uploadthing-key",
+        idempotencyKey: SAMPLE_KEY,
       }).success,
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("rejects payment proof without idempotencyKey or fileKey", () => {
+  it("rejects payment proof without fileKey", () => {
     expect(
       parseUnknown(submitPaymentProofSchema, {
         invoiceId: 12,
         voucherUrl: "https://files.example.com/f/abc",
+        source: "uploadthing",
+        idempotencyKey: SAMPLE_KEY,
       }).success,
     ).toBe(false);
   });
@@ -56,6 +67,8 @@ describe("reservation runtime schemas", () => {
       parseUnknown(submitPaymentProofSchema, {
         invoiceId: 0,
         voucherUrl: "https://files.example.com/f/abc",
+        fileKey: "uploadthing-key",
+        source: "uploadthing",
         idempotencyKey: SAMPLE_KEY,
       }).success,
     ).toBe(false);
@@ -158,5 +171,55 @@ describe("reservation runtime schemas", () => {
         reservationId: 9,
       }).success,
     ).toBe(false);
+  });
+
+  it("requires a reason for settlement correction", () => {
+    expect(
+      parseUnknown(correctSettlementProofSchema, {
+        invoiceId: 9,
+        reason: "comprobante ilegible",
+      }),
+    ).toEqual({
+      success: true,
+      data: { invoiceId: 9, reason: "comprobante ilegible" },
+    });
+    expect(
+      parseUnknown(correctSettlementProofSchema, {
+        invoiceId: 9,
+        reason: " ",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("parses a future deadline as a Date", () => {
+    const parsed = parseUnknown(extendDeadlineSchema, {
+      reservationId: 9,
+      dueAt: "2026-09-15T12:00:00.000Z",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.dueAt).toEqual(new Date("2026-09-15T12:00:00.000Z"));
+    }
+  });
+
+  it("accepts only accepted/rejected enrollment reviews", () => {
+    expect(
+      parseUnknown(reviewFestivalParticipationRequestSchema, {
+        requestId: 4,
+        status: "accepted",
+      }).success,
+    ).toBe(true);
+    expect(
+      parseUnknown(reviewFestivalParticipationRequestSchema, {
+        requestId: 4,
+        status: "pending",
+      }).success,
+    ).toBe(false);
+    expect(
+      parseUnknown(reviewBecomeArtistRequestSchema, {
+        requestId: 4,
+        status: "rejected",
+      }).success,
+    ).toBe(true);
   });
 });

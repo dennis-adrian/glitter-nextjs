@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { externalParticipantInputSchema } from "@/app/lib/external_participants/schema";
+
 export const positiveIntSchema = z.coerce.number().int().positive();
 
 export const uuidSchema = z.string().uuid();
@@ -33,22 +35,13 @@ export const invoiceIdSchema = z.object({
   invoiceId: positiveIntSchema,
 });
 
-export const submitPaymentProofSchema = z
-  .object({
-    invoiceId: positiveIntSchema,
-    voucherUrl: z.url(),
-    fileKey: z.string().trim().min(1).max(500).optional(),
-    idempotencyKey: uuidSchema.optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (!value.idempotencyKey && !value.fileKey) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["idempotencyKey"],
-        message: "idempotencyKey or fileKey is required",
-      });
-    }
-  });
+export const submitPaymentProofSchema = z.object({
+  invoiceId: positiveIntSchema,
+  voucherUrl: z.url(),
+  fileKey: z.string().trim().min(1).max(500),
+  source: z.literal("uploadthing"),
+  idempotencyKey: uuidSchema.optional(),
+});
 
 export const submitZeroValueInvoiceSchema = z.object({
   invoiceId: positiveIntSchema,
@@ -59,8 +52,44 @@ export const adminConfirmReservationSchema = z.object({
   invoiceId: positiveIntSchema,
   idempotencyKey: uuidSchema,
   markAsPaid: z.boolean().optional(),
-  voucherUrl: z.url().optional(),
 });
+
+export const correctSettlementProofSchema = z.object({
+  invoiceId: positiveIntSchema,
+  reason: z.string().trim().min(1).max(1000),
+});
+
+export const reviewFestivalParticipationRequestSchema = z.object({
+  requestId: positiveIntSchema,
+  status: z.enum(["accepted", "rejected"]),
+  reason: z.string().trim().max(1000).optional(),
+});
+
+export const reviewBecomeArtistRequestSchema = z.object({
+  requestId: positiveIntSchema,
+  status: z.enum(["accepted", "rejected"]),
+});
+
+export const createExternalReservationSchema = z
+  .object({
+    festivalId: positiveIntSchema,
+    standId: positiveIntSchema,
+    idempotencyKey: uuidSchema,
+    externalParticipantId: positiveIntSchema.optional(),
+    externalParticipant: externalParticipantInputSchema.optional(),
+    revealAt: z.coerce.date().nullable().optional(),
+  })
+  .refine(
+    (data) => {
+      const hasId = data.externalParticipantId != null;
+      const hasNew = data.externalParticipant != null;
+      return hasId !== hasNew;
+    },
+    {
+      message:
+        "Indicá un participante existente o los datos de uno nuevo, no ambos",
+    },
+  );
 
 export const submissionIdSchema = z.object({
   submissionId: positiveIntSchema,

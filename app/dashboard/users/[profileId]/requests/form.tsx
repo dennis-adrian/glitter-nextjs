@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 
-import { updateUserRequest } from "@/app/api/user_requests/actions";
+import {
+  reviewBecomeArtistRequest,
+  reviewFestivalParticipationRequest,
+} from "@/app/api/user_requests/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import {
   Form,
@@ -37,9 +40,24 @@ export default function UserRequestForm({ request }: { request: UserRequest }) {
   });
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
-    const res = await updateUserRequest(request.id, { ...request, ...data });
-    if (res.success) {
+    if (data.status === "pending") {
+      toast.error("No se puede volver una solicitud a pendiente.");
+      return;
+    }
+    const result =
+      request.type === "become_artist"
+        ? await reviewBecomeArtistRequest({
+            requestId: request.id,
+            status: data.status,
+          })
+        : await reviewFestivalParticipationRequest({
+            requestId: request.id,
+            status: data.status,
+          });
+    if (result.success) {
       toast("La solicitud ha sido actualizada.");
+    } else {
+      toast.error(result.message);
     }
   }
 
