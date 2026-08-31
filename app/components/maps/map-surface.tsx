@@ -2,9 +2,11 @@
 
 import { useMemo } from "react";
 
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { MapElementBase } from "@/app/lib/map_elements/definitions";
-import { MapBounds } from "@/app/components/maps/map-types";
+import {
+  MapBounds,
+  MapElementLike,
+  MapStandLike,
+} from "@/app/components/maps/map-types";
 import {
   StandColors,
   computeCanvasBounds,
@@ -18,9 +20,9 @@ import MapElement from "@/app/components/maps/map-element";
 import MapStand from "@/app/components/maps/map-stand";
 import MapStandGroup from "@/app/components/maps/map-stand-group";
 
-type MapSurfaceProps = {
-  stands: StandWithReservationsWithParticipants[];
-  mapElements?: MapElementBase[];
+type MapSurfaceProps<T extends MapStandLike = MapStandLike> = {
+  stands: T[];
+  mapElements?: MapElementLike[];
   /** Explicit viewBox. Falls back to bounds computed from stands and elements */
   mapBounds?: MapBounds;
   selectedStandId?: number | null;
@@ -28,19 +30,11 @@ type MapSurfaceProps = {
   highlightRequestId?: number;
   dimmedStandIds?: ReadonlySet<number>;
   /** Returning undefined leaves MapStand on its status-based default palette */
-  getColors?: (
-    stand: StandWithReservationsWithParticipants,
-  ) => StandColors | undefined;
-  canBeReserved?: (stand: StandWithReservationsWithParticipants) => boolean;
-  onStandClick?: (stand: StandWithReservationsWithParticipants) => void;
-  onStandTouchTap?: (
-    stand: StandWithReservationsWithParticipants,
-    rect?: DOMRect,
-  ) => void;
-  onStandHoverChange?: (
-    stand: StandWithReservationsWithParticipants | null,
-    rect: DOMRect | null,
-  ) => void;
+  getColors?: (stand: T) => StandColors | undefined;
+  canBeReserved?: (stand: T) => boolean;
+  onStandClick?: (stand: T) => void;
+  onStandTouchTap?: (stand: T, rect?: DOMRect) => void;
+  onStandHoverChange?: (stand: T | null, rect: DOMRect | null) => void;
   /**
    * Draw admin-declared groups as one joined stand. Views that encode per-stand
    * state in a stand's color must opt out, since one outline can only carry one
@@ -58,7 +52,7 @@ const notReservable = () => false;
  * The SVG body shared by every stand map: canvas viewBox, map elements and the
  * stands themselves. Callers own the color, filtering and interaction policy.
  */
-export default function MapSurface({
+export default function MapSurface<T extends MapStandLike>({
   stands,
   mapElements,
   mapBounds,
@@ -73,7 +67,7 @@ export default function MapSurface({
   onStandHoverChange,
   joinGroups = true,
   children,
-}: MapSurfaceProps) {
+}: MapSurfaceProps<T>) {
   const bounds = mapBounds ?? computeCanvasBounds(stands, mapElements);
   const jointGroups = useMemo(
     () => (joinGroups ? resolveJointGroups(stands) : []),
@@ -83,6 +77,15 @@ export default function MapSurface({
     () => indexJointGroupsByStandId(jointGroups),
     [jointGroups],
   );
+
+  // MapStand/MapStandGroup render MapStandLike; T is only a stand subtype.
+  const onClick = onStandClick as ((stand: MapStandLike) => void) | undefined;
+  const onTouchTap = onStandTouchTap as
+    | ((stand: MapStandLike, rect?: DOMRect) => void)
+    | undefined;
+  const onHoverChange = onStandHoverChange as
+    | ((stand: MapStandLike | null, rect: DOMRect | null) => void)
+    | undefined;
 
   return (
     <MapCanvas config={bounds}>
@@ -101,9 +104,9 @@ export default function MapSurface({
             highlightRequestId={highlightRequestId}
             dimmed={dimmedStandIds?.has(stand.id)}
             colors={getColors(stand)}
-            onClick={onStandClick}
-            onTouchTap={onStandTouchTap}
-            onHoverChange={onStandHoverChange}
+            onClick={onClick}
+            onTouchTap={onTouchTap}
+            onHoverChange={onHoverChange}
           />
         ),
       )}
@@ -124,9 +127,9 @@ export default function MapSurface({
             )}
             mapStandId={selectedGroupStand?.id}
             colors={getColors(group.stands[0])}
-            onClick={onStandClick}
-            onTouchTap={onStandTouchTap}
-            onHoverChange={onStandHoverChange}
+            onClick={onClick}
+            onTouchTap={onTouchTap}
+            onHoverChange={onHoverChange}
           />
         );
       })}
