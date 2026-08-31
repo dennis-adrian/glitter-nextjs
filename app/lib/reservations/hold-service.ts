@@ -614,6 +614,8 @@ export async function confirmStandHold(
         festivalId: standHolds.festivalId,
         userId: standHolds.userId,
         priceAmountSnapshot: standHolds.priceAmountSnapshot,
+        individualPriceSnapshot: standHolds.individualPriceSnapshot,
+        sharedPriceSnapshot: standHolds.sharedPriceSnapshot,
         standFestivalId: stands.festivalId,
         standPrice: stands.price,
         standStatus: stands.status,

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { roundMoney } from "@/app/lib/reservations/money";
 import {
   lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,

@@ -81,6 +81,28 @@ describe("planReservationEditSubmit", () => {
       kind: "unsupported_status",
       message: UNSUPPORTED_STATUS_MESSAGE,
     });
+
+    expect(
+      planReservationEditSubmit({
+        statusChanged: true,
+        partnerChanged: false,
+        nextStatus: "cancelled",
+      }),
+    ).toEqual({
+      kind: "unsupported_status",
+      message: UNSUPPORTED_STATUS_MESSAGE,
+    });
+
+    expect(
+      planReservationEditSubmit({
+        statusChanged: true,
+        partnerChanged: false,
+        nextStatus: "released",
+      }),
+    ).toEqual({
+      kind: "unsupported_status",
+      message: UNSUPPORTED_STATUS_MESSAGE,
+    });
   });
 
   it("returns noop when nothing changed", () => {
