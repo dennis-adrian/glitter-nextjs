@@ -356,6 +356,7 @@ describe("applyReservationCancellation lock ordering", () => {
 function partnerEditTx(options?: {
   partnerUser?: { id: number; status: string } | null;
   otherMemberships?: { reservationId: number }[];
+  participants?: { id: number; userId: number }[];
 }) {
   const reservation = {
     ...pendingReservation,
@@ -370,7 +371,7 @@ function partnerEditTx(options?: {
       });
     }
     if (selectCalls === 2) {
-      return selectChain([{ id: 1, userId: 3 }]);
+      return selectChain(options?.participants ?? [{ id: 1, userId: 3 }]);
     }
     if (selectCalls === 3) {
       return selectChain([{ userId: 3 }]);
@@ -475,5 +476,59 @@ describe("updateReservationPartner", () => {
     });
     expect(tx.insert).not.toHaveBeenCalled();
     expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a partner who already has another festival reservation without writing", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = partnerEditTx({ otherMemberships: [{ reservationId: 22 }] });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "El compañero seleccionado ya tiene una reserva en este festival",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.delete).not.toHaveBeenCalled();
+  });
+
+  it("removes a partner without deleting the owner participant", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = partnerEditTx({
+      participants: [
+        { id: 1, userId: 3 },
+        { id: 2, userId: 4 },
+      ],
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: null,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      message: "Compañero actualizado",
+    });
+    expect(tx.delete).toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(insertEventMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        reservationId: 9,
+        payload: { partnerUserId: null },
+      }),
+    );
   });
 });

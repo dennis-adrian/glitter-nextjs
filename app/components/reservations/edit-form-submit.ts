@@ -5,7 +5,7 @@ export type ReservationEditStatus =
   | "rejected";
 
 export const COMBINED_SETTLEMENT_AND_PARTNER_MESSAGE =
-  "No se puede aceptar o rechazar la reserva al mismo tiempo que se cambia el compañero. Guardá cada cambio por separado.";
+  "No se puede cambiar el estado de la reserva al mismo tiempo que se cambia el compañero. Guardá cada cambio por separado.";
 
 export const UNSUPPORTED_STATUS_MESSAGE =
   "El estado de pago se actualiza desde la revisión de comprobantes. Acá solo podés aceptar, rechazar o cambiar el compañero.";
