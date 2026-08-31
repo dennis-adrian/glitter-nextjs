@@ -117,6 +117,7 @@ export async function cancelReservation(
   if (!canMutateAdminReservations(actor)) {
     return { success: false, message: "No autorizado para cancelar la reserva." };
   }
+  const actorUserId = actor.id;
 
   const parsed = parseUnknown(cancelReservationSchema, input);
   if (!parsed.success) {
@@ -140,7 +141,7 @@ export async function cancelReservation(
 
       const jobIds = await applyReservationCancellation(tx, {
         reservation,
-        actorUserId: actor.id,
+        actorUserId,
         eventType: "deleted",
         reason: parsed.data.reason,
       });

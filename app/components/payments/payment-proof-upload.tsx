@@ -93,7 +93,9 @@ export default function PaymentProofUpload({
         toast.error("Error al subir el comprobante. Intentá de nuevo.");
         return;
       }
-      const results = res[0].serverData?.results;
+      const results = res[0].serverData?.results as
+        | { imageUrl?: string; submissionId?: number }
+        | undefined;
       const imageUrl = results?.imageUrl;
       if (!imageUrl) {
         toast.error("Error al subir el comprobante. Intentá de nuevo.");

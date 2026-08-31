@@ -518,6 +518,7 @@ export async function approveInvoiceSettlement(
   if (!canMutateAdminReservations(actor)) {
     return reservationFailure("UNAUTHORIZED");
   }
+  const actorUserId = actor.id;
 
   const parsed = parseUnknown(submissionIdSchema, input);
   if (!parsed.success) return reservationFailure("VALIDATION");
@@ -554,7 +555,7 @@ export async function approveInvoiceSettlement(
         .update(invoiceSettlementSubmissions)
         .set({
           status: "approved",
-          reviewedByUserId: actor.id,
+          reviewedByUserId: actorUserId,
           reviewedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -565,7 +566,7 @@ export async function approveInvoiceSettlement(
         reservation.id,
         reservation.standId,
         invoice.id,
-        actor.id,
+        actorUserId,
       );
 
       const ownerEmail = await userEmail(tx, invoice.userId);
@@ -598,6 +599,7 @@ export async function rejectInvoiceSettlement(
   if (!canMutateAdminReservations(actor)) {
     return reservationFailure("UNAUTHORIZED");
   }
+  const actorUserId = actor.id;
 
   const parsed = parseUnknown(rejectSettlementSchema, input);
   if (!parsed.success) return reservationFailure("VALIDATION");
@@ -630,7 +632,7 @@ export async function rejectInvoiceSettlement(
         .update(invoiceSettlementSubmissions)
         .set({
           status: "rejected",
-          reviewedByUserId: actor.id,
+          reviewedByUserId: actorUserId,
           reviewedAt: new Date(),
           rejectionReason: parsed.data.reason,
           updatedAt: new Date(),
@@ -641,7 +643,7 @@ export async function rejectInvoiceSettlement(
       if (parsed.data.correction.type === "cancel_reservation") {
         cancelledJobIds = await applyReservationCancellation(tx, {
           reservation,
-          actorUserId: actor.id,
+          actorUserId,
           eventType: "settlement_rejected",
           reason: parsed.data.reason,
           payload: {
@@ -693,7 +695,7 @@ export async function rejectInvoiceSettlement(
           .where(eq(standReservations.id, reservation.id));
         await insertStandReservationEvent(tx, {
           reservationId: reservation.id,
-          actorUserId: actor.id,
+          actorUserId,
           eventType: "settlement_rejected",
           fromStatus: reservation.status,
           toStatus: "pending",

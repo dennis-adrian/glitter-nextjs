@@ -10,6 +10,7 @@ import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejectio
 import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { sendEmail } from "@/app/vendors/resend";
@@ -176,6 +177,10 @@ async function deliverJob(
     (kind === "proof_submitted" || kind === "zero_value_review_requested") &&
     invoice
   ) {
+    const invoiceForEmail = {
+      ...invoice,
+      reservation,
+    } as InvoiceWithPaymentsAndStandAndProfile;
     const isOwner = owner?.email?.toLowerCase() === recipientEmail.toLowerCase();
     if (isOwner) {
       await sendEmail({
@@ -185,7 +190,9 @@ async function deliverJob(
           kind === "zero_value_review_requested"
             ? "Tu reserva está en revisión"
             : "Tu pago ha sido registrado",
-        react: PaymentConfirmationForUserEmailTemplate({ invoice }),
+        react: PaymentConfirmationForUserEmailTemplate({
+          invoice: invoiceForEmail,
+        }),
       });
     } else {
       await sendEmail({
@@ -195,7 +202,9 @@ async function deliverJob(
           kind === "zero_value_review_requested"
             ? `${owner?.displayName ?? "Un participante"} solicitó revisión de una reserva sin costo`
             : `${owner?.displayName ?? "Un participante"} hizo el pago de su reserva`,
-        react: PaymentConfirmationForAdminsEmailTemplate({ invoice }),
+        react: PaymentConfirmationForAdminsEmailTemplate({
+          invoice: invoiceForEmail,
+        }),
       });
     }
     return;

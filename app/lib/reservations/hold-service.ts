@@ -616,22 +616,33 @@ export async function confirmStandHold(
         })),
       });
 
-      return reservationSuccess(
-        { reservationId: reservation.id, jobIds },
-        "Reserva creada",
-      );
+      return {
+        success: true as const,
+        reservationId: reservation.id,
+        jobIds,
+        message: "Reserva creada",
+      };
     });
 
-    if (result.success && "jobIds" in result.data) {
-      scheduleReservationNotificationJobs(result.data.jobIds ?? []);
+    if (!result.success) {
+      guardedRevalidate();
+      return result;
     }
 
+    const payload = result as {
+      data?: { reservationId: number; jobIds?: number[] };
+      reservationId?: number;
+      jobIds?: number[];
+      message: string;
+    };
+    const reservationId = payload.reservationId ?? payload.data?.reservationId;
+    if (reservationId == null) {
+      guardedRevalidate();
+      return reservationFailure("CONFLICT_RETRY");
+    }
+    scheduleReservationNotificationJobs(payload.jobIds ?? payload.data?.jobIds ?? []);
     guardedRevalidate();
-    if (!result.success) return result;
-    return reservationSuccess(
-      { reservationId: result.data.reservationId },
-      result.message,
-    );
+    return reservationSuccess({ reservationId }, payload.message);
   } catch (error) {
     console.error("Error confirming stand hold", error);
     return reservationFailure("CONFLICT_RETRY");
