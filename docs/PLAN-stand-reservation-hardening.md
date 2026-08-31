@@ -75,7 +75,7 @@ Keep the §1 festival-participation lock in every Phase 3 policy and confirmatio
 | --- | --- | --- | --- |
 | Module layout | Thin `"use server"` actions + server-only services named in §4.1 | Policy/errors/schemas/hold-service exist. Authorization lives in `policy.ts` + `tx-eligibility.ts`. Confirmation lives in `hold-service.ts`. Payments live in `app/data/invoices/actions.ts`. Admin create lives in `admin-actions.ts`. | Finish the split in Phase 3; do not treat missing filenames as missing behavior. |
 | `/api/payments` | Remove after the Server Action is canonical | Route still exists; it now authenticates and delegates to `createPayment`. UI already uses the Server Action. | Remove in Phase 6 after Phase 3 settlement rewrite. |
-| Settlement table | Kind, status, reviewer, evidence snapshot, one submitted row per invoice | Table stores invoice/payment/file/uploader/idempotency only. Zero-value review uses `confirmFreeInvoice` and incorrectly sets both invoice and reservation to `verification_payment` without a settlement row. | Phase 3: keep invoice `pending`, move only reservation to `verification_payment`, and add the settlement row. |
+| Settlement table | Kind, status, reviewer, evidence snapshot, one submitted row per invoice | Shipped in Phase 3 (`0247`): kind/status, reviewer fields, evidence snapshot, one submitted row per invoice. On submit, invoice and reservation both move to `verification_payment`; settlement row records the review queue item. | Implemented in Phase 3 PR. |
 | Events table | `metadata`, `idempotency_key`, settlement event types | `payload` jsonb, no event idempotency key. Event types are `created`, `confirmed`, `rejected`, `status_changed`, `payment_submitted`, `deadline_extended`. | Additive columns in Phase 3. |
 | Notification outbox | Enqueue + worker | Table and status enum exist. No enqueue helper, no cron, emails still send after commit. | Phase 3. |
 | Single active festival | Partial unique index | Audited by `scripts/audit-reservation-invariants.ts` only | Add the index after preflight is clean. |
@@ -552,20 +552,20 @@ Constraints:
 
 Add `invoices.due_at` as the canonical payment deadline. Reservation creation sets it to the same timestamp as the scheduled task; extending a deadline updates both in one transaction. Participant pages and emails stop deriving deadlines from `createdAt + 5 days`.
 
-**Status:** `due_at` column exists and is written on create/extend. Settlement kind/status lifecycle is **Phase 3**. `confirmFreeInvoice` currently sets both invoice and reservation to `verification_payment` without a settlement row; this diverges from the target state table below.
+**Status:** `due_at` column exists and is written on create/extend. Settlement kind/status lifecycle shipped in Phase 3 (`0247`/`0248`). On owner submit (payment proof or zero-value entitlement), invoice and reservation both move to `verification_payment`; the settlement row is the admin review queue item. Only admin approval marks the invoice paid and accepts the reservation.
 
 State meaning:
 
 | Event | Settlement submission | Invoice | Reservation | Stand |
 | --- | --- | --- | --- | --- |
 | Reservation created | none | `pending` | `pending` | `reserved` |
-| Voucher submitted | `payment_proof / submitted` | `pending` | `verification_payment` | `reserved` |
-| Zero-value entitlement submitted | `zero_value_entitlement / submitted` | `pending` | `verification_payment` | `reserved` |
+| Voucher submitted | `payment_proof / submitted` | `verification_payment` | `verification_payment` | `reserved` |
+| Zero-value entitlement submitted | `zero_value_entitlement / submitted` | `verification_payment` | `verification_payment` | `reserved` |
 | Admin approves either submission | `approved` | `paid` | `accepted` | `confirmed` |
 | Admin rejects either submission | `rejected` | `pending` | `pending` | `reserved` |
 | Reservation rejected/cancelled | retained audit history | `cancelled` | `rejected` | `available` |
 
-Uploading a voucher or submitting a zero-value invoice must not mark an invoice paid. Only the admin review command can approve the settlement and confirm the reservation.
+Uploading a voucher or submitting a zero-value invoice must not mark an invoice paid. Both invoice and reservation enter `verification_payment` so admin dashboards and participant UI can filter “En revisión.” Only the admin review command can approve the settlement and confirm the reservation.
 
 For a zero-value review, `evidence_snapshot` references the applied discount code or free-price basis, owner, festival, original amount, discount amount, final amount, and submission timestamp. Admin UI loads current canonical records alongside that snapshot.
 
@@ -707,7 +707,7 @@ Arbitrary signed-in profiles cannot consume reservation-proof storage without an
 3. Requires invoice pending, amount exactly zero in canonical numeric storage, and no submitted settlement.
 4. Revalidates that the invoice/discount relationship has not been tampered with; this is an integrity check, not the final entitlement approval.
 5. Inserts `zero_value_entitlement / submitted` with canonical evidence snapshot.
-6. Moves reservation to `verification_payment`; invoice remains pending and stand remains reserved.
+6. Moves reservation and invoice to `verification_payment`; stand remains reserved. Inserts the settlement row as the review queue item.
 7. Writes event and notification jobs in the same transaction.
 8. Returns review-pending state. It never confirms the reservation.
 
@@ -720,7 +720,7 @@ Participant UI:
 
 Admin review shows owner, festival, stand, original amount, discount/free basis, applied code and scope when present, final amount, submission time, and prior events. Approval re-runs canonical scope/integrity checks and then atomically approves settlement, pays invoice, accepts reservation, and confirms stand. Rejection requires the corrective outcome defined in §6.5.
 
-**Status:** Diverges. `confirmFreeInvoice` is the current owner-submit path. It moves both reservation and invoice to `verification_payment`, which removes the invoice from `fetchPendingInvoicesByProfile` because that read path filters for `pending`. Phase 3 must change this mutation to move only the reservation to `verification_payment`, keep the invoice `pending`, and write the settlement/evidence row. It currently returns `Tu reserva está en revisión.` and does not mark the invoice paid. Admin approval/rejection commands are not implemented.
+**Status:** Implemented via `submitZeroValueInvoiceForReview` in `payment-service.ts`. Invoice and reservation both enter `verification_payment`; settlement row records the entitlement claim. Admin approve/reject commands live in the same service.
 
 ### 8.4 Discount codes
 
