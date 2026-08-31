@@ -291,15 +291,34 @@ async function main() {
     });
   }
 
-  const idempotencyTables = {
-    stand_holds: sql`stand_holds`,
-    stand_reservations: sql`stand_reservations`,
+  const compositeIdempotencyTables = {
     payments: sql`payments`,
     invoice_settlement_submissions: sql`invoice_settlement_submissions`,
   } as const;
-  for (const [table, tableSql] of Object.entries(idempotencyTables)) {
-    const duplicates = await db.execute<{ fingerprint: string; n: number }>(sql`
-      SELECT md5(idempotency_key) AS fingerprint, count(*)::int AS n
+  for (const [table, tableSql] of Object.entries(compositeIdempotencyTables)) {
+    const duplicates = await db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n
+      FROM ${tableSql}
+      WHERE idempotency_key IS NOT NULL
+      GROUP BY invoice_id, idempotency_key
+      HAVING count(*) > 1
+    `);
+    if (duplicates.rows.length > 0) {
+      findings.push({
+        name: `duplicate_idempotency_key_${table}`,
+        count: duplicates.rows.length,
+        ids: [],
+      });
+    }
+  }
+
+  const uniqueKeyTables = {
+    stand_holds: sql`stand_holds`,
+    stand_reservations: sql`stand_reservations`,
+  } as const;
+  for (const [table, tableSql] of Object.entries(uniqueKeyTables)) {
+    const duplicates = await db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n
       FROM ${tableSql}
       WHERE idempotency_key IS NOT NULL
       GROUP BY idempotency_key
@@ -320,14 +339,14 @@ async function main() {
     keys: string[];
   }> = [
     {
-      name: "invoice_settlement_submissions_idempotency_key_unique",
+      name: "invoice_settlement_submissions_invoice_id_idempotency_key_unique",
       table: "invoice_settlement_submissions",
-      keys: ["idempotency_key"],
+      keys: ["invoice_id", "idempotency_key"],
     },
     {
-      name: "payments_idempotency_key_unique",
+      name: "payments_invoice_id_idempotency_key_unique",
       table: "payments",
-      keys: ["idempotency_key"],
+      keys: ["invoice_id", "idempotency_key"],
     },
     {
       name: "stand_holds_idempotency_key_unique",
@@ -343,6 +362,11 @@ async function main() {
       name: "stand_reservations_idempotency_key_unique",
       table: "stand_reservations",
       keys: ["idempotency_key"],
+    },
+    {
+      name: "stand_reservation_events_reservation_id_idempotency_key_unique",
+      table: "stand_reservation_events",
+      keys: ["reservation_id", "idempotency_key"],
     },
     {
       name: "stand_holds_stand_idx",
@@ -377,7 +401,7 @@ async function main() {
     INNER JOIN pg_namespace ON pg_namespace.oid = tables.relnamespace
     WHERE pg_namespace.nspname = 'public'
       AND pg_class.relname IN (${sql.join(
-        requiredIndexes.map((index) => sql`${index.name}`),
+        requiredIndexes.map((index) => sql`${index.name.slice(0, 63)}`),
         sql`, `,
       )})
   `);
@@ -385,7 +409,8 @@ async function main() {
     catalogIndexes.rows.map((row) => [row.indexname, row]),
   );
   for (const required of requiredIndexes) {
-    const found = catalogByName.get(required.name);
+    const catalogName = required.name.slice(0, 63);
+    const found = catalogByName.get(catalogName);
     if (!found) {
       findings.push({
         name: `missing_index_${required.name}`,
