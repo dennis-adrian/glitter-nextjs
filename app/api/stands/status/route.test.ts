@@ -54,6 +54,9 @@ describe("GET /api/stands/status", () => {
     const response = await GET(request("4"));
     expect(response.status).toBe(401);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(getSectorMock).not.toHaveBeenCalled();
+    expect(enrollmentMock).not.toHaveBeenCalled();
+    expect(consumeRateLimitMock).not.toHaveBeenCalled();
     expect(loadRowsMock).not.toHaveBeenCalled();
   });
 

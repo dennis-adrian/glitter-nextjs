@@ -22,6 +22,13 @@ const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: NextRequest) {
   const actor = await getCurrentUserProfile();
+  if (!actor) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: PRIVATE_NO_STORE },
+    );
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const parsed = QuerySchema.safeParse({
     sectorId: searchParams.get("sectorId"),
@@ -42,21 +49,13 @@ export async function GET(request: NextRequest) {
   }
 
   const enrolled =
-    actor != null && sector.festivalId != null
+    sector.festivalId != null
       ? await hasAcceptedFestivalEnrollment(actor.id, sector.festivalId)
       : false;
   const auth = authorizeStandStatusPoll({
-    actor: actor
-      ? { id: actor.id, role: actor.role, status: actor.status }
-      : null,
+    actor: { id: actor.id, role: actor.role, status: actor.status },
     enrolled,
   });
-  if (auth === "unauthenticated") {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401, headers: PRIVATE_NO_STORE },
-    );
-  }
   if (auth === "forbidden") {
     return NextResponse.json(
       { error: "Unauthorized" },
@@ -65,7 +64,7 @@ export async function GET(request: NextRequest) {
   }
 
   const allowed = await consumeActionRateLimit({
-    key: `${STAND_STATUS_RATE_LIMIT.keyPrefix}${actor!.id}`,
+    key: `${STAND_STATUS_RATE_LIMIT.keyPrefix}${actor.id}`,
     limit: STAND_STATUS_RATE_LIMIT.limit,
     windowMs: STAND_STATUS_RATE_LIMIT.windowMs,
   }).catch(() => false);

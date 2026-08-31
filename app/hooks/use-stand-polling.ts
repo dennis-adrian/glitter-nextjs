@@ -24,16 +24,21 @@ export function useStandPolling(
   }, [onUpdate]);
 
   const [stale, setStale] = useState(false);
+  const [staleSectorId, setStaleSectorId] = useState(sectorId);
+  if (sectorId !== staleSectorId) {
+    setStaleSectorId(sectorId);
+    setStale(false);
+  }
   const inFlightRef = useRef(false);
   const appliedVersionRef = useRef(0);
   const lastSuccessAtRef = useRef<number | null>(null);
-  const startedAtRef = useRef<number>(Date.now());
+  const startedAtRef = useRef<number | null>(null);
   const failureCountRef = useRef(0);
   const trackerRef = useRef(new LatestRequest());
 
   const markStaleIfNeeded = useCallback(() => {
     const anchor = lastSuccessAtRef.current ?? startedAtRef.current;
-    if (Date.now() - anchor >= STAND_STATUS_STALE_AFTER_MS) {
+    if (anchor != null && Date.now() - anchor >= STAND_STATUS_STALE_AFTER_MS) {
       setStale(true);
     }
   }, []);
@@ -43,6 +48,7 @@ export function useStandPolling(
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let pendingStaleDeadline: ReturnType<typeof setTimeout> | null = null;
     let controller: AbortController | null = null;
     trackerRef.current = new LatestRequest();
     appliedVersionRef.current = 0;
@@ -50,13 +56,26 @@ export function useStandPolling(
     startedAtRef.current = Date.now();
     failureCountRef.current = 0;
     inFlightRef.current = false;
-    setStale(false);
 
     const clearTimer = () => {
       if (timer) {
         clearTimeout(timer);
         timer = null;
       }
+    };
+
+    const clearPendingStaleDeadline = () => {
+      if (pendingStaleDeadline) {
+        clearTimeout(pendingStaleDeadline);
+        pendingStaleDeadline = null;
+      }
+    };
+
+    const armPendingStaleDeadline = () => {
+      clearPendingStaleDeadline();
+      pendingStaleDeadline = setTimeout(() => {
+        if (!cancelled) setStale(true);
+      }, STAND_STATUS_STALE_AFTER_MS);
     };
 
     const schedule = (delay: number) => {
@@ -76,6 +95,7 @@ export function useStandPolling(
       controller = ac;
       const token = trackerRef.current.next();
       inFlightRef.current = true;
+      armPendingStaleDeadline();
 
       try {
         const res = await fetch(`/api/stands/status?sectorId=${sectorId}`, {
@@ -86,6 +106,7 @@ export function useStandPolling(
         if (!res.ok) throw new Error(`stand-status ${res.status}`);
         const data = (await res.json()) as StandStatusPollResult;
         if (!trackerRef.current.isCurrent(token) || cancelled) return;
+        clearPendingStaleDeadline();
         if (!isNewerPollVersion(data.version, appliedVersionRef.current)) {
           failureCountRef.current = 0;
           lastSuccessAtRef.current = Date.now();
@@ -100,6 +121,7 @@ export function useStandPolling(
         schedule(intervalMs);
       } catch (error) {
         if (ac.signal.aborted || cancelled) return;
+        clearPendingStaleDeadline();
         failureCountRef.current += 1;
         markStaleIfNeeded();
         console.error("Stand polling error", error);
@@ -116,6 +138,7 @@ export function useStandPolling(
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearTimer();
+        clearPendingStaleDeadline();
         controller?.abort();
         inFlightRef.current = false;
         return;
@@ -127,6 +150,7 @@ export function useStandPolling(
     return () => {
       cancelled = true;
       clearTimer();
+      clearPendingStaleDeadline();
       controller?.abort();
       inFlightRef.current = false;
       document.removeEventListener(

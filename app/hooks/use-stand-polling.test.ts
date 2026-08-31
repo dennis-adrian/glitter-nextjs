@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useStandPolling } from "@/app/hooks/use-stand-polling";
+import { STAND_STATUS_STALE_AFTER_MS } from "@/app/lib/stands/status-poll";
 
 function jsonResponse(body: unknown, status = 200) {
   return {
@@ -117,6 +118,26 @@ describe("useStandPolling", () => {
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(result.current.stale).toBe(true);
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it("marks stale when a request stays pending past the threshold", async () => {
+    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
+
+    const { result } = renderHook(() => useStandPolling(4, 4000, vi.fn()));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.stale).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(STAND_STATUS_STALE_AFTER_MS - 1);
+    });
+    expect(result.current.stale).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current.stale).toBe(true);
   });
 
   it("aborts the in-flight request on unmount", async () => {
