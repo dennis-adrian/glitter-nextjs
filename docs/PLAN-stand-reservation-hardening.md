@@ -4,9 +4,9 @@
 
 **Feature area:** Festival stand reservations, holds, invoices, payments
 
-**Status:** In progress — Phases 0–2 implemented (PR [#472](https://github.com/dennis-adrian/glitter-nextjs/pull/472), merge `16975d22`). Next: Phase 3.
+**Status:** In progress — Phases 0–1 implemented; Phase 2 code shipped in PR [#472](https://github.com/dennis-adrian/glitter-nextjs/pull/472) (merge `16975d22`), but its rollout gate is incomplete. Next: clean Phase 2 preflight, then Phase 3.
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 **References:** [PRD-stand-reservations.md](./PRD-stand-reservations.md), [PRD-multi-payment-access.md](./PRD-multi-payment-access.md), [PRD-participant-status-management.md](./PRD-participant-status-management.md)
 
@@ -33,9 +33,9 @@ Status legend used in this document:
 
 ## 0. Implementation status (audited 2026-08-30)
 
-Phases **0 through 2 are implemented** as the current baseline. That confirmation is based on the merged reservation-hardening work on `develop` (PR #472) plus a file-level audit of schema, policy, hold/confirmation, admin create, payment/invoice actions, preflight/backfill scripts, and tests.
+Phases **0 and 1 are implemented**. Phase 2 implementation artifacts shipped on `develop` in PR #472, but Phase 2 remains partial until every target environment passes the mandatory repair and clean-preflight gate below. The current baseline is based on a file-level audit of schema, policy, hold/confirmation, admin create, payment/invoice actions, preflight/backfill scripts, and tests.
 
-Phase 0–2 delivered the security containment, canonical participant policy, additive schema, money migration, dual-write of owner/source/snapshots/events, hold/confirmation idempotency, and operational scripts. They did **not** finish the transaction rewrite, settlement command layer, notification outbox worker, or later UX/performance work. A few planned Phase 2 constraints remain open and should be closed during Phase 3 rather than treated as unfinished Phase 0–2 scope.
+The shipped work delivered security containment, canonical participant policy, additive schema, money migration, dual-write of owner/source/snapshots/events, optional-key hold/confirmation idempotency, and operational scripts. It did **not** finish the Phase 2 environment repair/preflight gate, transaction rewrite, settlement command layer, notification outbox worker, or later UX/performance work.
 
 ### 0.1 Phase board
 
@@ -43,7 +43,7 @@ Phase 0–2 delivered the security containment, canonical participant policy, ad
 | --- | --- | --- |
 | 0 — Immediate security containment | Auth, ownership, Zod, no caller-supplied objects | **Implemented** (legacy payment route still present, hardened) |
 | 1 — Canonical policy and participant flow | Shared policy for pages, holds, confirmation, partners | **Implemented** |
-| 2 — Additive schema, preflight, data repair | Columns, money, events, scripts, unique hold/stand indexes | **Implemented** (two planned unique indexes still open) |
+| 2 — Additive schema, preflight, data repair | Columns, money, events, scripts, unique hold/stand indexes | **Partial** — code shipped; environment repair, clean preflight, and constraint rollout remain |
 | 3 — Transaction and payment rewrite | Locks, settlement commands, outbox, UploadThing callback | **Next** |
 | 4 — Cleanup, privacy, and performance | Cron-safe polling, DTOs, indexes, latency budgets | Partial early work only |
 | 5 — UX, accessibility, and documentation | Recoverable errors, list view, voseo, Playwright, PRDs | Partial copy/error work only |
@@ -51,10 +51,12 @@ Phase 0–2 delivered the security containment, canonical participant policy, ad
 
 ### 0.2 What Phase 3 should implement next
 
-Do this work in this order. Later phases stay blocked on the command and lock model.
+Before Phase 3, complete the mandatory Phase 2 gate independently in every existing-data environment: run `scripts/audit-reservation-invariants.ts`, run the deterministic backfill, manually repair all reported failures—including the three known stands with duplicate live reservations—and rerun the audit until it exits successfully with no invariant failures. Only then may migration `0246` and the remaining unique constraints be applied in that environment. Hold the shared rollout lock/maintenance window from this final audit through successful post-constraint row and schema validation before declaring Phase 2 complete. Backfill alone does not repair duplicate live reservations.
+
+After that gate passes, do this work in order. Later phases stay blocked on the command and lock model.
 
 1. **Explicit admin and settlement commands.** Replace remaining generic mutators (`updateReservation`, `deleteReservation`, `updateReservationStatus`, `updateReservationSimple`, `updateInvoiceStatus`, `adminAttachPaymentVoucher`) with:
-   - `createAdminReservation` (already exists; move to a server-only admin service)
+   - `createAdminReservation({ festivalId, standId, ownerUserId, partnerId?, revealAt?, idempotencyKey })` (move the existing action to a server-only admin service and add canonical-scope replay)
    - `approveInvoiceSettlement({ submissionId })`
    - `rejectInvoiceSettlement({ submissionId, reason, correction })`
    - `rejectReservation({ reservationId, reason })` (already exists; keep as the only reject path)
@@ -64,9 +66,6 @@ Do this work in this order. Later phases stay blocked on the command and lock mo
 3. **Global lock ordering and advisory locks.** Apply §4.4 in hold, confirmation, payment, discount, admin assignment, and eligibility-changing mutations. Confirmation already uses `FOR UPDATE` and idempotency keys; it does not yet take participant advisory locks.
 4. **Notification outbox.** The `reservation_notification_jobs` table exists and is unused. Add `notification-outbox.ts` plus `app/api/cron/morning/reservationNotifications/route.ts`. Enqueue inside the mutation transaction and process with `after()` plus cron. Remove synchronous Resend from hold/payment/reject hot paths.
 5. **Authoritative UploadThing callback.** Persist the payment + `payment_proof / submitted` settlement in `onUploadComplete` using `fileKey` as the idempotency key. Stop treating a separate client `createPayment` call as the source of truth.
-6. **Close remaining Phase 2 constraints after a clean preflight:**
-   - Partial unique `(festival_id, owner_user_id) WHERE source = 'user_reservation' AND status <> 'rejected'`
-   - Unique active festival index `UNIQUE WHERE status = 'active'`
 
 Keep the §1 festival-participation lock in every Phase 3 policy and confirmation test: a reservation in any status, including `rejected`, blocks later self-service and partner adds. The unique owner index still excludes `rejected` because rejected rows remain and must not collide with a later admin-assigned reservation.
 
@@ -76,7 +75,7 @@ Keep the §1 festival-participation lock in every Phase 3 policy and confirmatio
 | --- | --- | --- | --- |
 | Module layout | Thin `"use server"` actions + server-only services named in §4.1 | Policy/errors/schemas/hold-service exist. Authorization lives in `policy.ts` + `tx-eligibility.ts`. Confirmation lives in `hold-service.ts`. Payments live in `app/data/invoices/actions.ts`. Admin create lives in `admin-actions.ts`. | Finish the split in Phase 3; do not treat missing filenames as missing behavior. |
 | `/api/payments` | Remove after the Server Action is canonical | Route still exists; it now authenticates and delegates to `createPayment`. UI already uses the Server Action. | Remove in Phase 6 after Phase 3 settlement rewrite. |
-| Settlement table | Kind, status, reviewer, evidence snapshot, one submitted row per invoice | Table stores invoice/payment/file/uploader/idempotency only. Zero-value review uses `confirmFreeInvoice` and sets invoice + reservation to `verification_payment` without a settlement row. | Phase 3 schema follow-up. |
+| Settlement table | Kind, status, reviewer, evidence snapshot, one submitted row per invoice | Table stores invoice/payment/file/uploader/idempotency only. Zero-value review uses `confirmFreeInvoice` and incorrectly sets both invoice and reservation to `verification_payment` without a settlement row. | Phase 3: keep invoice `pending`, move only reservation to `verification_payment`, and add the settlement row. |
 | Events table | `metadata`, `idempotency_key`, settlement event types | `payload` jsonb, no event idempotency key. Event types are `created`, `confirmed`, `rejected`, `status_changed`, `payment_submitted`, `deadline_extended`. | Additive columns in Phase 3. |
 | Notification outbox | Enqueue + worker | Table and status enum exist. No enqueue helper, no cron, emails still send after commit. | Phase 3. |
 | Single active festival | Partial unique index | Audited by `scripts/audit-reservation-invariants.ts` only | Add the index after preflight is clean. |
@@ -125,7 +124,7 @@ app/lib/stands/effective-status.ts         availability without trusting stale s
 app/components/pages/profiles/festivals/reservation-not-allowed.tsx
 ```
 
-Schema landed in `drizzle/0245_cold_mysterio.sql` (additive columns/tables/money) and `drizzle/0246_magenta_rocket_raccoon.sql` (unique hold and live-stand indexes). Apply 0246 only after `scripts/backfill-reservation-hardening.ts` on databases that already have reservation rows.
+Schema files landed in `drizzle/0245_cold_mysterio.sql` (additive columns/tables/money) and `drizzle/0246_magenta_rocket_raccoon.sql` (unique hold and live-stand indexes). The existence of `0246` does not make it safe to apply. For every database with existing reservation rows: run the audit and backfill, manually repair the three known duplicate-live-reservation stands plus every other reported invariant failure, rerun the audit until clean, and only then apply `0246` under the continuous rollout protection defined in §7.3. Clean pre-constraint row checks and post-constraint row/schema checks are hard Phase 2 completion gates.
 
 ---
 
@@ -195,7 +194,7 @@ The implementation should preserve this baseline so improvements and regressions
 - Focused reservation tests passed **13/13**, but they did not cover authorization, payment ownership, database concurrency, archived festivals, or E2E behavior.
 - Full unit run reported **1,030 passed, 37 skipped, 3 failed**. The three failures were unrelated terms tests that failed during import because required environment secrets were absent; they were not reservation assertion failures. Pure policy tests introduced here must not import runtime secret validation.
 
-**Baseline follow-up (2026-08-30):** Phase 0–2 added authorization, payment-ownership, and policy tests. They still do not cover database concurrency (`Promise.all` races), archived-festival E2E, or Playwright. Re-run `scripts/audit-reservation-invariants.ts` against each environment before adding the remaining unique indexes. Treat the map-latency numbers above as the last recorded baseline until Phase 4 measures again.
+**Baseline follow-up (2026-08-30):** Phase 0–2 code added authorization, payment-ownership, and policy tests. They still do not cover database concurrency (`Promise.all` races), archived-festival E2E, or Playwright. Re-run `scripts/audit-reservation-invariants.ts` against each environment before applying `0246` or adding the remaining unique indexes. Treat the map-latency numbers above as the last recorded baseline until Phase 4 measures again.
 
 ---
 
@@ -352,37 +351,40 @@ Render a specific blocked state for each expected denial. Do not load maps, stan
 
 `createOrReplaceStandHold({ standId, idempotencyKey })`:
 
-1. Authenticate owner and parse positive integer/UUID input.
+1. Authenticate owner and parse a positive stand ID plus a required, non-null UUID `idempotencyKey`; reject an omitted or null key.
 2. Begin transaction.
-3. Acquire a transaction-scoped advisory lock for `(festivalId, userId)` after resolving the stand festival. Use deterministic numeric keys.
-4. Lock target stand `FOR UPDATE`.
-5. Delete/reconcile expired holds for both target stand and `(user, festival)`.
-6. Re-run all canonical participant/festival eligibility checks in the transaction.
-7. Validate stand belongs to festival and is `available` after reconciliation.
-8. Validate stand category, participation type, and subcategory rules with the same pure helper the UI uses.
-9. Reject if the participant already belongs to any reservation in this festival, including a rejected one.
-10. If an unexpired hold exists on the same stand, return it idempotently.
-11. If an unexpired hold exists on another stand, verify the new stand first, then release the old hold while locking old and new stands in ascending ID order.
-12. Insert hold with canonical price snapshot and expiration.
-13. Update stand status to `held` only after the hold insert succeeds.
-14. Insert an audit event or structured operation log without PII.
-15. Commit, then revalidate through a guarded post-commit helper.
+3. Before reading hold/stand tables, atomically look up or claim the key in the shared request registry for operation `createOrReplaceStandHold`, actor, and `standId`. Replay only an exact completed match; any existing actor/operation/stand mismatch returns `CONFLICT_RETRY` without domain reads or writes.
+4. Resolve the target stand's festival and owner participant ID with non-authoritative reads. Any hold IDs seen before the participant lock are discovery hints only.
+5. Acquire the transaction advisory lock for `(festivalId, userId)`. For flows with multiple participants, acquire all participant locks in ascending user-ID order.
+6. Immediately re-read **all** hold rows for `(userId, festivalId)` after acquiring the participant lock, replacing—not merging with—any pre-lock hold ID set. Use this refreshed result to determine every old-hold stand ID.
+7. Continue the §4.4 order: lock festival/terms/participant eligibility rows, then lock the target stand plus every refreshed old-hold stand in ascending stand-ID order, then lock the refreshed hold rows and required reservation rows in ascending primary-key order.
+8. Delete/reconcile expired holds for both target stand and `(user, festival)`.
+9. Re-run all canonical participant/festival eligibility checks in the transaction.
+10. Validate stand belongs to festival and is `available` after reconciliation.
+11. Validate stand category, participation type, and subcategory rules with the same pure helper the UI uses.
+12. Reject if the participant already belongs to any reservation in this festival, including a rejected one.
+13. If an unexpired hold exists on the same stand, return it idempotently.
+14. If an unexpired hold exists on another stand, verify the new stand first, then release the old hold. All discovered stands are already locked in ascending ID order.
+15. Insert hold with canonical price snapshot and expiration.
+16. Update stand status to `held` only after the hold insert succeeds.
+17. Insert an audit event or structured operation log without PII.
+18. Commit, then revalidate through a guarded post-commit helper.
 
 The old hold must never be lost because the newly requested stand became unavailable.
 
-**Status:** Partial. `hold-service.ts` implements create/replace, expired-hold reconciliation, eligibility, category match, price snapshot, idempotency replay, and guarded `revalidatePath`. Advisory locks and a hold-created audit event are still missing.
+**Status:** Partial. `hold-service.ts` implements create/replace, expired-hold reconciliation, eligibility, category match, price snapshot, optional-key idempotency replay, and guarded `revalidatePath`. Required-key validation, advisory locks, and a hold-created audit event are still missing.
 
 ### 5.3 Confirmation transaction
 
 `confirmStandHold({ holdId, partnerId?, idempotencyKey })`:
 
-1. Authenticate owner; never accept `userId` from the client.
+1. Authenticate owner, require and validate a non-null UUID `idempotencyKey`, and never accept `userId` from the client.
 2. Begin transaction.
-3. Resolve hold membership, acquire the global locks from §4.4, then re-fetch and lock hold and stand.
-4. If the idempotency key already completed, return the existing reservation.
-5. Validate hold owner, non-expiration, stand/festival relation, and stand status `held`.
-6. Resolve primary participant plus optional partner.
-7. Acquire `(festivalId, userId)` advisory locks for every participant in ascending user-ID order.
+3. Normalize `partnerId` to `partnerId ?? null`. Before reading hold/reservation tables, atomically look up or claim the key in the shared request registry for operation `confirmStandHold`, actor, and exact `(holdId, normalizedPartnerId)` scope. Replay only an exact completed match; any mismatch returns `CONFLICT_RETRY` without domain reads or writes.
+4. Resolve the hold's festival/stand IDs, actor membership, and complete participant set with non-authoritative reads. Do not lock the hold or stand yet.
+5. Acquire `(festivalId, userId)` advisory locks for every resolved participant in ascending user-ID order.
+6. Continue the §4.4 order: lock festival/terms/participant eligibility rows, then the stand, then required hold/reservation rows. `confirmStandHold` must never acquire a participant lock after locking a stand or hold.
+7. Re-fetch and validate hold owner, non-expiration, stand/festival relation, and stand status `held` under those locks.
 8. Re-run festival active/open, verified status, accepted enrollment/current terms, sanctions, stand eligibility, and festival-participation-lock checks for every participant (owner and partner) while the eligibility rows are locked. A reservation in any status, including `rejected`, denies the participant.
 9. Re-read stand category/participation/subcategories and compare with the primary participant.
 10. Use the hold's price snapshot, not current stand price.
@@ -394,7 +396,7 @@ The old hold must never be lost because the newly requested stand became unavail
 16. Commit and immediately return success.
 17. Trigger best-effort outbox processing with `after()`. Provider failure cannot change the returned mutation result.
 
-**Status:** Partial. Confirmation, eligibility re-check, price snapshot, owner, source, and idempotency replay are implemented in `hold-service.ts`. Email still sends after commit (caught). No advisory locks, no outbox enqueue, no `after()`.
+**Status:** Partial. Confirmation, eligibility re-check, price snapshot, owner, source, and optional-key idempotency replay are implemented in `hold-service.ts`. Required-key validation and the §4.4 lock sequence are not. Email still sends after commit (caught). No advisory locks, no outbox enqueue, no `after()`.
 
 ### 5.4 Partner rules
 
@@ -442,7 +444,7 @@ Add:
 | Column | Type | Purpose | Status |
 | --- | --- | --- | --- |
 | `price_amount_snapshot` | `numeric(12,2)` | Price shown and invoiced if confirmed. | Implemented |
-| `idempotency_key` | text | Unique request identity. | Implemented |
+| `idempotency_key` | text; required for new writes | Unique request identity. | Partial — nullable column with a partial unique index; public schema still accepts omission |
 
 Indexes/constraints:
 
@@ -461,7 +463,7 @@ Add/change:
 | --- | --- | --- | --- |
 | `owner_user_id` | FK users, initially nullable | Canonical reservation/invoice owner. | Implemented (still nullable) |
 | `price_amount_snapshot` | `numeric(12,2)` | Immutable booked price. | Implemented |
-| `idempotency_key` | text, nullable unique | Deduplicates confirmation retries. | Implemented (partial unique when not null) |
+| `idempotency_key` | text; required for new self-service writes | Deduplicates confirmation retries. | Partial — nullable for legacy rows, partial unique when not null, and public schema still accepts omission |
 | `source` | add `legacy_unknown` enum value | Existing rows cannot be safely classified because admin creation used the self-service default. | Implemented (`user_reservation`, `admin_assignment`, `legacy_unknown`) |
 
 Constraints/indexes:
@@ -521,9 +523,9 @@ Add to `payments`:
 | --- | --- | --- | --- |
 | `file_key` | text unique | Canonical UploadThing identity. | Partial — column exists, not unique |
 | `uploaded_by_user_id` | FK users | Must equal invoice owner for participant flow. | Implemented |
-| `idempotency_key` | text unique | Upload/callback deduplication. | Implemented (partial unique when not null) |
+| `idempotency_key` | text; required for new writes | Upload/callback deduplication. | Partial — nullable for legacy rows, partial unique when not null, and public schema still accepts omission |
 
-Add immutable `invoice_settlement_submissions`:
+Add `invoice_settlement_submissions` with immutable submission/evidence fields and mutable review metadata:
 
 | Column | Type | Purpose | Status |
 | --- | --- | --- | --- |
@@ -537,7 +539,7 @@ Add immutable `invoice_settlement_submissions`:
 | `reviewed_at` | timestamp nullable | | Not started |
 | `rejection_reason` | text nullable | Sanitized admin reason. | Not started |
 | `evidence_snapshot` | jsonb | Canonical IDs/amounts/scope at submission; no copied PII. | Not started |
-| `idempotency_key` | text unique | Deduplicates participant submission/retry. | Implemented (partial unique when not null) |
+| `idempotency_key` | text; required for new writes | Deduplicates participant submission/retry. | Partial — nullable for legacy rows, partial unique when not null, and public schema still accepts omission |
 | timestamps | timestamps | | Partial — `created_at` only |
 
 Constraints:
@@ -545,11 +547,12 @@ Constraints:
 - `payment_proof` requires `payment_id`; `zero_value_entitlement` requires it to be null.
 - At most one `submitted` settlement per invoice.
 - A zero-value submission requires canonical `invoice.amount = 0` inside the locked transaction.
-- Approval/rejection updates the submission and aggregate in one transaction.
+- Submission identity and evidence (`invoice_id`, `payment_id`, `kind`, `submitted_by_user_id`, `evidence_snapshot`, `idempotency_key`, `created_at`) are immutable after insert.
+- Approval/rejection may update only review metadata (`status`, `reviewed_by_user_id`, `reviewed_at`, `rejection_reason`) while updating the aggregate in the same transaction. Every transition also appends a reservation event.
 
 Add `invoices.due_at` as the canonical payment deadline. Reservation creation sets it to the same timestamp as the scheduled task; extending a deadline updates both in one transaction. Participant pages and emails stop deriving deadlines from `createdAt + 5 days`.
 
-**Status:** `due_at` column exists and is written on create/extend. Settlement kind/status lifecycle is **Phase 3**. `confirmFreeInvoice` currently sets both invoice and reservation to `verification_payment` without a settlement row.
+**Status:** `due_at` column exists and is written on create/extend. Settlement kind/status lifecycle is **Phase 3**. `confirmFreeInvoice` currently sets both invoice and reservation to `verification_payment` without a settlement row; this diverges from the target state table below.
 
 State meaning:
 
@@ -614,10 +617,23 @@ Create a read-only script that exits non-zero and reports IDs/counts for:
 - Multiple submitted settlements for one invoice.
 - Accepted reservations whose invoice is not paid.
 - Admin-created rows still labeled `user_reservation` where provenance cannot be proven.
+- Duplicate non-null `idempotency_key` values in each of `stand_holds`, `stand_reservations`, `payments`, and `invoice_settlement_submissions`. Report every duplicate group with its table, key fingerprint, row count, and affected row IDs; never print the raw key.
+
+After `0246` is applied, the same audit must inspect `pg_catalog.pg_index` and the normalized output of `pg_get_indexdef` / `pg_get_expr`, not merely check that an index name exists. Every required index must belong to the expected table, have the exact ordered key columns and predicate below, and have `indisunique`, `indisvalid`, and `indisready` all true:
+
+| Required `0246` index | Ordered keys | Predicate |
+| --- | --- | --- |
+| `invoice_settlement_submissions_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `payments_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `stand_holds_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `stand_reservations_live_stand_unique` | `stand_id` | `status <> 'rejected'` |
+| `stand_reservations_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `stand_holds_stand_idx` | `stand_id` | none |
+| `stand_holds_user_festival_idx` | `user_id`, `festival_id` | none |
 
 Never print participant PII; IDs and state are sufficient.
 
-**Status:** Implemented as `scripts/audit-reservation-invariants.ts`. Re-run in every environment before adding the remaining unique indexes. Extend the script in Phase 3 when settlement kind/status columns exist.
+**Status:** Partial. `scripts/audit-reservation-invariants.ts` implements the current row-state checks but does not yet report per-table idempotency-key duplicates or validate the `0246` index definitions/readiness in `pg_catalog`. Add the duplicate-key checks to the pre-constraint Phase 2 gate and the catalog checks to its post-constraint validation. Extend the row-state checks again in Phase 3 when settlement kind/status columns exist.
 
 ### 7.2 Repair rules
 
@@ -628,6 +644,8 @@ Never print participant PII; IDs and state are sufficient.
 - **Price snapshot:** use invoice original amount; fall back to current stand price only when invoice is missing, and report that fallback.
 - **Settlement state:** accepted + paid with a payment row -> approved proof settlement; accepted + paid zero invoice without payment -> approved zero-value settlement. For `verification_payment`, a payment row becomes submitted proof settlement and a zero invoice without payment becomes submitted zero-value settlement. Non-zero rows without payment and other ambiguous combinations go to manual review.
 - **Festival mismatch:** manual repair; do not infer based only on URL/history.
+- **Duplicate idempotency key, same authenticated actor and canonical operation/scope:** require durable evidence that actor, operation, and complete behavior-affecting target scope all match before selecting the canonical completed row and reconciling duplicate children through the approved reservation/payment repair path. Never automatically discard an accepted reservation or paid invoice/payment.
+- **Duplicate idempotency key, different actor, operation, scope, or ambiguous evidence:** treat the rows as conflicting; even identical targets from different actors are not the same request. Never reconcile or replay them under one key. Preserve their domain records, keep the key only where durable evidence proves the original request, set conflicting legacy keys to null only with an operator-authored retained audit record, and halt for manual adjudication when evidence is insufficient. Do not invent replacement UUIDs.
 
 **Status:** Partial. `scripts/backfill-reservation-hardening.ts` backfills owner, price snapshots, hold snapshots, `due_at`, and `legacy_unknown`. Settlement-state backfill waits for kind/status columns.
 
@@ -636,14 +654,15 @@ Never print participant PII; IDs and state are sufficient.
 1. Add enum values, nullable columns, new tables, and non-unique indexes. — **Done (0245)**
 2. Deploy code that dual-writes source, owner, snapshots, idempotency, events, and payment fields. — **Done**
 3. Run preflight in dev/test/production read-only. — **Script ready; run per environment**
-4. Resolve ambiguous production rows in an approved maintenance window. — **Operations**
-5. Backfill deterministic rows in bounded, restartable batches. — **Script ready**
-6. Re-run preflight until clean. — **Operations**
-7. Create unique/partial indexes concurrently where supported. — **Partial (0246 hold + live stand; owner + active festival still open)**
-8. Mark required columns non-null after validation. — **Not started**
-9. Stop dual-read compatibility and remove obsolete paths in a later deploy. — **Phase 6**
+4. Backfill deterministic rows in bounded, restartable batches. — **Script ready**
+5. In an approved maintenance window, manually resolve every remaining preflight failure, explicitly including the three known stands with duplicate live reservations. Never auto-select a loser when payment/acceptance history is ambiguous. — **Operations**
+6. Acquire the shared reservation rollout lock or enable an enforced maintenance window and block every path that can change audited rows: hold create/replace/cancel/cleanup workers; confirmation and admin assignment; payment, voucher, upload-callback, and settlement writes; reservation/invoice/payment reject, cancel, delete, or status changes; discount mutations; participant/festival/terms/enrollment/sanction and stand eligibility/status/price updates; scheduled workers; and every exported generic mutator. Only authorized rollout repair/index operations may write. Wait for in-flight conflicting transactions to finish and keep this protection continuously through step 8. — **Mandatory gate**
+7. Under that protection, rerun the full row-state and duplicate-key preflight until it exits successfully with zero findings; then apply `0246` and create the remaining unique/partial indexes concurrently where supported. Backfill completion is not a substitute for this clean audit. — **Blocked until clean preflight**
+8. Without releasing the rollout lock/maintenance window, rerun the row-state, ID/count, duplicate-key, and `pg_catalog` schema-definition checks. Release protection only after every required index has the expected name, table, uniqueness, ordered keys, predicate, `indisvalid = true`, and `indisready = true`. If validation fails, keep mutations blocked while operators repair or safely roll back. — **Mandatory post-constraint validation**
+9. Mark required columns non-null after validation. — **Not started**
+10. Stop dual-read compatibility and remove obsolete paths in a later deploy. — **Phase 6**
 
-Every repair script supports `--dry-run`, bounded batch size, structured counts, and safe restart. Production writes require an explicit target check and operator confirmation.
+All listed actions, APIs, provider callbacks, cron/scheduled workers, eligibility writers, and legacy/generic mutators must check the same durable exclusion mechanism before and inside their write transaction; a process-local flag is insufficient. Every repair script supports `--dry-run`, bounded batch size, structured counts, and safe restart. Production writes require an explicit target check and operator confirmation. Phase 2 is complete for an environment only when the protected pre-constraint row audit and post-constraint row-plus-schema audit both pass.
 
 ---
 
@@ -657,7 +676,9 @@ Every repair script supports `--dry-run`, bounded batch size, structured counts,
 - Read functions return owner/participant-scoped DTOs. Admin reads require admin authorization.
 - Success pages verify current actor can view the invoice; they never expose a voucher URL to an unrelated participant.
 
-**Status:** Partial. `createPayment` authenticates, parses Zod input, and scopes by invoice ownership. `/api/payments` is hardened and still present. Generic `updateInvoiceStatus` / `adminAttachPaymentVoucher` remain.
+Every public participant payment or settlement-submission mutation requires and validates a non-null UUID `idempotencyKey`. The authoritative UploadThing callback instead requires the provider-issued `fileKey` as its durable, non-null deduplication key.
+
+**Status:** Partial. `createPayment` authenticates, parses Zod input, and scopes by invoice ownership, but its `idempotencyKey` is still optional. `/api/payments` is hardened and still present. Generic `updateInvoiceStatus` / `adminAttachPaymentVoucher` remain.
 
 ### 8.2 UploadThing flow
 
@@ -699,7 +720,7 @@ Participant UI:
 
 Admin review shows owner, festival, stand, original amount, discount/free basis, applied code and scope when present, final amount, submission time, and prior events. Approval re-runs canonical scope/integrity checks and then atomically approves settlement, pays invoice, accepts reservation, and confirms stand. Rejection requires the corrective outcome defined in §6.5.
 
-**Status:** Partial. `confirmFreeInvoice` is the current owner submit path. It moves reservation and invoice to `verification_payment`, returns `Tu reserva está en revisión.`, and does not mark the invoice paid. It does not write a settlement row or evidence snapshot. Admin approval/rejection commands are not implemented.
+**Status:** Diverges. `confirmFreeInvoice` is the current owner-submit path. It moves both reservation and invoice to `verification_payment`, which removes the invoice from `fetchPendingInvoicesByProfile` because that read path filters for `pending`. Phase 3 must change this mutation to move only the reservation to `verification_payment`, keep the invoice `pending`, and write the settlement/evidence row. It currently returns `Tu reserva está en revisión.` and does not mark the invoice paid. Admin approval/rejection commands are not implemented.
 
 ### 8.4 Discount codes
 
@@ -721,7 +742,7 @@ Admin review shows owner, festival, stand, original amount, discount/free basis,
 Replace caller-driven status mutations with explicit commands:
 
 ```text
-createAdminReservation({ festivalId, standId, ownerUserId, partnerId?, revealAt? })
+createAdminReservation({ festivalId, standId, ownerUserId, partnerId?, revealAt?, idempotencyKey })
 approveInvoiceSettlement({ submissionId })
 rejectInvoiceSettlement({ submissionId, reason, correction })
 rejectReservation({ reservationId, reason })
@@ -729,19 +750,34 @@ cancelReservation({ reservationId, reason })
 extendReservationDeadline({ reservationId, dueAt })
 ```
 
-Each command:
+Every command:
 
 - Requires `admin`; `festival_admin` is view-only.
 - Parses runtime input.
-- Loads and locks the canonical reservation, stand, invoice/payment, participants, and task.
-- Verifies every supplied child ID belongs to the loaded aggregate.
-- Performs a legal state transition only.
-- Uses guarded updates with expected prior status and requires returned rows.
+- Follows the §4.4 lock order.
+- Performs only its named legal create/transition operation.
+- Uses guarded writes and requires returned rows.
 - Writes `stand_reservation_events`.
 - Enqueues canonical notification jobs.
 - Never accepts a full reservation/user/festival object from the browser.
 
-Admin assignment additionally:
+`createAdminReservation` has creation-specific preconditions because no reservation aggregate exists yet:
+
+- Require a non-null UUID retry key. Before any operation-specific table search, atomically look up or claim it in the globally unique shared request registry for operation `createAdminReservation` and the admin actor; an existing actor or operation mismatch returns `CONFLICT_RETRY` immediately.
+- Resolve and validate the canonical festival, stand, owner, and optional partner only.
+- Normalize `revealAt` before idempotency comparison: omitted means the canonical festival `reservationsStartDate`; explicit timestamps use one UTC representation; explicit `null` remains null.
+- Before any domain write, persist or compare the complete canonical `(festivalId, standId, ownerUserId, partnerId ?? null, normalizedRevealAt)` scope in the claimed registry record. An exact completed match replays the original `reservationId`/invoice result; any festival, stand, owner, partner, reveal-time, or other scope mismatch returns `CONFLICT_RETRY` and performs no domain writes.
+- Acquire participant advisory locks first, then lock the festival/eligibility rows and stand in §4.4 order.
+- Verify supplied owner/partner IDs belong to those canonical user records and satisfy the admin-assignment rules; do not attempt to load a reservation, invoice, payment, participants, or task.
+- Insert the new reservation aggregate with guarded stand occupancy.
+
+Existing-reservation transition commands instead:
+
+- Load and lock the canonical reservation, stand, invoice/payment, participants, and task required by that command.
+- Verify every supplied child ID belongs to the loaded aggregate.
+- Require the expected prior state before updating.
+
+Admin assignment also:
 
 - Rejects `held`, `reserved`, `confirmed`, and `disabled` stands unless a separate audited override flow is explicitly designed.
 - Sets `source = admin_assignment`.
@@ -756,7 +792,7 @@ Delete collaborator by the `(reservationId, collaboratorId)` join. Do not delete
 
 | Command | Status |
 | --- | --- |
-| `createAdminReservation` | Implemented in `admin-actions.ts` |
+| `createAdminReservation` | Partial in `admin-actions.ts` — no required retry key, durable request record, or result replay |
 | `extendReservationDeadline` | Implemented as `extendReservationPaymentDeadline` |
 | `rejectReservation` | Implemented in `app/api/reservations/actions.ts` (canonical IDs only) |
 | `approveInvoiceSettlement` | Not started |
@@ -1040,14 +1076,18 @@ type ReservationActionResult<T> =
 
 ### 14.2 Idempotency
 
-- Client creates one UUID per hold/confirmation/payment intent and retains it across retry.
-- Database unique keys enforce one result.
-- A duplicate confirmation key returns existing reservation/invoice IDs.
+- Every public hold, confirmation, payment-proof, and zero-value-settlement submission requires a non-null UUID `idempotencyKey`; runtime validation rejects omitted, null, or malformed keys before any write. UploadThing callbacks use their required `fileKey` as the equivalent durable request identity.
+- Before any operation-specific table search or domain write, atomically look up or claim the request key in one shared durable registry (or an equivalent cross-operation registry) where the key is globally unique. The registry stores operation, authenticated actor, complete normalized target scope, state, and result IDs.
+- Compare registry scope before replay: `standId` for a hold; `(holdId, partnerId ?? null)` for confirmation; invoice, submission kind, and canonical file/evidence identity for payment/settlement; and `(festivalId, standId, ownerUserId, partnerId ?? null, normalizedRevealAt)` for admin creation. `createAdminReservation` persists this scope before reservation insertion as defined in §9.
+- Client creates one UUID per intent and retains it across retry.
+- Every accepted mutation persists its result identity in the registry/evidence record. Partial unique indexes enforce one result in operation tables for all new non-null keys while legacy nullable rows remain; no new public mutation may create a null key.
+- Only a completed registry entry with the exact operation, actor, and normalized scope replays existing reservation/invoice IDs. Any mismatch—including reuse across hold, confirmation, payment/settlement, or admin creation—returns `CONFLICT_RETRY` with no operation-specific lookup or domain write and must never suppress or associate an unrelated mutation.
+- An exact-scope entry still in progress waits for its owning transaction or returns `CONFLICT_RETRY`; it never starts a second domain mutation. Registry claim/scope/result updates and database domain writes commit atomically.
 - UploadThing `fileKey` and callback idempotency prevent duplicate payment rows.
 - Admin approve/reject commands use expected state plus event idempotency.
 - Notification outbox deduplication prevents duplicate email.
 
-**Status:** Partial. Hold, confirmation, and payment accept optional UUID keys and replay existing rows. UploadThing callback and outbox dedupe are Phase 3.
+**Status:** Diverges. There is no shared cross-operation request registry. Hold, confirmation, and payment currently accept optional UUID keys and replay only when a key is supplied; confirmation replay does not prove the original `holdId`/partner pair, `confirmFreeInvoice` accepts no idempotency key, and `createAdminReservation` has no key or replay record. Phase 3 must require each key, persist normalized canonical scope/result data, remove null/omitted-key branches, reject actor/operation/scope mismatches with `CONFLICT_RETRY`, and add negative tests proving failures occur before operation-specific lookups or domain writes. Existing nullable columns remain for legacy rows, with partial unique indexes covering every required non-null key from new writes. UploadThing callback and outbox dedupe are also Phase 3.
 
 ---
 
@@ -1215,17 +1255,17 @@ The festival participation lock is locked and implemented. Phase 3 tests should 
 
 ### Phase 2 — Additive schema, preflight, and data repair
 
-**Status: Implemented** (merged in PR #472; migrations `0245`, `0246`).
+**Status: Partial.** Implementation artifacts merged in PR #472, including migration files `0245` and `0246`; environment rollout is not complete until the mandatory gate below passes.
 
 - Add source/owner/price/idempotency/event/settlement/payment/outbox/hold fields.
 - Add money migration and supporting indexes.
-- Run preflight and manually resolve duplicates/ambiguities.
-- Backfill and validate.
-- Add unique/partial constraints.
+- Run preflight in every target environment.
+- Backfill deterministic rows, manually resolve every remaining duplicate/ambiguity—including the three known duplicate-live-reservation stands—and validate with a clean preflight rerun.
+- Add unique/partial constraints and validate their actual catalog definitions and valid/ready state.
 
-Exit: database prevents duplicate stand occupancy and hold conflicts; inspected production invariants are clean.
+Mandatory gate and exit: in each target environment, acquire the shared rollout lock/maintenance window, obtain a zero-finding row-state and duplicate-key preflight, apply `0246` and the remaining approved constraints, then pass the post-constraint row audit plus the exact-name/table/key/predicate/unique/valid/ready schema audit from §7.1 before releasing mutation protection. Do not declare Phase 2 complete before every protected check succeeds.
 
-Carry-over into Phase 3: owner-per-festival unique, single-active-festival unique, settlement kind/status columns, event idempotency, and production preflight/repair. 0246 must run after backfill on existing databases.
+The owner-per-festival unique and single-active-festival unique remain Phase 2 work. Settlement kind/status columns and event idempotency carry into Phase 3. `0246` requires more than backfill on existing databases: manual repair and a clean preflight are mandatory first.
 
 ### Phase 3 — Transaction and payment rewrite
 
@@ -1374,11 +1414,11 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 
 - [x] Product confirmed §1.1 decisions on 2026-08-29.
 - [x] Product confirmed the festival participation lock on 2026-08-30 (§1.2): any reservation status in the current festival, including `rejected`, blocks later self-service and partner add.
-- [x] Phases 0–2 shipped on `develop` (PR #472, 2026-08-30 audit).
+- [x] Phase 0–2 implementation artifacts shipped on `develop` (PR #472, 2026-08-30 audit); Phase 2 environment completion remains gated below.
 - [ ] Every reservation-related Server Action/API route has auth, runtime validation, canonical ownership, and negative tests.
 - [x] Participant self-service policy is centralized and used by pages, holds, confirmation, and partner search.
 - [x] Admin assignment is a separate audited path.
-- [ ] Preflight report is clean; known duplicate live reservations are resolved.
+- [ ] Under one continuous rollout lock/maintenance window, Phase 2 row-state and duplicate-key preflight is clean, the three known duplicate-live-reservation stands and every other reported failure are manually resolved, and the authoritative §7.1 catalog gate confirms all seven `0246` indexes have the expected table, ordered key columns, uniqueness, predicate, `indisvalid = true`, and `indisready = true` before mutations resume.
 - [ ] Hold and stand reservation constraints are active.
 - [x] Money no longer uses `real` in this domain.
 - [ ] Reservation/payment transitions are explicit, atomic, idempotent, and audited.
