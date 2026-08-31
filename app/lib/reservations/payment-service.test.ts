@@ -53,6 +53,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  rejectInvoiceSettlement,
   submitPaymentProof,
   submitZeroValueInvoiceForReview,
 } from "@/app/lib/reservations/payment-service";
@@ -72,7 +73,16 @@ type LockedInvoice = {
   amount: number | string;
   originalAmount?: number | string;
   discountAmount?: number | string;
+  discountCodeId?: number | null;
   reservationId: number;
+};
+
+type ExistingSettlement = {
+  id: number;
+  invoiceId?: number;
+  status?: string;
+  kind?: string;
+  paymentId?: number | null;
 };
 
 function createTx(options: {
@@ -89,7 +99,7 @@ function createTx(options: {
     createdAt: Date;
     updatedAt: Date;
   }>;
-  existingSettlement?: { id: number } | null;
+  existingSettlement?: ExistingSettlement | null;
   ownerEmail?: string;
 }) {
   const reservation = {
@@ -112,11 +122,24 @@ function createTx(options: {
         where: vi.fn((clause: unknown) => {
           if (table === invoiceSettlementSubmissions) {
             settlementWhere.push(clause);
-            const rows = options.existingSettlement
-              ? [options.existingSettlement]
+            const submission = options.existingSettlement;
+            const rows = submission
+              ? [
+                  {
+                    id: submission.id,
+                    invoiceId: submission.invoiceId ?? options.invoice.id,
+                    status: submission.status ?? "submitted",
+                    kind: submission.kind ?? "payment_proof",
+                    paymentId: submission.paymentId ?? null,
+                  },
+                ]
               : [];
             return Object.assign(Promise.resolve(rows), {
-              limit: vi.fn().mockResolvedValue(rows),
+              limit: vi.fn(() =>
+                Object.assign(Promise.resolve(rows), {
+                  for: vi.fn().mockResolvedValue(rows),
+                }),
+              ),
             });
           }
           if (table === payments) {
@@ -361,5 +384,50 @@ describe("submitZeroValueInvoiceForReview", () => {
       success: false,
       code: "PAYMENT_ALREADY_SUBMITTED",
     });
+  });
+});
+
+describe("rejectInvoiceSettlement", () => {
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    enqueueNotificationsMock.mockReset();
+    scheduleJobsMock.mockReset();
+    insertEventMock.mockReset();
+    enqueueNotificationsMock.mockResolvedValue([1]);
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+  });
+
+  it("rejects keep_amount correction for zero-value entitlement submissions", async () => {
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback(
+        createTx({
+          invoice: {
+            id: 9,
+            userId: 8,
+            status: "verification_payment",
+            amount: 0,
+            originalAmount: 150,
+            reservationId: 4,
+          },
+          existingSettlement: {
+            id: 21,
+            invoiceId: 9,
+            status: "submitted",
+            kind: "zero_value_entitlement",
+            paymentId: null,
+          },
+        }),
+      ),
+    );
+
+    const result = await rejectInvoiceSettlement({
+      submissionId: 21,
+      reason: "No corresponde",
+      correction: { type: "keep_amount" },
+    });
+
+    expect(result).toMatchObject({ success: false, code: "VALIDATION" });
+    expect(scheduleJobsMock).not.toHaveBeenCalled();
   });
 });

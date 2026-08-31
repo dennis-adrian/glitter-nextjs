@@ -621,11 +621,15 @@ export async function rejectInvoiceSettlement(
       if (!aggregate) return reservationFailure("VALIDATION");
       const { invoice, reservation } = aggregate;
 
-      if (
-        submission.kind === "zero_value_entitlement" &&
-        parsed.data.correction.type === undefined
-      ) {
-        return reservationFailure("VALIDATION");
+      if (submission.kind === "zero_value_entitlement") {
+        const correctionType = parsed.data.correction.type;
+        if (
+          correctionType !== "restore_amount" &&
+          correctionType !== "set_amount" &&
+          correctionType !== "cancel_reservation"
+        ) {
+          return reservationFailure("VALIDATION");
+        }
       }
 
       await tx
