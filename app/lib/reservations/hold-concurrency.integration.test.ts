@@ -285,11 +285,15 @@ describeDatabase("createStandHold concurrency", () => {
       trackRequestKey,
     } = await seedEligibleFixture(2, 1);
 
+    const createdAt = new Date(Date.now() - 120_000);
+    const expiresAt = new Date(Date.now() - 60_000);
     await integrationDb!.insert(standHolds).values({
       standId: stand.id,
       userId: holder.id,
       festivalId: festival.id,
-      expiresAt: new Date(Date.now() - 60_000),
+      createdAt,
+      updatedAt: expiresAt,
+      expiresAt,
     });
     await integrationDb!
       .update(stands)

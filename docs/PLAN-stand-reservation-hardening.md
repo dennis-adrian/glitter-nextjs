@@ -628,13 +628,13 @@ Create a read-only script that exits non-zero and reports IDs/counts for:
 
 After `0246` is applied, the same audit must inspect `pg_catalog.pg_index` and the normalized output of `pg_get_indexdef` / `pg_get_expr`, not merely check that an index name exists. Every required index must belong to the expected table, have the exact ordered key columns and predicate below, and have `indisunique`, `indisvalid`, and `indisready` all true:
 
-| Required `0246` index | Ordered keys | Predicate |
+| Required index | Ordered keys | Predicate |
 | --- | --- | --- |
-| `invoice_settlement_submissions_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
-| `payments_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `invoice_settlement_submissions_invoice_id_idempotency_key_unique` (`0248`) | `invoice_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `payments_invoice_id_idempotency_key_unique` (`0248`) | `invoice_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_holds_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_reservations_live_stand_unique` | `stand_id` | `status <> 'rejected'` |
-| `stand_reservations_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `stand_reservation_events_reservation_id_idempotency_key_unique` (`0248`) | `reservation_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_holds_stand_idx` | `stand_id` | none |
 | `stand_holds_user_festival_idx` | `user_id`, `festival_id` | none |
 
