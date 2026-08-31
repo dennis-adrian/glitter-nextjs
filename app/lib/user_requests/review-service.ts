@@ -227,11 +227,11 @@ export async function reviewBecomeArtistRequest(
         .from(users)
         .where(eq(users.id, request.userId))
         .limit(1);
-      if (profile && profile.role !== "admin") {
+      if (profile && profile.role !== "admin" && status === "accepted") {
         await tx
           .update(users)
           .set({
-            role: status === "accepted" ? "artist" : "user",
+            role: "artist",
             updatedAt: new Date(),
           })
           .where(eq(users.id, profile.id));

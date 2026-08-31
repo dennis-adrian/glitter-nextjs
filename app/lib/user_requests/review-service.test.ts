@@ -58,6 +58,7 @@ function previewSelect(row: unknown | null) {
 function reviewTx(options: {
   request: Record<string, unknown>;
   email?: string;
+  role?: string;
 }) {
   const updates: unknown[] = [];
   const tx = {
@@ -69,7 +70,13 @@ function reviewTx(options: {
             Object.assign(
               Promise.resolve(
                 table === users
-                  ? [{ id: options.request.userId, email: options.email }]
+                  ? [
+                      {
+                        id: options.request.userId,
+                        email: options.email,
+                        role: options.role ?? "user",
+                      },
+                    ]
                   : [options.request],
               ),
               {
@@ -277,5 +284,128 @@ describe("reviewBecomeArtistRequest", () => {
       success: false,
       message: "La solicitud no existe.",
     });
+  });
+
+  it("accepts a pending become_artist request and sets role to artist", async () => {
+    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
+    previewSelect({
+      id: 4,
+      userId: 8,
+      festivalId: null,
+      type: "become_artist",
+      status: "pending",
+    });
+    const tx = reviewTx({
+      request: {
+        id: 4,
+        userId: 8,
+        festivalId: null,
+        type: "become_artist",
+        status: "pending",
+      },
+      role: "user",
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await reviewBecomeArtistRequest({
+      requestId: 4,
+      status: "accepted",
+    });
+
+    expect(result).toEqual({
+      success: true,
+      message: "La solicitud ha sido aprobada.",
+    });
+    expect(tx.update).toHaveBeenCalledTimes(2);
+    expect(tx.updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "accepted" }),
+        expect.objectContaining({ role: "artist" }),
+      ]),
+    );
+  });
+
+  it("rejects a pending become_artist request without changing festival_admin role", async () => {
+    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
+    previewSelect({
+      id: 4,
+      userId: 8,
+      festivalId: null,
+      type: "become_artist",
+      status: "pending",
+    });
+    const tx = reviewTx({
+      request: {
+        id: 4,
+        userId: 8,
+        festivalId: null,
+        type: "become_artist",
+        status: "pending",
+      },
+      role: "festival_admin",
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await reviewBecomeArtistRequest({
+      requestId: 4,
+      status: "rejected",
+    });
+
+    expect(result).toEqual({
+      success: true,
+      message: "La solicitud ha sido rechazada.",
+    });
+    expect(tx.update).toHaveBeenCalledTimes(1);
+    expect(tx.updates).toEqual([
+      expect.objectContaining({ status: "rejected" }),
+    ]);
+    expect(tx.updates).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ role: expect.anything() })]),
+    );
+  });
+
+  it("rejects a pending become_artist request without changing artist role", async () => {
+    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
+    previewSelect({
+      id: 4,
+      userId: 8,
+      festivalId: null,
+      type: "become_artist",
+      status: "pending",
+    });
+    const tx = reviewTx({
+      request: {
+        id: 4,
+        userId: 8,
+        festivalId: null,
+        type: "become_artist",
+        status: "pending",
+      },
+      role: "artist",
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await reviewBecomeArtistRequest({
+      requestId: 4,
+      status: "rejected",
+    });
+
+    expect(result).toEqual({
+      success: true,
+      message: "La solicitud ha sido rechazada.",
+    });
+    expect(tx.update).toHaveBeenCalledTimes(1);
+    expect(tx.updates).toEqual([
+      expect.objectContaining({ status: "rejected" }),
+    ]);
+    expect(tx.updates).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ role: expect.anything() })]),
+    );
   });
 });
