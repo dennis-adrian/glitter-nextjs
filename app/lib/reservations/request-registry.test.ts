@@ -34,10 +34,14 @@ function createRegistryTx(existing?: {
       })),
     })),
     insert: vi.fn((table: unknown) => ({
-      values: (values: unknown) => {
-        inserted.push({ table, values });
-        return Promise.resolve();
-      },
+      values: (values: unknown) => ({
+        onConflictDoNothing: () => ({
+          returning: async () => {
+            inserted.push({ table, values });
+            return [values];
+          },
+        }),
+      }),
     })),
     update: vi.fn(() => ({
       set: (values: unknown) => {
@@ -145,5 +149,53 @@ describe("request registry", () => {
         { partnerId: null, holdId: 20 },
       ),
     ).toBe(true);
+  });
+
+  it("replays completed result when a concurrent insert loses the race", async () => {
+    const requestKey = "33333333-3333-4333-8333-333333333333";
+    const completedRow = {
+      requestKey,
+      operation: "adminConfirmReservation",
+      actorUserId: 9,
+      scope: { reservationId: 42, partnerId: null },
+      status: "completed" as const,
+      resultIds: { reservationId: 42 },
+    };
+
+    let selectCalls = 0;
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => ({
+              for: vi.fn(async () => {
+                selectCalls += 1;
+                return selectCalls === 1 ? [] : [completedRow];
+              }),
+            })),
+          })),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn(() => ({
+            returning: vi.fn(async () => []),
+          })),
+        })),
+      })),
+    };
+
+    const result = await claimRequest(tx as never, {
+      requestKey,
+      operation: "adminConfirmReservation",
+      actorUserId: 9,
+      scope: { reservationId: 42, partnerId: null },
+    });
+
+    expect(result).toEqual({
+      kind: "replayed",
+      resultIds: { reservationId: 42 },
+    });
+    expect(selectCalls).toBe(2);
   });
 });

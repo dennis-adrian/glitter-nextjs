@@ -2,7 +2,6 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
-import { isUniqueViolation } from "@/app/lib/categories/pg";
 import { db } from "@/db";
 import { reservationRequestRegistry } from "@/db/schema";
 
@@ -116,26 +115,30 @@ export async function claimRequest(
     });
   }
 
-  try {
-    await tx.insert(reservationRequestRegistry).values({
+  const inserted = await tx
+    .insert(reservationRequestRegistry)
+    .values({
       requestKey: input.requestKey,
       operation: input.operation,
       actorUserId: input.actorUserId,
       scope,
       status: "in_progress",
-    });
+    })
+    .onConflictDoNothing({ target: reservationRequestRegistry.requestKey })
+    .returning();
+
+  if (inserted.length > 0) {
     return { kind: "claimed" };
-  } catch (error) {
-    if (!isUniqueViolation(error)) throw error;
-    const raced = await loadRequestRow(tx, input.requestKey);
-    if (!raced) return { kind: "conflict" };
-    return interpretExisting({
-      row: raced,
-      operation: input.operation,
-      actorUserId: input.actorUserId,
-      scope,
-    });
   }
+
+  const raced = await loadRequestRow(tx, input.requestKey);
+  if (!raced) return { kind: "conflict" };
+  return interpretExisting({
+    row: raced,
+    operation: input.operation,
+    actorUserId: input.actorUserId,
+    scope,
+  });
 }
 
 export async function completeRequest(
