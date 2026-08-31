@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/morning/standHoldExpiration",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/morning/reservationNotifications",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

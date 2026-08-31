@@ -14,6 +14,7 @@ import {
   resolveVoucherSubmission,
   VOUCHER_BLOCKER_LABELS,
 } from "@/app/lib/programs/vouchers";
+import { submitPaymentProof } from "@/app/lib/reservations/payment-service";
 import { db } from "@/db";
 import { invoices, orders, productImages, sessionPurchases } from "@/db/schema";
 
@@ -118,14 +119,37 @@ export const ourFileRouter = {
         throw new UploadThingError("Esta reserva ya no admite un comprobante");
       }
 
-      return { profileId: profile.id, invoiceId: invoice.id };
+      return {
+        profileId: profile.id,
+        role: profile.role,
+        invoiceId: invoice.id,
+      };
     })
-    .onUploadComplete(({ metadata, file }) => {
+    .onUploadComplete(async ({ metadata, file }) => {
+      const uploaded = file as { url?: string; ufsUrl?: string; key?: string };
+      const voucherUrl = uploaded.ufsUrl ?? uploaded.url;
+      if (!voucherUrl) {
+        throw new UploadThingError("No se pudo leer la URL del comprobante");
+      }
+
+      const result = await submitPaymentProof(
+        {
+          invoiceId: metadata.invoiceId,
+          voucherUrl,
+          fileKey: uploaded.key,
+        },
+        { id: metadata.profileId, role: metadata.role },
+      );
+      if (!result.success) {
+        throw new UploadThingError(result.message);
+      }
+
       return {
         results: {
           profileId: metadata.profileId,
           invoiceId: metadata.invoiceId,
-          imageUrl: (file as { url: string }).url,
+          imageUrl: voucherUrl,
+          submissionId: result.data.submissionId,
         },
       };
     }),

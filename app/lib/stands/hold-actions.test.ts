@@ -29,6 +29,18 @@ vi.mock("@/app/lib/festivals/actions", () => ({
   fetchBaseFestival: vi.fn(),
 }));
 
+vi.mock("@/app/lib/reservations/locks", () => ({
+  lockFestivalRow: vi.fn(),
+  lockParticipants: vi.fn(),
+  lockStandRows: vi.fn(),
+}));
+
+vi.mock("@/app/lib/reservations/notification-outbox", () => ({
+  enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
+  enqueueReservationNotification: vi.fn(),
+  scheduleReservationNotificationJobs: vi.fn(),
+}));
+
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: vi.fn(),
 }));

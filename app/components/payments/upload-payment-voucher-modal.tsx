@@ -1,10 +1,11 @@
 "use client";
 
 import BaseModal from "@/app/components/modals/base-modal";
-import UploadPaymentVoucherForm from "@/app/components/payments/forms/upload-payment-voucher-form";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 type UploadPaymentVoucherModalProps = {
   invoice: InvoiceWithPaymentsAndStand;
@@ -14,12 +15,9 @@ type UploadPaymentVoucherModalProps = {
 export default function UploadPaymentVoucherModal(
   props: UploadPaymentVoucherModalProps,
 ) {
+  const router = useRouter();
   const payments = props.invoice.payments;
   const existingVoucherUrl = payments[payments?.length - 1]?.voucherUrl;
-  const [isUploadStarted, setIsUploadStarted] = useState(
-    Boolean(existingVoucherUrl),
-  );
-  const [isUploading, setIsUploading] = useState(false);
   const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
     existingVoucherUrl,
   );
@@ -28,7 +26,6 @@ export default function UploadPaymentVoucherModal(
 
   useEffect(() => {
     if (hasUserUploaded) return;
-    setIsUploadStarted(Boolean(existingVoucherUrl));
     setVoucherUrl(existingVoucherUrl);
   }, [existingVoucherUrl, hasUserUploaded]);
 
@@ -53,18 +50,12 @@ export default function UploadPaymentVoucherModal(
           onUploadComplete={(newUrl) => {
             setHasUserUploaded(true);
             setVoucherUrl(newUrl);
+            toast.success("Comprobante enviado. Tu reserva está en revisión.");
+            router.push(
+              `/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
+            );
           }}
-          onUploading={(isUploading) => {
-            setIsUploadStarted(true);
-            setIsUploading(isUploading);
-          }}
-        />
-        <UploadPaymentVoucherForm
-          invoice={props.invoice}
-          newVoucherUrl={voucherUrl}
-          loading={isUploading}
-          disabled={!isUploadStarted}
-          hideSubmitButton={!isUploadStarted || isUploading}
+          onUploading={() => undefined}
         />
       </div>
     </BaseModal>

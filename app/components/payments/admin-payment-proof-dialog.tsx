@@ -12,7 +12,7 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
-import { adminAttachPaymentVoucher } from "@/app/data/invoices/actions";
+import { approveInvoiceSettlementAction } from "@/app/lib/reservations/payment-actions";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { useRouter } from "next/navigation";
@@ -39,22 +39,26 @@ export default function AdminPaymentProofDialog({
     setMarkAsPaid(isPaid);
   }, [isPaid]);
 
-  async function handleUploadComplete(imageUrl: string) {
+  async function handleUploadComplete(
+    _imageUrl: string,
+    extra?: { submissionId?: number },
+  ) {
     const submittedMarkAsPaid = markAsPaid;
-    const result = await adminAttachPaymentVoucher(
-      invoice.id,
-      imageUrl,
-      submittedMarkAsPaid,
-    );
-    if (!result.success) {
-      toast.error(result.message);
-      return;
+    if (submittedMarkAsPaid) {
+      if (!extra?.submissionId) {
+        toast.error("No se pudo confirmar el pago. Recargá e intentá de nuevo.");
+        return;
+      }
+      const result = await approveInvoiceSettlementAction({
+        submissionId: extra.submissionId,
+      });
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
     }
 
-    toast.success(result.message);
-    // Closes via the parent callback, bypassing DrawerDialog's onOpenChange.
-    // Optimistically mirror the submitted choice until refresh updates status;
-    // useEffect realigns if status later changes (e.g. voucher removal).
+    toast.success("Comprobante guardado correctamente.");
     setMarkAsPaid(submittedMarkAsPaid);
     onOpenChange(false);
     router.refresh();

@@ -1,53 +1,39 @@
 "use server";
 
-import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
   InvoiceWithParticipants,
   InvoiceWithPaymentsAndStand,
   InvoiceWithPaymentsAndStandAndProfile,
   ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
-import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
-import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
-import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
   invoices,
-  invoiceSettlementSubmissions,
   payments,
   reservationParticipants,
   standReservations,
 } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { cancelReservation } from "@/app/lib/reservations/admin-service";
+import { type ReservationActionResult } from "@/app/lib/reservations/errors";
 import {
-  reservationFailure,
-  reservationSuccess,
-  type ReservationActionResult,
-} from "@/app/lib/reservations/errors";
-import {
-  canSubmitInvoiceSettlement,
   canViewAdminReservationData,
   canViewInvoiceRecord,
 } from "@/app/lib/reservations/policy";
 import {
-  invoiceIdSchema,
-  parseUnknown,
-  submitPaymentProofSchema,
-} from "@/app/lib/reservations/schemas";
-import { insertStandReservationEvent } from "@/app/lib/reservations/events";
-import { roundMoney } from "@/app/lib/reservations/money";
+  approveInvoiceSettlement,
+  findSubmittedSettlementId,
+  rejectInvoiceSettlement,
+  submitPaymentProof,
+  submitZeroValueInvoiceForReview,
+} from "@/app/lib/reservations/payment-service";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { revalidatePath } from "next/cache";
-import {
-  confirmReservation,
-  sendReservationConfirmationEmails,
-} from "@/app/api/reservations/actions";
 import {
   attemptStorageCleanupJob,
   enqueueStorageCleanupJob,
 } from "@/app/lib/uploadthing/actions";
-import { countOutstandingInvoices, canAcceptInvoiceProof } from "@/app/lib/payments/helpers";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { countOutstandingInvoices } from "@/app/lib/payments/helpers";
 
 export async function updateInvoiceStatus(
   invoiceId: number,
@@ -63,18 +49,69 @@ export async function updateInvoiceStatus(
   }
 
   try {
-    const result = await db
-      .update(invoices)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(invoices.id, invoiceId))
-      .returning({ id: invoices.id });
-
-    if (result.length === 0) {
-      return { success: false, message: "Pago no encontrado." };
+    if (status === "paid") {
+      const submissionId = await findSubmittedSettlementId(invoiceId);
+      if (!submissionId) {
+        const invoice = await db.query.invoices.findFirst({
+          where: eq(invoices.id, invoiceId),
+          columns: { status: true },
+        });
+        if (invoice?.status === "paid") {
+          return { success: true, message: "El pago ya figura como pagado." };
+        }
+        return {
+          success: false,
+          message: "No hay una solicitud en revisión para aprobar.",
+        };
+      }
+      const result = await approveInvoiceSettlement({ submissionId });
+      return { success: result.success, message: result.message };
     }
 
-    revalidatePath("/dashboard/festivals/[id]/payments", "page");
-    return { success: true, message: "Estado del pago actualizado." };
+    if (status === "pending") {
+      const submissionId = await findSubmittedSettlementId(invoiceId);
+      if (!submissionId) {
+        return {
+          success: false,
+          message: "No hay una solicitud en revisión para devolver a pendiente.",
+        };
+      }
+      const result = await rejectInvoiceSettlement({
+        submissionId,
+        reason: "Revisión administrativa",
+        correction: { type: "keep_amount" },
+      });
+      return { success: result.success, message: result.message };
+    }
+
+    if (status === "cancelled") {
+      const submissionId = await findSubmittedSettlementId(invoiceId);
+      if (submissionId) {
+        const result = await rejectInvoiceSettlement({
+          submissionId,
+          reason: "Cancelado desde el estado de pago",
+          correction: { type: "cancel_reservation" },
+        });
+        return { success: result.success, message: result.message };
+      }
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, invoiceId),
+        columns: { reservationId: true },
+      });
+      if (!invoice) {
+        return { success: false, message: "Pago no encontrado." };
+      }
+      return cancelReservation({
+        reservationId: invoice.reservationId,
+        reason: "Cancelado desde el estado de pago",
+      });
+    }
+
+    return {
+      success: false,
+      message:
+        "Para pasar a revisión, el participante debe enviar el comprobante o solicitar revisión.",
+    };
   } catch (error) {
     console.error("Error updating invoice status", error);
     return { success: false, message: "No se pudo actualizar el estado." };
@@ -91,145 +128,25 @@ export async function adminAttachPaymentVoucher(
     return { success: false, message: "No autorizado." };
   }
 
-  let confirmationFailure: string | null = null;
-
-  try {
-    const invoice = await db.query.invoices.findFirst({
-      where: eq(invoices.id, invoiceId),
-      with: {
-        payments: {
-          orderBy: [desc(payments.createdAt), desc(payments.id)],
-          limit: 1,
-        },
-        user: true,
-        reservation: {
-          with: {
-            stand: true,
-            festival: { with: { festivalDates: true } },
-            participants: { with: { user: true } },
-          },
-        },
-      },
-    });
-    if (!invoice) {
-      return { success: false, message: "Pago no encontrado." };
-    }
-
-    const currentPayment = invoice.payments[0];
-    const standLabel = formatStandLabel(invoice.reservation.stand);
-    const shouldConfirmReservation =
-      markAsPaid && invoice.reservation.status !== "accepted";
-    let cleanupJobId: number | undefined;
-
-    await db.transaction(async (tx) => {
-      if (currentPayment) {
-        // The previous voucher is orphaned in storage once we overwrite it;
-        // enqueue a cleanup job so the old file is removed after commit.
-        const previousVoucherUrl = currentPayment.voucherUrl;
-        if (previousVoucherUrl && previousVoucherUrl !== voucherUrl) {
-          const cleanupJob = await enqueueStorageCleanupJob(
-            {
-              entityType: "invoice_voucher",
-              entityId: invoiceId,
-              fileUrl: previousVoucherUrl,
-            },
-            tx,
-          );
-          cleanupJobId = cleanupJob.id;
-        }
-
-        await tx
-          .update(payments)
-          .set({
-            amount: roundMoney(invoice.amount),
-            date: new Date(),
-            voucherUrl,
-            uploadedByUserId: profile.id,
-            updatedAt: new Date(),
-          })
-          .where(eq(payments.id, currentPayment.id));
-        await tx.insert(invoiceSettlementSubmissions).values({
-          invoiceId,
-          paymentId: currentPayment.id,
-          voucherUrl,
-          uploadedByUserId: profile.id,
-        });
-      } else {
-        const [payment] = await tx
-          .insert(payments)
-          .values({
-            invoiceId,
-            amount: roundMoney(invoice.amount),
-            date: new Date(),
-            voucherUrl,
-            uploadedByUserId: profile.id,
-          })
-          .returning({ id: payments.id });
-        await tx.insert(invoiceSettlementSubmissions).values({
-          invoiceId,
-          paymentId: payment.id,
-          voucherUrl,
-          uploadedByUserId: profile.id,
-        });
-      }
-
-      if (shouldConfirmReservation) {
-        const confirmationResult = await confirmReservation(
-          invoice.reservationId,
-          invoice.reservation.standId,
-          invoice.id,
-          tx,
-        );
-        if (!confirmationResult.success) {
-          confirmationFailure = confirmationResult.message;
-          throw new Error(confirmationResult.message);
-        }
-      } else if (markAsPaid) {
-        await tx
-          .update(invoices)
-          .set({ status: "paid", updatedAt: new Date() })
-          .where(eq(invoices.id, invoiceId));
-      } else if (invoice.status === "pending") {
-        await tx
-          .update(invoices)
-          .set({ status: "verification_payment", updatedAt: new Date() })
-          .where(eq(invoices.id, invoiceId));
-      }
-    });
-
-    if (cleanupJobId !== undefined) {
-      // The voucher transaction already committed; a failed immediate cleanup
-      // attempt must not fail the request or block the confirmation emails and
-      // revalidation below. The job stays persisted for cron retry.
-      try {
-        await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
-      } catch (cleanupError) {
-        console.error("Immediate storage cleanup attempt failed", {
-          cleanupJobId,
-          invoiceId,
-          error: cleanupError,
-        });
-      }
-    }
-
-    if (shouldConfirmReservation) {
-      await sendReservationConfirmationEmails({
-        user: invoice.user,
-        standLabel,
-        festival: invoice.reservation.festival,
-        participants: invoice.reservation.participants,
-      });
-    }
-
-    revalidatePath("/dashboard/festivals/[id]/payments", "page");
-    return { success: true, message: "Comprobante guardado correctamente." };
-  } catch (error) {
-    console.error("Error attaching payment voucher", error);
-    if (confirmationFailure) {
-      return { success: false, message: confirmationFailure };
-    }
-    return { success: false, message: "No se pudo guardar el comprobante." };
+  const submitted = await submitPaymentProof(
+    { invoiceId, voucherUrl },
+    { id: profile.id, role: profile.role },
+  );
+  if (!submitted.success) {
+    return { success: false, message: submitted.message };
   }
+  if (markAsPaid) {
+    const approved = await approveInvoiceSettlement({
+      submissionId: submitted.data.submissionId,
+    });
+    return {
+      success: approved.success,
+      message: approved.success
+        ? "Comprobante guardado correctamente."
+        : approved.message,
+    };
+  }
+  return { success: true, message: "Comprobante guardado correctamente." };
 }
 
 export async function adminRemovePaymentVoucher(
@@ -365,349 +282,20 @@ function normalizePaymentProofInput(input: unknown) {
 
 export async function createPayment(
   input: unknown,
-): Promise<ReservationActionResult> {
-  const actor = await getCurrentUserProfile();
-  if (!actor) return reservationFailure("UNAUTHENTICATED");
-
-  const parsed = parseUnknown(
-    submitPaymentProofSchema,
-    normalizePaymentProofInput(input),
-  );
-  if (!parsed.success) return reservationFailure("VALIDATION");
-
-  const { invoiceId, voucherUrl, fileKey, idempotencyKey } = parsed.data;
-
-  try {
-    const outcome = await db.transaction(async (tx) => {
-      const [lockedInvoice] = await tx
-        .select()
-        .from(invoices)
-        .where(eq(invoices.id, invoiceId))
-        .limit(1)
-        .for("update");
-      if (!lockedInvoice) return reservationFailure("VALIDATION");
-
-      const reservation = await tx.query.standReservations.findFirst({
-        where: eq(standReservations.id, lockedInvoice.reservationId),
-        with: {
-          participants: true,
-        },
-      });
-      if (!reservation) return reservationFailure("VALIDATION");
-
-      const invoicePayments = await tx.query.payments.findMany({
-        where: eq(payments.invoiceId, lockedInvoice.id),
-        orderBy: [desc(payments.createdAt), desc(payments.id)],
-      });
-
-      const invoice = {
-        ...lockedInvoice,
-        payments: invoicePayments,
-        reservation,
-      };
-
-      if (
-        !canSubmitInvoiceSettlement({
-          actor: { id: actor.id, role: actor.role },
-          invoiceOwnerUserId: invoice.userId,
-        })
-      ) {
-        return reservationFailure("INVOICE_NOT_OWNED");
-      }
-
-      if (!canAcceptInvoiceProof(invoice.status)) {
-        return reservationFailure("INVOICE_NOT_PENDING");
-      }
-
-      if (
-        invoice.reservation.status !== "pending" &&
-        invoice.reservation.status !== "verification_payment"
-      ) {
-        return reservationFailure("INVOICE_NOT_PENDING");
-      }
-
-      const currentPayment = invoice.payments[0];
-      if (idempotencyKey) {
-        const [existingSubmission] = await tx
-          .select({ id: invoiceSettlementSubmissions.id })
-          .from(invoiceSettlementSubmissions)
-          .where(
-            and(
-              eq(invoiceSettlementSubmissions.idempotencyKey, idempotencyKey),
-              eq(invoiceSettlementSubmissions.invoiceId, invoice.id),
-              eq(invoiceSettlementSubmissions.uploadedByUserId, actor.id),
-            ),
-          )
-          .limit(1);
-        if (existingSubmission) {
-          return { kind: "replayed" as const };
-        }
-      }
-
-      let paymentId = currentPayment?.id;
-      if (currentPayment) {
-        await tx
-          .update(payments)
-          .set({
-            amount: roundMoney(invoice.amount),
-            date: new Date(),
-            voucherUrl,
-            fileKey: fileKey ?? currentPayment.fileKey,
-            uploadedByUserId: actor.id,
-            idempotencyKey,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(payments.id, currentPayment.id),
-              eq(payments.invoiceId, invoice.id),
-            ),
-          );
-      } else {
-        const [payment] = await tx
-          .insert(payments)
-          .values({
-            invoiceId: invoice.id,
-            amount: roundMoney(invoice.amount),
-            date: new Date(),
-            voucherUrl,
-            fileKey,
-            uploadedByUserId: actor.id,
-            idempotencyKey,
-          })
-          .returning({ id: payments.id });
-        paymentId = payment.id;
-      }
-
-      await tx.insert(invoiceSettlementSubmissions).values({
-        invoiceId: invoice.id,
-        paymentId,
-        voucherUrl,
-        fileKey,
-        uploadedByUserId: actor.id,
-        idempotencyKey,
-      });
-
-      await insertStandReservationEvent(tx, {
-        reservationId: invoice.reservationId,
-        actorUserId: actor.id,
-        eventType: "payment_submitted",
-        fromStatus: invoice.reservation.status,
-        toStatus: "verification_payment",
-        payload: { invoiceId: invoice.id, paymentId: paymentId ?? null },
-      });
-
-      await tx
-        .update(standReservations)
-        .set({ status: "verification_payment", updatedAt: new Date() })
-        .where(
-          and(
-            eq(standReservations.id, invoice.reservationId),
-            eq(standReservations.standId, invoice.reservation.standId),
-          ),
-        );
-
-      await tx
-        .update(invoices)
-        .set({ status: "verification_payment", updatedAt: new Date() })
-        .where(eq(invoices.id, invoice.id));
-
-      return {
-        kind: "created" as const,
-        previousVoucherUrl: currentPayment?.voucherUrl,
-        userId: invoice.userId,
-      };
-    });
-
-    if ("success" in outcome) return outcome;
-    if (outcome.kind === "replayed") {
-      return reservationSuccess(
-        undefined,
-        "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
-      );
-    }
-
-    if (
-      outcome.previousVoucherUrl &&
-      outcome.previousVoucherUrl !== voucherUrl
-    ) {
-      try {
-        await enqueueStorageCleanupJob({
-          entityType: "invoice_voucher",
-          entityId: invoiceId,
-          fileUrl: outcome.previousVoucherUrl,
-        });
-      } catch (error) {
-        console.error("[createPayment] voucher cleanup enqueue failed", {
-          invoiceId,
-        });
-      }
-    }
-
-    try {
-      const invoice = await db.query.invoices.findFirst({
-        where: eq(invoices.id, invoiceId),
-        with: {
-          payments: true,
-          user: true,
-          reservation: {
-            with: {
-              stand: true,
-              festival: { with: { festivalDates: true } },
-              participants: { with: { user: true } },
-            },
-          },
-        },
-      });
-      if (invoice) {
-        await sendEmail({
-          to: [invoice.user.email],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: "Tu pago ha sido registrado",
-          react: PaymentConfirmationForUserEmailTemplate({ invoice }),
-        });
-        const admins = await fetchAdminUsers();
-        const adminEmails = admins.map((admin) => admin.email).filter(Boolean);
-        if (adminEmails.length > 0) {
-          await sendEmail({
-            to: [...adminEmails],
-            from: "Reservas Glitter <reservas@productoraglitter.com>",
-            subject: `${invoice.user.displayName} hizo el pago de su reserva`,
-            react: PaymentConfirmationForAdminsEmailTemplate({ invoice }),
-          });
-        }
-      }
-    } catch (error) {
-      console.error("[createPayment] post-commit notification failed", {
-        invoiceId,
-        actorId: actor.id,
-      });
-    }
-
-    revalidatePath("/profiles");
-    return {
-      success: true,
-      data: undefined,
-      message: "Comprobante enviado. Tu reserva está en revisión.",
-    };
-  } catch (error) {
-    console.error("Error creating payment", error);
-    return reservationFailure("CONFLICT_RETRY");
-  }
+): Promise<ReservationActionResult<{ submissionId: number }>> {
+  return submitPaymentProof(normalizePaymentProofInput(input));
 }
 
 export async function confirmFreeInvoice(
   input: unknown,
-): Promise<ReservationActionResult> {
-  const actor = await getCurrentUserProfile();
-  if (!actor) return reservationFailure("UNAUTHENTICATED");
-
+): Promise<ReservationActionResult<{ submissionId: number }>> {
   const nested =
     input && typeof input === "object" && "invoiceId" in input
       ? input
       : input;
-  const parsed = parseUnknown(invoiceIdSchema, nested);
-  if (!parsed.success) return reservationFailure("VALIDATION");
-
-  try {
-    const outcome = await db.transaction(async (tx) => {
-      const invoice = await tx.query.invoices.findFirst({
-        where: eq(invoices.id, parsed.data.invoiceId),
-        with: {
-          reservation: {
-            with: { participants: true },
-          },
-        },
-      });
-      if (!invoice) return reservationFailure("VALIDATION");
-
-      if (
-        !canSubmitInvoiceSettlement({
-          actor: { id: actor.id, role: actor.role },
-          invoiceOwnerUserId: invoice.userId,
-        })
-      ) {
-        return reservationFailure("INVOICE_NOT_OWNED");
-      }
-
-      if (invoice.status === "verification_payment") {
-        return reservationFailure("PAYMENT_ALREADY_SUBMITTED");
-      }
-
-      if (invoice.status !== "pending") {
-        return reservationFailure("INVOICE_NOT_PENDING");
-      }
-
-      if (Number(invoice.amount) !== 0) {
-        return reservationFailure("INVOICE_NOT_PENDING");
-      }
-
-      await tx
-        .update(standReservations)
-        .set({ status: "verification_payment", updatedAt: new Date() })
-        .where(eq(standReservations.id, invoice.reservationId));
-
-      await tx
-        .update(invoices)
-        .set({ status: "verification_payment", updatedAt: new Date() })
-        .where(eq(invoices.id, invoice.id));
-
-      return { success: true as const, userId: invoice.userId };
-    });
-
-    if (!outcome.success) return outcome;
-
-    try {
-      const invoice = await db.query.invoices.findFirst({
-        where: eq(invoices.id, parsed.data.invoiceId),
-        with: {
-          payments: true,
-          user: true,
-          reservation: {
-            with: {
-              stand: true,
-              festival: { with: { festivalDates: true } },
-              participants: { with: { user: true } },
-            },
-          },
-        },
-      });
-      if (invoice) {
-        await sendEmail({
-          to: [invoice.user.email],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: "Tu reserva está en revisión",
-          react: PaymentConfirmationForUserEmailTemplate({ invoice }),
-        });
-        const admins = await fetchAdminUsers();
-        const adminEmails = admins.map((admin) => admin.email).filter(Boolean);
-        if (adminEmails.length > 0) {
-          await sendEmail({
-            to: [...adminEmails],
-            from: "Reservas Glitter <reservas@productoraglitter.com>",
-            subject: `${invoice.user.displayName} solicitó revisión de una reserva sin costo`,
-            react: PaymentConfirmationForAdminsEmailTemplate({ invoice }),
-          });
-        }
-      }
-    } catch (error) {
-      console.error("[confirmFreeInvoice] post-commit notification failed", {
-        invoiceId: parsed.data.invoiceId,
-        actorId: actor.id,
-      });
-    }
-
-    revalidatePath("/profiles");
-    return {
-      success: true,
-      data: undefined,
-      message: "Tu reserva está en revisión.",
-    };
-  } catch (error) {
-    console.error("Error confirming free invoice", error);
-    return reservationFailure("CONFLICT_RETRY");
-  }
+  return submitZeroValueInvoiceForReview(nested);
 }
+
 
 export async function fetchInvoicesByReservation(
   reservationId: number,

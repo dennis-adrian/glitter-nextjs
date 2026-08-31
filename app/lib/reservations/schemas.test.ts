@@ -4,7 +4,9 @@ import {
   parseConfirmHoldInput,
   parseHoldStandInput,
   parseUnknown,
+  rejectSettlementSchema,
   submitPaymentProofSchema,
+  submitZeroValueInvoiceSchema,
 } from "@/app/lib/reservations/schemas";
 
 describe("reservation runtime schemas", () => {
@@ -78,5 +80,32 @@ describe("reservation runtime schemas", () => {
         idempotencyKey: "11111111-1111-4111-8111-111111111111",
       },
     });
+  });
+
+  it("accepts zero-value review and settlement rejection corrections", () => {
+    expect(
+      parseUnknown(submitZeroValueInvoiceSchema, { invoiceId: 9 }),
+    ).toEqual({ success: true, data: { invoiceId: 9 } });
+    expect(
+      parseUnknown(rejectSettlementSchema, {
+        submissionId: 3,
+        reason: "El monto no coincide",
+        correction: { type: "keep_amount" },
+      }).success,
+    ).toBe(true);
+    expect(
+      parseUnknown(rejectSettlementSchema, {
+        submissionId: 3,
+        reason: "Restaurar",
+        correction: { type: "restore_amount" },
+      }).success,
+    ).toBe(true);
+    expect(
+      parseUnknown(rejectSettlementSchema, {
+        submissionId: 3,
+        reason: "Cancelar",
+        correction: { type: "cancel_reservation" },
+      }).success,
+    ).toBe(true);
   });
 });
