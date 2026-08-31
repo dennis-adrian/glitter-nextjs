@@ -6,6 +6,7 @@ import {
   FestivalWithUserRequests,
 } from "@/app/lib/festivals/definitions";
 import { lockFestivalRow, lockStandRows } from "@/app/lib/reservations/locks";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   reservationParticipants,
