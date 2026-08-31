@@ -314,6 +314,8 @@ export async function fetchFestivalReservationMapDto(input: {
               sql`${standReservations.status} <> 'rejected'`,
             ),
           ),
+    // Include rejected: occupancy excludes them, but a festival reservation
+    // in any status still locks this person out of later self-service.
     db
       .select({ id: standReservations.id })
       .from(reservationParticipants)

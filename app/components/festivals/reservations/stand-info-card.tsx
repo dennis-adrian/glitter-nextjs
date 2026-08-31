@@ -348,7 +348,7 @@ export function StandInfoCard({
 
           {alreadyReserved && !isStandTaken && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <p className="text-sm text-blue">
+              <p className="text-sm text-blue-800">
                 Ya tenés una reserva en este festival
               </p>
             </div>
