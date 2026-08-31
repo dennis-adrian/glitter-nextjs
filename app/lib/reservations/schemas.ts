@@ -38,6 +38,37 @@ export const submitPaymentProofSchema = z.object({
   idempotencyKey: uuidSchema.optional(),
 });
 
+export const submitZeroValueInvoiceSchema = z.object({
+  invoiceId: positiveIntSchema,
+  idempotencyKey: uuidSchema.optional(),
+});
+
+export const submissionIdSchema = z.object({
+  submissionId: positiveIntSchema,
+});
+
+export const rejectSettlementSchema = z.object({
+  submissionId: positiveIntSchema,
+  reason: z.string().trim().min(1).max(1000),
+  correction: z.discriminatedUnion("type", [
+    z.object({ type: z.literal("keep_amount") }),
+    z.object({ type: z.literal("restore_amount") }),
+    z.object({
+      type: z.literal("set_amount"),
+      amount: moneyAmountSchema,
+    }),
+    z.object({
+      type: z.literal("cancel_reservation"),
+      reason: z.string().trim().max(1000).optional(),
+    }),
+  ]),
+});
+
+export const cancelReservationSchema = z.object({
+  reservationId: positiveIntSchema,
+  reason: z.string().trim().max(1000).optional(),
+});
+
 export const applyDiscountSchema = z.object({
   invoiceId: positiveIntSchema,
   code: z.string().trim().min(1).max(64),

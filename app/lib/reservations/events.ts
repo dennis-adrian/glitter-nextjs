@@ -21,6 +21,7 @@ export async function insertStandReservationEvent(
     fromStatus?: ReservationStatus | null;
     toStatus?: ReservationStatus | null;
     payload?: Record<string, unknown> | null;
+    idempotencyKey?: string | null;
   },
 ) {
   await tx.insert(standReservationEvents).values({
@@ -30,5 +31,6 @@ export async function insertStandReservationEvent(
     fromStatus: input.fromStatus ?? null,
     toStatus: input.toStatus ?? null,
     payload: input.payload ?? null,
+    idempotencyKey: input.idempotencyKey ?? null,
   });
 }
