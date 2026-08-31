@@ -4,9 +4,9 @@
 
 **Feature area:** Festival stand reservations, holds, invoices, payments
 
-**Status:** In progress — Phases 0–3 complete on `develop` except unique-index carry-overs and the remaining §15.2 concurrency matrix. Phase 4 is next.
+**Status:** In progress — Phases 0–3 complete on `develop` except unique-index carry-overs and the remaining §15.2 concurrency matrix. Phase 4 DTO, polling, indexes, SKIP LOCKED cleanup, and query-layer latency budgets are on stacked PRs.
 
-**Last updated:** 2026-08-31 (Phase 3 close-out: partner command, §4.4 locks, audit catalog checks)
+**Last updated:** 2026-08-31 (Phase 4: map DTOs, polling/search, indexes + SKIP LOCKED, latency measurement)
 
 **References:** [PRD-stand-reservations.md](./PRD-stand-reservations.md), [PRD-multi-payment-access.md](./PRD-multi-payment-access.md), [PRD-participant-status-management.md](./PRD-participant-status-management.md)
 
@@ -45,7 +45,7 @@ The shipped work delivered security containment, canonical participant policy, a
 | 1 — Canonical policy and participant flow | Shared policy for pages, holds, confirmation, partners | **Implemented** |
 | 2 — Additive schema, preflight, data repair | Columns, money, events, scripts, unique hold/stand indexes | **Implemented** — `0246` applied and clean audit confirmed in production (2026-08-31) |
 | 3 — Transaction and payment rewrite | Locks, settlement commands, outbox, UploadThing callback | **Implemented** — settlement service, request registry (`0249`), required idempotency keys, notification outbox + cron, UploadThing `onUploadComplete`, §4.4 locks (including terms + eligibility writers), admin settlement UI, `updateReservationPartner`, hold concurrency items 1–2 and 9. Unique owner/active-festival indexes deferred. |
-| 4 — Cleanup, privacy, and performance | Cron-safe polling, DTOs, indexes, latency budgets | Partial early work only |
+| 4 — Cleanup, privacy, and performance | Cron-safe polling, DTOs, indexes, latency budgets | **Implemented** on stacked Phase 4 PRs (map DTO, polling/search, indexes + SKIP LOCKED, query-layer budgets) |
 | 5 — UX, accessibility, and documentation | Recoverable errors, list view, voseo, Playwright, PRDs | Partial copy/error work only |
 | 6 — Rollout and deletion of legacy paths | Flag, rehearsal, remove `/api/payments` and compatibility | Not started |
 
@@ -201,7 +201,7 @@ The implementation should preserve this baseline so improvements and regressions
 - Focused reservation tests passed **13/13**, but they did not cover authorization, payment ownership, database concurrency, archived festivals, or E2E behavior.
 - Full unit run reported **1,030 passed, 37 skipped, 3 failed**. The three failures were unrelated terms tests that failed during import because required environment secrets were absent; they were not reservation assertion failures. Pure policy tests introduced here must not import runtime secret validation.
 
-**Baseline follow-up (2026-08-30):** Phase 0–2 code added authorization, payment-ownership, and policy tests. They still do not cover database concurrency (`Promise.all` races), archived-festival E2E, or Playwright. Re-run `scripts/audit-reservation-invariants.ts` against each environment before applying `0246` or adding the remaining unique indexes. Treat the map-latency numbers above as the last recorded baseline until Phase 4 measures again.
+**Baseline follow-up (2026-08-31):** Phase 4 re-measured the query layer on a synthetic 3-sector / 90-stand festival in `glitter_test`. p75: map DTO **5.2 ms**, confirmation DTO **4.7 ms**, stand-status rows **1.0 ms**, partner search **3.3 ms** (plan budgets 1500 / 1000 / 200 / 300). Map SQL stayed at **12 queries** for both 24 and 90 stands (no N+1). The previous **4.7–5.1 s** figure was a full RSC map response with ORM graphs, not this DTO path. Production p75 still needs telemetry.
 
 ---
 
@@ -844,7 +844,7 @@ Worker behavior:
 
 Remove cleanup side effects and in-memory throttle from `GET /api/stands/status`.
 
-**Status:** Implemented early (Phase 0–2). Route exists and calls `cleanupExpiredHolds()`. Status endpoint no longer mutates. `SKIP LOCKED` claiming can still be tightened in Phase 4.
+**Status:** Implemented. Route exists and calls `cleanupExpiredHolds()`, which claims a bounded expired-hold batch with `FOR UPDATE SKIP LOCKED`, then locks those stands in ascending id order. Status endpoint no longer mutates.
 
 ### 10.3 Status endpoint and polling
 
@@ -868,7 +868,7 @@ Client hook:
 
 Keep four-second polling initially. Instrument production load before considering SSE/WebSocket.
 
-**Status:** Partial. `GET /api/stands/status` is read-only and authenticated. `use-stand-polling.ts` pauses when hidden and refreshes when visible. It does not abort, version, back off, or rate-limit. Phase 4.
+**Status:** Implemented. `GET /api/stands/status` is read-only, authenticated, enrollment-checked (unless admin), rate-limited, versioned, and `Cache-Control: private, no-store`. `use-stand-polling.ts` aborts in-flight work, ignores older versions, backs off after failures, pauses while hidden, and shows a stale banner after 12s. Partner search drops slower stale responses.
 
 ---
 
@@ -895,7 +895,7 @@ Explicitly exclude email, phone, Clerk ID, birthdate, address, private social/co
 
 Hidden reservation identity remains filtered server-side: before `revealAt`, participants may receive an occupied/effective status but never participant IDs, names, images, or reservation details. Admin DTOs are separate and explicitly authorized.
 
-**Status:** Partial. `dto.ts` and `queries.ts` expose public profile summaries. `reveal.ts` withholds hidden admin reservations. Many map/confirmation pages still serialize richer ORM shapes. Phase 4.
+**Status:** Implemented for the self-service map and confirmation pages. `FestivalReservationMapDto` / confirmation DTOs are assembled from column-limited queries. Hidden `revealAt` reservations stay occupied without identity. Snapshot tests scan forbidden PII keys.
 
 ### 11.2 Partner DTO
 
@@ -921,7 +921,7 @@ Search action:
 
 Recent partners use the same DTO and authorization. Do not serialize complete user rows through RSC props.
 
-**Status:** Partial. DTO, auth, query-length, rate limit, max-five results, and the rejected-reservation participation lock are implemented. Trigram index is Phase 4.
+**Status:** Implemented. DTO, auth, query-length, rate limit, max-five results, rejected-reservation participation lock, stale-response ignoring, and the matching GIN trigram expression index.
 
 ---
 
@@ -970,7 +970,7 @@ Recommended production p75 budgets, measured with real map sizes:
 
 Record baseline before optimization and p50/p75/p95 after every phase. Treat these as proposed budgets until production telemetry confirms realistic thresholds.
 
-**Status:** Not started as a dedicated performance pass. Some supporting indexes landed with 0245/0246. Phase 4.
+**Status:** Implemented. Migration `0251` adds the covering indexes in §12.3 (payments uses `(invoice_id, created_at)` because there is no payment `status` column). Map/confirmation/status/search query-layer p75 on a 90-stand test fixture is under the §12.4 budgets (see §2.1). Production telemetry is still Phase 6.
 
 ---
 
@@ -1191,7 +1191,7 @@ No production Clerk/payment/email side effects. Use the Clerk test instance and 
 - Record RSC payload size and scan serialized data for forbidden profile columns.
 - Load-test polling at expected concurrent reservation traffic plus safety margin.
 
-**Status:** Not started. Phase 4.
+**Status:** Implemented. Query-count and p75 timing tests live in `latency.integration.test.ts` (24 vs 90 stands, forbidden-key scan). Load-testing concurrent poll traffic remains Phase 6.
 
 ---
 
@@ -1282,16 +1282,16 @@ Shipped:
 
 ### Phase 4 — Cleanup, privacy, and performance
 
-**Status: Partial early work only** (hold cron and read-only status endpoint already shipped). Remaining work can proceed now that Phase 3 is closed.
+**Status: Implemented** on stacked PRs (map DTO, polling/search, indexes + SKIP LOCKED, latency). Unique owner/active-festival indexes remain deferred (see §0.2). Production p75 telemetry remains Phase 6.
 
-- Add hold reconciliation cron and lazy reconciliation.
-- Remove GET side effects/in-memory throttle.
-- Harden polling/search with rate limits, abort, ordering, backoff.
-- Introduce browser-safe DTOs and minimal queries.
-- Add indexes and split static/dynamic data.
-- Validate performance budgets.
+- Hold reconciliation cron + in-transaction cleanup; `cleanupExpiredHolds` claims with `FOR UPDATE SKIP LOCKED`.
+- GET `/api/stands/status` is read-only, enrolled, rate-limited, versioned, `private, no-store`.
+- Polling/search abort, monotonic version, backoff, stale banner, ignore-stale search.
+- Browser-safe map/confirmation DTOs and column-limited queries.
+- Covering indexes in `0251` including the partner-search trigram expression.
+- Query-layer budgets measured under §12.4 locally (see §2.1).
 
-Exit: no stale hold blocks availability; payload/privacy and latency targets pass.
+Exit: no stale hold blocks availability; payload/privacy and latency targets pass for the query layer. Full RSC/production p75 still needs a live reservation-window rehearsal.
 
 ### Phase 5 — UX, accessibility, and documentation
 
@@ -1359,12 +1359,12 @@ app/lib/reservations/admin-actions.ts                              Partial — c
 app/data/invoices/actions.ts                                       Partial — createPayment + confirmFreeInvoice
 app/lib/discount_codes/actions.ts                                  Partial — admin-gated
 app/api/uploadthing/core.ts                                        Partial — ownership middleware only
-app/api/stands/status/route.ts                                     Narrowed to read-only effective status
-app/hooks/use-stand-polling.ts                                     Partial — visibility pause only
+app/api/stands/status/route.ts                                     Enrollment, rate-limit, versioned DTO
+app/hooks/use-stand-polling.ts                                     Abort, version, backoff, stale banner
 app/lib/festival_sectors/actions.ts                                Unchanged / later
 app/lib/festivals/actions.ts                                       Unchanged / later
-app/components/pages/profiles/festivals/map-reservation.tsx        Partial — policy gate added
-app/components/pages/profiles/festivals/hold-confirmation.tsx      Partial — policy gate added
+app/components/pages/profiles/festivals/map-reservation.tsx        FestivalReservationMapDto
+app/components/pages/profiles/festivals/hold-confirmation.tsx      Confirmation DTO
 app/components/festivals/reservations/hold-confirmation-client.tsx Partial — idempotency key
 app/components/festivals/reservations/stand-info-card.tsx          Partial — idempotency key
 app/components/festivals/reservations/map-tabs-client.tsx          Later (a11y)
@@ -1394,13 +1394,13 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 | Missing hold/reservation DB invariants and existing duplicates | §6, §7, Phase 2 | Partial — live-stand unique in; owner unique and production repair remaining |
 | Admin duplicates and wrong source | §6.3, §7, §9 | Partial — `admin_assignment` + `legacy_unknown` dual-write |
 | Post-commit email/provider false failures | §6.6, §14, Phase 3 | Implemented — notification outbox + cron; mutation returns success after commit |
-| Partner/map PII overfetch | §11, Phase 4 | Partial |
+| Partner/map PII overfetch | §11, Phase 4 | Implemented — map/confirmation DTOs |
 | Rejected reservation inconsistencies | §1, §5.4, Phase 1 | Implemented — any reservation status locks the person; reject only releases the stand |
-| Fragile cleanup and polling | §10, Phase 4 | Partial — cron + read-only status |
+| Fragile cleanup and polling | §10, Phase 4 | Implemented — SKIP LOCKED + versioned polling |
 | Price/terms/status races | §5.2–5.3, §6.2–6.3 | Implemented — revalidation + §4.4 advisory locks |
 | Floating-point money | §6.5, Phase 2 | Implemented |
 | Cross-festival payment route composition | §8.1, §15 | Partial |
-| Slow map/confirmation and partner search | §12, Phase 4 | Not started |
+| Slow map/confirmation and partner search | §12, Phase 4 | Implemented at query layer; production p75 still Phase 6 |
 | Confirmation redirects, search/timer races, hold recovery | §13, Phase 5 | Not started |
 | Accessibility gaps | §13.5, Phase 5 | Not started |
 | Multiple active festivals | §6.1, §7 | Audited only |
