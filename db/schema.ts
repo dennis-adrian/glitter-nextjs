@@ -639,6 +639,10 @@ export const reservationNotificationJobStatusEnum = pgEnum(
   "reservation_notification_job_status",
   ["pending", "processing", "completed", "failed"],
 );
+export const reservationRequestStatusEnum = pgEnum(
+  "reservation_request_status",
+  ["in_progress", "completed"],
+);
 export const externalParticipantTypeEnum = pgEnum("external_participant_type", [
   "institution",
   "social_organization",
@@ -1486,6 +1490,41 @@ export const invoiceSettlementSubmissionsRelations = relations(
       references: [users.id],
     }),
   }),
+);
+
+export const reservationRequestRegistry = pgTable(
+  "reservation_request_registry",
+  {
+    requestKey: text("request_key").primaryKey(),
+    operation: text("operation").notNull(),
+    actorUserId: integer("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    scope: jsonb("scope").notNull(),
+    status: reservationRequestStatusEnum("status")
+      .default("in_progress")
+      .notNull(),
+    resultIds: jsonb("result_ids"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("reservation_request_registry_actor_operation_idx").on(
+      table.actorUserId,
+      table.operation,
+    ),
+    check(
+      "reservation_request_registry_operation_check",
+      sql`${table.operation} IN (
+        'createOrReplaceStandHold',
+        'confirmStandHold',
+        'submitPaymentProof',
+        'submitZeroValueInvoice',
+        'createAdminReservation',
+        'adminConfirmReservation'
+      )`,
+    ),
+  ],
 );
 
 export const reservationNotificationJobs = pgTable(
