@@ -1,6 +1,6 @@
 "use server";
 
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { cancelReservation } from "@/app/lib/reservations/admin-service";
@@ -8,6 +8,7 @@ import {
   adminConfirmReservation,
   approveInvoiceSettlement,
   findSubmittedSettlementId,
+  findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
   submitPaymentProof,
   submitZeroValueInvoiceForReview,
@@ -144,17 +145,24 @@ export async function adminConfirmReservationByReservationIdAction(
   if (!parsed.success) {
     return { success: false, message: "Datos inválidos." };
   }
-  const [ownerInvoice] = await db
-    .select({ id: invoices.id })
-    .from(invoices)
-    .where(eq(invoices.reservationId, parsed.data.reservationId))
-    .orderBy(asc(invoices.createdAt))
-    .limit(1);
-  if (!ownerInvoice) {
+  const settlementInvoiceId =
+    await findSubmittedSettlementInvoiceIdForReservation(
+      parsed.data.reservationId,
+    );
+  let invoiceId = settlementInvoiceId;
+  if (invoiceId == null) {
+    const [ownerInvoice] = await db
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(eq(invoices.reservationId, parsed.data.reservationId))
+      .limit(1);
+    invoiceId = ownerInvoice?.id ?? null;
+  }
+  if (invoiceId == null) {
     return { success: false, message: "No se encontró la factura de la reserva." };
   }
   const result = await adminConfirmReservation({
-    invoiceId: ownerInvoice.id,
+    invoiceId,
     idempotencyKey: parsed.data.idempotencyKey,
   });
   return { success: result.success, message: result.message };
