@@ -33,8 +33,20 @@ SET "kind" = 'zero_value_entitlement'
 WHERE "payment_id" IS NULL
   AND "kind" = 'payment_proof';--> statement-breakpoint
 CREATE UNIQUE INDEX "invoice_settlement_submissions_one_submitted" ON "invoice_settlement_submissions" USING btree ("invoice_id") WHERE "invoice_settlement_submissions"."status" = 'submitted';--> statement-breakpoint
+UPDATE "payments" AS p
+SET "file_key" = NULL, "updated_at" = now()
+WHERE p."file_key" IS NOT NULL
+  AND p."id" NOT IN (
+    SELECT DISTINCT ON ("file_key") "id"
+    FROM "payments"
+    WHERE "file_key" IS NOT NULL
+    ORDER BY "file_key", "created_at" DESC, "id" DESC
+  );--> statement-breakpoint
 CREATE UNIQUE INDEX "payments_file_key_unique" ON "payments" USING btree ("file_key") WHERE "payments"."file_key" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "stand_holds_expires_at_idx" ON "stand_holds" USING btree ("expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "stand_reservation_events_idempotency_key_unique" ON "stand_reservation_events" USING btree ("idempotency_key") WHERE "stand_reservation_events"."idempotency_key" IS NOT NULL;--> statement-breakpoint
 ALTER TABLE "invoice_settlement_submissions" ADD CONSTRAINT "invoice_settlement_submissions_kind_payment_id" CHECK (("invoice_settlement_submissions"."kind" = 'payment_proof' AND "invoice_settlement_submissions"."payment_id" IS NOT NULL) OR ("invoice_settlement_submissions"."kind" = 'zero_value_entitlement' AND "invoice_settlement_submissions"."payment_id" IS NULL));--> statement-breakpoint
+UPDATE "stand_holds"
+SET "expires_at" = "created_at" + interval '1 second', "updated_at" = now()
+WHERE "expires_at" <= "created_at";--> statement-breakpoint
 ALTER TABLE "stand_holds" ADD CONSTRAINT "stand_holds_expires_after_created" CHECK ("stand_holds"."expires_at" > "stand_holds"."created_at");
