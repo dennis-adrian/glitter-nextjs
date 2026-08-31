@@ -128,6 +128,7 @@ async function loadInvoiceAggregate(
       id: standReservations.id,
       festivalId: standReservations.festivalId,
       standId: standReservations.standId,
+      ownerUserId: standReservations.ownerUserId,
     })
     .from(standReservations)
     .where(eq(standReservations.id, invoicePreview.reservationId))
@@ -150,6 +151,9 @@ async function loadInvoiceAggregate(
   const userIds = uniqueSortedIds([
     invoicePreview.userId,
     ...participantPreview.map((row) => row.userId),
+    ...(reservationPreview.ownerUserId != null
+      ? [reservationPreview.ownerUserId]
+      : []),
   ]);
 
   const locked = await lockReservationAggregate(tx, {
@@ -195,6 +199,7 @@ async function loadInvoiceAggregate(
   const lockedUserIds = uniqueSortedIds([
     invoice.userId,
     ...participants.map((row) => row.userId),
+    ...(reservation.ownerUserId != null ? [reservation.ownerUserId] : []),
   ]);
   if (!locked.locked.userIds.every((id) => lockedUserIds.includes(id))) {
     return { kind: "conflict" };

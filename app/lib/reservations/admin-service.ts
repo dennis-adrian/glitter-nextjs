@@ -306,8 +306,7 @@ export async function updateReservationPartner(
       }
 
       const userIds = uniqueSortedIds([
-        ownerUserId,
-        ...preview.participantIds,
+        ...preview.userIds,
         ...(partnerUserId != null ? [partnerUserId] : []),
       ]);
 
