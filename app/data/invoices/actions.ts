@@ -118,6 +118,7 @@ export async function updateInvoiceStatus(
   }
 }
 
+/** @deprecated Admin UI uses UploadThing + settlement actions; kept for tests/compatibility. */
 export async function adminAttachPaymentVoucher(
   invoiceId: number,
   voucherUrl: string,

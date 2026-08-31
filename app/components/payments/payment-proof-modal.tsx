@@ -11,12 +11,13 @@ import {
   DrawerDialogTitle,
 } from "@/components/ui/drawer-dialog";
 import Image from "next/image";
-import { confirmReservation } from "@/app/api/reservations/actions";
+import { adminConfirmReservationAction } from "@/app/lib/reservations/payment-actions";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";
 import SubmitButton from "@/app/components/simple-submit-button";
+import { useMemo } from "react";
 
 type PaymentProofModalProps = {
   invoice: InvoiceWithParticipants;
@@ -28,14 +29,19 @@ type PaymentProofModalProps = {
 export default function PaymentProofModal(props: PaymentProofModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const form = useForm();
+  const confirmIntentKey = useMemo(
+    () => crypto.randomUUID(),
+    [props.imageUrl],
+  );
   const isReservationConfirmed =
     props.invoice.reservation.status === "accepted";
   const action = form.handleSubmit(async () => {
     try {
-      const result = await confirmReservation(
-        props.invoice.reservationId,
-        props.invoice.reservation.standId,
-      );
+      const result = await adminConfirmReservationAction({
+        invoiceId: props.invoice.id,
+        idempotencyKey: confirmIntentKey,
+        voucherUrl: props.imageUrl,
+      });
       if (result.success) {
         toast.success("Reserva confirmada");
         props.onOpenChange(false);

@@ -34,58 +34,16 @@ export async function updateReservation(
   id: unknown,
   data: unknown,
 ): Promise<{ success: boolean; message: string }> {
-  const profile = await getCurrentUserProfile();
-  if (!canMutateAdminReservations(profile)) {
-    return { success: false, message: "No autorizado para actualizar la reserva." };
-  }
-
-  const idParsed = parseUnknown(positiveIntSchema, id);
-  const dataParsed = parseUnknown(
-    z.object({
-      status: z.enum(["pending", "verification_payment", "accepted", "rejected"]),
-    }),
-    data,
+  void id;
+  void data;
+  console.warn(
+    "[updateReservation] Deprecated: use explicit settlement/admin commands.",
   );
-  if (!idParsed.success || !dataParsed.success) {
-    return { success: false, message: "Datos inválidos." };
-  }
-
-  try {
-    await db.transaction(async (tx) => {
-      const [reservation] = await tx
-        .select()
-        .from(standReservations)
-        .where(eq(standReservations.id, idParsed.data))
-        .limit(1)
-        .for("update");
-      if (!reservation) {
-        throw new Error("not_found");
-      }
-
-      const { status } = dataParsed.data;
-      await tx
-        .update(standReservations)
-        .set({
-          status,
-          ...(status === "rejected" ? { revealAt: null } : {}),
-        })
-        .where(eq(standReservations.id, reservation.id));
-
-      const standStatus = ["accepted", "verification_payment"].includes(status)
-        ? "confirmed"
-        : "available";
-      await tx
-        .update(stands)
-        .set({ status: standStatus })
-        .where(eq(stands.id, reservation.standId));
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al actualizar la reserva" };
-  }
-
-  revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-  return { success: true, message: "Reserva actualizada" };
+  return {
+    success: false,
+    message:
+      "Esta acción genérica ya no está disponible. Usá los comandos explícitos de revisión de pago.",
+  };
 }
 
 export async function deleteReservation(reservationIdInput: unknown) {
@@ -253,100 +211,18 @@ export async function confirmReservation(
   paidInvoiceId?: number,
   tx?: ConfirmReservationTx,
 ) {
-  const profile = await getCurrentUserProfile();
-  if (!canMutateAdminReservations(profile)) {
-    return {
-      success: false,
-      message: "No autorizado para confirmar la reserva.",
-    };
-  }
-
-  const reservationRow = await db.query.standReservations.findFirst({
-    where: eq(standReservations.id, reservationId),
-    columns: { id: true, standId: true },
-  });
-  if (!reservationRow) {
-    return { success: false, message: "La reserva no existe." };
-  }
-  if (standId !== reservationRow.standId) {
-    return { success: false, message: "La reserva no coincide con el espacio." };
-  }
-  if (paidInvoiceId !== undefined) {
-    const invoice = await db.query.invoices.findFirst({
-      where: eq(invoices.id, paidInvoiceId),
-      columns: { id: true, reservationId: true },
-    });
-    if (!invoice || invoice.reservationId !== reservationId) {
-      return {
-        success: false,
-        message: "El pago no corresponde a esta reserva.",
-      };
-    }
-  }
-
-  try {
-    if (tx) {
-      await applyConfirmReservationMutations(tx, {
-        reservationId,
-        standId,
-        paidInvoiceId,
-        actorUserId: profile?.id,
-      });
-      // Side effects run after the caller's transaction commits.
-      return { success: true, message: "Reserva confirmada" };
-    }
-
-    await db.transaction(async (innerTx) => {
-      await applyConfirmReservationMutations(innerTx, {
-        reservationId,
-        standId,
-        paidInvoiceId,
-        actorUserId: profile?.id,
-      });
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al confirmar la reserva" };
-  }
-
-  // Post-commit side effects (canonical lookup + emails) must never fail a
-  // confirmation that already committed: guard them and log without
-  // propagating, then always revalidate and return success.
-  try {
-    // Load canonical reservation data so confirmation emails are addressed from
-    // server-side records rather than caller-supplied values.
-    const reservation = await db.query.standReservations.findFirst({
-      where: eq(standReservations.id, reservationId),
-      with: {
-        stand: true,
-        festival: { with: { festivalDates: true } },
-        participants: { with: { user: true } },
-        invoices: { with: { user: true } },
-      },
-    });
-
-    if (reservation) {
-      // Address the email from the paid invoice's owner when known, falling
-      // back to the reservation's first invoice owner otherwise.
-      const paidInvoice =
-        paidInvoiceId !== undefined
-          ? reservation.invoices.find((invoice) => invoice.id === paidInvoiceId)
-          : undefined;
-      const owner = paidInvoice?.user ?? reservation.invoices[0]?.user;
-
-      await sendReservationConfirmationEmails({
-        user: owner,
-        standLabel: formatStandLabel(reservation.stand),
-        festival: reservation.festival,
-        participants: reservation.participants,
-      });
-    }
-  } catch (error) {
-    console.error("[confirmReservation] Post-commit processing failed:", error);
-  }
-
-  revalidatePath("/dashboard/festivals/[id]/payments", "page");
-  return { success: true, message: "Reserva confirmada" };
+  void reservationId;
+  void standId;
+  void paidInvoiceId;
+  void tx;
+  console.warn(
+    "[confirmReservation] Deprecated: use adminConfirmReservationAction (settlement-backed).",
+  );
+  return {
+    success: false,
+    message:
+      "Esta acción ya no está disponible. Usá la confirmación respaldada por revisión de pago.",
+  };
 }
 
 export async function rejectReservation(input: unknown) {

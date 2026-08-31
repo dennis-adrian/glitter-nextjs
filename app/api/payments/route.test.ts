@@ -23,6 +23,8 @@ vi.mock("@/app/lib/posthog-server", () => ({
 
 import { POST } from "@/app/api/payments/route";
 
+const SAMPLE_KEY = "11111111-1111-4111-8111-111111111111";
+
 describe("POST /api/payments", () => {
   beforeEach(() => {
     authMock.mockReset();
@@ -60,5 +62,52 @@ describe("POST /api/payments", () => {
 
     expect(response.status).toBe(400);
     expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when idempotencyKey is missing", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          invoiceId: 9,
+          voucherUrl: "https://files.example.com/f/abc",
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      message: "Invalid payment data",
+    });
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards idempotencyKey to createPayment", async () => {
+    createPaymentMock.mockResolvedValue({
+      success: true,
+      message: "ok",
+      data: { submissionId: 4 },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          invoiceId: 9,
+          voucherUrl: "https://files.example.com/f/abc",
+          idempotencyKey: SAMPLE_KEY,
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(createPaymentMock).toHaveBeenCalledWith({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: SAMPLE_KEY,
+    });
   });
 });

@@ -9,11 +9,14 @@ import {
   submitZeroValueInvoiceSchema,
 } from "@/app/lib/reservations/schemas";
 
+const SAMPLE_KEY = "11111111-1111-4111-8111-111111111111";
+
 describe("reservation runtime schemas", () => {
   it("accepts invoiceId plus voucher URL and strips unknown payment identity fields", () => {
     const parsed = parseUnknown(submitPaymentProofSchema, {
       invoiceId: 12,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: SAMPLE_KEY,
       amount: 1,
       standId: 99,
       reservationId: 123,
@@ -23,8 +26,28 @@ describe("reservation runtime schemas", () => {
       data: {
         invoiceId: 12,
         voucherUrl: "https://files.example.com/f/abc",
+        idempotencyKey: SAMPLE_KEY,
       },
     });
+  });
+
+  it("accepts payment proof when fileKey is the durable request identity", () => {
+    expect(
+      parseUnknown(submitPaymentProofSchema, {
+        invoiceId: 12,
+        voucherUrl: "https://files.example.com/f/abc",
+        fileKey: "uploadthing-key",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects payment proof without idempotencyKey or fileKey", () => {
+    expect(
+      parseUnknown(submitPaymentProofSchema, {
+        invoiceId: 12,
+        voucherUrl: "https://files.example.com/f/abc",
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects a non-positive invoice id", () => {
@@ -32,25 +55,23 @@ describe("reservation runtime schemas", () => {
       parseUnknown(submitPaymentProofSchema, {
         invoiceId: 0,
         voucherUrl: "https://files.example.com/f/abc",
+        idempotencyKey: SAMPLE_KEY,
       }).success,
     ).toBe(false);
   });
 
-  it("accepts a hold stand id as a number or as an object with a UUID key", () => {
-    expect(parseHoldStandInput(7)).toEqual({
-      success: true,
-      data: { standId: 7 },
-    });
+  it("requires a hold stand id object with a UUID key", () => {
+    expect(parseHoldStandInput(7).success).toBe(false);
     expect(
       parseHoldStandInput({
         standId: 7,
-        idempotencyKey: "11111111-1111-4111-8111-111111111111",
+        idempotencyKey: SAMPLE_KEY,
       }),
     ).toEqual({
       success: true,
       data: {
         standId: 7,
-        idempotencyKey: "11111111-1111-4111-8111-111111111111",
+        idempotencyKey: SAMPLE_KEY,
       },
     });
     expect(
@@ -66,14 +87,14 @@ describe("reservation runtime schemas", () => {
       parseConfirmHoldInput({
         holdId: 20,
         partnerId: 4,
-        idempotencyKey: "11111111-1111-4111-8111-111111111111",
+        idempotencyKey: SAMPLE_KEY,
       }),
     ).toEqual({
       success: true,
       data: {
         holdId: 20,
         partnerId: 4,
-        idempotencyKey: "11111111-1111-4111-8111-111111111111",
+        idempotencyKey: SAMPLE_KEY,
       },
     });
     expect(parseConfirmHoldInput(20).success).toBe(false);
@@ -81,8 +102,14 @@ describe("reservation runtime schemas", () => {
 
   it("accepts zero-value review and settlement rejection corrections", () => {
     expect(
-      parseUnknown(submitZeroValueInvoiceSchema, { invoiceId: 9 }),
-    ).toEqual({ success: true, data: { invoiceId: 9 } });
+      parseUnknown(submitZeroValueInvoiceSchema, {
+        invoiceId: 9,
+        idempotencyKey: SAMPLE_KEY,
+      }),
+    ).toEqual({
+      success: true,
+      data: { invoiceId: 9, idempotencyKey: SAMPLE_KEY },
+    });
     expect(
       parseUnknown(rejectSettlementSchema, {
         submissionId: 3,

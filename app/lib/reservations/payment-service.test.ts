@@ -4,9 +4,13 @@ vi.mock("server-only", () => ({}));
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
+const selectMock = vi.hoisted(() => vi.fn());
 const enqueueNotificationsMock = vi.hoisted(() => vi.fn());
 const scheduleJobsMock = vi.hoisted(() => vi.fn());
 const insertEventMock = vi.hoisted(() => vi.fn());
+const claimRequestMock = vi.hoisted(() => vi.fn());
+const completeRequestMock = vi.hoisted(() => vi.fn());
+const abandonRequestMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -15,6 +19,7 @@ vi.mock("@/app/lib/users/helpers", () => ({
 vi.mock("@/db", () => ({
   db: {
     transaction: transactionMock,
+    select: selectMock,
     query: {
       invoices: { findFirst: vi.fn() },
     },
@@ -25,10 +30,21 @@ vi.mock("@/app/api/users/actions", () => ({
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));
 
+const lockCallOrder = vi.hoisted(() => ({ current: [] as string[] }));
+
 vi.mock("@/app/lib/reservations/locks", () => ({
-  lockFestivalRow: vi.fn(),
-  lockParticipants: vi.fn(),
-  lockStandRows: vi.fn(),
+  lockFestivalRow: vi.fn(async () => {
+    lockCallOrder.current.push("festival");
+  }),
+  lockParticipantEligibilityRows: vi.fn(async () => {
+    lockCallOrder.current.push("eligibility");
+  }),
+  lockParticipants: vi.fn(async () => {
+    lockCallOrder.current.push("advisory");
+  }),
+  lockStandRows: vi.fn(async () => {
+    lockCallOrder.current.push("stand");
+  }),
 }));
 
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
@@ -38,6 +54,12 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
 
 vi.mock("@/app/lib/reservations/events", () => ({
   insertStandReservationEvent: insertEventMock,
+}));
+
+vi.mock("@/app/lib/reservations/request-registry", () => ({
+  claimRequest: claimRequestMock,
+  completeRequest: completeRequestMock,
+  abandonRequest: abandonRequestMock,
 }));
 
 vi.mock("@/app/lib/reservations/admin-service", () => ({
@@ -53,6 +75,9 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  adminConfirmReservation,
+  approveInvoiceSettlement,
+  findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
   submitPaymentProof,
   submitZeroValueInvoiceForReview,
@@ -201,11 +226,16 @@ function createTx(options: {
 
 describe("submitPaymentProof", () => {
   beforeEach(() => {
+    lockCallOrder.current = [];
     currentProfileMock.mockReset();
     transactionMock.mockReset();
     enqueueNotificationsMock.mockReset();
     scheduleJobsMock.mockReset();
     insertEventMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
     enqueueNotificationsMock.mockResolvedValue([1]);
   });
 
@@ -214,6 +244,7 @@ describe("submitPaymentProof", () => {
     const result = await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
     expect(result).toMatchObject({ success: false, code: "UNAUTHENTICATED" });
     expect(transactionMock).not.toHaveBeenCalled();
@@ -238,8 +269,32 @@ describe("submitPaymentProof", () => {
     const result = await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
     expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_OWNED" });
+  });
+
+  it("returns CONFLICT_RETRY when the request registry rejects the key", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    claimRequestMock.mockResolvedValue({ kind: "conflict" });
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback(createTx({
+        invoice: {
+          id: 9,
+          userId: 8,
+          status: "pending",
+          amount: 150,
+          reservationId: 4,
+        },
+      })),
+    );
+
+    const result = await submitPaymentProof({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(result).toMatchObject({ success: false, code: "CONFLICT_RETRY" });
   });
 
   it("ignores a caller-supplied amount and uses the canonical invoice amount", async () => {
@@ -263,6 +318,7 @@ describe("submitPaymentProof", () => {
     await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
       amount: 1,
     });
 
@@ -315,6 +371,7 @@ describe("submitPaymentProof", () => {
     await submitPaymentProof({
       invoiceId: 9,
       voucherUrl: "https://files.example.com/replacement.pdf",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
 
     expect(tx?.updates).toEqual(
@@ -326,9 +383,13 @@ describe("submitPaymentProof", () => {
     );
   });
 
-  it("replays when the same invoice, uploader, and key already exist", async () => {
+  it("replays when the registry returns a completed submission", async () => {
     const idempotencyKey = "11111111-1111-4111-8111-111111111111";
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    claimRequestMock.mockResolvedValue({
+      kind: "replayed",
+      resultIds: { submissionId: 21 },
+    });
     transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
       callback(
         createTx({
@@ -339,7 +400,6 @@ describe("submitPaymentProof", () => {
             amount: 150,
             reservationId: 4,
           },
-          existingSettlement: { id: 21, uploadedByUserId: 8 },
         }),
       ),
     );
@@ -356,31 +416,36 @@ describe("submitPaymentProof", () => {
     });
   });
 
-  it("rejects when the same invoice and key belong to another uploader", async () => {
-    const idempotencyKey = "11111111-1111-4111-8111-111111111111";
+  it("acquires festival, user, and stand locks in §4.4 order", async () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) =>
-      callback(
-        createTx({
-          invoice: {
-            id: 9,
-            userId: 8,
-            status: "pending",
-            amount: 150,
-            reservationId: 4,
-          },
-          existingSettlement: { id: 21, uploadedByUserId: 99 },
-        }),
-      ),
-    );
-
-    const result = await submitPaymentProof({
-      invoiceId: 9,
-      voucherUrl: "https://files.example.com/f/abc",
-      idempotencyKey,
+    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) => {
+      const tx = createTx({
+        invoice: {
+          id: 9,
+          userId: 8,
+          status: "pending",
+          amount: 150,
+          originalAmount: 150,
+          discountAmount: 0,
+          reservationId: 4,
+        },
+        reservation: { standId: 7, status: "pending", festivalId: 10 },
+      });
+      return callback(tx);
     });
 
-    expect(result).toMatchObject({ success: false, code: "VALIDATION" });
+    await submitPaymentProof({
+      invoiceId: 9,
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(lockCallOrder.current).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+    ]);
   });
 });
 
@@ -389,6 +454,10 @@ describe("submitZeroValueInvoiceForReview", () => {
     currentProfileMock.mockReset();
     transactionMock.mockReset();
     enqueueNotificationsMock.mockResolvedValue([]);
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
   });
 
   it("rejects a second review request on an in-review invoice", async () => {
@@ -411,11 +480,153 @@ describe("submitZeroValueInvoiceForReview", () => {
       ),
     );
 
-    const result = await submitZeroValueInvoiceForReview({ invoiceId: 9 });
+    const result = await submitZeroValueInvoiceForReview({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
     expect(result).toMatchObject({
       success: false,
       code: "PAYMENT_ALREADY_SUBMITTED",
     });
+  });
+});
+
+describe("adminConfirmReservation", () => {
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    scheduleJobsMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
+  });
+
+  it("rejects non-admin callers", async () => {
+    currentProfileMock.mockResolvedValue({ id: 2, role: "user" });
+    const result = await adminConfirmReservation({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+  });
+
+  it("locks festival, user_requests/users, then stand before post-lock checks", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback(
+        createTx({
+          invoice: {
+            id: 9,
+            userId: 8,
+            status: "verification_payment",
+            amount: 150,
+            reservationId: 4,
+          },
+          reservation: {
+            standId: 7,
+            status: "verification_payment",
+            festivalId: 10,
+          },
+        }),
+      ),
+    );
+
+    await adminConfirmReservation({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(lockCallOrder.current.slice(0, 4)).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+    ]);
+  });
+});
+
+describe("approveInvoiceSettlement", () => {
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    enqueueNotificationsMock.mockReset();
+    scheduleJobsMock.mockReset();
+    insertEventMock.mockReset();
+    enqueueNotificationsMock.mockResolvedValue([1]);
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+  });
+
+  it("locks festival, user_requests/users, then stand before the submission row", async () => {
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback(
+        createTx({
+          invoice: {
+            id: 9,
+            userId: 8,
+            status: "verification_payment",
+            amount: 150,
+            reservationId: 4,
+          },
+          reservation: {
+            standId: 7,
+            status: "verification_payment",
+            festivalId: 10,
+          },
+          existingSettlement: {
+            id: 21,
+            invoiceId: 9,
+            status: "submitted",
+            kind: "payment_proof",
+            paymentId: null,
+          },
+        }),
+      ),
+    );
+
+    const result = await approveInvoiceSettlement({ submissionId: 21 });
+
+    expect(result).toMatchObject({ success: false, code: "VALIDATION" });
+    expect(lockCallOrder.current.slice(0, 4)).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+    ]);
+  });
+
+  it("keeps post-lock submission status checks", async () => {
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback(
+        createTx({
+          invoice: {
+            id: 9,
+            userId: 8,
+            status: "verification_payment",
+            amount: 150,
+            reservationId: 4,
+          },
+          existingSettlement: {
+            id: 21,
+            invoiceId: 9,
+            status: "rejected",
+            kind: "payment_proof",
+            paymentId: 3,
+          },
+        }),
+      ),
+    );
+
+    const result = await approveInvoiceSettlement({ submissionId: 21 });
+    expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_PENDING" });
+    expect(lockCallOrder.current.slice(0, 4)).toEqual([
+      "advisory",
+      "festival",
+      "eligibility",
+      "stand",
+    ]);
   });
 });
 
@@ -461,5 +672,42 @@ describe("rejectInvoiceSettlement", () => {
 
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
     expect(scheduleJobsMock).not.toHaveBeenCalled();
+  });
+});
+
+function selectChain(rows: unknown[]) {
+  const limited = Object.assign(Promise.resolve(rows), {
+    limit: vi.fn(() => Promise.resolve(rows)),
+  });
+  const ordered = Object.assign(Promise.resolve(rows), {
+    limit: vi.fn(() => Promise.resolve(rows)),
+    orderBy: vi.fn(() => limited),
+  });
+  return {
+    from: vi.fn(() => ({
+      innerJoin: vi.fn(() => ({
+        where: vi.fn(() => ordered),
+      })),
+    })),
+  };
+}
+
+describe("findSubmittedSettlementInvoiceIdForReservation", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+  });
+
+  it("returns the invoice id of a submitted settlement for that reservation", async () => {
+    selectMock.mockReturnValue(selectChain([{ invoiceId: 20 }]));
+    await expect(
+      findSubmittedSettlementInvoiceIdForReservation(4),
+    ).resolves.toBe(20);
+  });
+
+  it("returns null when the reservation has no submitted settlement", async () => {
+    selectMock.mockReturnValue(selectChain([]));
+    await expect(
+      findSubmittedSettlementInvoiceIdForReservation(4),
+    ).resolves.toBeNull();
   });
 });

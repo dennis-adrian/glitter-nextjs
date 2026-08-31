@@ -7,7 +7,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/app/components/ui/popover";
-import { updateInvoiceStatus } from "@/app/data/invoices/actions";
+import {
+  approveSubmittedSettlementForInvoiceAction,
+  cancelReservationForInvoiceAction,
+  rejectSubmittedSettlementForInvoiceAction,
+} from "@/app/lib/reservations/payment-actions";
 import { cn } from "@/app/lib/utils";
 import { CheckIcon, CircleXIcon, ClockIcon, MinusIcon } from "lucide-react";
 import { useState, useTransition } from "react";
@@ -63,7 +67,20 @@ export default function PaymentStatus({
     if (nextStatus === status || isPending) return;
 
     startTransition(async () => {
-      const result = await updateInvoiceStatus(invoiceId, nextStatus);
+      let result: { success: boolean; message: string };
+      if (nextStatus === "paid") {
+        result = await approveSubmittedSettlementForInvoiceAction({ invoiceId });
+      } else if (nextStatus === "pending") {
+        result = await rejectSubmittedSettlementForInvoiceAction({ invoiceId });
+      } else if (nextStatus === "cancelled") {
+        result = await cancelReservationForInvoiceAction({ invoiceId });
+      } else {
+        toast.error(
+          "Para pasar a revisión, el participante debe enviar el comprobante o solicitar revisión.",
+        );
+        return;
+      }
+
       if (result.success) {
         toast.success(result.message);
         setOpen(false);
