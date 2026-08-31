@@ -130,10 +130,24 @@ async function claimJob(jobId: number, owner: string) {
   return claimed ?? null;
 }
 
+function rejectionReasonFromPayload(payload: unknown): string | undefined {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("reason" in payload) ||
+    typeof (payload as { reason: unknown }).reason !== "string"
+  ) {
+    return undefined;
+  }
+  const reason = (payload as { reason: string }).reason.trim();
+  return reason || undefined;
+}
+
 async function deliverJob(
   kind: string,
   recipientEmail: string,
   reservationId: number,
+  payload: unknown,
 ) {
   const reservation = await db.query.standReservations.findFirst({
     where: eq(standReservations.id, reservationId),
@@ -233,7 +247,7 @@ async function deliverJob(
         festival,
         profile: owner,
         stand: reservation.stand,
-        reason: undefined,
+        reason: rejectionReasonFromPayload(payload),
       }),
     });
     return;
@@ -249,7 +263,7 @@ async function deliverJob(
           festival,
           profile: owner,
           stand: reservation.stand,
-          reason: undefined,
+          reason: rejectionReasonFromPayload(payload),
         }),
       });
       return;
@@ -294,7 +308,12 @@ export async function attemptReservationNotificationJob(jobId: number) {
     if (!job.reservationId) {
       throw new Error("reservation_id_missing");
     }
-    await deliverJob(job.notificationKind, job.recipientEmail, job.reservationId);
+    await deliverJob(
+      job.notificationKind,
+      job.recipientEmail,
+      job.reservationId,
+      job.payload,
+    );
     await db
       .update(reservationNotificationJobs)
       .set({
