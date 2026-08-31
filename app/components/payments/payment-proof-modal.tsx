@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { useRef } from "react";
+import { useMemo } from "react";
 
 type PaymentProofModalProps = {
   invoice: InvoiceWithParticipants;
@@ -29,14 +29,17 @@ type PaymentProofModalProps = {
 export default function PaymentProofModal(props: PaymentProofModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const form = useForm();
-  const confirmIntentKeyRef = useRef(crypto.randomUUID());
+  const confirmIntentKey = useMemo(
+    () => crypto.randomUUID(),
+    [props.imageUrl],
+  );
   const isReservationConfirmed =
     props.invoice.reservation.status === "accepted";
   const action = form.handleSubmit(async () => {
     try {
       const result = await adminConfirmReservationAction({
         invoiceId: props.invoice.id,
-        idempotencyKey: confirmIntentKeyRef.current,
+        idempotencyKey: confirmIntentKey,
         voucherUrl: props.imageUrl,
       });
       if (result.success) {
