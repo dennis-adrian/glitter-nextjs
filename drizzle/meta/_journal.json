@@ -1751,6 +1751,13 @@
       "when": 1788204969219,
       "tag": "0250_reservation_request_registry_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 251,
+      "version": "7",
+      "when": 1788212381408,
+      "tag": "0251_reservation_phase4_indexes",
+      "breakpoints": true
     }
   ]
 }
