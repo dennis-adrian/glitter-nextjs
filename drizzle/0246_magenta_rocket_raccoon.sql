@@ -87,7 +87,7 @@ BEGIN
 	END IF;
 END $$;--> statement-breakpoint
 -- Duplicate non-rejected stand_reservations.stand_id cleanup (must run before stand_reservations_live_stand_unique).
--- Keeper: accepted > verification_payment > pending; prefer paid invoice; then newest row. Losers are rejected.
+-- Keeper: prefer paid invoice; then accepted > verification_payment > pending; then newest row. Losers are rejected.
 UPDATE "stand_reservations" AS loser
 SET status = 'rejected', updated_at = NOW()
 FROM (
@@ -97,18 +97,18 @@ FROM (
 			ROW_NUMBER() OVER (
 				PARTITION BY stand_id
 				ORDER BY
-					CASE status
-						WHEN 'accepted' THEN 0
-						WHEN 'verification_payment' THEN 1
-						WHEN 'pending' THEN 2
-						ELSE 3
-					END,
 					CASE WHEN EXISTS (
 						SELECT 1
 						FROM "invoices" i
 						WHERE i.reservation_id = "stand_reservations".id
 							AND i.status = 'paid'
 					) THEN 0 ELSE 1 END,
+					CASE status
+						WHEN 'accepted' THEN 0
+						WHEN 'verification_payment' THEN 1
+						WHEN 'pending' THEN 2
+						ELSE 3
+					END,
 					updated_at DESC,
 					created_at DESC,
 					id DESC

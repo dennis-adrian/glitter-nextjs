@@ -8,6 +8,7 @@ describe("reservation money rounding", () => {
     expect(roundMoney(10.005)).toBe(10.01);
     expect(roundMoney(1.005)).toBe(1.01);
     expect(roundMoney(10.075)).toBe(10.08);
+    expect(roundMoney(-10.075)).toBe(-10.08);
     expect(roundMoney(99.994)).toBe(99.99);
   });
 });

@@ -4,6 +4,7 @@
  * become 10.08 instead of 10.07.
  */
 export function roundMoney(value: number): number {
-  const micros = Math.round(value * 1e6);
-  return Math.round(micros / 1e4) / 100;
+  const sign = Math.sign(value);
+  const micros = Math.round(Math.abs(value) * 1e6);
+  return sign * Math.round(micros / 1e4) / 100;
 }
