@@ -9,7 +9,7 @@ import {
 import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
-import { lockReservationAggregate } from "@/app/lib/reservations/locks";
+import { lockParticipantsBeforeRegistryClaim, lockReservationAggregate } from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
   enqueueAdminAndOwnerNotifications,
@@ -120,6 +120,8 @@ export async function createAdminReservation(
   try {
     const admins = await fetchAdminUsers();
     const result = await db.transaction(async (tx) => {
+      await lockParticipantsBeforeRegistryClaim(tx, festivalId, participantIds);
+
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
         operation: "createAdminReservation",

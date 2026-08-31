@@ -37,6 +37,7 @@ vi.mock("@/app/lib/reservations/locks", () => ({
     [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))].sort(
       (a, b) => a - b,
     ),
+  lockParticipantsBeforeRegistryClaim: vi.fn(),
   lockReservationAggregate: vi.fn(async (_tx: unknown, preview: { userIds: readonly number[]; submissionIds?: readonly number[] }) => {
     lockCallOrder.current.push("advisory", "festival", "terms", "eligibility", "stand");
     if ((preview.submissionIds?.length ?? 0) > 0) {

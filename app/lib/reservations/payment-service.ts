@@ -11,6 +11,7 @@ import {
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
 import {
+  lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
@@ -67,6 +68,37 @@ async function userEmail(tx: DbTx, userId: number) {
 
 function canAcceptInvoiceProof(status: string) {
   return status === "pending" || status === "verification_payment";
+}
+
+async function lockInvoiceClaimKeys(
+  tx: DbTx,
+  invoiceId: number,
+  extraUserIds: readonly number[] = [],
+) {
+  const [invoice] = await tx
+    .select({
+      userId: invoices.userId,
+      reservationId: invoices.reservationId,
+    })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1);
+  if (!invoice) return;
+  const [reservation] = await tx
+    .select({ festivalId: standReservations.festivalId })
+    .from(standReservations)
+    .where(eq(standReservations.id, invoice.reservationId))
+    .limit(1);
+  if (!reservation) return;
+  const participantPreview = await tx
+    .select({ userId: reservationParticipants.userId })
+    .from(reservationParticipants)
+    .where(eq(reservationParticipants.reservationId, invoice.reservationId));
+  await lockParticipantsBeforeRegistryClaim(tx, reservation.festivalId, [
+    invoice.userId,
+    ...participantPreview.map((row) => row.userId),
+    ...extraUserIds,
+  ]);
 }
 
 type InvoiceAggregateOk = {
@@ -222,6 +254,7 @@ export async function submitPaymentProof(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      await lockInvoiceClaimKeys(tx, invoiceId, [actor.id]);
       const claim = await claimRequest(tx, {
         requestKey,
         operation: "submitPaymentProof",
@@ -455,6 +488,7 @@ export async function submitZeroValueInvoiceForReview(
   try {
     const outcome = await db.transaction(async (tx) => {
       const requestKey = parsed.data.idempotencyKey;
+      await lockInvoiceClaimKeys(tx, parsed.data.invoiceId, [actor.id]);
       const claim = await claimRequest(tx, {
         requestKey,
         operation: "submitZeroValueInvoice",
@@ -1121,6 +1155,7 @@ export async function adminConfirmReservation(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      await lockInvoiceClaimKeys(tx, invoiceId, [actor.id]);
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
         operation: "adminConfirmReservation",
@@ -1280,6 +1315,7 @@ export async function correctSettlementProof(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      await lockInvoiceClaimKeys(tx, invoiceId, [actor.id]);
       const claim = await claimRequest(tx, {
         requestKey,
         operation: "correctSettlementProof",

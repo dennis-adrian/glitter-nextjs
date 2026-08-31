@@ -13,6 +13,7 @@ import {
   lockHoldRows,
   lockParticipantEligibilityRows,
   lockParticipants,
+  lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
   lockStandRows,
   uniqueSortedIds,
@@ -202,6 +203,17 @@ export async function createStandHold(
 
   try {
     const result = await db.transaction(async (tx) => {
+      const [standPreview] = await tx
+        .select({ festivalId: stands.festivalId })
+        .from(stands)
+        .where(eq(stands.id, standId))
+        .limit(1);
+      if (standPreview?.festivalId != null) {
+        await lockParticipantsBeforeRegistryClaim(tx, standPreview.festivalId, [
+          actor.id,
+        ]);
+      }
+
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
         operation: "createOrReplaceStandHold",
@@ -526,6 +538,21 @@ export async function confirmStandHold(
   try {
     const admins = await fetchAdminUsers();
     const result = await db.transaction(async (tx) => {
+      const [holdPreviewForLock] = await tx
+        .select({ festivalId: standHolds.festivalId })
+        .from(standHolds)
+        .where(eq(standHolds.id, holdId))
+        .limit(1);
+      if (holdPreviewForLock?.festivalId != null) {
+        await lockParticipantsBeforeRegistryClaim(
+          tx,
+          holdPreviewForLock.festivalId,
+          normalizedPartnerId != null
+            ? [actor.id, normalizedPartnerId]
+            : [actor.id],
+        );
+      }
+
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
         operation: "confirmStandHold",

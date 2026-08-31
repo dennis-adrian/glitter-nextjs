@@ -322,6 +322,11 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       }
       if (fixture.userIds.length > 0) {
         await db
+          .delete(reservationRequestRegistry)
+          .where(
+            inArray(reservationRequestRegistry.actorUserId, fixture.userIds),
+          );
+        await db
           .delete(externalParticipants)
           .where(inArray(externalParticipants.createdByUserId, fixture.userIds));
         await db

@@ -168,6 +168,7 @@ function tableAwareTx(options?: {
   }));
   return {
     select,
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
     insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue([]) })),
     delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
     update: vi.fn(() => ({

@@ -31,6 +31,7 @@ vi.mock("@/app/api/users/actions", () => ({
 
 vi.mock("@/app/lib/reservations/locks", () => ({
   lockReservationAggregate: lockReservationAggregateMock,
+  lockParticipantsBeforeRegistryClaim: vi.fn(),
 }));
 
 vi.mock("@/app/lib/reservations/occupancy", () => ({

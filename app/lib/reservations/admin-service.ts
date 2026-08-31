@@ -10,6 +10,7 @@ import {
   reservationSuccess,
 } from "@/app/lib/reservations/errors";
 import {
+  lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
   readReservationParticipantIds,
   sameIdSet,
@@ -460,6 +461,15 @@ export async function extendReservationPaymentDeadline(
       "@/app/lib/reservations/request-registry"
     );
     const outcome = await db.transaction(async (tx) => {
+      const claimPreview = await previewReservationWriteSet(tx, reservationId);
+      if (claimPreview) {
+        await lockParticipantsBeforeRegistryClaim(
+          tx,
+          claimPreview.reservation.festivalId,
+          [...claimPreview.userIds, actor.id],
+        );
+      }
+
       const claim = await claimRequest(tx, {
         requestKey,
         operation: "extendReservationPaymentDeadline",

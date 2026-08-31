@@ -91,6 +91,19 @@ export async function lockParticipants(
   }
 }
 
+/**
+ * Registry inserts take a foreign-key share-lock on `actor_user_id`.
+ * Call this before `claimRequest` so that share-lock cannot deadlock with a
+ * later `users` FOR UPDATE in the canonical aggregate.
+ */
+export async function lockParticipantsBeforeRegistryClaim(
+  tx: DbTx,
+  festivalId: number,
+  userIds: readonly number[],
+) {
+  await lockParticipants(tx, festivalId, userIds);
+}
+
 export async function lockFestivalRow(tx: DbTx, festivalId: number) {
   const [row] = await tx
     .select({ id: festivals.id })
