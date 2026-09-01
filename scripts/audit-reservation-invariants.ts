@@ -733,7 +733,25 @@ async function main() {
   process.exit(1);
 }
 
-main().catch(() => {
-  console.error("audit-reservation-invariants failed");
+main().catch((error: unknown) => {
+  const errorWithCause = error as {
+    cause?: { code?: string; message?: string };
+  };
+  const message =
+    errorWithCause.cause?.message ??
+    (error instanceof Error ? error.message : "Unknown audit error");
+
+  console.error(
+    JSON.stringify({
+      ok: false,
+      error: {
+        name: error instanceof Error ? error.name : "Error",
+        ...(errorWithCause.cause?.code
+          ? { code: errorWithCause.cause.code }
+          : {}),
+        message,
+      },
+    }),
+  );
   process.exit(1);
 });
