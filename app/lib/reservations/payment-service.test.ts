@@ -11,6 +11,9 @@ const insertEventMock = vi.hoisted(() => vi.fn());
 const claimRequestMock = vi.hoisted(() => vi.fn());
 const completeRequestMock = vi.hoisted(() => vi.fn());
 const abandonRequestMock = vi.hoisted(() => vi.fn());
+const applyReservationCancellationMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue([]),
+);
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -80,7 +83,7 @@ vi.mock("@/app/lib/reservations/request-registry", () => ({
 }));
 
 vi.mock("@/app/lib/reservations/admin-service", () => ({
-  applyReservationCancellation: vi.fn().mockResolvedValue([]),
+  applyReservationCancellation: applyReservationCancellationMock,
 }));
 
 vi.mock("@/app/lib/uploadthing/actions", () => ({
@@ -683,6 +686,7 @@ describe("rejectInvoiceSettlement", () => {
     enqueueNotificationsMock.mockReset();
     scheduleJobsMock.mockReset();
     insertEventMock.mockReset();
+    applyReservationCancellationMock.mockClear();
     enqueueNotificationsMock.mockResolvedValue([1]);
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
   });
@@ -726,6 +730,54 @@ describe("rejectInvoiceSettlement", () => {
       "submission",
     ]);
     expect(scheduleJobsMock).not.toHaveBeenCalled();
+  });
+
+  it("cancels the invoice when an admin rejects its proof and cancels the reservation", async () => {
+    const tx = createTx({
+      invoice: {
+        id: 9,
+        userId: 8,
+        status: "verification_payment",
+        amount: 150,
+        reservationId: 4,
+      },
+      reservation: {
+        standId: 7,
+        status: "verification_payment",
+        festivalId: 10,
+      },
+      existingSettlement: {
+        id: 21,
+        invoiceId: 9,
+        status: "submitted",
+        kind: "payment_proof",
+        paymentId: 3,
+      },
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await rejectInvoiceSettlement({
+      submissionId: 21,
+      reason: "Comprobante rechazado; cancelar reserva",
+      correction: { type: "cancel_reservation" },
+    });
+
+    expect(result.success).toBe(true);
+    expect(applyReservationCancellationMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        reservation: expect.objectContaining({ id: 4 }),
+        eventType: "settlement_rejected",
+      }),
+    );
+    expect(tx.updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "rejected" }),
+        expect.objectContaining({ status: "cancelled" }),
+      ]),
+    );
   });
 });
 
