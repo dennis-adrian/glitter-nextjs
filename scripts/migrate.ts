@@ -10,6 +10,7 @@ import {
 } from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
 import { ensureDefaultFestivalTerms } from "@/app/lib/festival-terms/persist";
+import { ensureReservationPhase4Indexes } from "./lib/reservation-phase4-indexes";
 
 /**
  * After 0165 adds nullable `slug`, backfill fills values; then match schema.ts
@@ -89,6 +90,15 @@ async function ensureFestivalTermsArchivedEnum() {
   }
 }
 
+async function ensureReservationPhase4IndexesOnPool() {
+  const client = await pool.connect();
+  try {
+    await ensureReservationPhase4Indexes(client);
+  } finally {
+    client.release();
+  }
+}
+
 async function backfillInvoiceVerificationPayment() {
   const client = await pool.connect();
   try {
@@ -125,6 +135,7 @@ async function main() {
 
     await ensureFestivalTermsArchivedEnum();
     await migrate(db, { migrationsFolder: "./drizzle" });
+    await ensureReservationPhase4IndexesOnPool();
     if (!invoiceBackfillDone) {
       await backfillInvoiceVerificationPayment();
       await markInvoiceVerificationPaymentBackfillCompleted();

@@ -111,7 +111,13 @@ export const users = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (users) => [index("display_name_idx").on(users.displayName)],
+  (users) => [
+    index("display_name_idx").on(users.displayName),
+    index("users_display_name_normalized_trgm_idx").using(
+      "gin",
+      sql`replace(lower(${users.displayName}), ' ', '') gin_trgm_ops`,
+    ),
+  ],
 );
 
 /**
@@ -818,6 +824,13 @@ export const userRequests = pgTable(
       table.festivalId,
       table.type,
     ),
+    index("user_requests_user_festival_type_status_terms_idx").on(
+      table.userId,
+      table.festivalId,
+      table.type,
+      table.status,
+      table.termsVersionId,
+    ),
   ],
 );
 export const userRequestsRelations = relations(userRequests, ({ one }) => ({
@@ -937,6 +950,13 @@ export const stands = pgTable(
     index("stand_label_idx").on(stands.label),
     index("stands_festival_sector_id_idx").on(stands.festivalSectorId),
     index("stands_stand_group_id_idx").on(stands.standGroupId),
+    index("stands_festival_category_participation_sector_status_idx").on(
+      stands.festivalId,
+      stands.standCategory,
+      stands.participationType,
+      stands.festivalSectorId,
+      stands.status,
+    ),
   ],
 );
 export const standRelations = relations(stands, ({ many, one }) => ({
@@ -964,16 +984,25 @@ export const standRelations = relations(stands, ({ many, one }) => ({
   standSubcategories: many(standSubcategories),
 }));
 
-export const standSubcategories = pgTable("stand_subcategories", {
-  id: serial("id").primaryKey(),
-  standId: integer("stand_id")
-    .notNull()
-    .references(() => stands.id, { onDelete: "cascade" }),
-  subcategoryId: integer("subcategory_id")
-    .notNull()
-    .references(() => subcategories.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const standSubcategories = pgTable(
+  "stand_subcategories",
+  {
+    id: serial("id").primaryKey(),
+    standId: integer("stand_id")
+      .notNull()
+      .references(() => stands.id, { onDelete: "cascade" }),
+    subcategoryId: integer("subcategory_id")
+      .notNull()
+      .references(() => subcategories.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("stand_subcategories_stand_id_subcategory_id_unique").on(
+      table.standId,
+      table.subcategoryId,
+    ),
+  ],
+);
 export const standSubcategoriesRelations = relations(
   standSubcategories,
   ({ one }) => ({
@@ -1120,6 +1149,11 @@ export const standReservations = pgTable(
         sql`${t.status} IN ('pending', 'verification_payment', 'accepted')`,
       ),
     index("stand_reservations_owner_user_id_idx").on(t.ownerUserId),
+    index("stand_reservations_festival_status_stand_idx").on(
+      t.festivalId,
+      t.status,
+      t.standId,
+    ),
     uniqueIndex("stand_reservations_idempotency_key_unique")
       .on(t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
@@ -1437,27 +1471,37 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "paid",
   "cancelled",
 ]);
-export const invoices = pgTable("invoices", {
-  id: serial("id").primaryKey(),
-  originalAmount: money("original_amount").default(0).notNull(),
-  discountAmount: money("discount_amount").default(0).notNull(),
-  amount: money("amount").notNull(),
-  date: timestamp("date").notNull(),
-  dueAt: timestamp("due_at"),
-  status: invoiceStatusEnum("status").default("pending").notNull(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  reservationId: integer("reservation_id")
-    .notNull()
-    .references(() => standReservations.id, { onDelete: "cascade" }),
-  discountCodeId: integer("discount_code_id").references(
-    () => discountCodes.id,
-    { onDelete: "set null" },
-  ),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: serial("id").primaryKey(),
+    originalAmount: money("original_amount").default(0).notNull(),
+    discountAmount: money("discount_amount").default(0).notNull(),
+    amount: money("amount").notNull(),
+    date: timestamp("date").notNull(),
+    dueAt: timestamp("due_at"),
+    status: invoiceStatusEnum("status").default("pending").notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reservationId: integer("reservation_id")
+      .notNull()
+      .references(() => standReservations.id, { onDelete: "cascade" }),
+    discountCodeId: integer("discount_code_id").references(
+      () => discountCodes.id,
+      { onDelete: "set null" },
+    ),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("invoices_reservation_user_status_idx").on(
+      t.reservationId,
+      t.userId,
+      t.status,
+    ),
+  ],
+);
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   user: one(users, {
     fields: [invoices.userId],
@@ -1498,6 +1542,7 @@ export const payments = pgTable(
   },
   (t) => [
     index("payments_invoice_id_idx").on(t.invoiceId),
+    index("payments_invoice_id_created_at_idx").on(t.invoiceId, t.createdAt),
     uniqueIndex("payments_invoice_id_idempotency_key_unique")
       .on(t.invoiceId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),

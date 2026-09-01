@@ -58,8 +58,8 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { cancelStandHold } from "@/app/lib/reservations/hold-service";
-import { standHolds } from "@/db/schema";
+import { cancelStandHold, cleanupExpiredHolds } from "@/app/lib/reservations/hold-service";
+import { standHolds, stands } from "@/db/schema";
 
 function holdTx(options?: { hold?: { id: number; standId: number; festivalId: number; userId: number } | null }) {
   const hold =
@@ -151,5 +151,98 @@ describe("cancelStandHold", () => {
     );
     expect(tx.delete).toHaveBeenCalled();
     expect(releaseStandMock).toHaveBeenCalledWith(tx, 7);
+  });
+});
+
+describe("cleanupExpiredHolds", () => {
+  beforeEach(() => {
+    transactionMock.mockReset();
+    releaseStandMock.mockReset();
+    releaseStandMock.mockResolvedValue(true);
+  });
+
+  it("claims a bounded expired-hold batch with SKIP LOCKED and locks stands in id order", async () => {
+    const lockCalls: Array<{ table: unknown; mode: string; config?: unknown }> =
+      [];
+    const standLockOrder: number[] = [];
+    const claimed = [
+      { id: 3, standId: 20 },
+      { id: 1, standId: 10 },
+    ];
+
+    const tx = {
+      select: vi.fn(() => ({
+        from: (table: unknown) => ({
+          where: () => {
+            const chain: {
+              orderBy: () => typeof chain;
+              limit: () => typeof chain;
+              for: (
+                mode: string,
+                config?: unknown,
+              ) => Promise<unknown>;
+              then: Promise<unknown[]>["then"];
+            } = {
+              orderBy: () => chain,
+              limit: () => chain,
+              for: (mode: string, config?: unknown) => {
+                lockCalls.push({ table, mode, config });
+                if (table === stands) {
+                  const standId = standLockOrder.length === 0 ? 10 : 20;
+                  standLockOrder.push(standId);
+                  return Promise.resolve([{ id: standId }]);
+                }
+                return Promise.resolve(claimed);
+              },
+              then: (resolve, reject) =>
+                Promise.resolve([]).then(resolve, reject),
+            };
+            return chain;
+          },
+        }),
+      })),
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+    };
+
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await expect(cleanupExpiredHolds()).resolves.toEqual({ expired: 2 });
+    expect(lockCalls[0]).toEqual({
+      table: standHolds,
+      mode: "update",
+      config: { skipLocked: true },
+    });
+    expect(
+      lockCalls.filter((call) => call.table === stands).map((call) => call.mode),
+    ).toEqual(["update", "update"]);
+    expect(standLockOrder).toEqual([10, 20]);
+    expect(tx.delete).toHaveBeenCalledTimes(2);
+    expect(releaseStandMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns zero when no expired holds can be claimed", async () => {
+    const tx = {
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => {
+            const chain = {
+              orderBy: () => chain,
+              limit: () => chain,
+              for: vi.fn().mockResolvedValue([]),
+            };
+            return chain;
+          },
+        }),
+      })),
+      delete: vi.fn(),
+    };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await expect(cleanupExpiredHolds()).resolves.toEqual({ expired: 0 });
+    expect(tx.delete).not.toHaveBeenCalled();
   });
 });

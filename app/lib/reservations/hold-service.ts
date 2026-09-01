@@ -51,7 +51,7 @@ import {
   standReservations,
   stands,
 } from "@/db/schema";
-import { and, eq, gt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
@@ -867,20 +867,27 @@ export async function confirmStandHold(
   }
 }
 
+const EXPIRED_HOLD_CLEANUP_BATCH_SIZE = 100;
+
 export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
   try {
     const now = new Date();
-    const expiredHolds = await db
-      .select({ id: standHolds.id, standId: standHolds.standId })
-      .from(standHolds)
-      .where(lte(standHolds.expiresAt, now));
-
-    if (expiredHolds.length === 0) return { expired: 0 };
+    let expired = 0;
 
     await db.transaction(async (tx) => {
-      const standIds = [
-        ...new Set(expiredHolds.map((hold) => hold.standId)),
-      ].sort((a, b) => a - b);
+      const claimed = await tx
+        .select({ id: standHolds.id, standId: standHolds.standId })
+        .from(standHolds)
+        .where(lte(standHolds.expiresAt, now))
+        .orderBy(asc(standHolds.id))
+        .limit(EXPIRED_HOLD_CLEANUP_BATCH_SIZE)
+        .for("update", { skipLocked: true });
+
+      if (claimed.length === 0) return;
+
+      const standIds = [...new Set(claimed.map((hold) => hold.standId))].sort(
+        (a, b) => a - b,
+      );
       for (const standId of standIds) {
         await tx
           .select({ id: stands.id })
@@ -890,7 +897,7 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
           .for("update");
       }
 
-      for (const hold of expiredHolds) {
+      for (const hold of claimed) {
         await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
         const [liveHold] = await tx
           .select({ id: standHolds.id })
@@ -916,9 +923,11 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
           await releaseStandIfVacant(tx, hold.standId, now);
         }
       }
+
+      expired = claimed.length;
     });
 
-    return { expired: expiredHolds.length };
+    return { expired };
   } catch (error) {
     console.error("Error cleaning up expired holds", error);
     return { expired: 0 };
