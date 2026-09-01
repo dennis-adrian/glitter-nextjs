@@ -1,6 +1,6 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.63.2",
+  "version": "2.63.3",
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "engines": {
