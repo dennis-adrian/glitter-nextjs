@@ -36,23 +36,25 @@ const FormSchema = z.object({
   }),
 });
 
+type FormValues = z.infer<typeof FormSchema>;
+
 function defaultReviewStatus(
   status: UserRequest["status"],
-): "accepted" | "rejected" | undefined {
+): FormValues["status"] | undefined {
   if (status === "rejected") return "rejected";
   if (status === "accepted") return "accepted";
   return undefined;
 }
 
 export default function UserRequestForm({ request }: { request: UserRequest }) {
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       status: defaultReviewStatus(request.status),
     },
   });
 
-  async function onSubmit(data: z.infer<typeof FormSchema>) {
+  async function onSubmit(data: FormValues) {
     const result =
       request.type === "become_artist"
         ? await reviewBecomeArtistRequest({
