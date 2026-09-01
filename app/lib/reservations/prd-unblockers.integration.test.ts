@@ -739,11 +739,188 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     if (reservation.status === "accepted") {
       expect(freshInvoice.status).toBe("paid");
     } else if (reservation.status === "rejected") {
-      expect(freshInvoice.status).toBe("cancelled");
+      expect(freshInvoice.status).not.toBe("cancelled");
     } else {
       expect(reservation.status).toBe(freshInvoice.status);
     }
   }, 20_000);
+
+  it("cancels only invoices without payment evidence", async () => {
+    const {
+      users: [unpaidOwner, paidOwner, admin],
+      stands: [unpaidStand, paidStand],
+      festival,
+      trackRequestKey,
+      trackReservation,
+      trackInvoice,
+    } = await seedFixture({
+      userCount: 3,
+      standCount: 2,
+      roles: ["user", "user", "admin"],
+    });
+
+    const unpaidHold = await holdFor(
+      unpaidOwner,
+      unpaidStand.id,
+      trackRequestKey,
+    );
+    const paidHold = await holdFor(paidOwner, paidStand.id, trackRequestKey);
+    expect(
+      (await confirmFor(unpaidOwner, unpaidHold.id, trackRequestKey)).success,
+    ).toBe(true);
+    expect(
+      (await confirmFor(paidOwner, paidHold.id, trackRequestKey)).success,
+    ).toBe(true);
+    await trackReservationRows(festival.id, trackReservation, trackInvoice);
+
+    const reservationRows = await integrationDb!
+      .select({
+        id: standReservations.id,
+        ownerUserId: standReservations.ownerUserId,
+      })
+      .from(standReservations)
+      .where(eq(standReservations.festivalId, festival.id));
+    const unpaidReservation = reservationRows.find(
+      (row) => row.ownerUserId === unpaidOwner.id,
+    )!;
+    const paidReservation = reservationRows.find(
+      (row) => row.ownerUserId === paidOwner.id,
+    )!;
+    const [paidInvoice] = await integrationDb!
+      .select()
+      .from(invoices)
+      .where(eq(invoices.reservationId, paidReservation.id));
+    const proofKey = randomUUID();
+    trackRequestKey(proofKey);
+    expect(
+      (
+        await withActor(paidOwner, () =>
+          submitPaymentProof({
+            invoiceId: paidInvoice.id,
+            voucherUrl: "https://utfs.io/f/cancellation-proof",
+            fileKey: `cancellation-${proofKey}`,
+            source: "uploadthing",
+            idempotencyKey: proofKey,
+          }),
+        )
+      ).success,
+    ).toBe(true);
+
+    expect(
+      (
+        await withActor(admin, () =>
+          cancelReservation({ reservationId: unpaidReservation.id }),
+        )
+      ).success,
+    ).toBe(true);
+    expect(
+      (
+        await withActor(admin, () =>
+          cancelReservation({ reservationId: paidReservation.id }),
+        )
+      ).success,
+    ).toBe(true);
+
+    const cancelledInvoices = await integrationDb!
+      .select({
+        reservationId: invoices.reservationId,
+        status: invoices.status,
+      })
+      .from(invoices)
+      .where(
+        inArray(invoices.reservationId, [
+          unpaidReservation.id,
+          paidReservation.id,
+        ]),
+      );
+    expect(
+      cancelledInvoices.find(
+        (invoice) => invoice.reservationId === unpaidReservation.id,
+      )?.status,
+    ).toBe("cancelled");
+    expect(
+      cancelledInvoices.find(
+        (invoice) => invoice.reservationId === paidReservation.id,
+      )?.status,
+    ).toBe("verification_payment");
+  });
+
+  it("lets settlement rejection explicitly cancel a payment-bearing invoice", async () => {
+    const {
+      users: [owner, admin],
+      stands: [stand],
+      festival,
+      trackRequestKey,
+      trackReservation,
+      trackInvoice,
+    } = await seedFixture({
+      userCount: 2,
+      standCount: 1,
+      roles: ["user", "admin"],
+    });
+    const hold = await holdFor(owner, stand.id, trackRequestKey);
+    expect((await confirmFor(owner, hold.id, trackRequestKey)).success).toBe(
+      true,
+    );
+    await trackReservationRows(festival.id, trackReservation, trackInvoice);
+    const [invoice] = await integrationDb!
+      .select()
+      .from(invoices)
+      .where(eq(invoices.userId, owner.id));
+    const proofKey = randomUUID();
+    trackRequestKey(proofKey);
+    expect(
+      (
+        await withActor(owner, () =>
+          submitPaymentProof({
+            invoiceId: invoice.id,
+            voucherUrl: "https://utfs.io/f/rejected-cancellation-proof",
+            fileKey: `rejected-cancellation-${proofKey}`,
+            source: "uploadthing",
+            idempotencyKey: proofKey,
+          }),
+        )
+      ).success,
+    ).toBe(true);
+    const [submission] = await integrationDb!
+      .select()
+      .from(invoiceSettlementSubmissions)
+      .where(eq(invoiceSettlementSubmissions.invoiceId, invoice.id));
+
+    expect(
+      (
+        await withActor(admin, () =>
+          rejectInvoiceSettlement({
+            submissionId: submission.id,
+            reason: "Comprobante rechazado; cancelar reserva",
+            correction: { type: "cancel_reservation" },
+          }),
+        )
+      ).success,
+    ).toBe(true);
+
+    const [freshReservation] = await integrationDb!
+      .select({ status: standReservations.status })
+      .from(standReservations)
+      .where(eq(standReservations.id, invoice.reservationId));
+    const [freshInvoice] = await integrationDb!
+      .select({ status: invoices.status })
+      .from(invoices)
+      .where(eq(invoices.id, invoice.id));
+    const [freshSubmission] = await integrationDb!
+      .select({ status: invoiceSettlementSubmissions.status })
+      .from(invoiceSettlementSubmissions)
+      .where(eq(invoiceSettlementSubmissions.id, submission.id));
+    const paymentRows = await integrationDb!
+      .select({ id: payments.id })
+      .from(payments)
+      .where(eq(payments.invoiceId, invoice.id));
+
+    expect(freshReservation.status).toBe("rejected");
+    expect(freshInvoice.status).toBe("cancelled");
+    expect(freshSubmission.status).toBe("rejected");
+    expect(paymentRows).toHaveLength(1);
+  });
 
   it("keeps at most one partner when two edits race on the same reservation", async () => {
     const {
@@ -1060,6 +1237,7 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       ["accepted", "paid"],
       ["pending", "pending"],
       ["pending", "verification_payment"],
+      ["verification_payment", "verification_payment"],
     ]).toContainEqual([reservation.status, freshInvoice.status]);
     const submitted = await integrationDb!
       .select()
@@ -1072,7 +1250,9 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       expect(submittedOpen).toHaveLength(0);
       expect(approveResult.success).toBe(true);
     } else {
-      expect(reservation.status).toBe("pending");
+      expect(["pending", "verification_payment"]).toContain(
+        reservation.status,
+      );
       expect(["pending", "verification_payment"]).toContain(freshInvoice.status);
     }
   }, 20_000);

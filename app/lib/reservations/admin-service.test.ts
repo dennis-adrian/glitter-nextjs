@@ -391,6 +391,37 @@ describe("applyReservationCancellation writes without re-locking", () => {
     expect(releaseStandMock).toHaveBeenCalledWith(tx, 7);
     expect(enqueueMock).toHaveBeenCalledTimes(2);
   });
+
+  it("cancels only invoices without a payment row", async () => {
+    const invoiceUpdateConditions: SQL[] = [];
+    const tx = tableAwareTx({ participants: [{ userId: 3 }] });
+    tx.update = vi.fn((table: unknown) => ({
+      set: vi.fn(() => ({
+        where: vi.fn((condition: SQL) => {
+          if (table === invoices) invoiceUpdateConditions.push(condition);
+          return Promise.resolve([]);
+        }),
+      })),
+    }));
+
+    await applyReservationCancellation(tx as never, {
+      reservation: pendingReservation,
+      actorUserId: 1,
+      eventType: "rejected",
+      participantUserIds: [3],
+    });
+
+    const invoiceUpdate = new PgDialect().sqlToQuery(
+      invoiceUpdateConditions[0],
+    );
+    expect(invoiceUpdate.sql).toContain('"invoices"."reservation_id"');
+    expect(invoiceUpdate.sql).toContain("NOT EXISTS");
+    expect(invoiceUpdate.sql).toContain('FROM "payments"');
+    expect(invoiceUpdate.sql).toContain(
+      '"payments"."invoice_id" = "invoices"."id"',
+    );
+    expect(invoiceUpdate.params).toEqual([9]);
+  });
 });
 
 describe("updateReservationPartner", () => {

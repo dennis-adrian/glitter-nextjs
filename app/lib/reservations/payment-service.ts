@@ -892,6 +892,13 @@ export async function rejectInvoiceSettlement(
             correction: "cancel_reservation",
           },
         });
+        // This command is the admin's explicit resolution of the submitted
+        // proof. The shared cancellation path otherwise preserves invoices
+        // whenever payment evidence exists for separate admin handling.
+        await tx
+          .update(invoices)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(eq(invoices.id, invoice.id));
       } else {
         if (parsed.data.correction.type === "restore_amount") {
           if (invoice.discountCodeId != null) {
