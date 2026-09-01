@@ -158,7 +158,7 @@ There are no automatic downgrades, partner removals, reservation cancellations, 
 - The invoice, discounts, payments, and credit allocations remain separate immutable records.
 - Rejected provisional source credits create wallet debt but do not reopen or automatically reverse an already fulfilled invoice.
 
-The current invoice model assumes one settlement path. Before credits launch, extend the hardened settlement service to support mixed tender and calculate fulfillment from canonical approved payments plus posted credit allocations.
+The current invoice model assumes one settlement path. Phase 1B extends the hardened settlement service after the Phase 1A credit foundation exists, supporting mixed tender and calculating fulfillment from canonical approved payments plus posted credit allocations.
 
 ### 4.5 Recommended persistence
 
@@ -835,16 +835,27 @@ Phase 0A is a short preflight, not a parallel feature track. It adds no credits,
 - Separate capacity and participation-blocking predicates.
 - Add `released`; keep `rejected`/`cancelled` blocking participation.
 - Persist both illustration price snapshots.
-- Extend hardened settlement fulfillment with mixed tender and credit allocations.
 
 Phase 0 is complete only when Phase 0A remains green after the Phase 0B migration and every existing hold/reservation has exactly one member row.
 
 ### Phase 1 — Credit foundation
 
+#### Phase 1A — Credit accounting foundation
+
 - Credit account, append-only ledger, holds, top-ups, invoice allocations.
 - Ten-minute voucher upload and immediate provisional issuance.
 - Admin review, reversal, negative balance, debt resolution.
-- Reconciliation, authorization, and concurrency tests.
+- Reconciliation, authorization, idempotency, and concurrency tests for every credit mutation.
+
+#### Phase 1B — Mixed-tender settlement integration
+
+- Extend the hardened settlement service to derive outstanding amount from invoice amount minus approved cash payments and posted credit allocations.
+- A full credit allocation fulfills immediately through the normal reservation fulfillment effect; a partial allocation leaves the voucher path open for the remainder.
+- Never mark an invoice paid or its reservation accepted until canonical approved tender covers the invoice amount.
+- Reject over-allocation and make credit application plus fulfillment idempotent under concurrent credit/voucher settlement.
+- Add full-credit, partial-credit-plus-voucher, insufficient-tender, double-fulfillment, concurrency, reconciliation, and invariant-audit coverage.
+
+Phase 1 is complete only when both the accounting foundation and mixed-tender settlement integration are green. Phase 1A persistence alone must not change invoice fulfillment behavior.
 
 ### Phase 2 — Pricing and feature administration
 
@@ -975,6 +986,7 @@ Phase 0 is complete only when Phase 0A remains green after the Phase 0B migratio
 - [ ] Credit ledger, provisional issuance, holds, reversals, debt, and reconciliation are transactional and audited.
 - [ ] Credit purchase is separate from every feature action and limited to exact MVP shortfalls.
 - [ ] Credits can optionally pay reservation invoices after discounts.
+- [ ] Mixed-tender settlement fulfills only when approved cash plus posted credit allocations cover the invoice; partial and concurrent settlement remain safe and idempotent.
 - [ ] Illustration stands support validated individual/shared prices and immutable snapshots.
 - [ ] Full-table access occurs before the map and never guarantees inventory.
 - [ ] Two halves reserve atomically as one reservation; half fallback remains available and explicit.
