@@ -16,7 +16,9 @@ WITH legacy_terminal_payments AS (
   INNER JOIN "invoices" AS i ON i."id" = p."invoice_id"
   INNER JOIN "stand_reservations" AS r ON r."id" = i."reservation_id"
   WHERE i."status" = 'paid'
-    AND r."status" IN ('rejected', 'cancelled', 'released')
+    -- Cast to text so this backfill also runs on databases where migration
+    -- bookkeeping predates the terminal enum values.
+    AND r."status"::text IN ('rejected', 'cancelled', 'released')
     AND NOT EXISTS (
       SELECT 1
       FROM "invoice_settlement_submissions" AS s
@@ -60,4 +62,9 @@ SELECT
 FROM legacy_terminal_payments AS p
 ON CONFLICT ("invoice_id", "idempotency_key")
   WHERE "idempotency_key" IS NOT NULL
-  DO NOTHING;
+  DO NOTHING;--> statement-breakpoint
+-- Repair databases where 0251 was recorded before these enum additions were
+-- present. Keep these last: PostgreSQL cannot use a newly added enum value
+-- until the transaction that adds it commits.
+ALTER TYPE "public"."reservation_status" ADD VALUE IF NOT EXISTS 'cancelled';--> statement-breakpoint
+ALTER TYPE "public"."reservation_status" ADD VALUE IF NOT EXISTS 'released';

@@ -33,10 +33,12 @@ describe("terminal reservation payment settlement backfill SQL", () => {
   it("limits approved history to paid terminal reservations", () => {
     expect(migration).toContain("i.\"status\" = 'paid'");
     expect(migration).toContain(
-      "r.\"status\" IN ('rejected', 'cancelled', 'released')",
+      "r.\"status\"::text IN ('rejected', 'cancelled', 'released')",
     );
     expect(migration).toContain("'approved'::\"settlement_submission_status\"");
     expect(migration).toContain("s.\"kind\" = 'payment_proof'");
+    expect(migration).toContain("ADD VALUE IF NOT EXISTS 'cancelled'");
+    expect(migration).toContain("ADD VALUE IF NOT EXISTS 'released'");
   });
 });
 
