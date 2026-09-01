@@ -33,6 +33,7 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   invoices,
+  payments,
   reservationParticipants,
   reservationStatusEnum,
   scheduledTasks,
@@ -140,6 +141,14 @@ async function previewReservationWriteSet(tx: DbTx, reservationId: number) {
     .select({ id: invoices.id, userId: invoices.userId })
     .from(invoices)
     .where(eq(invoices.reservationId, reservation.id));
+  const invoiceIds = invoiceRows.map((row) => row.id);
+  const paymentRows =
+    invoiceIds.length === 0
+      ? []
+      : await tx
+          .select({ id: payments.id })
+          .from(payments)
+          .where(inArray(payments.invoiceId, invoiceIds));
   const taskRows = await tx
     .select({ id: scheduledTasks.id })
     .from(scheduledTasks)
@@ -154,7 +163,8 @@ async function previewReservationWriteSet(tx: DbTx, reservationId: number) {
   return {
     reservation,
     participantIds,
-    invoiceIds: invoiceRows.map((row) => row.id),
+    invoiceIds,
+    paymentIds: paymentRows.map((row) => row.id),
     scheduledTaskIds: taskRows.map((row) => row.id),
     userIds,
   };
@@ -186,7 +196,16 @@ export async function applyReservationCancellation(
   await tx
     .update(invoices)
     .set({ status: "cancelled", updatedAt: new Date() })
-    .where(eq(invoices.reservationId, input.reservation.id));
+    .where(
+      and(
+        eq(invoices.reservationId, input.reservation.id),
+        sql`NOT EXISTS (
+          SELECT 1
+          FROM ${payments}
+          WHERE ${payments.invoiceId} = ${invoices.id}
+        )`,
+      ),
+    );
   await releaseStandIfVacant(tx, input.reservation.standId);
 
   await insertStandReservationEvent(tx, {
@@ -243,6 +262,7 @@ export async function lockAndApplyReservationCancellation(
     standIds: [preview.reservation.standId],
     reservationIds: [preview.reservation.id],
     invoiceIds: preview.invoiceIds,
+    paymentIds: preview.paymentIds,
     scheduledTaskIds: preview.scheduledTaskIds,
   });
   if (!locked.ok) {

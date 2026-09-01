@@ -719,6 +719,13 @@ async function approveSubmissionInTx(
   if (aggregate.kind !== "ok") return aggregateUnavailable(aggregate);
   const { invoice, reservation } = aggregate;
 
+  if (
+    reservation.status !== "verification_payment" ||
+    invoice.status !== "verification_payment"
+  ) {
+    return reservationFailure("INVOICE_NOT_PENDING");
+  }
+
   if (submission.kind === "zero_value_entitlement") {
     if (Number(invoice.amount) !== 0 || submission.paymentId != null) {
       return reservationFailure("VALIDATION");
@@ -857,6 +864,13 @@ export async function rejectInvoiceSettlement(
 
       const { invoice, reservation } = aggregate;
 
+      if (
+        reservation.status !== "verification_payment" ||
+        invoice.status !== "verification_payment"
+      ) {
+        return reservationFailure("INVOICE_NOT_PENDING");
+      }
+
       if (submission.kind === "zero_value_entitlement") {
         const correctionType = parsed.data.correction.type;
         if (
@@ -892,6 +906,13 @@ export async function rejectInvoiceSettlement(
             correction: "cancel_reservation",
           },
         });
+        // This command is the admin's explicit resolution of the submitted
+        // proof. The shared cancellation path otherwise preserves invoices
+        // whenever payment evidence exists for separate admin handling.
+        await tx
+          .update(invoices)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(eq(invoices.id, invoice.id));
       } else {
         if (parsed.data.correction.type === "restore_amount") {
           if (invoice.discountCodeId != null) {
@@ -1406,6 +1427,13 @@ export async function correctSettlementProof(
         reservation.status === "pending"
       ) {
         return finish({ kind: "replayed", jobIds: [] });
+      }
+
+      if (
+        reservation.status !== "verification_payment" ||
+        invoice.status !== "verification_payment"
+      ) {
+        return finish(reservationFailure("INVOICE_NOT_PENDING"));
       }
 
       for (const row of submitted) {

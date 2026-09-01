@@ -543,6 +543,16 @@ Release is a soft delete: reservation, participants, stands, invoices, payments,
 
 Use the hardening plan's explicit `cancelReservation` command to record `cancelled` plus actor, participant-request provenance, reason, and event. This PRD does not add a new general cancellation flow. Whether cancellation is recorded by an admin or a future owner-facing action, self-service release is allowed only for a canonical participant-requested cancellation—not an admin rejection/termination.
 
+Invoice handling is independent from the terminal reservation status and must be consistent across every cancellation/rejection entry point:
+
+- The existing admin reservation delete/cancel action, admin rejection action, and payment-dashboard fallback cancellation must use the same shared transition.
+- Lock the linked invoices and payments before the reservation transition.
+- If an invoice has no payment row, cancel that invoice with the reservation.
+- If any payment row exists, do not automatically change the invoice status, delete evidence, infer a refund, or infer forfeiture. Preserve the payment and leave the invoice for explicit admin resolution because each paid case may have a different refund outcome.
+- The payment-dashboard path with a submitted proof uses the admin settlement-rejection command. When the admin explicitly chooses `cancel_reservation`, that command is itself the resolution: reject the submitted proof, cancel the selected invoice, retain the payment/submission history, and cancel/reject the reservation atomically.
+- Admin rejection/termination remains `rejected`. The future participant-requested cancellation command must write `cancelled` plus provenance; it must not reuse an admin-rejection event and thereby make rejected history self-releasable.
+- The later `cancelled -> released` action never changes the original invoice, payment, settlement submission, or refund decision.
+
 ### 9.2 Availability
 
 Show `Liberar reserva` only when:
@@ -561,10 +571,10 @@ The owner must buy any missing credits before starting. Credit purchase does not
 In one transaction, use the §14 canonical total lock order for the owner and every registered participant, skipping unused classes without reordering the remaining classes:
 
 1. Acquire the applicable participant advisory, festival, terms, user/enrollment, credit-account, feature-configuration, stand, reservation, invoice/payment, and credit-domain locks in canonical order.
-2. Revalidate owner, `cancelled` status, configuration, no prior release, and sufficient balance.
+2. Revalidate owner, participant-request provenance, `cancelled` status, configuration, no prior release, linked invoice/payment state, and sufficient balance.
 3. Debit the snapshotted release price.
 4. Record a credit-paid release action.
-5. Transition `cancelled -> released` exactly once.
+5. Transition `cancelled -> released` exactly once without mutating invoice or payment state.
 6. Append an `eligibility_released` event and notifications.
 
 Release does not restore the old stand, refund the original invoice, or guarantee a new reservation. The released participants must still pass normal profile, enrollment, terms, category, sanction, deadline, and availability rules.
@@ -881,6 +891,9 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 ### Phase 5 — Reservation release
 
 - `cancelled -> released` owner action.
+- Add the dedicated participant-requested cancellation command and provenance. Apply the shared invoice rule: cancel only invoices without payment rows; preserve payment-bearing invoices for explicit admin resolution.
+- Keep admin rejection/termination on `rejected`; it must never become self-releasable.
+- Release must preserve every original invoice, payment, settlement submission, and refund decision.
 - Eligibility-query migration and retained history.
 - Credit-funded immediate fulfillment.
 
@@ -954,6 +967,10 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 7. Release does not alter the old stand or a newer occupant.
 8. Rejected source credits do not restore the block.
 9. Released participant still fails unrelated eligibility rules where applicable.
+10. Admin rejection, dashboard cancellation, settlement-rejection cancellation, and participant-requested cancellation all apply their documented invoice/payment outcome.
+11. Cancellation cancels an invoice only when it has no payment, unless an admin settlement-rejection command explicitly resolves that proof and invoice as cancelled.
+12. Payment-bearing cancellation preserves invoice/payment evidence for admin resolution.
+13. `cancelled -> released` does not change invoice, payment, submission, or refund state.
 
 ### UX/accessibility
 

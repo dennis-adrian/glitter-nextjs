@@ -11,6 +11,9 @@ const insertEventMock = vi.hoisted(() => vi.fn());
 const claimRequestMock = vi.hoisted(() => vi.fn());
 const completeRequestMock = vi.hoisted(() => vi.fn());
 const abandonRequestMock = vi.hoisted(() => vi.fn());
+const applyReservationCancellationMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue([]),
+);
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -80,7 +83,7 @@ vi.mock("@/app/lib/reservations/request-registry", () => ({
 }));
 
 vi.mock("@/app/lib/reservations/admin-service", () => ({
-  applyReservationCancellation: vi.fn().mockResolvedValue([]),
+  applyReservationCancellation: applyReservationCancellationMock,
 }));
 
 vi.mock("@/app/lib/uploadthing/actions", () => ({
@@ -673,6 +676,42 @@ describe("approveInvoiceSettlement", () => {
       "stand",
     ]);
   });
+
+  it("does not approve a submitted proof after its reservation was rejected", async () => {
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback(
+        createTx({
+          invoice: {
+            id: 9,
+            userId: 8,
+            status: "verification_payment",
+            amount: 150,
+            reservationId: 4,
+          },
+          reservation: {
+            standId: 7,
+            status: "rejected",
+            festivalId: 10,
+          },
+          existingSettlement: {
+            id: 21,
+            invoiceId: 9,
+            status: "submitted",
+            kind: "payment_proof",
+            paymentId: 3,
+          },
+        }),
+      ),
+    );
+
+    const result = await approveInvoiceSettlement({ submissionId: 21 });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "INVOICE_NOT_PENDING",
+    });
+    expect(insertEventMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("rejectInvoiceSettlement", () => {
@@ -683,6 +722,7 @@ describe("rejectInvoiceSettlement", () => {
     enqueueNotificationsMock.mockReset();
     scheduleJobsMock.mockReset();
     insertEventMock.mockReset();
+    applyReservationCancellationMock.mockClear();
     enqueueNotificationsMock.mockResolvedValue([1]);
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
   });
@@ -726,6 +766,94 @@ describe("rejectInvoiceSettlement", () => {
       "submission",
     ]);
     expect(scheduleJobsMock).not.toHaveBeenCalled();
+  });
+
+  it("cancels the invoice when an admin rejects its proof and cancels the reservation", async () => {
+    const tx = createTx({
+      invoice: {
+        id: 9,
+        userId: 8,
+        status: "verification_payment",
+        amount: 150,
+        reservationId: 4,
+      },
+      reservation: {
+        standId: 7,
+        status: "verification_payment",
+        festivalId: 10,
+      },
+      existingSettlement: {
+        id: 21,
+        invoiceId: 9,
+        status: "submitted",
+        kind: "payment_proof",
+        paymentId: 3,
+      },
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await rejectInvoiceSettlement({
+      submissionId: 21,
+      reason: "Comprobante rechazado; cancelar reserva",
+      correction: { type: "cancel_reservation" },
+    });
+
+    expect(result.success).toBe(true);
+    expect(applyReservationCancellationMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        reservation: expect.objectContaining({ id: 4 }),
+        eventType: "settlement_rejected",
+      }),
+    );
+    expect(tx.updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "rejected" }),
+        expect.objectContaining({ status: "cancelled" }),
+      ]),
+    );
+  });
+
+  it("does not return a rejected reservation to pending", async () => {
+    const tx = createTx({
+      invoice: {
+        id: 9,
+        userId: 8,
+        status: "verification_payment",
+        amount: 150,
+        reservationId: 4,
+      },
+      reservation: {
+        standId: 7,
+        status: "rejected",
+        festivalId: 10,
+      },
+      existingSettlement: {
+        id: 21,
+        invoiceId: 9,
+        status: "submitted",
+        kind: "payment_proof",
+        paymentId: 3,
+      },
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await rejectInvoiceSettlement({
+      submissionId: 21,
+      reason: "Revisión administrativa",
+      correction: { type: "keep_amount" },
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "INVOICE_NOT_PENDING",
+    });
+    expect(tx.updates).toEqual([]);
+    expect(insertEventMock).not.toHaveBeenCalled();
   });
 });
 
@@ -819,6 +947,47 @@ describe("correctSettlementProof", () => {
       code: "INVOICE_NOT_PENDING",
     });
     expect(tx.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not correct proof state after the reservation was rejected", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = createTx({
+      invoice: {
+        id: 9,
+        userId: 8,
+        status: "verification_payment",
+        amount: 150,
+        reservationId: 4,
+      },
+      reservation: {
+        standId: 7,
+        status: "rejected",
+        festivalId: 10,
+      },
+      existingSettlement: {
+        id: 21,
+        invoiceId: 9,
+        status: "submitted",
+        kind: "payment_proof",
+        paymentId: 3,
+      },
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await correctSettlementProof({
+      invoiceId: 9,
+      reason: "comprobante incorrecto",
+      idempotencyKey,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "INVOICE_NOT_PENDING",
+    });
+    expect(tx.updates).toEqual([]);
+    expect(insertEventMock).not.toHaveBeenCalled();
   });
 
   it("rejects submitted settlements, moves reservation and invoice to pending, and keeps payments", async () => {

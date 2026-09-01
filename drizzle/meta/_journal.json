@@ -1779,6 +1779,13 @@
       "when": 1788276942939,
       "tag": "0254_legacy_payment_settlement_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1788279806821,
+      "tag": "0255_terminal_reservation_payment_settlement_backfill",
+      "breakpoints": true
     }
   ]
 }

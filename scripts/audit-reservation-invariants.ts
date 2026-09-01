@@ -398,7 +398,9 @@ async function main() {
     });
   }
 
-  const paidInvoiceNotAccepted = await db
+  // Payment approval is historical; a later terminal reservation may validly
+  // retain a paid invoice under the cancellation/refund policy.
+  const paidInvoiceActiveStatusMismatch = await db
     .select({ id: invoices.id })
     .from(invoices)
     .innerJoin(
@@ -408,14 +410,14 @@ async function main() {
     .where(
       and(
         eq(invoices.status, "paid"),
-        ne(standReservations.status, "accepted"),
+        sql`${standReservations.status} IN ('pending', 'verification_payment')`,
       ),
     );
-  if (paidInvoiceNotAccepted.length > 0) {
+  if (paidInvoiceActiveStatusMismatch.length > 0) {
     findings.push({
-      name: "paid_invoice_reservation_not_accepted",
-      count: paidInvoiceNotAccepted.length,
-      ids: paidInvoiceNotAccepted.map((row) => row.id),
+      name: "paid_invoice_active_reservation_status_mismatch",
+      count: paidInvoiceActiveStatusMismatch.length,
+      ids: paidInvoiceActiveStatusMismatch.map((row) => row.id),
     });
   }
 
@@ -443,7 +445,7 @@ async function main() {
       AND invoices.status <> 'verification_payment'
     ) OR (
       invoices.status = 'verification_payment'
-      AND stand_reservations.status <> 'verification_payment'
+      AND stand_reservations.status IN ('pending', 'accepted')
     )
   `);
   if (verificationMismatch.rows.length > 0) {
