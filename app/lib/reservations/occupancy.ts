@@ -25,7 +25,7 @@ export async function standHasLiveOccupancy(
     .where(
       and(
         eq(standReservations.standId, standId),
-        sql`${standReservations.status} <> 'rejected'`,
+        sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
       ),
     )
     .limit(1);

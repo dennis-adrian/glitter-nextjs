@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  blocksFestivalParticipation,
   evaluatePartnerSearchDenial,
   evaluateSelfServiceEligibility,
   mapPartnerEligibilityCode,
+  occupiesStandCapacity,
   standMatchesParticipant,
   summarizeFestivalParticipations,
   type SelfServiceEligibilityInput,
@@ -316,6 +318,39 @@ describe("summarizeFestivalParticipations", () => {
       hasRejectedFestivalReservation: false,
       hasAnyFestivalReservation: true,
     });
+  });
+
+  it("keeps cancelled history blocking but lets released history reserve again", () => {
+    expect(
+      summarizeFestivalParticipations(
+        [
+          { festivalId: 10, status: "cancelled", source: "user_reservation" },
+          { festivalId: 10, status: "released", source: "user_reservation" },
+        ],
+        10,
+      ),
+    ).toEqual({
+      hasLiveSelfServiceReservation: false,
+      hasRejectedFestivalReservation: true,
+      hasAnyFestivalReservation: true,
+    });
+  });
+});
+
+describe("reservation status predicates", () => {
+  it.each(["pending", "verification_payment", "accepted"])(
+    "treats %s as capacity occupancy",
+    (status) => expect(occupiesStandCapacity(status)).toBe(true),
+  );
+
+  it.each(["rejected", "cancelled"])(
+    "treats %s as a participation block",
+    (status) => expect(blocksFestivalParticipation(status)).toBe(true),
+  );
+
+  it("does not let released history occupy or block", () => {
+    expect(occupiesStandCapacity("released")).toBe(false);
+    expect(blocksFestivalParticipation("released")).toBe(false);
   });
 });
 

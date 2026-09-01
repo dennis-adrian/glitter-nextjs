@@ -2,7 +2,9 @@ export type ReservationEditStatus =
   | "pending"
   | "verification_payment"
   | "accepted"
-  | "rejected";
+  | "rejected"
+  | "cancelled"
+  | "released";
 
 export const COMBINED_SETTLEMENT_AND_PARTNER_MESSAGE =
   "No se puede cambiar el estado de la reserva al mismo tiempo que se cambia el compañero. Guardá cada cambio por separado.";

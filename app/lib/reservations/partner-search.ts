@@ -4,7 +4,11 @@ import { and, eq, inArray, not, sql } from "drizzle-orm";
 
 import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
-import { evaluatePartnerSearchDenial } from "@/app/lib/reservations/policy";
+import {
+  blocksFestivalParticipation,
+  evaluatePartnerSearchDenial,
+  occupiesStandCapacity,
+} from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
@@ -61,9 +65,9 @@ async function festivalReservationByUserId(
   const byUser = new Map<number, "rejected" | "live">();
   for (const row of rows) {
     const current = byUser.get(row.userId);
-    if (row.status === "rejected") {
+    if (blocksFestivalParticipation(row.status)) {
       if (current !== "live") byUser.set(row.userId, "rejected");
-    } else {
+    } else if (occupiesStandCapacity(row.status)) {
       byUser.set(row.userId, "live");
     }
   }
@@ -248,7 +252,11 @@ export async function searchRecentPartners(
 
       return recent.map((user) =>
         toDto(
-          { id: user.userId, displayName: user.displayName, imageUrl: user.imageUrl },
+          {
+            id: user.userId,
+            displayName: user.displayName,
+            imageUrl: user.imageUrl,
+          },
           evaluatePartnerSearchDenial({
             status: user.status,
             role: user.role,

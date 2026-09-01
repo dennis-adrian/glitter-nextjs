@@ -1755,8 +1755,29 @@
     {
       "idx": 251,
       "version": "7",
-      "when": 1788212381408,
-      "tag": "0251_reservation_phase4_indexes",
+      "when": 1788211286300,
+      "tag": "0251_reservation_extension_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1788214980000,
+      "tag": "0252_member_cardinality_reassignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1788216000000,
+      "tag": "0253_reservation_price_snapshot_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 254,
+      "version": "7",
+      "when": 1788231014686,
+      "tag": "0254_reservation_phase4_indexes",
       "breakpoints": true
     }
   ]
