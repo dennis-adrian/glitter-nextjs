@@ -65,6 +65,16 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
     category: "illustration",
   },
   {
+    key: "illustration_partner",
+    email: "illustration-partner+clerk_test@example.com",
+    firstName: "Companero",
+    lastName: "Demo",
+    displayName: "Ilustración Compañero",
+    role: "user",
+    status: "verified",
+    category: "illustration",
+  },
+  {
     key: "gastronomy_participant",
     email: "gastronomy+clerk_test@example.com",
     firstName: "Gastronomia",

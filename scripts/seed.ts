@@ -16,6 +16,12 @@ async function main() {
   const { getDevSeedGate, seedDemoUsers } = await import(
     "@/scripts/seed/demo-users"
   );
+  const { seedReservationFestival } = await import(
+    "@/scripts/seed/reservation-festival"
+  );
+  const { DEMO_FESTIVAL_NAME } = await import(
+    "@/scripts/seed/reservation-festival-plan"
+  );
 
   const gate = getDevSeedGate();
   if (!gate.allowed) {
@@ -31,6 +37,11 @@ async function main() {
     );
     console.info(
       "Sign in with any seeded +clerk_test email and SEED_DEMO_PASSWORD (or the documented default).",
+    );
+
+    const festival = await seedReservationFestival({ demoUsers: result.users });
+    console.info(
+      `Reservation festival seed completed (${DEMO_FESTIVAL_NAME} id=${festival.festivalId}, ${festival.standCount} stands, ${festival.created ? "created" : "updated"}).`,
     );
   } catch (err: unknown) {
     const pgError = err as { code?: string };
