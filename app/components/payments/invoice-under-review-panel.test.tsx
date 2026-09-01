@@ -22,6 +22,7 @@ const baseInvoice = {
       amount: 150,
       date: new Date(),
       voucherUrl: "https://files.example.com/voucher.pdf",
+      fileKey: "uploadthing-key",
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -123,5 +124,25 @@ describe("InvoiceUnderReviewPanel", () => {
       screen.queryByRole("link", { name: "Ver el comprobante enviado" }),
     ).toBeNull();
     expect(screen.queryByText("Reemplazar comprobante")).toBeNull();
+  });
+
+  it("hides the voucher link when the latest payment proof was removed", () => {
+    render(
+      <InvoiceUnderReviewPanel
+        invoice={{
+          ...baseInvoice,
+          payments: [
+            {
+              ...baseInvoice.payments[0],
+              voucherUrl: "https://files.example.com/rejected.pdf",
+              fileKey: null,
+            },
+          ],
+        }}
+      />,
+    );
+    expect(
+      screen.queryByRole("link", { name: "Ver el comprobante enviado" }),
+    ).toBeNull();
   });
 });

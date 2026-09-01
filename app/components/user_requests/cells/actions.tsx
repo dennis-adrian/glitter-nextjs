@@ -9,56 +9,46 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { updateUserRequest } from "@/api/user_requests/actions";
+import {
+  reviewBecomeArtistRequest,
+  reviewFestivalParticipationRequest,
+} from "@/api/user_requests/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import { toast } from "sonner";
 
 export function ActionsCell({ request }: { request: UserRequest }) {
-  async function onApprove() {
-    const res = await updateUserRequest(request.id, {
-      ...request,
-      status: "accepted",
-    });
-    if (res.success) {
-      toast.success("La solicitud ha sido aprobada.", {
-        duration: 3000,
-        action: {
-          label: "Cerrar",
-          onClick: () => {
-            toast.dismiss();
+  async function review(status: "accepted" | "rejected") {
+    const result =
+      request.type === "become_artist"
+        ? await reviewBecomeArtistRequest({ requestId: request.id, status })
+        : await reviewFestivalParticipationRequest({
+            requestId: request.id,
+            status,
+          });
+    if (result.success) {
+      if (status === "accepted") {
+        toast.success("La solicitud ha sido aprobada.", {
+          duration: 3000,
+          action: {
+            label: "Cerrar",
+            onClick: () => {
+              toast.dismiss();
+            },
           },
-        },
-      });
+        });
+      } else {
+        toast.warning("La solicitud ha sido rechazada.", {
+          duration: 3000,
+          action: {
+            label: "Cerrar",
+            onClick: () => {
+              toast.dismiss();
+            },
+          },
+        });
+      }
     } else {
-      toast.error("Error al aprobar la solicitud.", {
-        duration: 3000,
-        action: {
-          label: "Cerrar",
-          onClick: () => {
-            toast.dismiss();
-          },
-        },
-      });
-    }
-  }
-
-  async function onReject() {
-    const res = await updateUserRequest(request.id, {
-      ...request,
-      status: "rejected",
-    });
-    if (res.success) {
-      toast.warning("La solicitud ha sido rechazada.", {
-        duration: 3000,
-        action: {
-          label: "Cerrar",
-          onClick: () => {
-            toast.dismiss();
-          },
-        },
-      });
-    } else {
-      toast.error("Error al rechazar la solicitud.", {
+      toast.error(result.message ?? "Error al actualizar la solicitud.", {
         duration: 3000,
         action: {
           label: "Cerrar",
@@ -81,16 +71,24 @@ export function ActionsCell({ request }: { request: UserRequest }) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={request.status === "accepted"} asChild>
-          <form className="w-full" action={onApprove}>
-            <button className="w-full text-left" type="submit">
+        <DropdownMenuItem disabled={request.status !== "pending"} asChild>
+          <form className="w-full" action={() => review("accepted")}>
+            <button
+              className="w-full text-left"
+              type="submit"
+              disabled={request.status !== "pending"}
+            >
               Aprobar
             </button>
           </form>
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={request.status === "rejected"} asChild>
-          <form className="w-full" action={onReject}>
-            <button className="w-full text-left" type="submit">
+        <DropdownMenuItem disabled={request.status !== "pending"} asChild>
+          <form className="w-full" action={() => review("rejected")}>
+            <button
+              className="w-full text-left"
+              type="submit"
+              disabled={request.status !== "pending"}
+            >
               Rechazar
             </button>
           </form>

@@ -49,6 +49,7 @@ import {
   sanctionFestivals,
   sanctionInfractions,
   sanctions,
+  users,
 } from "@/db/schema";
 
 function emptyToNull(value?: string | null) {
@@ -132,6 +133,17 @@ export async function createAndApproveSanction(
 
     const createdSanction = await db.transaction(async (tx) => {
       const selected = await lockInfractionsForMutation(tx, data.infractionIds);
+
+      const [lockedUser] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, data.userId))
+        .limit(1)
+        .for("update");
+
+      if (!lockedUser) {
+        throw sanctionDomainError("Participante no encontrado", "not_found");
+      }
 
       if (selected.length !== data.infractionIds.length) {
         throw sanctionDomainError(

@@ -142,3 +142,22 @@ export enum DisplayPaymentStatus {
   OUTSTANDING = "Atrasado",
   NONE = "--",
 }
+
+export function isActivePaymentProof(payment: {
+  voucherUrl: string;
+  fileKey?: string | null;
+}) {
+  return Boolean(payment.voucherUrl && payment.fileKey);
+}
+
+export function findLatestActivePaymentProof<
+  T extends {
+    createdAt: Date;
+    voucherUrl: string;
+    fileKey?: string | null;
+  },
+>(payments: T[]): T | undefined {
+  return [...payments]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .findLast(isActivePaymentProof);
+}

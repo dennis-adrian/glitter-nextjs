@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const adminConfirmReservationMock = vi.hoisted(() => vi.fn());
-const findSubmittedSettlementInvoiceIdForReservationMock = vi.hoisted(
-  () => vi.fn(),
+const findSubmittedSettlementInvoiceIdForReservationMock = vi.hoisted(() =>
+  vi.fn(),
 );
 const selectMock = vi.hoisted(() => vi.fn());
 
@@ -15,7 +15,6 @@ vi.mock("@/app/lib/reservations/payment-service", () => ({
   findSubmittedSettlementInvoiceIdForReservation:
     findSubmittedSettlementInvoiceIdForReservationMock,
   rejectInvoiceSettlement: vi.fn(),
-  submitPaymentProof: vi.fn(),
   submitZeroValueInvoiceForReview: vi.fn(),
 }));
 
@@ -40,7 +39,9 @@ vi.mock("@/db", () => ({
   },
 }));
 
-import { adminConfirmReservationByReservationIdAction } from "@/app/lib/reservations/payment-actions";
+import * as paymentActions from "@/app/lib/reservations/payment-actions";
+
+const { adminConfirmReservationByReservationIdAction } = paymentActions;
 
 const CONFIRM_KEY = "11111111-1111-4111-8111-111111111111";
 
@@ -75,9 +76,9 @@ describe("adminConfirmReservationByReservationIdAction", () => {
       idempotencyKey: CONFIRM_KEY,
     });
 
-    expect(findSubmittedSettlementInvoiceIdForReservationMock).toHaveBeenCalledWith(
-      4,
-    );
+    expect(
+      findSubmittedSettlementInvoiceIdForReservationMock,
+    ).toHaveBeenCalledWith(4);
     expect(selectMock).not.toHaveBeenCalled();
     expect(adminConfirmReservationMock).toHaveBeenCalledWith({
       invoiceId: 20,
@@ -118,5 +119,11 @@ describe("adminConfirmReservationByReservationIdAction", () => {
       success: false,
       message: "No se encontró la factura de la reserva.",
     });
+  });
+});
+
+describe("payment action export surface", () => {
+  it("does not expose participant payment-proof submission", () => {
+    expect(paymentActions).not.toHaveProperty("submitPaymentProofAction");
   });
 });

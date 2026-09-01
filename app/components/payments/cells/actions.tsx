@@ -12,15 +12,16 @@ import {
   CheckCheckIcon,
   TagIcon,
   UploadIcon,
-  Trash2Icon,
+  FilePenLineIcon,
   MoreHorizontalIcon,
 } from "lucide-react";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { isActivePaymentProof } from "@/app/lib/payments/helpers";
 import { useState } from "react";
 import ConfirmReservationModal from "@/app/components/payments/confirm-reservation-modal";
 import ApplyDiscountDialog from "@/app/components/payments/apply-discount-dialog";
 import AdminPaymentProofDialog from "@/app/components/payments/admin-payment-proof-dialog";
-import RemovePaymentProofDialog from "@/app/components/payments/remove-payment-proof-dialog";
+import CorrectPaymentProofDialog from "@/app/components/payments/correct-payment-proof-dialog";
 
 type ActionsCellProps = {
   invoice: InvoiceWithParticipants;
@@ -32,10 +33,8 @@ export default function ActionsCell(props: ActionsCellProps) {
     useState(false);
   const [openDiscountDialog, setOpenDiscountDialog] = useState(false);
   const [openProofDialog, setOpenProofDialog] = useState(false);
-  const [openRemoveProofDialog, setOpenRemoveProofDialog] = useState(false);
-  const hasPaymentProof = props.invoice.payments.some(
-    (payment) => payment.voucherUrl,
-  );
+  const [openCorrectProofDialog, setOpenCorrectProofDialog] = useState(false);
+  const hasPaymentProof = props.invoice.payments.some(isActivePaymentProof);
 
   return (
     <>
@@ -64,10 +63,10 @@ export default function ActionsCell(props: ActionsCellProps) {
               {hasPaymentProof ? (
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onSelect={() => setOpenRemoveProofDialog(true)}
+                  onSelect={() => setOpenCorrectProofDialog(true)}
                 >
-                  <Trash2Icon className="h-4 w-4 mr-1" />
-                  Eliminar comprobante
+                  <FilePenLineIcon className="h-4 w-4 mr-1" />
+                  Corregir comprobante
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem onSelect={() => setOpenProofDialog(true)}>
@@ -115,10 +114,10 @@ export default function ActionsCell(props: ActionsCellProps) {
             open={openProofDialog}
             onOpenChange={setOpenProofDialog}
           />
-          <RemovePaymentProofDialog
+          <CorrectPaymentProofDialog
             invoice={props.invoice}
-            open={openRemoveProofDialog}
-            onOpenChange={setOpenRemoveProofDialog}
+            open={openCorrectProofDialog}
+            onOpenChange={setOpenCorrectProofDialog}
           />
         </>
       )}

@@ -10,16 +10,20 @@ import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejectio
 import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
+import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-participation-approved";
+import FestivalParticipationRejectedEmailTemplate from "@/app/emails/festival-participation-rejected";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { reservationNotificationJobs, standReservations } from "@/db/schema";
+import { festivals, reservationNotificationJobs, standReservations, users } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const FROM = "Reservas Glitter <reservas@productoraglitter.com>";
+const ENROLLMENT_FROM =
+  "Inscripciones Glitter <inscripciones@productoraglitter.com>";
 const MAX_ATTEMPTS = 5;
 const LEASE_DURATION_MS = 5 * 60 * 1000;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
@@ -32,6 +36,8 @@ export const RESERVATION_NOTIFICATION_KINDS = [
   "settlement_rejected",
   "reservation_rejected",
   "deadline_extended",
+  "festival_participation_approved",
+  "festival_participation_rejected",
 ] as const;
 
 export type ReservationNotificationKind =
@@ -46,7 +52,7 @@ export async function enqueueReservationNotification(
   tx: DbTx,
   input: {
     kind: ReservationNotificationKind;
-    reservationId: number;
+    reservationId?: number | null;
     userId?: number | null;
     recipientEmail: string;
     payload?: Record<string, unknown>;
@@ -56,20 +62,21 @@ export async function enqueueReservationNotification(
   const email = input.recipientEmail.trim();
   if (!email) return null;
   const now = new Date();
+  const reservationId = input.reservationId ?? null;
   const deduplicationKey =
     input.deduplicationKey ??
-    `${input.kind}:${input.reservationId}:${email.toLowerCase()}`;
+    `${input.kind}:${reservationId ?? "none"}:${email.toLowerCase()}`;
 
   const [inserted] = await tx
     .insert(reservationNotificationJobs)
     .values({
       deduplicationKey,
       userId: input.userId ?? null,
-      reservationId: input.reservationId,
+      reservationId,
       notificationKind: input.kind,
       recipientEmail: email,
       payload: {
-        reservationId: input.reservationId,
+        ...(reservationId != null ? { reservationId } : {}),
         ...input.payload,
       },
       status: "pending",
@@ -298,6 +305,80 @@ async function deliverJob(
   throw new Error(`unsupported_kind:${kind}`);
 }
 
+function payloadNumber(payload: unknown, key: string): number | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+async function deliverEnrollmentJob(
+  kind: ReservationNotificationKind,
+  recipientEmail: string,
+  payload: unknown,
+) {
+  const userId = payloadNumber(payload, "userId");
+  const festivalId = payloadNumber(payload, "festivalId");
+  if (userId == null || festivalId == null) {
+    throw new Error("enrollment_payload_missing");
+  }
+
+  const [profile] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const [festival] = await db
+    .select({
+      id: festivals.id,
+      name: festivals.name,
+      festivalType: festivals.festivalType,
+      reservationsStartDate: festivals.reservationsStartDate,
+    })
+    .from(festivals)
+    .where(eq(festivals.id, festivalId))
+    .limit(1);
+  if (!profile || !festival) {
+    throw new Error("enrollment_context_missing");
+  }
+
+  if (kind === "festival_participation_approved") {
+    await sendEmail({
+      to: [recipientEmail],
+      from: ENROLLMENT_FROM,
+      subject: `Tu postulación para ${festival.name} fue aprobada`,
+      react: FestivalParticipationApprovedEmailTemplate({
+        profile,
+        festival,
+      }),
+    });
+    return;
+  }
+
+  if (kind === "festival_participation_rejected") {
+    await sendEmail({
+      to: [recipientEmail],
+      from: ENROLLMENT_FROM,
+      subject: `Tu postulación para ${festival.name}`,
+      react: FestivalParticipationRejectedEmailTemplate({
+        profile,
+        festival,
+      }),
+    });
+    return;
+  }
+
+  throw new Error(`unsupported_kind:${kind}`);
+}
+
+function isEnrollmentNotificationKind(kind: string) {
+  return (
+    kind === "festival_participation_approved" ||
+    kind === "festival_participation_rejected"
+  );
+}
+
 export async function attemptReservationNotificationJob(jobId: number) {
   const owner = `reservation-notify:${randomUUID()}`;
   const job = await claimJob(jobId, owner);
@@ -305,15 +386,23 @@ export async function attemptReservationNotificationJob(jobId: number) {
 
   const now = new Date();
   try {
-    if (!job.reservationId) {
-      throw new Error("reservation_id_missing");
+    if (isEnrollmentNotificationKind(job.notificationKind)) {
+      await deliverEnrollmentJob(
+        job.notificationKind as ReservationNotificationKind,
+        job.recipientEmail,
+        job.payload,
+      );
+    } else {
+      if (!job.reservationId) {
+        throw new Error("reservation_id_missing");
+      }
+      await deliverJob(
+        job.notificationKind,
+        job.recipientEmail,
+        job.reservationId,
+        job.payload,
+      );
     }
-    await deliverJob(
-      job.notificationKind,
-      job.recipientEmail,
-      job.reservationId,
-      job.payload,
-    );
     await db
       .update(reservationNotificationJobs)
       .set({

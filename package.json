@@ -1,6 +1,6 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.62.0",
+  "version": "2.63.0",
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "engines": {
@@ -14,6 +14,9 @@
     "generate": "drizzle-kit generate",
     "migrate": "tsx scripts/sync-env-local.ts --exec tsx scripts/migrate.ts",
     "migrate:test": "tsx scripts/sync-env-local.ts --exec sh -c 'POSTGRES_URL=\"$TEST_DATABASE_URL\" exec tsx scripts/migrate.ts'",
+    "db:test:up": "sh -c 'docker compose -p \"glitter-test-${GLITTER_TEST_DB_PORT:-55432}\" -f compose.test.yml up -d --wait'",
+    "db:test:down": "sh -c 'docker compose -p \"glitter-test-${GLITTER_TEST_DB_PORT:-55432}\" -f compose.test.yml down'",
+    "db:test:logs": "sh -c 'docker compose -p \"glitter-test-${GLITTER_TEST_DB_PORT:-55432}\" -f compose.test.yml logs --tail=100 postgres'",
     "push": "drizzle-kit push:pg",
     "seed": "tsx scripts/sync-env-local.ts --exec tsx scripts/seed.ts",
     "db:setup": "pnpm generate && pnpm migrate && pnpm seed",
@@ -21,7 +24,7 @@
     "email": "email dev --dir app/emails",
     "test": "vitest",
     "test:storybook": "vitest --config vitest.storybook.config.mts run",
-    "test:integration": "tsx scripts/sync-env-local.ts --exec node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/categories/migration.integration.test.ts app/lib/categories/delete.integration.test.ts app/api/user_requests/duplicate-cleanup.migration.test.ts app/lib/orders/actions.integration.test.ts app/lib/orders/adjustments.integration.test.ts app/lib/orders/category-correction.integration.test.ts app/lib/festival-terms/acceptance.integration.test.ts app/lib/festival-terms/actions.integration.test.ts app/lib/festivals/actions.integration.test.ts app/lib/reservations/partner-search.integration.test.ts app/lib/reservations/request-registry.integration.test.ts app/lib/reservations/hold-concurrency.integration.test.ts",
+    "test:integration": "tsx scripts/sync-env-local.ts --exec sh -c 'node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/categories/migration.integration.test.ts app/lib/categories/delete.integration.test.ts app/api/user_requests/duplicate-cleanup.migration.test.ts app/lib/orders/actions.integration.test.ts app/lib/orders/adjustments.integration.test.ts app/lib/orders/category-correction.integration.test.ts app/lib/festival-terms/acceptance.integration.test.ts app/lib/festival-terms/actions.integration.test.ts app/lib/festivals/actions.integration.test.ts && node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs --config vitest.reservations.integration.config.mts run app/lib/reservations/partner-search.integration.test.ts app/lib/reservations/request-registry.integration.test.ts app/lib/reservations/hold-concurrency.integration.test.ts app/lib/reservations/prd-unblockers.integration.test.ts app/lib/reservations/member-cardinality.migration.test.ts'",
     "test:e2e": "playwright test",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",

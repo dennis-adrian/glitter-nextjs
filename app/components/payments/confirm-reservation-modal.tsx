@@ -13,6 +13,7 @@ import {
 } from "@/app/components/ui/drawer-dialog";
 import { ConfirmReservationForm } from "@/app/components/payments/forms/confirm-reservation-form";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { findLatestActivePaymentProof } from "@/app/lib/payments/helpers";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
@@ -34,8 +35,8 @@ export default function ConfirmReservationModal({
   const canSettleInvoice =
     invoice.status === "pending" || invoice.status === "verification_payment";
   const standLabel = formatStandLabel(invoice.reservation.stand);
-  const voucherUrl = invoice.payments.find(
-    (payment) => payment.voucherUrl,
+  const voucherUrl = findLatestActivePaymentProof(
+    invoice.payments,
   )?.voucherUrl;
 
   return (

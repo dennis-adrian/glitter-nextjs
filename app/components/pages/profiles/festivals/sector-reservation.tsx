@@ -1,17 +1,16 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
 import ClientMap from "@/app/components/festivals/client-map";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
-import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
-import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getSelfServicePageDenial } from "@/app/lib/reservations/entry";
+import {
+  fetchFestivalReservationMapDto,
+  fetchSelfServiceFestivalSnapshot,
+  fetchSelfServiceTargetProfile,
+} from "@/app/lib/reservations/map-queries";
+import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { db } from "@/db";
-import { standHolds } from "@/db/schema";
-import { and, eq, gt } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 type SectorReservationPageProps = {
@@ -26,11 +25,11 @@ export default async function SectorReservationPage(
   const currentProfile = await getCurrentUserProfile();
   await protectRoute(currentProfile || undefined, props.profileId);
 
-  const festival = await fetchBaseFestival(props.festivalId);
-  if (!festival) notFound();
-
-  const forProfile = await fetchUserProfileById(props.profileId);
-  if (!forProfile) notFound();
+  const [festival, forProfile] = await Promise.all([
+    fetchSelfServiceFestivalSnapshot(props.festivalId),
+    fetchSelfServiceTargetProfile(props.profileId, props.festivalId),
+  ]);
+  if (!festival || !forProfile) notFound();
 
   const denial = await getSelfServicePageDenial({
     actor: currentProfile
@@ -52,35 +51,19 @@ export default async function SectorReservationPage(
     );
   }
 
-  const subcategoryIds = forProfile.profileSubcategories.map(
-    (ps) => ps.subcategoryId,
-  );
-  const fetchedSectors = await fetchFestivalSectorsByUserCategory(
-    festival.id,
-    forProfile.category,
-    subcategoryIds,
-    forProfile.participationType,
-  );
-  const sectors =
-    currentProfile?.role === "admin"
-      ? fetchedSectors
-      : stripHiddenReservationsFromSectors(fetchedSectors);
-
-  const sector = sectors.find((s) => s.id === props.sectorId);
-  if (!sector) notFound();
-
-  // Fetch user's active hold for this festival (if any)
-  const activeHoldRow = await db.query.standHolds.findFirst({
-    where: and(
-      eq(standHolds.userId, forProfile.id),
-      eq(standHolds.festivalId, festival.id),
-      gt(standHolds.expiresAt, new Date()),
+  const map = await fetchFestivalReservationMapDto({
+    festivalId: festival.id,
+    profileId: forProfile.id,
+    revealHiddenIdentities: canViewAdminReservationData(
+      currentProfile
+        ? { id: currentProfile.id, role: currentProfile.role }
+        : null,
     ),
-    columns: { id: true, standId: true },
   });
-  const activeHold = activeHoldRow
-    ? { id: activeHoldRow.id, standId: activeHoldRow.standId }
-    : null;
+  if (!map) notFound();
+
+  const sector = map.sectors.find((s) => s.id === props.sectorId);
+  if (!sector) notFound();
 
   return (
     <>
@@ -95,27 +78,16 @@ export default async function SectorReservationPage(
           <FestivalSectorTitle sector={sector} />
           <div className="w-full md:max-w-2xl mx-auto">
             <ClientMap
-              festival={festival}
-              profile={forProfile}
+              festival={map.festival}
+              profile={map.profile}
               sectorId={sector.id}
               sectorName={sector.name}
               stands={sector.stands}
-              mapElements={sector.mapElements ?? []}
-              activeHold={activeHold}
-              subcategoryIds={subcategoryIds}
-              mapBounds={
-                sector.mapOriginX != null &&
-                sector.mapOriginY != null &&
-                sector.mapWidth != null &&
-                sector.mapHeight != null
-                  ? {
-                      minX: sector.mapOriginX,
-                      minY: sector.mapOriginY,
-                      width: sector.mapWidth,
-                      height: sector.mapHeight,
-                    }
-                  : undefined
-              }
+              mapElements={sector.mapElements}
+              activeHold={map.activeHold}
+              alreadyReserved={map.alreadyReserved}
+              subcategoryIds={map.subcategoryIds}
+              mapBounds={sector.mapBounds ?? undefined}
             />
           </div>
           <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4 max-w-[400px]">

@@ -5,6 +5,8 @@ import {
   countOutstandingInvoices,
   DisplayPaymentStatus,
   getInvoiceStatusLabel,
+  findLatestActivePaymentProof,
+  isActivePaymentProof,
   mapPaymentStatusToDisplayPaymentStatus,
   resolveReservationPaymentUpload,
 } from "@/app/lib/payments/helpers";
@@ -71,6 +73,59 @@ describe("invoice settlement status", () => {
         reservation("verification_payment"),
       ),
     ).toBe(DisplayPaymentStatus.UNDER_REVIEW);
+  });
+});
+
+describe("isActivePaymentProof", () => {
+  it("requires both voucherUrl and fileKey", () => {
+    expect(
+      isActivePaymentProof({
+        voucherUrl: "https://files.example.com/voucher.pdf",
+        fileKey: "uploadthing-key",
+      }),
+    ).toBe(true);
+    expect(
+      isActivePaymentProof({
+        voucherUrl: "https://files.example.com/voucher.pdf",
+        fileKey: null,
+      }),
+    ).toBe(false);
+    expect(
+      isActivePaymentProof({
+        voucherUrl: "",
+        fileKey: "uploadthing-key",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("findLatestActivePaymentProof", () => {
+  it("returns the newest active payment proof regardless of array order", () => {
+    const older = {
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      voucherUrl: "https://files.example.com/old.pdf",
+      fileKey: "old-key",
+    };
+    const newer = {
+      createdAt: new Date("2026-01-02T00:00:00.000Z"),
+      voucherUrl: "https://files.example.com/new.pdf",
+      fileKey: "new-key",
+    };
+
+    expect(findLatestActivePaymentProof([newer, older])).toEqual(newer);
+    expect(findLatestActivePaymentProof([older, newer])).toEqual(newer);
+  });
+
+  it("skips inactive proofs and returns undefined when none are active", () => {
+    expect(
+      findLatestActivePaymentProof([
+        {
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          voucherUrl: "https://files.example.com/voucher.pdf",
+          fileKey: null,
+        },
+      ]),
+    ).toBeUndefined();
   });
 });
 

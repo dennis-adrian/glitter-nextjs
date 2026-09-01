@@ -1,13 +1,12 @@
-import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
+import { UserCategory } from "@/app/api/users/definitions";
 import {
   ActivityDetailsWithParticipants,
   FestivalActivityWithDetailsAndParticipants,
   WaitlistEntryWithUser,
 } from "@/app/lib/festivals/definitions";
-import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
 
 export function getFestivalSectorAllowedCategories(
-  sector: FestivalSectorWithStands,
+  sector: { stands: Array<{ standCategory: UserCategory }> },
   allCategories?: boolean,
 ): UserCategory[] {
   const categories = [

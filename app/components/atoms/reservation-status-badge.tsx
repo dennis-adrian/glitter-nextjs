@@ -11,14 +11,20 @@ const statusColors = {
     "bg-blue-500/20 border border-blue-300 text-blue-800 hover:bg-blue-500/30 hover:border-blue-300",
   rejected:
     "bg-red-500/20 border border-red-300 text-red-800 hover:bg-red-500/30 hover:border-red-300",
-};
+  cancelled:
+    "bg-orange-500/20 border border-orange-300 text-orange-800 hover:bg-orange-500/30 hover:border-orange-300",
+  released:
+    "bg-slate-500/20 border border-slate-300 text-slate-800 hover:bg-slate-500/30 hover:border-slate-300",
+} satisfies Record<ReservationBase["status"], string>;
 
 const statusLabels = {
   pending: "Pendiente",
   accepted: "Confirmada",
   verification_payment: "Verificación de Pago",
-  rejected: "Cancelada",
-};
+  rejected: "Rechazada",
+  cancelled: "Cancelada",
+  released: "Liberada",
+} satisfies Record<ReservationBase["status"], string>;
 
 export default function ReservationStatusBadge({
   status,

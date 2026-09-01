@@ -4,9 +4,9 @@
 
 **Feature area:** Festival stand reservations, holds, invoices, payments
 
-**Status:** In progress — Phases 0–2 complete in production (migration `0246` applied, clean audit). Phase 3 in progress on PR [#476](https://github.com/dennis-adrian/glitter-nextjs/pull/476) (base `develop`).
+**Status:** In progress — Phases 0–3 complete on `develop` except unique-index carry-overs and the remaining §15.2 concurrency matrix. Phase 4 is next.
 
-**Last updated:** 2026-08-31 (Phase 2 gate confirmed complete in production)
+**Last updated:** 2026-08-31 (Phase 3 close-out: partner command, §4.4 locks, audit catalog checks)
 
 **References:** [PRD-stand-reservations.md](./PRD-stand-reservations.md), [PRD-multi-payment-access.md](./PRD-multi-payment-access.md), [PRD-participant-status-management.md](./PRD-participant-status-management.md)
 
@@ -33,7 +33,7 @@ Status legend used in this document:
 
 ## 0. Implementation status (audited 2026-08-30)
 
-Phases **0, 1, and 2 are implemented** in production. Migration `0246` and the clean invariant audit gate passed in production (2026-08-31). Phase 3 settlement commands, request registry, notification outbox, UploadThing callback authority, and partial advisory locks shipped in PR #475/#476; concurrency integration tests and retiring remaining generic UI mutators are in progress.
+Phases **0, 1, 2, and 3 are implemented**. Migration `0246` and the clean invariant audit gate passed in production (2026-08-31). Phase 3 settlement commands, request registry, notification outbox, UploadThing callback authority, §4.4 locks on reservation and eligibility writers, the explicit partner command, and hold concurrency tests (matrix items 1–2 and 9) shipped in PRs #475/#476 and the Phase 3 close-out PR. Unique indexes for one-active-festival and live self-service owner remain deferred (parallel integration tests insert multiple `status: "active"` festivals). Remaining §15.2 items and `/api/payments` removal wait for Phases 4–6.
 
 The shipped work delivered security containment, canonical participant policy, additive schema, money migration, dual-write of owner/source/snapshots/events, hold/confirmation idempotency keys, unique hold/stand indexes, operational scripts, and production constraint rollout.
 
@@ -44,45 +44,48 @@ The shipped work delivered security containment, canonical participant policy, a
 | 0 — Immediate security containment | Auth, ownership, Zod, no caller-supplied objects | **Implemented** (legacy payment route still present, hardened) |
 | 1 — Canonical policy and participant flow | Shared policy for pages, holds, confirmation, partners | **Implemented** |
 | 2 — Additive schema, preflight, data repair | Columns, money, events, scripts, unique hold/stand indexes | **Implemented** — `0246` applied and clean audit confirmed in production (2026-08-31) |
-| 3 — Transaction and payment rewrite | Locks, settlement commands, outbox, UploadThing callback | **Partial — in progress (PR #476)** — settlement service, request registry (`0249`), required idempotency keys, notification outbox + cron, UploadThing `onUploadComplete`, partial §4.4 locks, admin settlement UI wired; remaining: advisory locks on `cancelStandHold`, deadline extend, collaborators, and generic admin edits; retire generic UI mutators; concurrency integration matrix |
+| 3 — Transaction and payment rewrite | Locks, settlement commands, outbox, UploadThing callback | **Implemented** — settlement service, request registry (`0249`), required idempotency keys, notification outbox + cron, UploadThing `onUploadComplete`, §4.4 locks (including terms + eligibility writers), admin settlement UI, `updateReservationPartner`, hold concurrency items 1–2 and 9. Unique owner/active-festival indexes deferred. |
 | 4 — Cleanup, privacy, and performance | Cron-safe polling, DTOs, indexes, latency budgets | Partial early work only |
 | 5 — UX, accessibility, and documentation | Recoverable errors, list view, voseo, Playwright, PRDs | Partial copy/error work only |
 | 6 — Rollout and deletion of legacy paths | Flag, rehearsal, remove `/api/payments` and compatibility | Not started |
 
-### 0.2 What Phase 3 should implement next
+### 0.2 Phase 3 close-out
 
-Phase 2 gate is complete in production. Remaining Phase 3 work (in priority order):
-
-1. **Retire generic mutators from live UI.** Wire admin payment status to explicit `payment-actions`; remove unused client `createPayment` form; evaluate `edit-form.tsx` status changes vs explicit commands. Keep `/api/payments` and legacy exports for Phase 6 removal.
-2. **Complete §4.4 lock ordering.** Discount apply is locked. Extend advisory locks to `cancelStandHold`, `extendReservationPaymentDeadline`, collaborator add/delete, and remaining generic admin edits (`updateReservationSimple`, `updateReservationStatus`).
-3. **Concurrency integration tests (§15.2).** At least hold races (two participants / same participant two stands) against migrated test PostgreSQL.
-4. **Explicit admin commands (carry-over).** `cancelReservation` exists; `updateReservationSimple` still handles partner edits and non-settlement status changes — narrow or replace in a follow-up.
-
-Already shipped in Phase 3 (do not redo):
+Phase 3 is closed for product behavior. Do not redo shipped work:
 
 - Settlement pipeline (`payment-service.ts`, `payment-actions.ts`)
 - Request registry + migration `0249`
-- Required idempotency keys on hold/confirm/payment/zero-value
+- Required UUID idempotency keys on hold/confirm/payment/zero-value
 - Notification outbox + `app/api/cron/morning/reservationNotifications/route.ts`
 - UploadThing `onUploadComplete` → `submitPaymentProof` (authoritative persistence)
-- Partial §4.4 locks in hold/confirm/payment/discount-apply/admin create/cancel paths
-- Admin UI wired to settlement-backed confirm
+- §4.4 locks in hold/confirm/payment/admin/discount/cancel/partner paths, plus terms document lock (namespace `5822`), stand eligibility/price edits, user status, sanction create, and festival participant-terms toggles
+- Admin UI wired to settlement-backed confirm and `updateReservationPartner` (the reservation edit form no longer calls `updateReservationSimple`)
 - Payment-proof modal, lazy `useState` idempotency keys, `claimRequest` `onConflictDoNothing`
+- Hold concurrency integration tests: two participants / one stand, one participant / two stands, expired hold with stale `held` immediately reservable
+- Audit script: settlement checks against `invoice_settlement_submissions`, duplicate idempotency-key groups, `pg_catalog` index validity
 
-Keep the §1 festival-participation lock in every Phase 3 policy and confirmation test: a reservation in any status, including `rejected`, blocks later self-service and partner adds. The unique owner index still excludes `rejected` because rejected rows remain and must not collide with a later admin-assigned reservation.
+Carry into later phases (not Phase 3 blockers):
+
+1. **Unique indexes.** Single-active-festival and live self-service owner unique indexes remain deferred: a global one-active-festival unique would break parallel integration tests that insert `status: "active"` festivals. Keep the audit/script gate.
+2. **Remaining §15.2 matrix** (items 3–8, 10–18) and Playwright (Phase 5).
+3. **Module split** of `reservation-service.ts` from `hold-service.ts` — missing filename is not missing behavior.
+4. **Remove `/api/payments` and leftover generic exports** (`updateReservationSimple`, `updateReservation`, `deleteReservation`) in Phase 6. `updateReservationSimple` is admin-only and unused by live UI.
+5. **Enrollment writers** (`updateUserRequest`) still lack the full §4.4 eligibility lock set.
+
+Keep the §1 festival-participation lock in every later policy and confirmation test: a reservation in any status, including `rejected`, blocks later self-service and partner adds. The unique owner index still excludes `rejected` because rejected rows remain and must not collide with a later admin-assigned reservation.
 
 ### 0.3 Carry-overs (not product divergences)
 
 | Topic | Plan | As-built | Action |
 | --- | --- | --- | --- |
-| Module layout | Thin `"use server"` actions + server-only services named in §4.1 | Policy/errors/schemas/hold-service exist. Authorization lives in `policy.ts` + `tx-eligibility.ts`. Confirmation lives in `hold-service.ts`. Payments live in `app/data/invoices/actions.ts`. Admin create lives in `admin-actions.ts`. | Finish the split in Phase 3; do not treat missing filenames as missing behavior. |
-| `/api/payments` | Remove after the Server Action is canonical | Route still exists; it now authenticates and delegates to `createPayment`. UI already uses the Server Action. | Remove in Phase 6 after Phase 3 settlement rewrite. |
-| Settlement table | Kind, status, reviewer, evidence snapshot, one submitted row per invoice | Shipped in Phase 3 (`0247`): kind/status, reviewer fields, evidence snapshot, one submitted row per invoice. On submit, invoice and reservation both move to `verification_payment`; settlement row records the review queue item. | Implemented in Phase 3 PR. |
-| Events table | `metadata`, `idempotency_key`, settlement event types | `payload` jsonb, no event idempotency key. Event types are `created`, `confirmed`, `rejected`, `status_changed`, `payment_submitted`, `deadline_extended`. | Additive columns in Phase 3. |
-| Notification outbox | Enqueue + worker | **Implemented** — `notification-outbox.ts`, cron route, enqueue in hold/payment/admin mutations; synchronous Resend removed from hot paths | Implemented in Phase 3 PR. |
-| Single active festival | Partial unique index | Audited by `scripts/audit-reservation-invariants.ts` only | Add the index after preflight is clean. |
-| One live self-service reservation per owner | Partial unique on `(festival_id, owner_user_id)` | Enforced in hold/confirm queries, not by a unique index | Add the index after backfill/preflight. |
-| `festival_admin` | View only | `canMutateAdminReservations` is `admin` only. Festival admins can still view dashboard reservation data. | Keep this locked rule in Phase 3 commands. |
+| Module layout | Thin `"use server"` actions + server-only services named in §4.1 | Policy/errors/schemas/hold-service/`admin-service.ts` exist. Authorization lives in `policy.ts` + `tx-eligibility.ts`. Confirmation lives in `hold-service.ts`. Payments live in `payment-service.ts`. Admin create lives in `admin-actions.ts`. | Do not treat missing `reservation-service.ts` as missing behavior. |
+| `/api/payments` | Remove after the Server Action is canonical | Route still exists; it now authenticates and delegates to `createPayment`. UI already uses the Server Action. | Remove in Phase 6. |
+| Settlement table | Kind, status, reviewer, evidence snapshot, one submitted row per invoice | Shipped in Phase 3 (`0247`): kind/status, reviewer fields, evidence snapshot, one submitted row per invoice. On submit, invoice and reservation both move to `verification_payment`; settlement row records the review queue item. | Implemented |
+| Events table | `metadata`, `idempotency_key`, settlement event types | `payload` jsonb, no event idempotency key. Event types are `created`, `confirmed`, `rejected`, `status_changed`, `payment_submitted`, `deadline_extended`. | Leave as-built; do not block Phase 4. |
+| Notification outbox | Enqueue + worker | **Implemented** — `notification-outbox.ts`, cron route, enqueue in hold/payment/admin mutations; synchronous Resend removed from hot paths | Implemented |
+| Single active festival | Partial unique index | Audited by `scripts/audit-reservation-invariants.ts` only | Deferred: would break parallel integration tests that insert multiple active festivals. |
+| One live self-service reservation per owner | Partial unique on `(festival_id, owner_user_id)` | Enforced in hold/confirm queries, not by a unique index | Deferred with the same test-fixture constraint; keep query enforcement. |
+| `festival_admin` | View only | `canMutateAdminReservations` is `admin` only. Festival admins can still view dashboard reservation data. | Keep this locked rule. |
 
 ### 0.4 As-built file map
 
@@ -95,6 +98,7 @@ app/lib/reservations/queries.ts
 app/lib/reservations/dto.ts
 app/lib/reservations/errors.ts
 app/lib/reservations/hold-service.ts
+app/lib/reservations/admin-service.ts
 app/lib/reservations/payment-service.ts
 app/lib/reservations/payment-actions.ts
 app/lib/reservations/participant-actions.ts
@@ -109,7 +113,7 @@ Planned files not created (behavior lives elsewhere or is still pending):
 | --- | --- |
 | `authorization.ts` | `policy.ts` (`canMutateAdminReservations`, invoice/collaborator helpers) |
 | `reservation-service.ts` | `hold-service.ts` (`confirmStandHold`) |
-| `admin-service.ts` | `admin-actions.ts` (still `"use server"`) |
+| `admin-service.ts` | **Implemented** — `app/lib/reservations/admin-service.ts` (`cancelReservation`, `updateReservationPartner`, `applyReservationCancellation`) |
 | `notification-outbox.ts` | **Implemented** — `app/lib/reservations/notification-outbox.ts` |
 | `health.ts` | `scripts/audit-reservation-invariants.ts` |
 | `app/api/cron/morning/reservationNotifications/route.ts` | **Implemented** |
@@ -127,7 +131,7 @@ app/lib/stands/effective-status.ts         availability without trusting stale s
 app/components/pages/profiles/festivals/reservation-not-allowed.tsx
 ```
 
-**Status:** Partial. `0246` applied in production with clean audit (2026-08-31). Owner-per-festival unique and single-active-festival unique remain future work.
+**Status:** Partial. `0246` applied in production with clean audit (2026-08-31). Owner-per-festival unique and single-active-festival unique remain deferred (see §0.2).
 
 ---
 
@@ -220,7 +224,7 @@ Design every boundary for these conditions:
 
 Page layouts, hidden buttons, random Server Action identifiers, client validation, and TypeScript types are never security boundaries.
 
-**Status:** Phase 0–2 closed the unauthenticated/unrelated-caller cases for the exposed payment, reservation, discount, and collaborator actions. Phase 3 must close races, retries, and post-commit provider failures.
+**Status:** Phase 0–3 closed unauthenticated/unrelated-caller cases and reservation write races/retries/outbox. Remaining GET polling races and `/api/payments` deletion are Phase 4/6.
 
 ---
 
@@ -326,7 +330,7 @@ All reservation and eligibility-changing services use the same order to prevent 
 
 Festival status transitions, participant status changes, enrollment/terms mutations, sanction changes, terms publication, and stand eligibility/price edits must take their corresponding lock or participant advisory key. Otherwise confirmation could still commit against eligibility that changed concurrently.
 
-**Status:** Partial. Hold create/confirm, payment, zero-value, discount apply, admin assignment, and admin cancel/reject take participant/festival/stand advisory locks via `locks.ts`. Still missing advisory locks: `cancelStandHold`, `extendReservationPaymentDeadline`, collaborator add/delete, and generic admin edits (`updateReservationSimple`, `updateReservationStatus`). Full §4.4 row-order (terms document; all old-hold stands before the target) is still incomplete on the locked paths.
+**Status:** Implemented for reservation write paths and the eligibility writers listed in §0.2. Hold, confirmation, payment, discount apply, admin assignment, cancel, and partner edit take participant → festival → terms (`5822`) → eligibility rows → stand locks via `locks.ts`. Festival status transitions already `FOR UPDATE` the festival row. Stand price/status/category edits, user-status updates, sanction create, and participant-terms toggles take the corresponding row/terms lock. Enrollment (`updateUserRequest`) remains a Phase 4/6 follow-up.
 
 ---
 
@@ -399,7 +403,7 @@ The old hold must never be lost because the newly requested stand became unavail
 16. Commit and immediately return success.
 17. Trigger best-effort outbox processing with `after()`. Provider failure cannot change the returned mutation result.
 
-**Status:** Partial. Confirmation, eligibility re-check, price snapshot, owner, source, required UUID idempotency-key validation with registry replay, participant/festival/stand advisory locks, in-transaction outbox enqueue, and `after()` processing are implemented in `hold-service.ts`. Full §4.4 lock sequence (terms document lock; lock all stands before hold/reservation rows) is still incomplete.
+**Status:** Implemented. Confirmation, eligibility re-check, price snapshot, owner, source, required-key validation, §4.4 lock sequence, outbox enqueue, and `after()` live in `hold-service.ts`.
 
 ### 5.4 Partner rules
 
@@ -624,19 +628,20 @@ Create a read-only script that exits non-zero and reports IDs/counts for:
 
 After `0246` is applied, the same audit must inspect `pg_catalog.pg_index` and the normalized output of `pg_get_indexdef` / `pg_get_expr`, not merely check that an index name exists. Every required index must belong to the expected table, have the exact ordered key columns and predicate below, and have `indisunique`, `indisvalid`, and `indisready` all true:
 
-| Required `0246` index | Ordered keys | Predicate |
+| Required index | Ordered keys | Predicate |
 | --- | --- | --- |
-| `invoice_settlement_submissions_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
-| `payments_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `invoice_settlement_submissions_invoice_id_idempotency_key_unique` (`0248`) | `invoice_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `payments_invoice_id_idempotency_key_unique` (`0248`) | `invoice_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_holds_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_reservations_live_stand_unique` | `stand_id` | `status <> 'rejected'` |
 | `stand_reservations_idempotency_key_unique` | `idempotency_key` | `idempotency_key IS NOT NULL` |
+| `stand_reservation_events_reservation_id_idempotency_key_unique` (`0248`) | `reservation_id`, `idempotency_key` | `idempotency_key IS NOT NULL` |
 | `stand_holds_stand_idx` | `stand_id` | none |
 | `stand_holds_user_festival_idx` | `user_id`, `festival_id` | none |
 
 Never print participant PII; IDs and state are sufficient.
 
-**Status:** Partial. `scripts/audit-reservation-invariants.ts` implements the current row-state checks but does not yet report per-table idempotency-key duplicates or validate the `0246` index definitions/readiness in `pg_catalog`. Add the duplicate-key checks to the pre-constraint Phase 2 gate and the catalog checks to its post-constraint validation. Extend the row-state checks again in Phase 3 when settlement kind/status columns exist.
+**Status:** Implemented. `scripts/audit-reservation-invariants.ts` checks settlement state against `invoice_settlement_submissions` (including `verification_payment` rows with no invoice), reports duplicate non-null idempotency-key groups with a key fingerprint and affected row IDs, and validates the required `0246`/`0248` indexes in `pg_catalog` (`indisunique` / `indisvalid` / `indisready`, table, exact ordered keys, and normalized `indpred`).
 
 ### 7.2 Repair rules
 
@@ -736,7 +741,7 @@ Admin review shows owner, festival, stand, original amount, discount/free basis,
 - Increment usage and update invoice in one transaction.
 - Retrying the same code on the same invoice returns current applied result without incrementing usage again.
 
-**Status:** Partial. Admin CRUD is gated by `canMutateAdminReservations`. Apply has rate-limit and idempotent retry; §4.4 advisory locks added in Phase 3 PR #476.
+**Status:** Implemented. Admin CRUD is gated by `canMutateAdminReservations`. Apply has rate-limit, idempotent retry, and §4.4 advisory locks.
 
 ---
 
@@ -799,9 +804,10 @@ Delete collaborator by the `(reservationId, collaboratorId)` join. Do not delete
 | `adminConfirmReservation` | Implemented in `payment-service.ts` + admin payment UI |
 | `approveInvoiceSettlement` | Implemented in `payment-service.ts` |
 | `rejectInvoiceSettlement` | Implemented in `payment-service.ts` |
-| `cancelReservation` | Not started (hard `deleteReservation` still exists) |
+| `cancelReservation` | Implemented in `admin-service.ts` with §4.4 locks and post-lock status re-read |
+| `updateReservationPartner` | Implemented in `admin-service.ts`; reservation edit form uses this command |
 
-Legacy generic paths still exported: `updateReservation`, `deleteReservation`, `updateReservationStatus`, `updateReservationSimple`. Phase 3 must stop calling them from UI and then delete them.
+Legacy generic paths still exported: `updateReservation`, `deleteReservation`, `updateReservationStatus`, `updateReservationSimple`. Live UI no longer calls them. Delete in Phase 6.
 
 ---
 
@@ -817,7 +823,7 @@ Every availability read derives an **effective** state:
 
 Every hold mutation reconciles expired conflicting rows inside its transaction. Therefore users can reserve immediately after expiry even if cron has not run.
 
-**Status:** Partial. `effective-status.ts` and hold-service cleanup exist. Confirm with a concurrency test in Phase 3 (expired hold + stale `held` is immediately reservable).
+**Status:** Implemented. `effective-status.ts` and in-transaction `reconcileExpiredHolds` exist. Concurrency test: expired hold + stale `held` is immediately reservable without cron.
 
 ### 10.2 Reconciliation worker
 
@@ -1143,7 +1149,7 @@ Concurrency tests use real transactions and `Promise.all`:
 17. Zero-value owner submission -> remains pending review; admin approval performs one atomic legal transition.
 18. Zero-value rejection -> requires and atomically applies a corrective amount/discount reversal/cancellation.
 
-**Status:** Partial. `partner-search.integration.test.ts` and `request-registry.integration.test.ts` exist. Hold concurrency tests (matrix items 1–2) added in Phase 3 PR #476.
+**Status:** Partial. `partner-search.integration.test.ts` and `request-registry.integration.test.ts` exist. Hold concurrency tests cover matrix items 1, 2, and 9. Remaining items are Phase 4/5 follow-up, not Phase 3 blockers.
 
 ### 15.3 Route and component tests
 
@@ -1261,21 +1267,22 @@ The festival participation lock is locked and implemented. Phase 3 tests should 
 
 ### Phase 3 — Transaction and payment rewrite
 
-**Status: In progress (PR #476).** Shipped:
+**Status: Implemented.** Settlement, registry, outbox, UploadThing authority, §4.4 locks, explicit partner/cancel commands, and hold concurrency items 1–2 and 9 are shipped. Unique owner/active-festival indexes and the rest of the §15.2 matrix are documented carry-overs (see §0.2).
+
+Shipped:
 
 - Shared `reservation_request_registry` (§14.2) with claim/replay before domain writes.
 - Required UUID idempotency keys on hold, confirm, zero-value, and UploadThing payment (`fileKey`).
 - Settlement service + `payment-actions` (`approve`/`reject`/`adminConfirm`).
 - Notification outbox + cron worker.
 - UploadThing `onUploadComplete` as sole persistence authority for payment proofs.
-- Partial §4.4 advisory locks (hold, confirm, payment, discount apply, admin create/cancel).
-- Admin payment UI wired to settlement-backed confirm.
-
-Remaining Phase 3: advisory locks on `cancelStandHold`, deadline extend, collaborators, and generic admin edits; retire generic UI mutators (`payment-status`, `edit-form` status path), hold concurrency integration tests, full §15.2 matrix over time.
+- §4.4 advisory locks (hold, confirm, payment, admin create/cancel/partner, discount, terms document, stand edits, user status, sanction create, festival participant-terms).
+- Admin payment UI wired to settlement-backed confirm; reservation edit form uses `updateReservationPartner` / settlement commands.
+- Audit script settlement + duplicate-key + `pg_catalog` index checks.
 
 ### Phase 4 — Cleanup, privacy, and performance
 
-**Status: Partial early work only** (hold cron and read-only status endpoint already shipped). Remaining work waits for Phase 3.
+**Status: Partial early work only** (hold cron and read-only status endpoint already shipped). Remaining work can proceed now that Phase 3 is closed.
 
 - Add hold reconciliation cron and lazy reconciliation.
 - Remove GET side effects/in-memory throttle.
@@ -1288,7 +1295,7 @@ Exit: no stale hold blocks availability; payload/privacy and latency targets pas
 
 ### Phase 5 — UX, accessibility, and documentation
 
-**Status: Partial copy/error work only.** Remaining work waits for Phase 3–4.
+**Status: Partial copy/error work only.** Remaining work waits for Phase 4.
 
 - Typed recoverable error handling.
 - Hold recovery and current partner feedback.
@@ -1379,18 +1386,18 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 
 | Audit finding | Plan sections | Status |
 | --- | --- | --- |
-| Unauthenticated payment POST and mismatched IDs | §4, §6.5, §8, Phase 0/3 | Phase 0 done; Phase 3 settlement rewrite remaining |
-| Unauthorized reservation mutations | §4.2, §9, Phase 0 | Phase 0 done; generic mutators remain |
+| Unauthenticated payment POST and mismatched IDs | §4, §6.5, §8, Phase 0/3 | Phase 0 done; Phase 3 settlement rewrite shipped; remove `/api/payments` in Phase 6 |
+| Unauthorized reservation mutations | §4.2, §9, Phase 0 | Phase 0 done; live UI uses explicit commands; generic mutators remain for Phase 6 deletion |
 | Unauthorized discounts/collaborators/invoice reads | §4.2, §8.4, §9, Phase 0 | Implemented |
 | Missing active/open/enrollment/category/single-reservation enforcement | §5, Phase 1 | Implemented |
 | Archived festival map | §5.1, §13.1 | Implemented (blocked state) |
 | Missing hold/reservation DB invariants and existing duplicates | §6, §7, Phase 2 | Partial — live-stand unique in; owner unique and production repair remaining |
 | Admin duplicates and wrong source | §6.3, §7, §9 | Partial — `admin_assignment` + `legacy_unknown` dual-write |
-| Post-commit email/provider false failures | §6.6, §14, Phase 3 | Implemented for reservation/payment hot paths (outbox + `after()`); leftover sync send on enrollment/legacy paths |
+| Post-commit email/provider false failures | §6.6, §14, Phase 3 | Implemented — notification outbox + cron; mutation returns success after commit |
 | Partner/map PII overfetch | §11, Phase 4 | Partial |
 | Rejected reservation inconsistencies | §1, §5.4, Phase 1 | Implemented — any reservation status locks the person; reject only releases the stand |
 | Fragile cleanup and polling | §10, Phase 4 | Partial — cron + read-only status |
-| Price/terms/status races | §5.2–5.3, §6.2–6.3 | Partial — revalidation and participant/festival/stand advisory locks exist on hold/confirm/payment; remaining gaps in §4.4 |
+| Price/terms/status races | §5.2–5.3, §6.2–6.3 | Implemented — revalidation + §4.4 advisory locks |
 | Floating-point money | §6.5, Phase 2 | Implemented |
 | Cross-festival payment route composition | §8.1, §15 | Partial |
 | Slow map/confirmation and partner search | §12, Phase 4 | Not started |
@@ -1398,7 +1405,7 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 | Accessibility gaps | §13.5, Phase 5 | Not started |
 | Multiple active festivals | §6.1, §7 | Audited only |
 | Outdated three-minute/four-step PRD | §1, Phase 5 | Not started |
-| Missing auth/concurrency/E2E coverage | §15 | Auth unit tests added; concurrency/E2E remaining |
+| Missing auth/concurrency/E2E coverage | §15 | Auth unit tests added; hold concurrency items 1, 2, and 9 shipped; remaining matrix/E2E in Phases 4–5 |
 | Inconsistent Spanish register | §13.6 | Partial |
 
 ---
@@ -1407,16 +1414,16 @@ Remove any duplicate/obsolete payment components only after `rg` confirms no liv
 
 - [x] Product confirmed §1.1 decisions on 2026-08-29.
 - [x] Product confirmed the festival participation lock on 2026-08-30 (§1.2): any reservation status in the current festival, including `rejected`, blocks later self-service and partner add.
-- [x] Phase 0–2 implementation artifacts shipped on `develop` (PR #472, 2026-08-30 audit); Phase 2 environment completion remains gated below.
+- [x] Phase 0–3 implementation artifacts shipped on `develop` (PR #472 Phases 0–2; PRs #475/#476 and the Phase 3 close-out PR). Unique owner/active-festival indexes remain deferred.
 - [ ] Every reservation-related Server Action/API route has auth, runtime validation, canonical ownership, and negative tests.
 - [x] Participant self-service policy is centralized and used by pages, holds, confirmation, and partner search.
 - [x] Admin assignment is a separate audited path.
 - [x] Phase 2 complete in production: clean preflight, `0246` applied, post-constraint validation passed (2026-08-31).
 - [ ] Hold and stand reservation constraints are active in all environments (owner unique still pending).
 - [x] Money no longer uses `real` in this domain.
-- [ ] Reservation/payment transitions are explicit, atomic, idempotent, and audited.
-- [ ] Notification and file cleanup side effects are durable and retryable.
-- [ ] Expired holds cannot block stands without cron.
+- [x] Reservation/payment transitions are explicit, atomic, idempotent, and audited (legacy generic exports remain until Phase 6).
+- [x] Notification and file cleanup side effects are durable and retryable (outbox + UploadThing `onUploadComplete`).
+- [x] Expired holds cannot block stands without cron (in-transaction reconcile + concurrency test).
 - [ ] Map/partner/invoice DTOs contain no unauthorized fields.
 - [ ] Polling/search are rate-limited, ordered, abortable, and observable.
 - [ ] Production performance budgets are measured and accepted.

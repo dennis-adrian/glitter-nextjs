@@ -1744,6 +1744,34 @@
       "when": 1788210000000,
       "tag": "0249_reservation_request_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 250,
+      "version": "7",
+      "when": 1788210000001,
+      "tag": "0250_reservation_request_registry_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 251,
+      "version": "7",
+      "when": 1788211286300,
+      "tag": "0251_reservation_extension_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1788214980000,
+      "tag": "0252_member_cardinality_reassignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1788216000000,
+      "tag": "0253_reservation_price_snapshot_backfill",
+      "breakpoints": true
     }
   ]
 }

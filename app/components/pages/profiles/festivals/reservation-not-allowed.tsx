@@ -6,7 +6,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import {
   RESERVATION_ERROR_MESSAGES,
@@ -21,8 +20,14 @@ const CopyLinkButtonComponent = dynamic(
   { ssr: false },
 );
 
+type ReservationFestivalSummary = {
+  id: number;
+  name: string;
+  reservationsStartDate: Date;
+};
+
 type ReservationNotAllowedProps = {
-  festival: FestivalBase;
+  festival: ReservationFestivalSummary;
   policyCode?: ReservationErrorCode;
   sanctionBlock?: Extract<ReservationEligibility, { eligible: false }>;
 };
@@ -117,7 +122,7 @@ function SanctionReservationBlocked({
   festival,
   block,
 }: {
-  festival: FestivalBase;
+  festival: ReservationFestivalSummary;
   block: Extract<ReservationEligibility, { eligible: false }>;
 }) {
   const title =

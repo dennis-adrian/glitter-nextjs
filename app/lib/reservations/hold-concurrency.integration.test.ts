@@ -276,4 +276,56 @@ describeDatabase("createStandHold concurrency", () => {
     const successes = [resultA, resultB].filter((result) => result.success);
     expect(successes.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("treats an expired hold with stale held status as immediately reservable", async () => {
+    const {
+      festival,
+      users: [holder, challenger],
+      stands: [stand],
+      trackRequestKey,
+    } = await seedEligibleFixture(2, 1);
+
+    const createdAt = new Date(Date.now() - 120_000);
+    const expiresAt = new Date(Date.now() - 60_000);
+    await integrationDb!.insert(standHolds).values({
+      standId: stand.id,
+      userId: holder.id,
+      festivalId: festival.id,
+      createdAt,
+      updatedAt: expiresAt,
+      expiresAt,
+    });
+    await integrationDb!
+      .update(stands)
+      .set({ status: "held" })
+      .where(eq(stands.id, stand.id));
+
+    const key = randomUUID();
+    trackRequestKey(key);
+    currentProfileMock.mockResolvedValue({
+      id: challenger.id,
+      role: "user",
+      status: "verified",
+    });
+
+    const result = await createStandHold({
+      standId: stand.id,
+      idempotencyKey: key,
+    });
+
+    expect(result.success).toBe(true);
+
+    const holds = await integrationDb!.query.standHolds.findMany({
+      where: eq(standHolds.standId, stand.id),
+    });
+    expect(holds).toHaveLength(1);
+    expect(holds[0]?.userId).toBe(challenger.id);
+    expect(holds[0]?.expiresAt.getTime()).toBeGreaterThan(Date.now());
+
+    const [freshStand] = await integrationDb!
+      .select({ status: stands.status })
+      .from(stands)
+      .where(eq(stands.id, stand.id));
+    expect(freshStand?.status).toBe("held");
+  });
 });

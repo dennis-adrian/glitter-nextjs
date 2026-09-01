@@ -58,6 +58,15 @@ describe("updateUserStatusWithAudit", () => {
     const set = vi.fn(() => ({ where }));
     const values = vi.fn();
     const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => ({
+              for: vi.fn().mockResolvedValue([{ id: 3 }]),
+            })),
+          })),
+        })),
+      })),
       update: vi.fn(() => ({ set })),
       insert: vi.fn(() => ({ values })),
     };
@@ -85,6 +94,15 @@ describe("updateUserStatusWithAudit", () => {
     const where = vi.fn(() => ({ returning }));
     const set = vi.fn(() => ({ where }));
     const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => ({
+              for: vi.fn().mockResolvedValue([{ id: 4 }]),
+            })),
+          })),
+        })),
+      })),
       update: vi.fn(() => ({ set })),
       insert: vi.fn(),
     };

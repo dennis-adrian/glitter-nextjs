@@ -7,10 +7,10 @@ import { cancelReservation } from "@/app/lib/reservations/admin-service";
 import {
   adminConfirmReservation,
   approveInvoiceSettlement,
+  correctSettlementProof,
   findSubmittedSettlementId,
   findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
-  submitPaymentProof,
   submitZeroValueInvoiceForReview,
 } from "@/app/lib/reservations/payment-service";
 import {
@@ -22,10 +22,6 @@ import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { invoices } from "@/db/schema";
-
-export async function submitPaymentProofAction(input: unknown) {
-  return submitPaymentProof(input);
-}
 
 export async function submitZeroValueInvoiceForReviewAction(input: unknown) {
   return submitZeroValueInvoiceForReview(input);
@@ -41,6 +37,10 @@ export async function rejectInvoiceSettlementAction(input: unknown) {
 
 export async function adminConfirmReservationAction(input: unknown) {
   return adminConfirmReservation(input);
+}
+
+export async function correctSettlementProofAction(input: unknown) {
+  return correctSettlementProof(input);
 }
 
 const adminInvoiceStatusSchema = z.object({
@@ -159,7 +159,10 @@ export async function adminConfirmReservationByReservationIdAction(
     invoiceId = ownerInvoice?.id ?? null;
   }
   if (invoiceId == null) {
-    return { success: false, message: "No se encontró la factura de la reserva." };
+    return {
+      success: false,
+      message: "No se encontró la factura de la reserva.",
+    };
   }
   const result = await adminConfirmReservation({
     invoiceId,

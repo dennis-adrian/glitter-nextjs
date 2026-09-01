@@ -1,6 +1,6 @@
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { STAND_SIZE, getStandPosition } from "@/app/components/maps/map-utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import type { MapStandLike } from "@/app/components/maps/map-types";
 
 /**
  * Stands are placed freehand on the map, so two stands belonging to the same
@@ -11,25 +11,34 @@ import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export type JointAxis = "row" | "column";
 
-export type JointGroup = {
+export type JointGroup<T extends MapStandLike = MapStandLike> = {
   id: number;
   /** Ordered along the group's axis, left to right or top to bottom */
-  stands: StandWithReservationsWithParticipants[];
+  stands: T[];
   axis: JointAxis;
 };
 
 /** Positions come from freehand dragging, so exact equality is too strict */
 const ALIGNMENT_TOLERANCE = 0.5;
 
+type OccupantKeyStand = Pick<MapStandLike, "occupantKey" | "reservations">;
+
 /**
  * Identifies who occupies a stand, counting both registered users and external
  * participants. Returns null when nobody holds it.
  */
-export function getStandOccupantKey(
-  stand: StandWithReservationsWithParticipants,
-): string | null {
+export function getStandOccupantKey(stand: OccupantKeyStand): string | null {
+  if (Object.prototype.hasOwnProperty.call(stand, "occupantKey")) {
+    return stand.occupantKey ?? null;
+  }
+
   const occupants = (stand.reservations ?? [])
-    .filter((reservation) => reservation.status !== "rejected")
+    .filter(
+      (reservation) =>
+        reservation.status === "pending" ||
+        reservation.status === "verification_payment" ||
+        reservation.status === "accepted",
+    )
     .flatMap((reservation) => [
       ...reservation.participants.map((p) => `user-${p.user.id}`),
       ...(reservation.externalParticipants ?? []).map(
@@ -68,10 +77,10 @@ export function resolveJointAxis(
  * member is held by exactly the same participants, and the members line up in a
  * single row or column so the joined outline is a clean rectangle.
  */
-export function resolveJointGroups(
-  stands: StandWithReservationsWithParticipants[],
-): JointGroup[] {
-  const byGroupId = new Map<number, StandWithReservationsWithParticipants[]>();
+export function resolveJointGroups<T extends MapStandLike>(
+  stands: T[],
+): JointGroup<T>[] {
+  const byGroupId = new Map<number, T[]>();
   for (const stand of stands) {
     if (stand.standGroupId == null) continue;
     const members = byGroupId.get(stand.standGroupId) ?? [];
@@ -79,7 +88,7 @@ export function resolveJointGroups(
     byGroupId.set(stand.standGroupId, members);
   }
 
-  const groups: JointGroup[] = [];
+  const groups: JointGroup<T>[] = [];
   for (const [id, members] of byGroupId) {
     if (members.length < 2) continue;
 
@@ -105,10 +114,10 @@ export function resolveJointGroups(
 }
 
 /** Maps every grouped stand id to the joint group it renders as part of */
-export function indexJointGroupsByStandId(
-  groups: JointGroup[],
-): Map<number, JointGroup> {
-  const index = new Map<number, JointGroup>();
+export function indexJointGroupsByStandId<T extends MapStandLike>(
+  groups: JointGroup<T>[],
+): Map<number, JointGroup<T>> {
+  const index = new Map<number, JointGroup<T>>();
   for (const group of groups) {
     for (const stand of group.stands) index.set(stand.id, group);
   }
@@ -166,9 +175,9 @@ export function getPrunedGroupIds(
  * along the axis, so an overlay anchored to this stand lands on the corner of
  * the whole unit rather than somewhere along its middle.
  */
-function getJointGroupAnchor(
-  group: JointGroup,
-): StandWithReservationsWithParticipants {
+function getJointGroupAnchor<T extends MapStandLike>(
+  group: JointGroup<T>,
+): T {
   return group.axis === "row"
     ? group.stands[group.stands.length - 1]
     : group.stands[0];
@@ -182,10 +191,10 @@ function getJointGroupAnchor(
  * `jointGroups` should come from the same list the map renders, so the overlay
  * and the outlines can never disagree about what is joined.
  */
-export function dedupeJointGroupMembers(
-  stands: StandWithReservationsWithParticipants[],
-  jointGroups: JointGroup[],
-): StandWithReservationsWithParticipants[] {
+export function dedupeJointGroupMembers<T extends MapStandLike>(
+  stands: T[],
+  jointGroups: JointGroup<T>[],
+): T[] {
   const index = indexJointGroupsByStandId(jointGroups);
   return stands.filter((stand) => {
     const group = index.get(stand.id);
@@ -197,10 +206,10 @@ export function dedupeJointGroupMembers(
  * The joint group a stand renders as part of, or null when it stands alone.
  * Cards use this to describe the whole unit the visitor actually tapped.
  */
-export function findJointGroup(
-  stands: StandWithReservationsWithParticipants[],
+export function findJointGroup<T extends MapStandLike>(
+  stands: T[],
   standId: number | null | undefined,
-): JointGroup | null {
+): JointGroup<T> | null {
   if (standId == null) return null;
   const groups = resolveJointGroups(stands);
   return indexJointGroupsByStandId(groups).get(standId) ?? null;
@@ -215,7 +224,7 @@ export function findJointGroup(
  * Sorting the formatted strings would not do: "A10" sorts before "A9".
  */
 export function formatStandsLabel(
-  stands: StandWithReservationsWithParticipants[],
+  stands: Array<{ label: string | null; standNumber: number }>,
 ): string {
   return [...stands]
     .sort((a, b) => {
@@ -232,7 +241,9 @@ export function formatStandsLabel(
  * subcategories, so the labels are unioned and de-duplicated in map order.
  */
 export function getStandsProducts(
-  stands: StandWithReservationsWithParticipants[],
+  stands: Array<{
+    standSubcategories?: Array<{ subcategory: { label: string } }>;
+  }>,
 ): string[] {
   const seen = new Set<string>();
   const labels: string[] = [];

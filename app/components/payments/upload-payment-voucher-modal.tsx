@@ -3,6 +3,7 @@
 import BaseModal from "@/app/components/modals/base-modal";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
+import { isActivePaymentProof } from "@/app/lib/payments/helpers";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -16,8 +17,9 @@ export default function UploadPaymentVoucherModal(
   props: UploadPaymentVoucherModalProps,
 ) {
   const router = useRouter();
-  const payments = props.invoice.payments;
-  const existingVoucherUrl = payments[payments?.length - 1]?.voucherUrl;
+  const existingVoucherUrl = [...props.invoice.payments]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .findLast(isActivePaymentProof)?.voucherUrl;
   const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
     existingVoucherUrl,
   );

@@ -5,7 +5,6 @@ import {
   collaborators,
   reservationCollaborators,
   standReservations,
-  stands,
 } from "@/db/schema";
 import { Collaborator, NewCollaborator } from "./definitions";
 import { revalidatePath } from "next/cache";
@@ -13,10 +12,8 @@ import { and, eq } from "drizzle-orm";
 import {
   FullReservation,
 } from "@/app/api/reservations/definitions";
-import { ReservationStatus } from "@/app/api/user_requests/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
-  canMutateAdminReservations,
   canMutateReservationCollaborators,
   canViewAdminReservationData,
 } from "@/app/lib/reservations/policy";
@@ -256,47 +253,4 @@ export async function fetchReservationsByFestivalId(
     console.error(error);
     return [];
   }
-}
-
-export async function updateReservationStatus(data: {
-  reservationId: number;
-  standId: number;
-  status: ReservationStatus;
-}): Promise<{ success: boolean; message: string }> {
-  const actor = await getCurrentUserProfile();
-  if (!canMutateAdminReservations(actor)) {
-    return { success: false, message: "No autorizado." };
-  }
-
-  const { reservationId, standId, status } = data;
-  try {
-    await db.transaction(async (tx) => {
-      const [reservation] = await tx
-        .select()
-        .from(standReservations)
-        .where(eq(standReservations.id, reservationId))
-        .limit(1)
-        .for("update");
-      if (!reservation || reservation.standId !== standId) {
-        throw new Error("mismatch");
-      }
-      await tx
-        .update(standReservations)
-        .set({ status })
-        .where(eq(standReservations.id, reservationId));
-      const standStatus = ["accepted", "verification_payment"].includes(status)
-        ? "confirmed"
-        : "available";
-      await tx
-        .update(stands)
-        .set({ status: standStatus })
-        .where(eq(stands.id, standId));
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al actualizar la reserva" };
-  }
-
-  revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-  return { success: true, message: "Reserva actualizada" };
 }

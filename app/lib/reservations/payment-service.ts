@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import { applyReservationCancellation } from "@/app/lib/reservations/admin-service";
@@ -11,10 +11,9 @@ import {
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
 import {
-  lockFestivalRow,
-  lockParticipantEligibilityRows,
-  lockParticipants,
-  lockStandRows,
+  lockParticipantsBeforeRegistryClaim,
+  lockReservationAggregate,
+  uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
@@ -26,12 +25,13 @@ import {
   canSubmitInvoiceSettlement,
 } from "@/app/lib/reservations/policy";
 import {
+  adminConfirmReservationSchema,
+  correctSettlementProofSchema,
   parseUnknown,
   rejectSettlementSchema,
   submissionIdSchema,
   submitPaymentProofSchema,
   submitZeroValueInvoiceSchema,
-  adminConfirmReservationSchema,
 } from "@/app/lib/reservations/schemas";
 import {
   abandonRequest,
@@ -70,7 +70,48 @@ function canAcceptInvoiceProof(status: string) {
   return status === "pending" || status === "verification_payment";
 }
 
-async function loadInvoiceAggregate(tx: DbTx, invoiceId: number) {
+async function lockInvoiceClaimKeys(
+  tx: DbTx,
+  invoiceId: number,
+  extraUserIds: readonly number[] = [],
+) {
+  const [invoice] = await tx
+    .select({
+      userId: invoices.userId,
+      reservationId: invoices.reservationId,
+    })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1);
+  if (!invoice) return;
+  const [reservation] = await tx
+    .select({ festivalId: standReservations.festivalId })
+    .from(standReservations)
+    .where(eq(standReservations.id, invoice.reservationId))
+    .limit(1);
+  if (!reservation) return;
+  const participantPreview = await tx
+    .select({ userId: reservationParticipants.userId })
+    .from(reservationParticipants)
+    .where(eq(reservationParticipants.reservationId, invoice.reservationId));
+  await lockParticipantsBeforeRegistryClaim(tx, reservation.festivalId, [
+    invoice.userId,
+    ...participantPreview.map((row) => row.userId),
+    ...extraUserIds,
+  ]);
+}
+
+type InvoiceAggregateOk = {
+  kind: "ok";
+  invoice: typeof invoices.$inferSelect;
+  reservation: typeof standReservations.$inferSelect;
+  participants: Array<{ userId: number }>;
+};
+
+async function loadInvoiceAggregate(
+  tx: DbTx,
+  invoiceId: number,
+): Promise<InvoiceAggregateOk | { kind: "missing" } | { kind: "conflict" }> {
   const [invoicePreview] = await tx
     .select({
       id: invoices.id,
@@ -80,36 +121,59 @@ async function loadInvoiceAggregate(tx: DbTx, invoiceId: number) {
     .from(invoices)
     .where(eq(invoices.id, invoiceId))
     .limit(1);
-  if (!invoicePreview) return null;
+  if (!invoicePreview) return { kind: "missing" };
 
   const [reservationPreview] = await tx
     .select({
       id: standReservations.id,
       festivalId: standReservations.festivalId,
       standId: standReservations.standId,
+      ownerUserId: standReservations.ownerUserId,
     })
     .from(standReservations)
     .where(eq(standReservations.id, invoicePreview.reservationId))
     .limit(1);
-  if (!reservationPreview) return null;
+  if (!reservationPreview) return { kind: "missing" };
 
   const participantPreview = await tx
     .select({ userId: reservationParticipants.userId })
     .from(reservationParticipants)
     .where(eq(reservationParticipants.reservationId, reservationPreview.id));
-  const userIds = [
+  const paymentPreview = await tx
+    .select({ id: payments.id })
+    .from(payments)
+    .where(eq(payments.invoiceId, invoicePreview.id));
+  const submissionPreview = await tx
+    .select({ id: invoiceSettlementSubmissions.id })
+    .from(invoiceSettlementSubmissions)
+    .where(eq(invoiceSettlementSubmissions.invoiceId, invoicePreview.id));
+
+  const userIds = uniqueSortedIds([
     invoicePreview.userId,
     ...participantPreview.map((row) => row.userId),
-  ];
+    ...(reservationPreview.ownerUserId != null
+      ? [reservationPreview.ownerUserId]
+      : []),
+  ]);
 
-  await lockParticipants(tx, reservationPreview.festivalId, userIds);
-  await lockFestivalRow(tx, reservationPreview.festivalId);
-  await lockParticipantEligibilityRows(
-    tx,
-    reservationPreview.festivalId,
+  const locked = await lockReservationAggregate(tx, {
+    festivalId: reservationPreview.festivalId,
     userIds,
-  );
-  await lockStandRows(tx, [reservationPreview.standId]);
+    standIds: [reservationPreview.standId],
+    reservationIds: [reservationPreview.id],
+    invoiceIds: [invoicePreview.id],
+    paymentIds: paymentPreview.map((row) => row.id),
+    submissionIds: submissionPreview.map((row) => row.id),
+  });
+  if (!locked.ok) return { kind: "conflict" };
+
+  const [reservation] = await tx
+    .select()
+    .from(standReservations)
+    .where(eq(standReservations.id, reservationPreview.id))
+    .limit(1)
+    .for("update");
+  if (!reservation) return { kind: "missing" };
 
   const [invoice] = await tx
     .select()
@@ -117,22 +181,41 @@ async function loadInvoiceAggregate(tx: DbTx, invoiceId: number) {
     .where(eq(invoices.id, invoiceId))
     .limit(1)
     .for("update");
-  if (!invoice) return null;
+  if (!invoice) return { kind: "missing" };
 
-  const [reservation] = await tx
-    .select()
-    .from(standReservations)
-    .where(eq(standReservations.id, invoice.reservationId))
-    .limit(1)
-    .for("update");
-  if (!reservation) return null;
+  if (
+    invoice.reservationId !== reservation.id ||
+    reservation.festivalId !== reservationPreview.festivalId ||
+    reservation.standId !== reservationPreview.standId ||
+    invoice.userId !== invoicePreview.userId
+  ) {
+    return { kind: "conflict" };
+  }
 
   const participants = await tx
     .select({ userId: reservationParticipants.userId })
     .from(reservationParticipants)
     .where(eq(reservationParticipants.reservationId, reservation.id));
+  const lockedUserIds = uniqueSortedIds([
+    invoice.userId,
+    ...participants.map((row) => row.userId),
+    ...(reservation.ownerUserId != null ? [reservation.ownerUserId] : []),
+  ]);
+  if (!locked.locked.userIds.every((id) => lockedUserIds.includes(id))) {
+    return { kind: "conflict" };
+  }
+  if (lockedUserIds.length !== locked.locked.userIds.length) {
+    return { kind: "conflict" };
+  }
 
-  return { invoice, reservation, participants };
+  return { kind: "ok", invoice, reservation, participants };
+}
+
+function aggregateUnavailable(
+  aggregate: Awaited<ReturnType<typeof loadInvoiceAggregate>>,
+) {
+  if (aggregate.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
+  return reservationFailure("VALIDATION");
 }
 
 async function rejectOlderSubmittedSettlements(
@@ -172,12 +255,11 @@ export async function submitPaymentProof(
   const parsed = parseUnknown(submitPaymentProofSchema, input);
   if (!parsed.success) return reservationFailure("VALIDATION");
   const { invoiceId, voucherUrl, fileKey, idempotencyKey } = parsed.data;
+  const requestKey = idempotencyKey ?? fileKey;
 
   try {
     const outcome = await db.transaction(async (tx) => {
-      const requestKey = idempotencyKey ?? fileKey;
-      if (!requestKey) return reservationFailure("VALIDATION");
-
+      await lockInvoiceClaimKeys(tx, invoiceId, [actor.id]);
       const claim = await claimRequest(tx, {
         requestKey,
         operation: "submitPaymentProof",
@@ -185,7 +267,7 @@ export async function submitPaymentProof(
         scope: {
           invoiceId,
           kind: "payment_proof",
-          fileKey: fileKey ?? null,
+          fileKey,
         },
       });
       if (claim.kind === "conflict") {
@@ -223,7 +305,9 @@ export async function submitPaymentProof(
       };
 
       const aggregate = await loadInvoiceAggregate(tx, invoiceId);
-      if (!aggregate) return finishCreated(reservationFailure("VALIDATION"));
+      if (aggregate.kind !== "ok") {
+        return finishCreated(aggregateUnavailable(aggregate));
+      }
       const { invoice, reservation } = aggregate;
 
       if (
@@ -244,18 +328,16 @@ export async function submitPaymentProof(
         return finishCreated(reservationFailure("INVOICE_NOT_PENDING"));
       }
 
-      if (fileKey) {
-        const [byFile] = await tx
-          .select({ id: invoiceSettlementSubmissions.id })
-          .from(invoiceSettlementSubmissions)
-          .where(eq(invoiceSettlementSubmissions.fileKey, fileKey))
-          .limit(1);
-        if (byFile) {
-          return finishCreated({
-            kind: "replayed" as const,
-            submissionId: byFile.id,
-          });
-        }
+      const [byFile] = await tx
+        .select({ id: invoiceSettlementSubmissions.id })
+        .from(invoiceSettlementSubmissions)
+        .where(eq(invoiceSettlementSubmissions.fileKey, fileKey))
+        .limit(1);
+      if (byFile) {
+        return finishCreated({
+          kind: "replayed" as const,
+          submissionId: byFile.id,
+        });
       }
 
       const [currentPayment] = await tx
@@ -273,7 +355,7 @@ export async function submitPaymentProof(
             amount: roundMoney(invoice.amount),
             date: new Date(),
             voucherUrl,
-            fileKey: fileKey ?? currentPayment.fileKey,
+            fileKey,
             uploadedByUserId: actor.id,
             idempotencyKey: idempotencyKey ?? currentPayment.idempotencyKey,
             updatedAt: new Date(),
@@ -411,6 +493,7 @@ export async function submitZeroValueInvoiceForReview(
   try {
     const outcome = await db.transaction(async (tx) => {
       const requestKey = parsed.data.idempotencyKey;
+      await lockInvoiceClaimKeys(tx, parsed.data.invoiceId, [actor.id]);
       const claim = await claimRequest(tx, {
         requestKey,
         operation: "submitZeroValueInvoice",
@@ -450,7 +533,9 @@ export async function submitZeroValueInvoiceForReview(
       };
 
       const aggregate = await loadInvoiceAggregate(tx, parsed.data.invoiceId);
-      if (!aggregate) return finish(reservationFailure("VALIDATION"));
+      if (aggregate.kind !== "ok") {
+        return finish(aggregateUnavailable(aggregate));
+      }
       const { invoice, reservation } = aggregate;
 
       if (
@@ -631,7 +716,7 @@ async function approveSubmissionInTx(
   }
 
   const aggregate = await loadInvoiceAggregate(tx, submission.invoiceId);
-  if (!aggregate) return reservationFailure("VALIDATION");
+  if (aggregate.kind !== "ok") return aggregateUnavailable(aggregate);
   const { invoice, reservation } = aggregate;
 
   if (submission.kind === "zero_value_entitlement") {
@@ -702,44 +787,11 @@ export async function approveInvoiceSettlement(
         .limit(1);
       if (!submissionPreview) return reservationFailure("VALIDATION");
 
-      const [invoicePreview] = await tx
-        .select({
-          userId: invoices.userId,
-          reservationId: invoices.reservationId,
-        })
-        .from(invoices)
-        .where(eq(invoices.id, submissionPreview.invoiceId))
-        .limit(1);
-      if (!invoicePreview) return reservationFailure("VALIDATION");
-
-      const [reservationPreview] = await tx
-        .select({
-          id: standReservations.id,
-          festivalId: standReservations.festivalId,
-          standId: standReservations.standId,
-        })
-        .from(standReservations)
-        .where(eq(standReservations.id, invoicePreview.reservationId))
-        .limit(1);
-      if (!reservationPreview) return reservationFailure("VALIDATION");
-
-      const participantRows = await tx
-        .select({ userId: reservationParticipants.userId })
-        .from(reservationParticipants)
-        .where(eq(reservationParticipants.reservationId, reservationPreview.id));
-      const userIds = [
-        invoicePreview.userId,
-        ...participantRows.map((row) => row.userId),
-      ];
-
-      await lockParticipants(tx, reservationPreview.festivalId, userIds);
-      await lockFestivalRow(tx, reservationPreview.festivalId);
-      await lockParticipantEligibilityRows(
+      const aggregate = await loadInvoiceAggregate(
         tx,
-        reservationPreview.festivalId,
-        userIds,
+        submissionPreview.invoiceId,
       );
-      await lockStandRows(tx, [reservationPreview.standId]);
+      if (aggregate.kind !== "ok") return aggregateUnavailable(aggregate);
 
       const [submission] = await tx
         .select()
@@ -790,7 +842,7 @@ export async function rejectInvoiceSettlement(
         tx,
         submissionPreview.invoiceId,
       );
-      if (!aggregate) return reservationFailure("VALIDATION");
+      if (aggregate.kind !== "ok") return aggregateUnavailable(aggregate);
 
       const [submission] = await tx
         .select()
@@ -1003,6 +1055,7 @@ async function insertPaymentProofSubmissionInTx(
     reservation: typeof standReservations.$inferSelect;
     actorUserId: number;
     voucherUrl: string;
+    fileKey: string;
     idempotencyKey: string;
   },
 ) {
@@ -1021,6 +1074,7 @@ async function insertPaymentProofSubmissionInTx(
         amount: roundMoney(input.invoice.amount),
         date: new Date(),
         voucherUrl: input.voucherUrl,
+        fileKey: input.fileKey,
         uploadedByUserId: input.actorUserId,
         idempotencyKey: input.idempotencyKey,
         updatedAt: new Date(),
@@ -1034,6 +1088,7 @@ async function insertPaymentProofSubmissionInTx(
         amount: roundMoney(input.invoice.amount),
         date: new Date(),
         voucherUrl: input.voucherUrl,
+        fileKey: input.fileKey,
         uploadedByUserId: input.actorUserId,
         idempotencyKey: input.idempotencyKey,
       })
@@ -1048,6 +1103,7 @@ async function insertPaymentProofSubmissionInTx(
       invoiceId: input.invoice.id,
       paymentId,
       voucherUrl: input.voucherUrl,
+      fileKey: input.fileKey,
       uploadedByUserId: input.actorUserId,
       kind: "payment_proof",
       status: "submitted",
@@ -1100,10 +1156,11 @@ export async function adminConfirmReservation(
 
   const parsed = parseUnknown(adminConfirmReservationSchema, input);
   if (!parsed.success) return reservationFailure("VALIDATION");
-  const { invoiceId, idempotencyKey, markAsPaid, voucherUrl } = parsed.data;
+  const { invoiceId, idempotencyKey, markAsPaid } = parsed.data;
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      await lockInvoiceClaimKeys(tx, invoiceId, [actor.id]);
       const claim = await claimRequest(tx, {
         requestKey: idempotencyKey,
         operation: "adminConfirmReservation",
@@ -1111,7 +1168,6 @@ export async function adminConfirmReservation(
         scope: {
           invoiceId,
           markAsPaid: markAsPaid === true,
-          voucherUrl: voucherUrl ?? null,
         },
       });
       if (claim.kind === "conflict") {
@@ -1158,7 +1214,9 @@ export async function adminConfirmReservation(
       };
 
       const aggregate = await loadInvoiceAggregate(tx, invoiceId);
-      if (!aggregate) return finish(reservationFailure("VALIDATION"));
+      if (aggregate.kind !== "ok") {
+        return finish(aggregateUnavailable(aggregate));
+      }
       const { invoice, reservation } = aggregate;
 
       if (
@@ -1186,14 +1244,23 @@ export async function adminConfirmReservation(
 
       if (!submission) {
         const [currentPayment] = await tx
-          .select({ voucherUrl: payments.voucherUrl })
+          .select({
+            voucherUrl: payments.voucherUrl,
+            fileKey: payments.fileKey,
+          })
           .from(payments)
-          .where(eq(payments.invoiceId, invoice.id))
+          .where(
+            and(
+              eq(payments.invoiceId, invoice.id),
+              isNotNull(payments.fileKey),
+            ),
+          )
           .orderBy(desc(payments.createdAt), desc(payments.id))
           .limit(1);
-        const proofUrl = voucherUrl ?? currentPayment?.voucherUrl ?? null;
+        const proofUrl = currentPayment?.voucherUrl ?? null;
+        const fileKey = currentPayment?.fileKey ?? null;
         if (markAsPaid === true || proofUrl) {
-          if (!proofUrl) {
+          if (!proofUrl || !fileKey) {
             return finish(reservationFailure("VALIDATION"));
           }
           submission = await insertPaymentProofSubmissionInTx(tx, {
@@ -1201,6 +1268,7 @@ export async function adminConfirmReservation(
             reservation,
             actorUserId: actor.id,
             voucherUrl: proofUrl,
+            fileKey,
             idempotencyKey,
           });
         }
@@ -1238,6 +1306,185 @@ export async function adminConfirmReservation(
     );
   } catch (error) {
     console.error("Error confirming reservation as admin", error);
+    return reservationFailure("CONFLICT_RETRY");
+  }
+}
+
+export async function correctSettlementProof(
+  input: unknown,
+): Promise<ReservationActionResult> {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
+    return reservationFailure("UNAUTHORIZED");
+  }
+
+  const parsed = parseUnknown(correctSettlementProofSchema, input);
+  if (!parsed.success) return reservationFailure("VALIDATION");
+  const { invoiceId, reason, idempotencyKey } = parsed.data;
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      await lockInvoiceClaimKeys(tx, invoiceId, [actor.id]);
+
+      const [targetSubmission] = await tx
+        .select({ id: invoiceSettlementSubmissions.id })
+        .from(invoiceSettlementSubmissions)
+        .where(
+          and(
+            eq(invoiceSettlementSubmissions.invoiceId, invoiceId),
+            eq(invoiceSettlementSubmissions.status, "submitted"),
+          ),
+        )
+        .orderBy(
+          desc(invoiceSettlementSubmissions.id),
+          desc(invoiceSettlementSubmissions.createdAt),
+        )
+        .limit(1);
+
+      const requestKey = `correctSettlementProof:${invoiceId}:${idempotencyKey}`;
+      const claim = await claimRequest(tx, {
+        requestKey,
+        operation: "correctSettlementProof",
+        actorUserId: actor.id,
+        scope: {
+          invoiceId,
+          idempotencyKey,
+          submissionId: targetSubmission?.id ?? null,
+        },
+      });
+      if (claim.kind === "conflict") {
+        return reservationFailure("CONFLICT_RETRY");
+      }
+      if (claim.kind === "replayed") {
+        return { kind: "replayed" as const, jobIds: [] as number[] };
+      }
+
+      const finish = async (
+        created:
+          | { kind: "replayed" | "corrected"; jobIds: number[] }
+          | ReturnType<typeof reservationFailure>,
+      ) => {
+        if ("success" in created && created.success === false) {
+          await abandonRequest(tx, requestKey);
+          return created;
+        }
+        if ("kind" in created) {
+          await completeRequest(tx, requestKey, { invoiceId });
+        }
+        return created;
+      };
+
+      const aggregate = await loadInvoiceAggregate(tx, invoiceId);
+      if (aggregate.kind !== "ok") {
+        return finish(aggregateUnavailable(aggregate));
+      }
+      const { invoice, reservation } = aggregate;
+
+      if (reservation.status === "accepted" && invoice.status === "paid") {
+        return finish(reservationFailure("INVOICE_NOT_PENDING"));
+      }
+
+      const submitted = await tx
+        .select()
+        .from(invoiceSettlementSubmissions)
+        .where(
+          and(
+            eq(invoiceSettlementSubmissions.invoiceId, invoice.id),
+            eq(invoiceSettlementSubmissions.status, "submitted"),
+          ),
+        );
+      const [latestPayment] = await tx
+        .select()
+        .from(payments)
+        .where(eq(payments.invoiceId, invoice.id))
+        .orderBy(desc(payments.createdAt), desc(payments.id))
+        .limit(1);
+
+      if (
+        submitted.length === 0 &&
+        invoice.status === "pending" &&
+        reservation.status === "pending"
+      ) {
+        return finish({ kind: "replayed", jobIds: [] });
+      }
+
+      for (const row of submitted) {
+        await tx
+          .update(invoiceSettlementSubmissions)
+          .set({
+            status: "rejected",
+            reviewedByUserId: actor.id,
+            reviewedAt: new Date(),
+            rejectionReason: reason,
+            updatedAt: new Date(),
+          })
+          .where(eq(invoiceSettlementSubmissions.id, row.id));
+      }
+
+      if (latestPayment?.fileKey) {
+        await tx
+          .update(payments)
+          .set({ fileKey: null, updatedAt: new Date() })
+          .where(eq(payments.id, latestPayment.id));
+      }
+
+      await tx
+        .update(standReservations)
+        .set({ status: "pending", updatedAt: new Date() })
+        .where(eq(standReservations.id, reservation.id));
+      await tx
+        .update(invoices)
+        .set({ status: "pending", updatedAt: new Date() })
+        .where(eq(invoices.id, invoice.id));
+
+      await insertStandReservationEvent(tx, {
+        reservationId: reservation.id,
+        actorUserId: actor.id,
+        eventType: "settlement_rejected",
+        fromStatus: reservation.status,
+        toStatus: "pending",
+        payload: {
+          invoiceId: invoice.id,
+          correction: "remove_proof",
+          reason,
+        },
+        idempotencyKey,
+      });
+
+      const ownerEmail = await userEmail(tx, invoice.userId);
+      const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
+        kind: "settlement_rejected",
+        reservationId: reservation.id,
+        ownerUserId: invoice.userId,
+        ownerEmail,
+        adminEmails: [],
+        payload: { invoiceId: invoice.id, reason },
+      });
+
+      if (latestPayment?.voucherUrl) {
+        await enqueueStorageCleanupJob(
+          {
+            entityType: "invoice_voucher",
+            entityId: invoice.id,
+            fileUrl: latestPayment.voucherUrl,
+          },
+          tx,
+        );
+      }
+
+      return finish({ kind: "corrected", jobIds });
+    });
+
+    if ("success" in outcome) return outcome;
+    scheduleReservationNotificationJobs(outcome.jobIds);
+    revalidatePath("/dashboard/festivals");
+    revalidatePath("/profiles");
+    return reservationSuccess(
+      undefined,
+      "El comprobante fue rechazado. La reserva volvió a pendiente.",
+    );
+  } catch (error) {
+    console.error("Error correcting settlement proof", error);
     return reservationFailure("CONFLICT_RETRY");
   }
 }

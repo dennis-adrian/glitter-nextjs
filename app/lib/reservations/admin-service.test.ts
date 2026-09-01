@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 vi.mock("server-only", () => ({}));
 
@@ -8,6 +10,12 @@ const enqueueMock = vi.hoisted(() => vi.fn());
 const scheduleJobsMock = vi.hoisted(() => vi.fn());
 const insertEventMock = vi.hoisted(() => vi.fn());
 const lockCallOrder = vi.hoisted(() => ({ current: [] as string[] }));
+const lockReservationAggregateMock = vi.hoisted(() => vi.fn());
+const assertPartnerMock = vi.hoisted(() => vi.fn());
+const releaseStandMock = vi.hoisted(() => vi.fn());
+const claimRequestMock = vi.hoisted(() => vi.fn());
+const completeRequestMock = vi.hoisted(() => vi.fn());
+const abandonRequestMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -19,20 +27,14 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/app/lib/reservations/locks", () => ({
-  lockFestivalRow: vi.fn(async () => {
-    lockCallOrder.current.push("festival");
-  }),
-  lockParticipantEligibilityRows: vi.fn(async () => {
-    lockCallOrder.current.push("eligibility");
-  }),
-  lockParticipants: vi.fn(async () => {
-    lockCallOrder.current.push("advisory");
-  }),
-  lockStandRows: vi.fn(async () => {
-    lockCallOrder.current.push("stand");
-  }),
-}));
+vi.mock("@/app/lib/reservations/locks", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/app/lib/reservations/locks")>();
+  return {
+    ...actual,
+    lockReservationAggregate: lockReservationAggregateMock,
+  };
+});
 
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueReservationNotification: enqueueMock,
@@ -43,6 +45,20 @@ vi.mock("@/app/lib/reservations/events", () => ({
   insertStandReservationEvent: insertEventMock,
 }));
 
+vi.mock("@/app/lib/reservations/partner-eligibility", () => ({
+  assertReservationPartner: assertPartnerMock,
+}));
+
+vi.mock("@/app/lib/reservations/occupancy", () => ({
+  releaseStandIfVacant: releaseStandMock,
+}));
+
+vi.mock("@/app/lib/reservations/request-registry", () => ({
+  claimRequest: claimRequestMock,
+  completeRequest: completeRequestMock,
+  abandonRequest: abandonRequestMock,
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
@@ -50,63 +66,131 @@ vi.mock("next/cache", () => ({
 import {
   applyReservationCancellation,
   cancelReservation,
+  extendReservationPaymentDeadline,
   lockAndApplyReservationCancellation,
+  updateReservationPartner,
 } from "@/app/lib/reservations/admin-service";
 import {
-  lockFestivalRow,
-  lockParticipantEligibilityRows,
-  lockParticipants,
-  lockStandRows,
-} from "@/app/lib/reservations/locks";
+  invoices,
+  reservationParticipants,
+  scheduledTasks,
+  standReservations,
+  stands,
+  users,
+} from "@/db/schema";
 
 const pendingReservation = {
   id: 9,
   standId: 7,
   festivalId: 10,
   status: "pending",
+  ownerUserId: 3,
+  priceAmountSnapshot: 100,
+  individualPriceSnapshot: 100,
+  sharedPriceSnapshot: 150,
+  bookedParticipantCount: 1,
 };
 
-function selectChain(rows: unknown[], onForUpdate?: () => void) {
-  const afterLimit = Object.assign(Promise.resolve(rows), {
-    for: vi.fn(async () => {
-      onForUpdate?.();
-      return rows;
+function tableAwareTx(options?: {
+  reservation?: typeof pendingReservation;
+  participants?: Array<{ userId: number }>;
+  lockedParticipants?: Array<{ userId: number }>;
+  invoices?: Array<{
+    id: number;
+    userId: number;
+    status?: string;
+    reservationId?: number;
+    originalAmount?: number;
+    discountAmount?: number;
+    amount?: number;
+  }>;
+  tasks?: Array<{
+    id: number;
+    dueDate: Date;
+    completedAt: Date | null;
+    taskType?: string;
+  }>;
+  standCategory?: string;
+  invoiceWhereConditions?: unknown[];
+}) {
+  const reservation = options?.reservation ?? pendingReservation;
+  let participantReads = 0;
+  const select = vi.fn(() => ({
+    from: (table: unknown) => ({
+      where: (condition: unknown) => {
+        if (table === standReservations) {
+          const rows = [reservation];
+          const afterLimit = Object.assign(Promise.resolve(rows), {
+            for: vi.fn(async () => {
+              lockCallOrder.current.push("reservation");
+              return rows;
+            }),
+          });
+          return Object.assign(Promise.resolve(rows), {
+            limit: vi.fn(() => afterLimit),
+          });
+        }
+        if (table === reservationParticipants) {
+          participantReads += 1;
+          const rows =
+            participantReads > 1 && options?.lockedParticipants
+              ? options.lockedParticipants
+              : (options?.participants ?? [{ userId: 3 }, { userId: 5 }]);
+          return Promise.resolve(rows);
+        }
+        if (table === invoices) {
+          options?.invoiceWhereConditions?.push(condition);
+          const rows = options?.invoices ?? [
+            {
+              id: 1,
+              userId: 3,
+              status: "pending",
+              reservationId: reservation.id,
+              originalAmount: 100,
+              discountAmount: 0,
+              amount: 100,
+            },
+          ];
+          const afterLimit = Object.assign(Promise.resolve(rows), {
+            for: vi.fn(async () => rows),
+          });
+          return Object.assign(Promise.resolve(rows), {
+            limit: vi.fn(() => afterLimit),
+            for: vi.fn(async () => rows),
+          });
+        }
+        if (table === scheduledTasks) {
+          const rows = options?.tasks ?? [];
+          return Object.assign(Promise.resolve(rows), {
+            limit: vi.fn(() => Promise.resolve(rows)),
+            for: vi.fn(async () => rows),
+          });
+        }
+        if (table === stands) {
+          const rows = [
+            { standCategory: options?.standCategory ?? "illustration" },
+          ];
+          const afterLimit = Object.assign(Promise.resolve(rows), {
+            for: vi.fn(async () => rows),
+          });
+          return Object.assign(Promise.resolve(rows), {
+            limit: vi.fn(() => afterLimit),
+          });
+        }
+        if (table === users) {
+          return Promise.resolve([
+            { id: 3, email: "owner@example.com" },
+            { id: 5, email: "partner@example.com" },
+          ]);
+        }
+        return Promise.resolve([]);
+      },
     }),
-  });
-  const thenable = Object.assign(Promise.resolve(rows), {
-    limit: vi.fn(() => afterLimit),
-  });
-  return {
-    from: vi.fn(() => ({
-      where: vi.fn(() => thenable),
-      innerJoin: vi.fn(() => ({
-        where: vi.fn(() => thenable),
-      })),
-    })),
-  };
-}
-
-function cancellationTx(
-  reservation = pendingReservation,
-  participantReads?: Array<Array<{ userId: number }>>,
-) {
-  let selectCalls = 0;
-  const defaultParticipants = [{ userId: 3 }, { userId: 5 }];
-  const select = vi.fn(() => {
-    selectCalls += 1;
-    if (selectCalls === 1 || selectCalls === 3) {
-      return selectChain([reservation], () => {
-        lockCallOrder.current.push("reservation");
-      });
-    }
-    if (selectCalls === 2 || selectCalls === 4) {
-      const readIndex = selectCalls === 2 ? 0 : 1;
-      return selectChain(participantReads?.[readIndex] ?? defaultParticipants);
-    }
-    return selectChain([{ id: 3, email: "owner@example.com" }]);
-  });
+  }));
   return {
     select,
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
+    insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue([]) })),
     delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
@@ -122,17 +206,40 @@ describe("cancelReservation lock ordering", () => {
     enqueueMock.mockReset();
     scheduleJobsMock.mockReset();
     insertEventMock.mockReset();
-    vi.mocked(lockFestivalRow).mockClear();
-    vi.mocked(lockParticipants).mockClear();
-    vi.mocked(lockParticipantEligibilityRows).mockClear();
-    vi.mocked(lockStandRows).mockClear();
+    lockReservationAggregateMock.mockReset();
+    releaseStandMock.mockReset();
     enqueueMock.mockResolvedValue(42);
     insertEventMock.mockResolvedValue(undefined);
+    releaseStandMock.mockResolvedValue(true);
+    lockReservationAggregateMock.mockImplementation(async () => {
+      lockCallOrder.current.push(
+        "advisory",
+        "festival",
+        "terms",
+        "eligibility",
+        "stand",
+      );
+      return {
+        ok: true,
+        locked: {
+          festivalId: 10,
+          userIds: [3, 5],
+          standIds: [7],
+          holdIds: [],
+          reservationIds: [9],
+          invoiceIds: [1],
+          paymentIds: [],
+          submissionIds: [],
+          scheduledTaskIds: [],
+          participantsByReservationId: new Map([[9, [3, 5]]]),
+        },
+      };
+    });
   });
 
   it("locks festival, user_requests/users, and stand before the reservation row", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    const tx = cancellationTx();
+    const tx = tableAwareTx();
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -148,12 +255,11 @@ describe("cancelReservation lock ordering", () => {
     expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
-    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
-    expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 5]);
-    expect(lockStandRows).toHaveBeenCalledWith(tx, [7]);
+    expect(lockReservationAggregateMock).toHaveBeenCalled();
     expect(insertEventMock).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({ eventType: "deleted" }),
@@ -162,9 +268,8 @@ describe("cancelReservation lock ordering", () => {
 
   it("re-checks reservation status after locks and skips an already-rejected row", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    const tx = cancellationTx({
-      ...pendingReservation,
-      status: "rejected",
+    const tx = tableAwareTx({
+      reservation: { ...pendingReservation, status: "rejected" },
     });
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
@@ -174,9 +279,10 @@ describe("cancelReservation lock ordering", () => {
 
     expect(result.success).toBe(true);
     expect(tx.update).not.toHaveBeenCalled();
-    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+    expect(lockCallOrder.current.slice(0, 6)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
       "reservation",
@@ -189,16 +295,25 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
     lockCallOrder.current = [];
     enqueueMock.mockReset();
     insertEventMock.mockReset();
-    vi.mocked(lockFestivalRow).mockClear();
-    vi.mocked(lockParticipants).mockClear();
-    vi.mocked(lockParticipantEligibilityRows).mockClear();
-    vi.mocked(lockStandRows).mockClear();
+    lockReservationAggregateMock.mockReset();
+    releaseStandMock.mockReset();
     enqueueMock.mockResolvedValue(42);
     insertEventMock.mockResolvedValue(undefined);
+    releaseStandMock.mockResolvedValue(true);
+    lockReservationAggregateMock.mockImplementation(async () => {
+      lockCallOrder.current.push(
+        "advisory",
+        "festival",
+        "terms",
+        "eligibility",
+        "stand",
+      );
+      return { ok: true, locked: { userIds: [3, 5], standIds: [7] } };
+    });
   });
 
   it("locks festival, participants, and stand before the reservation row", async () => {
-    const tx = cancellationTx();
+    const tx = tableAwareTx();
 
     const result = await lockAndApplyReservationCancellation(tx as never, {
       reservationId: 9,
@@ -207,12 +322,13 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
       reason: "fuera de reglamento",
     });
 
-    expect(result).toEqual({ ok: true, jobIds: [42] });
+    expect(result).toEqual({ ok: true, jobIds: [42, 42] });
     const reservationLockAt = lockCallOrder.current.indexOf("reservation");
     expect(reservationLockAt).toBeGreaterThan(-1);
     expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
       "advisory",
       "festival",
+      "terms",
       "eligibility",
       "stand",
     ]);
@@ -226,10 +342,10 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
   });
 
   it("does not cancel when the participant set changes between the preview and reservation-locked reads", async () => {
-    const tx = cancellationTx(pendingReservation, [
-      [{ userId: 3 }, { userId: 5 }],
-      [{ userId: 3 }, { userId: 5 }, { userId: 7 }],
-    ]);
+    const tx = tableAwareTx({
+      participants: [{ userId: 3 }, { userId: 5 }],
+      lockedParticipants: [{ userId: 3 }, { userId: 5 }, { userId: 7 }],
+    });
 
     const result = await lockAndApplyReservationCancellation(tx as never, {
       reservationId: 9,
@@ -239,87 +355,29 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
 
     expect(result).toEqual({
       ok: false,
-      message: "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
+      message:
+        "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
     });
-    expect(lockParticipants).toHaveBeenCalledTimes(1);
-    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
-    expect(lockParticipants).not.toHaveBeenCalledWith(
-      tx,
-      10,
-      expect.arrayContaining([7]),
-    );
-    const reservationLockAt = lockCallOrder.current.indexOf("reservation");
-    expect(reservationLockAt).toBeGreaterThan(-1);
-    expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
-      "advisory",
-      "festival",
-      "eligibility",
-      "stand",
-    ]);
     expect(tx.update).not.toHaveBeenCalled();
     expect(insertEventMock).not.toHaveBeenCalled();
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 });
 
-describe("applyReservationCancellation lock ordering", () => {
+describe("applyReservationCancellation writes without re-locking", () => {
   beforeEach(() => {
     lockCallOrder.current = [];
     enqueueMock.mockReset();
     insertEventMock.mockReset();
-    vi.mocked(lockFestivalRow).mockClear();
-    vi.mocked(lockParticipants).mockClear();
-    vi.mocked(lockParticipantEligibilityRows).mockClear();
-    vi.mocked(lockStandRows).mockClear();
+    lockReservationAggregateMock.mockReset();
+    releaseStandMock.mockReset();
     enqueueMock.mockResolvedValue(42);
     insertEventMock.mockResolvedValue(undefined);
+    releaseStandMock.mockResolvedValue(true);
   });
 
-  it("locks participants, festival, eligibility, and stand in canonical order", async () => {
-    const tx = {
-      select: vi
-        .fn()
-        .mockImplementationOnce(() =>
-          selectChain([{ userId: 3 }, { userId: 5 }]),
-        )
-        .mockImplementationOnce(() =>
-          selectChain([{ id: 3, email: "owner@example.com" }]),
-        ),
-      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
-      update: vi.fn(() => ({
-        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
-      })),
-    };
-
-    await applyReservationCancellation(tx as never, {
-      reservation: pendingReservation,
-      actorUserId: 1,
-      eventType: "rejected",
-    });
-
-    expect(lockCallOrder.current).toEqual([
-      "advisory",
-      "festival",
-      "eligibility",
-      "stand",
-    ]);
-    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
-    expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 5]);
-  });
-
-  it("uses a provided reservation-locked participant set instead of a second membership read", async () => {
-    const tx = {
-      select: vi.fn().mockImplementationOnce(() =>
-        selectChain([
-          { id: 3, email: "owner@example.com" },
-          { id: 7, email: "added@example.com" },
-        ]),
-      ),
-      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
-      update: vi.fn(() => ({
-        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
-      })),
-    };
+  it("updates reservation, invoices, and vacant stands without acquiring aggregate locks", async () => {
+    const tx = tableAwareTx({ participants: [{ userId: 3 }, { userId: 5 }] });
 
     await applyReservationCancellation(tx as never, {
       reservation: pendingReservation,
@@ -328,13 +386,503 @@ describe("applyReservationCancellation lock ordering", () => {
       participantUserIds: [3, 5],
     });
 
-    expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 5]);
-    expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 5]);
-    expect(tx.select).toHaveBeenCalledTimes(1);
-    expect(enqueueMock).toHaveBeenCalledTimes(1);
-    expect(enqueueMock).toHaveBeenCalledWith(
-      tx,
-      expect.objectContaining({ userId: 3 }),
+    expect(lockReservationAggregateMock).not.toHaveBeenCalled();
+    expect(tx.update).toHaveBeenCalled();
+    expect(releaseStandMock).toHaveBeenCalledWith(tx, 7);
+    expect(enqueueMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("updateReservationPartner", () => {
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    insertEventMock.mockReset();
+    lockReservationAggregateMock.mockReset();
+    assertPartnerMock.mockReset();
+    insertEventMock.mockResolvedValue(undefined);
+    assertPartnerMock.mockResolvedValue(null);
+    lockReservationAggregateMock.mockImplementation(async () => {
+      lockCallOrder.current.push(
+        "advisory",
+        "festival",
+        "terms",
+        "eligibility",
+        "stand",
+      );
+      return { ok: true, locked: { userIds: [3, 4], standIds: [7] } };
+    });
+  });
+
+  it("rejects festival_admin callers", async () => {
+    currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+    expect(result).toEqual({ success: false, message: "No autorizado" });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("locks participants, festival, terms, eligibility, and stand before the reservation row", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = tableAwareTx({ participants: [{ userId: 3 }] });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
     );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+
+    expect(result.success).toBe(true);
+    const reservationLockAt = lockCallOrder.current.indexOf("reservation");
+    expect(lockCallOrder.current.slice(0, reservationLockAt)).toEqual([
+      "advisory",
+      "festival",
+      "terms",
+      "eligibility",
+      "stand",
+    ]);
+    expect(assertPartnerMock).toHaveBeenCalled();
+    expect(tx.insert).toHaveBeenCalled();
+  });
+
+  it("rejects an ineligible partner without writing", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    assertPartnerMock.mockResolvedValue({
+      success: false,
+      code: "PARTNER_NOT_ELIGIBLE",
+      message:
+        "La persona que elegiste no puede participar en esta reserva. Bloqueado por sanción",
+    });
+    const tx = tableAwareTx({ participants: [{ userId: 3 }] });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "La persona que elegiste no puede participar en esta reserva. Bloqueado por sanción",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a partner who already has another festival reservation without writing", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    assertPartnerMock.mockResolvedValue({
+      success: false,
+      code: "PARTNER_ALREADY_RESERVED",
+      message: "La persona que elegiste ya tiene una reserva en este festival",
+    });
+    const tx = tableAwareTx({ participants: [{ userId: 3 }] });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: 4,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "La persona que elegiste ya tiene una reserva en este festival",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.delete).not.toHaveBeenCalled();
+  });
+
+  it("removes a partner without deleting the owner participant", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = tableAwareTx({
+      participants: [{ userId: 3 }, { userId: 4 }],
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await updateReservationPartner({
+      reservationId: 9,
+      partnerUserId: null,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      message: "Compañero actualizado",
+    });
+    expect(tx.delete).toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(insertEventMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        reservationId: 9,
+        payload: { partnerUserId: null },
+      }),
+    );
+  });
+
+  it("synchronizes participant count and reprices the invoice after removing a partner", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const updates: Array<{ table: unknown; payload: Record<string, unknown> }> =
+      [];
+    const invoiceWhereConditions: unknown[] = [];
+    const tx = tableAwareTx({
+      reservation: {
+        ...pendingReservation,
+        priceAmountSnapshot: 150,
+        bookedParticipantCount: 2,
+      },
+      participants: [{ userId: 3 }, { userId: 4 }],
+      invoices: [
+        {
+          id: 1,
+          userId: 3,
+          status: "pending",
+          reservationId: 9,
+          originalAmount: 150,
+          discountAmount: 15,
+          amount: 135,
+        },
+      ],
+      invoiceWhereConditions,
+    });
+    tx.update = vi.fn((table: unknown) => ({
+      set: vi.fn((payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await updateReservationPartner({ reservationId: 9, partnerUserId: null });
+
+    expect(updates).toContainEqual({
+      table: standReservations,
+      payload: expect.objectContaining({
+        bookedParticipantCount: 1,
+        priceAmountSnapshot: 100,
+      }),
+    });
+    expect(updates).toContainEqual({
+      table: invoices,
+      payload: expect.objectContaining({
+        originalAmount: 100,
+        discountAmount: 15,
+        amount: 85,
+      }),
+    });
+    const repricingLookup = new PgDialect().sqlToQuery(
+      invoiceWhereConditions.at(-1) as SQL,
+    );
+    expect(repricingLookup.sql).toContain('"invoices"."reservation_id"');
+    expect(repricingLookup.sql).toContain('"invoices"."status"');
+    expect(repricingLookup.params).toEqual([9, "pending"]);
+  });
+
+  it("synchronizes participant count and reprices the invoice after adding a partner", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const updates: Array<{ table: unknown; payload: Record<string, unknown> }> =
+      [];
+    const tx = tableAwareTx({
+      participants: [{ userId: 3 }],
+      invoices: [
+        {
+          id: 1,
+          userId: 3,
+          status: "pending",
+          reservationId: 9,
+          originalAmount: 100,
+          discountAmount: 10,
+          amount: 90,
+        },
+      ],
+    });
+    tx.update = vi.fn((table: unknown) => ({
+      set: vi.fn((payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await updateReservationPartner({ reservationId: 9, partnerUserId: 4 });
+
+    expect(updates).toContainEqual({
+      table: standReservations,
+      payload: expect.objectContaining({
+        bookedParticipantCount: 2,
+        priceAmountSnapshot: 150,
+      }),
+    });
+    expect(updates).toContainEqual({
+      table: invoices,
+      payload: expect.objectContaining({
+        originalAmount: 150,
+        discountAmount: 10,
+        amount: 140,
+      }),
+    });
+  });
+
+  it("synchronizes participant count without repricing after replacing a partner", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const updates: Array<{ table: unknown; payload: Record<string, unknown> }> =
+      [];
+    const tx = tableAwareTx({
+      reservation: {
+        ...pendingReservation,
+        priceAmountSnapshot: 150,
+        bookedParticipantCount: 2,
+      },
+      participants: [{ userId: 3 }, { userId: 4 }],
+      invoices: [
+        {
+          id: 1,
+          userId: 3,
+          status: "pending",
+          reservationId: 9,
+          originalAmount: 150,
+          discountAmount: 0,
+          amount: 150,
+        },
+      ],
+    });
+    tx.update = vi.fn((table: unknown) => ({
+      set: vi.fn((payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await updateReservationPartner({ reservationId: 9, partnerUserId: 5 });
+
+    expect(updates).toContainEqual({
+      table: standReservations,
+      payload: expect.objectContaining({ bookedParticipantCount: 2 }),
+    });
+    expect(
+      updates.some(
+        ({ table, payload }) =>
+          table === invoices || "priceAmountSnapshot" in payload,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("extendReservationPaymentDeadline", () => {
+  const futureDueAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    enqueueMock.mockReset();
+    scheduleJobsMock.mockReset();
+    insertEventMock.mockReset();
+    lockReservationAggregateMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    enqueueMock.mockResolvedValue(42);
+    insertEventMock.mockResolvedValue(undefined);
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
+    lockReservationAggregateMock.mockImplementation(async () => {
+      lockCallOrder.current.push(
+        "advisory",
+        "festival",
+        "terms",
+        "eligibility",
+        "stand",
+      );
+      return {
+        ok: true,
+        locked: {
+          festivalId: 10,
+          userIds: [3],
+          standIds: [7],
+          holdIds: [],
+          reservationIds: [9],
+          invoiceIds: [1],
+          paymentIds: [],
+          submissionIds: [],
+          scheduledTaskIds: [5],
+          participantsByReservationId: new Map([[9, [3]]]),
+        },
+      };
+    });
+  });
+
+  it("rejects unauthenticated and non-admin callers", async () => {
+    currentProfileMock.mockResolvedValue(null);
+    await expect(
+      extendReservationPaymentDeadline({
+        reservationId: 9,
+        dueAt: futureDueAt,
+      }),
+    ).resolves.toEqual({
+      success: false,
+      message: "No tenés permisos para realizar esta acción",
+    });
+
+    currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
+    await expect(
+      extendReservationPaymentDeadline({
+        reservationId: 9,
+        dueAt: futureDueAt,
+      }),
+    ).resolves.toEqual({
+      success: false,
+      message: "No tenés permisos para realizar esta acción",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a past due date without writing", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const result = await extendReservationPaymentDeadline({
+      reservationId: 9,
+      dueAt: new Date(Date.now() - 60_000),
+    });
+    expect(result).toEqual({
+      success: false,
+      message: "La nueva fecha debe ser futura",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("updates invoice due_at and the active scheduled task together", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const taskUpdateSets: unknown[] = [];
+    const tx = tableAwareTx({
+      participants: [{ userId: 3 }],
+      invoices: [{ id: 1, userId: 3, status: "pending", reservationId: 9 }],
+      tasks: [
+        {
+          id: 5,
+          dueDate: new Date(Date.now() + 60_000),
+          completedAt: null,
+          taskType: "stand_reservation",
+        },
+      ],
+    });
+    tx.update = vi.fn(() => ({
+      set: vi.fn((payload: unknown) => {
+        taskUpdateSets.push(payload);
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await extendReservationPaymentDeadline({
+      reservationId: 9,
+      dueAt: futureDueAt,
+    });
+
+    const expectedReminderTime = new Date(
+      futureDueAt.getTime() - 24 * 60 * 60 * 1000,
+    );
+
+    expect(result).toEqual({
+      success: true,
+      message: "Plazo de pago extendido",
+    });
+    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+      "advisory",
+      "festival",
+      "terms",
+      "eligibility",
+      "stand",
+    ]);
+    expect(tx.update).toHaveBeenCalled();
+    expect(taskUpdateSets).toContainEqual(
+      expect.objectContaining({
+        dueDate: futureDueAt,
+        reminderTime: expectedReminderTime,
+        reminderSentAt: null,
+        ranAfterDueDate: false,
+      }),
+    );
+    expect(insertEventMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: "deadline_extended",
+        reservationId: 9,
+      }),
+    );
+    expect(enqueueMock).toHaveBeenCalled();
+    expect(completeRequestMock).toHaveBeenCalled();
+    expect(scheduleJobsMock).toHaveBeenCalledWith([42, 42]);
+  });
+
+  it("inserts a new scheduled task with reminder fields when no active task exists", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const insertedTaskValues: unknown[] = [];
+    const tx = tableAwareTx({
+      participants: [{ userId: 3 }],
+      invoices: [{ id: 1, userId: 3, status: "pending", reservationId: 9 }],
+      tasks: [
+        {
+          id: 5,
+          dueDate: new Date(Date.now() + 60_000),
+          completedAt: new Date(),
+          taskType: "stand_reservation",
+        },
+      ],
+    });
+    tx.insert = vi.fn(() => ({
+      values: vi.fn((payload: unknown) => {
+        insertedTaskValues.push(payload);
+        return Promise.resolve([]);
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await extendReservationPaymentDeadline({
+      reservationId: 9,
+      dueAt: futureDueAt,
+    });
+
+    const expectedReminderTime = new Date(
+      futureDueAt.getTime() - 24 * 60 * 60 * 1000,
+    );
+
+    expect(result).toEqual({
+      success: true,
+      message: "Plazo de pago extendido",
+    });
+    expect(insertedTaskValues).toContainEqual(
+      expect.objectContaining({
+        dueDate: futureDueAt,
+        reminderTime: expectedReminderTime,
+        profileId: 3,
+        reservationId: 9,
+        taskType: "stand_reservation",
+      }),
+    );
+    expect(
+      (insertedTaskValues[0] as { reminderSentAt?: unknown }).reminderSentAt,
+    ).toBeUndefined();
   });
 });
