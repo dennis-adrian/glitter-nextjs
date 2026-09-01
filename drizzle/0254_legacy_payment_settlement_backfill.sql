@@ -14,7 +14,15 @@ WITH legacy_payments AS (
     i."reservation_id"
   FROM "payments" AS p
   INNER JOIN "invoices" AS i ON i."id" = p."invoice_id"
-  WHERE i."status" IN ('verification_payment', 'paid')
+  INNER JOIN "stand_reservations" AS r ON r."id" = i."reservation_id"
+  WHERE (
+      (i."status" = 'paid' AND r."status" = 'accepted')
+      OR (
+        i."status" = 'verification_payment'
+        AND r."status" = 'verification_payment'
+        AND p."file_key" IS NOT NULL
+      )
+    )
     AND NOT EXISTS (
       SELECT 1
       FROM "invoice_settlement_submissions" AS s
