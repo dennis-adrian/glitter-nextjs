@@ -287,6 +287,79 @@ describe("buildFestivalReservationMapDto", () => {
     expect(held?.effectiveStatus).toBe("available");
     expect(held?.status).toBe("available");
   });
+
+  it("maps sector price to the minimum stand price regardless of stand order", () => {
+    const cheaperFirst = sampleDto({
+      stands: [
+        {
+          id: 21,
+          festivalSectorId: 1,
+          label: "A",
+          standNumber: 1,
+          storedStatus: "available",
+          positionLeft: 10,
+          positionTop: 12,
+          width: 6,
+          height: 6,
+          standCategory: "illustration",
+          participationType: "standard",
+          price: 100,
+          standGroupId: null,
+        },
+        {
+          id: 22,
+          festivalSectorId: 1,
+          label: "A",
+          standNumber: 2,
+          storedStatus: "available",
+          positionLeft: 16,
+          positionTop: 12,
+          width: 6,
+          height: 6,
+          standCategory: "illustration",
+          participationType: "standard",
+          price: 250,
+          standGroupId: null,
+        },
+      ],
+    });
+    const expensiveFirst = sampleDto({
+      stands: [
+        {
+          id: 22,
+          festivalSectorId: 1,
+          label: "A",
+          standNumber: 2,
+          storedStatus: "available",
+          positionLeft: 16,
+          positionTop: 12,
+          width: 6,
+          height: 6,
+          standCategory: "illustration",
+          participationType: "standard",
+          price: 250,
+          standGroupId: null,
+        },
+        {
+          id: 21,
+          festivalSectorId: 1,
+          label: "A",
+          standNumber: 1,
+          storedStatus: "available",
+          positionLeft: 10,
+          positionTop: 12,
+          width: 6,
+          height: 6,
+          standCategory: "illustration",
+          participationType: "standard",
+          price: 100,
+          standGroupId: null,
+        },
+      ],
+    });
+    expect(cheaperFirst.sectors[0]?.price).toBe(100);
+    expect(expensiveFirst.sectors[0]?.price).toBe(100);
+  });
 });
 
 describe("collectForbiddenDtoKeys", () => {

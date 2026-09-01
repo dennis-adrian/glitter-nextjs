@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const requireAdminMock = vi.hoisted(() => vi.fn());
-const requireAdminOrFestivalAdminMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const selectMock = vi.hoisted(() => vi.fn());
 const enqueueMock = vi.hoisted(() => vi.fn());
@@ -12,7 +11,6 @@ const lockFestivalRowMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   requireAdmin: requireAdminMock,
-  requireAdminOrFestivalAdmin: requireAdminOrFestivalAdminMock,
 }));
 
 vi.mock("@/app/lib/reservations/locks", () => ({
@@ -99,7 +97,6 @@ function reviewTx(options: {
 describe("reviewFestivalParticipationRequest", () => {
   beforeEach(() => {
     requireAdminMock.mockReset();
-    requireAdminOrFestivalAdminMock.mockReset();
     transactionMock.mockReset();
     selectMock.mockReset();
     enqueueMock.mockReset();
@@ -110,7 +107,7 @@ describe("reviewFestivalParticipationRequest", () => {
   });
 
   it("rejects unauthenticated callers without writing", async () => {
-    requireAdminOrFestivalAdminMock.mockResolvedValue(null);
+    requireAdminMock.mockResolvedValue(null);
     const result = await reviewFestivalParticipationRequest({
       requestId: 4,
       status: "accepted",
@@ -120,17 +117,27 @@ describe("reviewFestivalParticipationRequest", () => {
   });
 
   it("rejects festival participation review from a plain user", async () => {
-    requireAdminOrFestivalAdminMock.mockResolvedValue(null);
+    requireAdminMock.mockResolvedValue(null);
     const result = await reviewFestivalParticipationRequest({
       requestId: 4,
       status: "rejected",
     });
-    expect(result.success).toBe(false);
+    expect(result).toEqual({ success: false, message: "No autorizado" });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects festival_admin callers because festival ownership cannot be scoped", async () => {
+    requireAdminMock.mockResolvedValue(null);
+    const result = await reviewFestivalParticipationRequest({
+      requestId: 4,
+      status: "accepted",
+    });
+    expect(result).toEqual({ success: false, message: "No autorizado" });
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
   it("rejects an unrelated become_artist request id", async () => {
-    requireAdminOrFestivalAdminMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       id: 1,
       role: "admin",
     });
@@ -153,9 +160,9 @@ describe("reviewFestivalParticipationRequest", () => {
   });
 
   it("rejects an illegal pending revert", async () => {
-    requireAdminOrFestivalAdminMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       id: 1,
-      role: "festival_admin",
+      role: "admin",
     });
     const result = await reviewFestivalParticipationRequest({
       requestId: 4,
@@ -166,7 +173,7 @@ describe("reviewFestivalParticipationRequest", () => {
   });
 
   it("rejects a transition away from an already-accepted request", async () => {
-    requireAdminOrFestivalAdminMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       id: 1,
       role: "admin",
     });
@@ -206,7 +213,7 @@ describe("reviewFestivalParticipationRequest", () => {
   });
 
   it("accepts a pending festival participation request and enqueues durable mail", async () => {
-    requireAdminOrFestivalAdminMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       id: 1,
       role: "admin",
     });
@@ -326,6 +333,52 @@ describe("reviewBecomeArtistRequest", () => {
       ]),
     );
   });
+
+  it.each(["admin", "festival_admin", "artist"] as const)(
+    "accepts a pending become_artist request without changing %s role",
+    async (role) => {
+      requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
+      previewSelect({
+        id: 4,
+        userId: 8,
+        festivalId: null,
+        type: "become_artist",
+        status: "pending",
+      });
+      const tx = reviewTx({
+        request: {
+          id: 4,
+          userId: 8,
+          festivalId: null,
+          type: "become_artist",
+          status: "pending",
+        },
+        role,
+      });
+      transactionMock.mockImplementation(
+        async (callback: (value: unknown) => unknown) => callback(tx),
+      );
+
+      const result = await reviewBecomeArtistRequest({
+        requestId: 4,
+        status: "accepted",
+      });
+
+      expect(result).toEqual({
+        success: true,
+        message: "La solicitud ha sido aprobada.",
+      });
+      expect(tx.update).toHaveBeenCalledTimes(1);
+      expect(tx.updates).toEqual([
+        expect.objectContaining({ status: "accepted" }),
+      ]);
+      expect(tx.updates).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: expect.anything() }),
+        ]),
+      );
+    },
+  );
 
   it("rejects a pending become_artist request without changing festival_admin role", async () => {
     requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });

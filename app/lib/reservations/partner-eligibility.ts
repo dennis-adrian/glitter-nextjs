@@ -17,6 +17,7 @@ import { denySelfServiceMutation } from "@/app/lib/reservations/tx-eligibility";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { db } from "@/db";
 import {
+  festivals,
   reservationParticipants,
   standReservations,
   userRequests,
@@ -61,6 +62,7 @@ async function partnerAlreadyReserved(
   const conditions = [
     eq(reservationParticipants.userId, input.partnerUserId),
     eq(standReservations.festivalId, input.festivalId),
+    ne(standReservations.status, "released"),
   ];
   if (input.reservationId != null) {
     conditions.push(ne(standReservations.id, input.reservationId));
@@ -120,12 +122,25 @@ async function assertAdminPartnerEnrollment(
     return reservationFailure("PARTNER_NOT_ELIGIBLE");
   }
 
-  const publishedTerms = await fetchPublishedFestivalTermsVersion(tx);
-  if (
-    publishedTerms == null ||
-    festivalEnrollment.termsVersionId !== publishedTerms.id
-  ) {
+  const [festival] = await tx
+    .select({
+      participantTermsEnabled: festivals.participantTermsEnabled,
+    })
+    .from(festivals)
+    .where(eq(festivals.id, input.festivalId))
+    .limit(1);
+  if (!festival) {
     return reservationFailure("PARTNER_NOT_ELIGIBLE");
+  }
+
+  if (festival.participantTermsEnabled) {
+    const publishedTerms = await fetchPublishedFestivalTermsVersion(tx);
+    if (
+      publishedTerms == null ||
+      festivalEnrollment.termsVersionId !== publishedTerms.id
+    ) {
+      return reservationFailure("PARTNER_NOT_ELIGIBLE");
+    }
   }
 
   const eligibility = await getReservationEligibility(

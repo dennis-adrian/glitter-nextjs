@@ -120,6 +120,51 @@ describe("useStandPolling", () => {
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
+  it("clears stale on a successful poll with an unchanged version", async () => {
+    const onUpdate = vi.fn();
+    let resolveSecondFetch: ((value: unknown) => void) | undefined;
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        jsonResponse({ stands: [], availableCount: 0, version: 10 }),
+      )
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondFetch = resolve;
+          }),
+      );
+
+    const { result } = renderHook(() => useStandPolling(4, 4000, onUpdate));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(result.current.stale).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(4000);
+      await Promise.resolve();
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(result.current.stale).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(STAND_STATUS_STALE_AFTER_MS);
+    });
+    expect(result.current.stale).toBe(true);
+
+    await act(async () => {
+      resolveSecondFetch?.(
+        jsonResponse({ stands: [], availableCount: 0, version: 10 }),
+      );
+      await Promise.resolve();
+    });
+    expect(result.current.stale).toBe(false);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
   it("marks stale when a request stays pending past the threshold", async () => {
     vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2Icon } from "lucide-react";
+import { FilePenLineIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -19,7 +19,7 @@ import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { correctSettlementProofAction } from "@/app/lib/reservations/payment-actions";
 
-export default function RemovePaymentProofDialog({
+export default function CorrectPaymentProofDialog({
   invoice,
   open,
   onOpenChange,
@@ -29,17 +29,17 @@ export default function RemovePaymentProofDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  const [isRemoving, setIsRemoving] = useState(false);
+  const [isCorrecting, setIsCorrecting] = useState(false);
   const [reason, setReason] = useState("");
   const router = useRouter();
 
-  async function handleRemove() {
+  async function handleCorrect() {
     const trimmed = reason.trim();
     if (!trimmed) {
       toast.error("Indicá el motivo de la corrección.");
       return;
     }
-    setIsRemoving(true);
+    setIsCorrecting(true);
     try {
       const result = await correctSettlementProofAction({
         invoiceId: invoice.id,
@@ -58,7 +58,7 @@ export default function RemovePaymentProofDialog({
     } catch {
       toast.error("Error al corregir el comprobante");
     } finally {
-      setIsRemoving(false);
+      setIsCorrecting(false);
     }
   }
 
@@ -67,13 +67,13 @@ export default function RemovePaymentProofDialog({
       isDesktop={isDesktop}
       open={open}
       onOpenChange={(next) => {
-        if (!isRemoving) onOpenChange(next);
+        if (!isCorrecting) onOpenChange(next);
       }}
     >
       <DrawerDialogContent isDesktop={isDesktop} className="sm:max-w-md">
         <DrawerDialogHeader isDesktop={isDesktop}>
           <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <Trash2Icon className="h-5 w-5" />
+            <FilePenLineIcon className="h-5 w-5" />
           </div>
           <DrawerDialogTitle isDesktop={isDesktop}>
             Corregir comprobante
@@ -91,7 +91,7 @@ export default function RemovePaymentProofDialog({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             placeholder="Explicá por qué se corrige el comprobante"
-            disabled={isRemoving}
+            disabled={isCorrecting}
             maxLength={1000}
           />
         </div>
@@ -101,17 +101,17 @@ export default function RemovePaymentProofDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={isRemoving}
+            disabled={isCorrecting}
           >
             Cancelar
           </Button>
           <Button
             type="button"
             variant="destructive"
-            onClick={handleRemove}
-            disabled={isRemoving}
+            onClick={handleCorrect}
+            disabled={isCorrecting}
           >
-            {isRemoving ? "Corrigiendo..." : "Corregir comprobante"}
+            {isCorrecting ? "Corrigiendo..." : "Corregir comprobante"}
           </Button>
         </div>
       </DrawerDialogContent>

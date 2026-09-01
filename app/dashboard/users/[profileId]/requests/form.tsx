@@ -28,13 +28,20 @@ import {
 import { Button } from "@/app/components/ui/button";
 
 const FormSchema = z.object({
-  status: z.enum(["accepted", "rejected"]),
+  status: z.enum(["accepted", "rejected"], {
+    error: (issue) =>
+      issue.input === undefined
+        ? "Debés elegir aprobar o rechazar la solicitud."
+        : undefined,
+  }),
 });
 
 function defaultReviewStatus(
   status: UserRequest["status"],
-): "accepted" | "rejected" {
-  return status === "rejected" ? "rejected" : "accepted";
+): "accepted" | "rejected" | undefined {
+  if (status === "rejected") return "rejected";
+  if (status === "accepted") return "accepted";
+  return undefined;
 }
 
 export default function UserRequestForm({ request }: { request: UserRequest }) {
@@ -46,10 +53,6 @@ export default function UserRequestForm({ request }: { request: UserRequest }) {
   });
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
-    if (data.status !== "accepted" && data.status !== "rejected") {
-      toast.error("No se puede volver una solicitud a pendiente.");
-      return;
-    }
     const result =
       request.type === "become_artist"
         ? await reviewBecomeArtistRequest({
@@ -79,7 +82,7 @@ export default function UserRequestForm({ request }: { request: UserRequest }) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Estado de la solicitud</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Elige una opción" />

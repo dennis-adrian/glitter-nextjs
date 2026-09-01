@@ -110,6 +110,7 @@ export function useStandPolling(
         if (!isNewerPollVersion(data.version, appliedVersionRef.current)) {
           failureCountRef.current = 0;
           lastSuccessAtRef.current = Date.now();
+          setStale(false);
           schedule(intervalMs);
           return;
         }

@@ -83,6 +83,10 @@ const pendingReservation = {
   festivalId: 10,
   status: "pending",
   ownerUserId: 3,
+  priceAmountSnapshot: 100,
+  individualPriceSnapshot: 100,
+  sharedPriceSnapshot: 150,
+  bookedParticipantCount: 1,
 };
 
 function tableAwareTx(options?: {
@@ -94,6 +98,9 @@ function tableAwareTx(options?: {
     userId: number;
     status?: string;
     reservationId?: number;
+    originalAmount?: number;
+    discountAmount?: number;
+    amount?: number;
   }>;
   tasks?: Array<{
     id: number;
@@ -130,7 +137,15 @@ function tableAwareTx(options?: {
         }
         if (table === invoices) {
           const rows = options?.invoices ?? [
-            { id: 1, userId: 3, status: "pending", reservationId: reservation.id },
+            {
+              id: 1,
+              userId: 3,
+              status: "pending",
+              reservationId: reservation.id,
+              originalAmount: 100,
+              discountAmount: 0,
+              amount: 100,
+            },
           ];
           const afterLimit = Object.assign(Promise.resolve(rows), {
             for: vi.fn(async () => rows),
@@ -148,7 +163,9 @@ function tableAwareTx(options?: {
           });
         }
         if (table === stands) {
-          const rows = [{ standCategory: options?.standCategory ?? "illustration" }];
+          const rows = [
+            { standCategory: options?.standCategory ?? "illustration" },
+          ];
           const afterLimit = Object.assign(Promise.resolve(rows), {
             for: vi.fn(async () => rows),
           });
@@ -334,7 +351,8 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
 
     expect(result).toEqual({
       ok: false,
-      message: "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
+      message:
+        "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
     });
     expect(tx.update).not.toHaveBeenCalled();
     expect(insertEventMock).not.toHaveBeenCalled();
@@ -509,6 +527,152 @@ describe("updateReservationPartner", () => {
       }),
     );
   });
+
+  it("synchronizes participant count and reprices the invoice after removing a partner", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const updates: Array<{ table: unknown; payload: Record<string, unknown> }> =
+      [];
+    const tx = tableAwareTx({
+      reservation: {
+        ...pendingReservation,
+        priceAmountSnapshot: 150,
+        bookedParticipantCount: 2,
+      },
+      participants: [{ userId: 3 }, { userId: 4 }],
+      invoices: [
+        {
+          id: 1,
+          userId: 3,
+          status: "pending",
+          reservationId: 9,
+          originalAmount: 150,
+          discountAmount: 15,
+          amount: 135,
+        },
+      ],
+    });
+    tx.update = vi.fn((table: unknown) => ({
+      set: vi.fn((payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await updateReservationPartner({ reservationId: 9, partnerUserId: null });
+
+    expect(updates).toContainEqual({
+      table: standReservations,
+      payload: expect.objectContaining({
+        bookedParticipantCount: 1,
+        priceAmountSnapshot: 100,
+      }),
+    });
+    expect(updates).toContainEqual({
+      table: invoices,
+      payload: expect.objectContaining({
+        originalAmount: 100,
+        discountAmount: 15,
+        amount: 85,
+      }),
+    });
+  });
+
+  it("synchronizes participant count and reprices the invoice after adding a partner", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const updates: Array<{ table: unknown; payload: Record<string, unknown> }> =
+      [];
+    const tx = tableAwareTx({
+      participants: [{ userId: 3 }],
+      invoices: [
+        {
+          id: 1,
+          userId: 3,
+          status: "pending",
+          reservationId: 9,
+          originalAmount: 100,
+          discountAmount: 10,
+          amount: 90,
+        },
+      ],
+    });
+    tx.update = vi.fn((table: unknown) => ({
+      set: vi.fn((payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await updateReservationPartner({ reservationId: 9, partnerUserId: 4 });
+
+    expect(updates).toContainEqual({
+      table: standReservations,
+      payload: expect.objectContaining({
+        bookedParticipantCount: 2,
+        priceAmountSnapshot: 150,
+      }),
+    });
+    expect(updates).toContainEqual({
+      table: invoices,
+      payload: expect.objectContaining({
+        originalAmount: 150,
+        discountAmount: 10,
+        amount: 140,
+      }),
+    });
+  });
+
+  it("synchronizes participant count without repricing after replacing a partner", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const updates: Array<{ table: unknown; payload: Record<string, unknown> }> =
+      [];
+    const tx = tableAwareTx({
+      reservation: {
+        ...pendingReservation,
+        priceAmountSnapshot: 150,
+        bookedParticipantCount: 2,
+      },
+      participants: [{ userId: 3 }, { userId: 4 }],
+      invoices: [
+        {
+          id: 1,
+          userId: 3,
+          status: "pending",
+          reservationId: 9,
+          originalAmount: 150,
+          discountAmount: 0,
+          amount: 150,
+        },
+      ],
+    });
+    tx.update = vi.fn((table: unknown) => ({
+      set: vi.fn((payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return { where: vi.fn().mockResolvedValue([]) };
+      }),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    await updateReservationPartner({ reservationId: 9, partnerUserId: 5 });
+
+    expect(updates).toContainEqual({
+      table: standReservations,
+      payload: expect.objectContaining({ bookedParticipantCount: 2 }),
+    });
+    expect(
+      updates.some(
+        ({ table, payload }) =>
+          table === invoices || "priceAmountSnapshot" in payload,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("extendReservationPaymentDeadline", () => {
@@ -597,9 +761,7 @@ describe("extendReservationPaymentDeadline", () => {
     const taskUpdateSets: unknown[] = [];
     const tx = tableAwareTx({
       participants: [{ userId: 3 }],
-      invoices: [
-        { id: 1, userId: 3, status: "pending", reservationId: 9 },
-      ],
+      invoices: [{ id: 1, userId: 3, status: "pending", reservationId: 9 }],
       tasks: [
         {
           id: 5,
@@ -665,9 +827,7 @@ describe("extendReservationPaymentDeadline", () => {
     const insertedTaskValues: unknown[] = [];
     const tx = tableAwareTx({
       participants: [{ userId: 3 }],
-      invoices: [
-        { id: 1, userId: 3, status: "pending", reservationId: 9 },
-      ],
+      invoices: [{ id: 1, userId: 3, status: "pending", reservationId: 9 }],
       tasks: [
         {
           id: 5,

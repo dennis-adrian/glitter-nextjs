@@ -22,6 +22,7 @@ import {
 } from "@/app/lib/reservations/notification-outbox";
 import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { roundMoney } from "@/app/lib/reservations/money";
 import {
   cancelReservationSchema,
   extendDeadlineSchema,
@@ -53,6 +54,65 @@ type CancellationReservation = {
   status: string;
 };
 
+type ReservationPricingSnapshot = {
+  id: number;
+  priceAmountSnapshot: number | null;
+  individualPriceSnapshot: number | null;
+  sharedPriceSnapshot: number | null;
+};
+
+async function synchronizeReservationParticipantPricing(
+  tx: DbTx,
+  reservation: ReservationPricingSnapshot,
+  participantCount: number,
+) {
+  const applicablePriceSnapshot =
+    participantCount > 1
+      ? reservation.sharedPriceSnapshot
+      : reservation.individualPriceSnapshot;
+  const nextPriceSnapshot =
+    applicablePriceSnapshot == null
+      ? reservation.priceAmountSnapshot
+      : roundMoney(applicablePriceSnapshot);
+  const priceChanged =
+    nextPriceSnapshot != null &&
+    (reservation.priceAmountSnapshot == null ||
+      roundMoney(reservation.priceAmountSnapshot) !== nextPriceSnapshot);
+  const updatedAt = new Date();
+
+  await tx
+    .update(standReservations)
+    .set({
+      bookedParticipantCount: participantCount,
+      ...(priceChanged ? { priceAmountSnapshot: nextPriceSnapshot } : {}),
+      updatedAt,
+    })
+    .where(eq(standReservations.id, reservation.id));
+
+  if (!priceChanged) return;
+
+  const invoiceRows = await tx
+    .select({ id: invoices.id, discountAmount: invoices.discountAmount })
+    .from(invoices)
+    .where(eq(invoices.reservationId, reservation.id));
+
+  for (const invoice of invoiceRows) {
+    const discountAmount = Math.min(
+      nextPriceSnapshot,
+      roundMoney(invoice.discountAmount),
+    );
+    await tx
+      .update(invoices)
+      .set({
+        originalAmount: nextPriceSnapshot,
+        discountAmount,
+        amount: roundMoney(nextPriceSnapshot - discountAmount),
+        updatedAt,
+      })
+      .where(eq(invoices.id, invoice.id));
+  }
+}
+
 async function previewReservationWriteSet(tx: DbTx, reservationId: number) {
   const [reservation] = await tx
     .select({
@@ -67,7 +127,10 @@ async function previewReservationWriteSet(tx: DbTx, reservationId: number) {
     .limit(1);
   if (!reservation) return null;
 
-  const participantIds = await readReservationParticipantIds(tx, reservation.id);
+  const participantIds = await readReservationParticipantIds(
+    tx,
+    reservation.id,
+  );
   const invoiceRows = await tx
     .select({ id: invoices.id, userId: invoices.userId })
     .from(invoices)
@@ -127,8 +190,7 @@ export async function applyReservationCancellation(
     eventType: input.eventType,
     fromStatus: input.reservation.status as ReservationStatus,
     toStatus: "rejected",
-    payload:
-      input.payload ?? (input.reason ? { reason: input.reason } : null),
+    payload: input.payload ?? (input.reason ? { reason: input.reason } : null),
   });
 
   const recipients =
@@ -222,7 +284,10 @@ export async function cancelReservation(
 ): Promise<{ success: boolean; message: string }> {
   const actor = await getCurrentUserProfile();
   if (!canMutateAdminReservations(actor)) {
-    return { success: false, message: "No autorizado para cancelar la reserva." };
+    return {
+      success: false,
+      message: "No autorizado para cancelar la reserva.",
+    };
   }
   const actorUserId = actor.id;
 
@@ -331,6 +396,9 @@ export async function updateReservationPartner(
           standId: standReservations.standId,
           festivalId: standReservations.festivalId,
           ownerUserId: standReservations.ownerUserId,
+          priceAmountSnapshot: standReservations.priceAmountSnapshot,
+          individualPriceSnapshot: standReservations.individualPriceSnapshot,
+          sharedPriceSnapshot: standReservations.sharedPriceSnapshot,
         })
         .from(standReservations)
         .where(eq(standReservations.id, reservationId))
@@ -381,6 +449,7 @@ export async function updateReservationPartner(
       }
 
       const currentPartnerId = partnerRows[0] ?? null;
+      let participantCount = lockedParticipantIds.length;
       if (partnerUserId == null) {
         if (partnerRows.length > 0) {
           await tx
@@ -391,6 +460,7 @@ export async function updateReservationPartner(
                 ne(reservationParticipants.userId, ownerUserId),
               ),
             );
+          participantCount -= partnerRows.length;
         }
       } else if (currentPartnerId === partnerUserId) {
         return { success: true as const };
@@ -409,7 +479,14 @@ export async function updateReservationPartner(
           userId: partnerUserId,
           reservationId: reservation.id,
         });
+        participantCount += 1;
       }
+
+      await synchronizeReservationParticipantPricing(
+        tx,
+        reservation,
+        participantCount,
+      );
 
       await insertStandReservationEvent(tx, {
         reservationId: reservation.id,
@@ -426,6 +503,7 @@ export async function updateReservationPartner(
     if (!outcome.success) return outcome;
 
     revalidatePath("/dashboard/festivals/[id]/reservations", "page");
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
     return { success: true, message: "Compañero actualizado" };
   } catch (error) {
     console.error("Error updating reservation partner", error);

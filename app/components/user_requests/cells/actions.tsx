@@ -73,14 +73,22 @@ export function ActionsCell({ request }: { request: UserRequest }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={request.status !== "pending"} asChild>
           <form className="w-full" action={() => review("accepted")}>
-            <button className="w-full text-left" type="submit">
+            <button
+              className="w-full text-left"
+              type="submit"
+              disabled={request.status !== "pending"}
+            >
               Aprobar
             </button>
           </form>
         </DropdownMenuItem>
         <DropdownMenuItem disabled={request.status !== "pending"} asChild>
           <form className="w-full" action={() => review("rejected")}>
-            <button className="w-full text-left" type="submit">
+            <button
+              className="w-full text-left"
+              type="submit"
+              disabled={request.status !== "pending"}
+            >
               Rechazar
             </button>
           </form>

@@ -212,7 +212,10 @@ export function buildFestivalReservationMapDto(
         availableCount: stands.filter(
           (stand) => stand.effectiveStatus === "available",
         ).length,
-        price: stands[0]?.price ?? 0,
+        price:
+          stands.length === 0
+            ? 0
+            : Math.min(...stands.map((stand) => stand.price)),
       };
     })
     .filter((sector) => sector.stands.length > 0);

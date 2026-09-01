@@ -18,10 +18,7 @@ import {
   reviewBecomeArtistRequestSchema,
   reviewFestivalParticipationRequestSchema,
 } from "@/app/lib/reservations/schemas";
-import {
-  requireAdmin,
-  requireAdminOrFestivalAdmin,
-} from "@/app/lib/users/helpers";
+import { requireAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { userRequests, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
@@ -57,7 +54,7 @@ async function lockAndReadRequest(tx: DbTx, requestId: number) {
 export async function reviewFestivalParticipationRequest(
   input: unknown,
 ): Promise<{ success: boolean; message: string }> {
-  const actor = await requireAdminOrFestivalAdmin();
+  const actor = await requireAdmin();
   if (!actor) {
     return { success: false, message: "No autorizado" };
   }
@@ -227,7 +224,13 @@ export async function reviewBecomeArtistRequest(
         .from(users)
         .where(eq(users.id, request.userId))
         .limit(1);
-      if (profile && profile.role !== "admin" && status === "accepted") {
+      if (
+        profile &&
+        status === "accepted" &&
+        profile.role !== "admin" &&
+        profile.role !== "festival_admin" &&
+        profile.role !== "artist"
+      ) {
         await tx
           .update(users)
           .set({

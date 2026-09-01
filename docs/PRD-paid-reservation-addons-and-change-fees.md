@@ -37,8 +37,8 @@ Participant-facing copy is Spanish and uses voseo.
 | Initial spending scope      | Reservation invoices and the three features in this PRD. Other Glitter purchases are future scope.                                                              |
 | Credit purchase             | Separate prerequisite. MVP sells only the exact shortfall for the selected invoice or feature.                                                                  |
 | Purchase window             | User has 10 minutes to upload a voucher. No credits if the window expires without upload.                                                                       |
-| Availability after upload   | Uploaded voucher immediately creates spendable provisional credits. Admin review never blocks the participant action.                                           |
-| Rejected voucher            | Append a credit reversal. Spent provisional credits can produce a negative balance. Never reverse a completed reservation action automatically.                 |
+| Availability after upload   | Uploaded voucher immediately creates provisional credits spendable on feature actions. Positive reservation invoices may use only confirmed credits.            |
+| Rejected voucher            | Append a credit reversal. Provisional credits spent on features can produce a negative balance. Never reverse a completed feature action automatically.         |
 | Feature payment             | Feature actions debit credits. No direct voucher or payment-review wait exists inside a feature action.                                                         |
 | Reservation invoice credits | User chooses whether to apply credits. MVP applies the maximum usable amount, not a custom amount.                                                              |
 | Discounts                   | Credits are payment tender, not discounts. Apply discounts first, then credits.                                                                                 |
@@ -67,7 +67,7 @@ There are no remaining product questions blocking implementation.
 ## 3. Domain language
 
 - **Credit top-up:** purchase of credits by voucher.
-- **Provisional credits:** spendable credits created immediately after voucher upload but still awaiting admin review.
+- **Provisional credits:** credits created immediately after voucher upload and spendable on feature actions, but ineligible for positive reservation invoices until admin approval.
 - **Confirmed credits:** credits whose voucher was approved, or credits granted through another final admin operation.
 - **Credit hold:** an earmark. It reduces spendable balance without removing credits from the ledger.
 - **Credit spend:** an immutable debit assigned to an invoice or feature action.
@@ -90,6 +90,7 @@ The ledger is canonical and append-only.
 ```text
 ledger balance = sum(posted ledger entry amounts)
 spendable balance = ledger balance - sum(active holds)
+invoice-eligible balance = max(0, spendable balance - sum(under-review top-up issuance amounts))
 ```
 
 Rules:
@@ -100,6 +101,7 @@ Rules:
 - Negative ledger balance is allowed only as the result of a reversal/admin correction.
 - A user with negative balance cannot apply credits, activate a feature, or start a credit-funded action.
 - Top-ups first settle negative balance. Only the remainder becomes spendable.
+- Positive reservation invoices may allocate only the confirmed, invoice-eligible balance. Provisional credits remain available only to feature actions until their top-up is approved.
 - Server transactions calculate all balances and amounts; the browser never supplies an authoritative price.
 
 ### 4.2 Credit top-up flow
@@ -111,7 +113,7 @@ Credit purchase is a separate operation performed before the user starts a featu
 3. Do not reserve a stand, partner, feature deadline, or other domain resource.
 4. User uploads the voucher before the deadline.
 5. In the authoritative UploadThing `onUploadComplete` callback, persist the voucher submission and append a provisional credit issuance in one transaction, using `fileKey` as an idempotency key.
-6. Make the credits spendable immediately and return the user to the feature entry point or invoice.
+6. Make the credits immediately spendable for feature actions. For a positive reservation invoice, show the top-up as under review and wait for approval before allowing allocation or fulfillment.
 7. Admin reviews the top-up asynchronously through an explicit credit-top-up review command.
 
 If the upload deadline expires, the top-up session expires and issues no credits. Creating a top-up before a feature deadline does not extend that feature deadline.
@@ -119,13 +121,13 @@ If the upload deadline expires, the top-up session expires and issues no credits
 MVP top-up amounts:
 
 - Feature: exact difference between required credits and current spendable balance.
-- Reservation invoice: exact unpaid amount after the user chooses to use their existing credits.
+- Reservation invoice: exact unpaid amount after the user chooses to use their existing confirmed credits.
 - Negative balance: exact amount required to restore the balance needed for the intended operation.
 - No arbitrary wallet top-up amount.
 
 ### 4.3 Admin review
 
-Approval changes the top-up from provisional to confirmed and does not change the balance a second time.
+Approval changes the top-up from provisional to confirmed, makes its remaining balance invoice-eligible, and does not change the ledger balance a second time.
 
 Rejection:
 
@@ -133,7 +135,7 @@ Rejection:
 2. Append one idempotent reversal equal to the issued amount.
 3. If credits remain unused, the reversal simply removes them.
 4. If credits were spent, allow the wallet to become negative.
-5. Keep every completed reservation, full-table allocation, partner addition, and release unchanged.
+5. Keep every completed credit-funded feature action unchanged. A positive reservation invoice cannot have been fulfilled by the rejected provisional credits.
 6. Block future credit use until the debt is resolved.
 
 Admin resolution options are explicit and audited:
@@ -149,16 +151,16 @@ There are no automatic downgrades, partner removals, reservation cancellations, 
 
 - Only the invoice owner can apply credits.
 - The participant explicitly chooses `Usar mis créditos`.
-- MVP applies `min(spendable balance, invoice outstanding amount)`.
-- The allocation transaction debits credits and records the exact invoice allocation.
-- Outstanding amount is derived canonically as `invoice amount - approved cash payments - posted credit allocations`.
+- MVP applies `min(invoice-eligible balance, invoice outstanding amount)`.
+- The allocation transaction locks and rechecks the account, rejects provisional funding, debits confirmed credits, and records the exact invoice allocation.
+- Outstanding amount is derived canonically as `invoice amount - approved cash payments - posted confirmed-credit allocations`.
 - A partial allocation reduces the outstanding amount; normal voucher payment remains available for the remainder. Admin approval of that voucher fulfills the invoice only when the full canonical amount is covered.
-- A full allocation of a positive-value invoice marks it credit-paid and immediately runs its normal fulfillment effect; no voucher review is required.
+- A full confirmed-credit allocation of a positive-value invoice marks it credit-paid and immediately runs its normal fulfillment effect. Under-review credit top-ups cannot allocate to or fulfill the invoice.
 - A genuine zero-value invoice created by a discount/free entitlement still follows the hardening plan's `zero_value_entitlement` admin-review flow. Credits do not bypass it.
 - The invoice, discounts, payments, and credit allocations remain separate immutable records.
-- Rejected provisional source credits create wallet debt but do not reopen or automatically reverse an already fulfilled invoice.
+- Rejection still appends the full top-up reversal. Provisional credits already spent on feature actions can therefore create wallet debt, but they never require reopening or reversing a positive invoice.
 
-The current invoice model assumes one settlement path. Phase 1B extends the hardened settlement service after the Phase 1A credit foundation exists, supporting mixed tender and calculating fulfillment from canonical approved payments plus posted credit allocations.
+The current invoice model assumes one settlement path. Phase 1B extends the hardened settlement service after the Phase 1A credit foundation exists, supporting mixed tender and calculating fulfillment from canonical approved payments plus posted confirmed-credit allocations.
 
 ### 4.5 Recommended persistence
 
@@ -672,7 +674,7 @@ The existing hardening rule remains: any reservation history blocks participant 
 ### Credit wallet
 
 - Display total, held, spendable, and debt clearly.
-- Label provisional credits as available while verification is pending.
+- Label provisional credits as available for feature actions while verification is pending, and separately show the confirmed balance available for positive reservation invoices.
 - Explain that rejection may create an amount owed if credits are used.
 - Show immutable history: purchase, use, hold/release, reversal, adjustment.
 - Do not expose arbitrary top-up in MVP.
@@ -848,8 +850,8 @@ Phase 0 is complete only when Phase 0A remains green after the Phase 0B migratio
 
 #### Phase 1B — Mixed-tender settlement integration
 
-- Extend the hardened settlement service to derive outstanding amount from invoice amount minus approved cash payments and posted credit allocations.
-- A full credit allocation fulfills immediately through the normal reservation fulfillment effect; a partial allocation leaves the voucher path open for the remainder.
+- Extend the hardened settlement service to derive outstanding amount from invoice amount minus approved cash payments and posted confirmed-credit allocations.
+- A full confirmed-credit allocation fulfills immediately through the normal reservation fulfillment effect; a partial allocation leaves the voucher path open for the remainder. Provisional credits cannot be allocated to a positive invoice.
 - Never mark an invoice paid or its reservation accepted until canonical approved tender covers the invoice amount.
 - Reject over-allocation and make credit application plus fulfillment idempotent under concurrent credit/voucher settlement.
 - Add full-credit, partial-credit-plus-voucher, insufficient-tender, double-fulfillment, concurrency, reconciliation, and invariant-audit coverage.
@@ -906,11 +908,11 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 2. Expired top-up issues nothing.
 3. Approval does not double-credit.
 4. Rejection reverses once; unused balance decreases correctly.
-5. Rejection after spend creates debt without reversing the domain action.
+5. Rejection after provisional feature spend creates debt without reversing the feature action.
 6. Negative balance blocks credit use and feature actions.
 7. Concurrent spends cannot exceed spendable balance.
 8. Hold affects spendable, not ledger, balance.
-9. Full invoice credit allocation fulfills immediately; partial allocation preserves remainder.
+9. A full confirmed-credit invoice allocation fulfills immediately; a partial allocation preserves the remainder; provisional credits cannot allocate to or fulfill a positive invoice.
 10. Credits apply after discounts and never modify discount history.
 
 ### Full table
@@ -985,7 +987,7 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 - [ ] Credit ledger, provisional issuance, holds, reversals, debt, and reconciliation are transactional and audited.
 - [ ] Credit purchase is separate from every feature action and limited to exact MVP shortfalls.
 - [ ] Credits can optionally pay reservation invoices after discounts.
-- [ ] Mixed-tender settlement fulfills only when approved cash plus posted credit allocations cover the invoice; partial and concurrent settlement remain safe and idempotent.
+- [ ] Mixed-tender settlement fulfills only when approved cash plus posted confirmed-credit allocations cover the invoice; provisional credit cannot fulfill a positive invoice, and partial/concurrent settlement remains safe and idempotent.
 - [ ] Illustration stands support validated individual/shared prices and immutable snapshots.
 - [ ] Full-table access occurs before the map and never guarantees inventory.
 - [ ] Two halves reserve atomically as one reservation; half fallback remains available and explicit.
