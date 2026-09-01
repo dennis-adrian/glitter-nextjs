@@ -22,6 +22,7 @@ import { StandInfoCard } from "@/app/components/festivals/reservations/stand-inf
 import { useStandPolling } from "@/app/hooks/use-stand-polling";
 import { getActiveHold } from "@/app/lib/stands/hold-actions";
 import { findJointGroup } from "@/app/lib/stands/groups";
+import { mergePolledStandStatuses } from "@/app/lib/stands/status-poll";
 
 type ActiveHold = ReservationActiveHoldDto | { id: number; standId: number } | null;
 
@@ -97,23 +98,8 @@ export default function ClientMap({
     };
   }, [profile, festival.id]);
 
-  useStandPolling(sectorId ?? null, 4000, (polledStands) => {
-    setStands((prev) => {
-      let changed = false;
-      const updated = prev.map((s) => {
-        const polled = polledStands.find((p) => p.id === s.id);
-        if (polled && polled.status !== s.effectiveStatus) {
-          changed = true;
-          return {
-            ...s,
-            status: polled.status as ReservationMapStandDto["status"],
-            effectiveStatus: polled.status as ReservationMapStandDto["status"],
-          };
-        }
-        return s;
-      });
-      return changed ? updated : prev;
-    });
+  const { stale } = useStandPolling(sectorId ?? null, 4000, (result) => {
+    setStands((prev) => mergePolledStandStatuses(prev, result.stands));
   });
 
   const handleStandSelect = useCallback(
@@ -137,6 +123,15 @@ export default function ClientMap({
           onStandClick={handleStandSelect}
           onStandTouchTap={handleStandSelect}
         />
+        {stale && (
+          <p
+            className="pointer-events-none absolute inset-x-0 top-2 z-10 mx-auto w-fit rounded-md bg-background/90 px-3 py-1 text-center text-xs text-muted-foreground shadow-sm"
+            role="status"
+          >
+            La disponibilidad puede estar desactualizada. Reintentamos
+            automáticamente.
+          </p>
+        )}
         {isPending && (
           <div
             className="absolute inset-0 z-10 flex cursor-wait items-center justify-center bg-background/50 backdrop-blur-[1px]"

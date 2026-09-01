@@ -31,6 +31,7 @@ import {
 } from "@/app/components/maps/map-utils";
 import { Button } from "@/app/components/ui/button";
 import { type SearchOption } from "@/app/components/ui/search-input/search-content";
+import { LatestRequest } from "@/app/lib/reservations/latest-request";
 import { searchPotentialPartners } from "@/app/lib/reservations/participant-actions";
 import { RESERVATION_ERROR_MESSAGES } from "@/app/lib/reservations/errors";
 import {
@@ -188,19 +189,25 @@ export default function HoldConfirmationClient({
   >([]);
   const [isSearching, setIsSearching] = useState(false);
   const lastSearchTermRef = useRef("");
+  const searchTrackerRef = useRef(new LatestRequest());
 
   const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
 
   const handlePartnerSearch = useCallback(
     async (term: string) => {
+      const token = searchTrackerRef.current.next();
       lastSearchTermRef.current = term;
       if (!term.trim()) {
-        setDynamicPartnerOptions([]);
+        if (searchTrackerRef.current.isCurrent(token)) {
+          setDynamicPartnerOptions([]);
+          setIsSearching(false);
+        }
         return;
       }
       try {
         setIsSearching(true);
         const results = await searchPotentialPartners(festival.id, term);
+        if (!searchTrackerRef.current.isCurrent(token)) return;
         setDynamicPartnerOptions(
           results.map((p) => ({
             label: p.displayName || "Sin nombre",
@@ -211,7 +218,9 @@ export default function HoldConfirmationClient({
           })),
         );
       } finally {
-        setIsSearching(false);
+        if (searchTrackerRef.current.isCurrent(token)) {
+          setIsSearching(false);
+        }
       }
     },
     [festival.id],
