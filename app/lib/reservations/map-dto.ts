@@ -1,4 +1,5 @@
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
+import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 import { deriveEffectiveStandStatus } from "@/app/lib/stands/effective-status";
 import type {
   FestivalReservationMapDto,
@@ -101,13 +102,7 @@ function visibleSummariesForStand(
   if (!reservations?.length) return [];
   const summaries: VisibleParticipantSummaryDto[] = [];
   for (const reservation of reservations) {
-    if (
-      reservation.status === "rejected" ||
-      reservation.status === "cancelled" ||
-      reservation.status === "released"
-    ) {
-      continue;
-    }
+    if (!occupiesStandCapacity(reservation.status)) continue;
     if (
       !revealHiddenIdentities &&
       isReservationHidden({ revealAt: reservation.revealAt }, now)

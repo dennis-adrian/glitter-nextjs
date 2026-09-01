@@ -5,6 +5,7 @@ import {
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { UserCategory, UserSocial } from "@/app/api/users/definitions";
 import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
+import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 
 type BaseMapParticipant = {
   id: string;
@@ -32,7 +33,9 @@ export type MapParticipant = UserMapParticipant | ExternalMapParticipant;
 export function getActiveStandReservations(
   stand: StandWithReservationsWithParticipants,
 ): ReservationWithParticipantsAndUsers[] {
-  return stand.reservations?.filter((r) => r.status !== "rejected") ?? [];
+  return (
+    stand.reservations?.filter((r) => occupiesStandCapacity(r.status)) ?? []
+  );
 }
 
 export function hasExternalParticipants(stand: {
