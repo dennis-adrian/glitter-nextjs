@@ -445,7 +445,7 @@ async function main() {
       AND invoices.status <> 'verification_payment'
     ) OR (
       invoices.status = 'verification_payment'
-      AND stand_reservations.status <> 'verification_payment'
+      AND stand_reservations.status IN ('pending', 'accepted')
     )
   `);
   if (verificationMismatch.rows.length > 0) {
