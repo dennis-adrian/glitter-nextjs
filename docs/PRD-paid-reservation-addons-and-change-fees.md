@@ -618,8 +618,9 @@ stand_holds
 
 stand_hold_members
   hold_id
-  stand_id unique
+  stand_id
   position
+  unique active stand membership per stand (delete-before-reuse)
 
 stand_reservations
   id, owner, festival, status, source, price snapshots, idempotency
@@ -635,7 +636,10 @@ Rules:
 
 - Backfill current holds/reservations with one member.
 - Full-table holds/reservations have exactly two members from one valid pair.
-- Enforce active occupancy per member stand.
+- `stand_hold_members` is an active-capacity table, not membership history. It retains no inactive rows or lifecycle states.
+- Before reusing a stand, expiration reconciliation must delete its expired hold aggregate and cascade-delete every member row. Cancellation, replacement, and successful confirmation perform the same aggregate/member deletion atomically before capacity can be reused.
+- Enforce one active hold membership per stand with a unique `stand_id` constraint only under that delete-before-reuse invariant; never preserve an expired/replaced member row that could block a later hold.
+- Enforce active reservation occupancy per member stand using the reservation live-status predicate.
 - Lock member stand IDs ascending.
 - Capacity expiry/cancellation/rejection releases every active member atomically.
 - DTOs expose `stands[]`; a temporary `primaryStand` adapter may support migration.
