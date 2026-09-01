@@ -58,7 +58,9 @@ const reservationFn = functionSql(
 describe("stand member cardinality trigger SQL", () => {
   it("backfills reservation prices before counting participations", () => {
     expect(schemaMigration).toContain(reservationPriceBackfill);
-    expect(priceSnapshotBackfillMigration).toContain(reservationPriceBackfill);
+    expect(priceSnapshotBackfillMigration.replace(/\s+/g, " ")).toContain(
+      reservationPriceBackfill.replace(/\s+/g, " "),
+    );
     expect(schemaMigration.indexOf(reservationPriceBackfill)).toBeLessThan(
       schemaMigration.indexOf('UPDATE "stand_reservations" AS sr'),
     );
@@ -314,6 +316,22 @@ describeDatabase("stand member cardinality reassignment", () => {
         [reservation.rows[0].id],
       );
       expect(snapshots.rows[0].individual_price_snapshot).toBe("42.50");
+    } finally {
+      await rollbackIfNeeded();
+    }
+  });
+
+  it("does not fail when a newer branch skipped the Phase 0 column", async () => {
+    await client!.query("BEGIN");
+    try {
+      await client!.query(
+        `ALTER TABLE "stand_reservations"
+         RENAME COLUMN "individual_price_snapshot" TO "individual_price_snapshot_skipped"`,
+      );
+
+      await expect(
+        client!.query(priceSnapshotBackfillMigration),
+      ).resolves.toBeDefined();
     } finally {
       await rollbackIfNeeded();
     }
