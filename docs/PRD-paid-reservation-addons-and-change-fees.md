@@ -6,7 +6,7 @@
 
 **Status:** Product decisions complete; implementation follows reservation hardening
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 **Depends on:** [PLAN-stand-reservation-hardening.md](./PLAN-stand-reservation-hardening.md)
 
@@ -190,7 +190,7 @@ credit_holds
   amount numeric(12,2)
   purpose: full_table_access
   status: active | captured | released | expired
-  feature_access_id unique
+  feature_action_id unique FK reservation_feature_actions
   expires_at nullable
   idempotency_key unique
   created_at
@@ -227,6 +227,8 @@ invoice_credit_allocations
 ```
 
 `cached_balance` is a locked projection for efficient writes, not a replacement for the ledger. Add reconciliation that compares it with posted entries and active holds.
+
+`credit_holds.feature_action_id` is the unique foreign key to `reservation_feature_actions`. It enforces the one-to-one full-table access relationship: one action owns at most one hold. Capture and release always resolve the hold through that action identifier.
 
 ---
 
@@ -284,9 +286,11 @@ The shared price is the total price for the reservation, not a per-person price.
 
 Rules:
 
-- `shared price >= individual price >= 0`.
+- Illustration: `shared price >= individual price >= 0`.
 - Admin can edit prices individually and in bulk.
-- A full-table pair must have identical individual and shared prices.
+- Full-table pair pricing is category-specific:
+  - Illustration: both halves must have the same individual price and the same shared price.
+  - Entrepreneurship: both halves must have the same individual price. Ignore `shared_price`, or explicitly disallow it.
 - Entrepreneurship and other categories continue using one price unless expanded later.
 - Hold/reservation creation snapshots both applicable illustration prices, even if booking individually.
 - Initial invoice uses the price matching the number of participants confirmed during booking.
@@ -335,7 +339,7 @@ Extend the existing `stand_groups` model with `type: visual_group | full_table`,
 - Exactly two stands.
 - Same festival, sector, category, participation type, and subcategory eligibility.
 - Category is illustration or entrepreneurship.
-- Identical individual/shared prices.
+- Matching prices by category: illustration pairs share identical individual and shared prices; entrepreneurship pairs share identical individual prices only (`shared_price` ignored or disallowed).
 - Valid group membership and map placement.
 - No conflicting live occupancy when changing the pair configuration.
 
@@ -375,7 +379,7 @@ Activation is owner-only, festival-specific, and non-transferable.
 
 1. Require eligible category, enabled configuration, at least one currently complete table, no negative balance, and sufficient spendable credits.
 2. Snapshot the configured access price.
-3. Create a full-table access record and an equal active credit hold atomically.
+3. Create a full-table `reservation_feature_actions` row and an equal active credit hold atomically, linking the hold with unique `feature_action_id`.
 4. The held credits remain in the wallet but cannot be spent elsewhere.
 5. Allow the user to enter the reservation map immediately.
 
@@ -387,7 +391,7 @@ This credit hold is independent from the hardening plan's configurable stand-cap
 - Stand hold temporarily protects physical capacity.
 - Expiration or replacement of one must not accidentally release/capture the other.
 
-Hold outcomes:
+Hold outcomes (always resolve the hold by the linked `feature_action_id`):
 
 - Confirm two paired stands: capture the hold as a credit spend.
 - Confirm only one stand: release the hold; credits become spendable and may be applied to the stand invoice if the owner chooses.
@@ -443,7 +447,7 @@ Full-table capacity must be one aggregate, not two unrelated reservations.
 4. Revalidate pairing, eligibility, status, and both-stand availability.
 5. Create one capacity hold with two member stands.
 6. At reservation confirmation, create one reservation with two stand members.
-7. Capture the full-table credit hold in the same transaction.
+7. Capture the full-table credit hold for the linked `feature_action_id` in the same transaction.
 8. Create one normal reservation invoice using the selected individual/shared price snapshot.
 
 Extend `confirmStandHold` rather than creating a parallel confirmation path. It must keep the hardening plan's owner, festival, enrollment, current terms, sanctions, price snapshot, idempotency, outbox, and post-commit behavior for every member stand.
@@ -602,7 +606,7 @@ reservation_feature_action_items
   created_at
 ```
 
-Full-table access begins active before a reservation exists; attach `reservation_id` when fulfilled. Partner/release actions are created and fulfilled in one transaction unless a business validation fails.
+Full-table access begins active before a reservation exists; attach `reservation_id` when fulfilled. The matching credit hold is linked by unique `credit_holds.feature_action_id`; capture and release use that identifier, not a separate access id. Partner/release actions are created and fulfilled in one transaction unless a business validation fails.
 
 Use explicit amount columns for accounting. JSON metadata is limited to display snapshots and reason codes—never copied user profiles, vouchers, or secrets.
 
@@ -718,7 +722,7 @@ Suggested copy:
 
 - Individual/shared price inputs for illustration, including bulk editing.
 - Pair exactly two compatible stands as a reservable full table.
-- Validate identical prices and configuration.
+- Validate category-specific pair prices and configuration.
 - Display pair identity and malformed-pair warnings.
 
 ### Reservation detail
