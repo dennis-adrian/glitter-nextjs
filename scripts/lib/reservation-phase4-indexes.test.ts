@@ -8,7 +8,7 @@ import {
 } from "@/scripts/lib/reservation-phase4-indexes";
 
 const migrationSql = readFileSync(
-  join(process.cwd(), "drizzle/0251_reservation_phase4_indexes.sql"),
+  join(process.cwd(), "drizzle/0254_reservation_phase4_indexes.sql"),
   "utf8",
 );
 const migrateSource = readFileSync(

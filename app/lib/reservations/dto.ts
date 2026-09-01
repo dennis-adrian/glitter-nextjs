@@ -1,10 +1,13 @@
-import type { ParticipationType, UserCategory } from "@/app/api/users/definitions";
+import type {
+  ParticipationType,
+  UserCategory,
+} from "@/app/api/users/definitions";
 import type {
   MapElementLabelPosition,
   MapElementType,
 } from "@/app/lib/map_elements/definitions";
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
-import type { stands } from "@/db/schema";
+import type { standReservations, stands } from "@/db/schema";
 
 export type PublicProfileSummaryDto = {
   id: number;
@@ -45,10 +48,7 @@ export const PUBLIC_USER_COLUMNS = {
 
 export type StandStatus = (typeof stands.$inferSelect)["status"];
 export type ReservationStatus =
-  | "pending"
-  | "accepted"
-  | "rejected"
-  | "verification_payment";
+  (typeof standReservations.$inferSelect)["status"];
 
 export type ReservationMapBoundsDto = {
   minX: number;

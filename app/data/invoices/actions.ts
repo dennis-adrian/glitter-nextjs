@@ -26,9 +26,7 @@ export async function confirmFreeInvoice(
   input: unknown,
 ): Promise<ReservationActionResult<{ submissionId: number }>> {
   const nested =
-    input && typeof input === "object" && "invoiceId" in input
-      ? input
-      : input;
+    input && typeof input === "object" && "invoiceId" in input ? input : input;
   return submitZeroValueInvoiceForReview(nested);
 }
 
@@ -225,16 +223,19 @@ export async function fetchOutstandingInvoiceCountByProfileAndFestival(
     profileId,
     festivalId,
   );
-  const nonRejectedReservations = reservations.filter(
-    (r) => r.status !== "rejected",
+  const capacityReservations = reservations.filter(
+    (r) =>
+      r.status === "pending" ||
+      r.status === "verification_payment" ||
+      r.status === "accepted",
   );
-  const outstandingInvoiceCount = nonRejectedReservations.reduce(
+  const outstandingInvoiceCount = capacityReservations.reduce(
     (count, reservation) =>
       count + countOutstandingInvoices(reservation.invoices),
     0,
   );
   return {
-    reservationCount: nonRejectedReservations.length,
+    reservationCount: capacityReservations.length,
     outstandingInvoiceCount,
   };
 }

@@ -52,9 +52,7 @@ function normalizeIndexPredicate(expr: string | null | undefined): string {
 }
 
 function keysMatch(actual: unknown, expected: string[]): boolean {
-  const keys = Array.isArray(actual)
-    ? actual.map((key) => String(key))
-    : [];
+  const keys = Array.isArray(actual) ? actual.map((key) => String(key)) : [];
   return (
     keys.length === expected.length &&
     keys.every((key, index) => key === expected[index])
@@ -102,7 +100,9 @@ async function main() {
     .select({ id: standHolds.id, standId: standHolds.standId })
     .from(standHolds)
     .innerJoin(stands, eq(stands.id, standHolds.standId))
-    .where(and(lte(standHolds.expiresAt, new Date()), eq(stands.status, "held")));
+    .where(
+      and(lte(standHolds.expiresAt, new Date()), eq(stands.status, "held")),
+    );
   if (expiredHeld.length > 0) {
     findings.push({
       name: "expired_holds_with_held_stand",
@@ -111,17 +111,68 @@ async function main() {
     });
   }
 
-  const duplicateReservations = await db.execute<{
+  const duplicateCapacityReservations = await db.execute<{
     stand_id: number;
     n: number;
   }>(
-    sql`SELECT stand_id, count(*)::int AS n FROM stand_reservations WHERE status <> 'rejected' GROUP BY stand_id HAVING count(*) > 1`,
+    sql`SELECT stand_id, count(*)::int AS n FROM stand_reservations WHERE status IN ('pending', 'verification_payment', 'accepted') GROUP BY stand_id HAVING count(*) > 1`,
   );
-  if (duplicateReservations.rows.length > 0) {
+  if (duplicateCapacityReservations.rows.length > 0) {
     findings.push({
-      name: "multiple_live_reservations_per_stand",
-      count: duplicateReservations.rows.length,
-      ids: duplicateReservations.rows.map((row) => Number(row.stand_id)),
+      name: "multiple_capacity_reservations_per_stand",
+      count: duplicateCapacityReservations.rows.length,
+      ids: duplicateCapacityReservations.rows.map((row) =>
+        Number(row.stand_id),
+      ),
+    });
+  }
+
+  const holdMemberCardinality = await db.execute<{ id: number }>(sql`
+    SELECT h.id
+    FROM stand_holds h
+    LEFT JOIN stand_hold_members m ON m.hold_id = h.id
+    GROUP BY h.id
+    HAVING count(m.id) <> 1
+  `);
+  if (holdMemberCardinality.rows.length > 0) {
+    findings.push({
+      name: "stand_hold_member_cardinality_not_one",
+      count: holdMemberCardinality.rows.length,
+      ids: holdMemberCardinality.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const reservationMemberCardinality = await db.execute<{ id: number }>(sql`
+    SELECT r.id
+    FROM stand_reservations r
+    LEFT JOIN stand_reservation_members m ON m.reservation_id = r.id
+    GROUP BY r.id
+    HAVING count(m.id) <> 1
+  `);
+  if (reservationMemberCardinality.rows.length > 0) {
+    findings.push({
+      name: "stand_reservation_member_cardinality_not_one",
+      count: reservationMemberCardinality.rows.length,
+      ids: reservationMemberCardinality.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const memberAdapterMismatch = await db.execute<{ id: number }>(sql`
+    SELECT h.id
+    FROM stand_holds h
+    INNER JOIN stand_hold_members m ON m.hold_id = h.id
+    WHERE m.stand_id <> h.stand_id
+    UNION ALL
+    SELECT r.id
+    FROM stand_reservations r
+    INNER JOIN stand_reservation_members m ON m.reservation_id = r.id
+    WHERE m.stand_id <> r.stand_id
+  `);
+  if (memberAdapterMismatch.rows.length > 0) {
+    findings.push({
+      name: "stand_member_adapter_mismatch",
+      count: memberAdapterMismatch.rows.length,
+      ids: memberAdapterMismatch.rows.map((row) => Number(row.id)),
     });
   }
 
@@ -173,7 +224,10 @@ async function main() {
     .from(standReservations)
     .innerJoin(invoices, eq(invoices.reservationId, standReservations.id))
     .where(
-      and(eq(standReservations.status, "accepted"), ne(invoices.status, "paid")),
+      and(
+        eq(standReservations.status, "accepted"),
+        ne(invoices.status, "paid"),
+      ),
     );
   if (acceptedUnpaid.length > 0) {
     findings.push({
@@ -190,7 +244,7 @@ async function main() {
       AND NOT EXISTS (
         SELECT 1 FROM stand_reservations
         WHERE stand_reservations.stand_id = stands.id
-          AND stand_reservations.status <> 'rejected'
+          AND stand_reservations.status IN ('pending', 'verification_payment', 'accepted')
       )
   `);
   if (reservedWithoutLive.rows.length > 0) {
@@ -208,7 +262,7 @@ async function main() {
       AND EXISTS (
         SELECT 1 FROM stand_reservations
         WHERE stand_reservations.stand_id = stands.id
-          AND stand_reservations.status <> 'rejected'
+          AND stand_reservations.status IN ('pending', 'verification_payment', 'accepted')
       )
   `);
   if (availableWithLive.rows.length > 0) {
@@ -352,7 +406,10 @@ async function main() {
       eq(standReservations.id, invoices.reservationId),
     )
     .where(
-      and(eq(invoices.status, "paid"), ne(standReservations.status, "accepted")),
+      and(
+        eq(invoices.status, "paid"),
+        ne(standReservations.status, "accepted"),
+      ),
     );
   if (paidInvoiceNotAccepted.length > 0) {
     findings.push({
@@ -557,10 +614,11 @@ async function main() {
       predicate: "idempotency_key is not null",
     },
     {
-      name: "stand_reservations_live_stand_unique",
+      name: "stand_reservations_capacity_stand_unique",
       table: "stand_reservations",
       keys: ["stand_id"],
-      predicate: "status <> 'rejected'",
+      predicate:
+        "status = any array['pending', 'verification_payment', 'accepted']",
     },
     {
       name: "stand_reservations_idempotency_key_unique",

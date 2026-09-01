@@ -33,7 +33,12 @@ export function getStandOccupantKey(stand: OccupantKeyStand): string | null {
   }
 
   const occupants = (stand.reservations ?? [])
-    .filter((reservation) => reservation.status !== "rejected")
+    .filter(
+      (reservation) =>
+        reservation.status === "pending" ||
+        reservation.status === "verification_payment" ||
+        reservation.status === "accepted",
+    )
     .flatMap((reservation) => [
       ...reservation.participants.map((p) => `user-${p.user.id}`),
       ...(reservation.externalParticipants ?? []).map(
