@@ -25,6 +25,9 @@ ALTER TABLE "stand_reservations" ADD COLUMN "booked_participant_count" smallint 
 UPDATE "stand_holds"
 SET "individual_price_snapshot" = "price_amount_snapshot"
 WHERE "individual_price_snapshot" IS NULL;--> statement-breakpoint
+UPDATE "stand_reservations"
+SET "individual_price_snapshot" = "price_amount_snapshot"
+WHERE "individual_price_snapshot" IS NULL;--> statement-breakpoint
 UPDATE "stand_reservations" AS sr
 SET
   "individual_price_snapshot" = sr."price_amount_snapshot",

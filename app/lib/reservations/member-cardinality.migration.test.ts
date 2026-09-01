@@ -24,6 +24,14 @@ const reassignmentMigration = readFileSync(
   join(process.cwd(), "drizzle/0252_member_cardinality_reassignment.sql"),
   "utf8",
 );
+const priceSnapshotBackfillMigration = readFileSync(
+  join(process.cwd(), "drizzle/0253_reservation_price_snapshot_backfill.sql"),
+  "utf8",
+);
+
+const reservationPriceBackfill = `UPDATE "stand_reservations"
+SET "individual_price_snapshot" = "price_amount_snapshot"
+WHERE "individual_price_snapshot" IS NULL;`;
 
 function functionSql(source: string, name: string) {
   const header = `CREATE OR REPLACE FUNCTION "${name}"`;
@@ -48,6 +56,14 @@ const reservationFn = functionSql(
 );
 
 describe("stand member cardinality trigger SQL", () => {
+  it("backfills reservation prices before counting participations", () => {
+    expect(schemaMigration).toContain(reservationPriceBackfill);
+    expect(priceSnapshotBackfillMigration).toContain(reservationPriceBackfill);
+    expect(schemaMigration.indexOf(reservationPriceBackfill)).toBeLessThan(
+      schemaMigration.indexOf('UPDATE "stand_reservations" AS sr'),
+    );
+  });
+
   it("checks both parents when a hold member is reassigned", () => {
     expect(holdFn).toContain("IF TG_OP = 'DELETE' THEN");
     expect(holdFn).toContain("target_hold_ids := ARRAY[OLD.hold_id];");
@@ -262,6 +278,44 @@ describeDatabase("stand member cardinality reassignment", () => {
       if (userId) {
         await client!.query(`DELETE FROM "users" WHERE id = $1`, [userId]);
       }
+    }
+  });
+
+  it("backfills a reservation price without participation rows", async () => {
+    const suffix = `reservation-price-${Date.now()}`;
+    await client!.query("BEGIN");
+    try {
+      const festival = await client!.query<{ id: number }>(
+        `INSERT INTO "festivals" ("name") VALUES ($1) RETURNING id`,
+        [`Reservation Price ${suffix}`],
+      );
+      const festivalId = festival.rows[0].id;
+      const stand = await client!.query<{ id: number }>(
+        `INSERT INTO "stands" ("festival_id", "stand_number")
+         VALUES ($1, 1) RETURNING id`,
+        [festivalId],
+      );
+      const reservation = await client!.query<{ id: number }>(
+        `INSERT INTO "stand_reservations"
+           ("stand_id", "festival_id", "status", "price_amount_snapshot", "individual_price_snapshot")
+         VALUES ($1, $2, 'pending', 42.50, NULL)
+         RETURNING id`,
+        [stand.rows[0].id, festivalId],
+      );
+
+      await client!.query(priceSnapshotBackfillMigration);
+
+      const snapshots = await client!.query<{
+        individual_price_snapshot: string | null;
+      }>(
+        `SELECT "individual_price_snapshot"
+         FROM "stand_reservations"
+         WHERE id = $1`,
+        [reservation.rows[0].id],
+      );
+      expect(snapshots.rows[0].individual_price_snapshot).toBe("42.50");
+    } finally {
+      await rollbackIfNeeded();
     }
   });
 });

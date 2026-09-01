@@ -419,7 +419,6 @@ The half-table fallback must be explicit at multiple stages:
 Suggested copy:
 
 > Esta mesa ya no está disponible completa. Podés reservar solo el espacio {stand} o elegir otra mesa.
-
 > Vas a reservar medio stand (120 × 60 cm), no la mesa completa. Tus créditos no se usarán y podrás aplicarlos al pago de tu reserva.
 
 The server rechecks current availability at each capacity mutation. UI availability is informational.
@@ -643,7 +642,7 @@ Rules:
 - `stand_hold_members` is an active-capacity table, not membership history. It retains no inactive rows or lifecycle states.
 - Before reusing a stand, expiration reconciliation must delete its expired hold aggregate and cascade-delete every member row. Cancellation, replacement, and successful confirmation perform the same aggregate/member deletion atomically before capacity can be reused.
 - Enforce one active hold membership per stand with a unique `stand_id` constraint only under that delete-before-reuse invariant; never preserve an expired/replaced member row that could block a later hold.
-- Enforce active reservation occupancy per member stand using the reservation live-status predicate.
+- Enforce active reservation occupancy per member stand only when `released_at IS NULL` and the parent reservation status is `pending`, `verification_payment`, or `accepted`. Availability and audit queries use this exact predicate.
 - Lock member stand IDs ascending.
 - Capacity expiry/cancellation/rejection releases every active member atomically.
 - DTOs expose `stands[]`; a temporary `primaryStand` adapter may support migration.
@@ -657,7 +656,8 @@ Required changes to the hardened single-stand baseline:
 - Replace `stand_holds_stand_idx` with unique active membership per stand.
 - Keep one hold aggregate per `(user_id, festival_id)`.
 - Replace canonical `stand_reservations.stand_id` with `stand_reservation_stands`.
-- Move `stand_reservations_live_stand_unique` to the member table and define live occupancy as `pending`, `verification_payment`, or `accepted`.
+- Phase 0B's physical `stand_reservation_members` table is a single-member adapter. Before Phase 3, create `stand_reservation_stands`, backfill every adapter row with `position = 0` and `released_at = NULL`, validate the copied membership, then switch readers and writers. Remove the adapter's sync trigger and exactly-one-member constraint only after the switch.
+- Establish member-level occupancy protection using `released_at IS NULL` plus the parent live-status predicate before dropping `stand_reservations_capacity_stand_unique` or the legacy adapter. Migrate availability and audit queries in the same release; keep the parent protection until the member protection is verified.
 - Update the planned owner uniqueness predicate to the same live statuses. `rejected`, `cancelled`, and `released` are historical rows; policy determines whether the person remains blocked.
 - Update effective-status reads, expiration reconciliation, health checks, DTOs, and admin commands to operate on every member.
 - Add `cancelled` and `released` reservation enum states before replacing the old cancellation-via-`rejected` behavior.
@@ -696,7 +696,6 @@ Use `Acciones disponibles`, without suggesting the reservation is generally edit
 Suggested copy:
 
 > Tu reserva no se puede editar. Si olvidaste agregar a tu compañero, podés hacerlo hasta el {fecha} usando créditos.
-
 > Liberar esta reserva no devuelve pagos anteriores. Solo elimina el bloqueo generado por tu cancelación.
 
 ---

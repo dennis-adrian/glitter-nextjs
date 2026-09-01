@@ -1765,6 +1765,13 @@
       "when": 1788214980000,
       "tag": "0252_member_cardinality_reassignment",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1788216000000,
+      "tag": "0253_reservation_price_snapshot_backfill",
+      "breakpoints": true
     }
   ]
 }

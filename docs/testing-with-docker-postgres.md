@@ -31,9 +31,12 @@ pnpm test:integration
 ```
 
 Most integration tests create their own fixtures. To add the optional Clerk
-demo users and matching local profiles, only on a Clerk development instance:
+demo users and matching local profiles, only on a Clerk development instance,
+run `pnpm env:sync` first. If it reports `clerk=missing`, stop: the dashboard
+Clerk secrets are unavailable.
 
 ```bash
+pnpm env:sync
 POSTGRES_URL="$TEST_DATABASE_URL" pnpm seed
 ```
 
