@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 vi.mock("server-only", () => ({}));
 
@@ -109,12 +111,13 @@ function tableAwareTx(options?: {
     taskType?: string;
   }>;
   standCategory?: string;
+  invoiceWhereConditions?: unknown[];
 }) {
   const reservation = options?.reservation ?? pendingReservation;
   let participantReads = 0;
   const select = vi.fn(() => ({
     from: (table: unknown) => ({
-      where: () => {
+      where: (condition: unknown) => {
         if (table === standReservations) {
           const rows = [reservation];
           const afterLimit = Object.assign(Promise.resolve(rows), {
@@ -136,6 +139,7 @@ function tableAwareTx(options?: {
           return Promise.resolve(rows);
         }
         if (table === invoices) {
+          options?.invoiceWhereConditions?.push(condition);
           const rows = options?.invoices ?? [
             {
               id: 1,
@@ -532,6 +536,7 @@ describe("updateReservationPartner", () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
     const updates: Array<{ table: unknown; payload: Record<string, unknown> }> =
       [];
+    const invoiceWhereConditions: unknown[] = [];
     const tx = tableAwareTx({
       reservation: {
         ...pendingReservation,
@@ -550,6 +555,7 @@ describe("updateReservationPartner", () => {
           amount: 135,
         },
       ],
+      invoiceWhereConditions,
     });
     tx.update = vi.fn((table: unknown) => ({
       set: vi.fn((payload: Record<string, unknown>) => {
@@ -578,6 +584,12 @@ describe("updateReservationPartner", () => {
         amount: 85,
       }),
     });
+    const repricingLookup = new PgDialect().sqlToQuery(
+      invoiceWhereConditions.at(-1) as SQL,
+    );
+    expect(repricingLookup.sql).toContain('"invoices"."reservation_id"');
+    expect(repricingLookup.sql).toContain('"invoices"."status"');
+    expect(repricingLookup.params).toEqual([9, "pending"]);
   });
 
   it("synchronizes participant count and reprices the invoice after adding a partner", async () => {

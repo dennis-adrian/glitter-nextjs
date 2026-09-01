@@ -94,7 +94,12 @@ async function synchronizeReservationParticipantPricing(
   const invoiceRows = await tx
     .select({ id: invoices.id, discountAmount: invoices.discountAmount })
     .from(invoices)
-    .where(eq(invoices.reservationId, reservation.id));
+    .where(
+      and(
+        eq(invoices.reservationId, reservation.id),
+        eq(invoices.status, "pending"),
+      ),
+    );
 
   for (const invoice of invoiceRows) {
     const discountAmount = Math.min(

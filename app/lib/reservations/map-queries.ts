@@ -331,8 +331,8 @@ export async function fetchFestivalReservationMapDto(input: {
               inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
-    // Include rejected: occupancy excludes them, but a festival reservation
-    // in any status still locks this person out of later self-service.
+    // Rejected and cancelled reservations still lock this person out of later
+    // self-service; released reservations do not.
     db
       .select({ id: standReservations.id })
       .from(reservationParticipants)
@@ -344,6 +344,11 @@ export async function fetchFestivalReservationMapDto(input: {
         and(
           eq(reservationParticipants.userId, profile.id),
           eq(standReservations.festivalId, festival.id),
+          inArray(standReservations.status, [
+            ...CAPACITY_RESERVATION_STATUSES,
+            "rejected",
+            "cancelled",
+          ]),
         ),
       )
       .limit(1),
