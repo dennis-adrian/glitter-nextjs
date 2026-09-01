@@ -504,7 +504,7 @@ Once funded:
 1. Start the partner flow and select an eligible participant.
 2. Show the shared-price difference and feature price separately.
 3. Confirm the total credit debit and owner-payment responsibility.
-4. In one transaction, lock the wallet, reservation, participants, and selected partner eligibility keys.
+4. In one transaction, acquire every applicable lock class in the §14 canonical total order for the owner and selected partner; skip unused classes without reordering the remaining classes.
 5. Revalidate live status, deadline, one-participant state, partner eligibility, price snapshots, and balance.
 6. Debit `shared difference + feature price`.
 7. Create a credit-paid reservation adjustment with both components.
@@ -553,9 +553,9 @@ One release price applies to the reservation and releases every registered parti
 
 The owner must buy any missing credits before starting. Credit purchase does not reserve or start the release.
 
-In one transaction:
+In one transaction, use the §14 canonical total lock order for the owner and every registered participant, skipping unused classes without reordering the remaining classes:
 
-1. Lock wallet, reservation, and all participant eligibility keys.
+1. Acquire the applicable participant advisory, festival, terms, user/enrollment, credit-account, feature-configuration, stand, reservation, invoice/payment, and credit-domain locks in canonical order.
 2. Revalidate owner, `cancelled` status, configuration, no prior release, and sufficient balance.
 3. Debit the snapshotted release price.
 4. Record a credit-paid release action.
@@ -739,10 +739,9 @@ Suggested copy:
 - Admin alone configures features, reviews top-ups, adjusts debt, and performs manual corrections.
 - Festival admin remains read-only unless separately expanded.
 - Every mutation accepts an idempotency key and is safe to retry.
-- Extend—not replace—the hardening plan's canonical lock order. For combined reservation/credit work: participant advisory keys; festivals; terms; users/enrollment; credit accounts; feature configuration/table pairs; stands; capacity holds/reservations; invoices/payments; credit top-ups/holds/feature actions. Lock IDs ascending within each class.
+- Extend—not replace—the hardening plan's canonical lock order. The total order for combined reservation/credit work is: participant advisory keys; festivals; terms; users/enrollment; credit accounts; feature configuration/table pairs; stands; capacity holds/reservations; invoices/payments; credit ledger entries; credit top-ups; credit holds; reservation feature actions. A workflow may skip unused classes but must never reorder the classes it uses. Lock IDs ascending within every class.
 - Lock the credit account before checking spendable balance and posting a debit/hold.
-- Credit-only top-up/review operations use the applicable subsequence: user, credit account, top-up, ledger entries.
-- Lock multiple user/stand IDs ascending.
+- Credit-only top-up/review operations use the applicable subsequence from that same order: users; credit accounts; credit ledger entries; credit top-ups; credit holds; reservation feature actions.
 - Database constraints remain the final protection against double occupancy, duplicate partner membership, duplicate credit reversal, and duplicate fulfillment.
 
 Key race outcomes:
