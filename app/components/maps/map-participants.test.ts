@@ -86,13 +86,14 @@ describe("getStandMapParticipants", () => {
     }
   });
 
-  it("skips rejected reservations", () => {
-    expect(
-      getStandMapParticipants(
-        stand([{ ...userReservation(), status: "rejected" }]),
-      ),
-    ).toEqual([]);
-  });
+  it.each(["rejected", "cancelled", "released"] as const)(
+    "skips terminal %s reservations",
+    (status) => {
+      expect(
+        getStandMapParticipants(stand([{ ...userReservation(), status }])),
+      ).toEqual([]);
+    },
+  );
 
   it("maps nested profile subcategory labels", () => {
     const reservation = userReservation();

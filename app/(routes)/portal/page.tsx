@@ -62,7 +62,10 @@ export default async function ParticipantDashboardPage() {
     : [];
 
   const activeParticipations = participationsInActiveFestival.filter(
-    (p) => p.reservation.status !== "rejected",
+    (p) =>
+      p.reservation.status === "pending" ||
+      p.reservation.status === "verification_payment" ||
+      p.reservation.status === "accepted",
   );
 
   let profileEnrollment = activeFestival

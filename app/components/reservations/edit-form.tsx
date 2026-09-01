@@ -78,7 +78,10 @@ export default function EditReservationForm({
       nextStatus: data.status,
     });
 
-    if (plan.kind === "unsupported_combination" || plan.kind === "unsupported_status") {
+    if (
+      plan.kind === "unsupported_combination" ||
+      plan.kind === "unsupported_status"
+    ) {
       toast.error(plan.message);
       return;
     }
@@ -243,6 +246,12 @@ export default function EditReservationForm({
                         </SelectItem>
                         <SelectItem value="accepted">Aceptada</SelectItem>
                         <SelectItem value="rejected">Rechazada</SelectItem>
+                        <SelectItem value="cancelled" disabled>
+                          Cancelada
+                        </SelectItem>
+                        <SelectItem value="released" disabled>
+                          Liberada
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

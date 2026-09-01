@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, not } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type {
   ReservationWithParticipantsAndUsersAndStandAndCollaborators,
@@ -11,9 +11,7 @@ import {
   type PublicProfileSummaryDto,
   type ReservationStandRefDto,
 } from "@/app/lib/reservations/dto";
-import {
-  canViewAdminReservationData,
-} from "@/app/lib/reservations/policy";
+import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { reservationParticipants, standReservations } from "@/db/schema";
@@ -150,7 +148,11 @@ export async function fetchActorReservationsByFestival(
     const rows = await db.query.standReservations.findMany({
       where: and(
         eq(standReservations.festivalId, festivalId),
-        not(eq(standReservations.status, "rejected")),
+        inArray(standReservations.status, [
+          "pending",
+          "verification_payment",
+          "accepted",
+        ]),
       ),
       with: {
         participants: {

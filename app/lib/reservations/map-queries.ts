@@ -2,7 +2,10 @@ import "server-only";
 
 import { and, eq, exists, gt, inArray, notExists, or, sql } from "drizzle-orm";
 
-import type { ParticipationType, UserCategory } from "@/app/api/users/definitions";
+import type {
+  ParticipationType,
+  UserCategory,
+} from "@/app/api/users/definitions";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 import {
   type FestivalReservationConfirmationDto,
@@ -44,6 +47,12 @@ const MAP_ELEMENT_SELECT = {
   height: mapElements.height,
   rotation: mapElements.rotation,
 } as const;
+
+const CAPACITY_RESERVATION_STATUSES = [
+  "pending",
+  "verification_payment",
+  "accepted",
+] as const;
 
 export async function fetchSelfServiceFestivalSnapshot(festivalId: number) {
   return db.query.festivals.findFirst({
@@ -186,7 +195,10 @@ export async function fetchFestivalReservationMapDto(input: {
       and(
         eq(stands.festivalId, festival.id),
         eq(stands.standCategory, standCategory as UserCategory),
-        eq(stands.participationType, profile.participationType as ParticipationType),
+        eq(
+          stands.participationType,
+          profile.participationType as ParticipationType,
+        ),
         subcategoryFilter,
       ),
     );
@@ -196,7 +208,9 @@ export async function fetchFestivalReservationMapDto(input: {
       row.festivalSectorId != null,
   );
   const standIds = eligibleStands.map((stand) => stand.id);
-  const sectorIds = [...new Set(eligibleStands.map((stand) => stand.festivalSectorId))];
+  const sectorIds = [
+    ...new Set(eligibleStands.map((stand) => stand.festivalSectorId)),
+  ];
 
   const [
     sectorRows,
@@ -247,7 +261,10 @@ export async function fetchFestivalReservationMapDto(input: {
           .select({ standId: standHolds.standId })
           .from(standHolds)
           .where(
-            and(inArray(standHolds.standId, standIds), gt(standHolds.expiresAt, now)),
+            and(
+              inArray(standHolds.standId, standIds),
+              gt(standHolds.expiresAt, now),
+            ),
           ),
     db.query.standHolds.findFirst({
       where: and(
@@ -278,7 +295,7 @@ export async function fetchFestivalReservationMapDto(input: {
           .where(
             and(
               inArray(standReservations.standId, standIds),
-              sql`${standReservations.status} <> 'rejected'`,
+              inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
     standIds.length === 0
@@ -311,7 +328,7 @@ export async function fetchFestivalReservationMapDto(input: {
           .where(
             and(
               inArray(standReservations.standId, standIds),
-              sql`${standReservations.status} <> 'rejected'`,
+              inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
     // Include rejected: occupancy excludes them, but a festival reservation

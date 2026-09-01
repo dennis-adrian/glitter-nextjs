@@ -1,4 +1,5 @@
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 
 export type StandReservationSummary = {
   activeInvoice: InvoiceWithParticipants | null;
@@ -16,7 +17,7 @@ function newestReservationFirst(
 }
 
 /**
- * Keeps rejected reservations out of the stand's current state while retaining
+ * Keeps terminal reservations out of the stand's current state while retaining
  * them as history. If inconsistent data contains more than one active
  * reservation, the newest reservation wins deterministically.
  */
@@ -30,11 +31,11 @@ export function getStandReservationSummary(
 
   return {
     activeInvoice:
-      standInvoices.find(
-        (invoice) => invoice.reservation.status !== "rejected",
+      standInvoices.find((invoice) =>
+        occupiesStandCapacity(invoice.reservation.status),
       ) ?? null,
     cancelledInvoices: standInvoices.filter(
-      (invoice) => invoice.reservation.status === "rejected",
+      (invoice) => !occupiesStandCapacity(invoice.reservation.status),
     ),
   };
 }

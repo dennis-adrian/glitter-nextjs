@@ -13,7 +13,13 @@ function makeInvoice({
   invoiceId: number;
   reservationId: number;
   standId?: number;
-  status: "pending" | "verification_payment" | "accepted" | "rejected";
+  status:
+    | "pending"
+    | "verification_payment"
+    | "accepted"
+    | "rejected"
+    | "cancelled"
+    | "released";
   createdAt: string;
 }) {
   return {
@@ -29,19 +35,22 @@ function makeInvoice({
 }
 
 describe("getStandReservationSummary", () => {
-  it("treats a stand with only cancelled reservations as having no active reservation", () => {
-    const cancelled = makeInvoice({
-      invoiceId: 1,
-      reservationId: 100,
-      status: "rejected",
-      createdAt: "2026-06-01T12:00:00.000Z",
-    });
+  it.each(["rejected", "cancelled", "released"] as const)(
+    "treats a stand with only %s reservations as having no active reservation",
+    (status) => {
+      const cancelled = makeInvoice({
+        invoiceId: 1,
+        reservationId: 100,
+        status,
+        createdAt: "2026-06-01T12:00:00.000Z",
+      });
 
-    expect(getStandReservationSummary([cancelled], 10)).toEqual({
-      activeInvoice: null,
-      cancelledInvoices: [cancelled],
-    });
-  });
+      expect(getStandReservationSummary([cancelled], 10)).toEqual({
+        activeInvoice: null,
+        cancelledInvoices: [cancelled],
+      });
+    },
+  );
 
   it("selects a new active reservation even when an older cancellation comes first", () => {
     const cancelled = makeInvoice({

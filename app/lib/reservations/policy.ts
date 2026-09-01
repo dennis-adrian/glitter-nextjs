@@ -106,7 +106,10 @@ export function evaluateSelfServiceEligibility(
 
   const ownsProfile = canActAsProfileOwner(input.actor, input.targetProfileId);
   if (!ownsProfile) {
-    if (input.intent === "mutate" || !canViewAdminReservationData(input.actor)) {
+    if (
+      input.intent === "mutate" ||
+      !canViewAdminReservationData(input.actor)
+    ) {
       return { allowed: false, code: "UNAUTHORIZED" };
     }
   }
@@ -237,6 +240,20 @@ export function isLiveSelfServiceSource(source: string): boolean {
   return source === "user_reservation" || source === "legacy_unknown";
 }
 
+/** A status that keeps a physical stand unavailable. */
+export function occupiesStandCapacity(status: string): boolean {
+  return (
+    status === "pending" ||
+    status === "verification_payment" ||
+    status === "accepted"
+  );
+}
+
+/** Historical statuses that keep a participant from reserving again. */
+export function blocksFestivalParticipation(status: string): boolean {
+  return status === "rejected" || status === "cancelled";
+}
+
 export function summarizeFestivalParticipations(
   rows: ReadonlyArray<{
     festivalId: number;
@@ -256,9 +273,12 @@ export function summarizeFestivalParticipations(
   for (const row of rows) {
     if (row.festivalId !== festivalId) continue;
     hasAnyFestivalReservation = true;
-    if (row.status === "rejected") {
+    if (blocksFestivalParticipation(row.status)) {
       hasRejectedFestivalReservation = true;
-    } else if (isLiveSelfServiceSource(row.source)) {
+    } else if (
+      occupiesStandCapacity(row.status) &&
+      isLiveSelfServiceSource(row.source)
+    ) {
       hasLiveSelfServiceReservation = true;
     }
   }
