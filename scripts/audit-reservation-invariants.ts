@@ -734,11 +734,16 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  const errorWithCause = error as {
-    cause?: { code?: string; message?: string };
-  };
+  const errorWithCause =
+    error !== null && typeof error === "object" && "cause" in error
+      ? (error as { cause?: unknown })
+      : undefined;
+  const cause =
+    errorWithCause?.cause !== null && typeof errorWithCause?.cause === "object"
+      ? (errorWithCause.cause as { code?: unknown; message?: unknown })
+      : undefined;
   const message =
-    errorWithCause.cause?.message ??
+    (typeof cause?.message === "string" ? cause.message : undefined) ??
     (error instanceof Error ? error.message : "Unknown audit error");
 
   console.error(
@@ -746,9 +751,7 @@ main().catch((error: unknown) => {
       ok: false,
       error: {
         name: error instanceof Error ? error.name : "Error",
-        ...(errorWithCause.cause?.code
-          ? { code: errorWithCause.cause.code }
-          : {}),
+        ...(typeof cause?.code === "string" ? { code: cause.code } : {}),
         message,
       },
     }),

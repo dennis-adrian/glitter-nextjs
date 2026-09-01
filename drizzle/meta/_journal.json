@@ -1772,6 +1772,13 @@
       "when": 1788216000000,
       "tag": "0253_reservation_price_snapshot_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 254,
+      "version": "7",
+      "when": 1788276942939,
+      "tag": "0254_legacy_payment_settlement_backfill",
+      "breakpoints": true
     }
   ]
 }
