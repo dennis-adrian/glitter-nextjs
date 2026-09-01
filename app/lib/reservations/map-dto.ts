@@ -9,7 +9,10 @@ import type {
   StandStatus,
   VisibleParticipantSummaryDto,
 } from "@/app/lib/reservations/dto";
-import type { ParticipationType, UserCategory } from "@/app/api/users/definitions";
+import type {
+  ParticipationType,
+  UserCategory,
+} from "@/app/api/users/definitions";
 
 export type MapDtoStandRow = {
   id: number;
@@ -98,7 +101,13 @@ function visibleSummariesForStand(
   if (!reservations?.length) return [];
   const summaries: VisibleParticipantSummaryDto[] = [];
   for (const reservation of reservations) {
-    if (reservation.status === "rejected") continue;
+    if (
+      reservation.status === "rejected" ||
+      reservation.status === "cancelled" ||
+      reservation.status === "released"
+    ) {
+      continue;
+    }
     if (
       !revealHiddenIdentities &&
       isReservationHidden({ revealAt: reservation.revealAt }, now)
@@ -205,8 +214,9 @@ export function buildFestivalReservationMapDto(
         mapBounds,
         mapElements: input.mapElementsBySectorId.get(sector.id) ?? [],
         stands,
-        availableCount: stands.filter((stand) => stand.effectiveStatus === "available")
-          .length,
+        availableCount: stands.filter(
+          (stand) => stand.effectiveStatus === "available",
+        ).length,
         price: stands[0]?.price ?? 0,
       };
     })

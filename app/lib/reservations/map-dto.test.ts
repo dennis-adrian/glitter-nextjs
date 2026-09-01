@@ -249,6 +249,38 @@ describe("buildFestivalReservationMapDto", () => {
     expect(occupied?.occupantKey).toBe("user-99");
   });
 
+  it.each(["rejected", "cancelled", "released"] as const)(
+    "does not expose %s reservation participants as map occupants",
+    (status) => {
+      const dto = sampleDto({
+        revealHiddenIdentities: true,
+        reservationsByStandId: new Map([
+          [
+            22,
+            [
+              {
+                standId: 22,
+                status,
+                revealAt: null,
+                participants: [
+                  {
+                    id: 99,
+                    displayName: "Former occupant",
+                    imageUrl: null,
+                  },
+                ],
+                externalParticipants: [],
+              },
+            ],
+          ],
+        ]),
+      });
+      const stand = dto.sectors[0]?.stands.find((row) => row.id === 22);
+      expect(stand?.visibleParticipantSummaries).toEqual([]);
+      expect(stand?.occupantKey).toBeNull();
+    },
+  );
+
   it("treats a stale held stand without an unexpired hold as available", () => {
     const dto = sampleDto();
     const held = dto.sectors[0]?.stands.find((stand) => stand.id === 21);
