@@ -1821,6 +1821,13 @@
       "when": 1788308500000,
       "tag": "0260_credit_ledger_user_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 261,
+      "version": "7",
+      "when": 1788370592518,
+      "tag": "0261_chilly_santa_claus",
+      "breakpoints": true
     }
   ]
 }

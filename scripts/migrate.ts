@@ -3,10 +3,13 @@ import { pool, db } from "@/db";
 
 import {
   backfillCategoryCatalog,
+  backfillStandIndividualPrice,
   categoryCatalogBackfillCompleted,
   invoiceVerificationPaymentBackfillCompleted,
   markCategoryCatalogBackfillCompleted,
   markInvoiceVerificationPaymentBackfillCompleted,
+  markStandIndividualPriceBackfillCompleted,
+  standIndividualPriceBackfillCompleted,
 } from "./backfill-categories";
 import { backfillProductSlugs } from "./backfill-product-slugs";
 import { ensureDefaultFestivalTerms } from "@/app/lib/festival-terms/persist";
@@ -122,12 +125,17 @@ async function main() {
       : await categoryCatalogBackfillCompleted();
     const invoiceBackfillDone =
       await invoiceVerificationPaymentBackfillCompleted();
+    const standPriceBackfillDone = await standIndividualPriceBackfillCompleted();
 
     await ensureFestivalTermsArchivedEnum();
     await migrate(db, { migrationsFolder: "./drizzle" });
     if (!invoiceBackfillDone) {
       await backfillInvoiceVerificationPayment();
       await markInvoiceVerificationPaymentBackfillCompleted();
+    }
+    if (!standPriceBackfillDone) {
+      await backfillStandIndividualPrice();
+      await markStandIndividualPriceBackfillCompleted();
     }
     await backfillProductSlugs();
     await ensureProductSlugConstraints();
