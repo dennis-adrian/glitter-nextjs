@@ -1786,6 +1786,34 @@
       "when": 1788279806821,
       "tag": "0255_terminal_reservation_payment_settlement_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1788307608963,
+      "tag": "0256_credit_accounting_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1788307800196,
+      "tag": "0257_credit_feature_spend_uniqueness",
+      "breakpoints": true
+    },
+    {
+      "idx": 258,
+      "version": "7",
+      "when": 1788307955839,
+      "tag": "0258_credit_ledger_self_reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 259,
+      "version": "7",
+      "when": 1788308301505,
+      "tag": "0259_credit_ledger_integrity",
+      "breakpoints": true
     }
   ]
 }

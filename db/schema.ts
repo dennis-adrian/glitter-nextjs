@@ -186,7 +186,7 @@ export const userStatusEventsRelations = relations(
   }),
 );
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
   participations: many(reservationParticipants),
@@ -221,6 +221,22 @@ export const usersRelations = relations(users, ({ many }) => ({
   }),
   festivalTermsCreated: many(festivalTermsVersions, {
     relationName: "festivalTermsCreatedBy",
+  }),
+  creditAccount: one(creditAccounts),
+  creditTopUps: many(creditTopUps, { relationName: "creditTopUpUser" }),
+  reviewedCreditTopUps: many(creditTopUps, {
+    relationName: "creditTopUpReviewedBy",
+  }),
+  creditLedgerEntries: many(creditLedgerEntries, {
+    relationName: "creditLedgerEntryUser",
+  }),
+  creditHolds: many(creditHolds),
+  invoiceCreditAllocations: many(invoiceCreditAllocations),
+  ownedReservationFeatureActions: many(reservationFeatureActions, {
+    relationName: "reservationFeatureActionOwner",
+  }),
+  targetedReservationFeatureActions: many(reservationFeatureActions, {
+    relationName: "reservationFeatureActionTargetPartner",
   }),
 }));
 
@@ -404,6 +420,8 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   infractions: many(infractions),
   statusEvents: many(festivalStatusEvents),
   sanctionFestivals: many(sanctionFestivals),
+  creditHolds: many(creditHolds),
+  reservationFeatureActions: many(reservationFeatureActions),
 }));
 
 export const festivalStatusEvents = pgTable(
@@ -644,6 +662,41 @@ export const reservationNotificationJobStatusEnum = pgEnum(
 export const reservationRequestStatusEnum = pgEnum(
   "reservation_request_status",
   ["in_progress", "completed"],
+);
+export const creditLedgerEntryTypeEnum = pgEnum("credit_ledger_entry_type", [
+  "top_up",
+  "spend",
+  "reversal",
+  "admin_grant",
+  "admin_adjustment",
+]);
+export const creditHoldPurposeEnum = pgEnum("credit_hold_purpose", [
+  "full_table_access",
+]);
+export const creditHoldStatusEnum = pgEnum("credit_hold_status", [
+  "active",
+  "captured",
+  "released",
+  "expired",
+]);
+export const creditTopUpStatusEnum = pgEnum("credit_top_up_status", [
+  "awaiting_voucher",
+  "under_review",
+  "approved",
+  "rejected",
+  "expired",
+]);
+export const creditTopUpIntendedUseTypeEnum = pgEnum(
+  "credit_top_up_intended_use_type",
+  ["feature", "invoice", "debt"],
+);
+export const reservationFeatureActionTypeEnum = pgEnum(
+  "reservation_feature_action_type",
+  ["full_table_access", "late_partner", "reservation_release"],
+);
+export const reservationFeatureActionStatusEnum = pgEnum(
+  "reservation_feature_action_status",
+  ["active", "fulfilled", "cancelled", "failed"],
 );
 export const externalParticipantTypeEnum = pgEnum("external_participant_type", [
   "institution",
@@ -1148,6 +1201,7 @@ export const standReservationsRelations = relations(
     participantProducts: many(participantProducts),
     events: many(standReservationEvents),
     members: many(standReservationMembers),
+    featureActions: many(reservationFeatureActions),
   }),
 );
 
@@ -1473,6 +1527,7 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   }),
   payments: many(payments),
   settlementSubmissions: many(invoiceSettlementSubmissions),
+  creditAllocations: many(invoiceCreditAllocations),
 }));
 
 export const payments = pgTable(
@@ -1588,6 +1643,333 @@ export const invoiceSettlementSubmissionsRelations = relations(
     reviewedBy: one(users, {
       fields: [invoiceSettlementSubmissions.reviewedByUserId],
       references: [users.id],
+    }),
+  }),
+);
+
+/**
+ * These rows are created by the later feature flows. Defining the aggregate
+ * now lets a credit hold have one durable owner from its first use.
+ */
+export const reservationFeatureActions = pgTable(
+  "reservation_feature_actions",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    reservationId: integer("reservation_id").references(
+      () => standReservations.id,
+      { onDelete: "set null" },
+    ),
+    ownerUserId: integer("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    type: reservationFeatureActionTypeEnum("type").notNull(),
+    status: reservationFeatureActionStatusEnum("status")
+      .default("active")
+      .notNull(),
+    featurePriceSnapshot: money("feature_price_snapshot").notNull(),
+    targetPartnerUserId: integer("target_partner_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    individualPriceSnapshot: money("individual_price_snapshot"),
+    sharedPriceSnapshot: money("shared_price_snapshot"),
+    idempotencyKey: text("idempotency_key"),
+    failureCode: text("failure_code"),
+    fulfilledAt: timestamp("fulfilled_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("reservation_feature_actions_owner_festival_idx").on(
+      t.ownerUserId,
+      t.festivalId,
+    ),
+    index("reservation_feature_actions_reservation_id_idx").on(
+      t.reservationId,
+    ),
+    uniqueIndex("reservation_feature_actions_idempotency_key_unique")
+      .on(t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} IS NOT NULL`),
+    check(
+      "reservation_feature_actions_feature_price_nonnegative",
+      sql`${t.featurePriceSnapshot} >= 0`,
+    ),
+  ],
+);
+
+/** Locked projection; the append-only ledger remains the source of truth. */
+export const creditAccounts = pgTable(
+  "credit_accounts",
+  {
+    userId: integer("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    cachedBalance: money("cached_balance").default(0).notNull(),
+    version: integer("version").default(0).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("credit_accounts_version_nonnegative", sql`${t.version} >= 0`),
+  ],
+);
+
+export const creditTopUps = pgTable(
+  "credit_top_ups",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    status: creditTopUpStatusEnum("status")
+      .default("awaiting_voucher")
+      .notNull(),
+    intendedUseType: creditTopUpIntendedUseTypeEnum(
+      "intended_use_type",
+    ).notNull(),
+    intendedUseId: integer("intended_use_id"),
+    uploadDeadlineAt: timestamp("upload_deadline_at").notNull(),
+    voucherUrl: text("voucher_url"),
+    fileKey: text("file_key"),
+    submittedAt: timestamp("submitted_at"),
+    reviewedByUserId: integer("reviewed_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    reviewedAt: timestamp("reviewed_at"),
+    rejectionReason: text("rejection_reason"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("credit_top_ups_idempotency_key_unique").on(
+      t.idempotencyKey,
+    ),
+    uniqueIndex("credit_top_ups_file_key_unique")
+      .on(t.fileKey)
+      .where(sql`${t.fileKey} IS NOT NULL`),
+    index("credit_top_ups_user_status_idx").on(t.userId, t.status),
+    check("credit_top_ups_amount_positive", sql`${t.amount} > 0`),
+    check(
+      "credit_top_ups_deadline_after_created",
+      sql`${t.uploadDeadlineAt} > ${t.createdAt}`,
+    ),
+  ],
+);
+
+export const creditLedgerEntries = pgTable(
+  "credit_ledger_entries",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    type: creditLedgerEntryTypeEnum("type").notNull(),
+    status: text("status").default("posted").notNull(),
+    topUpId: integer("top_up_id").references(() => creditTopUps.id, {
+      onDelete: "restrict",
+    }),
+    featureActionId: integer("feature_action_id").references(
+      () => reservationFeatureActions.id,
+      { onDelete: "restrict" },
+    ),
+    reversesEntryId: integer("reverses_entry_id"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, string>>()
+      .default({})
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("credit_ledger_entries_idempotency_key_unique").on(
+      t.idempotencyKey,
+    ),
+    uniqueIndex("credit_ledger_entries_top_up_issue_unique")
+      .on(t.topUpId)
+      .where(sql`${t.type} = 'top_up'`),
+    uniqueIndex("credit_ledger_entries_top_up_reversal_unique")
+      .on(t.topUpId)
+      .where(sql`${t.type} = 'reversal'`),
+    uniqueIndex("credit_ledger_entries_feature_spend_unique")
+      .on(t.featureActionId)
+      .where(sql`${t.type} = 'spend'`),
+    index("credit_ledger_entries_user_created_idx").on(t.userId, t.createdAt),
+    check("credit_ledger_entries_amount_nonzero", sql`${t.amount} <> 0`),
+    check("credit_ledger_entries_posted_only", sql`${t.status} = 'posted'`),
+    check(
+      "credit_ledger_entries_type_amount_direction",
+      sql`(${t.type} IN ('top_up', 'admin_grant') AND ${t.amount} > 0)
+        OR (${t.type} IN ('spend', 'reversal') AND ${t.amount} < 0)
+        OR ${t.type} = 'admin_adjustment'`,
+    ),
+    foreignKey({
+      name: "credit_ledger_entries_reverses_entry_id_fk",
+      columns: [t.reversesEntryId],
+      foreignColumns: [t.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const creditHolds = pgTable(
+  "credit_holds",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    purpose: creditHoldPurposeEnum("purpose").notNull(),
+    status: creditHoldStatusEnum("status").default("active").notNull(),
+    featureActionId: integer("feature_action_id")
+      .notNull()
+      .references(() => reservationFeatureActions.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("credit_holds_feature_action_id_unique").on(t.featureActionId),
+    uniqueIndex("credit_holds_idempotency_key_unique").on(t.idempotencyKey),
+    index("credit_holds_user_status_idx").on(t.userId, t.status),
+    check("credit_holds_amount_positive", sql`${t.amount} > 0`),
+  ],
+);
+
+/** Created in Phase 1A; applying allocations is deliberately deferred to 1B. */
+export const invoiceCreditAllocations = pgTable(
+  "invoice_credit_allocations",
+  {
+    id: serial("id").primaryKey(),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    amount: money("amount").notNull(),
+    ledgerEntryId: integer("ledger_entry_id")
+      .notNull()
+      .references(() => creditLedgerEntries.id, { onDelete: "restrict" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("invoice_credit_allocations_ledger_entry_id_unique").on(
+      t.ledgerEntryId,
+    ),
+    uniqueIndex("invoice_credit_allocations_idempotency_key_unique").on(
+      t.idempotencyKey,
+    ),
+    index("invoice_credit_allocations_invoice_id_idx").on(t.invoiceId),
+    check("invoice_credit_allocations_amount_positive", sql`${t.amount} > 0`),
+  ],
+);
+
+export const reservationFeatureActionsRelations = relations(
+  reservationFeatureActions,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [reservationFeatureActions.festivalId],
+      references: [festivals.id],
+    }),
+    reservation: one(standReservations, {
+      fields: [reservationFeatureActions.reservationId],
+      references: [standReservations.id],
+    }),
+    owner: one(users, {
+      fields: [reservationFeatureActions.ownerUserId],
+      references: [users.id],
+      relationName: "reservationFeatureActionOwner",
+    }),
+    targetPartner: one(users, {
+      fields: [reservationFeatureActions.targetPartnerUserId],
+      references: [users.id],
+      relationName: "reservationFeatureActionTargetPartner",
+    }),
+    ledgerEntries: many(creditLedgerEntries),
+    holds: many(creditHolds),
+  }),
+);
+export const creditAccountsRelations = relations(creditAccounts, ({ one }) => ({
+  user: one(users, {
+    fields: [creditAccounts.userId],
+    references: [users.id],
+  }),
+}));
+export const creditTopUpsRelations = relations(creditTopUps, ({ one, many }) => ({
+  user: one(users, {
+    fields: [creditTopUps.userId],
+    references: [users.id],
+    relationName: "creditTopUpUser",
+  }),
+  reviewedBy: one(users, {
+    fields: [creditTopUps.reviewedByUserId],
+    references: [users.id],
+    relationName: "creditTopUpReviewedBy",
+  }),
+  ledgerEntries: many(creditLedgerEntries),
+}));
+export const creditLedgerEntriesRelations = relations(
+  creditLedgerEntries,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [creditLedgerEntries.userId],
+      references: [users.id],
+      relationName: "creditLedgerEntryUser",
+    }),
+    topUp: one(creditTopUps, {
+      fields: [creditLedgerEntries.topUpId],
+      references: [creditTopUps.id],
+    }),
+    featureAction: one(reservationFeatureActions, {
+      fields: [creditLedgerEntries.featureActionId],
+      references: [reservationFeatureActions.id],
+    }),
+    reversedEntry: one(creditLedgerEntries, {
+      fields: [creditLedgerEntries.reversesEntryId],
+      references: [creditLedgerEntries.id],
+      relationName: "creditLedgerReversal",
+    }),
+  }),
+);
+export const creditHoldsRelations = relations(creditHolds, ({ one }) => ({
+  user: one(users, {
+    fields: [creditHolds.userId],
+    references: [users.id],
+  }),
+  festival: one(festivals, {
+    fields: [creditHolds.festivalId],
+    references: [festivals.id],
+  }),
+  featureAction: one(reservationFeatureActions, {
+    fields: [creditHolds.featureActionId],
+    references: [reservationFeatureActions.id],
+  }),
+}));
+export const invoiceCreditAllocationsRelations = relations(
+  invoiceCreditAllocations,
+  ({ one }) => ({
+    invoice: one(invoices, {
+      fields: [invoiceCreditAllocations.invoiceId],
+      references: [invoices.id],
+    }),
+    user: one(users, {
+      fields: [invoiceCreditAllocations.userId],
+      references: [users.id],
+    }),
+    ledgerEntry: one(creditLedgerEntries, {
+      fields: [invoiceCreditAllocations.ledgerEntryId],
+      references: [creditLedgerEntries.id],
     }),
   }),
 );
