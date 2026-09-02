@@ -6,6 +6,7 @@
 import { loadEnvConfig } from "@next/env";
 import { and, eq, lte, ne, sql } from "drizzle-orm";
 
+import { findMalformedFullTableGroups } from "@/app/lib/stands/full-table-health";
 import { db } from "@/db";
 import {
   festivals,
@@ -472,6 +473,27 @@ async function main() {
       name: "multiple_submitted_settlements",
       count: multipleSettlements.rows.length,
       ids: multipleSettlements.rows.map((row) => Number(row.invoice_id)),
+    });
+  }
+
+  // Reuses the pairing service rather than restating its rules in SQL: two
+  // copies of the same invariant is how they drift apart.
+  const malformedFullTables = await findMalformedFullTableGroups();
+  if (malformedFullTables.length > 0) {
+    findings.push({
+      name: "malformed_full_table_group",
+      count: malformedFullTables.length,
+      ids: malformedFullTables.map((group) => group.groupId),
+      // Codes only, never the messages: those name stands and prices.
+      fingerprint: [
+        ...new Set(
+          malformedFullTables.flatMap((group) =>
+            group.problems.map((problem) => problem.code),
+          ),
+        ),
+      ]
+        .sort()
+        .join(","),
     });
   }
 
