@@ -16,9 +16,9 @@ const reviewCreditTopUpSchema = z.object({
 });
 const adjustCreditAccountSchema = z.object({
   userId: z.coerce.number().int().positive(),
-  amount: z.coerce.number().finite().multipleOf(0.01).min(-99_999_999.99).max(99_999_999.99),
+  amount: z.coerce.number().multipleOf(0.01).min(-99_999_999.99).max(99_999_999.99),
   reason: z.string().trim().min(1).max(1_000),
-  idempotencyKey: z.string().uuid(),
+  idempotencyKey: z.uuid(),
 });
 
 /** Global-admin review command. It intentionally returns no voucher data. */

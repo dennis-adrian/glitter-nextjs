@@ -11,6 +11,7 @@ import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/h
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
+  creditLedgerEntries,
   festivalActivities,
   festivalDates,
   festivalStatusEnum,
@@ -18,6 +19,7 @@ import {
   festivalSectors,
   infractions,
   profileSubcategories,
+  reservationFeatureActions,
   reservationParticipants,
   stands,
   standReservations,
@@ -183,6 +185,29 @@ export async function deleteFestival(festivalId: number) {
   }
 
   try {
+    const [ledgerReferencedFeatureAction] = await db
+      .select({ id: reservationFeatureActions.id })
+      .from(reservationFeatureActions)
+      .innerJoin(
+        creditLedgerEntries,
+        eq(creditLedgerEntries.featureActionId, reservationFeatureActions.id),
+      )
+      .where(eq(reservationFeatureActions.festivalId, festivalId))
+      .limit(1);
+
+    // Ledger entries are append-only. Retain their feature-action parent by
+    // archiving the festival instead of cascading a delete through it.
+    if (ledgerReferencedFeatureAction) {
+      const archived = await archiveFestival(festivalId);
+      return archived.success
+        ? {
+            success: true,
+            message:
+              "Festival archivado; se conserva su historial de créditos.",
+          }
+        : archived;
+    }
+
     await db.delete(festivals).where(eq(festivals.id, festivalId));
   } catch (error) {
     console.error("Error deleting festival:", error);

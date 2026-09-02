@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import {
+  creditLedgerEntries,
   infractionEvidence,
   infractionNotes,
   infractions,
@@ -304,6 +305,9 @@ const INFRACTION_BLOCK_MESSAGE =
 const RESTRICT_ACTOR_BLOCK_MESSAGE =
   "No se puede eliminar un perfil con registros administrativos vinculados.";
 
+const CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE =
+  "No se puede eliminar un perfil con historial de créditos.";
+
 const PERMANENT_ERROR_PREFIX = "PERMANENT:";
 
 type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -335,11 +339,25 @@ async function hasRestrictActorReferences(
   return Boolean(returnLog);
 }
 
+async function hasCreditLedgerEntries(
+  tx: DeletionTx,
+  profileId: number,
+): Promise<boolean> {
+  const [entry] = await tx
+    .select({ id: creditLedgerEntries.id })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.userId, profileId))
+    .limit(1);
+
+  return Boolean(entry);
+}
+
 function isPermanentDeletionBlocker(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   if (
     message === INFRACTION_BLOCK_MESSAGE ||
     message === RESTRICT_ACTOR_BLOCK_MESSAGE ||
+    message === CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE ||
     message.startsWith(PERMANENT_ERROR_PREFIX)
   ) {
     return true;
@@ -426,6 +444,15 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         };
       }
 
+      // Ledger entries are immutable accounting records. Keeping their
+      // required user reference means profiles with credit history are retained.
+      if (await hasCreditLedgerEntries(tx, profileId)) {
+        return {
+          ok: false as const,
+          reason: "has_credit_ledger_entries" as const,
+        };
+      }
+
       const [pending] = await tx
         .insert(pendingUserDeletions)
         .values({
@@ -453,6 +480,12 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         return {
           success: false,
           message: RESTRICT_ACTOR_BLOCK_MESSAGE,
+        };
+      }
+      if (preparation.reason === "has_credit_ledger_entries") {
+        return {
+          success: false,
+          message: CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE,
         };
       }
       return { success: false, message: "Error al eliminar el perfil" };
@@ -519,6 +552,12 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           throw new Error(RESTRICT_ACTOR_BLOCK_MESSAGE);
         }
 
+        // Recheck retention after Clerk deletion so a retry or concurrent
+        // credit write cannot violate the ledger's required user reference.
+        if (await hasCreditLedgerEntries(tx, profileId)) {
+          throw new Error(CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE);
+        }
+
         // Scrub outbox PII before the user row is removed; FK only nulls user_id.
         await scrubDisciplinaryNotificationJobsForUser(tx, profileId, now);
 
@@ -547,7 +586,8 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       const blockerMessage = error instanceof Error ? error.message : undefined;
       if (
         blockerMessage === INFRACTION_BLOCK_MESSAGE ||
-        blockerMessage === RESTRICT_ACTOR_BLOCK_MESSAGE
+        blockerMessage === RESTRICT_ACTOR_BLOCK_MESSAGE ||
+        blockerMessage === CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE
       ) {
         return { success: false, message: blockerMessage };
       }
