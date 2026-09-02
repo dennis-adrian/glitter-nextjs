@@ -1,3 +1,4 @@
+import ApplyInvoiceCreditsButton from "@/app/components/payments/apply-invoice-credits-button";
 import CompletePaymentButton from "@/app/components/payments/complete-payment-button";
 import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
 
@@ -9,13 +10,17 @@ import { getQrCodeForAmount } from "@/app/lib/qr_codes/actions";
 
 type QRCodeDetailsProps = {
   invoice: InvoiceWithPaymentsAndStand;
+  outstandingAmount?: number;
 };
 
-export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
+export default async function QRCodeDetails({
+  invoice,
+  outstandingAmount = invoice.amount,
+}: QRCodeDetailsProps) {
   // Exact amount when one exists, otherwise the zero-amount code the payer
   // fills in. Matching alone left this showing "no QR found" for any amount
   // nobody had pre-generated.
-  const qrCode = await getQrCodeForAmount(invoice.amount);
+  const qrCode = await getQrCodeForAmount(outstandingAmount);
 
   return (
     <div>
@@ -29,8 +34,11 @@ export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
 
             <PaymentQRCode
               invoice={invoice}
+              amount={outstandingAmount}
               qrCodeUrl={qrCode?.qrCodeUrl}
-              qrCoversAmount={qrCode ? qrCode.amount === invoice.amount : false}
+              qrCoversAmount={
+                qrCode ? qrCode.amount === outstandingAmount : false
+              }
             />
           </div>
         </CardContent>
@@ -38,6 +46,7 @@ export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
 
       <div className="mt-4">
         <CompletePaymentButton invoice={invoice} />
+        <ApplyInvoiceCreditsButton invoiceId={invoice.id} />
       </div>
 
       {/* <div className="mt-4 text-center">

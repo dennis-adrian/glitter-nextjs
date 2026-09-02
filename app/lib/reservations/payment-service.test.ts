@@ -14,6 +14,8 @@ const abandonRequestMock = vi.hoisted(() => vi.fn());
 const applyReservationCancellationMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue([]),
 );
+const debitConfirmedCreditsMock = vi.hoisted(() => vi.fn());
+const creditBalancesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -33,6 +35,11 @@ vi.mock("@/app/api/users/actions", () => ({
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("@/app/lib/credits/service", () => ({
+  debitConfirmedCreditsForInvoiceInTx: debitConfirmedCreditsMock,
+  getCreditBalancesInTx: creditBalancesMock,
+}));
+
 const lockCallOrder = vi.hoisted(() => ({ current: [] as string[] }));
 
 vi.mock("@/app/lib/reservations/locks", () => ({
@@ -42,7 +49,14 @@ vi.mock("@/app/lib/reservations/locks", () => ({
     ),
   lockParticipantsBeforeRegistryClaim: vi.fn(),
   lockReservationAggregate: vi.fn(async (_tx: unknown, preview: { userIds: readonly number[]; submissionIds?: readonly number[] }) => {
-    lockCallOrder.current.push("advisory", "festival", "terms", "eligibility", "stand");
+    lockCallOrder.current.push(
+      "advisory",
+      "festival",
+      "terms",
+      "eligibility",
+      "credit_account",
+      "stand",
+    );
     if ((preview.submissionIds?.length ?? 0) > 0) {
       lockCallOrder.current.push("submission");
     }
@@ -96,6 +110,7 @@ vi.mock("next/cache", () => ({
 
 import {
   adminConfirmReservation,
+  applyInvoiceCredits,
   approveInvoiceSettlement,
   correctSettlementProof,
   findSubmittedSettlementInvoiceIdForReservation,
@@ -105,6 +120,7 @@ import {
 } from "@/app/lib/reservations/payment-service";
 import {
   invoiceSettlementSubmissions,
+  invoiceCreditAllocations,
   invoices,
   payments,
   reservationParticipants,
@@ -147,6 +163,7 @@ function createTx(options: {
     updatedAt: Date;
   }>;
   existingSettlement?: ExistingSettlement | null;
+  invoiceCreditAmount?: number;
   ownerEmail?: string;
 }) {
   const reservation = {
@@ -159,12 +176,13 @@ function createTx(options: {
   const inserted: unknown[] = [];
   const updates: unknown[] = [];
   const settlementWhere: unknown[] = [];
+  let invoiceCreditAmount = options.invoiceCreditAmount ?? 0;
 
   const tx = {
     inserted,
     updates,
     settlementWhere,
-    select: vi.fn(() => ({
+    select: vi.fn((fields?: Record<string, unknown>) => ({
       from: vi.fn((table: unknown) => ({
         where: vi.fn((clause: unknown) => {
           if (table === invoiceSettlementSubmissions) {
@@ -197,12 +215,18 @@ function createTx(options: {
             });
           }
           if (table === payments) {
+            if (fields && "amount" in fields) {
+              return Promise.resolve([{ amount: 0 }]);
+            }
             const paymentRows = invoicePayments;
             return Object.assign(Promise.resolve(paymentRows), {
               orderBy: vi.fn(() => ({
                 limit: vi.fn().mockResolvedValue(invoicePayments.slice(0, 1)),
               })),
             });
+          }
+          if (table === invoiceCreditAllocations) {
+            return Promise.resolve([{ amount: invoiceCreditAmount }]);
           }
           if (table === users) {
             return {
@@ -230,9 +254,17 @@ function createTx(options: {
         }),
       })),
     })),
-    insert: vi.fn(() => ({
+    insert: vi.fn((table: unknown) => ({
       values: (values: unknown) => {
         inserted.push(values);
+        if (
+          table === invoiceCreditAllocations &&
+          typeof values === "object" &&
+          values != null &&
+          "amount" in values
+        ) {
+          invoiceCreditAmount = Number((values as { amount: unknown }).amount);
+        }
         return {
           returning: vi.fn().mockResolvedValue([{ id: 99 }]),
         };
@@ -242,7 +274,9 @@ function createTx(options: {
       set: (values: unknown) => {
         updates.push(values);
         return {
-          where: vi.fn().mockResolvedValue([]),
+          where: vi.fn(() => ({
+            returning: vi.fn().mockResolvedValue([{ id: 99 }]),
+          })),
         };
       },
     })),
@@ -423,6 +457,40 @@ describe("submitPaymentProof", () => {
     );
   });
 
+  it("sets the voucher amount to the remainder after credit allocation", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    let tx: ReturnType<typeof createTx> | undefined;
+    transactionMock.mockImplementation(async (callback: (value: unknown) => unknown) => {
+      tx = createTx({
+        invoice: {
+          id: 9,
+          userId: 8,
+          status: "pending",
+          amount: 150,
+          originalAmount: 150,
+          discountAmount: 0,
+          reservationId: 4,
+        },
+        invoiceCreditAmount: 40,
+      });
+      return callback(tx);
+    });
+
+    await submitPaymentProof({
+      invoiceId: 9,
+      fileKey: "uploadthing-key",
+      source: "uploadthing",
+      voucherUrl: "https://files.example.com/f/abc",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(tx?.inserted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ invoiceId: 9, amount: 110 }),
+      ]),
+    );
+  });
+
   it("replays when the registry returns a completed submission", async () => {
     const idempotencyKey = "11111111-1111-4111-8111-111111111111";
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
@@ -489,8 +557,104 @@ describe("submitPaymentProof", () => {
       "festival",
       "terms",
       "eligibility",
+      "credit_account",
       "stand",
     ]);
+  });
+});
+
+describe("applyInvoiceCredits", () => {
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    debitConfirmedCreditsMock.mockReset();
+    creditBalancesMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
+    debitConfirmedCreditsMock.mockResolvedValue({
+      ok: true,
+      data: { ledgerEntryId: 71, balances: {} },
+    });
+  });
+
+  function installPendingInvoiceTransaction(amount = 150) {
+    transactionMock.mockImplementation(
+      async (callback: (tx: unknown) => unknown) =>
+        callback(
+          createTx({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "pending",
+              amount,
+              originalAmount: amount,
+              discountAmount: 0,
+              reservationId: 4,
+            },
+          }),
+        ),
+    );
+  }
+
+  it("allocates the maximum confirmed balance and fulfills a fully covered invoice", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({ invoiceEligibleBalance: 150 });
+    installPendingInvoiceTransaction();
+
+    const result = await applyInvoiceCredits({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(debitConfirmedCreditsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: 8, amount: 150 }),
+    );
+    expect(result).toMatchObject({
+      success: true,
+      data: { allocationId: 99, amount: 150, outstandingAmount: 0 },
+    });
+    expect(completeRequestMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ allocationId: 99, outstandingAmount: 0 }),
+    );
+  });
+
+  it("keeps a partially credit-funded invoice pending for the voucher remainder", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({ invoiceEligibleBalance: 40 });
+    installPendingInvoiceTransaction(150);
+
+    const result = await applyInvoiceCredits({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(debitConfirmedCreditsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ amount: 40 }),
+    );
+    expect(result).toMatchObject({
+      success: true,
+      data: { amount: 40, outstandingAmount: 110 },
+    });
+  });
+
+  it("does not debit provisional-only credit", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({ invoiceEligibleBalance: 0 });
+    installPendingInvoiceTransaction();
+
+    const result = await applyInvoiceCredits({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(result).toMatchObject({ success: false, code: "INSUFFICIENT_CREDITS" });
+    expect(debitConfirmedCreditsMock).not.toHaveBeenCalled();
   });
 });
 
@@ -583,11 +747,12 @@ describe("adminConfirmReservation", () => {
       idempotencyKey: "11111111-1111-4111-8111-111111111111",
     });
 
-    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+    expect(lockCallOrder.current.slice(0, 6)).toEqual([
       "advisory",
       "festival",
       "terms",
       "eligibility",
+      "credit_account",
       "stand",
     ]);
   });
@@ -635,11 +800,12 @@ describe("approveInvoiceSettlement", () => {
     const result = await approveInvoiceSettlement({ submissionId: 21 });
 
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
-    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+    expect(lockCallOrder.current.slice(0, 6)).toEqual([
       "advisory",
       "festival",
       "terms",
       "eligibility",
+      "credit_account",
       "stand",
     ]);
   });
@@ -668,11 +834,12 @@ describe("approveInvoiceSettlement", () => {
 
     const result = await approveInvoiceSettlement({ submissionId: 21 });
     expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_PENDING" });
-    expect(lockCallOrder.current.slice(0, 5)).toEqual([
+    expect(lockCallOrder.current.slice(0, 6)).toEqual([
       "advisory",
       "festival",
       "terms",
       "eligibility",
+      "credit_account",
       "stand",
     ]);
   });
@@ -762,11 +929,12 @@ describe("rejectInvoiceSettlement", () => {
     });
 
     expect(result).toMatchObject({ success: false, code: "VALIDATION" });
-    expect(lockCallOrder.current.slice(0, 6)).toEqual([
+    expect(lockCallOrder.current.slice(0, 7)).toEqual([
       "advisory",
       "festival",
       "terms",
       "eligibility",
+      "credit_account",
       "stand",
       "submission",
     ]);

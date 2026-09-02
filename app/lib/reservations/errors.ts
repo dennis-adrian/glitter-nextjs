@@ -22,6 +22,7 @@ export const RESERVATION_ERROR_CODES = [
   "INVOICE_NOT_OWNED",
   "INVOICE_NOT_PENDING",
   "PAYMENT_ALREADY_SUBMITTED",
+  "INSUFFICIENT_CREDITS",
   "VALIDATION",
 ] as const;
 
@@ -59,6 +60,8 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> = 
   INVOICE_NOT_PENDING: "Esta factura ya no admite un comprobante nuevo.",
   PAYMENT_ALREADY_SUBMITTED:
     "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+  INSUFFICIENT_CREDITS:
+    "No tenés créditos confirmados suficientes para cubrir este pago.",
   VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
 };
 

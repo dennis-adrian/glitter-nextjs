@@ -1,6 +1,9 @@
 import { PaymentSummary } from "@/app/components/payments/payment-summary";
 import { ProductDetails } from "@/app/components/payments/product-details";
-import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
+import {
+  fetchInvoiceTenderSummary,
+  fetchInvoicesByReservation,
+} from "@/app/data/invoices/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
@@ -114,37 +117,46 @@ export default async function Page(props: {
         backLabel="Ver mi reserva"
         backHref="/my_profile"
       />
-      {actionableInvoices.map((invoice) => {
-        const underReview = invoice.status === "verification_payment";
-        return (
-          <div key={invoice.id} className="container p-4 md:p-6">
-            <h1 className="text-3xl font-bold mb-8">
-              {underReview
-                ? "Tu pago está en revisión"
-                : invoice.amount === 0
-                  ? "Solicitá la revisión de tu reserva"
-                  : "Completá el pago"}
-            </h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="flex flex-col gap-6">
-                <ProductDetails festival={festival} invoice={invoice} />
-                <PaymentSummary
-                  invoice={invoice}
-                  festivalId={validatedParams.data.festivalId}
-                />
-              </div>
+      {await Promise.all(
+        actionableInvoices.map(async (invoice) => {
+          const underReview = invoice.status === "verification_payment";
+          const tender = await fetchInvoiceTenderSummary(invoice.id);
+          const outstandingAmount = tender?.outstandingAmount ?? invoice.amount;
+          return (
+            <div key={invoice.id} className="container p-4 md:p-6">
+              <h1 className="text-3xl font-bold mb-8">
+                {underReview
+                  ? "Tu pago está en revisión"
+                  : invoice.amount === 0
+                    ? "Solicitá la revisión de tu reserva"
+                    : "Completá el pago"}
+              </h1>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="flex flex-col gap-6">
+                  <ProductDetails festival={festival} invoice={invoice} />
+                  <PaymentSummary
+                    invoice={invoice}
+                    festivalId={validatedParams.data.festivalId}
+                    creditAppliedAmount={tender?.confirmedCreditAmount}
+                    outstandingAmount={outstandingAmount}
+                  />
+                </div>
 
-              {underReview ? (
-                <InvoiceUnderReviewPanel invoice={invoice} />
-              ) : invoice.amount === 0 ? (
-                <FreeReservationDetails invoice={invoice} />
-              ) : (
-                <QRCodeDetails invoice={invoice} />
-              )}
+                {underReview ? (
+                  <InvoiceUnderReviewPanel invoice={invoice} />
+                ) : invoice.amount === 0 ? (
+                  <FreeReservationDetails invoice={invoice} />
+                ) : (
+                  <QRCodeDetails
+                    invoice={invoice}
+                    outstandingAmount={outstandingAmount}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        }),
+      )}
     </>
   );
 }

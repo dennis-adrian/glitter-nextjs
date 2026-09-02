@@ -8,11 +8,14 @@ import {
 } from "@/app/data/invoices/definitions";
 import { db } from "@/db";
 import {
+  invoiceCreditAllocations,
+  invoiceSettlementSubmissions,
   invoices,
+  payments,
   reservationParticipants,
   standReservations,
 } from "@/db/schema";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { type ReservationActionResult } from "@/app/lib/reservations/errors";
 import {
   canViewAdminReservationData,
@@ -28,6 +31,70 @@ export async function confirmFreeInvoice(
   const nested =
     input && typeof input === "object" && "invoiceId" in input ? input : input;
   return submitZeroValueInvoiceForReview(nested);
+}
+
+export type InvoiceTenderSummary = {
+  approvedCashAmount: number;
+  confirmedCreditAmount: number;
+  outstandingAmount: number;
+};
+
+/**
+ * Returns canonical tender totals for the invoice owner. The mutable settlement
+ * service rechecks the same values under locks before it writes anything.
+ */
+export async function fetchInvoiceTenderSummary(
+  invoiceId: number,
+): Promise<InvoiceTenderSummary | null> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+
+  const [invoice] = await db
+    .select({
+      id: invoices.id,
+      userId: invoices.userId,
+      amount: invoices.amount,
+    })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1);
+  if (!invoice || invoice.userId !== actor.id) return null;
+
+  const [cash] = await db
+    .select({ amount: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.invoiceId, invoice.id),
+        sql`EXISTS (
+          SELECT 1
+          FROM ${invoiceSettlementSubmissions}
+          WHERE ${invoiceSettlementSubmissions.invoiceId} = ${invoice.id}
+            AND ${invoiceSettlementSubmissions.paymentId} = ${payments.id}
+            AND ${invoiceSettlementSubmissions.status} = 'approved'
+        )`,
+      ),
+    );
+  const [credits] = await db
+    .select({
+      amount: sql<number>`coalesce(sum(${invoiceCreditAllocations.amount}), 0)`,
+    })
+    .from(invoiceCreditAllocations)
+    .where(eq(invoiceCreditAllocations.invoiceId, invoice.id));
+
+  const approvedCashAmount = Number(cash?.amount ?? 0);
+  const confirmedCreditAmount = Number(credits?.amount ?? 0);
+  return {
+    approvedCashAmount,
+    confirmedCreditAmount,
+    outstandingAmount: Math.max(
+      0,
+      Math.round(
+        (Number(invoice.amount) - approvedCashAmount - confirmedCreditAmount) *
+          100,
+      ) / 100,
+    ),
+  };
 }
 
 export async function fetchLatestInvoiceByProfileId(

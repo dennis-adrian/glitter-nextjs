@@ -38,3 +38,13 @@ export function exactCreditShortfall(
 ): number {
   return Math.max(0, roundCredits(requiredCredits - spendableBalance));
 }
+
+/** Positive invoices may use only confirmed, unheld credit. */
+export function canFundInvoiceCreditAllocation(
+  balances: CreditBalances,
+  amount: number,
+) {
+  return (
+    balances.ledgerBalance >= 0 && balances.invoiceEligibleBalance >= amount
+  );
+}
