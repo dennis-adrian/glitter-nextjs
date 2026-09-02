@@ -29,7 +29,15 @@ export default function CreditDebtCard({
       <CardContent className="space-y-3 pt-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-lg font-semibold text-red-600">
+            {/* Red means money owed. A drift-only row has no debt, so its
+                balance must not read as one. */}
+            <p
+              className={
+                inDebt
+                  ? "text-lg font-semibold text-red-600"
+                  : "text-lg font-semibold"
+              }
+            >
               <CreditAmount amount={account.ledgerBalance} />
             </p>
             <p className="truncate text-sm">{participantName}</p>
