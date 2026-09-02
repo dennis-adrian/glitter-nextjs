@@ -18,7 +18,7 @@ WITH legacy_payments AS (
   WHERE (
       (i."status" = 'paid' AND r."status" = 'accepted')
       OR (
-        i."status" = 'verification_payment'
+        i."status"::text = 'verification_payment'
         AND r."status" = 'verification_payment'
         AND p."file_key" IS NOT NULL
       )

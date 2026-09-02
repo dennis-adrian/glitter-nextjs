@@ -35,6 +35,12 @@ describe("legacy payment settlement backfill SQL", () => {
     expect(migration).toContain(
       "(i.\"status\" = 'paid' AND r.\"status\" = 'accepted')",
     );
+    expect(migration).toContain(
+      "i.\"status\"::text = 'verification_payment'",
+    );
+    expect(migration).not.toContain(
+      "i.\"status\" = 'verification_payment'",
+    );
     expect(migration).toContain('AND p."file_key" IS NOT NULL');
     expect(migration).toContain(
       "WHEN p.\"invoice_status\" = 'paid' THEN 'approved'::\"settlement_submission_status\"",
