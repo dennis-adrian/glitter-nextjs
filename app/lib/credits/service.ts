@@ -30,6 +30,8 @@ export const CREDIT_FAILURE_CODES = [
   "TOP_UP_NOT_REVIEWABLE",
   "TOP_UP_FILE_CONFLICT",
   "INSUFFICIENT_CREDITS",
+  "HOLD_NOT_ACTIVE",
+  "IDEMPOTENCY_CONFLICT",
 ] as const;
 export type CreditFailureCode = (typeof CREDIT_FAILURE_CODES)[number];
 
@@ -184,10 +186,17 @@ export async function createCreditTopUpForRequirement(input: {
         uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
       })
       .from(creditTopUps)
-      .where(eq(creditTopUps.idempotencyKey, input.idempotencyKey))
+      .where(
+        and(
+          eq(creditTopUps.idempotencyKey, input.idempotencyKey),
+          eq(creditTopUps.userId, input.userId),
+        ),
+      )
       .limit(1)
       .for("update");
-    return existing ? { ok: true, data: existing } : failure("TOP_UP_NOT_FOUND");
+    if (!existing) return failure("TOP_UP_NOT_FOUND");
+    if (existing.amount !== amount) return failure("IDEMPOTENCY_CONFLICT");
+    return { ok: true, data: existing };
   });
 }
 
@@ -428,12 +437,24 @@ export async function createCreditHoldForFeature(input: {
       return failure("TOP_UP_NOT_FOUND");
     }
     const [existing] = await tx
-      .select({ id: creditHolds.id })
+      .select({
+        id: creditHolds.id,
+        status: creditHolds.status,
+        amount: creditHolds.amount,
+        idempotencyKey: creditHolds.idempotencyKey,
+      })
       .from(creditHolds)
       .where(eq(creditHolds.featureActionId, input.featureActionId))
       .limit(1)
       .for("update");
     if (existing) {
+      if (existing.status !== "active") return failure("HOLD_NOT_ACTIVE");
+      if (
+        existing.amount !== amount ||
+        existing.idempotencyKey !== input.idempotencyKey
+      ) {
+        return failure("IDEMPOTENCY_CONFLICT");
+      }
       return {
         ok: true,
         data: {
@@ -658,12 +679,20 @@ export async function adjustCreditAccount(input: {
     await lockUserRows(tx, [input.userId]);
     await lockCreditAccount(tx, input.userId);
     const [existing] = await tx
-      .select({ id: creditLedgerEntries.id })
+      .select({
+        id: creditLedgerEntries.id,
+        userId: creditLedgerEntries.userId,
+      })
       .from(creditLedgerEntries)
       .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
       .limit(1)
       .for("update");
     if (existing) {
+      // The ledger key is intentionally global (per the PRD/schema), so an
+      // entry for another user cannot safely fall through to an insert.
+      if (existing.userId !== input.userId) {
+        return failure("IDEMPOTENCY_CONFLICT");
+      }
       return {
         ok: true,
         data: {

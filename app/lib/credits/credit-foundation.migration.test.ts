@@ -34,6 +34,7 @@ describe("credit accounting foundation migration", () => {
     expect(migration).toContain(
       'CREATE TRIGGER "credit_ledger_entries_append_only"',
     );
+    expect(migration).toContain("pg_trigger_depth() > 1");
     expect(migration).toContain(
       'CONSTRAINT "credit_top_ups_deadline_after_created"',
     );
