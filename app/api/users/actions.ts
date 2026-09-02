@@ -357,7 +357,6 @@ function isPermanentDeletionBlocker(error: unknown): boolean {
   if (
     message === INFRACTION_BLOCK_MESSAGE ||
     message === RESTRICT_ACTOR_BLOCK_MESSAGE ||
-    message === CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE ||
     message.startsWith(PERMANENT_ERROR_PREFIX)
   ) {
     return true;
@@ -421,6 +420,16 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       // A null clerkDeletedAt is a durable unknown/in-progress state. Retrying
       // the idempotent Clerk step reconciles it without creating another row.
       if (existingPending) {
+        if (
+          existingPending.clerkDeletedAt === null &&
+          (await hasCreditLedgerEntries(tx, profileId))
+        ) {
+          return {
+            ok: false as const,
+            reason: "has_credit_ledger_entries" as const,
+          };
+        }
+
         return {
           ok: true as const,
           pendingId: existingPending.id,
@@ -444,8 +453,9 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         };
       }
 
-      // Ledger entries are immutable accounting records. Keeping their
-      // required user reference means profiles with credit history are retained.
+      // This is the final retention check before Clerk deletion. The user lock
+      // serializes existing credit writes; the pending row makes later writes
+      // reject this user until local deletion finishes.
       if (await hasCreditLedgerEntries(tx, profileId)) {
         return {
           ok: false as const,
@@ -552,12 +562,6 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           throw new Error(RESTRICT_ACTOR_BLOCK_MESSAGE);
         }
 
-        // Recheck retention after Clerk deletion so a retry or concurrent
-        // credit write cannot violate the ledger's required user reference.
-        if (await hasCreditLedgerEntries(tx, profileId)) {
-          throw new Error(CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE);
-        }
-
         // Scrub outbox PII before the user row is removed; FK only nulls user_id.
         await scrubDisciplinaryNotificationJobsForUser(tx, profileId, now);
 
@@ -586,8 +590,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       const blockerMessage = error instanceof Error ? error.message : undefined;
       if (
         blockerMessage === INFRACTION_BLOCK_MESSAGE ||
-        blockerMessage === RESTRICT_ACTOR_BLOCK_MESSAGE ||
-        blockerMessage === CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE
+        blockerMessage === RESTRICT_ACTOR_BLOCK_MESSAGE
       ) {
         return { success: false, message: blockerMessage };
       }

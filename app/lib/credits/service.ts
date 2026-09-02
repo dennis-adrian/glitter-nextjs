@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import {
   calculateCreditBalances,
@@ -15,6 +15,7 @@ import {
   creditHolds,
   creditLedgerEntries,
   creditTopUps,
+  pendingUserDeletions,
   reservationFeatureActions,
 } from "@/db/schema";
 
@@ -32,6 +33,7 @@ export const CREDIT_FAILURE_CODES = [
   "INSUFFICIENT_CREDITS",
   "HOLD_NOT_ACTIVE",
   "IDEMPOTENCY_CONFLICT",
+  "USER_DELETION_PENDING",
 ] as const;
 export type CreditFailureCode = (typeof CREDIT_FAILURE_CODES)[number];
 
@@ -47,6 +49,25 @@ function positiveCreditAmount(value: number): number | null {
   if (!Number.isFinite(value) || value <= 0) return null;
   const rounded = roundCredits(value);
   return rounded > 0 && Math.abs(rounded - value) < 1e-9 ? rounded : null;
+}
+
+async function lockCreditUserForMutation(tx: DbTx, userId: number) {
+  // Profile deletion takes the same user lock before creating its pending row,
+  // so either this mutation commits first or it observes and rejects deletion.
+  await lockUserRows(tx, [userId]);
+
+  const [pendingDeletion] = await tx
+    .select({ id: pendingUserDeletions.id })
+    .from(pendingUserDeletions)
+    .where(
+      and(
+        eq(pendingUserDeletions.userId, userId),
+        isNull(pendingUserDeletions.localDeletedAt),
+      ),
+    )
+    .limit(1);
+
+  return !pendingDeletion;
 }
 
 async function lockCreditAccount(tx: DbTx, userId: number) {
@@ -158,7 +179,9 @@ export async function createCreditTopUpForRequirement(input: {
   const uploadDeadlineAt = new Date(now.getTime() + TOP_UP_UPLOAD_WINDOW_MS);
 
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, input.userId);
 
     const [created] = await tx
@@ -207,7 +230,9 @@ export async function getCreditTopUpUploadTarget(input: {
 }): Promise<CreditResult<{ topUpId: number }>> {
   const now = input.now ?? new Date();
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     const [topUp] = await tx
       .select()
       .from(creditTopUps)
@@ -240,7 +265,9 @@ export async function submitCreditTopUpVoucher(input: {
   const now = input.now ?? new Date();
 
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, input.userId);
     const existingEntries = await tx
       .select({ id: creditLedgerEntries.id })
@@ -321,7 +348,9 @@ export async function reviewCreditTopUp(input: {
       .limit(1);
     if (!preview) return failure("TOP_UP_NOT_FOUND");
 
-    await lockUserRows(tx, [preview.userId]);
+    if (!(await lockCreditUserForMutation(tx, preview.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, preview.userId);
     const [issue] = await tx
       .select({ id: creditLedgerEntries.id })
@@ -426,7 +455,9 @@ export async function createCreditHoldForFeature(input: {
   }
 
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, input.userId);
     const action = await lockOwnedFeatureAction(
       tx,
@@ -502,7 +533,9 @@ export async function spendCreditsForFeature(input: {
     return failure("INVALID_AMOUNT");
   }
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, input.userId);
     if (!(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))) {
       return failure("TOP_UP_NOT_FOUND");
@@ -561,7 +594,9 @@ export async function captureCreditHoldForFeature(input: {
 }): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
   if (!input.idempotencyKey.trim()) return failure("INVALID_AMOUNT");
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, input.userId);
     if (!(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))) {
       return failure("TOP_UP_NOT_FOUND");
@@ -633,7 +668,9 @@ export async function releaseCreditHoldForFeature(input: {
   status?: "released" | "expired";
 }): Promise<CreditResult<{ balances: CreditBalances }>> {
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, input.userId);
     if (!(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))) {
       return failure("TOP_UP_NOT_FOUND");
@@ -676,7 +713,9 @@ export async function adjustCreditAccount(input: {
   }
   const amount = roundCredits(input.amount);
   return db.transaction(async (tx) => {
-    await lockUserRows(tx, [input.userId]);
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
     await lockCreditAccount(tx, input.userId);
     const [existing] = await tx
       .select({
