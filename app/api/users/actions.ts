@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import {
+  creditLedgerEntries,
   infractionEvidence,
   infractionNotes,
   infractions,
@@ -304,6 +305,9 @@ const INFRACTION_BLOCK_MESSAGE =
 const RESTRICT_ACTOR_BLOCK_MESSAGE =
   "No se puede eliminar un perfil con registros administrativos vinculados.";
 
+const CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE =
+  "No se puede eliminar un perfil con historial de créditos.";
+
 const PERMANENT_ERROR_PREFIX = "PERMANENT:";
 
 type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -333,6 +337,19 @@ async function hasRestrictActorReferences(
     .limit(1);
 
   return Boolean(returnLog);
+}
+
+async function hasCreditLedgerEntries(
+  tx: DeletionTx,
+  profileId: number,
+): Promise<boolean> {
+  const [entry] = await tx
+    .select({ id: creditLedgerEntries.id })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.userId, profileId))
+    .limit(1);
+
+  return Boolean(entry);
 }
 
 function isPermanentDeletionBlocker(error: unknown): boolean {
@@ -403,6 +420,16 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       // A null clerkDeletedAt is a durable unknown/in-progress state. Retrying
       // the idempotent Clerk step reconciles it without creating another row.
       if (existingPending) {
+        if (
+          existingPending.clerkDeletedAt === null &&
+          (await hasCreditLedgerEntries(tx, profileId))
+        ) {
+          return {
+            ok: false as const,
+            reason: "has_credit_ledger_entries" as const,
+          };
+        }
+
         return {
           ok: true as const,
           pendingId: existingPending.id,
@@ -423,6 +450,16 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         return {
           ok: false as const,
           reason: "has_restrict_references" as const,
+        };
+      }
+
+      // This is the final retention check before Clerk deletion. The user lock
+      // serializes existing credit writes; the pending row makes later writes
+      // reject this user until local deletion finishes.
+      if (await hasCreditLedgerEntries(tx, profileId)) {
+        return {
+          ok: false as const,
+          reason: "has_credit_ledger_entries" as const,
         };
       }
 
@@ -453,6 +490,12 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         return {
           success: false,
           message: RESTRICT_ACTOR_BLOCK_MESSAGE,
+        };
+      }
+      if (preparation.reason === "has_credit_ledger_entries") {
+        return {
+          success: false,
+          message: CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE,
         };
       }
       return { success: false, message: "Error al eliminar el perfil" };

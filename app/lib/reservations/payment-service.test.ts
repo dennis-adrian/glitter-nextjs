@@ -739,6 +739,11 @@ describe("rejectInvoiceSettlement", () => {
             originalAmount: 150,
             reservationId: 4,
           },
+          reservation: {
+            standId: 7,
+            status: "verification_payment",
+            festivalId: 10,
+          },
           existingSettlement: {
             id: 21,
             invoiceId: 9,

@@ -11,6 +11,7 @@ import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/h
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
+  creditLedgerEntries,
   festivalActivities,
   festivalDates,
   festivalStatusEnum,
@@ -18,6 +19,7 @@ import {
   festivalSectors,
   infractions,
   profileSubcategories,
+  reservationFeatureActions,
   reservationParticipants,
   stands,
   standReservations,
@@ -62,6 +64,39 @@ function isValidFestivalStatus(
   return festivalStatusEnum.enumValues.includes(
     status as (typeof festivalStatusEnum.enumValues)[number],
   );
+}
+
+async function hasLedgerReferencedFeatureAction(festivalId: number) {
+  const [featureAction] = await db
+    .select({ id: reservationFeatureActions.id })
+    .from(reservationFeatureActions)
+    .innerJoin(
+      creditLedgerEntries,
+      eq(creditLedgerEntries.featureActionId, reservationFeatureActions.id),
+    )
+    .where(eq(reservationFeatureActions.festivalId, festivalId))
+    .limit(1);
+
+  return Boolean(featureAction);
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23503"
+  );
+}
+
+async function archiveLedgerReferencedFestival(festivalId: number) {
+  const archived = await archiveFestival(festivalId);
+  return archived.success
+    ? {
+        success: true,
+        message: "Festival archivado; se conserva su historial de créditos.",
+      }
+    : archived;
 }
 
 export async function createFestival(
@@ -183,8 +218,30 @@ export async function deleteFestival(festivalId: number) {
   }
 
   try {
+    // Ledger entries are append-only. Retain their feature-action parent by
+    // archiving the festival instead of cascading a delete through it.
+    if (await hasLedgerReferencedFeatureAction(festivalId)) {
+      return archiveLedgerReferencedFestival(festivalId);
+    }
+
     await db.delete(festivals).where(eq(festivals.id, festivalId));
   } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      try {
+        // A ledger entry may have posted after the initial lookup. The
+        // RESTRICT FK is the final arbiter, so turn that expected race into
+        // the same archival outcome as a pre-existing reference.
+        if (await hasLedgerReferencedFeatureAction(festivalId)) {
+          return archiveLedgerReferencedFestival(festivalId);
+        }
+      } catch (recheckError) {
+        console.error(
+          "Error rechecking festival ledger references:",
+          recheckError,
+        );
+      }
+    }
+
     console.error("Error deleting festival:", error);
     return {
       success: false,

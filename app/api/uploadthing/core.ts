@@ -5,6 +5,10 @@ import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
+import {
+  getCreditTopUpUploadTarget,
+  submitCreditTopUpVoucher,
+} from "@/app/lib/credits/service";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolveReservationPaymentUpload } from "@/app/lib/payments/helpers";
@@ -146,6 +150,52 @@ export const ourFileRouter = {
           invoiceId: metadata.invoiceId,
           imageUrl: voucherUrl,
           submissionId: result.data.submissionId,
+        },
+      };
+    }),
+  creditTopUpVoucher: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .input(z.object({ topUpId: z.number().int().positive() }))
+    .middleware(async ({ input }) => {
+      const user = await currentUser();
+      if (!user) {
+        throw new UploadThingError(
+          "Tenés que iniciar sesión para subir un comprobante",
+        );
+      }
+      const profile = await fetchUserProfile(user.id);
+      if (!profile) {
+        throw new UploadThingError(
+          "Tenés que tener un perfil para subir un comprobante",
+        );
+      }
+      const target = await getCreditTopUpUploadTarget({
+        topUpId: input.topUpId,
+        userId: profile.id,
+      });
+      if (!target.ok) {
+        throw new UploadThingError("La carga de créditos ya no está disponible");
+      }
+      return { profileId: profile.id, topUpId: target.data.topUpId };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      const uploaded = file as { url?: string; ufsUrl?: string; key?: string };
+      const voucherUrl = uploaded.ufsUrl ?? uploaded.url;
+      if (!voucherUrl || !uploaded.key) {
+        throw new UploadThingError("No se pudo leer el comprobante");
+      }
+      const result = await submitCreditTopUpVoucher({
+        topUpId: metadata.topUpId,
+        userId: metadata.profileId,
+        voucherUrl,
+        fileKey: uploaded.key,
+      });
+      if (!result.ok) {
+        throw new UploadThingError("No se pudo registrar la carga de créditos");
+      }
+      return {
+        results: {
+          topUpId: result.data.topUpId,
+          imageUrl: voucherUrl,
         },
       };
     }),
