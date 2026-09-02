@@ -137,6 +137,7 @@ export default async function Page(props: {
                   <PaymentSummary
                     invoice={invoice}
                     festivalId={validatedParams.data.festivalId}
+                    approvedCashAmount={tender?.approvedCashAmount}
                     creditAppliedAmount={tender?.confirmedCreditAmount}
                     outstandingAmount={outstandingAmount}
                   />

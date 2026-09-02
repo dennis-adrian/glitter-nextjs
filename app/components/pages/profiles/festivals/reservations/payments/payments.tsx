@@ -58,6 +58,7 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
               <PaymentSummary
                 invoice={invoice}
                 festivalId={festival.id}
+                approvedCashAmount={tender?.approvedCashAmount}
                 creditAppliedAmount={tender?.confirmedCreditAmount}
                 outstandingAmount={outstandingAmount}
               />

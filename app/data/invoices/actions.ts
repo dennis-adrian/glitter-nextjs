@@ -18,6 +18,7 @@ import {
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { type ReservationActionResult } from "@/app/lib/reservations/errors";
 import {
+  canSubmitInvoiceSettlement,
   canViewAdminReservationData,
   canViewInvoiceRecord,
 } from "@/app/lib/reservations/policy";
@@ -40,8 +41,9 @@ export type InvoiceTenderSummary = {
 };
 
 /**
- * Returns canonical tender totals for the invoice owner. The mutable settlement
- * service rechecks the same values under locks before it writes anything.
+ * Returns canonical tender totals for the invoice owner or a global admin. The
+ * mutable settlement service rechecks the same values under locks before it
+ * writes anything.
  */
 export async function fetchInvoiceTenderSummary(
   invoiceId: number,
@@ -58,7 +60,15 @@ export async function fetchInvoiceTenderSummary(
     .from(invoices)
     .where(eq(invoices.id, invoiceId))
     .limit(1);
-  if (!invoice || invoice.userId !== actor.id) return null;
+  if (
+    !invoice ||
+    !canSubmitInvoiceSettlement({
+      actor: { id: actor.id, role: actor.role },
+      invoiceOwnerUserId: invoice.userId,
+    })
+  ) {
+    return null;
+  }
 
   const [cash] = await db
     .select({ amount: sql<number>`coalesce(sum(${payments.amount}), 0)` })

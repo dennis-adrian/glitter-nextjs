@@ -11,6 +11,7 @@ import DiscountCodeInput from "./discount-code-input";
 type PaymentSummaryProps = {
   invoice: InvoiceBase;
   festivalId: number;
+  approvedCashAmount?: number;
   creditAppliedAmount?: number;
   outstandingAmount?: number;
 };
@@ -18,6 +19,7 @@ type PaymentSummaryProps = {
 export function PaymentSummary({
   invoice,
   festivalId,
+  approvedCashAmount = 0,
   creditAppliedAmount = 0,
   outstandingAmount = invoice.amount,
 }: PaymentSummaryProps) {
@@ -43,6 +45,12 @@ export function PaymentSummary({
               </span>
             </div>
           )}
+          {approvedCashAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Pagos aprobados</span>
+              <span className="text-green-600">-Bs{approvedCashAmount}</span>
+            </div>
+          )}
           {creditAppliedAmount > 0 && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Créditos aplicados</span>
@@ -53,7 +61,11 @@ export function PaymentSummary({
           <Separator className="my-3" />
 
           <div className="flex justify-between font-medium">
-            <span>{creditAppliedAmount > 0 ? "Saldo pendiente" : "Total"}</span>
+            <span>
+              {approvedCashAmount > 0 || creditAppliedAmount > 0
+                ? "Saldo pendiente"
+                : "Total"}
+            </span>
             <span>Bs{outstandingAmount}</span>
           </div>
         </div>
