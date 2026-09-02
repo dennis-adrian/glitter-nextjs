@@ -1828,6 +1828,13 @@
       "when": 1788370592518,
       "tag": "0261_chilly_santa_claus",
       "breakpoints": true
+    },
+    {
+      "idx": 262,
+      "version": "7",
+      "when": 1788372936596,
+      "tag": "0262_great_gambit",
+      "breakpoints": true
     }
   ]
 }

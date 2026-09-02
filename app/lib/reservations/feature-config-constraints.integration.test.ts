@@ -2,7 +2,11 @@
 
 import { randomUUID } from "crypto";
 import { Pool, type PoolClient } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+import { RESERVATION_REQUEST_OPERATIONS } from "@/app/lib/reservations/request-registry";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -188,11 +192,9 @@ describeDatabase("illustration stand pricing constraints", () => {
     sectorId = sector.rows[0].id;
   }, 60_000);
 
-  // Last block in the file owns the shared pool.
   afterAll(async () => {
     await standClient?.query("ROLLBACK");
     standClient?.release();
-    await pool?.end();
   });
 
   async function insertStand(individualPrice: number, sharedPrice: number | null) {
@@ -223,5 +225,62 @@ describeDatabase("illustration stand pricing constraints", () => {
     await insertStand(200, 200);
     await insertStand(200, 260);
     await insertStand(200, null);
+  });
+});
+
+describeDatabase("reservation request registry operations", () => {
+  let registryClient: PoolClient;
+  let actorUserId: number;
+
+  beforeAll(async () => {
+    registryClient = await pool!.connect();
+    await registryClient.query("BEGIN");
+    const user = await registryClient.query(
+      `INSERT INTO users (clerk_id, email) VALUES ($1, $2) RETURNING id`,
+      [`registry-${randomUUID()}`, `registry-${randomUUID()}@example.com`],
+    );
+    actorUserId = user.rows[0].id;
+  }, 60_000);
+
+  // Last block in the file owns the shared pool.
+  afterAll(async () => {
+    await registryClient?.query("ROLLBACK");
+    registryClient?.release();
+    await pool?.end();
+  });
+
+  /**
+   * The allowed-operation list lives in two places: the TypeScript union and a
+   * database CHECK. They drifted once already — `applyInvoiceCredits` and
+   * `createInvoiceCreditTopUp` were added to the union but not the constraint,
+   * so every credit claim threw and surfaced as a permanent CONFLICT_RETRY.
+   * Unit tests mock the registry, so only this can catch it.
+   */
+  it("accepts every operation the application declares", async () => {
+    for (const operation of RESERVATION_REQUEST_OPERATIONS) {
+      await registryClient.query("SAVEPOINT registry_case");
+      await expect(
+        registryClient.query(
+          `INSERT INTO reservation_request_registry
+             (request_key, operation, actor_user_id, scope)
+           VALUES ($1, $2, $3, $4)`,
+          [`${operation}-${randomUUID()}`, operation, actorUserId, {}],
+        ),
+      ).resolves.toBeDefined();
+      await registryClient.query("ROLLBACK TO SAVEPOINT registry_case");
+    }
+  });
+
+  it("still rejects an operation the application does not declare", async () => {
+    await registryClient.query("SAVEPOINT registry_case");
+    await expect(
+      registryClient.query(
+        `INSERT INTO reservation_request_registry
+           (request_key, operation, actor_user_id, scope)
+         VALUES ($1, $2, $3, $4)`,
+        [randomUUID(), "dropAllTables", actorUserId, {}],
+      ),
+    ).rejects.toThrow("reservation_request_registry_operation_check");
+    await registryClient.query("ROLLBACK TO SAVEPOINT registry_case");
   });
 });

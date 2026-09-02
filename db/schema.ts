@@ -2159,6 +2159,8 @@ export const reservationRequestRegistry = pgTable(
         'createOrReplaceStandHold',
         'confirmStandHold',
         'submitPaymentProof',
+        'applyInvoiceCredits',
+        'createInvoiceCreditTopUp',
         'submitZeroValueInvoice',
         'createAdminReservation',
         'adminConfirmReservation',
