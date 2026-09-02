@@ -118,11 +118,21 @@ describeDatabase("credit mutation concurrency", () => {
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
     service = await import("@/app/lib/credits/service");
 
+    // An unmigrated database throws on a missing relation rather than
+    // returning nothing, and an empty result is perfectly valid here, so the
+    // guard has to catch rather than test the result. Probe a credit table:
+    // `users` survives almost every migration state and would let a database
+    // without the credit schema through.
     const db = integrationDb!;
-    const probe = await db.select({ id: users.id }).from(users).limit(1);
-    if (!probe) {
+    try {
+      await db
+        .select({ id: creditLedgerEntries.id })
+        .from(creditLedgerEntries)
+        .limit(1);
+    } catch (error) {
       throw new Error(
         "TEST_DATABASE_URL is safe but unmigrated; apply Drizzle migrations first.",
+        { cause: error },
       );
     }
   }, 60_000);
