@@ -7,12 +7,6 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Foreign-key cascade deletes run as nested triggers. Permit only that path
-  -- so the user FK's ON DELETE CASCADE can complete.
-  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
-    RETURN OLD;
-  END IF;
-
   RAISE EXCEPTION 'credit ledger entries are append-only';
 END;
 $$;--> statement-breakpoint

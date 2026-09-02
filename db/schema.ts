@@ -1767,7 +1767,7 @@ export const creditLedgerEntries = pgTable(
     id: serial("id").primaryKey(),
     userId: integer("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => users.id, { onDelete: "restrict" }),
     amount: money("amount").notNull(),
     type: creditLedgerEntryTypeEnum("type").notNull(),
     status: text("status").default("posted").notNull(),

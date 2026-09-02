@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 describe("credit accounting foundation migration", () => {
   it("creates immutable, idempotent accounting tables", async () => {
-    const [foundation, integrity] = await Promise.all([
+    const [foundation, integrity, retention] = await Promise.all([
       readFile(
         resolve(process.cwd(), "drizzle/0256_credit_accounting_foundation.sql"),
         "utf8",
@@ -14,8 +14,12 @@ describe("credit accounting foundation migration", () => {
         resolve(process.cwd(), "drizzle/0259_credit_ledger_integrity.sql"),
         "utf8",
       ),
+      readFile(
+        resolve(process.cwd(), "drizzle/0260_credit_ledger_user_retention.sql"),
+        "utf8",
+      ),
     ]);
-    const migration = `${foundation}\n${integrity}`;
+    const migration = `${foundation}\n${integrity}\n${retention}`;
 
     expect(migration).toContain('CREATE TABLE "credit_accounts"');
     expect(migration).toContain('CREATE TABLE "credit_ledger_entries"');
@@ -34,7 +38,11 @@ describe("credit accounting foundation migration", () => {
     expect(migration).toContain(
       'CREATE TRIGGER "credit_ledger_entries_append_only"',
     );
-    expect(migration).toContain("pg_trigger_depth() > 1");
+    expect(integrity).not.toContain("pg_trigger_depth");
+    expect(retention).toContain(
+      'DROP CONSTRAINT "credit_ledger_entries_user_id_users_id_fk"',
+    );
+    expect(retention).toContain("ON DELETE restrict");
     expect(migration).toContain(
       'CONSTRAINT "credit_top_ups_deadline_after_created"',
     );
