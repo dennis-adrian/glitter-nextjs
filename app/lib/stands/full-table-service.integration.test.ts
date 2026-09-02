@@ -43,6 +43,7 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 
 let setStandGroupFullTable: (typeof import("@/app/lib/stands/full-table-service"))["setStandGroupFullTable"];
 let findMalformedFullTableGroups: (typeof import("@/app/lib/stands/full-table-health"))["findMalformedFullTableGroups"];
+let updateStandPrices: (typeof import("@/app/lib/stands/pricing-service"))["updateStandPrices"];
 
 const createdFestivalIds: number[] = [];
 const createdGroupIds: number[] = [];
@@ -103,6 +104,7 @@ describeDatabase("setStandGroupFullTable", () => {
     ({ findMalformedFullTableGroups } = await import(
       "@/app/lib/stands/full-table-health"
     ));
+    ({ updateStandPrices } = await import("@/app/lib/stands/pricing-service"));
 
     try {
       await integrationDb!.select({ id: standGroups.type }).from(standGroups).limit(1);
@@ -266,5 +268,132 @@ describeDatabase("setStandGroupFullTable", () => {
     expect(
       await setStandGroupFullTable({ groupId: 2_000_000_000, enabled: true }),
     ).toMatchObject({ ok: false, code: "GROUP_NOT_FOUND" });
+  });
+
+  describe("updateStandPrices", () => {
+    async function priceOf(standId: number) {
+      const [row] = await integrationDb!
+        .select({
+          individualPrice: stands.individualPrice,
+          sharedPrice: stands.sharedPrice,
+        })
+        .from(stands)
+        .where(eq(stands.id, standId));
+      return {
+        individualPrice: Number(row!.individualPrice),
+        sharedPrice: row!.sharedPrice == null ? null : Number(row!.sharedPrice),
+      };
+    }
+
+    it("updates an unpaired stand", async () => {
+      const { standIds } = await createPair();
+
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 275, sharedPrice: 400 },
+      ]);
+
+      expect(result).toMatchObject({ ok: true, updated: 1 });
+      expect(await priceOf(standIds[0])).toEqual({
+        individualPrice: 275,
+        sharedPrice: 400,
+      });
+    });
+
+    it("refuses a shared price below the individual price", async () => {
+      const { standIds } = await createPair();
+
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 300, sharedPrice: 200 },
+      ]);
+
+      expect(result).toMatchObject({ ok: false, code: "INVALID_PRICES" });
+      // Nothing was written.
+      expect(await priceOf(standIds[0])).toEqual({
+        individualPrice: 200,
+        sharedPrice: 300,
+      });
+    });
+
+    it("refuses more than two decimals", async () => {
+      const { standIds } = await createPair();
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 10.005 },
+      ]);
+      expect(result).toMatchObject({ ok: false, code: "INVALID_PRICES" });
+    });
+
+    it("refuses a shared price on a non-illustration stand", async () => {
+      const { standIds } = await createPair(
+        { standCategory: "entrepreneurship", sharedPrice: null },
+        { standCategory: "entrepreneurship", sharedPrice: null },
+      );
+
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 100, sharedPrice: 150 },
+      ]);
+
+      expect(result).toMatchObject({ ok: false, code: "INVALID_PRICES" });
+      if (result.ok) return;
+      expect(result.problems[0].message).toContain("ilustración");
+    });
+
+    it("refuses repricing one half of a declared full table", async () => {
+      const { groupId, standIds } = await createPair();
+      await setStandGroupFullTable({ groupId, enabled: true });
+
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 250, sharedPrice: 400 },
+      ]);
+
+      expect(result).toMatchObject({ ok: false, code: "BREAKS_PAIR" });
+      // Refused before writing, so the half keeps its original price.
+      expect(await priceOf(standIds[0])).toEqual({
+        individualPrice: 200,
+        sharedPrice: 300,
+      });
+    });
+
+    it("accepts repricing both halves together", async () => {
+      const { groupId, standIds } = await createPair();
+      await setStandGroupFullTable({ groupId, enabled: true });
+
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 250, sharedPrice: 400 },
+        { standId: standIds[1], individualPrice: 250, sharedPrice: 400 },
+      ]);
+
+      expect(result).toMatchObject({ ok: true, updated: 2 });
+      expect(await priceOf(standIds[0])).toEqual({
+        individualPrice: 250,
+        sharedPrice: 400,
+      });
+      expect(await findMalformedFullTableGroups()).not.toContainEqual(
+        expect.objectContaining({ groupId }),
+      );
+    });
+
+    it("allows repricing one half once the full table is turned off", async () => {
+      const { groupId, standIds } = await createPair();
+      await setStandGroupFullTable({ groupId, enabled: true });
+      await setStandGroupFullTable({ groupId, enabled: false });
+
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 250, sharedPrice: 400 },
+      ]);
+
+      expect(result).toMatchObject({ ok: true, updated: 1 });
+    });
+
+    it("reports missing stands without writing the rest", async () => {
+      const { standIds } = await createPair();
+
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 275 },
+        { standId: 2_000_000_000, individualPrice: 275 },
+      ]);
+
+      expect(result).toMatchObject({ ok: false, code: "STANDS_NOT_FOUND" });
+      expect((await priceOf(standIds[0])).individualPrice).toBe(200);
+    });
   });
 });
