@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import {
   CircleUserIcon,
+  CoinsIcon,
   ListIcon,
   ShoppingBagIcon,
   UserIcon,
@@ -85,6 +86,12 @@ export default function UserDropdown({
             <Link href="/my_orders">
               <ShoppingBagIcon className="mr-2 h-4 w-4" />
               <span>Mis pedidos</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/my_credits">
+              <CoinsIcon className="mr-2 h-4 w-4" />
+              <span>Mis créditos</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />

@@ -4,6 +4,7 @@ import {
   canFundInvoiceCreditAllocation,
   calculateCreditBalances,
   exactCreditShortfall,
+  invoiceCreditPlan,
 } from "@/app/lib/credits/balances";
 
 describe("credit balances", () => {
@@ -84,5 +85,55 @@ describe("credit balances", () => {
         70,
       ),
     ).toBe(true);
+  });
+});
+
+describe("invoiceCreditPlan", () => {
+  const balances = (
+    ledgerBalance: number,
+    activeHolds = 0,
+    underReviewIssuance = 0,
+  ) =>
+    calculateCreditBalances({
+      ledgerBalance,
+      activeHolds,
+      underReviewIssuance,
+    });
+
+  it("applies at most the outstanding amount", () => {
+    expect(invoiceCreditPlan(balances(200), 150)).toMatchObject({
+      applicableAmount: 150,
+      shortfallAmount: 0,
+      debtAmount: 0,
+    });
+  });
+
+  it("buys only the remainder confirmed credit cannot cover", () => {
+    expect(invoiceCreditPlan(balances(40), 150)).toMatchObject({
+      applicableAmount: 40,
+      shortfallAmount: 110,
+    });
+  });
+
+  it("treats provisional credit as unusable for the invoice", () => {
+    expect(invoiceCreditPlan(balances(150, 0, 150), 150)).toMatchObject({
+      applicableAmount: 0,
+      shortfallAmount: 150,
+    });
+  });
+
+  it("ignores held credit earmarked for a feature", () => {
+    expect(invoiceCreditPlan(balances(150, 50), 150)).toMatchObject({
+      applicableAmount: 100,
+      shortfallAmount: 50,
+    });
+  });
+
+  it("blocks application and adds debt to the shortfall", () => {
+    expect(invoiceCreditPlan(balances(-25), 150)).toMatchObject({
+      applicableAmount: 0,
+      shortfallAmount: 175,
+      debtAmount: 25,
+    });
   });
 });

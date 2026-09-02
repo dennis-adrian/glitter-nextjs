@@ -18,14 +18,15 @@ export default function PaymentProofUpload({
   voucherImageUrl?: string;
   onUploadComplete: (
     imageUrl: string,
-    extra?: { submissionId?: number },
+    extra?: { submissionId?: number; topUpId?: number },
   ) => Promise<void> | void;
   onUploading: (isUploading: boolean) => void;
   endpoint?:
     | "reservationPayment"
     | "adminReservationPayment"
     | "storeOrderPayment"
-    | "guestOrderPayment";
+    | "guestOrderPayment"
+    | "creditTopUpVoucher";
   submitLabel?: string;
   uploadInput?: Record<string, unknown>;
 }) {
@@ -42,6 +43,8 @@ export default function PaymentProofUpload({
     useUploadThing("storeOrderPayment");
   const { startUpload: startGuestOrderPaymentUpload } =
     useUploadThing("guestOrderPayment");
+  const { startUpload: startCreditTopUpVoucherUpload } =
+    useUploadThing("creditTopUpVoucher");
 
   useEffect(() => {
     return () => {
@@ -81,6 +84,17 @@ export default function PaymentProofUpload({
         });
       } else if (endpoint === "storeOrderPayment") {
         res = await startStoreOrderPaymentUpload([selectedFile]);
+      } else if (endpoint === "creditTopUpVoucher") {
+        const topUpId = uploadInput?.["topUpId"];
+        if (typeof topUpId !== "number") {
+          toast.error(
+            "Faltan datos para subir el comprobante. Recargá la página e intentá de nuevo.",
+          );
+          setIsUploading(false);
+          onUploading(false);
+          return;
+        }
+        res = await startCreditTopUpVoucherUpload([selectedFile], { topUpId });
       } else {
         const invoiceId = uploadInput?.["invoiceId"];
         if (typeof invoiceId !== "number") {
@@ -102,7 +116,7 @@ export default function PaymentProofUpload({
         return;
       }
       const results = res[0].serverData?.results as
-        | { imageUrl?: string; submissionId?: number }
+        | { imageUrl?: string; submissionId?: number; topUpId?: number }
         | undefined;
       const imageUrl = results?.imageUrl;
       if (!imageUrl) {
@@ -111,6 +125,7 @@ export default function PaymentProofUpload({
       }
       await onUploadComplete(imageUrl, {
         submissionId: results?.submissionId,
+        topUpId: results?.topUpId,
       });
     } catch {
       toast.error("Error al subir el comprobante. Intentá de nuevo.");

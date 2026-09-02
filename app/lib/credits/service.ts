@@ -132,6 +132,16 @@ export async function getCreditBalancesInTx(tx: CreditTx, userId: number) {
   return lockedCreditBalances(tx, userId);
 }
 
+/**
+ * Snapshot read for display. It takes no row locks, so a mutation must still
+ * use `getCreditBalancesInTx` while holding the credit account.
+ */
+export async function readCreditBalances(
+  userId: number,
+): Promise<CreditBalances> {
+  return db.transaction((tx) => lockedCreditBalances(tx, userId));
+}
+
 async function updateCachedBalance(tx: DbTx, userId: number, delta: number) {
   await tx
     .update(creditAccounts)
@@ -166,18 +176,34 @@ async function lockOwnedFeatureAction(
   return action ?? null;
 }
 
-/**
- * Internal-only entry point. A future invoice/feature service must calculate
- * its authoritative shortfall before calling this; never pass browser pricing.
- */
-export async function createCreditTopUpForRequirement(input: {
+export type CreditTopUpRequirement = {
   userId: number;
   amount: number;
   intendedUseType: "feature" | "invoice" | "debt";
   intendedUseId?: number;
   idempotencyKey: string;
   now?: Date;
-}): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
+};
+
+/**
+ * Internal-only entry point. A caller owning the invoice or feature must
+ * calculate its authoritative shortfall first; never pass browser pricing.
+ */
+export async function createCreditTopUpForRequirement(
+  input: CreditTopUpRequirement,
+): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
+  return db.transaction((tx) => createCreditTopUpForRequirementInTx(tx, input));
+}
+
+/**
+ * Transaction-scoped variant for callers that already hold the canonical
+ * reservation/credit locks. Re-taking the user and account locks here is a
+ * no-op for an owner that holds them, so the §14 order is preserved.
+ */
+export async function createCreditTopUpForRequirementInTx(
+  tx: CreditTx,
+  input: CreditTopUpRequirement,
+): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
   const amount = positiveCreditAmount(input.amount);
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
@@ -185,7 +211,7 @@ export async function createCreditTopUpForRequirement(input: {
   const now = input.now ?? new Date();
   const uploadDeadlineAt = new Date(now.getTime() + TOP_UP_UPLOAD_WINDOW_MS);
 
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -227,7 +253,7 @@ export async function createCreditTopUpForRequirement(input: {
     if (!existing) return failure("TOP_UP_NOT_FOUND");
     if (existing.amount !== amount) return failure("IDEMPOTENCY_CONFLICT");
     return { ok: true, data: existing };
-  });
+  }
 }
 
 export async function getCreditTopUpUploadTarget(input: {

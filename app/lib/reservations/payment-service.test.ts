@@ -16,6 +16,7 @@ const applyReservationCancellationMock = vi.hoisted(() =>
 );
 const debitConfirmedCreditsMock = vi.hoisted(() => vi.fn());
 const creditBalancesMock = vi.hoisted(() => vi.fn());
+const createCreditTopUpMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -36,6 +37,7 @@ vi.mock("@/app/api/users/actions", () => ({
 }));
 
 vi.mock("@/app/lib/credits/service", () => ({
+  createCreditTopUpForRequirementInTx: createCreditTopUpMock,
   debitConfirmedCreditsForInvoiceInTx: debitConfirmedCreditsMock,
   getCreditBalancesInTx: creditBalancesMock,
 }));
@@ -121,6 +123,7 @@ vi.mock("next/cache", () => ({
 import {
   adminConfirmReservation,
   applyInvoiceCredits,
+  createInvoiceCreditTopUp,
   approveInvoiceSettlement,
   correctSettlementProof,
   findSubmittedSettlementInvoiceIdForReservation,
@@ -129,6 +132,7 @@ import {
   submitZeroValueInvoiceForReview,
 } from "@/app/lib/reservations/payment-service";
 import {
+  creditTopUps,
   invoiceSettlementSubmissions,
   invoiceCreditAllocations,
   invoices,
@@ -181,6 +185,12 @@ function createTx(options: {
   invoiceCreditAmount?: number;
   approvedCashAmount?: number;
   ownerEmail?: string;
+  openCreditTopUps?: Array<{
+    id: number;
+    amount: number;
+    status: string;
+    uploadDeadlineAt: Date;
+  }>;
 }) {
   const reservation = {
     id: options.invoice.reservationId,
@@ -256,6 +266,20 @@ function createTx(options: {
           }
           if (table === invoiceCreditAllocations) {
             return Promise.resolve([{ amount: invoiceCreditAmount }]);
+          }
+          if (table === creditTopUps) {
+            const rows = options.openCreditTopUps ?? [];
+            return Object.assign(Promise.resolve(rows), {
+              for: vi.fn().mockResolvedValue(rows),
+              orderBy: vi.fn(() => ({
+                limit: vi.fn().mockResolvedValue(rows),
+              })),
+              limit: vi.fn(() =>
+                Object.assign(Promise.resolve(rows), {
+                  for: vi.fn().mockResolvedValue(rows),
+                }),
+              ),
+            });
           }
           if (table === users) {
             return {
@@ -711,6 +735,196 @@ describe("applyInvoiceCredits", () => {
       code: "INSUFFICIENT_CREDITS",
     });
     expect(debitConfirmedCreditsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("createInvoiceCreditTopUp", () => {
+  const key = "22222222-2222-4222-8222-222222222222";
+
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    creditBalancesMock.mockReset();
+    createCreditTopUpMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
+    createCreditTopUpMock.mockImplementation(
+      async (_tx: unknown, input: { amount: number }) => ({
+        ok: true,
+        data: {
+          id: 55,
+          amount: input.amount,
+          uploadDeadlineAt: new Date("2026-09-02T12:10:00.000Z"),
+        },
+      }),
+    );
+  });
+
+  function installTransaction(
+    options: {
+      amount?: number;
+      approvedCashAmount?: number;
+      invoiceCreditAmount?: number;
+      openCreditTopUps?: Array<{
+        id: number;
+        amount: number;
+        status: string;
+        uploadDeadlineAt: Date;
+      }>;
+    } = {},
+  ) {
+    transactionMock.mockImplementation(
+      async (callback: (tx: unknown) => unknown) =>
+        callback(
+          createTx({
+            invoice: {
+              id: 9,
+              userId: 8,
+              status: "pending",
+              amount: options.amount ?? 150,
+              originalAmount: options.amount ?? 150,
+              discountAmount: 0,
+              reservationId: 4,
+            },
+            approvedCashAmount: options.approvedCashAmount,
+            invoiceCreditAmount: options.invoiceCreditAmount,
+            openCreditTopUps: options.openCreditTopUps,
+          }),
+        ),
+    );
+  }
+
+  it("rejects a caller who does not own the invoice", async () => {
+    currentProfileMock.mockResolvedValue({ id: 99, role: "user" });
+    creditBalancesMock.mockResolvedValue({
+      ledgerBalance: 0,
+      invoiceEligibleBalance: 0,
+    });
+    installTransaction();
+
+    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+
+    expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_OWNED" });
+    expect(createCreditTopUpMock).not.toHaveBeenCalled();
+    expect(abandonRequestMock).toHaveBeenCalled();
+  });
+
+  it("buys only the shortfall left after confirmed credit and approved cash", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({
+      ledgerBalance: 20,
+      invoiceEligibleBalance: 20,
+    });
+    installTransaction({ amount: 150, approvedCashAmount: 30 });
+
+    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+
+    expect(createCreditTopUpMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: 8,
+        amount: 100,
+        intendedUseType: "invoice",
+        intendedUseId: 9,
+        idempotencyKey: key,
+      }),
+    );
+    expect(result).toMatchObject({
+      success: true,
+      data: { topUpId: 55, amount: 100 },
+    });
+    expect(completeRequestMock).toHaveBeenCalledWith(
+      expect.anything(),
+      key,
+      expect.objectContaining({ topUpId: 55 }),
+    );
+  });
+
+  it("adds existing debt on top of the outstanding amount", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({
+      ledgerBalance: -25,
+      invoiceEligibleBalance: 0,
+    });
+    installTransaction({ amount: 150 });
+
+    await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+
+    expect(createCreditTopUpMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ amount: 175 }),
+    );
+  });
+
+  it("refuses a second purchase while one is under review", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({
+      ledgerBalance: 0,
+      invoiceEligibleBalance: 0,
+    });
+    installTransaction({
+      openCreditTopUps: [
+        {
+          id: 41,
+          amount: 150,
+          status: "under_review",
+          uploadDeadlineAt: new Date("2026-09-02T12:10:00.000Z"),
+        },
+      ],
+    });
+
+    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "CREDIT_TOP_UP_UNDER_REVIEW",
+    });
+    expect(createCreditTopUpMock).not.toHaveBeenCalled();
+  });
+
+  it("resumes an unexpired purchase instead of opening another one", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({
+      ledgerBalance: 0,
+      invoiceEligibleBalance: 0,
+    });
+    installTransaction({
+      openCreditTopUps: [
+        {
+          id: 41,
+          amount: 150,
+          status: "awaiting_voucher",
+          uploadDeadlineAt: new Date(Date.now() + 5 * 60 * 1000),
+        },
+      ],
+    });
+
+    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { topUpId: 41, amount: 150 },
+    });
+    expect(createCreditTopUpMock).not.toHaveBeenCalled();
+  });
+
+  it("does not open a purchase when confirmed credit already covers the invoice", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({
+      ledgerBalance: 200,
+      invoiceEligibleBalance: 200,
+    });
+    installTransaction({ amount: 150 });
+
+    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "CREDIT_TOP_UP_NOT_NEEDED",
+    });
+    expect(createCreditTopUpMock).not.toHaveBeenCalled();
   });
 });
 

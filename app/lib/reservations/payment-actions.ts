@@ -9,6 +9,7 @@ import {
   applyInvoiceCredits,
   approveInvoiceSettlement,
   correctSettlementProof,
+  createInvoiceCreditTopUp,
   findSubmittedSettlementId,
   findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
@@ -30,6 +31,10 @@ export async function submitZeroValueInvoiceForReviewAction(input: unknown) {
 
 export async function applyInvoiceCreditsAction(input: unknown) {
   return applyInvoiceCredits(input);
+}
+
+export async function createInvoiceCreditTopUpAction(input: unknown) {
+  return createInvoiceCreditTopUp(input);
 }
 
 export async function approveInvoiceSettlementAction(input: unknown) {

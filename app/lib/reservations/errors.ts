@@ -24,6 +24,8 @@ export const RESERVATION_ERROR_CODES = [
   "PAYMENT_ALREADY_SUBMITTED",
   "PAYMENT_AMOUNT_MISMATCH",
   "INSUFFICIENT_CREDITS",
+  "CREDIT_TOP_UP_UNDER_REVIEW",
+  "CREDIT_TOP_UP_NOT_NEEDED",
   "VALIDATION",
 ] as const;
 
@@ -71,6 +73,10 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "El importe del comprobante no coincide con el saldo pendiente.",
     INSUFFICIENT_CREDITS:
       "No tenés créditos confirmados suficientes para cubrir este pago.",
+    CREDIT_TOP_UP_UNDER_REVIEW:
+      "Ya tenés una compra de créditos en revisión para este pago. Esperá la confirmación.",
+    CREDIT_TOP_UP_NOT_NEEDED:
+      "Tus créditos disponibles ya cubren el saldo. Usalos desde el resumen del pago.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
 

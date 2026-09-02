@@ -1,4 +1,4 @@
-import ApplyInvoiceCreditsButton from "@/app/components/payments/apply-invoice-credits-button";
+import InvoiceCreditPanel from "@/app/components/payments/invoice-credit-panel";
 import CompletePaymentButton from "@/app/components/payments/complete-payment-button";
 import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
 
@@ -46,7 +46,10 @@ export default async function QRCodeDetails({
 
       <div className="mt-4">
         <CompletePaymentButton invoice={invoice} />
-        <ApplyInvoiceCreditsButton invoiceId={invoice.id} />
+        <InvoiceCreditPanel
+          invoiceId={invoice.id}
+          outstandingAmount={outstandingAmount}
+        />
       </div>
 
       {/* <div className="mt-4 text-center">

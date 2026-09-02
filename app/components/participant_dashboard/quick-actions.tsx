@@ -1,5 +1,6 @@
 import {
   ClockIcon,
+  CoinsIcon,
   PackageIcon,
   ShoppingBagIcon,
   StarIcon,
@@ -55,6 +56,12 @@ export default function QuickActions({ profile }: Props) {
       label: "Mis órdenes",
       href: "/my_orders",
       color: "bg-rose-100 text-rose-600 group-hover:bg-rose-200",
+    },
+    {
+      icon: CoinsIcon,
+      label: "Mis créditos",
+      href: "/my_credits",
+      color: "bg-yellow-100 text-yellow-600 group-hover:bg-yellow-200",
     },
   ];
 
