@@ -86,9 +86,9 @@ export default function CreditTopUpVoucherUpload({
           ) : (
             <>
               Te quedan{" "}
-              <span className="tabular-nums">{remainingLabel(msLeft)}</span>{" "}
-              minutos. Si se vence el plazo no se acreditan créditos y tenés que
-              empezar de nuevo.
+              <span className="tabular-nums">{remainingLabel(msLeft)}</span>. Si
+              se vence el plazo no se acreditan créditos y tenés que empezar de
+              nuevo.
             </>
           )}
         </p>

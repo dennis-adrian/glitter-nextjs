@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { formatCredits } from "@/app/components/credits/credit-amount";
+import { roundCredits } from "@/app/lib/credits/balances";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -49,10 +50,14 @@ export default function CreditDebtResolveDialog({
   const amount = editedAmount ?? debtAmount.toFixed(2);
 
   const parsedAmount = Number(amount);
+  // Mirrors resolveCreditDebtSchema, including its multipleOf(0.01): without
+  // the precision check a third decimal passes here, then fails server-side
+  // as a generic "Datos inválidos" with no hint pointing at the amount.
   const amountValid =
     Number.isFinite(parsedAmount) &&
     parsedAmount > 0 &&
-    parsedAmount <= debtAmount;
+    parsedAmount <= debtAmount &&
+    Math.abs(roundCredits(parsedAmount) - parsedAmount) < 1e-9;
   const canSubmit = canResolve && amountValid && reason.trim().length > 0;
 
   function resolve(resolution: "mark_paid" | "waive") {
@@ -137,8 +142,8 @@ export default function CreditDebtResolveDialog({
             </p>
             {!amountValid && amount.trim() !== "" && (
               <p className="text-xs text-red-600">
-                Ingresá un monto mayor a 0 y menor o igual a{" "}
-                {formatCredits(debtAmount)}.
+                Ingresá un monto mayor a 0, con hasta dos decimales, y menor o
+                igual a {formatCredits(debtAmount)}.
               </p>
             )}
           </div>
