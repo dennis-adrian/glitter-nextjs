@@ -1,18 +1,24 @@
 import "server-only";
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
-import { type CreditBalances } from "@/app/lib/credits/balances";
+import {
+  calculateCreditBalances,
+  type CreditBalances,
+} from "@/app/lib/credits/balances";
 import { readCreditBalances } from "@/app/lib/credits/service";
+import { roundMoney } from "@/app/lib/reservations/money";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  creditHolds,
   creditLedgerEntries,
   creditTopUps,
   invoiceCreditAllocations,
   invoices,
   standReservations,
+  users,
 } from "@/db/schema";
 
 /**
@@ -250,4 +256,288 @@ export async function fetchOpenInvoiceCreditTopUp(
     return { id: row.id, amount: Number(row.amount), status };
   }
   return null;
+}
+
+export type CreditTopUpReviewSpend = {
+  id: number;
+  amount: number;
+  createdAt: Date;
+  invoiceId: number | null;
+  featureActionId: number | null;
+};
+
+export type CreditTopUpReviewItem = {
+  id: number;
+  amount: number;
+  status: CreditTopUpDisplayStatus;
+  voucherUrl: string | null;
+  submittedAt: Date | null;
+  reviewedAt: Date | null;
+  rejectionReason: string | null;
+  intendedUseType: "feature" | "invoice" | "debt";
+  intendedUseId: number | null;
+  invoiceReservationId: number | null;
+  invoiceFestivalId: number | null;
+  user: {
+    id: number;
+    displayName: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  };
+  balances: CreditBalances;
+  /**
+   * Where a rejection would leave the ledger. Exact, unlike attributing
+   * individual spends to a voucher — credits are fungible once posted.
+   */
+  balanceAfterReversal: number;
+  /** Context only: spends posted since this voucher arrived. */
+  recentSpends: CreditTopUpReviewSpend[];
+};
+
+/**
+ * Balances for several accounts in one pass. The review queue would otherwise
+ * open a transaction per row.
+ */
+async function readCreditBalancesForUsers(
+  userIds: readonly number[],
+): Promise<Map<number, CreditBalances>> {
+  const result = new Map<number, CreditBalances>();
+  if (userIds.length === 0) return result;
+
+  const [ledgerRows, holdRows, underReviewRows] = await Promise.all([
+    db
+      .select({
+        userId: creditLedgerEntries.userId,
+        amount: sql<number>`coalesce(sum(${creditLedgerEntries.amount}), 0)`,
+      })
+      .from(creditLedgerEntries)
+      .where(inArray(creditLedgerEntries.userId, [...userIds]))
+      .groupBy(creditLedgerEntries.userId),
+    db
+      .select({
+        userId: creditHolds.userId,
+        amount: sql<number>`coalesce(sum(${creditHolds.amount}), 0)`,
+      })
+      .from(creditHolds)
+      .where(
+        and(
+          inArray(creditHolds.userId, [...userIds]),
+          eq(creditHolds.status, "active"),
+        ),
+      )
+      .groupBy(creditHolds.userId),
+    db
+      .select({
+        userId: creditTopUps.userId,
+        amount: sql<number>`coalesce(sum(${creditTopUps.amount}), 0)`,
+      })
+      .from(creditTopUps)
+      .where(
+        and(
+          inArray(creditTopUps.userId, [...userIds]),
+          eq(creditTopUps.status, "under_review"),
+        ),
+      )
+      .groupBy(creditTopUps.userId),
+  ]);
+
+  const byUser = (rows: Array<{ userId: number; amount: number }>) =>
+    new Map(rows.map((row) => [row.userId, Number(row.amount)]));
+  const ledger = byUser(ledgerRows);
+  const holds = byUser(holdRows);
+  const underReview = byUser(underReviewRows);
+
+  for (const userId of userIds) {
+    result.set(
+      userId,
+      calculateCreditBalances({
+        ledgerBalance: ledger.get(userId) ?? 0,
+        activeHolds: holds.get(userId) ?? 0,
+        underReviewIssuance: underReview.get(userId) ?? 0,
+      }),
+    );
+  }
+  return result;
+}
+
+export const REVIEW_QUEUE_PAGE_SIZE = 50;
+
+export type CreditTopUpReviewQueue = {
+  items: CreditTopUpReviewItem[];
+  /** Every row matching the scope, not just the page. */
+  totalCount: number;
+  /** True when the scope holds more rows than this page returned. */
+  hasMore: boolean;
+};
+
+/**
+ * Admin review queue. Readable by global and festival admins; only a global
+ * admin can act on it, which `reviewCreditTopUp` enforces separately.
+ *
+ * `pending` lists vouchers awaiting a decision, oldest submission first, so a
+ * backlog past one page still drains as the page is worked through. The count
+ * is reported separately because a page that silently hides queued vouchers
+ * reads as an empty queue, and an unreviewed voucher blocks its participant.
+ *
+ * `reviewed` lists recent decisions so a mistake stays visible instead of
+ * disappearing from the queue.
+ */
+export async function fetchCreditTopUpReviewQueue(
+  scope: "pending" | "reviewed" = "pending",
+  now = new Date(),
+): Promise<CreditTopUpReviewQueue | null> {
+  const actor = await getCurrentUserProfile();
+  if (!canViewAdminReservationData(actor)) return null;
+
+  const scopeFilter =
+    scope === "pending"
+      ? eq(creditTopUps.status, "under_review")
+      : sql`${creditTopUps.status} IN ('approved', 'rejected')`;
+
+  const [rows, countRows] = await Promise.all([
+    db
+      .select({
+        id: creditTopUps.id,
+        amount: creditTopUps.amount,
+        status: creditTopUps.status,
+        voucherUrl: creditTopUps.voucherUrl,
+        submittedAt: creditTopUps.submittedAt,
+        reviewedAt: creditTopUps.reviewedAt,
+        rejectionReason: creditTopUps.rejectionReason,
+        intendedUseType: creditTopUps.intendedUseType,
+        intendedUseId: creditTopUps.intendedUseId,
+        uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
+        userId: users.id,
+        displayName: users.displayName,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      })
+      .from(creditTopUps)
+      .innerJoin(users, eq(users.id, creditTopUps.userId))
+      .where(scopeFilter)
+      .orderBy(
+        scope === "pending"
+          ? creditTopUps.submittedAt
+          : desc(creditTopUps.reviewedAt),
+      )
+      .limit(REVIEW_QUEUE_PAGE_SIZE),
+    db
+      .select({ total: sql<number>`count(*)` })
+      .from(creditTopUps)
+      .innerJoin(users, eq(users.id, creditTopUps.userId))
+      .where(scopeFilter),
+  ]);
+
+  const totalCount = Number(countRows[0]?.total ?? rows.length);
+
+  if (rows.length === 0) {
+    return { items: [], totalCount, hasMore: false };
+  }
+
+  const userIds = [...new Set(rows.map((row) => row.userId))];
+  const balancesByUser = await readCreditBalancesForUsers(userIds);
+
+  const invoiceIds = rows
+    .filter((row) => row.intendedUseType === "invoice" && row.intendedUseId)
+    .map((row) => row.intendedUseId!);
+  const invoiceTargets = invoiceIds.length
+    ? await db
+        .select({
+          id: invoices.id,
+          reservationId: invoices.reservationId,
+          festivalId: standReservations.festivalId,
+        })
+        .from(invoices)
+        .innerJoin(
+          standReservations,
+          eq(standReservations.id, invoices.reservationId),
+        )
+        .where(inArray(invoices.id, invoiceIds))
+    : [];
+  const invoiceById = new Map(invoiceTargets.map((row) => [row.id, row]));
+
+  const earliestSubmission = rows.reduce<Date | null>((earliest, row) => {
+    if (!row.submittedAt) return earliest;
+    if (!earliest || row.submittedAt < earliest) return row.submittedAt;
+    return earliest;
+  }, null);
+  const spendRows = earliestSubmission
+    ? await db
+        .select({
+          id: creditLedgerEntries.id,
+          userId: creditLedgerEntries.userId,
+          amount: creditLedgerEntries.amount,
+          createdAt: creditLedgerEntries.createdAt,
+          featureActionId: creditLedgerEntries.featureActionId,
+          invoiceId: invoiceCreditAllocations.invoiceId,
+        })
+        .from(creditLedgerEntries)
+        .leftJoin(
+          invoiceCreditAllocations,
+          eq(invoiceCreditAllocations.ledgerEntryId, creditLedgerEntries.id),
+        )
+        .where(
+          and(
+            inArray(creditLedgerEntries.userId, userIds),
+            eq(creditLedgerEntries.type, "spend"),
+            gte(creditLedgerEntries.createdAt, earliestSubmission),
+          ),
+        )
+        .orderBy(desc(creditLedgerEntries.createdAt))
+    : [];
+
+  const items = rows.map((row) => {
+    const target =
+      row.intendedUseType === "invoice" && row.intendedUseId
+        ? invoiceById.get(row.intendedUseId)
+        : undefined;
+    const balances =
+      balancesByUser.get(row.userId) ??
+      calculateCreditBalances({
+        ledgerBalance: 0,
+        activeHolds: 0,
+        underReviewIssuance: 0,
+      });
+    const amount = Number(row.amount);
+    return {
+      id: row.id,
+      amount,
+      status: displayTopUpStatus(row.status, row.uploadDeadlineAt, now),
+      voucherUrl: row.voucherUrl,
+      submittedAt: row.submittedAt,
+      reviewedAt: row.reviewedAt,
+      rejectionReason: row.rejectionReason,
+      intendedUseType: row.intendedUseType,
+      intendedUseId: row.intendedUseId,
+      invoiceReservationId: target?.reservationId ?? null,
+      invoiceFestivalId: target?.festivalId ?? null,
+      user: {
+        id: row.userId,
+        displayName: row.displayName,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        email: row.email,
+      },
+      balances,
+      balanceAfterReversal: roundMoney(balances.ledgerBalance - amount),
+      recentSpends: spendRows
+        .filter(
+          (spend) =>
+            spend.userId === row.userId &&
+            row.submittedAt != null &&
+            spend.createdAt >= row.submittedAt,
+        )
+        .map((spend) => ({
+          id: spend.id,
+          amount: Number(spend.amount),
+          createdAt: spend.createdAt,
+          invoiceId: spend.invoiceId,
+          featureActionId: spend.featureActionId,
+        })),
+    };
+  });
+
+  return { items, totalCount, hasMore: totalCount > items.length };
 }

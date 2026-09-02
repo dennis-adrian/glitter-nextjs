@@ -5,6 +5,8 @@
 # Integration tests
 
 - Integration and migration tests need `TEST_DATABASE_URL`. Never point it at Railway, development, or production — the suites refuse any database whose name does not contain `test`/`ci`.
+- The value already in `.env.local` targets the Railway database (`railway`), so it fails that guard by design. Override it in the shell; do not edit it in the file.
+- `.env.local`'s `POSTGRES_URL` also targets Railway. Override it too before running `pnpm dev` against a scratch database — `process.env` wins over `.env.local`.
 - On a local machine, spin up a disposable Postgres per worktree with Docker. Full procedure: [docs/testing-with-docker-postgres.md](docs/testing-with-docker-postgres.md).
 
 ```bash
