@@ -11,6 +11,7 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "createOrReplaceStandHold",
   "confirmStandHold",
   "submitPaymentProof",
+  "applyInvoiceCredits",
   "submitZeroValueInvoice",
   "createAdminReservation",
   "adminConfirmReservation",

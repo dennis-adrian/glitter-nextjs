@@ -475,6 +475,86 @@ async function main() {
     });
   }
 
+  const creditAccountBalanceDrift = await db.execute<{ user_id: number }>(sql`
+    SELECT coalesce(accounts.user_id, ledger.user_id) AS user_id
+    FROM credit_accounts AS accounts
+    FULL OUTER JOIN (
+      SELECT user_id, coalesce(sum(amount), 0) AS ledger_balance
+      FROM credit_ledger_entries
+      GROUP BY user_id
+    ) AS ledger ON ledger.user_id = accounts.user_id
+    WHERE accounts.user_id IS NULL
+       OR accounts.cached_balance <> coalesce(ledger.ledger_balance, 0)
+  `);
+  if (creditAccountBalanceDrift.rows.length > 0) {
+    findings.push({
+      name: "credit_account_cached_balance_drift",
+      count: creditAccountBalanceDrift.rows.length,
+      ids: creditAccountBalanceDrift.rows.map((row) => Number(row.user_id)),
+    });
+  }
+
+  const topUpIssuanceLifecycleDrift = await db.execute<{ id: number }>(sql`
+    SELECT top_ups.id
+    FROM credit_top_ups AS top_ups
+    LEFT JOIN credit_ledger_entries AS issues
+      ON issues.top_up_id = top_ups.id
+     AND issues.type = 'top_up'
+    LEFT JOIN credit_ledger_entries AS reversals
+      ON reversals.top_up_id = top_ups.id
+     AND reversals.type = 'reversal'
+    GROUP BY top_ups.id, top_ups.status
+    HAVING
+      (top_ups.status IN ('under_review', 'approved', 'rejected')
+        AND count(issues.id) <> 1)
+      OR (top_ups.status IN ('awaiting_voucher', 'expired')
+        AND count(issues.id) <> 0)
+      OR (top_ups.status = 'rejected' AND count(reversals.id) <> 1)
+      OR (top_ups.status <> 'rejected' AND count(reversals.id) <> 0)
+  `);
+  if (topUpIssuanceLifecycleDrift.rows.length > 0) {
+    findings.push({
+      name: "credit_top_up_ledger_lifecycle_drift",
+      count: topUpIssuanceLifecycleDrift.rows.length,
+      ids: topUpIssuanceLifecycleDrift.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const invalidInvoiceCreditAllocations = await db.execute<{ id: number }>(sql`
+    SELECT allocations.id
+    FROM invoice_credit_allocations AS allocations
+    INNER JOIN credit_ledger_entries AS ledger
+      ON ledger.id = allocations.ledger_entry_id
+    WHERE ledger.type <> 'spend'
+       OR ledger.user_id <> allocations.user_id
+       OR ledger.amount <> -allocations.amount
+       OR ledger.feature_action_id IS NOT NULL
+  `);
+  if (invalidInvoiceCreditAllocations.rows.length > 0) {
+    findings.push({
+      name: "invoice_credit_allocation_ledger_mismatch",
+      count: invalidInvoiceCreditAllocations.rows.length,
+      ids: invalidInvoiceCreditAllocations.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  const orphanCreditSpends = await db.execute<{ id: number }>(sql`
+    SELECT ledger.id
+    FROM credit_ledger_entries AS ledger
+    LEFT JOIN invoice_credit_allocations AS allocations
+      ON allocations.ledger_entry_id = ledger.id
+    WHERE ledger.type = 'spend'
+      AND ledger.feature_action_id IS NULL
+      AND allocations.id IS NULL
+  `);
+  if (orphanCreditSpends.rows.length > 0) {
+    findings.push({
+      name: "credit_spend_without_feature_or_invoice_allocation",
+      count: orphanCreditSpends.rows.length,
+      ids: orphanCreditSpends.rows.map((row) => Number(row.id)),
+    });
+  }
+
   const adminShapedUserReservation = await db.execute<{ id: number }>(sql`
     SELECT id
     FROM stand_reservations
@@ -535,6 +615,11 @@ async function main() {
   }
 
   const uniqueKeyTables = {
+    credit_holds: sql`credit_holds`,
+    credit_ledger_entries: sql`credit_ledger_entries`,
+    credit_top_ups: sql`credit_top_ups`,
+    invoice_credit_allocations: sql`invoice_credit_allocations`,
+    reservation_feature_actions: sql`reservation_feature_actions`,
     stand_holds: sql`stand_holds`,
     stand_reservations: sql`stand_reservations`,
   } as const;
@@ -565,6 +650,72 @@ async function main() {
     keys: string[];
     predicate: string;
   }> = [
+    {
+      name: "credit_holds_feature_action_id_unique",
+      table: "credit_holds",
+      keys: ["feature_action_id"],
+      predicate: "",
+    },
+    {
+      name: "credit_holds_idempotency_key_unique",
+      table: "credit_holds",
+      keys: ["idempotency_key"],
+      predicate: "",
+    },
+    {
+      name: "credit_ledger_entries_idempotency_key_unique",
+      table: "credit_ledger_entries",
+      keys: ["idempotency_key"],
+      predicate: "",
+    },
+    {
+      name: "credit_ledger_entries_top_up_issue_unique",
+      table: "credit_ledger_entries",
+      keys: ["top_up_id"],
+      predicate: "type = 'top_up'",
+    },
+    {
+      name: "credit_ledger_entries_top_up_reversal_unique",
+      table: "credit_ledger_entries",
+      keys: ["top_up_id"],
+      predicate: "type = 'reversal'",
+    },
+    {
+      name: "credit_ledger_entries_feature_spend_unique",
+      table: "credit_ledger_entries",
+      keys: ["feature_action_id"],
+      predicate: "type = 'spend'",
+    },
+    {
+      name: "credit_top_ups_idempotency_key_unique",
+      table: "credit_top_ups",
+      keys: ["idempotency_key"],
+      predicate: "",
+    },
+    {
+      name: "credit_top_ups_file_key_unique",
+      table: "credit_top_ups",
+      keys: ["file_key"],
+      predicate: "file_key is not null",
+    },
+    {
+      name: "invoice_credit_allocations_ledger_entry_id_unique",
+      table: "invoice_credit_allocations",
+      keys: ["ledger_entry_id"],
+      predicate: "",
+    },
+    {
+      name: "invoice_credit_allocations_idempotency_key_unique",
+      table: "invoice_credit_allocations",
+      keys: ["idempotency_key"],
+      predicate: "",
+    },
+    {
+      name: "reservation_feature_actions_idempotency_key_unique",
+      table: "reservation_feature_actions",
+      keys: ["idempotency_key"],
+      predicate: "idempotency_key is not null",
+    },
     {
       name: "invoice_settlement_submissions_invoice_id_idempotency_key_unique",
       table: "invoice_settlement_submissions",

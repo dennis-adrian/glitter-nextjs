@@ -2,7 +2,12 @@
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { discountCodes, invoices, standReservations } from "@/db/schema";
+import {
+  discountCodes,
+  invoiceCreditAllocations,
+  invoices,
+  standReservations,
+} from "@/db/schema";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { NewDiscountCode } from "./definitions";
@@ -11,6 +16,7 @@ import { consumeActionRateLimit } from "@/app/lib/rate-limit";
 import {
   lockFestivalRow,
   lockFestivalTermsDocument,
+  lockCreditAccountRows,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -124,7 +130,10 @@ export async function validateAndApplyDiscountCode({
 
   const parsed = parseUnknown(applyDiscountSchema, { code, invoiceId });
   if (!parsed.success) {
-    return { success: false, message: "Código de descuento inválido o inactivo." };
+    return {
+      success: false,
+      message: "Código de descuento inválido o inactivo.",
+    };
   }
 
   const rateLimitUnavailable = Symbol("discountApplyRateLimitUnavailable");
@@ -134,7 +143,10 @@ export async function validateAndApplyDiscountCode({
     windowMs: 60_000,
   }).catch(() => rateLimitUnavailable);
   if (allowed === rateLimitUnavailable) {
-    return { success: false, message: "Código de descuento inválido o inactivo." };
+    return {
+      success: false,
+      message: "Código de descuento inválido o inactivo.",
+    };
   }
   if (!allowed) {
     return {
@@ -177,6 +189,7 @@ export async function validateAndApplyDiscountCode({
       await lockParticipantEligibilityRows(tx, invoicePreview.festivalId, [
         invoicePreview.userId,
       ]);
+      await lockCreditAccountRows(tx, [invoicePreview.userId]);
       await lockStandRows(tx, [invoicePreview.standId]);
 
       const [invoice] = await tx
@@ -214,6 +227,17 @@ export async function validateAndApplyDiscountCode({
         return {
           success: false,
           message: "Código de descuento inválido o inactivo.",
+        };
+      }
+      const creditAllocations = await tx
+        .select({ id: invoiceCreditAllocations.id })
+        .from(invoiceCreditAllocations)
+        .where(eq(invoiceCreditAllocations.invoiceId, invoice.id))
+        .for("update");
+      if (creditAllocations.length > 0) {
+        return {
+          success: false,
+          message: "No podés aplicar un descuento después de usar créditos.",
         };
       }
       if (invoice.discountCodeId !== null) {
@@ -298,7 +322,8 @@ export async function validateAndApplyDiscountCode({
       const discountAmount =
         Math.round(Math.min(originalAmount, Math.max(0, rawDiscount)) * 100) /
         100;
-      const newAmount = Math.round((originalAmount - discountAmount) * 100) / 100;
+      const newAmount =
+        Math.round((originalAmount - discountAmount) * 100) / 100;
 
       await tx
         .update(invoices)

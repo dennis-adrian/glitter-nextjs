@@ -6,6 +6,7 @@ import { z } from "zod";
 import { cancelReservation } from "@/app/lib/reservations/admin-service";
 import {
   adminConfirmReservation,
+  applyInvoiceCredits,
   approveInvoiceSettlement,
   correctSettlementProof,
   findSubmittedSettlementId,
@@ -25,6 +26,10 @@ import { invoices } from "@/db/schema";
 
 export async function submitZeroValueInvoiceForReviewAction(input: unknown) {
   return submitZeroValueInvoiceForReview(input);
+}
+
+export async function applyInvoiceCreditsAction(input: unknown) {
+  return applyInvoiceCredits(input);
 }
 
 export async function approveInvoiceSettlementAction(input: unknown) {

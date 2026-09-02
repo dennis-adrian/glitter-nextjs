@@ -4,6 +4,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import {
   calculateCreditBalances,
+  canFundInvoiceCreditAllocation,
   type CreditBalances,
   exactCreditShortfall,
   roundCredits,
@@ -20,6 +21,7 @@ import {
 } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type CreditTx = DbTx;
 
 const TOP_UP_UPLOAD_WINDOW_MS = 10 * 60 * 1000;
 
@@ -123,6 +125,11 @@ async function lockedCreditBalances(
     activeHolds: Number(holds?.amount ?? 0),
     underReviewIssuance: Number(underReview?.amount ?? 0),
   });
+}
+
+/** Caller must already hold the account row through `lockCreditAccountRows`. */
+export async function getCreditBalancesInTx(tx: CreditTx, userId: number) {
+  return lockedCreditBalances(tx, userId);
 }
 
 async function updateCachedBalance(tx: DbTx, userId: number, delta: number) {
@@ -438,6 +445,81 @@ export async function reconcileCreditAccount(userId: number): Promise<{
 
 function canFundCreditOperation(balances: CreditBalances, amount: number) {
   return balances.ledgerBalance >= 0 && balances.spendableBalance >= amount;
+}
+
+/**
+ * Transaction-scoped debit for Phase 1B. The caller owns authorization and
+ * must have locked the user and credit account in the canonical combined
+ * reservation/credit order before calling this. It intentionally creates no
+ * allocation row: the invoice service inserts that row with the returned
+ * ledger id in the same transaction.
+ */
+export async function debitConfirmedCreditsForInvoiceInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    amount: number;
+    idempotencyKey: string;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  const amount = positiveCreditAmount(input.amount);
+  if (amount == null || !input.idempotencyKey.trim()) {
+    return failure("INVALID_AMOUNT");
+  }
+
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+      amount: creditLedgerEntries.amount,
+      type: creditLedgerEntries.type,
+      featureActionId: creditLedgerEntries.featureActionId,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    if (
+      existing.userId !== input.userId ||
+      Number(existing.amount) !== -amount ||
+      existing.type !== "spend" ||
+      existing.featureActionId != null
+    ) {
+      return failure("IDEMPOTENCY_CONFLICT");
+    }
+    return {
+      ok: true,
+      data: {
+        ledgerEntryId: existing.id,
+        balances: await lockedCreditBalances(tx, input.userId),
+      },
+    };
+  }
+
+  const balances = await lockedCreditBalances(tx, input.userId);
+  if (!canFundInvoiceCreditAllocation(balances, amount)) {
+    return failure("INSUFFICIENT_CREDITS");
+  }
+
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount: -amount,
+      type: "spend",
+      idempotencyKey: input.idempotencyKey,
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return failure("TOP_UP_NOT_FOUND");
+  await updateCachedBalance(tx, input.userId, -amount);
+  return {
+    ok: true,
+    data: {
+      ledgerEntryId: entry.id,
+      balances: await lockedCreditBalances(tx, input.userId),
+    },
+  };
 }
 
 /** Internal primitive for Phase 3 full-table activation. */

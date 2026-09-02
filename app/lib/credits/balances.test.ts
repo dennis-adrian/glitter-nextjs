@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canFundInvoiceCreditAllocation,
   calculateCreditBalances,
   exactCreditShortfall,
 } from "@/app/lib/credits/balances";
@@ -50,5 +51,38 @@ describe("credit balances", () => {
     expect(exactCreditShortfall(10, -15)).toBe(25);
     expect(exactCreditShortfall(10, 7.5)).toBe(2.5);
     expect(exactCreditShortfall(10, 12)).toBe(0);
+  });
+
+  it("does not let provisional or held credits fund an invoice", () => {
+    expect(
+      canFundInvoiceCreditAllocation(
+        calculateCreditBalances({
+          ledgerBalance: 100,
+          activeHolds: 0,
+          underReviewIssuance: 100,
+        }),
+        1,
+      ),
+    ).toBe(false);
+    expect(
+      canFundInvoiceCreditAllocation(
+        calculateCreditBalances({
+          ledgerBalance: 100,
+          activeHolds: 30,
+          underReviewIssuance: 0,
+        }),
+        71,
+      ),
+    ).toBe(false);
+    expect(
+      canFundInvoiceCreditAllocation(
+        calculateCreditBalances({
+          ledgerBalance: 100,
+          activeHolds: 30,
+          underReviewIssuance: 0,
+        }),
+        70,
+      ),
+    ).toBe(true);
   });
 });
