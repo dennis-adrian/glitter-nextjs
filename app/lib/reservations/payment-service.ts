@@ -261,14 +261,18 @@ async function getInvoiceTenderTotalsInTx(
     approvedCashAmount,
     confirmedCreditAmount,
     coveredAmount,
-    outstandingAmount: Math.max(0, roundMoney(Number(invoice.amount) - coveredAmount)),
+    outstandingAmount: Math.max(
+      0,
+      roundMoney(Number(invoice.amount) - coveredAmount),
+    ),
   };
 }
 
 function aggregateUnavailable(
   aggregate: Awaited<ReturnType<typeof loadInvoiceAggregate>>,
 ) {
-  if (aggregate.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
+  if (aggregate.kind === "conflict")
+    return reservationFailure("CONFLICT_RETRY");
   return reservationFailure("VALIDATION");
 }
 
@@ -490,7 +494,10 @@ export async function submitPaymentProof(
         reservationId: reservation.id,
         ownerUserId: invoice.userId,
         ownerEmail,
-        adminEmails: admins.map((admin) => ({ id: admin.id, email: admin.email })),
+        adminEmails: admins.map((admin) => ({
+          id: admin.id,
+          email: admin.email,
+        })),
         payload: { invoiceId: invoice.id, submissionId: submission.id },
       });
 
@@ -569,7 +576,11 @@ export async function submitZeroValueInvoiceForReview(
         if (typeof submissionId !== "number") {
           return reservationFailure("CONFLICT_RETRY");
         }
-        return { kind: "replayed" as const, submissionId, jobIds: [] as number[] };
+        return {
+          kind: "replayed" as const,
+          submissionId,
+          jobIds: [] as number[],
+        };
       }
 
       const finish = async (
@@ -670,11 +681,18 @@ export async function submitZeroValueInvoiceForReview(
         reservationId: reservation.id,
         ownerUserId: invoice.userId,
         ownerEmail,
-        adminEmails: admins.map((admin) => ({ id: admin.id, email: admin.email })),
+        adminEmails: admins.map((admin) => ({
+          id: admin.id,
+          email: admin.email,
+        })),
         payload: { invoiceId: invoice.id, submissionId: submission.id },
       });
 
-      return finish({ kind: "created" as const, submissionId: submission.id, jobIds });
+      return finish({
+        kind: "created" as const,
+        submissionId: submission.id,
+        jobIds,
+      });
     });
 
     if ("success" in outcome) return outcome;
@@ -702,13 +720,13 @@ export async function submitZeroValueInvoiceForReview(
  * invoice. A complete allocation follows the normal fulfillment transition;
  * a partial allocation leaves the invoice available for a voucher payment.
  */
-export async function applyInvoiceCredits(
-  input: unknown,
-): Promise<ReservationActionResult<{
-  allocationId: number;
-  amount: number;
-  outstandingAmount: number;
-}>> {
+export async function applyInvoiceCredits(input: unknown): Promise<
+  ReservationActionResult<{
+    allocationId: number;
+    amount: number;
+    outstandingAmount: number;
+  }>
+> {
   const actor = await getCurrentUserProfile();
   if (!actor) return reservationFailure("UNAUTHENTICATED");
   const parsed = parseUnknown(applyInvoiceCreditsSchema, input);
@@ -723,7 +741,8 @@ export async function applyInvoiceCredits(
         actorUserId: actor.id,
         scope: { invoiceId: parsed.data.invoiceId },
       });
-      if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
+      if (claim.kind === "conflict")
+        return reservationFailure("CONFLICT_RETRY");
       if (claim.kind === "replayed") {
         const allocationId = claim.resultIds.allocationId;
         const amount = claim.resultIds.amount;
@@ -737,6 +756,7 @@ export async function applyInvoiceCredits(
         }
         return {
           kind: "replayed" as const,
+          jobIds: [] as number[],
           allocationId,
           amount,
           outstandingAmount,
@@ -763,7 +783,10 @@ export async function applyInvoiceCredits(
       }
       const balances = await getCreditBalancesInTx(tx, invoice.userId);
       const amount = roundMoney(
-        Math.min(tenderBefore.outstandingAmount, balances.invoiceEligibleBalance),
+        Math.min(
+          tenderBefore.outstandingAmount,
+          balances.invoiceEligibleBalance,
+        ),
       );
       if (amount <= 0) return fail(reservationFailure("INSUFFICIENT_CREDITS"));
 
@@ -814,6 +837,7 @@ export async function applyInvoiceCredits(
         idempotencyKey: `invoice-credit:${allocation.id}`,
       });
 
+      const jobIds: number[] = [];
       if (tenderAfter.outstandingAmount === 0) {
         await applyAcceptedReservation(
           tx,
@@ -821,6 +845,21 @@ export async function applyInvoiceCredits(
           reservation.standId,
           invoice.id,
           actor.id,
+        );
+        const ownerEmail = await userEmail(tx, invoice.userId);
+        const admins = await fetchAdminUsers();
+        jobIds.push(
+          ...(await enqueueAdminAndOwnerNotifications(tx, {
+            kind: "settlement_approved",
+            reservationId: reservation.id,
+            ownerUserId: invoice.userId,
+            ownerEmail,
+            adminEmails: admins.map((admin) => ({
+              id: admin.id,
+              email: admin.email,
+            })),
+            payload: { invoiceId: invoice.id },
+          })),
         );
       }
 
@@ -831,6 +870,7 @@ export async function applyInvoiceCredits(
       });
       return {
         kind: "applied" as const,
+        jobIds,
         allocationId: allocation.id,
         amount,
         outstandingAmount: tenderAfter.outstandingAmount,
@@ -838,6 +878,7 @@ export async function applyInvoiceCredits(
     });
 
     if ("success" in outcome) return outcome;
+    scheduleReservationNotificationJobs(outcome.jobIds);
     revalidatePath("/profiles");
     return reservationSuccess(
       {
@@ -968,7 +1009,13 @@ async function approveSubmissionInTx(
     roundMoney(tenderBeforeApproval.coveredAmount + submittedCashAmount) !==
     roundMoney(Number(invoice.amount))
   ) {
-    return reservationFailure("VALIDATION");
+    console.warn("Settlement tender amount mismatch", {
+      invoiceId: invoice.id,
+      coveredAmount: tenderBeforeApproval.coveredAmount,
+      submittedCashAmount,
+      invoiceAmount: Number(invoice.amount),
+    });
+    return reservationFailure("PAYMENT_AMOUNT_MISMATCH");
   }
 
   await tx
@@ -1410,7 +1457,9 @@ async function insertPaymentProofSubmissionInTx(
 
 export async function adminConfirmReservation(
   input: unknown,
-): Promise<ReservationActionResult<{ reservationId: number; invoiceId: number }>> {
+): Promise<
+  ReservationActionResult<{ reservationId: number; invoiceId: number }>
+> {
   const actor = await getCurrentUserProfile();
   if (!canMutateAdminReservations(actor)) {
     return reservationFailure("UNAUTHORIZED");
@@ -1481,10 +1530,7 @@ export async function adminConfirmReservation(
       }
       const { invoice, reservation } = aggregate;
 
-      if (
-        reservation.status === "accepted" &&
-        invoice.status === "paid"
-      ) {
+      if (reservation.status === "accepted" && invoice.status === "paid") {
         return finish({
           kind: "replayed",
           reservationId: reservation.id,

@@ -32,6 +32,7 @@ vi.mock("@/app/lib/rate-limit", () => ({
 vi.mock("@/app/lib/reservations/locks", () => ({
   lockFestivalRow: vi.fn(),
   lockFestivalTermsDocument: vi.fn(),
+  lockCreditAccountRows: vi.fn(),
   lockParticipantEligibilityRows: vi.fn(),
   lockParticipants: vi.fn(),
   lockStandRows: vi.fn(),
@@ -45,6 +46,7 @@ import {
 import {
   lockFestivalRow,
   lockFestivalTermsDocument,
+  lockCreditAccountRows,
   lockParticipantEligibilityRows,
   lockParticipants,
   lockStandRows,
@@ -106,6 +108,7 @@ describe("validateAndApplyDiscountCode lock order", () => {
     consumeActionRateLimitMock.mockReset();
     vi.mocked(lockFestivalRow).mockReset();
     vi.mocked(lockFestivalTermsDocument).mockReset();
+    vi.mocked(lockCreditAccountRows).mockReset();
     vi.mocked(lockParticipantEligibilityRows).mockReset();
     vi.mocked(lockParticipants).mockReset();
     vi.mocked(lockStandRows).mockReset();
@@ -127,6 +130,10 @@ describe("validateAndApplyDiscountCode lock order", () => {
     });
     vi.mocked(lockParticipantEligibilityRows).mockImplementation(async () => {
       order.push("eligibilityRows");
+    });
+    vi.mocked(lockCreditAccountRows).mockImplementation(async () => {
+      order.push("creditAccount");
+      return [5];
     });
     vi.mocked(lockStandRows).mockImplementation(async () => {
       order.push("stand");
@@ -159,11 +166,13 @@ describe("validateAndApplyDiscountCode lock order", () => {
       "festival",
       "terms",
       "eligibilityRows",
+      "creditAccount",
       "stand",
     ]);
     expect(lockParticipants).toHaveBeenCalledWith(tx, 3, [5]);
     expect(lockFestivalRow).toHaveBeenCalledWith(tx, 3);
     expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 3, [5]);
+    expect(lockCreditAccountRows).toHaveBeenCalledWith(tx, [5]);
     expect(lockStandRows).toHaveBeenCalledWith(tx, [8]);
     expect(select).toHaveBeenCalledTimes(2);
   });

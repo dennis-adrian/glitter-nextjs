@@ -476,14 +476,15 @@ async function main() {
   }
 
   const creditAccountBalanceDrift = await db.execute<{ user_id: number }>(sql`
-    SELECT accounts.user_id
+    SELECT coalesce(accounts.user_id, ledger.user_id) AS user_id
     FROM credit_accounts AS accounts
-    LEFT JOIN (
+    FULL OUTER JOIN (
       SELECT user_id, coalesce(sum(amount), 0) AS ledger_balance
       FROM credit_ledger_entries
       GROUP BY user_id
     ) AS ledger ON ledger.user_id = accounts.user_id
-    WHERE accounts.cached_balance <> coalesce(ledger.ledger_balance, 0)
+    WHERE accounts.user_id IS NULL
+       OR accounts.cached_balance <> coalesce(ledger.ledger_balance, 0)
   `);
   if (creditAccountBalanceDrift.rows.length > 0) {
     findings.push({

@@ -70,11 +70,16 @@ export function PaymentSummary({
           </div>
         </div>
 
-        {!hasDiscount && invoice.status === "pending" && (
-          <div className="mt-4">
-            <DiscountCodeInput invoiceId={invoice.id} festivalId={festivalId} />
-          </div>
-        )}
+        {!hasDiscount &&
+          creditAppliedAmount <= 0 &&
+          invoice.status === "pending" && (
+            <div className="mt-4">
+              <DiscountCodeInput
+                invoiceId={invoice.id}
+                festivalId={festivalId}
+              />
+            </div>
+          )}
 
         {(invoice.status === "pending" ||
           invoice.status === "verification_payment") && (
