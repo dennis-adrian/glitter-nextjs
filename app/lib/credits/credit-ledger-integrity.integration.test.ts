@@ -50,6 +50,26 @@ describeDatabase("credit ledger append-only protection", () => {
       );
       expect(ledgerUserForeignKey.rows).toEqual([{ confdeltype: "r" }]);
 
+      const appendOnlyTrigger = await client.query(`
+        SELECT
+          proc.proname AS function_name,
+          (trg.tgtype & 8) <> 0 AS handles_delete,
+          (trg.tgtype & 16) <> 0 AS handles_update
+        FROM pg_trigger AS trg
+        JOIN pg_class AS cls ON cls.oid = trg.tgrelid
+        JOIN pg_proc AS proc ON proc.oid = trg.tgfoid
+        WHERE trg.tgname = 'credit_ledger_entries_append_only'
+          AND cls.relname = 'credit_ledger_entries'
+          AND NOT trg.tgisinternal
+      `);
+      expect(appendOnlyTrigger.rows).toEqual([
+        {
+          function_name: "prevent_credit_ledger_entry_mutation",
+          handles_delete: true,
+          handles_update: true,
+        },
+      ]);
+
       await client.query(`
         CREATE TEMP TABLE credit_ledger_test_users (id integer PRIMARY KEY);
         CREATE TEMP TABLE credit_ledger_test_entries (
