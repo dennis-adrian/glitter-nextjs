@@ -12,6 +12,7 @@ import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  creditAccounts,
   creditHolds,
   creditLedgerEntries,
   creditTopUps,
@@ -540,4 +541,105 @@ export async function fetchCreditTopUpReviewQueue(
   });
 
   return { items, totalCount, hasMore: totalCount > items.length };
+}
+
+export type CreditDebtAccount = {
+  user: {
+    id: number;
+    displayName: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  };
+  /** Canonical: the sum of posted ledger entries. Negative means owed. */
+  ledgerBalance: number;
+  /** Amount owed, as a positive number. Zero for a drift-only row. */
+  debtAmount: number;
+  cachedBalance: number;
+  /**
+   * The cached projection disagrees with the ledger. The ledger wins; a drift
+   * row means the projection needs investigating, not that money moved.
+   */
+  hasDrift: boolean;
+  /** When the reversal that most likely caused the debt was posted. */
+  lastReversalAt: Date | null;
+};
+
+/**
+ * Accounts needing admin attention: a negative balance from a reversed
+ * top-up, or a cached projection that disagrees with the ledger.
+ *
+ * A negative balance blocks its participant from every credit operation, so
+ * this list is a work queue, not a report.
+ */
+export async function fetchCreditDebtReport(): Promise<
+  CreditDebtAccount[] | null
+> {
+  const actor = await getCurrentUserProfile();
+  if (!canViewAdminReservationData(actor)) return null;
+
+  const ledgerSum = sql<number>`coalesce(sum(${creditLedgerEntries.amount}), 0)`;
+  const rows = await db
+    .select({
+      userId: users.id,
+      displayName: users.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+      cachedBalance: creditAccounts.cachedBalance,
+      ledgerBalance: ledgerSum,
+    })
+    .from(creditAccounts)
+    .innerJoin(users, eq(users.id, creditAccounts.userId))
+    .leftJoin(
+      creditLedgerEntries,
+      eq(creditLedgerEntries.userId, creditAccounts.userId),
+    )
+    .groupBy(users.id, creditAccounts.userId)
+    .having(
+      sql`${ledgerSum} < 0 OR ${ledgerSum} <> ${creditAccounts.cachedBalance}`,
+    )
+    .orderBy(ledgerSum);
+
+  if (rows.length === 0) return [];
+
+  const userIds = rows.map((row) => row.userId);
+  const reversals = await db
+    .select({
+      userId: creditLedgerEntries.userId,
+      createdAt: creditLedgerEntries.createdAt,
+    })
+    .from(creditLedgerEntries)
+    .where(
+      and(
+        inArray(creditLedgerEntries.userId, userIds),
+        eq(creditLedgerEntries.type, "reversal"),
+      ),
+    )
+    .orderBy(desc(creditLedgerEntries.createdAt));
+  const lastReversalByUser = new Map<number, Date>();
+  for (const row of reversals) {
+    if (!lastReversalByUser.has(row.userId)) {
+      lastReversalByUser.set(row.userId, row.createdAt);
+    }
+  }
+
+  return rows.map((row) => {
+    const ledgerBalance = roundMoney(Number(row.ledgerBalance));
+    const cachedBalance = roundMoney(Number(row.cachedBalance));
+    return {
+      user: {
+        id: row.userId,
+        displayName: row.displayName,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        email: row.email,
+      },
+      ledgerBalance,
+      debtAmount: Math.max(0, roundMoney(-ledgerBalance)),
+      cachedBalance,
+      hasDrift: ledgerBalance !== cachedBalance,
+      lastReversalAt: lastReversalByUser.get(row.userId) ?? null,
+    };
+  });
 }
