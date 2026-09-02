@@ -51,7 +51,7 @@ export default function SmoothScrollLink({
     window.history.replaceState(
       window.history.state,
       "",
-      `${window.location.pathname}${window.location.search}#${targetId}`,
+      `${window.location.pathname}${window.location.search}`,
     );
   }
 

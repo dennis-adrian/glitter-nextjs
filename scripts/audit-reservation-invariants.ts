@@ -359,44 +359,12 @@ async function main() {
     });
   }
 
-  const nonIllustrationPartner = await db.execute<{ id: number }>(sql`
-    SELECT sr.id
-    FROM stand_reservations sr
-    INNER JOIN stands ON stands.id = sr.stand_id
-    WHERE (
-      SELECT count(*) FROM participations p WHERE p.reservation_id = sr.id
-    ) > 1
-    AND (
-      stands.stand_category NOT IN ('illustration', 'new_artist')
-      OR EXISTS (
-        SELECT 1
-        FROM participations p
-        INNER JOIN users u ON u.id = p.user_id
-        WHERE p.reservation_id = sr.id
-          AND (
-            (sr.owner_user_id IS NOT NULL AND p.user_id <> sr.owner_user_id)
-            OR (
-              sr.owner_user_id IS NULL
-              AND p.id <> (
-                SELECT p2.id
-                FROM participations p2
-                WHERE p2.reservation_id = sr.id
-                ORDER BY p2.id
-                LIMIT 1
-              )
-            )
-          )
-          AND u.category NOT IN ('illustration', 'new_artist')
-      )
-    )
-  `);
-  if (nonIllustrationPartner.rows.length > 0) {
-    findings.push({
-      name: "non_illustration_partner_on_shared_reservation",
-      count: nonIllustrationPartner.rows.length,
-      ids: nonIllustrationPartner.rows.map((row) => Number(row.id)),
-    });
-  }
+  // Do not audit historical shared reservations against current user/stand
+  // categories. Ops often recategorize an illustrator to entrepreneurship when
+  // illustration is full; a past share then looks "non-illustration" even though
+  // occupancy, payment, and participation blocking remain valid. Self-service
+  // sharing is gated at write time by `assertReservationPartner` (illustration
+  // only). `new_artist` is a deprecated alias, not a separate sharing rule.
 
   // Payment approval is historical; a later terminal reservation may validly
   // retain a paid invoice under the cancellation/refund policy.

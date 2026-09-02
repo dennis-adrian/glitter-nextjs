@@ -2,11 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { link, paragraph } from "@/app/lib/festival-terms/blocks";
 
+vi.mock("@/db", () => ({ db: {} }));
+
 vi.mock("@/app/lib/rich-text/render", () => ({
   blocksToSanitizedHtml: vi.fn(async () => {
     throw new Error("forced blocksToSanitizedHtml failure");
   }),
 }));
+
+import { renderTermsSectionHtml } from "@/app/lib/festival-terms/persist";
+import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 
 describe("renderTermsSectionHtml", () => {
   beforeEach(() => {
@@ -14,11 +19,6 @@ describe("renderTermsSectionHtml", () => {
   });
 
   it("sanitizes unsafe URI schemes on the blocksToSeedHtml fallback path", async () => {
-    const { renderTermsSectionHtml } = await import(
-      "@/app/lib/festival-terms/persist"
-    );
-    const { blocksToSanitizedHtml } = await import("@/app/lib/rich-text/render");
-
     const html = await renderTermsSectionHtml("rich_text", [
       paragraph(link("javascript:alert(1)", "click"), " safe"),
     ]);
@@ -30,10 +30,6 @@ describe("renderTermsSectionHtml", () => {
   });
 
   it("renders image-only bodies via the blocksToSeedHtml fallback path", async () => {
-    const { renderTermsSectionHtml } = await import(
-      "@/app/lib/festival-terms/persist"
-    );
-
     const html = await renderTermsSectionHtml("rich_text", [
       { type: "image", props: { url: "/terms/diagram.png", name: "Diagrama" } },
     ]);
@@ -43,10 +39,6 @@ describe("renderTermsSectionHtml", () => {
   });
 
   it("renders divider-only bodies via the blocksToSeedHtml fallback path", async () => {
-    const { renderTermsSectionHtml } = await import(
-      "@/app/lib/festival-terms/persist"
-    );
-
     const html = await renderTermsSectionHtml("rich_text", [{ type: "divider" }]);
 
     expect(html).toContain("<hr");
