@@ -1,6 +1,16 @@
 import "server-only";
 
-import { and, eq, exists, gt, inArray, notExists, or, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  notExists,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import type {
   ParticipationType,
@@ -25,7 +35,9 @@ import {
   profileSubcategories,
   reservationExternalParticipants,
   reservationParticipants,
+  standHoldMembers,
   standHolds,
+  standReservationStands,
   standReservations,
   standSubcategories,
   stands,
@@ -258,11 +270,12 @@ export async function fetchFestivalReservationMapDto(input: {
     standIds.length === 0
       ? Promise.resolve([])
       : db
-          .select({ standId: standHolds.standId })
-          .from(standHolds)
+          .select({ standId: standHoldMembers.standId })
+          .from(standHoldMembers)
+          .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
           .where(
             and(
-              inArray(standHolds.standId, standIds),
+              inArray(standHoldMembers.standId, standIds),
               gt(standHolds.expiresAt, now),
             ),
           ),
@@ -279,7 +292,7 @@ export async function fetchFestivalReservationMapDto(input: {
       : db
           .select({
             reservationId: standReservations.id,
-            standId: standReservations.standId,
+            standId: standReservationStands.standId,
             status: standReservations.status,
             revealAt: standReservations.revealAt,
             userId: users.id,
@@ -288,13 +301,18 @@ export async function fetchFestivalReservationMapDto(input: {
           })
           .from(standReservations)
           .innerJoin(
+            standReservationStands,
+            eq(standReservationStands.reservationId, standReservations.id),
+          )
+          .innerJoin(
             reservationParticipants,
             eq(reservationParticipants.reservationId, standReservations.id),
           )
           .innerJoin(users, eq(users.id, reservationParticipants.userId))
           .where(
             and(
-              inArray(standReservations.standId, standIds),
+              inArray(standReservationStands.standId, standIds),
+              isNull(standReservationStands.releasedAt),
               inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
@@ -303,7 +321,7 @@ export async function fetchFestivalReservationMapDto(input: {
       : db
           .select({
             reservationId: standReservations.id,
-            standId: standReservations.standId,
+            standId: standReservationStands.standId,
             status: standReservations.status,
             revealAt: standReservations.revealAt,
             externalId: externalParticipants.id,
@@ -311,6 +329,10 @@ export async function fetchFestivalReservationMapDto(input: {
             imageUrl: externalParticipants.imageUrl,
           })
           .from(standReservations)
+          .innerJoin(
+            standReservationStands,
+            eq(standReservationStands.reservationId, standReservations.id),
+          )
           .innerJoin(
             reservationExternalParticipants,
             eq(
@@ -327,7 +349,8 @@ export async function fetchFestivalReservationMapDto(input: {
           )
           .where(
             and(
-              inArray(standReservations.standId, standIds),
+              inArray(standReservationStands.standId, standIds),
+              isNull(standReservationStands.releasedAt),
               inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
@@ -546,11 +569,12 @@ export async function fetchFestivalReservationConfirmationDto(input: {
     thumbnailIds.length === 0
       ? []
       : await db
-          .select({ standId: standHolds.standId })
-          .from(standHolds)
+          .select({ standId: standHoldMembers.standId })
+          .from(standHoldMembers)
+          .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
           .where(
             and(
-              inArray(standHolds.standId, thumbnailIds),
+              inArray(standHoldMembers.standId, thumbnailIds),
               gt(standHolds.expiresAt, now),
             ),
           );

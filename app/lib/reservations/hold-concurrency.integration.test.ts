@@ -21,6 +21,7 @@ import {
   festivalTermsVersions,
   festivals,
   reservationRequestRegistry,
+  standHoldMembers,
   standHolds,
   stands,
   userRequests,
@@ -288,13 +289,23 @@ describeDatabase("createStandHold concurrency", () => {
 
     const createdAt = new Date(Date.now() - 120_000);
     const expiresAt = new Date(Date.now() - 60_000);
-    await integrationDb!.insert(standHolds).values({
+    const [staleHold] = await integrationDb!
+      .insert(standHolds)
+      .values({
+        standId: stand.id,
+        userId: holder.id,
+        festivalId: festival.id,
+        createdAt,
+        updatedAt: expiresAt,
+        expiresAt,
+      })
+      .returning({ id: standHolds.id });
+    // Membership is canonical since the adapter sync trigger was removed, so a
+    // fixture that writes the parent directly has to write its member too.
+    await integrationDb!.insert(standHoldMembers).values({
+      holdId: staleHold.id,
       standId: stand.id,
-      userId: holder.id,
-      festivalId: festival.id,
-      createdAt,
-      updatedAt: expiresAt,
-      expiresAt,
+      position: 0,
     });
     await integrationDb!
       .update(stands)

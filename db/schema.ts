@@ -1048,7 +1048,7 @@ export const standRelations = relations(stands, ({ many, one }) => ({
   festivalActivityVotes: many(festivalActivityVotes),
   holds: many(standHolds),
   holdMembers: many(standHoldMembers),
-  reservationMembers: many(standReservationMembers),
+  reservationMembers: many(standReservationStands),
   standSubcategories: many(standSubcategories),
 }));
 
@@ -1133,9 +1133,10 @@ export const standHoldsRelations = relations(standHolds, ({ one, many }) => ({
 }));
 
 /**
- * Aggregate members for stand capacity holds. Phase 0B deliberately caps this
- * at one member while legacy callers still use stand_holds.stand_id. The cap is
- * removed together with that adapter when full-table booking lands.
+ * Aggregate members for stand capacity holds. The Phase 0B one-member cap is
+ * gone: a hold may now carry the two halves of a full table. `stand_holds`
+ * still keeps a `stand_id` adapter in step with member position 0 while the
+ * remaining single-stand readers migrate.
  */
 export const standHoldMembers = pgTable(
   "stand_hold_members",
@@ -1147,11 +1148,19 @@ export const standHoldMembers = pgTable(
     standId: integer("stand_id")
       .notNull()
       .references(() => stands.id, { onDelete: "cascade" }),
+    position: smallint("position").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("stand_hold_members_hold_id_unique").on(t.holdId),
+    uniqueIndex("stand_hold_members_hold_position_unique").on(
+      t.holdId,
+      t.position,
+    ),
+    // The active-capacity guarantee. Safe as a plain unique index only because
+    // every hold path deletes the aggregate before a stand can be reused.
     uniqueIndex("stand_hold_members_stand_id_unique").on(t.standId),
+    index("stand_hold_members_hold_id_idx").on(t.holdId),
+    check("stand_hold_members_position_nonnegative", sql`${t.position} >= 0`),
   ],
 );
 export const standHoldMembersRelations = relations(
@@ -1235,18 +1244,21 @@ export const standReservationsRelations = relations(
     collaborators: many(reservationCollaborators),
     participantProducts: many(participantProducts),
     events: many(standReservationEvents),
-    members: many(standReservationMembers),
+    members: many(standReservationStands),
     featureActions: many(reservationFeatureActions),
   }),
 );
 
 /**
- * Aggregate members for stand reservations. It is one-to-one until full-table
- * confirmation is introduced, which keeps this migration compatible with the
- * hardened single-stand flows.
+ * The stand membership of a reservation aggregate. A normal reservation has one
+ * member; a full table has two halves of one declared pair.
+ *
+ * Unlike `stand_hold_members` this table is membership *history*: a member is
+ * retired by stamping `released_at`, never deleted, so an admin downgrade of a
+ * full table stays auditable.
  */
-export const standReservationMembers = pgTable(
-  "stand_reservation_members",
+export const standReservationStands = pgTable(
+  "stand_reservation_stands",
   {
     id: serial("id").primaryKey(),
     reservationId: integer("reservation_id")
@@ -1255,23 +1267,48 @@ export const standReservationMembers = pgTable(
     standId: integer("stand_id")
       .notNull()
       .references(() => stands.id, { onDelete: "restrict" }),
+    position: smallint("position").default(0).notNull(),
+    /** Set when this half stops occupying its stand; the row itself stays. */
+    releasedAt: timestamp("released_at"),
+    /**
+     * Denormalised from the parent and maintained by database trigger. Occupancy
+     * needs an index-backed guarantee, and a partial unique index cannot reach
+     * into another table, so the predicate needs the status on this row.
+     * Never write it from application code.
+     */
+    reservationStatus: reservationStatusEnum("reservation_status")
+      .default("pending")
+      .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("stand_reservation_members_reservation_id_unique").on(
+    uniqueIndex("stand_reservation_stands_reservation_position_unique").on(
       t.reservationId,
+      t.position,
     ),
+    uniqueIndex("stand_reservation_stands_reservation_stand_unique").on(
+      t.reservationId,
+      t.standId,
+    ),
+    // Member-level occupancy: one live, unreleased member per stand.
+    uniqueIndex("stand_reservation_stands_active_stand_unique")
+      .on(t.standId)
+      .where(
+        sql`${t.releasedAt} IS NULL AND ${t.reservationStatus} IN ('pending', 'verification_payment', 'accepted')`,
+      ),
+    index("stand_reservation_stands_stand_id_idx").on(t.standId),
+    check("stand_reservation_stands_position_nonnegative", sql`${t.position} >= 0`),
   ],
 );
-export const standReservationMembersRelations = relations(
-  standReservationMembers,
+export const standReservationStandsRelations = relations(
+  standReservationStands,
   ({ one }) => ({
     reservation: one(standReservations, {
-      fields: [standReservationMembers.reservationId],
+      fields: [standReservationStands.reservationId],
       references: [standReservations.id],
     }),
     stand: one(stands, {
-      fields: [standReservationMembers.standId],
+      fields: [standReservationStands.standId],
       references: [stands.id],
     }),
   }),

@@ -11,6 +11,7 @@ import {
   festivalSectors,
   festivals,
   standGroups,
+  standReservationStands,
   standReservations,
   stands,
 } from "@/db/schema";
@@ -221,6 +222,11 @@ describeDatabase("setStandGroupFullTable", () => {
       .values({ standId: standIds[0], festivalId, status: "accepted" })
       .returning({ id: standReservations.id });
     createdReservationIds.push(reservation!.id);
+    // Occupancy is resolved through membership, so the fixture has to create
+    // the member row the real writers create.
+    await integrationDb!
+      .insert(standReservationStands)
+      .values({ reservationId: reservation!.id, standId: standIds[0] });
 
     const result = await setStandGroupFullTable({ groupId, enabled: true });
 

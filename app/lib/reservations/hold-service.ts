@@ -18,6 +18,11 @@ import {
   lockStandRows,
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
+import {
+  holdMemberStandIds,
+  insertHoldMembers,
+  insertReservationMembers,
+} from "@/app/lib/reservations/members";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import { roundMoney } from "@/app/lib/reservations/money";
@@ -47,6 +52,7 @@ import {
   invoices,
   reservationParticipants,
   scheduledTasks,
+  standHoldMembers,
   standHolds,
   standReservations,
   stands,
@@ -149,39 +155,24 @@ async function reconcileExpiredHolds(
   input: { standId: number; userId: number; festivalId: number; now: Date },
 ) {
   const expired = await tx
-    .select({ id: standHolds.id, standId: standHolds.standId })
+    .select({ id: standHolds.id })
     .from(standHolds)
+    .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
     .where(
       and(
         lte(standHolds.expiresAt, input.now),
-        sql`(${standHolds.standId} = ${input.standId} OR (${standHolds.userId} = ${input.userId} AND ${standHolds.festivalId} = ${input.festivalId}))`,
+        sql`(${standHoldMembers.standId} = ${input.standId} OR (${standHolds.userId} = ${input.userId} AND ${standHolds.festivalId} = ${input.festivalId}))`,
       ),
     );
 
-  for (const hold of expired) {
-    await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
-    const [liveHold] = await tx
-      .select({ id: standHolds.id })
-      .from(standHolds)
-      .where(
-        and(
-          eq(standHolds.standId, hold.standId),
-          gt(standHolds.expiresAt, input.now),
-        ),
-      )
-      .limit(1);
-    const [liveReservation] = await tx
-      .select({ id: standReservations.id })
-      .from(standReservations)
-      .where(
-        and(
-          eq(standReservations.standId, hold.standId),
-          sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
-        ),
-      )
-      .limit(1);
-    if (!liveHold && !liveReservation) {
-      await releaseStandIfVacant(tx, hold.standId, input.now);
+  const expiredHoldIds = [...new Set(expired.map((row) => row.id))];
+  for (const holdId of expiredHoldIds) {
+    // Read membership before deleting: the cascade takes the member rows with
+    // the aggregate, and every one of them may need its stand released.
+    const memberStandIds = await holdMemberStandIds(tx, holdId);
+    await tx.delete(standHolds).where(eq(standHolds.id, holdId));
+    for (const standId of memberStandIds) {
+      await releaseStandIfVacant(tx, standId, input.now);
     }
   }
 }
@@ -439,6 +430,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
         })
         .returning();
 
+      await insertHoldMembers(tx, hold.id, [freshStand.id]);
+
       await tx
         .update(stands)
         .set({ status: "held", updatedAt: now })
@@ -490,10 +483,14 @@ export async function cancelStandHold(
         return reservationFailure("HOLD_NOT_OWNED");
       }
 
+      // Lock every member stand, not just the adapter column, so cancelling a
+      // full-table hold frees both halves atomically.
+      const previewStandIds = await holdMemberStandIds(tx, preview.id);
       const locked = await lockReservationAggregate(tx, {
         festivalId: preview.festivalId,
         userIds: [actor.id],
-        standIds: [preview.standId],
+        standIds:
+          previewStandIds.length > 0 ? previewStandIds : [preview.standId],
         holdIds: [preview.id],
       });
       if (!locked.ok) return reservationFailure("CONFLICT_RETRY");
@@ -523,8 +520,11 @@ export async function cancelStandHold(
         return reservationFailure("CONFLICT_RETRY");
       }
 
+      const memberStandIds = await holdMemberStandIds(tx, hold.id);
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
-      await releaseStandIfVacant(tx, hold.standId);
+      for (const standId of memberStandIds) {
+        await releaseStandIfVacant(tx, standId);
+      }
       return reservationSuccess(undefined, "Reserva temporal cancelada");
     });
 
@@ -798,6 +798,8 @@ export async function confirmStandHold(
         })
         .returning();
 
+      await insertReservationMembers(tx, reservation.id, [hold.standId]);
+
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
           userId: uid,
@@ -894,11 +896,17 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
   try {
     const now = new Date();
     const expiredHolds = await db
-      .select({ id: standHolds.id, standId: standHolds.standId })
+      .select({
+        id: standHolds.id,
+        standId: standHoldMembers.standId,
+      })
       .from(standHolds)
+      .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
       .where(lte(standHolds.expiresAt, now));
 
     if (expiredHolds.length === 0) return { expired: 0 };
+
+    const expiredHoldIds = [...new Set(expiredHolds.map((row) => row.id))];
 
     await db.transaction(async (tx) => {
       const standIds = [
@@ -913,35 +921,16 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
           .for("update");
       }
 
-      for (const hold of expiredHolds) {
-        await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
-        const [liveHold] = await tx
-          .select({ id: standHolds.id })
-          .from(standHolds)
-          .where(
-            and(
-              eq(standHolds.standId, hold.standId),
-              gt(standHolds.expiresAt, now),
-            ),
-          )
-          .limit(1);
-        const [liveReservation] = await tx
-          .select({ id: standReservations.id })
-          .from(standReservations)
-          .where(
-            and(
-              eq(standReservations.standId, hold.standId),
-              sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
-            ),
-          )
-          .limit(1);
-        if (!liveHold && !liveReservation) {
-          await releaseStandIfVacant(tx, hold.standId, now);
+      for (const holdId of expiredHoldIds) {
+        const memberStandIds = await holdMemberStandIds(tx, holdId);
+        await tx.delete(standHolds).where(eq(standHolds.id, holdId));
+        for (const standId of memberStandIds) {
+          await releaseStandIfVacant(tx, standId, now);
         }
       }
     });
 
-    return { expired: expiredHolds.length };
+    return { expired: expiredHoldIds.length };
   } catch (error) {
     console.error("Error cleaning up expired holds", error);
     return { expired: 0 };

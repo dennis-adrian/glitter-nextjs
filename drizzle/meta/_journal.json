@@ -1842,6 +1842,13 @@
       "when": 1788459336596,
       "tag": "0263_stand_individual_price_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1788545736596,
+      "tag": "0264_stand_reservation_stands",
+      "breakpoints": true
     }
   ]
 }
