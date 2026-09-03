@@ -51,18 +51,29 @@ describe("StandSpecificationsSectorCard", () => {
 
   /**
    * The shared price used to live in a sentence halfway down the card while the
-   * individual price sat in the header badge, so the two never read as a choice
-   * between two ways of taking the same space.
+   * individual price sat in the header band, so the two never read as a choice
+   * between two ways of taking the same space. Both now close the card in one
+   * pricing section.
    */
   it("names both rates together when the space can be shared", () => {
     renderCard();
 
+    expect(screen.getByText("Precios")).toBeTruthy();
     expect(screen.getByText("Espacio individual")).toBeTruthy();
     expect(screen.getByText("Espacio compartido")).toBeTruthy();
     expect(screen.getByText("Bs. 350")).toBeTruthy();
     expect(screen.getByText("Bs. 380")).toBeTruthy();
-    // The band becomes an entry price so sectors stay comparable while scrolling.
-    expect(screen.getByText("Desde")).toBeTruthy();
+  });
+
+  it("keeps the header to the sector and its size, with no price", () => {
+    renderCard();
+
+    const heading = screen.getByRole("heading", { name: /Lobby/ });
+    const band = heading.parentElement!;
+    // One stand in the fixture, so the singular has to hold too.
+    expect(band.textContent).toContain("1 espacio");
+    expect(band.textContent).not.toContain("1 espacios");
+    expect(band.textContent).not.toContain("Bs.");
   });
 
   it("says the shared price covers the reservation, not one person", () => {
@@ -77,8 +88,9 @@ describe("StandSpecificationsSectorCard", () => {
     renderCard({ sharedPrice: null });
 
     expect(screen.queryByText("Espacio compartido")).toBeNull();
-    expect(screen.queryByText("Desde")).toBeNull();
-    expect(screen.getByText("350")).toBeTruthy();
+    expect(screen.queryByText("Precios")).toBeNull();
+    expect(screen.getByText("Precio")).toBeTruthy();
+    expect(screen.getByText("Bs. 350")).toBeTruthy();
   });
 
   it("ignores a stored shared price outside illustration", () => {
