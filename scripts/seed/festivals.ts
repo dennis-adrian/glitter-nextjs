@@ -345,10 +345,15 @@ export async function seedFestivals(
           label: stand.label,
           standNumber: stand.standNumber,
           // A stand nobody occupies must read as available, otherwise capping
-          // occupancy would leave it visually taken and unbookable.
-          status: occupiedStandRefs.has(stand.ref)
-            ? (stand.status as "reserved")
-            : ("available" as const),
+          // occupancy would leave it visually taken and unbookable. `disabled`
+          // is the exception: it is set deliberately and has nothing to do with
+          // whether anyone reserved the stand.
+          status:
+            stand.status === "disabled"
+              ? ("disabled" as const)
+              : occupiedStandRefs.has(stand.ref)
+                ? (stand.status as "reserved")
+                : ("available" as const),
           standCategory: stand.standCategory as "illustration",
           participationType: stand.participationType as "standard",
           zone: stand.zone as "main",
@@ -538,7 +543,8 @@ export async function seedFestivals(
         );
 
       const freeStands = fixtureFestival.stands.filter(
-        (stand) => !occupiedStandRefs.has(stand.ref),
+        (stand) =>
+          !occupiedStandRefs.has(stand.ref) && stand.status !== "disabled",
       );
 
       const plan: Array<"pending" | "verification_payment"> = [
@@ -646,7 +652,11 @@ export async function seedFestivals(
       name: fixtureFestival.name,
       reservations: reservationCount + inFlightCount,
       inFlight: inFlightCount,
-      freeStands: fixtureFestival.stands.length - occupiedStandRefs.size,
+      // Bookable, not merely unreserved: a disabled stand is neither.
+      freeStands: fixtureFestival.stands.filter(
+        (stand) =>
+          !occupiedStandRefs.has(stand.ref) && stand.status !== "disabled",
+      ).length,
     });
   }
 
