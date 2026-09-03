@@ -64,8 +64,16 @@ export default function StandSpecificationsSectorCard({
         isMyCategory(s.standCategory),
     ) ?? false;
 
-  const sectorPrice =
-    sector.stands.find((stand) => stand.standCategory === category)?.price ?? 0;
+  // `stands.price` is the legacy mirror of the individual price and is on its
+  // way out; both real prices live in their own columns. Illustration is the
+  // only category that sells a shared price, and it is the total for the whole
+  // reservation — owner plus partner — not a price per person.
+  const pricedStand = sector.stands.find(
+    (stand) => stand.standCategory === category,
+  );
+  const individualPrice = pricedStand?.individualPrice ?? 0;
+  const sharedPrice =
+    category === "illustration" ? (pricedStand?.sharedPrice ?? null) : null;
 
   let sectorSpecifications = "";
   if (category === "gastronomy") {
@@ -148,13 +156,22 @@ export default function StandSpecificationsSectorCard({
               </p>
             </div>
             <Badge className="text-lg font-semibold text-primary-foreground">
-              <span>Bs.</span> {sectorPrice.toLocaleString()}
+              <span>Bs.</span> {individualPrice.toLocaleString()}
             </Badge>
           </div>
           <div className="p-4 space-y-3 text-sm">
             <div>
               <span className="font-medium">Especificaciones:</span>
               <p className="text-muted-foreground">{sectorSpecifications}</p>
+              {sharedPrice != null && (
+                <p className="text-muted-foreground">
+                  Compartiéndolo, el espacio cuesta{" "}
+                  <span className="font-medium text-foreground">
+                    Bs. {sharedPrice.toLocaleString()}
+                  </span>{" "}
+                  en total — no por persona — y lo paga quien reserva.
+                </p>
+              )}
             </div>
 
             <div>

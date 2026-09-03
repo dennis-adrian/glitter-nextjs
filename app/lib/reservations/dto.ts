@@ -94,7 +94,14 @@ export type ReservationMapStandDto = {
   height: number | null;
   standCategory: UserCategory;
   participationType: ParticipationType;
+  /** Billed when the participant books alone. */
   price: number;
+  /**
+   * Billed instead when a partner is confirmed — the total for the whole
+   * reservation, owner-paid and never per person. Null for every category but
+   * illustration, and whenever an admin has not configured one.
+   */
+  sharedPrice: number | null;
   eligibleSubcategoryIds: number[];
   festivalSectorId: number;
   standGroupId: number | null;

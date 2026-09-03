@@ -210,6 +210,8 @@ export async function fetchFestivalReservationMapDto(input: {
       standCategory: stands.standCategory,
       participationType: stands.participationType,
       price: stands.individualPrice,
+      individualPrice: stands.individualPrice,
+      sharedPrice: stands.sharedPrice,
       standGroupId: stands.standGroupId,
     })
     .from(stands)
@@ -708,8 +710,8 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       label: stand.label,
       standNumber: stand.standNumber,
       standCategory: stand.standCategory,
-      // The hold already snapshotted the price this participant will be
-      // billed; the stand column is only a fallback for holds taken before
+      // The hold already snapshotted the prices this participant will be
+      // billed; the stand columns are only a fallback for holds taken before
       // snapshots existed.
       price: hold.individualPriceSnapshot ?? stand.individualPrice,
       // Confirmation bills the shared price once a partner is added, so the

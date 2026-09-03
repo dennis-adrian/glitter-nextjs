@@ -75,16 +75,36 @@ describe("resolveFeatureConfig", () => {
     expect(result.unavailableReason).toContain("desactivada");
   });
 
-  it("offers late partner before the deadline", () => {
+  it("computes the late partner deadline but withholds the unimplemented feature", () => {
     const result = resolveFeatureConfig(row(), {
       earliestStartDate: festivalStart,
       now,
     });
-    expect(result.available).toBe(true);
-    expect(result.unavailableReason).toBeNull();
+    // The deadline rules still hold — phase 4 switches the feature back on
+    // without touching them — but nothing may be offered until it ships.
     expect(result.effectiveDeadlineAt).toEqual(
       new Date(festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS),
     );
+    expect(result.available).toBe(false);
+    expect(result.unavailableReason).toContain("no está implementada");
+  });
+
+  it("withholds every feature type without an implementation behind it", () => {
+    for (const type of ["late_partner", "reservation_release"] as const) {
+      const result = resolveFeatureConfig(row({ type, category: null }), {
+        earliestStartDate: festivalStart,
+        now,
+      });
+      expect(result.available).toBe(false);
+      expect(result.unavailableReason).toContain("no está implementada");
+    }
+
+    const fullTable = resolveFeatureConfig(
+      row({ type: "full_table", category: "illustration" }),
+      { earliestStartDate: festivalStart, now },
+    );
+    expect(fullTable.available).toBe(true);
+    expect(fullTable.unavailableReason).toBeNull();
   });
 
   it("withdraws late partner at and after the deadline", () => {
@@ -125,7 +145,8 @@ describe("resolveFeatureConfig", () => {
         { earliestStartDate: null, now },
       );
       expect(result.effectiveDeadlineAt).toBeNull();
-      expect(result.available).toBe(true);
+      // Only full table has an implementation, so only it can be offered.
+      expect(result.available).toBe(type === "full_table");
     }
   });
 });
