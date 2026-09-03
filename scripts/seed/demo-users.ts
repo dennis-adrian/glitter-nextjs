@@ -196,7 +196,9 @@ async function ensureClerkUser(
   }
 
   const created = await client.users.createUser({
-    emailAddress: [demo.email],
+    // Must match the address the lookup above uses, or the next run will not
+    // find this user and will try to create it again.
+    emailAddress: [demo.clerkEmail],
     firstName: demo.firstName,
     lastName: demo.lastName,
     password,
