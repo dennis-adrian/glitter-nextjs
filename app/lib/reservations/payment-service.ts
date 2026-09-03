@@ -1,7 +1,7 @@
 import "server-only";
 import { activeReservationStandIds } from "@/app/lib/reservations/members";
 
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import { invoiceCreditPlan } from "@/app/lib/credits/balances";
@@ -167,13 +167,23 @@ async function loadInvoiceAggregate(
       : []),
   ]);
 
+  const memberStandIds = await activeReservationStandIds(
+    tx,
+    reservationPreview.id,
+  );
+  const reservationMemberStandIds =
+    memberStandIds.length > 0 ? memberStandIds : [reservationPreview.standId];
+
   const locked = await lockReservationAggregate(tx, {
     festivalId: reservationPreview.festivalId,
     userIds,
     // Settlement and credit allocation races serialize on the payer account.
     // This is intentionally before stand/invoice locks in the total order.
     creditAccountUserIds: [invoicePreview.userId],
-    standIds: [reservationPreview.standId],
+    // Membership, not the adapter column: settlement-rejection cancellation
+    // releases every member stand, and a stand must never be written without
+    // its lock.
+    standIds: reservationMemberStandIds,
     reservationIds: [reservationPreview.id],
     invoiceIds: [invoicePreview.id],
     paymentIds: paymentPreview.map((row) => row.id),
@@ -1069,12 +1079,18 @@ async function applyAcceptedReservation(
     throw new Error("reservation_status_conflict");
   }
 
+  // Every occupied stand, not just the originally selected half: a full
+  // table's companion would otherwise sit at `reserved` for good, rendering
+  // differently everywhere stands.status is read.
+  const memberStandIds = await activeReservationStandIds(tx, reservationId);
+  const standIdsToConfirm =
+    memberStandIds.length > 0 ? memberStandIds : [standId];
   const updatedStands = await tx
     .update(stands)
     .set({ status: "confirmed", updatedAt: new Date() })
-    .where(eq(stands.id, standId))
+    .where(inArray(stands.id, standIdsToConfirm))
     .returning({ id: stands.id });
-  if (updatedStands.length === 0) {
+  if (updatedStands.length !== standIdsToConfirm.length) {
     throw new Error("stand_missing");
   }
 
