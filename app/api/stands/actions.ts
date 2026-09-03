@@ -6,6 +6,7 @@ import {
   FestivalWithUserRequests,
 } from "@/app/lib/festivals/definitions";
 import { lockFestivalRow, lockStandRows } from "@/app/lib/reservations/locks";
+import { guardLegacySinglePriceEdit } from "@/app/lib/stands/pricing-service";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
@@ -188,7 +189,13 @@ export async function updateStand(
       status: parsed.status,
       updatedAt: new Date(),
     };
-    if (parsed.price !== undefined) setData.price = parsed.price;
+    // This editor predates the individual/shared split and still sends one
+    // amount. That amount is the individual price; the legacy column is kept in
+    // sync so readers that have not migrated yet stay correct.
+    if (parsed.price !== undefined) {
+      setData.price = parsed.price;
+      setData.individualPrice = parsed.price;
+    }
     if (parsed.standCategory !== undefined)
       setData.standCategory = parsed.standCategory;
 
@@ -203,6 +210,14 @@ export async function updateStand(
         await lockFestivalRow(tx, preview.festivalId);
       }
       await lockStandRows(tx, [preview.id]);
+      if (parsed.price !== undefined) {
+        const guard = await guardLegacySinglePriceEdit(
+          tx,
+          [preview.id],
+          parsed.price,
+        );
+        if (!guard.ok) return { blocked: guard.message } as const;
+      }
       const [row] = await tx
         .update(stands)
         .set(setData)
@@ -211,6 +226,9 @@ export async function updateStand(
       return row ?? null;
     });
 
+    if (updated && "blocked" in updated) {
+      return { success: false, message: updated.blocked };
+    }
     if (!updated) {
       return { success: false, message: "Espacio no encontrado" };
     }
@@ -309,7 +327,11 @@ export async function bulkUpdateStands(
     const setData: Record<string, unknown> = { updatedAt: new Date() };
     if (patch.status !== undefined) setData.status = patch.status;
     if (patch.label !== undefined) setData.label = patch.label;
-    if (patch.price !== undefined) setData.price = patch.price;
+    // Same legacy single-price shape as updateStand above.
+    if (patch.price !== undefined) {
+      setData.price = patch.price;
+      setData.individualPrice = patch.price;
+    }
     if (patch.standCategory !== undefined)
       setData.standCategory = patch.standCategory;
 
@@ -334,6 +356,17 @@ export async function bulkUpdateStands(
           success: false as const,
           message: "Uno o más espacios no pertenecen a este festival.",
         };
+      }
+
+      if (patch.price !== undefined) {
+        const guard = await guardLegacySinglePriceEdit(
+          tx,
+          uniqueIds,
+          patch.price,
+        );
+        if (!guard.ok) {
+          return { success: false as const, message: guard.message };
+        }
       }
 
       const updated = await tx

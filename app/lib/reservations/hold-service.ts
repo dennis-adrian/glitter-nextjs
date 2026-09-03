@@ -270,7 +270,6 @@ export async function createStandHold(standIdInput: unknown): Promise<
           festivalId: stands.festivalId,
           standCategory: stands.standCategory,
           participationType: stands.participationType,
-          price: stands.price,
         })
         .from(stands)
         .where(eq(stands.id, standId))
@@ -324,7 +323,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
           festivalId: stands.festivalId,
           standCategory: stands.standCategory,
           participationType: stands.participationType,
-          price: stands.price,
+          individualPrice: stands.individualPrice,
+          sharedPrice: stands.sharedPrice,
         })
         .from(stands)
         .where(eq(stands.id, standId))
@@ -426,8 +426,15 @@ export async function createStandHold(standIdInput: unknown): Promise<
           userId: actor.id,
           festivalId: freshStand.festivalId,
           expiresAt,
-          priceAmountSnapshot: roundMoney(freshStand.price ?? 0),
-          individualPriceSnapshot: roundMoney(freshStand.price ?? 0),
+          priceAmountSnapshot: roundMoney(freshStand.individualPrice ?? 0),
+          // Both illustration prices are snapshotted even when the participant
+          // is booking alone, so a later partner addition prices off the stand
+          // as it stood at hold time (PRD §6.1).
+          individualPriceSnapshot: roundMoney(freshStand.individualPrice ?? 0),
+          sharedPriceSnapshot:
+            freshStand.sharedPrice == null
+              ? null
+              : roundMoney(freshStand.sharedPrice),
           idempotencyKey,
         })
         .returning();
@@ -617,7 +624,8 @@ export async function confirmStandHold(
         individualPriceSnapshot: standHolds.individualPriceSnapshot,
         sharedPriceSnapshot: standHolds.sharedPriceSnapshot,
         standFestivalId: stands.festivalId,
-        standPrice: stands.price,
+        standIndividualPrice: stands.individualPrice,
+        standSharedPrice: stands.sharedPrice,
         standStatus: stands.status,
         standCategory: stands.standCategory,
         participationType: stands.participationType,
@@ -754,9 +762,26 @@ export async function confirmStandHold(
       });
       if (ineligibleStand) return finish(ineligibleStand);
 
-      const standPrice = roundMoney(
-        hold.priceAmountSnapshot ?? hold.standPrice ?? 0,
+      const individualPrice = roundMoney(
+        hold.individualPriceSnapshot ??
+          hold.priceAmountSnapshot ??
+          hold.standIndividualPrice ??
+          0,
       );
+      const sharedPrice =
+        hold.sharedPriceSnapshot ??
+        (hold.standSharedPrice == null
+          ? null
+          : roundMoney(hold.standSharedPrice));
+
+      // PRD §6.1: the initial invoice uses the price matching the participant
+      // count confirmed at booking. The shared price is the total for owner
+      // plus partner and stays owner-paid; until an admin configures one it is
+      // null and a two-person booking still bills the individual price.
+      const standPrice =
+        participantIds.length > 1 && sharedPrice != null
+          ? sharedPrice
+          : individualPrice;
 
       const [reservation] = await tx
         .insert(standReservations)
@@ -765,11 +790,9 @@ export async function confirmStandHold(
           standId: hold.standId,
           source: "user_reservation",
           ownerUserId: actor.id,
-          priceAmountSnapshot: roundMoney(standPrice),
-          individualPriceSnapshot: roundMoney(
-            hold.individualPriceSnapshot ?? standPrice,
-          ),
-          sharedPriceSnapshot: hold.sharedPriceSnapshot,
+          priceAmountSnapshot: standPrice,
+          individualPriceSnapshot: individualPrice,
+          sharedPriceSnapshot: sharedPrice,
           bookedParticipantCount: participantIds.length,
           idempotencyKey,
         })

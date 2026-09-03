@@ -989,7 +989,10 @@ export const stands = pgTable(
     height: real("height"),
     positionLeft: real("position_left"),
     positionTop: real("position_top"),
-    /** Migration adapter. Remove once every consumer reads the pair below. */
+    /**
+     * Migration adapter, kept equal to `individual_price` by every writer.
+     * Remove once no consumer reads it.
+     */
     price: money("price").notNull().default(0),
     /** Total for one registered participant. */
     individualPrice: money("individual_price").notNull().default(0),

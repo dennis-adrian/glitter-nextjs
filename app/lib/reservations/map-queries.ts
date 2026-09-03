@@ -187,7 +187,7 @@ export async function fetchFestivalReservationMapDto(input: {
       height: stands.height,
       standCategory: stands.standCategory,
       participationType: stands.participationType,
-      price: stands.price,
+      price: stands.individualPrice,
       standGroupId: stands.standGroupId,
     })
     .from(stands)
@@ -476,7 +476,13 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       eq(standHolds.userId, input.profileId),
       eq(standHolds.festivalId, input.festivalId),
     ),
-    columns: { id: true, standId: true, expiresAt: true, festivalId: true },
+    columns: {
+      id: true,
+      standId: true,
+      expiresAt: true,
+      festivalId: true,
+      individualPriceSnapshot: true,
+    },
   });
   if (!hold || hold.expiresAt <= now) return null;
 
@@ -488,7 +494,7 @@ export async function fetchFestivalReservationConfirmationDto(input: {
         label: true,
         standNumber: true,
         standCategory: true,
-        price: true,
+        individualPrice: true,
         festivalSectorId: true,
       },
     }),
@@ -586,7 +592,10 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       label: stand.label,
       standNumber: stand.standNumber,
       standCategory: stand.standCategory,
-      price: stand.price,
+      // The hold already snapshotted the price this participant will be
+      // billed; the stand column is only a fallback for holds taken before
+      // snapshots existed.
+      price: hold.individualPriceSnapshot ?? stand.individualPrice,
     },
     sector: {
       id: sector.id,

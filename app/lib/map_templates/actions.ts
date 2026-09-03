@@ -429,7 +429,11 @@ export async function importTemplateToFestival(
               height: stand.height,
               positionLeft: stand.positionLeft,
               positionTop: stand.positionTop,
+              // Templates predate the individual/shared split, so their single
+              // price maps to the individual price and mirrors into the legacy
+              // adapter column.
               price: stand.price,
+              individualPrice: stand.price,
               status: "available" as const,
               festivalId,
               festivalSectorId: targetSector.id,
@@ -580,7 +584,11 @@ export async function importTemplateToFestival(
               height: stand.height,
               positionLeft: stand.positionLeft,
               positionTop: stand.positionTop,
+              // Templates predate the individual/shared split, so their single
+              // price maps to the individual price and mirrors into the legacy
+              // adapter column.
               price: stand.price,
+              individualPrice: stand.price,
               status: "available" as const,
               festivalId,
               festivalSectorId: sectorId,

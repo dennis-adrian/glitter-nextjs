@@ -192,6 +192,7 @@ describeDatabase("createStandHold concurrency", () => {
           standCategory: "illustration" as const,
           status: "available" as const,
           price: 100,
+          individualPrice: 100,
         })),
       )
       .returning();

@@ -226,8 +226,12 @@ export async function createExternalParticipantReservation(
           standId,
           status: "accepted",
           source: "admin_assignment",
-          priceAmountSnapshot: roundMoney(lockedStand.price ?? 0),
-          individualPriceSnapshot: roundMoney(lockedStand.price ?? 0),
+          priceAmountSnapshot: roundMoney(lockedStand.individualPrice ?? 0),
+          individualPriceSnapshot: roundMoney(lockedStand.individualPrice ?? 0),
+          sharedPriceSnapshot:
+            lockedStand.sharedPrice == null
+              ? null
+              : roundMoney(lockedStand.sharedPrice),
           bookedParticipantCount: 1,
           revealAt,
         })
