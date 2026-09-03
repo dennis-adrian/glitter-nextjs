@@ -40,7 +40,11 @@ async function main() {
       console.info(
         festival.reservations === 0
           ? `[seed] festival "${festival.name}": already present, left alone`
-          : `[seed] festival "${festival.name}": ${festival.reservations} reservations, ${festival.freeStands} stands free`,
+          : `[seed] festival "${festival.name}": ${festival.reservations} reservations` +
+              (festival.inFlight > 0
+                ? ` (${festival.inFlight} in flight)`
+                : "") +
+              `, ${festival.freeStands} stands free`,
       );
     }
   } catch (err: unknown) {

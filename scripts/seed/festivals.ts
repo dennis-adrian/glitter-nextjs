@@ -36,11 +36,25 @@ import {
  * The newest festival is placed in the near future so its reservation period is
  * open and it is the one you land on; the others sit in the past as history.
  */
-const SCHEDULE: Record<string, { startsInDays: number; occupancy: number }> = {
+type Schedule = {
+  startsInDays: number;
+  occupancy: number;
+  /** Reservations mid-flight, so the payment queues are not empty. */
+  inFlight?: { pending: number; verificationPayment: number };
+};
+
+const SCHEDULE: Record<string, Schedule> = {
   // Upcoming and bookable. Occupancy is capped so there is something left to
   // reserve: the source festival is almost fully booked, which makes it useless
   // for exercising the booking flow.
-  glitter: { startsInDays: 21, occupancy: 0.5 },
+  // The mirrored festivals are all fully settled, so nothing sits in a payment
+  // state. A handful of in-flight reservations give the admin payment and
+  // verification queues something to work on.
+  glitter: {
+    startsInDays: 21,
+    occupancy: 0.5,
+    inFlight: { pending: 4, verificationPayment: 3 },
+  },
   festicker: { startsInDays: -60, occupancy: 1 },
   twinkler: { startsInDays: -180, occupancy: 1 },
 };
@@ -103,7 +117,12 @@ function selectReservations(
 }
 
 export type SeedFestivalsResult = {
-  festivals: Array<{ name: string; reservations: number; freeStands: number }>;
+  festivals: Array<{
+    name: string;
+    reservations: number;
+    inFlight: number;
+    freeStands: number;
+  }>;
   users: number;
 };
 
@@ -208,6 +227,7 @@ export async function seedFestivals(
       results.push({
         name: fixtureFestival.name,
         reservations: 0,
+        inFlight: 0,
         freeStands: 0,
       });
       continue;
@@ -498,9 +518,134 @@ export async function seedFestivals(
       }
     }
 
+    // ---- reservations still in flight ------------------------------------
+    let inFlightCount = 0;
+    if (schedule.inFlight) {
+      // Only participants enrolled here and not already holding a reservation:
+      // giving someone a second live reservation would break the one-per-
+      // participant rule the booking flow enforces.
+      const taken = new Set(
+        keptReservations.flatMap((reservation) => reservation.participantRefs),
+      );
+      const candidates = fixtureFestival.enrollments
+        .filter((enrollment) => enrollment.status === "accepted")
+        .map((enrollment) =>
+          fixture.users.find((user) => user.ref === enrollment.userRef),
+        )
+        .filter(
+          (user): user is (typeof fixture.users)[number] =>
+            user != null && !taken.has(user.ref) && user.status === "verified",
+        );
+
+      const freeStands = fixtureFestival.stands.filter(
+        (stand) => !occupiedStandRefs.has(stand.ref),
+      );
+
+      const plan: Array<"pending" | "verification_payment"> = [
+        ...Array<"pending">(schedule.inFlight.pending).fill("pending"),
+        ...Array<"verification_payment">(
+          schedule.inFlight.verificationPayment,
+        ).fill("verification_payment"),
+      ];
+
+      const usedUsers = new Set<number>();
+      for (const status of plan) {
+        const stand = freeStands.find(
+          (candidate) => !occupiedStandRefs.has(candidate.ref),
+        );
+        // Category has to match, or the reservation would be one the booking
+        // rules would never have produced.
+        const participant = candidates.find(
+          (user) =>
+            !usedUsers.has(user.ref) &&
+            stand != null &&
+            user.category === stand.standCategory,
+        );
+        if (!stand || !participant) continue;
+
+        const participantId = userId(participant.ref);
+        if (participantId == null) continue;
+        occupiedStandRefs.add(stand.ref);
+        usedUsers.add(participant.ref);
+
+        const createdAt = offsetToDate(now, status === "pending" ? -1 : -3);
+        const [reservationRow] = await database
+          .insert(standReservations)
+          .values({
+            festivalId: festival.id,
+            standId: standIdByRef.get(stand.ref)!,
+            status,
+            source: "user_reservation" as const,
+            ownerUserId: participantId,
+            priceAmountSnapshot: stand.individualPrice,
+            individualPriceSnapshot: stand.individualPrice,
+            bookedParticipantCount: 1,
+            createdAt,
+          })
+          .returning({ id: standReservations.id });
+
+        await database.insert(standReservationStands).values({
+          reservationId: reservationRow.id,
+          standId: standIdByRef.get(stand.ref)!,
+          position: 0,
+        });
+        await database
+          .insert(reservationParticipants)
+          .values({ userId: participantId, reservationId: reservationRow.id });
+        await database
+          .update(stands)
+          .set({ status: "reserved" })
+          .where(eq(stands.id, standIdByRef.get(stand.ref)!));
+
+        const [invoiceRow] = await database
+          .insert(invoices)
+          .values({
+            userId: participantId,
+            reservationId: reservationRow.id,
+            amount: stand.individualPrice,
+            originalAmount: stand.individualPrice,
+            discountAmount: 0,
+            // The invoice tracks the reservation: a mismatch is exactly what
+            // the invariant audit flags.
+            status,
+            date: createdAt,
+            dueAt: offsetToDate(now, 4),
+          })
+          .returning({ id: invoices.id });
+
+        // A pending reservation has no proof yet; one awaiting verification has
+        // a payment and a submitted proof for an admin to review.
+        if (status === "verification_payment") {
+          const [paymentRow] = await database
+            .insert(payments)
+            .values({
+              invoiceId: invoiceRow.id,
+              amount: stand.individualPrice,
+              date: offsetToDate(now, -1),
+              voucherUrl: "/img/glitter-mascot-with-stand-sm.png",
+              uploadedByUserId: participantId,
+            })
+            .returning({ id: payments.id });
+
+          await database.insert(invoiceSettlementSubmissions).values({
+            invoiceId: invoiceRow.id,
+            paymentId: paymentRow.id,
+            kind: "payment_proof" as const,
+            status: "submitted" as const,
+            voucherUrl: "/img/glitter-mascot-with-stand-sm.png",
+            fileKey: `seed-inflight-${invoiceRow.id}`,
+            uploadedByUserId: participantId,
+          });
+        }
+
+        inFlightCount += 1;
+      }
+    }
+
     results.push({
       name: fixtureFestival.name,
-      reservations: reservationCount,
+      reservations: reservationCount + inFlightCount,
+      inFlight: inFlightCount,
       freeStands: fixtureFestival.stands.length - occupiedStandRefs.size,
     });
   }
