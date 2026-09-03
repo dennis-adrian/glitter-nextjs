@@ -93,10 +93,10 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
               </li>
             )}
 
-            {/* Chairs come with each stand, so a full table has two stands'
-                worth. Credentials are per reservation. */}
+            {/* Chairs and credentials both come with each stand, so a full
+                table has two stands' worth of each. */}
             <li>• {2 * standCount} sillas</li>
-            <li>• 2 credenciales</li>
+            <li>• {2 * standCount} credenciales</li>
           </ul>
         </div>
       </CardContent>
