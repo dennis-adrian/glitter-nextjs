@@ -2,7 +2,7 @@
 
 import { AlertCircleIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
@@ -34,12 +34,27 @@ type StandPriceDialogProps = {
   onOpenChange: (open: boolean) => void;
   /** Lets the editor patch its local copy without a full reload. */
   onSaved?: (
-    updates: { id: number; individualPrice: number; sharedPrice: number | null }[],
+    updates: {
+      id: number;
+      individualPrice: number;
+      sharedPrice: number | null;
+    }[],
   ) => void;
 };
 
 function standName(stand: PricedStand) {
   return stand.label?.trim() || `#${stand.standNumber}`;
+}
+
+/**
+ * A field only gets a starting value when every stand it covers already agrees;
+ * a mixed selection stays blank so nothing is overwritten by accident.
+ */
+function commonValue(values: (number | null)[]) {
+  if (values.length === 0) return "";
+  const [first, ...rest] = values;
+  if (rest.some((value) => value !== first)) return "";
+  return first === null ? "" : String(first);
 }
 
 /**
@@ -60,6 +75,25 @@ export default function StandPriceDialog({
   const [individual, setIndividual] = useState("");
   const [shared, setShared] = useState("");
   const [problems, setProblems] = useState<string[]>([]);
+
+  // The dialog stays mounted between openings, so the fields are seeded here
+  // rather than in useState. Blank means "remove the shared price", so an
+  // unseeded field would quietly wipe prices the admin never meant to touch.
+  const standsRef = useRef(stands);
+  standsRef.current = stands;
+  useEffect(() => {
+    if (!open) return;
+    const current = standsRef.current;
+    setIndividual(commonValue(current.map((stand) => stand.individualPrice)));
+    setShared(
+      commonValue(
+        current
+          .filter((stand) => stand.standCategory === "illustration")
+          .map((stand) => stand.sharedPrice),
+      ),
+    );
+    setProblems([]);
+  }, [open]);
 
   const illustrationStands = stands.filter(
     (stand) => stand.standCategory === "illustration",
@@ -82,12 +116,6 @@ export default function StandPriceDialog({
       Math.abs(Math.round(sharedValue * 100) / 100 - sharedValue) < 1e-9 &&
       sharedValue >= individualValue);
   const canSubmit = individualValid && sharedValid && !isPending;
-
-  function reset() {
-    setIndividual("");
-    setShared("");
-    setProblems([]);
-  }
 
   function save() {
     setProblems([]);
@@ -120,7 +148,6 @@ export default function StandPriceDialog({
                 : stand.sharedPrice,
           })),
         );
-        reset();
         onOpenChange(false);
         router.refresh();
       } catch (error) {
@@ -135,7 +162,6 @@ export default function StandPriceDialog({
       open={open}
       onOpenChange={(next) => {
         if (isPending) return;
-        if (!next) reset();
         onOpenChange(next);
       }}
     >
