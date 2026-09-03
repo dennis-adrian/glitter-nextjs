@@ -40,6 +40,30 @@ pnpm env:sync
 POSTGRES_URL="$TEST_DATABASE_URL" pnpm seed
 ```
 
+## Run the app against it
+
+`pnpm dev` reads `POSTGRES_URL`. Left unset it resolves from `.env.local`, which
+points at Railway — so pass it explicitly every time, in the same shell:
+
+```bash
+POSTGRES_URL="$TEST_DATABASE_URL" pnpm dev
+```
+
+To confirm which database the running server actually attached to, rather than
+assuming:
+
+```bash
+docker exec "glitter-test-${GLITTER_TEST_DB_PORT}-postgres-1" psql -U glitter -d glitter_test -c "SELECT count(*) FROM pg_stat_activity WHERE datname='glitter_test' AND application_name <> 'psql';"
+```
+
+A non-zero count while the server is serving means the override took. Zero means
+it did not, and the server is talking to whatever `.env.local` names.
+
+Sign in with any seeded `+clerk_test` address and `SEED_DEMO_PASSWORD` (or the
+default in `scripts/seed/demo-users.ts`): `admin+clerk_test@example.com`,
+`illustration+clerk_test@example.com`, `entrepreneurship+clerk_test@example.com`,
+and so on. Those addresses use Clerk's fixed test code, so no mail is sent.
+
 ## Stop it
 
 ```bash
