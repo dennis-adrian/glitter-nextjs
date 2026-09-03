@@ -2206,7 +2206,10 @@ export const reservationRequestRegistry = pgTable(
         'adminConfirmReservation',
         'extendReservationPaymentDeadline',
         'createExternalParticipantReservation',
-        'correctSettlementProof'
+        'correctSettlementProof',
+        'activateFullTableAccess',
+        'deactivateFullTableAccess',
+        'downgradeFullTableReservation'
       )`,
     ),
   ],

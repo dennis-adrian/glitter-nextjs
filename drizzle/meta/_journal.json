@@ -1863,6 +1863,13 @@
       "when": 1788437394438,
       "tag": "0266_full_table_membership_realign",
       "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1788463075707,
+      "tag": "0267_full_table_registry_operations",
+      "breakpoints": true
     }
   ]
 }
