@@ -19,7 +19,9 @@ import {
 export type ReservationBase = typeof standReservations.$inferSelect;
 export type ReservationScheduledTask = typeof scheduledTasks.$inferSelect;
 export type ReservationWithStand = ReservationBase & {
+  /** The originally selected half. `members` is what the reservation occupies. */
   stand: StandBase;
+  members?: ReservationStandMember[];
 };
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
@@ -52,8 +54,17 @@ export type ReservationWithParticipantsAndUsersAndStandAndCollaborators =
     }[];
   };
 
+/** One stand of a reservation aggregate; a full table has two. */
+export type ReservationStandMember = {
+  standId: number;
+  position: number;
+  releasedAt: Date | null;
+  stand: StandBase;
+};
+
 export type ReservationWithParticipantsAndUsersAndStandAndFestival =
   ReservationWithParticipantsAndUsersAndStand & {
+    members: ReservationStandMember[];
     festival: FestivalWithDates;
     scheduledTasks: ReservationScheduledTask[];
   };
@@ -72,6 +83,7 @@ export type FullReservation = ReservationBase & {
   })[];
   externalParticipants?: ReservationExternalParticipant[];
   stand: StandBase;
+  members: ReservationStandMember[];
   festival: FestivalWithDates;
   invoices: InvoiceWithPayments[];
   collaborators: {

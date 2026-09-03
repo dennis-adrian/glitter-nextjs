@@ -5,6 +5,7 @@ import { and, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   festivalSectors,
+  standHoldMembers,
   standHolds,
   stands,
   userRequests,
@@ -52,11 +53,12 @@ export async function loadSectorStandStatusRows(sectorId: number, now: Date) {
     standIds.length === 0
       ? []
       : await db
-          .select({ standId: standHolds.standId })
-          .from(standHolds)
+          .select({ standId: standHoldMembers.standId })
+          .from(standHoldMembers)
+          .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
           .where(
             and(
-              inArray(standHolds.standId, standIds),
+              inArray(standHoldMembers.standId, standIds),
               gt(standHolds.expiresAt, now),
             ),
           );

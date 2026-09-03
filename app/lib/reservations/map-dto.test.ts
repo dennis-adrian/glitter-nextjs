@@ -101,7 +101,6 @@ function sampleDto(
         22,
         [
           {
-            standId: 22,
             status: "accepted",
             revealAt: new Date("2026-09-01T00:00:00.000Z"),
             participants: [
@@ -117,6 +116,8 @@ function sampleDto(
       ],
     ]),
     revealHiddenIdentities: false,
+    fullTableGroupIds: new Set<number>(),
+    fullTableAccessActive: false,
     now,
     ...overrides,
   });
@@ -136,6 +137,7 @@ describe("buildFestivalReservationMapDto", () => {
           "id": 10,
           "name": "Glitter",
         },
+        "fullTableAccessActive": false,
         "profile": {
           "category": "illustration",
           "displayName": "Ada",
@@ -183,6 +185,7 @@ describe("buildFestivalReservationMapDto", () => {
                 "hasExternalOccupant": false,
                 "height": 6,
                 "id": 21,
+                "isFullTableHalf": false,
                 "label": "A",
                 "occupantKey": null,
                 "participationType": "standard",
@@ -203,6 +206,7 @@ describe("buildFestivalReservationMapDto", () => {
                 "hasExternalOccupant": false,
                 "height": 6,
                 "id": 22,
+                "isFullTableHalf": false,
                 "label": "A",
                 "occupantKey": null,
                 "participationType": "standard",
@@ -259,7 +263,6 @@ describe("buildFestivalReservationMapDto", () => {
             22,
             [
               {
-                standId: 22,
                 status,
                 revealAt: null,
                 participants: [

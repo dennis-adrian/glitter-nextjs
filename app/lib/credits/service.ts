@@ -4,6 +4,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import {
   calculateCreditBalances,
+  canFundInvoiceCreditAllocation,
   type CreditBalances,
   exactCreditShortfall,
   roundCredits,
@@ -20,6 +21,7 @@ import {
 } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type CreditTx = DbTx;
 
 const TOP_UP_UPLOAD_WINDOW_MS = 10 * 60 * 1000;
 
@@ -31,6 +33,8 @@ export const CREDIT_FAILURE_CODES = [
   "TOP_UP_NOT_REVIEWABLE",
   "TOP_UP_FILE_CONFLICT",
   "INSUFFICIENT_CREDITS",
+  "NOT_IN_DEBT",
+  "AMOUNT_EXCEEDS_DEBT",
   "HOLD_NOT_ACTIVE",
   "IDEMPOTENCY_CONFLICT",
   "USER_DELETION_PENDING",
@@ -125,6 +129,21 @@ async function lockedCreditBalances(
   });
 }
 
+/** Caller must already hold the account row through `lockCreditAccountRows`. */
+export async function getCreditBalancesInTx(tx: CreditTx, userId: number) {
+  return lockedCreditBalances(tx, userId);
+}
+
+/**
+ * Snapshot read for display. It takes no row locks, so a mutation must still
+ * use `getCreditBalancesInTx` while holding the credit account.
+ */
+export async function readCreditBalances(
+  userId: number,
+): Promise<CreditBalances> {
+  return db.transaction((tx) => lockedCreditBalances(tx, userId));
+}
+
 async function updateCachedBalance(tx: DbTx, userId: number, delta: number) {
   await tx
     .update(creditAccounts)
@@ -159,18 +178,34 @@ async function lockOwnedFeatureAction(
   return action ?? null;
 }
 
-/**
- * Internal-only entry point. A future invoice/feature service must calculate
- * its authoritative shortfall before calling this; never pass browser pricing.
- */
-export async function createCreditTopUpForRequirement(input: {
+export type CreditTopUpRequirement = {
   userId: number;
   amount: number;
   intendedUseType: "feature" | "invoice" | "debt";
   intendedUseId?: number;
   idempotencyKey: string;
   now?: Date;
-}): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
+};
+
+/**
+ * Internal-only entry point. A caller owning the invoice or feature must
+ * calculate its authoritative shortfall first; never pass browser pricing.
+ */
+export async function createCreditTopUpForRequirement(
+  input: CreditTopUpRequirement,
+): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
+  return db.transaction((tx) => createCreditTopUpForRequirementInTx(tx, input));
+}
+
+/**
+ * Transaction-scoped variant for callers that already hold the canonical
+ * reservation/credit locks. Re-taking the user and account locks here is a
+ * no-op for an owner that holds them, so the §14 order is preserved.
+ */
+export async function createCreditTopUpForRequirementInTx(
+  tx: CreditTx,
+  input: CreditTopUpRequirement,
+): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
   const amount = positiveCreditAmount(input.amount);
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
@@ -178,7 +213,7 @@ export async function createCreditTopUpForRequirement(input: {
   const now = input.now ?? new Date();
   const uploadDeadlineAt = new Date(now.getTime() + TOP_UP_UPLOAD_WINDOW_MS);
 
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -220,7 +255,7 @@ export async function createCreditTopUpForRequirement(input: {
     if (!existing) return failure("TOP_UP_NOT_FOUND");
     if (existing.amount !== amount) return failure("IDEMPOTENCY_CONFLICT");
     return { ok: true, data: existing };
-  });
+  }
 }
 
 export async function getCreditTopUpUploadTarget(input: {
@@ -440,21 +475,110 @@ function canFundCreditOperation(balances: CreditBalances, amount: number) {
   return balances.ledgerBalance >= 0 && balances.spendableBalance >= amount;
 }
 
+/**
+ * Transaction-scoped debit for Phase 1B. The caller owns authorization and
+ * must have locked the user and credit account in the canonical combined
+ * reservation/credit order before calling this. It intentionally creates no
+ * allocation row: the invoice service inserts that row with the returned
+ * ledger id in the same transaction.
+ */
+export async function debitConfirmedCreditsForInvoiceInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    amount: number;
+    idempotencyKey: string;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  const amount = positiveCreditAmount(input.amount);
+  if (amount == null || !input.idempotencyKey.trim()) {
+    return failure("INVALID_AMOUNT");
+  }
+  // Same guard every other credit mutation applies: an account being deleted
+  // must not keep spending.
+  if (!(await lockCreditUserForMutation(tx, input.userId))) {
+    return failure("USER_DELETION_PENDING");
+  }
+
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+      amount: creditLedgerEntries.amount,
+      type: creditLedgerEntries.type,
+      featureActionId: creditLedgerEntries.featureActionId,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    if (
+      existing.userId !== input.userId ||
+      Number(existing.amount) !== -amount ||
+      existing.type !== "spend" ||
+      existing.featureActionId != null
+    ) {
+      return failure("IDEMPOTENCY_CONFLICT");
+    }
+    return {
+      ok: true,
+      data: {
+        ledgerEntryId: existing.id,
+        balances: await lockedCreditBalances(tx, input.userId),
+      },
+    };
+  }
+
+  const balances = await lockedCreditBalances(tx, input.userId);
+  if (!canFundInvoiceCreditAllocation(balances, amount)) {
+    return failure("INSUFFICIENT_CREDITS");
+  }
+
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount: -amount,
+      type: "spend",
+      idempotencyKey: input.idempotencyKey,
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return failure("TOP_UP_NOT_FOUND");
+  await updateCachedBalance(tx, input.userId, -amount);
+  return {
+    ok: true,
+    data: {
+      ledgerEntryId: entry.id,
+      balances: await lockedCreditBalances(tx, input.userId),
+    },
+  };
+}
+
 /** Internal primitive for Phase 3 full-table activation. */
-export async function createCreditHoldForFeature(input: {
-  userId: number;
-  festivalId: number;
-  featureActionId: number;
-  amount: number;
-  idempotencyKey: string;
-  expiresAt?: Date;
-}): Promise<CreditResult<{ holdId: number; balances: CreditBalances }>> {
+/**
+ * Hold creation inside a caller's transaction.
+ *
+ * Full-table activation must create the feature action and its hold atomically
+ * (PRD §7.3), so the caller owns the transaction.
+ */
+export async function createCreditHoldForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    festivalId: number;
+    featureActionId: number;
+    amount: number;
+    idempotencyKey: string;
+    expiresAt?: Date;
+  },
+): Promise<CreditResult<{ holdId: number; balances: CreditBalances }>> {
   const amount = positiveCreditAmount(input.amount);
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
   }
 
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -518,7 +642,18 @@ export async function createCreditHoldForFeature(input: {
         balances: await lockedCreditBalances(tx, input.userId),
       },
     };
-  });
+  }
+}
+
+export async function createCreditHoldForFeature(input: {
+  userId: number;
+  festivalId: number;
+  featureActionId: number;
+  amount: number;
+  idempotencyKey: string;
+  expiresAt?: Date;
+}): Promise<CreditResult<{ holdId: number; balances: CreditBalances }>> {
+  return db.transaction((tx) => createCreditHoldForFeatureInTx(tx, input));
 }
 
 /** Internal primitive for late partner/release and full-table capture. */
@@ -586,14 +721,24 @@ export async function spendCreditsForFeature(input: {
   });
 }
 
-/** Capture is the only spend path that may consume the caller's active hold. */
-export async function captureCreditHoldForFeature(input: {
-  userId: number;
-  featureActionId: number;
-  idempotencyKey: string;
-}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+/**
+ * Capture inside a caller's transaction.
+ *
+ * Full-table confirmation must capture in the same transaction that creates the
+ * two-stand reservation (PRD §7.6), and the §14 lock order puts credit classes
+ * after stands and reservations — so the caller owns the transaction and calls
+ * this last.
+ */
+export async function captureCreditHoldForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    featureActionId: number;
+    idempotencyKey: string;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
   if (!input.idempotencyKey.trim()) return failure("INVALID_AMOUNT");
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -659,15 +804,28 @@ export async function captureCreditHoldForFeature(input: {
         balances: await lockedCreditBalances(tx, input.userId),
       },
     };
-  });
+  }
 }
 
-export async function releaseCreditHoldForFeature(input: {
+/** Capture is the only spend path that may consume the caller's active hold. */
+export async function captureCreditHoldForFeature(input: {
   userId: number;
   featureActionId: number;
-  status?: "released" | "expired";
-}): Promise<CreditResult<{ balances: CreditBalances }>> {
-  return db.transaction(async (tx) => {
+  idempotencyKey: string;
+}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  return db.transaction((tx) => captureCreditHoldForFeatureInTx(tx, input));
+}
+
+/** Release inside a caller's transaction; see `captureCreditHoldForFeatureInTx`. */
+export async function releaseCreditHoldForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    featureActionId: number;
+    status?: "released" | "expired";
+  },
+): Promise<CreditResult<{ balances: CreditBalances }>> {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -692,10 +850,120 @@ export async function releaseCreditHoldForFeature(input: {
       ok: true,
       data: { balances: await lockedCreditBalances(tx, input.userId) },
     };
-  });
+  }
+}
+
+export async function releaseCreditHoldForFeature(input: {
+  userId: number;
+  featureActionId: number;
+  status?: "released" | "expired";
+}): Promise<CreditResult<{ balances: CreditBalances }>> {
+  return db.transaction((tx) => releaseCreditHoldForFeatureInTx(tx, input));
 }
 
 /** Append-only administrative grant/correction; positive amounts can waive debt. */
+export const CREDIT_DEBT_RESOLUTIONS = ["mark_paid", "waive"] as const;
+export type CreditDebtResolution = (typeof CREDIT_DEBT_RESOLUTIONS)[number];
+
+/**
+ * Clears all or part of a negative balance left by a top-up reversal.
+ *
+ * Distinct from `adjustCreditAccount` because the invariants differ: the
+ * account must actually be in debt, the credit may not exceed what is owed,
+ * and the resolution kind is recorded. `mark_paid` and `waive` post the same
+ * ledger movement but mean different things to accounting, so the reason
+ * string alone would lose that.
+ *
+ * It never touches the domain: a reservation, partner, or release funded by
+ * the reversed credits stays exactly as it was.
+ */
+export async function resolveCreditDebt(input: {
+  userId: number;
+  amount: number;
+  resolution: CreditDebtResolution;
+  reason: string;
+  reviewerUserId: number;
+  idempotencyKey: string;
+}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  const amount = positiveCreditAmount(input.amount);
+  if (amount == null || !input.reason.trim() || !input.idempotencyKey.trim()) {
+    return failure("INVALID_AMOUNT");
+  }
+
+  return db.transaction(async (tx) => {
+    if (!(await lockCreditUserForMutation(tx, input.userId))) {
+      return failure("USER_DELETION_PENDING");
+    }
+    await lockCreditAccount(tx, input.userId);
+
+    const [existing] = await tx
+      .select({
+        id: creditLedgerEntries.id,
+        userId: creditLedgerEntries.userId,
+        amount: creditLedgerEntries.amount,
+        metadata: creditLedgerEntries.metadata,
+      })
+      .from(creditLedgerEntries)
+      .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+      .limit(1)
+      .for("update");
+    if (existing) {
+      // A key reused with different terms is a different operation, not a
+      // retry: replaying it would report a resolution that never happened.
+      const recordedResolution =
+        existing.metadata && typeof existing.metadata === "object"
+          ? (existing.metadata as { resolution?: unknown }).resolution
+          : undefined;
+      if (
+        existing.userId !== input.userId ||
+        existing.amount !== amount ||
+        recordedResolution !== input.resolution
+      ) {
+        return failure("IDEMPOTENCY_CONFLICT");
+      }
+      return {
+        ok: true,
+        data: {
+          ledgerEntryId: existing.id,
+          balances: await lockedCreditBalances(tx, input.userId),
+        },
+      };
+    }
+
+    // Recheck under the account lock: a concurrent resolution may already
+    // have cleared some or all of the debt this admin was looking at.
+    const balances = await lockedCreditBalances(tx, input.userId);
+    const debt = roundCredits(-balances.ledgerBalance);
+    if (debt <= 0) return failure("NOT_IN_DEBT");
+    if (amount > debt) return failure("AMOUNT_EXCEEDS_DEBT");
+
+    const [entry] = await tx
+      .insert(creditLedgerEntries)
+      .values({
+        userId: input.userId,
+        amount,
+        type: "admin_adjustment",
+        idempotencyKey: input.idempotencyKey,
+        metadata: {
+          reason: input.reason.trim(),
+          resolution: input.resolution,
+          reviewerUserId: String(input.reviewerUserId),
+        },
+      })
+      .returning({ id: creditLedgerEntries.id });
+    if (!entry) return failure("IDEMPOTENCY_CONFLICT");
+    await updateCachedBalance(tx, input.userId, amount);
+
+    return {
+      ok: true,
+      data: {
+        ledgerEntryId: entry.id,
+        balances: await lockedCreditBalances(tx, input.userId),
+      },
+    };
+  });
+}
+
 export async function adjustCreditAccount(input: {
   userId: number;
   amount: number;

@@ -1,6 +1,6 @@
 import { fetchReservationForAdmin } from "@/app/lib/reservations/queries";
 import EditReservationForm from "@/app/components/reservations/edit-form";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -41,6 +41,19 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     uniqueParticipants as ProfileWithParticipationsAndRequests[],
   );
 
+  // Read the aggregate: an admin looking at a full table must see both stands,
+  // plus any half a manual downgrade released (PRD §13).
+  const standSummary = summarizeReservationStands(
+    reservation.members.map((member) => ({
+      id: member.standId,
+      label: member.stand.label,
+      standNumber: member.stand.standNumber,
+      standCategory: member.stand.standCategory,
+      releasedAt: member.releasedAt,
+      position: member.position,
+    })),
+  );
+
   return (
     <div className="max-w-3xl px-4 md:px-6 m-auto">
       <Breadcrumb>
@@ -62,10 +75,18 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            Espacio {reservation ? formatStandLabel(reservation.stand) : null}
+            {standSummary.isFullTable ? "Espacios" : "Espacio"}{" "}
+            {standSummary.label}
+            {standSummary.isFullTable ? " (mesa completa)" : null}
           </CardTitle>
           <CardDescription>
-            Puedes agregar o eliminar al acompañante de la reserva.
+            {standSummary.dimensions}
+            {standSummary.released.length > 0
+              ? ` · Liberado por reducción a media mesa: ${standSummary.released
+                  .map((member) => `${member.label ?? ""}${member.standNumber}`)
+                  .join(", ")}`
+              : null}
+            . Puedes agregar o eliminar al acompañante de la reserva.
           </CardDescription>
         </CardHeader>
         <CardContent>

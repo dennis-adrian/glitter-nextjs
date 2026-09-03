@@ -1,8 +1,15 @@
 import "server-only";
+import { activeReservationStandIds } from "@/app/lib/reservations/members";
 
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
+import { invoiceCreditPlan } from "@/app/lib/credits/balances";
+import {
+  createCreditTopUpForRequirementInTx,
+  debitConfirmedCreditsForInvoiceInTx,
+  getCreditBalancesInTx,
+} from "@/app/lib/credits/service";
 import { applyReservationCancellation } from "@/app/lib/reservations/admin-service";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
@@ -26,7 +33,9 @@ import {
 } from "@/app/lib/reservations/policy";
 import {
   adminConfirmReservationSchema,
+  applyInvoiceCreditsSchema,
   correctSettlementProofSchema,
+  createInvoiceCreditTopUpSchema,
   parseUnknown,
   rejectSettlementSchema,
   submissionIdSchema,
@@ -42,8 +51,10 @@ import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  creditTopUps,
   discountCodes,
   invoiceSettlementSubmissions,
+  invoiceCreditAllocations,
   invoices,
   payments,
   reservationParticipants,
@@ -156,10 +167,23 @@ async function loadInvoiceAggregate(
       : []),
   ]);
 
+  const memberStandIds = await activeReservationStandIds(
+    tx,
+    reservationPreview.id,
+  );
+  const reservationMemberStandIds =
+    memberStandIds.length > 0 ? memberStandIds : [reservationPreview.standId];
+
   const locked = await lockReservationAggregate(tx, {
     festivalId: reservationPreview.festivalId,
     userIds,
-    standIds: [reservationPreview.standId],
+    // Settlement and credit allocation races serialize on the payer account.
+    // This is intentionally before stand/invoice locks in the total order.
+    creditAccountUserIds: [invoicePreview.userId],
+    // Membership, not the adapter column: settlement-rejection cancellation
+    // releases every member stand, and a stand must never be written without
+    // its lock.
+    standIds: reservationMemberStandIds,
     reservationIds: [reservationPreview.id],
     invoiceIds: [invoicePreview.id],
     paymentIds: paymentPreview.map((row) => row.id),
@@ -211,10 +235,59 @@ async function loadInvoiceAggregate(
   return { kind: "ok", invoice, reservation, participants };
 }
 
+type InvoiceTenderTotals = {
+  approvedCashAmount: number;
+  confirmedCreditAmount: number;
+  coveredAmount: number;
+  outstandingAmount: number;
+};
+
+async function getInvoiceTenderTotalsInTx(
+  tx: DbTx,
+  invoice: Pick<typeof invoices.$inferSelect, "id" | "amount">,
+): Promise<InvoiceTenderTotals> {
+  const [cash] = await tx
+    .select({
+      amount: sql<number>`coalesce(sum(${payments.amount}), 0)`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.invoiceId, invoice.id),
+        sql`EXISTS (
+          SELECT 1
+          FROM ${invoiceSettlementSubmissions}
+          WHERE ${invoiceSettlementSubmissions.invoiceId} = ${invoice.id}
+            AND ${invoiceSettlementSubmissions.paymentId} = ${payments.id}
+            AND ${invoiceSettlementSubmissions.status} = 'approved'
+        )`,
+      ),
+    );
+  const [credits] = await tx
+    .select({
+      amount: sql<number>`coalesce(sum(${invoiceCreditAllocations.amount}), 0)`,
+    })
+    .from(invoiceCreditAllocations)
+    .where(eq(invoiceCreditAllocations.invoiceId, invoice.id));
+  const approvedCashAmount = roundMoney(Number(cash?.amount ?? 0));
+  const confirmedCreditAmount = roundMoney(Number(credits?.amount ?? 0));
+  const coveredAmount = roundMoney(approvedCashAmount + confirmedCreditAmount);
+  return {
+    approvedCashAmount,
+    confirmedCreditAmount,
+    coveredAmount,
+    outstandingAmount: Math.max(
+      0,
+      roundMoney(Number(invoice.amount) - coveredAmount),
+    ),
+  };
+}
+
 function aggregateUnavailable(
   aggregate: Awaited<ReturnType<typeof loadInvoiceAggregate>>,
 ) {
-  if (aggregate.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
+  if (aggregate.kind === "conflict")
+    return reservationFailure("CONFLICT_RETRY");
   return reservationFailure("VALIDATION");
 }
 
@@ -327,6 +400,10 @@ export async function submitPaymentProof(
       ) {
         return finishCreated(reservationFailure("INVOICE_NOT_PENDING"));
       }
+      const tender = await getInvoiceTenderTotalsInTx(tx, invoice);
+      if (tender.outstandingAmount <= 0) {
+        return finishCreated(reservationFailure("INVOICE_NOT_PENDING"));
+      }
 
       const [byFile] = await tx
         .select({ id: invoiceSettlementSubmissions.id })
@@ -352,7 +429,7 @@ export async function submitPaymentProof(
         await tx
           .update(payments)
           .set({
-            amount: roundMoney(invoice.amount),
+            amount: tender.outstandingAmount,
             date: new Date(),
             voucherUrl,
             fileKey,
@@ -366,7 +443,7 @@ export async function submitPaymentProof(
           .insert(payments)
           .values({
             invoiceId: invoice.id,
-            amount: roundMoney(invoice.amount),
+            amount: tender.outstandingAmount,
             date: new Date(),
             voucherUrl,
             fileKey,
@@ -394,7 +471,7 @@ export async function submitPaymentProof(
             reservationId: reservation.id,
             standId: reservation.standId,
             festivalId: reservation.festivalId,
-            amount: roundMoney(invoice.amount),
+            amount: tender.outstandingAmount,
             originalAmount: roundMoney(invoice.originalAmount),
             discountAmount: roundMoney(invoice.discountAmount),
           },
@@ -432,7 +509,10 @@ export async function submitPaymentProof(
         reservationId: reservation.id,
         ownerUserId: invoice.userId,
         ownerEmail,
-        adminEmails: admins.map((admin) => ({ id: admin.id, email: admin.email })),
+        adminEmails: admins.map((admin) => ({
+          id: admin.id,
+          email: admin.email,
+        })),
         payload: { invoiceId: invoice.id, submissionId: submission.id },
       });
 
@@ -511,7 +591,11 @@ export async function submitZeroValueInvoiceForReview(
         if (typeof submissionId !== "number") {
           return reservationFailure("CONFLICT_RETRY");
         }
-        return { kind: "replayed" as const, submissionId, jobIds: [] as number[] };
+        return {
+          kind: "replayed" as const,
+          submissionId,
+          jobIds: [] as number[],
+        };
       }
 
       const finish = async (
@@ -612,11 +696,18 @@ export async function submitZeroValueInvoiceForReview(
         reservationId: reservation.id,
         ownerUserId: invoice.userId,
         ownerEmail,
-        adminEmails: admins.map((admin) => ({ id: admin.id, email: admin.email })),
+        adminEmails: admins.map((admin) => ({
+          id: admin.id,
+          email: admin.email,
+        })),
         payload: { invoiceId: invoice.id, submissionId: submission.id },
       });
 
-      return finish({ kind: "created" as const, submissionId: submission.id, jobIds });
+      return finish({
+        kind: "created" as const,
+        submissionId: submission.id,
+        jobIds,
+      });
     });
 
     if ("success" in outcome) return outcome;
@@ -635,6 +726,334 @@ export async function submitZeroValueInvoiceForReview(
     );
   } catch (error) {
     console.error("Error submitting zero-value invoice", error);
+    return reservationFailure("CONFLICT_RETRY");
+  }
+}
+
+/**
+ * Server-authoritative credit purchase for a reservation invoice. The browser
+ * never supplies an amount: the shortfall is derived from canonical tender
+ * totals and the payer's locked balances, and any existing debt is added so a
+ * single top-up both settles the debt and covers the invoice.
+ *
+ * Creating a top-up reserves nothing. The stand, the invoice, and its payment
+ * deadline are untouched, and the allocation amount is recalculated under lock
+ * when the owner later applies the credits.
+ */
+export async function createInvoiceCreditTopUp(input: unknown): Promise<
+  ReservationActionResult<{
+    topUpId: number;
+    amount: number;
+    uploadDeadlineAt: string;
+  }>
+> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+  const parsed = parseUnknown(createInvoiceCreditTopUpSchema, input);
+  if (!parsed.success) return reservationFailure("VALIDATION");
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      await lockInvoiceClaimKeys(tx, parsed.data.invoiceId, [actor.id]);
+      const claim = await claimRequest(tx, {
+        requestKey: parsed.data.idempotencyKey,
+        operation: "createInvoiceCreditTopUp",
+        actorUserId: actor.id,
+        scope: { invoiceId: parsed.data.invoiceId },
+      });
+      if (claim.kind === "conflict")
+        return reservationFailure("CONFLICT_RETRY");
+      if (claim.kind === "replayed") {
+        const topUpId = claim.resultIds.topUpId;
+        if (typeof topUpId !== "number")
+          return reservationFailure("CONFLICT_RETRY");
+        const [existing] = await tx
+          .select({
+            id: creditTopUps.id,
+            amount: creditTopUps.amount,
+            uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
+          })
+          .from(creditTopUps)
+          .where(eq(creditTopUps.id, topUpId))
+          .limit(1);
+        if (!existing) return reservationFailure("CONFLICT_RETRY");
+        return { topUp: existing };
+      }
+
+      const fail = async (result: ReturnType<typeof reservationFailure>) => {
+        await abandonRequest(tx, parsed.data.idempotencyKey);
+        return result;
+      };
+      const aggregate = await loadInvoiceAggregate(tx, parsed.data.invoiceId);
+      if (aggregate.kind !== "ok") return fail(aggregateUnavailable(aggregate));
+      const { invoice, reservation } = aggregate;
+      if (invoice.userId !== actor.id) {
+        return fail(reservationFailure("INVOICE_NOT_OWNED"));
+      }
+      if (invoice.status !== "pending" || reservation.status !== "pending") {
+        return fail(reservationFailure("INVOICE_NOT_PENDING"));
+      }
+
+      // One open purchase per invoice. Resuming the pending one keeps the
+      // participant on a single upload deadline instead of stacking sessions.
+      const open = await tx
+        .select({
+          id: creditTopUps.id,
+          amount: creditTopUps.amount,
+          status: creditTopUps.status,
+          uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
+        })
+        .from(creditTopUps)
+        .where(
+          and(
+            eq(creditTopUps.userId, invoice.userId),
+            eq(creditTopUps.intendedUseType, "invoice"),
+            eq(creditTopUps.intendedUseId, invoice.id),
+            sql`${creditTopUps.status} IN ('awaiting_voucher', 'under_review')`,
+          ),
+        )
+        .for("update");
+      const underReview = open.find((row) => row.status === "under_review");
+      if (underReview) {
+        return fail(reservationFailure("CREDIT_TOP_UP_UNDER_REVIEW"));
+      }
+      const resumable = open.find(
+        (row) => row.uploadDeadlineAt.getTime() > Date.now(),
+      );
+      if (resumable) {
+        await completeRequest(tx, parsed.data.idempotencyKey, {
+          topUpId: resumable.id,
+        });
+        return { topUp: resumable };
+      }
+
+      const tender = await getInvoiceTenderTotalsInTx(tx, invoice);
+      if (tender.outstandingAmount <= 0) {
+        return fail(reservationFailure("INVOICE_NOT_PENDING"));
+      }
+      const balances = await getCreditBalancesInTx(tx, invoice.userId);
+      const { shortfallAmount: required } = invoiceCreditPlan(
+        balances,
+        tender.outstandingAmount,
+      );
+      if (required <= 0) {
+        return fail(reservationFailure("CREDIT_TOP_UP_NOT_NEEDED"));
+      }
+
+      const created = await createCreditTopUpForRequirementInTx(tx, {
+        userId: invoice.userId,
+        amount: required,
+        intendedUseType: "invoice",
+        intendedUseId: invoice.id,
+        idempotencyKey: parsed.data.idempotencyKey,
+      });
+      if (!created.ok) return fail(reservationFailure("CONFLICT_RETRY"));
+
+      await completeRequest(tx, parsed.data.idempotencyKey, {
+        topUpId: created.data.id,
+      });
+      return {
+        topUp: {
+          id: created.data.id,
+          amount: created.data.amount,
+          uploadDeadlineAt: created.data.uploadDeadlineAt,
+        },
+      };
+    });
+
+    if ("success" in outcome) return outcome;
+    revalidatePath("/my_credits");
+    return reservationSuccess(
+      {
+        topUpId: outcome.topUp.id,
+        amount: outcome.topUp.amount,
+        uploadDeadlineAt: outcome.topUp.uploadDeadlineAt.toISOString(),
+      },
+      "Subí el comprobante antes de que venza el plazo para recibir tus créditos.",
+    );
+  } catch (error) {
+    console.error("Error creating invoice credit top-up", error);
+    return reservationFailure("CONFLICT_RETRY");
+  }
+}
+
+/**
+ * Applies the maximum confirmed, unheld balance to a pending reservation
+ * invoice. A complete allocation follows the normal fulfillment transition;
+ * a partial allocation leaves the invoice available for a voucher payment.
+ */
+export async function applyInvoiceCredits(input: unknown): Promise<
+  ReservationActionResult<{
+    allocationId: number;
+    amount: number;
+    outstandingAmount: number;
+  }>
+> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+  const parsed = parseUnknown(applyInvoiceCreditsSchema, input);
+  if (!parsed.success) return reservationFailure("VALIDATION");
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      await lockInvoiceClaimKeys(tx, parsed.data.invoiceId, [actor.id]);
+      const claim = await claimRequest(tx, {
+        requestKey: parsed.data.idempotencyKey,
+        operation: "applyInvoiceCredits",
+        actorUserId: actor.id,
+        scope: { invoiceId: parsed.data.invoiceId },
+      });
+      if (claim.kind === "conflict")
+        return reservationFailure("CONFLICT_RETRY");
+      if (claim.kind === "replayed") {
+        const allocationId = claim.resultIds.allocationId;
+        const amount = claim.resultIds.amount;
+        const outstandingAmount = claim.resultIds.outstandingAmount;
+        if (
+          typeof allocationId !== "number" ||
+          typeof amount !== "number" ||
+          typeof outstandingAmount !== "number"
+        ) {
+          return reservationFailure("CONFLICT_RETRY");
+        }
+        return {
+          kind: "replayed" as const,
+          jobIds: [] as number[],
+          allocationId,
+          amount,
+          outstandingAmount,
+        };
+      }
+
+      const fail = async (result: ReturnType<typeof reservationFailure>) => {
+        await abandonRequest(tx, parsed.data.idempotencyKey);
+        return result;
+      };
+      const aggregate = await loadInvoiceAggregate(tx, parsed.data.invoiceId);
+      if (aggregate.kind !== "ok") return fail(aggregateUnavailable(aggregate));
+      const { invoice, reservation } = aggregate;
+      if (invoice.userId !== actor.id) {
+        return fail(reservationFailure("INVOICE_NOT_OWNED"));
+      }
+      if (invoice.status !== "pending" || reservation.status !== "pending") {
+        return fail(reservationFailure("INVOICE_NOT_PENDING"));
+      }
+
+      const tenderBefore = await getInvoiceTenderTotalsInTx(tx, invoice);
+      if (tenderBefore.outstandingAmount <= 0) {
+        return fail(reservationFailure("INVOICE_NOT_PENDING"));
+      }
+      const balances = await getCreditBalancesInTx(tx, invoice.userId);
+      const amount = roundMoney(
+        Math.min(
+          tenderBefore.outstandingAmount,
+          balances.invoiceEligibleBalance,
+        ),
+      );
+      if (amount <= 0) return fail(reservationFailure("INSUFFICIENT_CREDITS"));
+
+      const debit = await debitConfirmedCreditsForInvoiceInTx(tx, {
+        userId: invoice.userId,
+        amount,
+        idempotencyKey: parsed.data.idempotencyKey,
+      });
+      if (!debit.ok) {
+        return fail(
+          reservationFailure(
+            debit.code === "INSUFFICIENT_CREDITS"
+              ? "INSUFFICIENT_CREDITS"
+              : "CONFLICT_RETRY",
+          ),
+        );
+      }
+      const [allocation] = await tx
+        .insert(invoiceCreditAllocations)
+        .values({
+          invoiceId: invoice.id,
+          userId: invoice.userId,
+          amount,
+          ledgerEntryId: debit.data.ledgerEntryId,
+          idempotencyKey: parsed.data.idempotencyKey,
+        })
+        .returning({ id: invoiceCreditAllocations.id });
+      if (!allocation) return fail(reservationFailure("CONFLICT_RETRY"));
+
+      const tenderAfter = await getInvoiceTenderTotalsInTx(tx, invoice);
+      if (tenderAfter.coveredAmount > roundMoney(Number(invoice.amount))) {
+        throw new Error("invoice_credit_overallocation");
+      }
+
+      await insertStandReservationEvent(tx, {
+        reservationId: reservation.id,
+        actorUserId: actor.id,
+        eventType: "status_changed",
+        fromStatus: reservation.status,
+        toStatus: reservation.status,
+        payload: {
+          kind: "invoice_credits_applied",
+          invoiceId: invoice.id,
+          allocationId: allocation.id,
+          amount,
+          outstandingAmount: tenderAfter.outstandingAmount,
+        },
+        idempotencyKey: `invoice-credit:${allocation.id}`,
+      });
+
+      const jobIds: number[] = [];
+      if (tenderAfter.outstandingAmount === 0) {
+        await applyAcceptedReservation(
+          tx,
+          reservation.id,
+          reservation.standId,
+          invoice.id,
+          actor.id,
+        );
+        const ownerEmail = await userEmail(tx, invoice.userId);
+        const admins = await fetchAdminUsers();
+        jobIds.push(
+          ...(await enqueueAdminAndOwnerNotifications(tx, {
+            kind: "settlement_approved",
+            reservationId: reservation.id,
+            ownerUserId: invoice.userId,
+            ownerEmail,
+            adminEmails: admins.map((admin) => ({
+              id: admin.id,
+              email: admin.email,
+            })),
+            payload: { invoiceId: invoice.id },
+          })),
+        );
+      }
+
+      await completeRequest(tx, parsed.data.idempotencyKey, {
+        allocationId: allocation.id,
+        amount,
+        outstandingAmount: tenderAfter.outstandingAmount,
+      });
+      return {
+        kind: "applied" as const,
+        jobIds,
+        allocationId: allocation.id,
+        amount,
+        outstandingAmount: tenderAfter.outstandingAmount,
+      };
+    });
+
+    if ("success" in outcome) return outcome;
+    scheduleReservationNotificationJobs(outcome.jobIds);
+    revalidatePath("/profiles");
+    return reservationSuccess(
+      {
+        allocationId: outcome.allocationId,
+        amount: outcome.amount,
+        outstandingAmount: outcome.outstandingAmount,
+      },
+      outcome.outstandingAmount === 0
+        ? "Tus créditos cubrieron la reserva."
+        : "Aplicamos tus créditos. Podés pagar el saldo con comprobante.",
+    );
+  } catch (error) {
+    console.error("Error applying invoice credits", error);
     return reservationFailure("CONFLICT_RETRY");
   }
 }
@@ -660,12 +1079,18 @@ async function applyAcceptedReservation(
     throw new Error("reservation_status_conflict");
   }
 
+  // Every occupied stand, not just the originally selected half: a full
+  // table's companion would otherwise sit at `reserved` for good, rendering
+  // differently everywhere stands.status is read.
+  const memberStandIds = await activeReservationStandIds(tx, reservationId);
+  const standIdsToConfirm =
+    memberStandIds.length > 0 ? memberStandIds : [standId];
   const updatedStands = await tx
     .update(stands)
     .set({ status: "confirmed", updatedAt: new Date() })
-    .where(eq(stands.id, standId))
+    .where(inArray(stands.id, standIdsToConfirm))
     .returning({ id: stands.id });
-  if (updatedStands.length === 0) {
+  if (updatedStands.length !== standIdsToConfirm.length) {
     throw new Error("stand_missing");
   }
 
@@ -732,6 +1157,33 @@ async function approveSubmissionInTx(
     }
   } else if (submission.paymentId == null) {
     return reservationFailure("VALIDATION");
+  }
+
+  let submittedCashAmount = 0;
+  if (submission.paymentId != null) {
+    const [payment] = await tx
+      .select({ amount: payments.amount, invoiceId: payments.invoiceId })
+      .from(payments)
+      .where(eq(payments.id, submission.paymentId))
+      .limit(1)
+      .for("update");
+    if (!payment || payment.invoiceId !== invoice.id) {
+      return reservationFailure("VALIDATION");
+    }
+    submittedCashAmount = roundMoney(Number(payment.amount));
+  }
+  const tenderBeforeApproval = await getInvoiceTenderTotalsInTx(tx, invoice);
+  if (
+    roundMoney(tenderBeforeApproval.coveredAmount + submittedCashAmount) !==
+    roundMoney(Number(invoice.amount))
+  ) {
+    console.warn("Settlement tender amount mismatch", {
+      invoiceId: invoice.id,
+      coveredAmount: tenderBeforeApproval.coveredAmount,
+      submittedCashAmount,
+      invoiceAmount: Number(invoice.amount),
+    });
+    return reservationFailure("PAYMENT_AMOUNT_MISMATCH");
   }
 
   await tx
@@ -900,6 +1352,8 @@ export async function rejectInvoiceSettlement(
           actorUserId,
           eventType: "settlement_rejected",
           reason: parsed.data.reason,
+          // A full table hands back both halves.
+          standIds: await activeReservationStandIds(tx, reservation.id),
           payload: {
             invoiceId: invoice.id,
             submissionId: submission.id,
@@ -1080,6 +1534,10 @@ async function insertPaymentProofSubmissionInTx(
     idempotencyKey: string;
   },
 ) {
+  const tender = await getInvoiceTenderTotalsInTx(tx, input.invoice);
+  if (tender.outstandingAmount <= 0) {
+    throw new Error("invoice_has_no_outstanding_balance");
+  }
   const [currentPayment] = await tx
     .select()
     .from(payments)
@@ -1092,7 +1550,7 @@ async function insertPaymentProofSubmissionInTx(
     await tx
       .update(payments)
       .set({
-        amount: roundMoney(input.invoice.amount),
+        amount: tender.outstandingAmount,
         date: new Date(),
         voucherUrl: input.voucherUrl,
         fileKey: input.fileKey,
@@ -1106,7 +1564,7 @@ async function insertPaymentProofSubmissionInTx(
       .insert(payments)
       .values({
         invoiceId: input.invoice.id,
-        amount: roundMoney(input.invoice.amount),
+        amount: tender.outstandingAmount,
         date: new Date(),
         voucherUrl: input.voucherUrl,
         fileKey: input.fileKey,
@@ -1133,7 +1591,7 @@ async function insertPaymentProofSubmissionInTx(
         reservationId: input.reservation.id,
         standId: input.reservation.standId,
         festivalId: input.reservation.festivalId,
-        amount: roundMoney(input.invoice.amount),
+        amount: tender.outstandingAmount,
         originalAmount: roundMoney(input.invoice.originalAmount),
         discountAmount: roundMoney(input.invoice.discountAmount),
       },
@@ -1169,7 +1627,9 @@ async function insertPaymentProofSubmissionInTx(
 
 export async function adminConfirmReservation(
   input: unknown,
-): Promise<ReservationActionResult<{ reservationId: number; invoiceId: number }>> {
+): Promise<
+  ReservationActionResult<{ reservationId: number; invoiceId: number }>
+> {
   const actor = await getCurrentUserProfile();
   if (!canMutateAdminReservations(actor)) {
     return reservationFailure("UNAUTHORIZED");
@@ -1240,10 +1700,7 @@ export async function adminConfirmReservation(
       }
       const { invoice, reservation } = aggregate;
 
-      if (
-        reservation.status === "accepted" &&
-        invoice.status === "paid"
-      ) {
+      if (reservation.status === "accepted" && invoice.status === "paid") {
         return finish({
           kind: "replayed",
           reservationId: reservation.id,

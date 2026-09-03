@@ -19,6 +19,8 @@ import {
 export const CATEGORY_CATALOG_BACKFILL = "0236_manageable_categories";
 export const INVOICE_VERIFICATION_PAYMENT_BACKFILL =
   "0244_invoice_verification_payment";
+export const STAND_INDIVIDUAL_PRICE_BACKFILL =
+  "0261_stand_individual_price";
 
 export async function ensureCategoryCatalogBackfillMarker() {
   const client = await pool.connect();

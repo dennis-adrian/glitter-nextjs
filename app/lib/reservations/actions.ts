@@ -212,6 +212,7 @@ export async function fetchReservationsByFestivalId(
       where: eq(standReservations.festivalId, festivalId),
       with: {
         stand: true,
+        members: { with: { stand: true } },
         festival: {
           with: {
             festivalDates: true,

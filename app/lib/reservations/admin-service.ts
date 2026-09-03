@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { activeReservationStandIds } from "@/app/lib/reservations/members";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import {
   RESERVATION_ERROR_MESSAGES,
@@ -154,6 +155,14 @@ async function previewReservationWriteSet(tx: DbTx, reservationId: number) {
     .from(scheduledTasks)
     .where(eq(scheduledTasks.reservationId, reservation.id));
 
+  // Every stand the reservation occupies. A full table holds two, and using
+  // the parent's stand_id alone would leave the companion locked out of the
+  // pool for good: nothing else ever releases it.
+  const memberStandIds = await activeReservationStandIds(tx, reservation.id);
+  const standIds = uniqueSortedIds(
+    memberStandIds.length > 0 ? memberStandIds : [reservation.standId],
+  );
+
   const userIds = uniqueSortedIds([
     ...participantIds,
     ...(reservation.ownerUserId != null ? [reservation.ownerUserId] : []),
@@ -162,6 +171,7 @@ async function previewReservationWriteSet(tx: DbTx, reservationId: number) {
 
   return {
     reservation,
+    standIds,
     participantIds,
     invoiceIds,
     paymentIds: paymentRows.map((row) => row.id),
@@ -179,6 +189,12 @@ export async function applyReservationCancellation(
     reason?: string;
     payload?: Record<string, unknown> | null;
     participantUserIds?: readonly number[];
+    /**
+     * Every stand to hand back. Defaults to the parent's `stand_id`, which is
+     * only correct for a single-stand reservation — callers that know the
+     * membership must pass it so a full table frees both halves.
+     */
+    standIds?: readonly number[];
   },
 ): Promise<number[]> {
   const userIds =
@@ -206,7 +222,13 @@ export async function applyReservationCancellation(
         )`,
       ),
     );
-  await releaseStandIfVacant(tx, input.reservation.standId);
+  const standIdsToRelease =
+    input.standIds && input.standIds.length > 0
+      ? input.standIds
+      : [input.reservation.standId];
+  for (const standId of standIdsToRelease) {
+    await releaseStandIfVacant(tx, standId);
+  }
 
   await insertStandReservationEvent(tx, {
     reservationId: input.reservation.id,
@@ -259,7 +281,8 @@ export async function lockAndApplyReservationCancellation(
   const locked = await lockReservationAggregate(tx, {
     festivalId: preview.reservation.festivalId,
     userIds: preview.userIds,
-    standIds: [preview.reservation.standId],
+    // Lock every stand the reservation occupies, not just the parent's.
+    standIds: preview.standIds,
     reservationIds: [preview.reservation.id],
     invoiceIds: preview.invoiceIds,
     paymentIds: preview.paymentIds,
@@ -300,6 +323,7 @@ export async function lockAndApplyReservationCancellation(
     reason: input.reason,
     payload: input.payload,
     participantUserIds: lockedUserIds,
+    standIds: preview.standIds,
   });
   return { ok: true as const, jobIds };
 }
@@ -403,7 +427,8 @@ export async function updateReservationPartner(
       const locked = await lockReservationAggregate(tx, {
         festivalId: preview.reservation.festivalId,
         userIds,
-        standIds: [preview.reservation.standId],
+        // Lock every stand the reservation occupies, not just the parent's.
+        standIds: preview.standIds,
         reservationIds: [preview.reservation.id],
         invoiceIds: preview.invoiceIds,
       });
@@ -611,7 +636,8 @@ export async function extendReservationPaymentDeadline(
       const locked = await lockReservationAggregate(tx, {
         festivalId: preview.reservation.festivalId,
         userIds: preview.userIds,
-        standIds: [preview.reservation.standId],
+        // Lock every stand the reservation occupies, not just the parent's.
+        standIds: preview.standIds,
         reservationIds: [preview.reservation.id],
         invoiceIds: preview.invoiceIds,
         scheduledTaskIds: preview.scheduledTaskIds,

@@ -35,6 +35,16 @@ export const invoiceIdSchema = z.object({
   invoiceId: positiveIntSchema,
 });
 
+export const applyInvoiceCreditsSchema = z.object({
+  invoiceId: positiveIntSchema,
+  idempotencyKey: uuidSchema,
+});
+
+export const createInvoiceCreditTopUpSchema = z.object({
+  invoiceId: positiveIntSchema,
+  idempotencyKey: uuidSchema,
+});
+
 export const submitPaymentProofSchema = z.object({
   invoiceId: positiveIntSchema,
   voucherUrl: z.url(),

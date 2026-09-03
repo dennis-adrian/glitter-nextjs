@@ -418,7 +418,11 @@ export async function createFestivalFromImport(
                 height: stand.height,
                 positionLeft: stand.positionLeft,
                 positionTop: stand.positionTop,
+                // Templates predate the individual/shared split, so their
+                // single price maps to the individual price and mirrors into
+                // the legacy adapter column.
                 price: stand.price,
+                individualPrice: stand.price,
                 status: "available" as const,
                 festivalId: newFestival.id,
                 festivalSectorId: newSector.id,

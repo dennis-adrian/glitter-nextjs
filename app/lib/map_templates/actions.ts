@@ -1,12 +1,13 @@
 "use server";
 
 import { db } from "@/db";
+import { standsHaveReservations } from "@/app/lib/reservations/members";
+import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
 import {
   festivals,
   festivalSectors,
   mapElements,
   mapTemplates,
-  standReservations,
   stands,
   users,
 } from "@/db/schema";
@@ -376,13 +377,7 @@ export async function importTemplateToFestival(
           const standIds = targetSector.stands.map((s) => s.id);
 
           // Atomic reservation check inside transaction
-          const existingReservations = await tx
-            .select({ id: standReservations.id })
-            .from(standReservations)
-            .where(inArray(standReservations.standId, standIds))
-            .limit(1);
-
-          if (existingReservations.length > 0) {
+          if (await standsHaveReservations(tx, standIds)) {
             return {
               success: false,
               message:
@@ -429,7 +424,11 @@ export async function importTemplateToFestival(
               height: stand.height,
               positionLeft: stand.positionLeft,
               positionTop: stand.positionTop,
+              // Templates predate the individual/shared split, so their single
+              // price maps to the individual price and mirrors into the legacy
+              // adapter column.
               price: stand.price,
+              individualPrice: stand.price,
               status: "available" as const,
               festivalId,
               festivalSectorId: targetSector.id,
@@ -486,13 +485,7 @@ export async function importTemplateToFestival(
         const standIds = allExistingStands.map((s) => s.id);
 
         // Atomic reservation check inside transaction
-        const existingReservations = await tx
-          .select({ id: standReservations.id })
-          .from(standReservations)
-          .where(inArray(standReservations.standId, standIds))
-          .limit(1);
-
-        if (existingReservations.length > 0) {
+        if (await standsHaveReservations(tx, standIds)) {
           return {
             success: false,
             message:
@@ -580,7 +573,11 @@ export async function importTemplateToFestival(
               height: stand.height,
               positionLeft: stand.positionLeft,
               positionTop: stand.positionTop,
+              // Templates predate the individual/shared split, so their single
+              // price maps to the individual price and mirrors into the legacy
+              // adapter column.
               price: stand.price,
+              individualPrice: stand.price,
               status: "available" as const,
               festivalId,
               festivalSectorId: sectorId,

@@ -1,6 +1,17 @@
 import "server-only";
 
-import { and, eq, exists, gt, inArray, notExists, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  notExists,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import type {
   ParticipationType,
@@ -14,7 +25,12 @@ import {
 } from "@/app/lib/reservations/dto";
 import { buildFestivalReservationMapDto } from "@/app/lib/reservations/map-dto";
 import { searchRecentPartners } from "@/app/lib/reservations/partner-search";
+import {
+  findActiveFullTableAccess,
+  isFullTableCategory,
+} from "@/app/lib/reservations/full-table-access";
 import { profileCategoryForStandMatch } from "@/app/lib/reservations/policy";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { deriveEffectiveStandStatus } from "@/app/lib/stands/effective-status";
 import { db } from "@/db";
 import {
@@ -25,7 +41,10 @@ import {
   profileSubcategories,
   reservationExternalParticipants,
   reservationParticipants,
+  standGroups,
+  standHoldMembers,
   standHolds,
+  standReservationStands,
   standReservations,
   standSubcategories,
   stands,
@@ -75,7 +94,8 @@ export async function fetchSelfServiceTargetProfile(
 ) {
   const profile = await db.query.users.findFirst({
     where: eq(users.id, profileId),
-    columns: { id: true, status: true },
+    // Category decides whether the full-table feature is offered at all.
+    columns: { id: true, status: true, category: true },
   });
   if (!profile) return null;
 
@@ -140,6 +160,8 @@ export async function fetchFestivalReservationMapDto(input: {
       activeHold: null,
       reservationsByStandId: new Map(),
       revealHiddenIdentities: input.revealHiddenIdentities,
+      fullTableGroupIds: new Set(),
+      fullTableAccessActive: false,
       now,
     });
   }
@@ -187,7 +209,7 @@ export async function fetchFestivalReservationMapDto(input: {
       height: stands.height,
       standCategory: stands.standCategory,
       participationType: stands.participationType,
-      price: stands.price,
+      price: stands.individualPrice,
       standGroupId: stands.standGroupId,
     })
     .from(stands)
@@ -258,11 +280,12 @@ export async function fetchFestivalReservationMapDto(input: {
     standIds.length === 0
       ? Promise.resolve([])
       : db
-          .select({ standId: standHolds.standId })
-          .from(standHolds)
+          .select({ standId: standHoldMembers.standId })
+          .from(standHoldMembers)
+          .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
           .where(
             and(
-              inArray(standHolds.standId, standIds),
+              inArray(standHoldMembers.standId, standIds),
               gt(standHolds.expiresAt, now),
             ),
           ),
@@ -279,7 +302,7 @@ export async function fetchFestivalReservationMapDto(input: {
       : db
           .select({
             reservationId: standReservations.id,
-            standId: standReservations.standId,
+            standId: standReservationStands.standId,
             status: standReservations.status,
             revealAt: standReservations.revealAt,
             userId: users.id,
@@ -288,13 +311,18 @@ export async function fetchFestivalReservationMapDto(input: {
           })
           .from(standReservations)
           .innerJoin(
+            standReservationStands,
+            eq(standReservationStands.reservationId, standReservations.id),
+          )
+          .innerJoin(
             reservationParticipants,
             eq(reservationParticipants.reservationId, standReservations.id),
           )
           .innerJoin(users, eq(users.id, reservationParticipants.userId))
           .where(
             and(
-              inArray(standReservations.standId, standIds),
+              inArray(standReservationStands.standId, standIds),
+              isNull(standReservationStands.releasedAt),
               inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
@@ -303,7 +331,7 @@ export async function fetchFestivalReservationMapDto(input: {
       : db
           .select({
             reservationId: standReservations.id,
-            standId: standReservations.standId,
+            standId: standReservationStands.standId,
             status: standReservations.status,
             revealAt: standReservations.revealAt,
             externalId: externalParticipants.id,
@@ -311,6 +339,10 @@ export async function fetchFestivalReservationMapDto(input: {
             imageUrl: externalParticipants.imageUrl,
           })
           .from(standReservations)
+          .innerJoin(
+            standReservationStands,
+            eq(standReservationStands.reservationId, standReservations.id),
+          )
           .innerJoin(
             reservationExternalParticipants,
             eq(
@@ -327,7 +359,8 @@ export async function fetchFestivalReservationMapDto(input: {
           )
           .where(
             and(
-              inArray(standReservations.standId, standIds),
+              inArray(standReservationStands.standId, standIds),
+              isNull(standReservationStands.releasedAt),
               inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
@@ -370,7 +403,6 @@ export async function fetchFestivalReservationMapDto(input: {
   }
 
   type ReservationBucket = {
-    standId: number;
     status: MapDtoReservationStatus;
     revealAt: Date | null;
     participants: Array<{
@@ -397,20 +429,23 @@ export async function fetchFestivalReservationMapDto(input: {
     status: MapDtoReservationStatus,
     revealAt: Date | null,
   ) => {
-    const existing = reservationIndex.get(reservationId);
-    if (existing) return existing;
-    const created: ReservationBucket = {
-      standId,
-      status,
-      revealAt,
-      participants: [],
-      externalParticipants: [],
-    };
-    reservationIndex.set(reservationId, created);
+    const bucket =
+      reservationIndex.get(reservationId) ??
+      ({
+        status,
+        revealAt,
+        participants: [],
+        externalParticipants: [],
+      } satisfies ReservationBucket);
+    reservationIndex.set(reservationId, bucket);
+    // A full-table reservation covers more than one stand, so every member
+    // stand has to resolve the same bucket or its half renders unoccupied.
     const list = reservationsByStandId.get(standId) ?? [];
-    list.push(created);
-    reservationsByStandId.set(standId, list);
-    return created;
+    if (!list.includes(bucket)) {
+      list.push(bucket);
+      reservationsByStandId.set(standId, list);
+    }
+    return bucket;
   };
 
   for (const row of reservationParticipantRows) {
@@ -420,6 +455,7 @@ export async function fetchFestivalReservationMapDto(input: {
       row.status,
       row.revealAt,
     );
+    if (bucket.participants.some((p) => p.id === row.userId)) continue;
     bucket.participants.push({
       id: row.userId,
       displayName: row.displayName,
@@ -433,12 +469,42 @@ export async function fetchFestivalReservationMapDto(input: {
       row.status,
       row.revealAt,
     );
+    if (bucket.externalParticipants.some((p) => p.id === row.externalId)) {
+      continue;
+    }
     bucket.externalParticipants.push({
       id: row.externalId,
       displayName: row.displayName,
       imageUrl: row.imageUrl,
     });
   }
+
+  // Which of this festival's groups are declared full tables, and whether the
+  // participant may act on that. Both feed the map's disclosure only: the
+  // server rechecks availability at every capacity mutation.
+  const fullTableGroupRows = await db
+    .selectDistinct({ groupId: stands.standGroupId })
+    .from(stands)
+    .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
+    .where(
+      and(
+        eq(stands.festivalId, festival.id),
+        eq(standGroups.type, "full_table"),
+      ),
+    );
+  const fullTableGroupIds = new Set(
+    fullTableGroupRows
+      .map((row) => row.groupId)
+      .filter((id): id is number => id != null),
+  );
+  const fullTableAccessActive = isFullTableCategory(profile.category)
+    ? (await db.transaction((tx) =>
+        findActiveFullTableAccess(tx, {
+          userId: profile.id,
+          festivalId: festival.id,
+        }),
+      )) != null
+    : false;
 
   return buildFestivalReservationMapDto({
     festival: {
@@ -455,9 +521,23 @@ export async function fetchFestivalReservationMapDto(input: {
     stands: eligibleStands,
     subcategoryIdsByStandId,
     activeHoldStandIds: new Set(holdRows.map((hold) => hold.standId)),
-    activeHold: activeHold ?? null,
+    activeHold: activeHold
+      ? {
+          ...activeHold,
+          // Both halves of a full table, so the participant's own companion
+          // does not render as someone else's held stand.
+          standIds: (
+            await db
+              .select({ standId: standHoldMembers.standId })
+              .from(standHoldMembers)
+              .where(eq(standHoldMembers.holdId, activeHold.id))
+          ).map((row) => row.standId),
+        }
+      : null,
     reservationsByStandId,
     revealHiddenIdentities: input.revealHiddenIdentities,
+    fullTableGroupIds,
+    fullTableAccessActive,
     now,
   });
 }
@@ -476,7 +556,14 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       eq(standHolds.userId, input.profileId),
       eq(standHolds.festivalId, input.festivalId),
     ),
-    columns: { id: true, standId: true, expiresAt: true, festivalId: true },
+    columns: {
+      id: true,
+      standId: true,
+      expiresAt: true,
+      festivalId: true,
+      individualPriceSnapshot: true,
+      sharedPriceSnapshot: true,
+    },
   });
   if (!hold || hold.expiresAt <= now) return null;
 
@@ -488,7 +575,8 @@ export async function fetchFestivalReservationConfirmationDto(input: {
         label: true,
         standNumber: true,
         standCategory: true,
-        price: true,
+        individualPrice: true,
+        sharedPrice: true,
         festivalSectorId: true,
       },
     }),
@@ -540,11 +628,12 @@ export async function fetchFestivalReservationConfirmationDto(input: {
     thumbnailIds.length === 0
       ? []
       : await db
-          .select({ standId: standHolds.standId })
-          .from(standHolds)
+          .select({ standId: standHoldMembers.standId })
+          .from(standHoldMembers)
+          .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
           .where(
             and(
-              inArray(standHolds.standId, thumbnailIds),
+              inArray(standHoldMembers.standId, thumbnailIds),
               gt(standHolds.expiresAt, now),
             ),
           );
@@ -577,7 +666,40 @@ export async function fetchFestivalReservationConfirmationDto(input: {
 
   const recentPartners = await searchRecentPartners(festival.id);
 
+  // Membership decides what this hold really covers; the adapter column only
+  // names the half the participant picked first.
+  const holdMembers = await db
+    .select({
+      standId: standHoldMembers.standId,
+      label: stands.label,
+      standNumber: stands.standNumber,
+    })
+    .from(standHoldMembers)
+    .innerJoin(stands, eq(stands.id, standHoldMembers.standId))
+    .where(eq(standHoldMembers.holdId, hold.id))
+    .orderBy(asc(standHoldMembers.position));
+
+  const isFullTable = holdMembers.length > 1;
+  const access = isFullTable
+    ? null
+    : await db.transaction((tx) =>
+        findActiveFullTableAccess(tx, {
+          userId: input.profileId,
+          festivalId: input.festivalId,
+        }),
+      );
+
   return {
+    fullTable: {
+      isFullTable,
+      isHalfTableFallback: !isFullTable && access != null,
+      standLabels: holdMembers.map((member) =>
+        formatStandLabel({
+          label: member.label,
+          standNumber: member.standNumber,
+        }),
+      ),
+    },
     festival,
     profile,
     hold: { id: hold.id, expiresAt: hold.expiresAt.toISOString() },
@@ -586,7 +708,13 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       label: stand.label,
       standNumber: stand.standNumber,
       standCategory: stand.standCategory,
-      price: stand.price,
+      // The hold already snapshotted the price this participant will be
+      // billed; the stand column is only a fallback for holds taken before
+      // snapshots existed.
+      price: hold.individualPriceSnapshot ?? stand.individualPrice,
+      // Confirmation bills the shared price once a partner is added, so the
+      // screen has to be able to show that instead.
+      sharedPrice: hold.sharedPriceSnapshot ?? stand.sharedPrice,
     },
     sector: {
       id: sector.id,

@@ -11,12 +11,17 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "createOrReplaceStandHold",
   "confirmStandHold",
   "submitPaymentProof",
+  "applyInvoiceCredits",
+  "createInvoiceCreditTopUp",
   "submitZeroValueInvoice",
   "createAdminReservation",
   "adminConfirmReservation",
   "extendReservationPaymentDeadline",
   "createExternalParticipantReservation",
   "correctSettlementProof",
+  "activateFullTableAccess",
+  "deactivateFullTableAccess",
+  "downgradeFullTableReservation",
 ] as const;
 
 export type ReservationRequestOperation =

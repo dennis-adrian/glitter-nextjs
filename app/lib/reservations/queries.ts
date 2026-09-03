@@ -116,7 +116,10 @@ export async function fetchReservationForAdmin(
             },
           },
         },
+        // `stand` is the originally selected half; `members` is what the
+        // reservation actually occupies, which is two stands for a full table.
         stand: true,
+        members: { with: { stand: true } },
         festival: {
           with: {
             festivalDates: true,

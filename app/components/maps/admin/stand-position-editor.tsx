@@ -58,6 +58,9 @@ import {
   updateMapElement,
   updateMapElementPositions,
 } from "@/app/lib/map_elements/actions";
+import StandPriceDialog, {
+  type PricedStand,
+} from "@/app/components/maps/admin/stand-price-dialog";
 import { getStandPosition, STAND_SIZE } from "../map-utils";
 import { Button } from "@/app/components/ui/button";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -303,6 +306,7 @@ export default function StandPositionEditor({
     "none" | "illustration" | "gastronomy" | "entrepreneurship" | "new_artist"
   >("none");
   const [isEditing, setIsEditing] = useState(false);
+  const [priceDialogOpen, setPriceDialogOpen] = useState(false);
 
   // Template export/import dialog state
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -1489,6 +1493,22 @@ export default function StandPositionEditor({
     });
 
   const hasSelection = selectedStands.size >= 2;
+
+  // Prices are edited from the selection, so one stand and a whole sector use
+  // the same dialog; a full table can only be repriced by selecting both halves.
+  const selectedPricedStands: PricedStand[] = Array.from(
+    standsPerSector.values(),
+  )
+    .flat()
+    .filter((stand) => selectedStands.has(stand.id))
+    .map((stand) => ({
+      id: stand.id,
+      label: stand.label,
+      standNumber: stand.standNumber,
+      standCategory: stand.standCategory ?? "none",
+      individualPrice: Number(stand.individualPrice ?? 0),
+      sharedPrice: stand.sharedPrice == null ? null : Number(stand.sharedPrice),
+    }));
   const hasElementSelection = selectedElements.size >= 2;
   const hasAnyAlignmentSelection = hasSelection || hasElementSelection;
 
@@ -1599,6 +1619,53 @@ export default function StandPositionEditor({
           </label>
         )}
       </div>
+
+      {selectedPricedStands.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPriceDialogOpen(true)}
+          >
+            {selectedPricedStands.length === 1
+              ? "Editar precio"
+              : `Editar precios (${selectedPricedStands.length})`}
+          </Button>
+        </div>
+      )}
+
+      <StandPriceDialog
+        stands={selectedPricedStands}
+        open={priceDialogOpen}
+        onOpenChange={setPriceDialogOpen}
+        onSaved={(updates) => {
+          const byId = new Map(updates.map((update) => [update.id, update]));
+          setStandsPerSector((prev) => {
+            const next = new Map(prev);
+            for (const [sectorId, sectorStands] of next) {
+              next.set(
+                sectorId,
+                sectorStands.map((stand) => {
+                  const update = byId.get(stand.id);
+                  return update
+                    ? {
+                        ...stand,
+                        individualPrice: update.individualPrice,
+                        sharedPrice: update.sharedPrice,
+                        // The server mirrors the individual price into the
+                        // legacy column; the admin tables still read it, so
+                        // leaving it stale shows the old price right after a
+                        // save and would write it back from the edit dialog.
+                        price: update.individualPrice,
+                      }
+                    : stand;
+                }),
+              );
+            }
+            return next;
+          });
+        }}
+      />
 
       {/* Alignment toolbar */}
       <div className="flex items-center gap-1 flex-wrap">

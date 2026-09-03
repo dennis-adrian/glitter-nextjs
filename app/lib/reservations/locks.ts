@@ -5,6 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import { db } from "@/db";
 import {
+  creditAccounts,
   festivals,
   invoiceSettlementSubmissions,
   invoices,
@@ -44,6 +45,11 @@ export function sameIdSet(
 export type ReservationAggregatePreview = {
   festivalId: number;
   userIds: readonly number[];
+  /**
+   * Credit accounts participate in the wider reservation/credit lock order.
+   * They must be locked after users/enrollment and before stand capacity.
+   */
+  creditAccountUserIds?: readonly number[];
   standIds: readonly number[];
   holdIds?: readonly number[];
   reservationIds?: readonly number[];
@@ -56,6 +62,7 @@ export type ReservationAggregatePreview = {
 export type LockedReservationAggregate = {
   festivalId: number;
   userIds: number[];
+  creditAccountUserIds: number[];
   standIds: number[];
   holdIds: number[];
   reservationIds: number[];
@@ -163,6 +170,34 @@ export async function lockParticipantEligibilityRows(
       .orderBy(userRequests.id)
       .for("update");
   }
+}
+
+/**
+ * Locks each account in ascending user order, creating its zero-balance
+ * projection first when needed. This is deliberately available to combined
+ * reservation/credit transactions; callers must already hold user locks.
+ */
+export async function lockCreditAccountRows(
+  tx: DbTx,
+  userIds: readonly number[],
+) {
+  return lockIdColumn(
+    tx,
+    async (userId) => {
+      await tx
+        .insert(creditAccounts)
+        .values({ userId })
+        .onConflictDoNothing({ target: creditAccounts.userId });
+      const [row] = await tx
+        .select({ id: creditAccounts.userId })
+        .from(creditAccounts)
+        .where(eq(creditAccounts.userId, userId))
+        .limit(1)
+        .for("update");
+      return row;
+    },
+    userIds,
+  );
 }
 
 export async function lockStandRows(tx: DbTx, standIds: readonly number[]) {
@@ -318,8 +353,9 @@ export async function readReservationParticipantIds(
 
 /**
  * Canonical reservation write-set lock order (§4.4 / paid-reservation GUIDE §3):
- * advisory keys → festival → terms → eligibility rows → stands → holds →
- * reservations → invoices → payments → settlements → scheduled tasks.
+ * advisory keys → festival → terms → eligibility rows → credit accounts →
+ * stands → holds → reservations → invoices → payments → settlements →
+ * scheduled tasks.
  * Re-reads membership and relationships and returns `{ ok: false }` when they
  * changed, so the caller can return CONFLICT_RETRY without writes.
  */
@@ -329,6 +365,9 @@ export async function lockReservationAggregate(
 ): Promise<{ ok: true; locked: LockedReservationAggregate } | { ok: false }> {
   const festivalId = preview.festivalId;
   const previewUserIds = uniqueSortedIds(preview.userIds);
+  const previewCreditAccountUserIds = uniqueSortedIds(
+    preview.creditAccountUserIds ?? [],
+  );
   const previewStandIds = uniqueSortedIds(preview.standIds);
   const previewHoldIds = uniqueSortedIds(preview.holdIds ?? []);
   const previewReservationIds = uniqueSortedIds(preview.reservationIds ?? []);
@@ -337,11 +376,19 @@ export async function lockReservationAggregate(
   const previewSubmissionIds = uniqueSortedIds(preview.submissionIds ?? []);
   const previewTaskIds = uniqueSortedIds(preview.scheduledTaskIds ?? []);
 
+  if (!previewCreditAccountUserIds.every((id) => previewUserIds.includes(id))) {
+    return { ok: false };
+  }
+
   await lockParticipants(tx, festivalId, previewUserIds);
   const festival = await lockFestivalRow(tx, festivalId);
   if (!festival) return { ok: false };
   await lockFestivalTermsDocument(tx);
   await lockParticipantEligibilityRows(tx, festivalId, previewUserIds);
+  const lockedCreditAccountUserIds = await lockCreditAccountRows(
+    tx,
+    previewCreditAccountUserIds,
+  );
   const lockedStandIds = await lockStandRows(tx, previewStandIds);
   const lockedHoldIds = await lockHoldRows(tx, previewHoldIds);
   const lockedReservationIds = await lockReservationRows(
@@ -357,6 +404,11 @@ export async function lockReservationAggregate(
   const lockedTaskIds = await lockScheduledTaskRows(tx, previewTaskIds);
 
   if (!sameIdSet(lockedStandIds, previewStandIds)) return { ok: false };
+  if (
+    !sameIdSet(lockedCreditAccountUserIds, previewCreditAccountUserIds)
+  ) {
+    return { ok: false };
+  }
   if (
     previewReservationIds.length > 0 &&
     !sameIdSet(lockedReservationIds, previewReservationIds)
@@ -485,6 +537,7 @@ export async function lockReservationAggregate(
     locked: {
       festivalId,
       userIds: lockedUserIds,
+      creditAccountUserIds: lockedCreditAccountUserIds,
       standIds: lockedStandIds,
       holdIds: lockedHoldIds,
       reservationIds: lockedReservationIds,

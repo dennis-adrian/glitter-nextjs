@@ -6,6 +6,7 @@ import {
 } from "@/app/api/users/definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import EmailTemplate from "@/app/emails/festival-activation";
+import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 import { sendEmail } from "@/app/vendors/resend";
@@ -600,11 +601,16 @@ export async function fetchFestivalWithDatesAndSectors(
           with: {
             stands: {
               with: {
+                // The nested reservation is fetched under its own short alias:
+                // Postgres truncates identifiers at 63 bytes, and a deeper chain
+                // here collides `_participants` with `_participants_user`.
                 reservations: {
                   columns: {
                     id: true,
                   },
                 },
+                // Flat membership; joined to the reservations above in memory.
+                reservationMembers: true,
               },
             },
           },
@@ -612,7 +618,14 @@ export async function fetchFestivalWithDatesAndSectors(
       },
     });
 
-    return festival as FestivalWithDatesAndSectors | null;
+    if (!festival) return null;
+
+    return {
+      ...festival,
+      festivalSectors: withMembershipReservationsBySector(
+        festival.festivalSectors,
+      ),
+    } as FestivalWithDatesAndSectors;
   } catch (error) {
     console.error("Error fetching festival with dates and sectors", error);
     return null;

@@ -32,7 +32,6 @@ export type MapDtoStandRow = {
 };
 
 export type MapDtoReservationRow = {
-  standId: number;
   status: ReservationStatus;
   revealAt: Date | null;
   participants: Array<{
@@ -79,7 +78,15 @@ export type MapDtoBuildInput = {
   stands: MapDtoStandRow[];
   subcategoryIdsByStandId: Map<number, number[]>;
   activeHoldStandIds: ReadonlySet<number>;
-  activeHold: { id: number; standId: number; expiresAt: Date } | null;
+  activeHold: {
+    id: number;
+    standId: number;
+    standIds: number[];
+    expiresAt: Date;
+  } | null;
+  /** Stand-group ids the admin declared as full tables. */
+  fullTableGroupIds: ReadonlySet<number>;
+  fullTableAccessActive: boolean;
   reservationsByStandId: Map<number, MapDtoReservationRow[]>;
   revealHiddenIdentities: boolean;
   now: Date;
@@ -139,6 +146,7 @@ export function toReservationMapStandDto(
     | "activeHoldStandIds"
     | "reservationsByStandId"
     | "revealHiddenIdentities"
+    | "fullTableGroupIds"
     | "now"
   >,
 ): ReservationMapStandDto {
@@ -168,6 +176,9 @@ export function toReservationMapStandDto(
     eligibleSubcategoryIds: input.subcategoryIdsByStandId.get(stand.id) ?? [],
     festivalSectorId: stand.festivalSectorId,
     standGroupId: stand.standGroupId,
+    isFullTableHalf:
+      stand.standGroupId != null &&
+      input.fullTableGroupIds.has(stand.standGroupId),
     occupantKey: occupantKeyFromSummaries(summaries),
     hasExternalOccupant: summaries.some((row) => row.kind === "external"),
     visibleParticipantSummaries: summaries,
@@ -230,8 +241,10 @@ export function buildFestivalReservationMapDto(
       ? {
           id: input.activeHold.id,
           standId: input.activeHold.standId,
+          standIds: input.activeHold.standIds,
           expiresAt: input.activeHold.expiresAt.toISOString(),
         }
       : null,
+    fullTableAccessActive: input.fullTableAccessActive,
   };
 }

@@ -8,13 +8,17 @@ import {
 } from "@/app/data/invoices/definitions";
 import { db } from "@/db";
 import {
+  invoiceCreditAllocations,
+  invoiceSettlementSubmissions,
   invoices,
+  payments,
   reservationParticipants,
   standReservations,
 } from "@/db/schema";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { type ReservationActionResult } from "@/app/lib/reservations/errors";
 import {
+  canSubmitInvoiceSettlement,
   canViewAdminReservationData,
   canViewInvoiceRecord,
 } from "@/app/lib/reservations/policy";
@@ -28,6 +32,79 @@ export async function confirmFreeInvoice(
   const nested =
     input && typeof input === "object" && "invoiceId" in input ? input : input;
   return submitZeroValueInvoiceForReview(nested);
+}
+
+export type InvoiceTenderSummary = {
+  approvedCashAmount: number;
+  confirmedCreditAmount: number;
+  outstandingAmount: number;
+};
+
+/**
+ * Returns canonical tender totals for the invoice owner or a global admin. The
+ * mutable settlement service rechecks the same values under locks before it
+ * writes anything.
+ */
+export async function fetchInvoiceTenderSummary(
+  invoiceId: number,
+): Promise<InvoiceTenderSummary | null> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+
+  const [invoice] = await db
+    .select({
+      id: invoices.id,
+      userId: invoices.userId,
+      amount: invoices.amount,
+    })
+    .from(invoices)
+    .where(eq(invoices.id, invoiceId))
+    .limit(1);
+  if (
+    !invoice ||
+    !canSubmitInvoiceSettlement({
+      actor: { id: actor.id, role: actor.role },
+      invoiceOwnerUserId: invoice.userId,
+    })
+  ) {
+    return null;
+  }
+
+  const [cash] = await db
+    .select({ amount: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.invoiceId, invoice.id),
+        sql`EXISTS (
+          SELECT 1
+          FROM ${invoiceSettlementSubmissions}
+          WHERE ${invoiceSettlementSubmissions.invoiceId} = ${invoice.id}
+            AND ${invoiceSettlementSubmissions.paymentId} = ${payments.id}
+            AND ${invoiceSettlementSubmissions.status} = 'approved'
+        )`,
+      ),
+    );
+  const [credits] = await db
+    .select({
+      amount: sql<number>`coalesce(sum(${invoiceCreditAllocations.amount}), 0)`,
+    })
+    .from(invoiceCreditAllocations)
+    .where(eq(invoiceCreditAllocations.invoiceId, invoice.id));
+
+  const approvedCashAmount = Number(cash?.amount ?? 0);
+  const confirmedCreditAmount = Number(credits?.amount ?? 0);
+  return {
+    approvedCashAmount,
+    confirmedCreditAmount,
+    outstandingAmount: Math.max(
+      0,
+      Math.round(
+        (Number(invoice.amount) - approvedCashAmount - confirmedCreditAmount) *
+          100,
+      ) / 100,
+    ),
+  };
 }
 
 export async function fetchLatestInvoiceByProfileId(
@@ -48,6 +125,7 @@ export async function fetchLatestInvoiceByProfileId(
         reservation: {
           with: {
             stand: true,
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -93,6 +171,8 @@ export async function fetchInvoicesByReservation(
                 qrCode: true,
               },
             },
+            // What the reservation occupies, which a full table makes plural.
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -131,6 +211,7 @@ export async function fetchInvoice(
         reservation: {
           with: {
             stand: true,
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -192,6 +273,7 @@ export async function fetchReservationsWithInvoicesByProfileAndFestival(
             festivalSector: true,
           },
         },
+        members: { with: { stand: true } },
         festival: {
           with: {
             festivalDates: true,
@@ -266,6 +348,8 @@ export async function fetchPendingInvoicesByProfile(
                 qrCode: true,
               },
             },
+            // What the reservation occupies, which a full table makes plural.
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -305,6 +389,7 @@ export async function fetchInvoicesByFestival(
         reservation: {
           with: {
             stand: true,
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,

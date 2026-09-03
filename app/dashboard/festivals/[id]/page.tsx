@@ -1,4 +1,5 @@
 import FestivalCard from "@/app/components/festivals/festival-card";
+import FestivalFeatureConfigPanel from "@/app/components/festivals/festival-feature-config-panel";
 import FestivalParticipantTermsSummary from "@/app/components/festivals/festival-participant-terms-summary";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
 import { notFound } from "next/navigation";
@@ -26,6 +27,7 @@ export default async function Page({
         Detalles del festival
       </h1>
       <FestivalCard festival={festival} />
+      <FestivalFeatureConfigPanel festivalId={id} />
       <FestivalParticipantTermsSummary
         festivalStatus={festival.status}
         participantTermsEnabled={festival.participantTermsEnabled}

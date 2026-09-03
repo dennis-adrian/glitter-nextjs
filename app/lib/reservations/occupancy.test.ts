@@ -3,31 +3,37 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ db: {} }));
 
-import { standHolds, standReservations, stands } from "@/db/schema";
+import {
+  standHoldMembers,
+  standReservationStands,
+  stands,
+} from "@/db/schema";
 import {
   releaseStandIfVacant,
   standHasLiveOccupancy,
 } from "@/app/lib/reservations/occupancy";
 
+// Occupancy resolves through aggregate membership, so the stub keys off the
+// member tables the query actually reads.
 function occupancyTx(options: {
   liveHold?: boolean;
   liveReservation?: boolean;
   released?: boolean;
 }) {
   const select = vi.fn(() => ({
-    from: (table: unknown) => ({
-      where: () => ({
-        limit: async () => {
-          if (table === standHolds) {
-            return options.liveHold ? [{ id: 11 }] : [];
-          }
-          if (table === standReservations) {
-            return options.liveReservation ? [{ id: 22 }] : [];
-          }
-          return [];
-        },
-      }),
-    }),
+    from: (table: unknown) => {
+      const rows = async () => {
+        if (table === standHoldMembers) {
+          return options.liveHold ? [{ id: 11 }] : [];
+        }
+        if (table === standReservationStands) {
+          return options.liveReservation ? [{ id: 22 }] : [];
+        }
+        return [];
+      };
+      const terminal = { where: () => ({ limit: rows }) };
+      return { ...terminal, innerJoin: () => terminal };
+    },
   }));
   const returning = vi.fn(async () =>
     options.released === false ? [] : [{ id: 7 }],

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Maximize2Icon, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type {
@@ -11,9 +11,12 @@ import type {
   ReservationMapStandDto,
 } from "@/app/lib/reservations/dto";
 import CategoryBadge from "@/app/components/category-badge";
+import FullTableSelectionNotice from "@/app/components/festivals/reservations/full-table-selection-notice";
+import HalfTableFallbackDialog from "@/app/components/festivals/reservations/half-table-fallback-dialog";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { resolveFullTableSelection } from "@/app/lib/reservations/full-table-selection";
 import { createStandHold } from "@/app/lib/stands/hold-actions";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 import { formatStandsLabel } from "@/app/lib/stands/groups";
@@ -23,7 +26,23 @@ import {
 } from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
 
-type ActiveHold = ReservationActiveHoldDto | { id: number; standId: number } | null;
+type ActiveHold =
+  | ReservationActiveHoldDto
+  | { id: number; standId: number; standIds?: number[] }
+  | null;
+
+/**
+ * Whether this stand is part of the viewer's own hold.
+ *
+ * A full table is held as two stands, and only one of them is named by the
+ * hold's adapter column — matching on that alone made the participant's own
+ * companion half look like someone else's.
+ */
+function heldByViewer(standId: number, hold: ActiveHold): boolean {
+  if (!hold) return false;
+  const held = "standIds" in hold && hold.standIds ? hold.standIds : [];
+  return hold.standId === standId || held.includes(standId);
+}
 
 type StandInfoCardProps = {
   stand: ReservationMapStandDto;
@@ -34,6 +53,10 @@ type StandInfoCardProps = {
   alreadyReserved: boolean;
   subcategoryIds: number[];
   activeHold?: ActiveHold;
+  /** Every stand the viewer can see in this sector; the companion lives here. */
+  sectorStands?: ReservationMapStandDto[];
+  /** Whether the viewer activated full-table access for this festival. */
+  fullTableAccessActive?: boolean;
   onHoldChange?: (hold: ActiveHold) => void;
   onClose: () => void;
   isPending: boolean;
@@ -68,7 +91,7 @@ function getEligibilityMessage(
   activeHold?: ActiveHold,
 ): string | null {
   if (stand.effectiveStatus === "disabled") return "Espacio deshabilitado";
-  if (stand.effectiveStatus === "held" && stand.id !== activeHold?.standId)
+  if (stand.effectiveStatus === "held" && !heldByViewer(stand.id, activeHold ?? null))
     return "Espacio en espera por otro participante";
   if (
     profile.category !== stand.standCategory &&
@@ -99,15 +122,18 @@ export function StandInfoCard({
   alreadyReserved,
   subcategoryIds,
   activeHold,
+  sectorStands,
+  fullTableAccessActive = false,
   onHoldChange,
   onClose,
   isPending,
   startTransition,
 }: StandInfoCardProps) {
   const router = useRouter();
+  const [fallbackOpen, setFallbackOpen] = useState(false);
 
   const isOwnHold =
-    stand.effectiveStatus === "held" && stand.id === activeHold?.standId;
+    stand.effectiveStatus === "held" && heldByViewer(stand.id, activeHold ?? null);
 
   const isStandTaken =
     stand.effectiveStatus === "reserved" ||
@@ -138,6 +164,11 @@ export function StandInfoCard({
 
   const dimensions = getStandDimensions(stand.standCategory);
   const cardStands = groupStands?.length ? groupStands : [stand];
+  const fullTableSelection = resolveFullTableSelection({
+    stand,
+    sectorStands: sectorStands ?? groupStands ?? [stand],
+    accessActive: fullTableAccessActive,
+  });
   const holdMinutes = festival.holdMinutes;
   const holdIntentKeyRef = useRef<HoldIntentCache | null>(null);
   const prevActiveHoldRef = useRef(activeHold);
@@ -166,8 +197,23 @@ export function StandInfoCard({
     return next.key;
   };
 
+  /**
+   * Taking a stand claims capacity immediately, so a participant who paid for
+   * a full table has to acknowledge the half-table fallback before that
+   * happens rather than discover it afterwards (PRD §7.4).
+   */
   const handleSelectStand = () => {
     if (!canReserve || isPending) return;
+    if (fullTableSelection.kind === "fallback") {
+      setFallbackOpen(true);
+      return;
+    }
+    takeStand();
+  };
+
+  const takeStand = () => {
+    if (!canReserve || isPending) return;
+    setFallbackOpen(false);
     startTransition(async () => {
       try {
         const idempotencyKey = idempotencyKeyForStand(stand.id);
@@ -354,6 +400,8 @@ export function StandInfoCard({
             </div>
           )}
 
+          {canReserve && <FullTableSelectionNotice selection={fullTableSelection} />}
+
           {isOwnHold ? (
             <Button
               type="button"
@@ -385,6 +433,17 @@ export function StandInfoCard({
           )}
         </div>
       </div>
+
+      {fullTableSelection.kind === "fallback" ? (
+        <HalfTableFallbackDialog
+          open={fallbackOpen}
+          stand={stand}
+          companion={fullTableSelection.companion}
+          onCancel={() => setFallbackOpen(false)}
+          onConfirm={takeStand}
+          isPending={isPending}
+        />
+      ) : null}
     </div>
   );
 }

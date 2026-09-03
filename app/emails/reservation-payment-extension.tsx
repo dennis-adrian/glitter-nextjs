@@ -1,4 +1,5 @@
 import EmailFooter from "@/app/emails/email-footer";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
 import { BaseProfile } from "@/app/api/users/definitions";
@@ -21,7 +22,13 @@ type ReservationPaymentExtensionTemplateProps = {
   reservation: {
     id: number;
     festivalId: number;
+    /** The originally selected half; `members` is what is occupied. */
     stand: { label: string | null; standNumber: number };
+    members?: {
+      position: number;
+      releasedAt: Date | null;
+      stand: { label: string | null; standNumber: number };
+    }[];
     festival: { name: string };
   };
   newDueDate: Date;
@@ -33,6 +40,10 @@ export default function ReservationPaymentExtensionTemplate(
   const { profile, reservation, newDueDate } = props;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(profile);
+  const standLabel = reservationStandLabel(reservation);
+  const standCount = (reservation.members ?? []).filter(
+    (member) => member.releasedAt == null,
+  ).length;
   const dueDate = formatDate(newDueDate);
   const paymentsUrl = `${baseUrl}/profiles/${profile.id}/festivals/${reservation.festivalId}/reservations/${reservation.id}/payments`;
 
@@ -48,11 +59,9 @@ export default function ReservationPaymentExtensionTemplate(
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              Extendimos la fecha límite de pago de tu reserva para el espacio{" "}
-              <strong>
-                {reservation.stand.label}
-                {reservation.stand.standNumber}
-              </strong>{" "}
+              Extendimos la fecha límite de pago de tu reserva para{" "}
+              {standCount > 1 ? "los espacios" : "el espacio"}{" "}
+              <strong>{standLabel}</strong>{" "}
               en el festival <strong>{reservation.festival.name}</strong>.
             </Text>
             <Text style={styles.text}>

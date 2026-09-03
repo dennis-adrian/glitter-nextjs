@@ -1,4 +1,5 @@
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
+import { withMembershipReservations } from "@/app/lib/reservations/stand-occupancy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
 import { stands, standReservations } from "@/db/schema";
@@ -77,6 +78,9 @@ export async function GET(
     festivalStands = await db.query.stands.findMany({
       where: eq(stands.festivalId, festivalId),
       with: {
+        // The nested reservation is fetched under its own short alias:
+        // Postgres truncates identifiers at 63 bytes, and a deeper chain
+        // here collides `_participants` with `_participants_user`.
         reservations: {
           // Include accepted reservations plus active admin timed reservations
           // (non-terminal + revealAt), so the game can reveal them itself.
@@ -103,6 +107,8 @@ export async function GET(
             },
           },
         },
+        // Flat membership; joined to the reservations above in memory.
+        reservationMembers: true,
       },
     });
   } catch (err) {
@@ -116,7 +122,7 @@ export async function GET(
     );
   }
 
-  const result = festivalStands.map((stand) => ({
+  const result = withMembershipReservations(festivalStands).map((stand) => ({
     standId: stand.id,
     standLabel: stand.label,
     standNumber: stand.standNumber,

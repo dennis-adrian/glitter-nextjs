@@ -77,6 +77,7 @@ import {
   standReservations,
   stands,
   users,
+  standReservationStands,
 } from "@/db/schema";
 
 const pendingReservation = {
@@ -93,6 +94,8 @@ const pendingReservation = {
 
 function tableAwareTx(options?: {
   reservation?: typeof pendingReservation;
+  /** Stands the reservation occupies; defaults to the parent's single stand. */
+  memberStandIds?: number[];
   participants?: Array<{ userId: number }>;
   lockedParticipants?: Array<{ userId: number }>;
   invoices?: Array<{
@@ -157,6 +160,16 @@ function tableAwareTx(options?: {
           return Object.assign(Promise.resolve(rows), {
             limit: vi.fn(() => afterLimit),
             for: vi.fn(async () => rows),
+          });
+        }
+        if (table === standReservationStands) {
+          // Aggregate membership, read ordered by position. A single-member
+          // reservation reports just the parent's stand.
+          const rows = options?.memberStandIds
+            ? options.memberStandIds.map((standId) => ({ standId }))
+            : [{ standId: reservation.standId }];
+          return Object.assign(Promise.resolve(rows), {
+            orderBy: vi.fn(async () => rows),
           });
         }
         if (table === scheduledTasks) {
