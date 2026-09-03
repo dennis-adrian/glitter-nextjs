@@ -1,6 +1,10 @@
 import "server-only";
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
+import {
+  captureCreditHoldForFeatureInTx,
+  releaseCreditHoldForFeatureInTx,
+} from "@/app/lib/credits/service";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
   reservationFailure,
@@ -18,6 +22,17 @@ import {
   lockStandRows,
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
+import {
+  availableStandIds,
+  findActiveFullTableAccess,
+  isFullTableCategory,
+  resolveFullTableCompanion,
+} from "@/app/lib/reservations/full-table-access";
+import {
+  holdMemberStandIds,
+  insertHoldMembers,
+  insertReservationMembers,
+} from "@/app/lib/reservations/members";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import { roundMoney } from "@/app/lib/reservations/money";
@@ -45,13 +60,15 @@ import { db } from "@/db";
 import {
   festivals,
   invoices,
+  reservationFeatureActions,
   reservationParticipants,
   scheduledTasks,
+  standHoldMembers,
   standHolds,
   standReservations,
   stands,
 } from "@/db/schema";
-import { and, eq, gt, lte, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
@@ -149,39 +166,24 @@ async function reconcileExpiredHolds(
   input: { standId: number; userId: number; festivalId: number; now: Date },
 ) {
   const expired = await tx
-    .select({ id: standHolds.id, standId: standHolds.standId })
+    .select({ id: standHolds.id })
     .from(standHolds)
+    .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
     .where(
       and(
         lte(standHolds.expiresAt, input.now),
-        sql`(${standHolds.standId} = ${input.standId} OR (${standHolds.userId} = ${input.userId} AND ${standHolds.festivalId} = ${input.festivalId}))`,
+        sql`(${standHoldMembers.standId} = ${input.standId} OR (${standHolds.userId} = ${input.userId} AND ${standHolds.festivalId} = ${input.festivalId}))`,
       ),
     );
 
-  for (const hold of expired) {
-    await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
-    const [liveHold] = await tx
-      .select({ id: standHolds.id })
-      .from(standHolds)
-      .where(
-        and(
-          eq(standHolds.standId, hold.standId),
-          gt(standHolds.expiresAt, input.now),
-        ),
-      )
-      .limit(1);
-    const [liveReservation] = await tx
-      .select({ id: standReservations.id })
-      .from(standReservations)
-      .where(
-        and(
-          eq(standReservations.standId, hold.standId),
-          sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
-        ),
-      )
-      .limit(1);
-    if (!liveHold && !liveReservation) {
-      await releaseStandIfVacant(tx, hold.standId, input.now);
+  const expiredHoldIds = [...new Set(expired.map((row) => row.id))];
+  for (const holdId of expiredHoldIds) {
+    // Read membership before deleting: the cascade takes the member rows with
+    // the aggregate, and every one of them may need its stand released.
+    const memberStandIds = await holdMemberStandIds(tx, holdId);
+    await tx.delete(standHolds).where(eq(standHolds.id, holdId));
+    for (const standId of memberStandIds) {
+      await releaseStandIfVacant(tx, standId, input.now);
     }
   }
 }
@@ -191,6 +193,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
     holdId?: number;
     alreadyHeld?: boolean;
     reservationId?: number;
+    /** True when the hold covers both halves of a declared full table. */
+    isFullTable?: boolean;
   }>
 > {
   const parsed = parseHoldStandInput(standIdInput);
@@ -270,7 +274,6 @@ export async function createStandHold(standIdInput: unknown): Promise<
           festivalId: stands.festivalId,
           standCategory: stands.standCategory,
           participationType: stands.participationType,
-          price: stands.price,
         })
         .from(stands)
         .where(eq(stands.id, standId))
@@ -295,8 +298,24 @@ export async function createStandHold(standIdInput: unknown): Promise<
           ),
         );
 
+      // Full-table access is resolved before locking so the companion half is
+      // in the lock set from the start; locking it later would invert the
+      // ascending-id order this transaction shares with every other writer.
+      // Categories that can never activate the feature skip the lookup, which
+      // is most participants.
+      const access = isFullTableCategory(actor.category)
+        ? await findActiveFullTableAccess(tx, {
+            userId: actor.id,
+            festivalId: stand.festivalId,
+          })
+        : null;
+      const pair = access
+        ? await resolveFullTableCompanion(tx, stand.id)
+        : null;
+
       const standIdsToLock = uniqueSortedIds([
         stand.id,
+        ...(pair ? [pair.companionStandId] : []),
         ...existingHoldPreview.map((hold) => hold.standId),
       ]);
 
@@ -324,7 +343,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
           festivalId: stands.festivalId,
           standCategory: stands.standCategory,
           participationType: stands.participationType,
-          price: stands.price,
+          individualPrice: stands.individualPrice,
+          sharedPrice: stands.sharedPrice,
         })
         .from(stands)
         .where(eq(stands.id, standId))
@@ -409,6 +429,20 @@ export async function createStandHold(standIdInput: unknown): Promise<
         return finish(reservationFailure("STAND_UNAVAILABLE"));
       }
 
+      // The companion is re-checked under its own lock. If it went while the
+      // participant was choosing, the selected half stays reservable and the
+      // hold quietly becomes a half-table one — the fallback the PRD requires,
+      // which the confirmation screens then have to state explicitly.
+      const companionAvailable =
+        pair != null &&
+        (await availableStandIds(tx, [pair.companionStandId], now)).has(
+          pair.companionStandId,
+        );
+      const memberStandIds =
+        pair && companionAvailable
+          ? [freshStand.id, pair.companionStandId]
+          : [freshStand.id];
+
       const [festivalHold] = await tx
         .select({
           reservationHoldMinutes: festivals.reservationHoldMinutes,
@@ -426,21 +460,33 @@ export async function createStandHold(standIdInput: unknown): Promise<
           userId: actor.id,
           festivalId: freshStand.festivalId,
           expiresAt,
-          priceAmountSnapshot: roundMoney(freshStand.price ?? 0),
-          individualPriceSnapshot: roundMoney(freshStand.price ?? 0),
+          priceAmountSnapshot: roundMoney(freshStand.individualPrice ?? 0),
+          // Both illustration prices are snapshotted even when the participant
+          // is booking alone, so a later partner addition prices off the stand
+          // as it stood at hold time (PRD §6.1).
+          individualPriceSnapshot: roundMoney(freshStand.individualPrice ?? 0),
+          sharedPriceSnapshot:
+            freshStand.sharedPrice == null
+              ? null
+              : roundMoney(freshStand.sharedPrice),
           idempotencyKey,
         })
         .returning();
 
+      await insertHoldMembers(tx, hold.id, memberStandIds);
+
       await tx
         .update(stands)
         .set({ status: "held", updatedAt: now })
-        .where(eq(stands.id, standId));
+        .where(inArray(stands.id, memberStandIds));
 
+      const isFullTable = memberStandIds.length > 1;
       return finish(
         reservationSuccess(
-          { holdId: hold.id },
-          "Espacio reservado temporalmente",
+          { holdId: hold.id, isFullTable },
+          isFullTable
+            ? "Mesa completa reservada temporalmente"
+            : "Espacio reservado temporalmente",
         ),
         { holdId: hold.id },
       );
@@ -483,10 +529,14 @@ export async function cancelStandHold(
         return reservationFailure("HOLD_NOT_OWNED");
       }
 
+      // Lock every member stand, not just the adapter column, so cancelling a
+      // full-table hold frees both halves atomically.
+      const previewStandIds = await holdMemberStandIds(tx, preview.id);
       const locked = await lockReservationAggregate(tx, {
         festivalId: preview.festivalId,
         userIds: [actor.id],
-        standIds: [preview.standId],
+        standIds:
+          previewStandIds.length > 0 ? previewStandIds : [preview.standId],
         holdIds: [preview.id],
       });
       if (!locked.ok) return reservationFailure("CONFLICT_RETRY");
@@ -516,8 +566,11 @@ export async function cancelStandHold(
         return reservationFailure("CONFLICT_RETRY");
       }
 
+      const memberStandIds = await holdMemberStandIds(tx, hold.id);
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
-      await releaseStandIfVacant(tx, hold.standId);
+      for (const standId of memberStandIds) {
+        await releaseStandIfVacant(tx, standId);
+      }
       return reservationSuccess(undefined, "Reserva temporal cancelada");
     });
 
@@ -617,7 +670,8 @@ export async function confirmStandHold(
         individualPriceSnapshot: standHolds.individualPriceSnapshot,
         sharedPriceSnapshot: standHolds.sharedPriceSnapshot,
         standFestivalId: stands.festivalId,
-        standPrice: stands.price,
+        standIndividualPrice: stands.individualPrice,
+        standSharedPrice: stands.sharedPrice,
         standStatus: stands.status,
         standCategory: stands.standCategory,
         participationType: stands.participationType,
@@ -667,10 +721,19 @@ export async function confirmStandHold(
       }
 
       const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
+      // Every member stand is locked, ascending, so a full table is confirmed
+      // as one aggregate rather than two racing single-stand reservations.
+      const previewMemberStandIds = await holdMemberStandIds(
+        tx,
+        holdPreview.id,
+      );
       const locked = await lockReservationAggregate(tx, {
         festivalId: holdPreview.festivalId,
         userIds: participantIds,
-        standIds: [holdPreview.standId],
+        standIds:
+          previewMemberStandIds.length > 0
+            ? previewMemberStandIds
+            : [holdPreview.standId],
         holdIds: [holdPreview.id],
       });
       if (!locked.ok) return finish(reservationFailure("CONFLICT_RETRY"));
@@ -754,9 +817,41 @@ export async function confirmStandHold(
       });
       if (ineligibleStand) return finish(ineligibleStand);
 
-      const standPrice = roundMoney(
-        hold.priceAmountSnapshot ?? hold.standPrice ?? 0,
+      // Membership is re-read under the aggregate lock: the set that gets
+      // reserved is the one this transaction verified, not the one previewed.
+      const memberStandIds = await holdMemberStandIds(tx, hold.id);
+      if (memberStandIds.length === 0) {
+        return finish(reservationFailure("HOLD_EXPIRED"));
+      }
+      const isFullTable = memberStandIds.length > 1;
+
+      const fullTableAccess = isFullTableCategory(actor.category)
+        ? await findActiveFullTableAccess(tx, {
+            userId: actor.id,
+            festivalId: hold.festivalId,
+          })
+        : null;
+
+      const individualPrice = roundMoney(
+        hold.individualPriceSnapshot ??
+          hold.priceAmountSnapshot ??
+          hold.standIndividualPrice ??
+          0,
       );
+      const sharedPrice =
+        hold.sharedPriceSnapshot ??
+        (hold.standSharedPrice == null
+          ? null
+          : roundMoney(hold.standSharedPrice));
+
+      // PRD §6.1: the initial invoice uses the price matching the participant
+      // count confirmed at booking. The shared price is the total for owner
+      // plus partner and stays owner-paid; until an admin configures one it is
+      // null and a two-person booking still bills the individual price.
+      const standPrice =
+        participantIds.length > 1 && sharedPrice != null
+          ? sharedPrice
+          : individualPrice;
 
       const [reservation] = await tx
         .insert(standReservations)
@@ -765,15 +860,15 @@ export async function confirmStandHold(
           standId: hold.standId,
           source: "user_reservation",
           ownerUserId: actor.id,
-          priceAmountSnapshot: roundMoney(standPrice),
-          individualPriceSnapshot: roundMoney(
-            hold.individualPriceSnapshot ?? standPrice,
-          ),
-          sharedPriceSnapshot: hold.sharedPriceSnapshot,
+          priceAmountSnapshot: standPrice,
+          individualPriceSnapshot: individualPrice,
+          sharedPriceSnapshot: sharedPrice,
           bookedParticipantCount: participantIds.length,
           idempotencyKey,
         })
         .returning();
+
+      await insertReservationMembers(tx, reservation.id, memberStandIds);
 
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
@@ -787,15 +882,22 @@ export async function confirmStandHold(
         actorUserId: actor.id,
         eventType: "created",
         toStatus: "pending",
-        payload: { standId: hold.standId, partnerId: partnerId ?? null },
+        payload: {
+          standId: hold.standId,
+          standIds: memberStandIds,
+          partnerId: partnerId ?? null,
+          fullTable: isFullTable,
+        },
       });
 
       const updatedStands = await tx
         .update(stands)
         .set({ status: "reserved", updatedAt: new Date() })
-        .where(and(eq(stands.id, hold.standId), eq(stands.status, "held")))
+        .where(
+          and(inArray(stands.id, memberStandIds), eq(stands.status, "held")),
+        )
         .returning({ id: stands.id });
-      if (updatedStands.length === 0) {
+      if (updatedStands.length !== memberStandIds.length) {
         throw new Error("stand_status_conflict");
       }
 
@@ -817,6 +919,51 @@ export async function confirmStandHold(
       });
 
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
+
+      // Credit classes come last in the §14 lock order, so the hold is settled
+      // only once the reservation and its invoice exist.
+      if (fullTableAccess) {
+        if (isFullTable) {
+          // The companion half was allocated, so the feature is earned.
+          const captured = await captureCreditHoldForFeatureInTx(tx, {
+            userId: actor.id,
+            featureActionId: fullTableAccess.featureActionId,
+            idempotencyKey: `full-table-capture:${idempotencyKey}`,
+          });
+          // Throwing rolls the whole transaction back: returning here would
+          // commit the reservation, its invoice and the reserved stands while
+          // the credits stayed on hold. The outer catch maps it to
+          // CONFLICT_RETRY, same as the stand-status conflict above.
+          if (!captured.ok) throw new Error("full_table_capture_conflict");
+          await tx
+            .update(reservationFeatureActions)
+            .set({
+              status: "fulfilled",
+              reservationId: reservation.id,
+              fulfilledAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              eq(reservationFeatureActions.id, fullTableAccess.featureActionId),
+            );
+        } else {
+          // Half-table fallback: the participant is not charged, and the freed
+          // credits can go toward this very invoice if they choose.
+          const released = await releaseCreditHoldForFeatureInTx(tx, {
+            userId: actor.id,
+            featureActionId: fullTableAccess.featureActionId,
+            status: "released",
+          });
+          // Same rollback reasoning as the capture path above.
+          if (!released.ok) throw new Error("full_table_release_conflict");
+          await tx
+            .update(reservationFeatureActions)
+            .set({ status: "cancelled", updatedAt: new Date() })
+            .where(
+              eq(reservationFeatureActions.id, fullTableAccess.featureActionId),
+            );
+        }
+      }
 
       const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
         kind: "reservation_created",
@@ -871,11 +1018,17 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
   try {
     const now = new Date();
     const expiredHolds = await db
-      .select({ id: standHolds.id, standId: standHolds.standId })
+      .select({
+        id: standHolds.id,
+        standId: standHoldMembers.standId,
+      })
       .from(standHolds)
+      .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
       .where(lte(standHolds.expiresAt, now));
 
     if (expiredHolds.length === 0) return { expired: 0 };
+
+    const expiredHoldIds = [...new Set(expiredHolds.map((row) => row.id))];
 
     await db.transaction(async (tx) => {
       const standIds = [
@@ -890,35 +1043,16 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
           .for("update");
       }
 
-      for (const hold of expiredHolds) {
-        await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
-        const [liveHold] = await tx
-          .select({ id: standHolds.id })
-          .from(standHolds)
-          .where(
-            and(
-              eq(standHolds.standId, hold.standId),
-              gt(standHolds.expiresAt, now),
-            ),
-          )
-          .limit(1);
-        const [liveReservation] = await tx
-          .select({ id: standReservations.id })
-          .from(standReservations)
-          .where(
-            and(
-              eq(standReservations.standId, hold.standId),
-              sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
-            ),
-          )
-          .limit(1);
-        if (!liveHold && !liveReservation) {
-          await releaseStandIfVacant(tx, hold.standId, now);
+      for (const holdId of expiredHoldIds) {
+        const memberStandIds = await holdMemberStandIds(tx, holdId);
+        await tx.delete(standHolds).where(eq(standHolds.id, holdId));
+        for (const standId of memberStandIds) {
+          await releaseStandIfVacant(tx, standId, now);
         }
       }
     });
 
-    return { expired: expiredHolds.length };
+    return { expired: expiredHoldIds.length };
   } catch (error) {
     console.error("Error cleaning up expired holds", error);
     return { expired: 0 };

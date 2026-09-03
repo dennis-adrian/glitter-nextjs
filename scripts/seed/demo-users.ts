@@ -1,8 +1,8 @@
 import { createClerkClient, type User } from "@clerk/backend";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type { db as DbType } from "@/db";
-import { users } from "@/db/schema";
+import { profileSubcategories, subcategories, users } from "@/db/schema";
 
 /** Roles used by the seed. Omits unused `artist` (zero prod users; pending cleanup). */
 export type DemoUserRole = "admin" | "festival_admin" | "user";
@@ -17,7 +17,17 @@ export type DemoUserCategory =
 export type DemoUserSeed = {
   /** Stable key for logs; not stored. */
   key: string;
+  /**
+   * Where the app sends mail. Derived from `SEED_DEMO_EMAIL_BASE`; set it to a
+   * real inbox when notifications need to be read.
+   */
   email: string;
+  /**
+   * The address Clerk knows. Kept on `+clerk_test` so sign-in keeps Clerk's
+   * fixed test code instead of mailing a real one-time password; the app's own
+   * notifications go to `email` above, which Clerk never sees.
+   */
+  clerkEmail: string;
   firstName: string;
   lastName: string;
   displayName: string;
@@ -25,6 +35,30 @@ export type DemoUserSeed = {
   status: DemoUserStatus;
   category: DemoUserCategory;
 };
+
+/** Env bag used by seed helpers so unit tests can pass partial objects. */
+export type SeedEnv = Readonly<Record<string, string | undefined>>;
+
+/**
+ * Fallback inbox for app notifications. Deliberately undeliverable: `.test` is
+ * reserved (RFC 2606), so an unconfigured seed can never mail a real person.
+ * Point `SEED_DEMO_EMAIL_BASE` at a readable inbox to receive demo mail.
+ */
+export const DEFAULT_SEED_DEMO_EMAIL_BASE = "glitter-demo@example.test";
+
+export function resolveSeedDemoEmailBase(env: SeedEnv = process.env): string {
+  const fromEnv = env.SEED_DEMO_EMAIL_BASE?.trim();
+  return fromEnv && fromEnv.includes("@")
+    ? fromEnv
+    : DEFAULT_SEED_DEMO_EMAIL_BASE;
+}
+
+/** Per-role subaddress of the notification base, e.g. `base+admin@example.test`. */
+export function seedDemoEmail(tag: string, env: SeedEnv = process.env): string {
+  const base = resolveSeedDemoEmailBase(env);
+  const at = base.lastIndexOf("@");
+  return `${base.slice(0, at)}+${tag}@${base.slice(at + 1)}`;
+}
 
 /**
  * Dev-only demo accounts. Emails use Clerk's `+clerk_test` subaddress so OTP
@@ -36,7 +70,8 @@ export type DemoUserSeed = {
 export const DEMO_USERS: readonly DemoUserSeed[] = [
   {
     key: "admin",
-    email: "admin+clerk_test@example.com",
+    email: seedDemoEmail("admin"),
+    clerkEmail: "admin+clerk_test@example.com",
     firstName: "Admin",
     lastName: "Glitter",
     displayName: "Admin Glitter",
@@ -46,7 +81,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "festival_admin",
-    email: "festival-admin+clerk_test@example.com",
+    email: seedDemoEmail("festival_admin"),
+    clerkEmail: "festival-admin+clerk_test@example.com",
     firstName: "Festival",
     lastName: "Admin",
     displayName: "Festival Admin",
@@ -56,7 +92,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "illustration_participant",
-    email: "illustration+clerk_test@example.com",
+    email: seedDemoEmail("illustration"),
+    clerkEmail: "illustration+clerk_test@example.com",
     firstName: "Ilustracion",
     lastName: "Demo",
     displayName: "Ilustración Demo",
@@ -66,7 +103,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "gastronomy_participant",
-    email: "gastronomy+clerk_test@example.com",
+    email: seedDemoEmail("gastronomy"),
+    clerkEmail: "gastronomy+clerk_test@example.com",
     firstName: "Gastronomia",
     lastName: "Demo",
     displayName: "Gastronomía Demo",
@@ -76,7 +114,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "entrepreneurship_participant",
-    email: "entrepreneurship+clerk_test@example.com",
+    email: seedDemoEmail("entrepreneurship"),
+    clerkEmail: "entrepreneurship+clerk_test@example.com",
     firstName: "Emprendimiento",
     lastName: "Demo",
     displayName: "Emprendimiento Demo",
@@ -86,7 +125,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "pending_user",
-    email: "pending+clerk_test@example.com",
+    email: seedDemoEmail("pending"),
+    clerkEmail: "pending+clerk_test@example.com",
     firstName: "Pending",
     lastName: "User",
     displayName: "Pending User",
@@ -101,15 +141,10 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
  * Former demo emails removed from DEMO_USERS. Deleted on each seed run so local
  * DBs and the shared Clerk development instance stay aligned with the current list.
  */
-export const RETIRED_DEMO_EMAILS = [
-  "artist+clerk_test@example.com",
-] as const;
+export const RETIRED_DEMO_EMAILS = ["artist+clerk_test@example.com"] as const;
 
 /** Default password for local/cloud-agent login when SEED_DEMO_PASSWORD is unset. */
 export const DEFAULT_SEED_DEMO_PASSWORD = "Glitter-Dev-Seed-1!";
-
-/** Env bag used by seed helpers so unit tests can pass partial objects. */
-export type SeedEnv = Readonly<Record<string, string | undefined>>;
 
 export function resolveSeedDemoPassword(env: SeedEnv = process.env): string {
   const fromEnv = env.SEED_DEMO_PASSWORD?.trim();
@@ -172,7 +207,7 @@ async function ensureClerkUser(
   demo: DemoUserSeed,
   password: string,
 ): Promise<{ user: User; created: boolean }> {
-  const existing = await findClerkUserByEmail(client, demo.email);
+  const existing = await findClerkUserByEmail(client, demo.clerkEmail);
   if (existing) {
     // Keep password + profile fields in sync so cloud agents can always log in.
     const updated = await client.users.updateUser(existing.id, {
@@ -185,7 +220,9 @@ async function ensureClerkUser(
   }
 
   const created = await client.users.createUser({
-    emailAddress: [demo.email],
+    // Must match the address the lookup above uses, or the next run will not
+    // find this user and will try to create it again.
+    emailAddress: [demo.clerkEmail],
     firstName: demo.firstName,
     lastName: demo.lastName,
     password,
@@ -247,6 +284,53 @@ async function upsertLocalProfile(
     })
     .returning({ id: users.id, clerkId: users.clerkId, email: users.email });
   return row;
+}
+
+/**
+ * Gives a participant one subcategory matching their festival category.
+ *
+ * Not cosmetic: the festival terms page — the entry point to the whole
+ * reservation flow — calls notFound() for a profile with no subcategories, so
+ * a seeded participant could not reach it at all. Picks the first selectable,
+ * non-admin-only subcategory for the category, and leaves any existing
+ * assignment alone.
+ */
+async function ensureProfileSubcategory(
+  database: typeof DbType,
+  demo: DemoUserSeed,
+  profileId: number,
+): Promise<string | null> {
+  if (demo.category === "none") return null;
+
+  const existing = await database.query.profileSubcategories.findFirst({
+    where: eq(profileSubcategories.profileId, profileId),
+    columns: { id: true },
+  });
+  if (existing) return null;
+
+  const [subcategory] = await database
+    .select({ id: subcategories.id, label: subcategories.label })
+    .from(subcategories)
+    .where(
+      and(
+        eq(subcategories.category, demo.category),
+        eq(subcategories.visibility, "selectable"),
+        eq(subcategories.isAdminAssignableOnly, false),
+      ),
+    )
+    .orderBy(subcategories.sortOrder, subcategories.id)
+    .limit(1);
+
+  // A database with no subcategories for this category is a valid state; the
+  // seed should not fail over it.
+  if (!subcategory) return null;
+
+  await database
+    .insert(profileSubcategories)
+    .values({ profileId, subcategoryId: subcategory.id })
+    .onConflictDoNothing();
+
+  return subcategory.label;
 }
 
 async function retireFormerDemoUsers(
@@ -311,6 +395,7 @@ export async function seedDemoUsers(
     if (!local?.id) {
       throw new Error(`Failed to upsert local profile for ${demo.email}`);
     }
+    const subcategoryName = await ensureProfileSubcategory(db, demo, local.id);
     results.push({
       key: demo.key,
       email: demo.email,
@@ -319,7 +404,8 @@ export async function seedDemoUsers(
       localUserId: local.id,
     });
     console.info(
-      `[seed] ${demo.key}: clerk=${created ? "created" : "updated"} id=${user.id} localUserId=${local.id}`,
+      `[seed] ${demo.key}: clerk=${created ? "created" : "updated"} id=${user.id} localUserId=${local.id}` +
+        (subcategoryName ? ` subcategory="${subcategoryName}"` : ""),
     );
   }
 

@@ -98,6 +98,12 @@ export type ReservationMapStandDto = {
   eligibleSubcategoryIds: number[];
   festivalSectorId: number;
   standGroupId: number | null;
+  /**
+   * True when this stand is one half of an admin-declared full table. The
+   * companion is the other stand sharing `standGroupId`; pairing is never
+   * inferred from position (PRD §7.1).
+   */
+  isFullTableHalf: boolean;
   occupantKey: string | null;
   hasExternalOccupant: boolean;
   visibleParticipantSummaries: VisibleParticipantSummaryDto[];
@@ -143,6 +149,13 @@ export type FestivalReservationMapDto = {
   subcategoryIds: number[];
   sectors: ReservationMapSectorDto[];
   activeHold: ReservationActiveHoldDto | null;
+  /**
+   * Whether this participant activated full-table access for the festival.
+   * The map only reads it to say what a selection will produce — the server
+   * decides what is actually claimed (PRD §7.4: UI availability is
+   * informational).
+   */
+  fullTableAccessActive: boolean;
 };
 
 export type ReservationConfirmationStandDto = {
@@ -179,6 +192,19 @@ export type FestivalReservationConfirmationDto = {
     thumbnailStands: ReservationConfirmationThumbnailStandDto[];
   };
   recentPartners: PartnerSearchResultDto[];
+  /**
+   * What this hold actually covers. The half-table fallback has to be stated
+   * explicitly wherever a participant can still commit (PRD §7.4), so the
+   * summary screen needs to know both what was taken and what was hoped for.
+   */
+  fullTable: {
+    /** The hold covers both halves of a declared pair. */
+    isFullTable: boolean;
+    /** Access is active but only one half was available. */
+    isHalfTableFallback: boolean;
+    /** Labels of every stand in the hold, in selection order. */
+    standLabels: string[];
+  };
 };
 
 export const MAP_DTO_FORBIDDEN_KEYS = [

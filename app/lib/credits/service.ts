@@ -551,20 +551,29 @@ export async function debitConfirmedCreditsForInvoiceInTx(
 }
 
 /** Internal primitive for Phase 3 full-table activation. */
-export async function createCreditHoldForFeature(input: {
-  userId: number;
-  festivalId: number;
-  featureActionId: number;
-  amount: number;
-  idempotencyKey: string;
-  expiresAt?: Date;
-}): Promise<CreditResult<{ holdId: number; balances: CreditBalances }>> {
+/**
+ * Hold creation inside a caller's transaction.
+ *
+ * Full-table activation must create the feature action and its hold atomically
+ * (PRD §7.3), so the caller owns the transaction.
+ */
+export async function createCreditHoldForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    festivalId: number;
+    featureActionId: number;
+    amount: number;
+    idempotencyKey: string;
+    expiresAt?: Date;
+  },
+): Promise<CreditResult<{ holdId: number; balances: CreditBalances }>> {
   const amount = positiveCreditAmount(input.amount);
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
   }
 
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -628,7 +637,18 @@ export async function createCreditHoldForFeature(input: {
         balances: await lockedCreditBalances(tx, input.userId),
       },
     };
-  });
+  }
+}
+
+export async function createCreditHoldForFeature(input: {
+  userId: number;
+  festivalId: number;
+  featureActionId: number;
+  amount: number;
+  idempotencyKey: string;
+  expiresAt?: Date;
+}): Promise<CreditResult<{ holdId: number; balances: CreditBalances }>> {
+  return db.transaction((tx) => createCreditHoldForFeatureInTx(tx, input));
 }
 
 /** Internal primitive for late partner/release and full-table capture. */
@@ -696,14 +716,24 @@ export async function spendCreditsForFeature(input: {
   });
 }
 
-/** Capture is the only spend path that may consume the caller's active hold. */
-export async function captureCreditHoldForFeature(input: {
-  userId: number;
-  featureActionId: number;
-  idempotencyKey: string;
-}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+/**
+ * Capture inside a caller's transaction.
+ *
+ * Full-table confirmation must capture in the same transaction that creates the
+ * two-stand reservation (PRD §7.6), and the §14 lock order puts credit classes
+ * after stands and reservations — so the caller owns the transaction and calls
+ * this last.
+ */
+export async function captureCreditHoldForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    featureActionId: number;
+    idempotencyKey: string;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
   if (!input.idempotencyKey.trim()) return failure("INVALID_AMOUNT");
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -769,15 +799,28 @@ export async function captureCreditHoldForFeature(input: {
         balances: await lockedCreditBalances(tx, input.userId),
       },
     };
-  });
+  }
 }
 
-export async function releaseCreditHoldForFeature(input: {
+/** Capture is the only spend path that may consume the caller's active hold. */
+export async function captureCreditHoldForFeature(input: {
   userId: number;
   featureActionId: number;
-  status?: "released" | "expired";
-}): Promise<CreditResult<{ balances: CreditBalances }>> {
-  return db.transaction(async (tx) => {
+  idempotencyKey: string;
+}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  return db.transaction((tx) => captureCreditHoldForFeatureInTx(tx, input));
+}
+
+/** Release inside a caller's transaction; see `captureCreditHoldForFeatureInTx`. */
+export async function releaseCreditHoldForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    featureActionId: number;
+    status?: "released" | "expired";
+  },
+): Promise<CreditResult<{ balances: CreditBalances }>> {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -802,7 +845,15 @@ export async function releaseCreditHoldForFeature(input: {
       ok: true,
       data: { balances: await lockedCreditBalances(tx, input.userId) },
     };
-  });
+  }
+}
+
+export async function releaseCreditHoldForFeature(input: {
+  userId: number;
+  featureActionId: number;
+  status?: "released" | "expired";
+}): Promise<CreditResult<{ balances: CreditBalances }>> {
+  return db.transaction((tx) => releaseCreditHoldForFeatureInTx(tx, input));
 }
 
 /** Append-only administrative grant/correction; positive amounts can waive debt. */

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_SEED_DEMO_EMAIL_BASE,
   DEFAULT_SEED_DEMO_PASSWORD,
   DEMO_USERS,
   getDevSeedGate,
+  resolveSeedDemoEmailBase,
   resolveSeedDemoPassword,
+  seedDemoEmail,
 } from "./demo-users";
 
 describe("getDevSeedGate", () => {
@@ -49,9 +52,9 @@ describe("getDevSeedGate", () => {
 
 describe("resolveSeedDemoPassword", () => {
   it("uses SEED_DEMO_PASSWORD when set", () => {
-    expect(resolveSeedDemoPassword({ SEED_DEMO_PASSWORD: "Custom-Pass-1!" })).toBe(
-      "Custom-Pass-1!",
-    );
+    expect(
+      resolveSeedDemoPassword({ SEED_DEMO_PASSWORD: "Custom-Pass-1!" }),
+    ).toBe("Custom-Pass-1!");
   });
 
   it("falls back to the documented default", () => {
@@ -60,10 +63,30 @@ describe("resolveSeedDemoPassword", () => {
 });
 
 describe("DEMO_USERS", () => {
-  it("uses Clerk test email subaddresses", () => {
+  it("keeps Clerk on test subaddresses so sign-in needs no real inbox", () => {
     for (const user of DEMO_USERS) {
-      expect(user.email).toContain("+clerk_test@");
+      expect(user.clerkEmail).toContain("+clerk_test@");
     }
+  });
+
+  it("tags app mail per role off the configured notification base", () => {
+    // The two differ on purpose: Clerk's +clerk_test addresses skip real
+    // verification mail, while the app's own notifications go to whatever
+    // inbox SEED_DEMO_EMAIL_BASE points at.
+    for (const user of DEMO_USERS) {
+      expect(user.email).toMatch(/\+[a-z_]+@/);
+      expect(user.email).not.toBe(user.clerkEmail);
+    }
+  });
+
+  it("defaults notification mail to an undeliverable address", () => {
+    expect(resolveSeedDemoEmailBase({})).toBe(DEFAULT_SEED_DEMO_EMAIL_BASE);
+    expect(seedDemoEmail("admin", {})).toBe("glitter-demo+admin@example.test");
+  });
+
+  it("subaddresses a configured base", () => {
+    const env = { SEED_DEMO_EMAIL_BASE: "  someone@example.com  " };
+    expect(seedDemoEmail("pending", env)).toBe("someone+pending@example.com");
   });
 
   it("includes an admin account", () => {

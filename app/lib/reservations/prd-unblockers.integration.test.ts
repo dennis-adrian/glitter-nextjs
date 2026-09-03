@@ -418,6 +418,7 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
           standCategory: "illustration" as const,
           status: "available" as const,
           price: 100,
+          individualPrice: 100,
         })),
       )
       .returning();

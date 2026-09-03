@@ -496,6 +496,7 @@ export async function fetchUserParticipations(
         reservation: {
           with: {
             stand: true,
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,

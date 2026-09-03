@@ -60,8 +60,48 @@ function keysMatch(actual: unknown, expected: string[]): boolean {
   );
 }
 
+/**
+ * Which database this run actually inspected.
+ *
+ * Asked of the live connection rather than parsed out of POSTGRES_URL, so it
+ * reports where the queries really went — including when .env.local supplies
+ * the value and the operator believed otherwise. Credentials are never read:
+ * only the host and port come from the URL, and only to tell apart copies that
+ * share a database name, which a production backup usually does.
+ */
+async function describeTarget(): Promise<{
+  database: string;
+  user: string;
+  host: string;
+}> {
+  const result = await db.execute<{ database: string; user: string }>(
+    sql`SELECT current_database() AS database, current_user AS user`,
+  );
+  const row = result.rows[0];
+
+  let host = "unknown";
+  try {
+    const url = new URL(process.env.POSTGRES_URL ?? "");
+    host = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+  } catch {
+    // POSTGRES_URL may be absent or unparsable. The database name is the part
+    // that matters, and it came from the connection itself.
+  }
+
+  return {
+    database: row?.database ?? "unknown",
+    user: row?.user ?? "unknown",
+    host,
+  };
+}
+
 async function main() {
   const findings: Finding[] = [];
+
+  // Printed before any check runs, so a run that fails partway still says
+  // which database it was pointed at.
+  const target = await describeTarget();
+  console.log(JSON.stringify({ auditing: target }));
 
   const activeFestivals = await db
     .select({ id: festivals.id })
@@ -128,52 +168,110 @@ async function main() {
     });
   }
 
-  const holdMemberCardinality = await db.execute<{ id: number }>(sql`
+  // Every aggregate must have at least one member. The upper bound is a
+  // per-type rule (one for a normal reservation, two for a full table) checked
+  // against the declared pair rather than a blanket count.
+  const holdWithoutMembers = await db.execute<{ id: number }>(sql`
     SELECT h.id
     FROM stand_holds h
     LEFT JOIN stand_hold_members m ON m.hold_id = h.id
     GROUP BY h.id
-    HAVING count(m.id) <> 1
+    HAVING count(m.id) = 0
   `);
-  if (holdMemberCardinality.rows.length > 0) {
+  if (holdWithoutMembers.rows.length > 0) {
     findings.push({
-      name: "stand_hold_member_cardinality_not_one",
-      count: holdMemberCardinality.rows.length,
-      ids: holdMemberCardinality.rows.map((row) => Number(row.id)),
+      name: "stand_hold_without_members",
+      count: holdWithoutMembers.rows.length,
+      ids: holdWithoutMembers.rows.map((row) => Number(row.id)),
     });
   }
 
-  const reservationMemberCardinality = await db.execute<{ id: number }>(sql`
+  const reservationWithoutMembers = await db.execute<{ id: number }>(sql`
     SELECT r.id
     FROM stand_reservations r
-    LEFT JOIN stand_reservation_members m ON m.reservation_id = r.id
+    LEFT JOIN stand_reservation_stands s ON s.reservation_id = r.id
     GROUP BY r.id
-    HAVING count(m.id) <> 1
+    HAVING count(s.id) = 0
   `);
-  if (reservationMemberCardinality.rows.length > 0) {
+  if (reservationWithoutMembers.rows.length > 0) {
     findings.push({
-      name: "stand_reservation_member_cardinality_not_one",
-      count: reservationMemberCardinality.rows.length,
-      ids: reservationMemberCardinality.rows.map((row) => Number(row.id)),
+      name: "stand_reservation_without_members",
+      count: reservationWithoutMembers.rows.length,
+      ids: reservationWithoutMembers.rows.map((row) => Number(row.id)),
     });
   }
 
+  // The legacy singular columns are still written as adapters, so they must
+  // agree with member position 0 until they are dropped.
   const memberAdapterMismatch = await db.execute<{ id: number }>(sql`
     SELECT h.id
     FROM stand_holds h
-    INNER JOIN stand_hold_members m ON m.hold_id = h.id
+    INNER JOIN stand_hold_members m ON m.hold_id = h.id AND m.position = 0
     WHERE m.stand_id <> h.stand_id
     UNION ALL
     SELECT r.id
     FROM stand_reservations r
-    INNER JOIN stand_reservation_members m ON m.reservation_id = r.id
-    WHERE m.stand_id <> r.stand_id
+    INNER JOIN stand_reservation_stands s ON s.reservation_id = r.id AND s.position = 0
+    WHERE s.stand_id <> r.stand_id
   `);
   if (memberAdapterMismatch.rows.length > 0) {
     findings.push({
       name: "stand_member_adapter_mismatch",
       count: memberAdapterMismatch.rows.length,
       ids: memberAdapterMismatch.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  // The denormalised status backs the occupancy index; if it drifts from the
+  // parent, the index stops protecting the right rows.
+  const staleMemberStatus = await db.execute<{ id: number }>(sql`
+    SELECT s.id
+    FROM stand_reservation_stands s
+    INNER JOIN stand_reservations r ON r.id = s.reservation_id
+    WHERE s.reservation_status <> r.status
+  `);
+  if (staleMemberStatus.rows.length > 0) {
+    findings.push({
+      name: "stand_reservation_member_status_stale",
+      count: staleMemberStatus.rows.length,
+      ids: staleMemberStatus.rows.map((row) => Number(row.id)),
+    });
+  }
+
+  // Member-level occupancy: the index enforces this, so a finding here means
+  // the index is missing or was bypassed.
+  const duplicateMemberOccupancy = await db.execute<{ stand_id: number }>(sql`
+    SELECT stand_id
+    FROM stand_reservation_stands
+    WHERE released_at IS NULL
+      AND reservation_status IN ('pending', 'verification_payment', 'accepted')
+    GROUP BY stand_id
+    HAVING count(*) > 1
+  `);
+  if (duplicateMemberOccupancy.rows.length > 0) {
+    findings.push({
+      name: "multiple_capacity_members_per_stand",
+      count: duplicateMemberOccupancy.rows.length,
+      ids: duplicateMemberOccupancy.rows.map((row) => Number(row.stand_id)),
+    });
+  }
+
+  // A stand cannot be held and reserved at the same time, whichever aggregate
+  // each side belongs to.
+  const holdOverlapsReservation = await db.execute<{ stand_id: number }>(sql`
+    SELECT m.stand_id
+    FROM stand_hold_members m
+    INNER JOIN stand_holds h ON h.id = m.hold_id
+    INNER JOIN stand_reservation_stands s ON s.stand_id = m.stand_id
+    WHERE h.expires_at > now()
+      AND s.released_at IS NULL
+      AND s.reservation_status IN ('pending', 'verification_payment', 'accepted')
+  `);
+  if (holdOverlapsReservation.rows.length > 0) {
+    findings.push({
+      name: "stand_held_and_reserved",
+      count: holdOverlapsReservation.rows.length,
+      ids: holdOverlapsReservation.rows.map((row) => Number(row.stand_id)),
     });
   }
 
@@ -787,6 +885,40 @@ async function main() {
       keys: ["user_id", "festival_id"],
       predicate: "",
     },
+    // Member-level occupancy. This is the guarantee that replaces the parent
+    // capacity index above once the legacy stand_id adapter is dropped; both
+    // are required while they run side by side.
+    {
+      name: "stand_reservation_stands_active_stand_unique",
+      table: "stand_reservation_stands",
+      keys: ["stand_id"],
+      predicate:
+        "released_at is null and reservation_status = any array['pending', 'verification_payment', 'accepted']",
+    },
+    {
+      name: "stand_reservation_stands_reservation_position_unique",
+      table: "stand_reservation_stands",
+      keys: ["reservation_id", "position"],
+      predicate: "",
+    },
+    {
+      name: "stand_reservation_stands_reservation_stand_unique",
+      table: "stand_reservation_stands",
+      keys: ["reservation_id", "stand_id"],
+      predicate: "",
+    },
+    {
+      name: "stand_hold_members_stand_id_unique",
+      table: "stand_hold_members",
+      keys: ["stand_id"],
+      predicate: "",
+    },
+    {
+      name: "stand_hold_members_hold_position_unique",
+      table: "stand_hold_members",
+      keys: ["hold_id", "position"],
+      predicate: "",
+    },
   ];
 
   const catalogIndexes = await db.execute<{
@@ -868,11 +1000,19 @@ async function main() {
   }
 
   if (findings.length === 0) {
-    console.log(JSON.stringify({ ok: true, findings: 0 }));
+    console.log(
+      JSON.stringify({ ok: true, findings: 0, database: target.database }),
+    );
     return;
   }
 
-  console.error(JSON.stringify({ ok: false, findings: findings.length }));
+  console.error(
+    JSON.stringify({
+      ok: false,
+      findings: findings.length,
+      database: target.database,
+    }),
+  );
   process.exit(1);
 }
 

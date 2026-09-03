@@ -118,12 +118,17 @@ function selectChain(rows: unknown[]) {
         for: vi.fn().mockResolvedValue(rows),
       }),
     ),
+    // Aggregate membership is read ordered by position.
+    orderBy: vi.fn().mockResolvedValue(rows),
   });
   return {
     from: vi.fn(() => ({
       where: vi.fn(() => thenable),
       innerJoin: vi.fn(() => ({
         where: vi.fn(() => thenable),
+        innerJoin: vi.fn(() => ({
+          where: vi.fn(() => thenable),
+        })),
       })),
     })),
   };
@@ -590,6 +595,8 @@ describe("stand hold authorization and eligibility wiring", () => {
       .fn()
       .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([holdRow]))
+      // Aggregate membership, read before the stands are locked.
+      .mockImplementationOnce(() => selectChain([{ standId: 7 }]))
       .mockImplementationOnce(() => selectChain([holdRow]))
       .mockImplementationOnce(() => selectChain([{ id: 88 }]));
     const tx = { select, insert };

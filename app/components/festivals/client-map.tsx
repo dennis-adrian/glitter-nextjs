@@ -37,6 +37,7 @@ export default function ClientMap({
   activeHold: initialActiveHold,
   alreadyReserved,
   subcategoryIds = [],
+  fullTableAccessActive = false,
   onAvailableCountChange,
 }: {
   festival: ReservationMapFestivalDto;
@@ -49,6 +50,7 @@ export default function ClientMap({
   activeHold?: ActiveHold;
   alreadyReserved: boolean;
   subcategoryIds?: number[];
+  fullTableAccessActive?: boolean;
   onAvailableCountChange?: (count: number) => void;
 }) {
   const [stands, setStands] = useState(initialStands);
@@ -152,6 +154,10 @@ export default function ClientMap({
           alreadyReserved={alreadyReserved}
           subcategoryIds={subcategoryIds}
           activeHold={activeHold}
+          // The live, polled list — so the companion's availability reflects
+          // what the participant is looking at right now.
+          sectorStands={stands}
+          fullTableAccessActive={fullTableAccessActive}
           onHoldChange={handleHoldChange}
           onClose={() => setSelectedStandId(null)}
           isPending={isPending}

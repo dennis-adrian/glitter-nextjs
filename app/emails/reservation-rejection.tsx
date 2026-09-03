@@ -17,7 +17,10 @@ import { FestivalBase } from "../lib/festivals/definitions";
 
 type ProfileRejectionEmailTemplateProps = {
   profile: BaseProfile;
+  /** The originally selected half; `standLabel` names everything released. */
   stand: StandBase;
+  /** Every stand the reservation held, already formatted. */
+  standLabel?: string;
   festival: FestivalBase;
   reason?: string;
 };
@@ -39,8 +42,8 @@ export default function ReservationRejectionEmailTemplate(
             <Text style={styles.text}>
               Tu reserva para el espacio{" "}
               <strong>
-                {props.stand.label}
-                {props.stand.standNumber}
+                {props.standLabel ??
+                  `${props.stand.label ?? ""}${props.stand.standNumber}`}
               </strong>{" "}
               en el festival <strong>{props.festival.name}</strong> ha sido
               cancelada y el espacio está disponible nuevamente.

@@ -140,6 +140,7 @@ import {
   reservationParticipants,
   standReservations,
   users,
+  standReservationStands,
 } from "@/db/schema";
 
 type LockedInvoice = {
@@ -211,6 +212,16 @@ function createTx(options: {
     select: vi.fn((fields?: Record<string, unknown>) => ({
       from: vi.fn((table: unknown) => ({
         where: vi.fn((clause: unknown) => {
+          if (table === standReservationStands) {
+            // Aggregate membership, read ordered by position when a
+            // cancellation resolves which stands to hand back.
+            const rows = (
+              options.memberStandIds ?? [options.reservation?.standId ?? 1]
+            ).map((standId: number) => ({ standId }));
+            return Object.assign(Promise.resolve(rows), {
+              orderBy: vi.fn(() => Promise.resolve(rows)),
+            });
+          }
           if (table === invoiceSettlementSubmissions) {
             settlementWhere.push(clause);
             const submission = options.existingSettlement;

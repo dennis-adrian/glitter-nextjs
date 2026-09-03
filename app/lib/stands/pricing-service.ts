@@ -279,6 +279,10 @@ export async function updateStandPrices(
         .update(stands)
         .set({
           individualPrice: update.individualPrice,
+          // Legacy adapter. Nothing else writes stands.price any more, so
+          // mirroring the individual price here keeps callers that still read
+          // it correct until the column is dropped.
+          price: update.individualPrice,
           ...(update.sharedPrice === undefined
             ? {}
             : { sharedPrice: update.sharedPrice }),
@@ -289,4 +293,68 @@ export async function updateStandPrices(
 
     return { ok: true as const, updated: updates.length };
   });
+}
+
+/**
+ * Guard for the legacy single-price admin editors, which predate the
+ * individual/shared split and still send one amount.
+ *
+ * That amount is the individual price, and those callers write it without the
+ * pair and ordering rules `updateStandPrices` enforces. Rather than duplicate
+ * the whole ruleset, refuse the two edits that could break an invariant and
+ * point the admin at the pair-aware dialog.
+ *
+ * Callers must already hold the stand row locks. The group type is read without
+ * its own lock on purpose: taking one here would invert the groups-before-
+ * stands order and deadlock against the price dialog. A concurrent full-table
+ * activation blocks on those same stand locks and revalidates prices itself, so
+ * it cannot pair mismatched halves behind this check.
+ */
+export async function guardLegacySinglePriceEdit(
+  tx: DbTx,
+  standIds: readonly number[],
+  individualPrice: number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  // The legacy editors validate the amount loosely, so a value the pair-aware
+  // path would refuse can still arrive here. Reject it with the same rule
+  // instead of letting it reach the column.
+  if (individualPrice < 0 || !isTwoDecimals(individualPrice)) {
+    return {
+      ok: false,
+      message: "El precio individual debe ser 0 o más, con hasta dos decimales.",
+    };
+  }
+
+  if (standIds.length === 0) return { ok: true };
+
+  const rows = await tx
+    .select({
+      id: stands.id,
+      sharedPrice: stands.sharedPrice,
+      groupType: standGroups.type,
+    })
+    .from(stands)
+    .leftJoin(standGroups, eq(standGroups.id, stands.standGroupId))
+    .where(inArray(stands.id, [...standIds]));
+
+  if (rows.some((row) => row.groupType === "full_table")) {
+    return {
+      ok: false,
+      message:
+        "Uno o más espacios son mitades de una mesa completa. Cambiá su precio desde el editor de precios, seleccionando ambas mitades.",
+    };
+  }
+
+  const belowShared = rows.find(
+    (row) => row.sharedPrice != null && row.sharedPrice < individualPrice,
+  );
+  if (belowShared) {
+    return {
+      ok: false,
+      message:
+        "El precio compartido guardado quedaría por debajo del individual. Actualizá ambos desde el editor de precios.",
+    };
+  }
+
+  return { ok: true };
 }

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { insertReservationMembers } from "@/app/lib/reservations/members";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
   lockParticipantsBeforeRegistryClaim,
@@ -34,10 +35,10 @@ import type { ExternalParticipantInput } from "@/app/lib/external_participants/s
 /**
  * Canonical Phase 0 external assignment writer.
  *
- * Current `stand_reservations.stand_id` is the single occupancy member. When
- * the paid-reservation PRD introduces `stand_reservation_stands`, this writer
- * will insert exactly one member row for that `stand_id` in the same
- * transaction. Do not add a second occupancy insert here.
+ * Occupancy lives in `stand_reservation_stands`; this writer inserts exactly
+ * one member for the assigned stand in the same transaction, and keeps the
+ * legacy `stand_reservations.stand_id` adapter in step. Do not add a second
+ * occupancy insert here.
  *
  * Mutation inventory (live writers of reservation occupancy/settlement):
  * - `hold-service.ts`: stand_holds create/replace/cancel/confirm
@@ -226,12 +227,18 @@ export async function createExternalParticipantReservation(
           standId,
           status: "accepted",
           source: "admin_assignment",
-          priceAmountSnapshot: roundMoney(lockedStand.price ?? 0),
-          individualPriceSnapshot: roundMoney(lockedStand.price ?? 0),
+          priceAmountSnapshot: roundMoney(lockedStand.individualPrice ?? 0),
+          individualPriceSnapshot: roundMoney(lockedStand.individualPrice ?? 0),
+          sharedPriceSnapshot:
+            lockedStand.sharedPrice == null
+              ? null
+              : roundMoney(lockedStand.sharedPrice),
           bookedParticipantCount: 1,
           revealAt,
         })
         .returning({ id: standReservations.id });
+
+      await insertReservationMembers(tx, reservation.id, [standId]);
 
       await tx.insert(reservationExternalParticipants).values({
         externalParticipantId: participantId,

@@ -11,6 +11,7 @@ import {
   festivalSectors,
   festivals,
   standGroups,
+  standReservationStands,
   standReservations,
   stands,
 } from "@/db/schema";
@@ -44,6 +45,7 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 let setStandGroupFullTable: (typeof import("@/app/lib/stands/full-table-service"))["setStandGroupFullTable"];
 let findMalformedFullTableGroups: (typeof import("@/app/lib/stands/full-table-health"))["findMalformedFullTableGroups"];
 let updateStandPrices: (typeof import("@/app/lib/stands/pricing-service"))["updateStandPrices"];
+let guardLegacySinglePriceEdit: (typeof import("@/app/lib/stands/pricing-service"))["guardLegacySinglePriceEdit"];
 
 const createdFestivalIds: number[] = [];
 const createdGroupIds: number[] = [];
@@ -104,7 +106,9 @@ describeDatabase("setStandGroupFullTable", () => {
     ({ findMalformedFullTableGroups } = await import(
       "@/app/lib/stands/full-table-health"
     ));
-    ({ updateStandPrices } = await import("@/app/lib/stands/pricing-service"));
+    ({ updateStandPrices, guardLegacySinglePriceEdit } = await import(
+      "@/app/lib/stands/pricing-service"
+    ));
 
     try {
       await integrationDb!.select({ id: standGroups.type }).from(standGroups).limit(1);
@@ -218,6 +222,11 @@ describeDatabase("setStandGroupFullTable", () => {
       .values({ standId: standIds[0], festivalId, status: "accepted" })
       .returning({ id: standReservations.id });
     createdReservationIds.push(reservation!.id);
+    // Occupancy is resolved through membership, so the fixture has to create
+    // the member row the real writers create.
+    await integrationDb!
+      .insert(standReservationStands)
+      .values({ reservationId: reservation!.id, standId: standIds[0] });
 
     const result = await setStandGroupFullTable({ groupId, enabled: true });
 
@@ -411,6 +420,46 @@ describeDatabase("setStandGroupFullTable", () => {
 
       expect(result).toMatchObject({ ok: false, code: "STANDS_NOT_FOUND" });
       expect((await priceOf(standIds[0])).individualPrice).toBe(200);
+    });
+  });
+
+  /**
+   * The legacy admin editors send a single amount and skip the pair rules, so
+   * the guard has to catch the two edits that could break an invariant before
+   * they reach the row.
+   */
+  describe("guardLegacySinglePriceEdit", () => {
+    it("blocks a half of a declared full table", async () => {
+      const { groupId, standIds } = await createPair();
+      await setStandGroupFullTable({ groupId, enabled: true });
+
+      const result = await integrationDb!.transaction((tx) =>
+        guardLegacySinglePriceEdit(tx, [standIds[0]], 250),
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.message).toMatch(/mesa completa/i);
+    });
+
+    it("blocks an amount that would overtake the stored shared price", async () => {
+      const { standIds } = await createPair();
+
+      const result = await integrationDb!.transaction((tx) =>
+        guardLegacySinglePriceEdit(tx, [standIds[0]], 500),
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.message).toMatch(/compartido/i);
+    });
+
+    it("allows an ordinary unpaired edit", async () => {
+      const { standIds } = await createPair();
+
+      const result = await integrationDb!.transaction((tx) =>
+        guardLegacySinglePriceEdit(tx, [standIds[0]], 250),
+      );
+
+      expect(result).toEqual({ ok: true });
     });
   });
 });

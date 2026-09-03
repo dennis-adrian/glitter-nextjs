@@ -1,6 +1,7 @@
 "use server";
 
 import { StandBase } from "@/app/api/stands/definitions";
+import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
 import {
   BaseProfile,
   Participation,
@@ -103,6 +104,9 @@ export async function fetchFestivalSectors(
       with: {
         stands: {
           with: {
+            // The nested reservation is fetched under its own short alias:
+            // Postgres truncates identifiers at 63 bytes, and a deeper chain
+            // here collides `_participants` with `_participants_user`.
             reservations: {
               with: {
                 participants: {
@@ -121,6 +125,8 @@ export async function fetchFestivalSectors(
                 },
               },
             },
+            // Flat membership; joined to the reservations above in memory.
+            reservationMembers: true,
             standSubcategories: {
               with: { subcategory: true },
             },
@@ -132,11 +138,12 @@ export async function fetchFestivalSectors(
       where: eq(festivalSectors.festivalId, festivalId),
     });
 
+    const withOccupancy = withMembershipReservationsBySector(sectors);
     try {
-      return await attachProfileSubcategories(sectors);
+      return await attachProfileSubcategories(withOccupancy);
     } catch (error) {
       console.error("Error attaching profile subcategories", error);
-      return sectors;
+      return withOccupancy;
     }
   } catch (error) {
     console.error("Error fetching festival sectors", error);
@@ -253,6 +260,9 @@ export async function fetchFestivalSectorsByUserCategory(
         with: {
           stands: {
             with: {
+              // The nested reservation is fetched under its own short alias:
+              // Postgres truncates identifiers at 63 bytes, and a deeper chain
+              // here collides `_participants` with `_participants_user`.
               reservations: {
                 with: {
                   participants: {
@@ -271,6 +281,8 @@ export async function fetchFestivalSectorsByUserCategory(
                   },
                 },
               },
+              // Flat membership; joined to the reservations above in memory.
+              reservationMembers: true,
               standSubcategories: {
                 with: { subcategory: true },
               },
@@ -280,11 +292,12 @@ export async function fetchFestivalSectorsByUserCategory(
         },
       });
 
+      const withOccupancy = withMembershipReservationsBySector(sectors);
       try {
-        return await attachProfileSubcategories(sectors, tx);
+        return await attachProfileSubcategories(withOccupancy, tx);
       } catch (error) {
         console.error("Error attaching profile subcategories", error);
-        return sectors;
+        return withOccupancy;
       }
     });
   } catch (error) {
@@ -597,6 +610,9 @@ export async function fetchSectorWithStandsAndReservations(sectorId: number) {
       with: {
         stands: {
           with: {
+            // The nested reservation is fetched under its own short alias:
+            // Postgres truncates identifiers at 63 bytes, and a deeper chain
+            // here collides `_participants` with `_participants_user`.
             reservations: {
               with: {
                 participants: { with: { user: true } },
@@ -607,6 +623,8 @@ export async function fetchSectorWithStandsAndReservations(sectorId: number) {
                 },
               },
             },
+            // Flat membership; joined to the reservations above in memory.
+            reservationMembers: true,
           },
         },
       },

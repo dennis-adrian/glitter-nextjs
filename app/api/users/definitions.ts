@@ -20,7 +20,13 @@ export type UserSocial = typeof userSocials.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect;
 export type Participation = typeof reservationParticipants.$inferSelect & {
   reservation: typeof standReservations.$inferSelect & {
+    /** The originally selected half; `members` is what is occupied. */
     stand: StandBase;
+    members?: {
+      position: number;
+      releasedAt: Date | null;
+      stand: StandBase;
+    }[];
     festival: typeof festivals.$inferSelect & {
       festivalDates?: (typeof festivalDates.$inferSelect)[];
     };

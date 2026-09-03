@@ -1,4 +1,5 @@
 import * as styles from "@/app/emails/styles";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import {
   Body,
   Button,
@@ -23,6 +24,7 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
   props: PaymentConfirmationForAdminsEmailTemplateProps,
 ) {
   const stand = props.invoice.reservation.stand;
+  const standLabel = reservationStandLabel(props.invoice.reservation);
   const payment = props.invoice.payments[props.invoice.payments.length - 1];
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(props.invoice.user);
@@ -31,8 +33,7 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
     <Html>
       <Head />
       <Preview>
-        Nueva reserva por confirmar para el espacio {stand.label || ""}
-        {stand.standNumber.toString()}
+        Nueva reserva por confirmar para el espacio {standLabel}
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
@@ -41,11 +42,7 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
             <Text style={styles.text}>
               El participante {userName} hizo un pago de{" "}
               <strong>Bs{props.invoice.amount?.toFixed(2) || 0}</strong> de su
-              reserva para el espacio{" "}
-              <strong>
-                {stand.label}
-                {stand.standNumber}
-              </strong>{" "}
+              reserva para el espacio <strong>{standLabel}</strong>{" "}
               en el festival {props.invoice.reservation.festival.name}.
             </Text>
             {payment?.voucherUrl && (

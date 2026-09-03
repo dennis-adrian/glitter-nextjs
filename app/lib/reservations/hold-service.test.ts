@@ -59,7 +59,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { cancelStandHold } from "@/app/lib/reservations/hold-service";
-import { standHolds } from "@/db/schema";
+import { standHoldMembers, standHolds } from "@/db/schema";
 
 function holdTx(options?: { hold?: { id: number; standId: number; festivalId: number; userId: number } | null }) {
   const hold =
@@ -71,6 +71,14 @@ function holdTx(options?: { hold?: { id: number; standId: number; festivalId: nu
     select: vi.fn(() => ({
       from: (table: unknown) => ({
         where: () => {
+          // Membership resolves the stands to lock and release; a single-member
+          // hold reports just its own stand.
+          if (table === standHoldMembers) {
+            const memberRows = hold ? [{ standId: hold.standId }] : [];
+            return Object.assign(Promise.resolve(memberRows), {
+              orderBy: vi.fn(async () => memberRows),
+            });
+          }
           const rows = table === standHolds && hold ? [hold] : [];
           reads += 1;
           const afterLimit = Object.assign(Promise.resolve(rows), {

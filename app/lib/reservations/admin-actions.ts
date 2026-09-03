@@ -13,6 +13,7 @@ import {
   lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
 } from "@/app/lib/reservations/locks";
+import { insertReservationMembers } from "@/app/lib/reservations/members";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
   enqueueAdminAndOwnerNotifications,
@@ -245,6 +246,12 @@ export async function createAdminReservation(
         }
       }
 
+      // Same participant-count rule as self-service booking (PRD §6.1).
+      const adminStandPrice =
+        participantIds.length > 1 && lockedStand.sharedPrice != null
+          ? lockedStand.sharedPrice
+          : (lockedStand.individualPrice ?? 0);
+
       const [reservation] = await tx
         .insert(standReservations)
         .values({
@@ -252,12 +259,20 @@ export async function createAdminReservation(
           standId,
           source: "admin_assignment",
           ownerUserId: userId,
-          priceAmountSnapshot: roundMoney(lockedStand.price ?? 0),
-          individualPriceSnapshot: roundMoney(lockedStand.price ?? 0),
+          priceAmountSnapshot: roundMoney(adminStandPrice),
+          individualPriceSnapshot: roundMoney(
+            lockedStand.individualPrice ?? 0,
+          ),
+          sharedPriceSnapshot:
+            lockedStand.sharedPrice == null
+              ? null
+              : roundMoney(lockedStand.sharedPrice),
           bookedParticipantCount: participantIds.length,
           revealAt,
         })
         .returning();
+
+      await insertReservationMembers(tx, reservation.id, [standId]);
 
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
@@ -288,8 +303,8 @@ export async function createAdminReservation(
         dueAt: sql`now() + interval '5 days'`,
         userId,
         reservationId: reservation.id,
-        originalAmount: roundMoney(lockedStand.price ?? 0),
-        amount: roundMoney(lockedStand.price ?? 0),
+        originalAmount: roundMoney(adminStandPrice),
+        amount: roundMoney(adminStandPrice),
       });
 
       await tx.insert(scheduledTasks).values({

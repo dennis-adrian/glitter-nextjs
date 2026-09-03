@@ -1,3 +1,4 @@
+import FullTableSummaryNotice from "@/app/components/festivals/reservations/full-table-summary-notice";
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
@@ -69,6 +70,7 @@ export default async function HoldConfirmationPage(
 
   return (
     <div className="container p-3 md:p-6">
+      <FullTableSummaryNotice fullTable={confirmation.fullTable} />
       <HoldConfirmationClient
         recentPartners={confirmation.recentPartners}
         hold={confirmation.hold}

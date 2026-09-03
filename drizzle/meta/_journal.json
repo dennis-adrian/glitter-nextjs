@@ -1835,6 +1835,34 @@
       "when": 1788372936596,
       "tag": "0262_great_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 263,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0263_stand_individual_price_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1788410000000,
+      "tag": "0264_stand_reservation_stands",
+      "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1788420000000,
+      "tag": "0265_full_table_access_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1788437394438,
+      "tag": "0266_full_table_membership_realign",
+      "breakpoints": true
     }
   ]
 }

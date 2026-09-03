@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import {
   type FullTablePairProblem,
@@ -8,8 +8,9 @@ import {
 } from "@/app/lib/stands/full-table-pairs";
 import { loadStandGroupMembers } from "@/app/lib/stands/full-table-health";
 import { lockStandRows } from "@/app/lib/reservations/locks";
+import { OCCUPYING_RESERVATION_STATUSES } from "@/app/lib/reservations/members";
 import { db } from "@/db";
-import { standGroups, standReservations, stands } from "@/db/schema";
+import { standGroups, standReservationStands, stands } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -23,12 +24,15 @@ export type FullTableConfigResult =
 async function hasLiveOccupancy(tx: DbTx, standIds: readonly number[]) {
   if (standIds.length === 0) return false;
   const [row] = await tx
-    .select({ id: standReservations.id })
-    .from(standReservations)
+    .select({ id: standReservationStands.id })
+    .from(standReservationStands)
     .where(
       and(
-        inArray(standReservations.standId, [...standIds]),
-        sql`${standReservations.status} IN ('pending', 'verification_payment', 'accepted')`,
+        inArray(standReservationStands.standId, [...standIds]),
+        isNull(standReservationStands.releasedAt),
+        inArray(standReservationStands.reservationStatus, [
+          ...OCCUPYING_RESERVATION_STATUSES,
+        ]),
       ),
     )
     .limit(1);
