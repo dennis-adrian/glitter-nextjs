@@ -31,9 +31,12 @@ export default function FullTablePanel({
   offer: FullTableOffer;
   festivalId: number;
   /**
-   * A purchase can only be finished in the wallet, so the buy button is hidden
-   * while the wallet is. The shortfall is still stated: a control that vanishes
-   * without a reason reads as a broken feature.
+   * Whether credits are revealed to participants at all.
+   *
+   * A full table is only ever paid for in credits, and a purchase can only be
+   * finished in the wallet. With credits still behind their flag there is no
+   * route from this panel to an activated table, so the whole offer goes rather
+   * than quoting a price nobody can pay.
    */
   creditsEnabled: boolean;
 }) {
@@ -41,7 +44,7 @@ export default function FullTablePanel({
   const [pending, startTransition] = useTransition();
   const [dismissed, setDismissed] = useState(false);
 
-  if (!offer.offered) return null;
+  if (!offer.offered || !creditsEnabled) return null;
 
   function run(action: typeof activateFullTableAccessAction) {
     startTransition(async () => {
@@ -131,7 +134,13 @@ export default function FullTablePanel({
               </Button>
             )}
 
-            {offer.blockedReason === "insufficient_credits" && creditsEnabled ? (
+            {/* Offered on any shortfall, not only when credits are the sole
+                thing missing. `createFeatureCreditTopUp` deliberately sells
+                while every table is taken, because credits never expire and
+                pay the participant's own reservation if the table never frees
+                up — so tying the button to `insufficient_credits` hid it in
+                exactly the case where someone still wants to get ready. */}
+            {!offer.active && offer.shortfall > 0 ? (
               <BuyFeatureCreditsButton
                 festivalId={festivalId}
                 featureType="full_table"
@@ -140,11 +149,9 @@ export default function FullTablePanel({
               />
             ) : null}
 
-            {creditsEnabled ? (
-              <Button variant="ghost" asChild>
-                <a href="/credits_info">Cómo funcionan los créditos</a>
-              </Button>
-            ) : null}
+            <Button variant="ghost" asChild>
+              <a href="/credits_info">Cómo funcionan los créditos</a>
+            </Button>
 
             {!offer.active && !dismissed ? (
               <Button variant="ghost" onClick={() => setDismissed(true)}>
