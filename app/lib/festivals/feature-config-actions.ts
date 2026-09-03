@@ -66,6 +66,7 @@ export async function upsertFestivalFeatureConfigAction(
     }
 
     revalidatePath("/dashboard/festivals");
+    revalidatePath(`/dashboard/festivals/${parsed.data.festivalId}`);
     return { success: true, message: "Configuración guardada." };
   } catch (error) {
     console.error("Error saving festival feature config", error);
