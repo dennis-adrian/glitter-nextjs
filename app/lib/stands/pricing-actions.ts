@@ -83,7 +83,9 @@ export async function updateStandPricesAction(
             ? "El cambio dejaría una mesa completa con mitades distintas."
             : result.code === "STANDS_NOT_FOUND"
               ? "No se encontraron todos los espacios."
-              : "Revisá los precios ingresados.",
+              : result.code === "DUPLICATE_STANDS"
+                ? "Hay espacios repetidos en el mismo cambio."
+                : "Revisá los precios ingresados.",
         problems: result.problems.map((problem) => problem.message),
       };
     }

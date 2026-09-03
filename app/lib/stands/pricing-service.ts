@@ -26,7 +26,39 @@ export type StandPriceProblem = {
 
 export type StandPriceResult =
   | { ok: true; updated: number }
-  | { ok: false; code: "STANDS_NOT_FOUND" | "INVALID_PRICES" | "BREAKS_PAIR"; problems: StandPriceProblem[] };
+  | {
+      ok: false;
+      code:
+        | "STANDS_NOT_FOUND"
+        | "INVALID_PRICES"
+        | "BREAKS_PAIR"
+        | "DUPLICATE_STANDS";
+      problems: StandPriceProblem[];
+    };
+
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Locks the given `stand_groups` rows in ascending id order and returns their
+ * types.
+ *
+ * Groups are locked before stands because `setStandGroupFullTable` does the
+ * same; taking the two tables in opposite orders is how the price editor and
+ * the full-table switch would deadlock on the same table.
+ */
+async function lockStandGroupTypes(tx: DbTx, groupIds: readonly number[]) {
+  const types = new Map<number, string>();
+  for (const groupId of [...new Set(groupIds)].sort((a, b) => a - b)) {
+    const [group] = await tx
+      .select({ type: standGroups.type })
+      .from(standGroups)
+      .where(eq(standGroups.id, groupId))
+      .limit(1)
+      .for("update");
+    if (group) types.set(groupId, group.type);
+  }
+  return types;
+}
 
 function isTwoDecimals(value: number) {
   return (
@@ -53,6 +85,27 @@ export async function updateStandPrices(
 ): Promise<StandPriceResult> {
   if (updates.length === 0) {
     return { ok: true, updated: 0 };
+  }
+
+  // Two entries for the same stand would race each other in the write loop and,
+  // worse, make the row count below look like a missing stand. Reject them by
+  // name instead of letting either failure mode speak for the caller.
+  const uniqueIds = new Set(updates.map((update) => update.standId));
+  if (uniqueIds.size !== updates.length) {
+    const seen = new Set<number>();
+    const duplicates = new Set<number>();
+    for (const update of updates) {
+      if (seen.has(update.standId)) duplicates.add(update.standId);
+      seen.add(update.standId);
+    }
+    return {
+      ok: false,
+      code: "DUPLICATE_STANDS",
+      problems: [...duplicates].map((standId) => ({
+        standId,
+        message: "El espacio aparece más de una vez en el mismo cambio.",
+      })),
+    };
   }
 
   const problems: StandPriceProblem[] = [];
@@ -87,6 +140,19 @@ export async function updateStandPrices(
   const standIds = updates.map((update) => update.standId);
 
   return db.transaction(async (tx) => {
+    // Group memberships first, unlocked, only to know which group rows to take
+    // — the locks themselves must run groups-before-stands.
+    const preliminary = await tx
+      .select({ standGroupId: stands.standGroupId })
+      .from(stands)
+      .where(inArray(stands.id, standIds));
+    const groupTypes = await lockStandGroupTypes(
+      tx,
+      preliminary
+        .map((row) => row.standGroupId)
+        .filter((id): id is number => id != null),
+    );
+
     await lockStandRows(tx, standIds);
 
     const existing = await tx
@@ -94,10 +160,11 @@ export async function updateStandPrices(
         id: stands.id,
         standCategory: stands.standCategory,
         standGroupId: stands.standGroupId,
+        sharedPrice: stands.sharedPrice,
       })
       .from(stands)
       .where(inArray(stands.id, standIds));
-    if (existing.length !== updates.length) {
+    if (existing.length !== uniqueIds.size) {
       return {
         ok: false as const,
         code: "STANDS_NOT_FOUND" as const,
@@ -105,27 +172,36 @@ export async function updateStandPrices(
       };
     }
 
-    const categoryById = new Map(
-      existing.map((row) => [row.id, row.standCategory]),
-    );
-    const categoryProblems: StandPriceProblem[] = [];
+    const rowById = new Map(existing.map((row) => [row.id, row]));
+    const storedProblems: StandPriceProblem[] = [];
     for (const update of updates) {
-      if (
-        update.sharedPrice != null &&
-        categoryById.get(update.standId) !== "illustration"
-      ) {
-        categoryProblems.push({
+      const row = rowById.get(update.standId);
+      if (update.sharedPrice != null && row?.standCategory !== "illustration") {
+        storedProblems.push({
           standId: update.standId,
           message:
             "Solo los espacios de ilustración tienen precio compartido.",
         });
       }
+      // An omitted shared price keeps the stored one, which the new individual
+      // price can overtake. The column check would reject the write anyway;
+      // saying so here turns a generic failure into an actionable message.
+      if (
+        update.sharedPrice === undefined &&
+        row?.sharedPrice != null &&
+        row.sharedPrice < update.individualPrice
+      ) {
+        storedProblems.push({
+          standId: update.standId,
+          message: `El precio compartido guardado (Bs${row.sharedPrice.toFixed(2)}) quedaría por debajo del individual; actualizá también el compartido.`,
+        });
+      }
     }
-    if (categoryProblems.length > 0) {
+    if (storedProblems.length > 0) {
       return {
         ok: false as const,
         code: "INVALID_PRICES" as const,
-        problems: categoryProblems,
+        problems: storedProblems,
       };
     }
 
@@ -145,13 +221,20 @@ export async function updateStandPrices(
     const pairProblems: StandPriceProblem[] = [];
 
     for (const groupId of groupIds) {
-      const [group] = await tx
-        .select({ type: standGroups.type })
-        .from(standGroups)
-        .where(eq(standGroups.id, groupId))
-        .limit(1)
-        .for("update");
-      if (group?.type !== "full_table") continue;
+      // Regrouping between the two reads can surface a group the locking pass
+      // missed. Reading its type unlocked is still sound: flipping a type goes
+      // through `setStandGroupFullTable`, which must first take the stand locks
+      // this transaction already holds.
+      const type =
+        groupTypes.get(groupId) ??
+        (
+          await tx
+            .select({ type: standGroups.type })
+            .from(standGroups)
+            .where(eq(standGroups.id, groupId))
+            .limit(1)
+        )[0]?.type;
+      if (type !== "full_table") continue;
 
       const projected = (await loadStandGroupMembers(tx, groupId)).map(
         (member) => {

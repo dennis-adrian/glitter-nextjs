@@ -314,6 +314,23 @@ describeDatabase("setStandGroupFullTable", () => {
       });
     });
 
+    it("refuses an individual price above the stored shared price", async () => {
+      const { standIds } = await createPair();
+
+      // No `sharedPrice` key at all: the stored 300 stays, and 350 overtakes it.
+      const result = await updateStandPrices([
+        { standId: standIds[0], individualPrice: 350 },
+      ]);
+
+      expect(result).toMatchObject({ ok: false, code: "INVALID_PRICES" });
+      if (result.ok) return;
+      expect(result.problems[0].message).toContain("compartido guardado");
+      expect(await priceOf(standIds[0])).toEqual({
+        individualPrice: 200,
+        sharedPrice: 300,
+      });
+    });
+
     it("refuses more than two decimals", async () => {
       const { standIds } = await createPair();
       const result = await updateStandPrices([
