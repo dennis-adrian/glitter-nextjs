@@ -96,31 +96,35 @@ export type MalformedFullTableGroup = {
 export async function findMalformedFullTableGroups(): Promise<
   MalformedFullTableGroup[]
 > {
-  const groups = await db
-    .select({
-      id: standGroups.id,
-      festivalSectorId: standGroups.festivalSectorId,
-    })
-    .from(standGroups)
-    .where(eq(standGroups.type, "full_table"));
+  // One repeatable-read transaction so the group list and every member read
+  // share a single snapshot; a concurrent price edit or ungroup must not make
+  // the report contradict itself.
+  return db.transaction(
+    async (tx) => {
+      const groups = await tx
+        .select({
+          id: standGroups.id,
+          festivalSectorId: standGroups.festivalSectorId,
+        })
+        .from(standGroups)
+        .where(eq(standGroups.type, "full_table"));
 
-  if (groups.length === 0) return [];
+      if (groups.length === 0) return [];
 
-  // One transaction so every group is judged against the same snapshot; a
-  // concurrent price edit must not make the report contradict itself.
-  return db.transaction(async (tx) => {
-    const malformed: MalformedFullTableGroup[] = [];
-    for (const group of groups) {
-      const members = await loadStandGroupMembers(tx, group.id);
-      const validation = validateFullTablePair(members);
-      if (!validation.ok) {
-        malformed.push({
-          groupId: group.id,
-          festivalSectorId: group.festivalSectorId,
-          problems: validation.problems,
-        });
+      const malformed: MalformedFullTableGroup[] = [];
+      for (const group of groups) {
+        const members = await loadStandGroupMembers(tx, group.id);
+        const validation = validateFullTablePair(members);
+        if (!validation.ok) {
+          malformed.push({
+            groupId: group.id,
+            festivalSectorId: group.festivalSectorId,
+            problems: validation.problems,
+          });
+        }
       }
-    }
-    return malformed;
-  });
+      return malformed;
+    },
+    { isolationLevel: "repeatable read" },
+  );
 }
