@@ -403,7 +403,6 @@ export async function fetchFestivalReservationMapDto(input: {
   }
 
   type ReservationBucket = {
-    standId: number;
     status: MapDtoReservationStatus;
     revealAt: Date | null;
     participants: Array<{
@@ -433,7 +432,6 @@ export async function fetchFestivalReservationMapDto(input: {
     const bucket =
       reservationIndex.get(reservationId) ??
       ({
-        standId,
         status,
         revealAt,
         participants: [],
@@ -457,6 +455,7 @@ export async function fetchFestivalReservationMapDto(input: {
       row.status,
       row.revealAt,
     );
+    if (bucket.participants.some((p) => p.id === row.userId)) continue;
     bucket.participants.push({
       id: row.userId,
       displayName: row.displayName,
@@ -470,6 +469,9 @@ export async function fetchFestivalReservationMapDto(input: {
       row.status,
       row.revealAt,
     );
+    if (bucket.externalParticipants.some((p) => p.id === row.externalId)) {
+      continue;
+    }
     bucket.externalParticipants.push({
       id: row.externalId,
       displayName: row.displayName,

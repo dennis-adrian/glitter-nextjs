@@ -32,7 +32,6 @@ export type MapDtoStandRow = {
 };
 
 export type MapDtoReservationRow = {
-  standId: number;
   status: ReservationStatus;
   revealAt: Date | null;
   participants: Array<{

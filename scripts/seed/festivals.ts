@@ -436,18 +436,22 @@ export async function seedFestivals(
         reservation.members.length > 0
           ? reservation.members
           : [{ standRef: reservation.standRef, position: 0, released: false }];
-      await database.insert(standReservationStands).values(
-        members
-          .map((member) => ({
-            reservationId: row.id,
-            standId: standIdByRef.get(member.standRef)!,
-            position: member.position,
-            releasedAt: member.released
-              ? offsetToDate(anchor, reservation.createdAtOffset)
-              : null,
-          }))
-          .filter((member) => member.standId != null),
-      );
+      const memberRows = members
+        .map((member) => ({
+          reservationId: row.id,
+          standId: standIdByRef.get(member.standRef),
+          position: member.position,
+          releasedAt: member.released
+            ? offsetToDate(anchor, reservation.createdAtOffset)
+            : null,
+        }))
+        .filter(
+          (member): member is typeof member & { standId: number } =>
+            member.standId != null,
+        );
+      if (memberRows.length > 0) {
+        await database.insert(standReservationStands).values(memberRows);
+      }
 
       const participantRows = reservation.participantRefs
         .map((ref) => userId(ref))

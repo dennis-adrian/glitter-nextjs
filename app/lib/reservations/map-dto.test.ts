@@ -101,7 +101,6 @@ function sampleDto(
         22,
         [
           {
-            standId: 22,
             status: "accepted",
             revealAt: new Date("2026-09-01T00:00:00.000Z"),
             participants: [
@@ -264,7 +263,6 @@ describe("buildFestivalReservationMapDto", () => {
             22,
             [
               {
-                standId: 22,
                 status,
                 revealAt: null,
                 participants: [

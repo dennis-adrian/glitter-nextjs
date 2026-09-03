@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_SEED_DEMO_EMAIL_BASE,
   DEFAULT_SEED_DEMO_PASSWORD,
   DEMO_USERS,
   getDevSeedGate,
+  resolveSeedDemoEmailBase,
   resolveSeedDemoPassword,
+  seedDemoEmail,
 } from "./demo-users";
 
 describe("getDevSeedGate", () => {
@@ -66,14 +69,24 @@ describe("DEMO_USERS", () => {
     }
   });
 
-  it("sends app mail to a real inbox, tagged per role", () => {
+  it("tags app mail per role off the configured notification base", () => {
     // The two differ on purpose: Clerk's +clerk_test addresses skip real
-    // verification mail, while the app's own notifications need somewhere a
-    // person can actually read them.
+    // verification mail, while the app's own notifications go to whatever
+    // inbox SEED_DEMO_EMAIL_BASE points at.
     for (const user of DEMO_USERS) {
-      expect(user.email).toMatch(/^dennisguzmanbo\+[a-z_]+@gmail\.com$/);
+      expect(user.email).toMatch(/\+[a-z_]+@/);
       expect(user.email).not.toBe(user.clerkEmail);
     }
+  });
+
+  it("defaults notification mail to an undeliverable address", () => {
+    expect(resolveSeedDemoEmailBase({})).toBe(DEFAULT_SEED_DEMO_EMAIL_BASE);
+    expect(seedDemoEmail("admin", {})).toBe("glitter-demo+admin@example.test");
+  });
+
+  it("subaddresses a configured base", () => {
+    const env = { SEED_DEMO_EMAIL_BASE: "  someone@example.com  " };
+    expect(seedDemoEmail("pending", env)).toBe("someone+pending@example.com");
   });
 
   it("includes an admin account", () => {

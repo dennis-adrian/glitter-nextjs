@@ -45,5 +45,6 @@ pnpm env:sync
 
 - Gate: requires `CLERK_SECRET_KEY` starting with `sk_test_`, and refuses `VERCEL_ENV`/`NODE_ENV=production` (or `ALLOW_DEV_SEED=false`).
 - Password: `SEED_DEMO_PASSWORD`, or default `Glitter-Dev-Seed-1!` when unset.
+- Notification mail: `SEED_DEMO_EMAIL_BASE` is subaddressed per role (`base+admin@…`); unset it defaults to the undeliverable `glitter-demo@example.test`, so set it to a real inbox when you need to read seed mail.
 - Accounts: `admin+clerk_test@example.com` (admin), `festival-admin+clerk_test@example.com`, verified participants (role `user`) `illustration+clerk_test@example.com` / `gastronomy+clerk_test@example.com` / `entrepreneurship+clerk_test@example.com`, and `pending+clerk_test@example.com`. The unused `artist` role and deprecated `new_artist` category are not seeded.
 - OTP for `+clerk_test` addresses on Clerk development instances is `424242`.

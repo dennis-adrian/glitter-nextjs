@@ -12,6 +12,8 @@
  * as colour so it survives greyscale and colour-blind viewing.
  */
 
+import type { CSSProperties } from "react";
+
 /** Short edge of a half: the 60 cm depth. */
 const DEPTH: readonly [number, number] = [42.3, -24.42];
 /** Long edge of a half: the 120 cm width. */
@@ -171,7 +173,7 @@ export default function FullTableGraphic({
           "--table-muted-edge": "#948f8f",
           maxWidth: "100%",
           height: "auto",
-        } as React.CSSProperties
+        } as CSSProperties
       }
     >
       <title>{DESCRIPTIONS[variant]}</title>

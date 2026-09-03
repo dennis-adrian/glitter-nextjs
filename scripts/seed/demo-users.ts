@@ -17,7 +17,10 @@ export type DemoUserCategory =
 export type DemoUserSeed = {
   /** Stable key for logs; not stored. */
   key: string;
-  /** Where the app sends mail. A real inbox, so notifications can be read. */
+  /**
+   * Where the app sends mail. Derived from `SEED_DEMO_EMAIL_BASE`; set it to a
+   * real inbox when notifications need to be read.
+   */
   email: string;
   /**
    * The address Clerk knows. Kept on `+clerk_test` so sign-in keeps Clerk's
@@ -33,6 +36,30 @@ export type DemoUserSeed = {
   category: DemoUserCategory;
 };
 
+/** Env bag used by seed helpers so unit tests can pass partial objects. */
+export type SeedEnv = Readonly<Record<string, string | undefined>>;
+
+/**
+ * Fallback inbox for app notifications. Deliberately undeliverable: `.test` is
+ * reserved (RFC 2606), so an unconfigured seed can never mail a real person.
+ * Point `SEED_DEMO_EMAIL_BASE` at a readable inbox to receive demo mail.
+ */
+export const DEFAULT_SEED_DEMO_EMAIL_BASE = "glitter-demo@example.test";
+
+export function resolveSeedDemoEmailBase(env: SeedEnv = process.env): string {
+  const fromEnv = env.SEED_DEMO_EMAIL_BASE?.trim();
+  return fromEnv && fromEnv.includes("@")
+    ? fromEnv
+    : DEFAULT_SEED_DEMO_EMAIL_BASE;
+}
+
+/** Per-role subaddress of the notification base, e.g. `base+admin@example.test`. */
+export function seedDemoEmail(tag: string, env: SeedEnv = process.env): string {
+  const base = resolveSeedDemoEmailBase(env);
+  const at = base.lastIndexOf("@");
+  return `${base.slice(0, at)}+${tag}@${base.slice(at + 1)}`;
+}
+
 /**
  * Dev-only demo accounts. Emails use Clerk's `+clerk_test` subaddress so OTP
  * verification uses the fixed code `424242` on development instances.
@@ -43,7 +70,7 @@ export type DemoUserSeed = {
 export const DEMO_USERS: readonly DemoUserSeed[] = [
   {
     key: "admin",
-    email: "dennisguzmanbo+admin@gmail.com",
+    email: seedDemoEmail("admin"),
     clerkEmail: "admin+clerk_test@example.com",
     firstName: "Admin",
     lastName: "Glitter",
@@ -54,7 +81,7 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "festival_admin",
-    email: "dennisguzmanbo+festival_admin@gmail.com",
+    email: seedDemoEmail("festival_admin"),
     clerkEmail: "festival-admin+clerk_test@example.com",
     firstName: "Festival",
     lastName: "Admin",
@@ -65,7 +92,7 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "illustration_participant",
-    email: "dennisguzmanbo+illustration@gmail.com",
+    email: seedDemoEmail("illustration"),
     clerkEmail: "illustration+clerk_test@example.com",
     firstName: "Ilustracion",
     lastName: "Demo",
@@ -76,7 +103,7 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "gastronomy_participant",
-    email: "dennisguzmanbo+gastronomy@gmail.com",
+    email: seedDemoEmail("gastronomy"),
     clerkEmail: "gastronomy+clerk_test@example.com",
     firstName: "Gastronomia",
     lastName: "Demo",
@@ -87,7 +114,7 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "entrepreneurship_participant",
-    email: "dennisguzmanbo+entrepreneurship@gmail.com",
+    email: seedDemoEmail("entrepreneurship"),
     clerkEmail: "entrepreneurship+clerk_test@example.com",
     firstName: "Emprendimiento",
     lastName: "Demo",
@@ -98,7 +125,7 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "pending_user",
-    email: "dennisguzmanbo+pending@gmail.com",
+    email: seedDemoEmail("pending"),
     clerkEmail: "pending+clerk_test@example.com",
     firstName: "Pending",
     lastName: "User",
@@ -118,9 +145,6 @@ export const RETIRED_DEMO_EMAILS = ["artist+clerk_test@example.com"] as const;
 
 /** Default password for local/cloud-agent login when SEED_DEMO_PASSWORD is unset. */
 export const DEFAULT_SEED_DEMO_PASSWORD = "Glitter-Dev-Seed-1!";
-
-/** Env bag used by seed helpers so unit tests can pass partial objects. */
-export type SeedEnv = Readonly<Record<string, string | undefined>>;
 
 export function resolveSeedDemoPassword(env: SeedEnv = process.env): string {
   const fromEnv = env.SEED_DEMO_PASSWORD?.trim();

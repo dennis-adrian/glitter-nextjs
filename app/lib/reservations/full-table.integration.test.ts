@@ -1006,7 +1006,9 @@ describeDatabase("full table", () => {
     ]);
 
     const winners = [a, b].filter((result) => result.success);
-    expect(winners.length).toBeGreaterThanOrEqual(1);
+    expect(winners).toHaveLength(1);
+    // The winner takes the whole table, not just the half it asked for.
+    expect(winners[0]).toMatchObject({ data: { isFullTable: true } });
 
     // Whatever the outcome, no stand is claimed by two holds.
     const memberRows = await integrationDb!

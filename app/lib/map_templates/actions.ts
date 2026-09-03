@@ -1,16 +1,18 @@
 "use server";
 
 import { db } from "@/db";
+import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
 import {
   festivals,
   festivalSectors,
   mapElements,
   mapTemplates,
+  standReservationStands,
   standReservations,
   stands,
   users,
 } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -317,6 +319,34 @@ export async function deleteMapTemplate(
   }
 }
 
+/**
+ * A stand can be reserved through either relationship: `stand_reservations`
+ * points at the primary stand, while the second half of a full table is only
+ * reachable through `stand_reservation_stands`. Membership rows are history and
+ * are never deleted, so a released half still pins its stand.
+ */
+async function standsHaveReservations(
+  tx: DrizzleTransactionScope,
+  standIds: number[],
+): Promise<boolean> {
+  const existing = await tx
+    .select({ id: standReservations.id })
+    .from(standReservations)
+    .leftJoin(
+      standReservationStands,
+      eq(standReservationStands.reservationId, standReservations.id),
+    )
+    .where(
+      or(
+        inArray(standReservations.standId, standIds),
+        inArray(standReservationStands.standId, standIds),
+      ),
+    )
+    .limit(1);
+
+  return existing.length > 0;
+}
+
 // Import template to festival
 export async function importTemplateToFestival(
   festivalId: number,
@@ -376,13 +406,7 @@ export async function importTemplateToFestival(
           const standIds = targetSector.stands.map((s) => s.id);
 
           // Atomic reservation check inside transaction
-          const existingReservations = await tx
-            .select({ id: standReservations.id })
-            .from(standReservations)
-            .where(inArray(standReservations.standId, standIds))
-            .limit(1);
-
-          if (existingReservations.length > 0) {
+          if (await standsHaveReservations(tx, standIds)) {
             return {
               success: false,
               message:
@@ -490,13 +514,7 @@ export async function importTemplateToFestival(
         const standIds = allExistingStands.map((s) => s.id);
 
         // Atomic reservation check inside transaction
-        const existingReservations = await tx
-          .select({ id: standReservations.id })
-          .from(standReservations)
-          .where(inArray(standReservations.standId, standIds))
-          .limit(1);
-
-        if (existingReservations.length > 0) {
+        if (await standsHaveReservations(tx, standIds)) {
           return {
             success: false,
             message:
