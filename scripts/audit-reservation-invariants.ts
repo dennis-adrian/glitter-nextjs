@@ -60,8 +60,48 @@ function keysMatch(actual: unknown, expected: string[]): boolean {
   );
 }
 
+/**
+ * Which database this run actually inspected.
+ *
+ * Asked of the live connection rather than parsed out of POSTGRES_URL, so it
+ * reports where the queries really went — including when .env.local supplies
+ * the value and the operator believed otherwise. Credentials are never read:
+ * only the host and port come from the URL, and only to tell apart copies that
+ * share a database name, which a production backup usually does.
+ */
+async function describeTarget(): Promise<{
+  database: string;
+  user: string;
+  host: string;
+}> {
+  const result = await db.execute<{ database: string; user: string }>(
+    sql`SELECT current_database() AS database, current_user AS user`,
+  );
+  const row = result.rows[0];
+
+  let host = "unknown";
+  try {
+    const url = new URL(process.env.POSTGRES_URL ?? "");
+    host = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+  } catch {
+    // POSTGRES_URL may be absent or unparsable. The database name is the part
+    // that matters, and it came from the connection itself.
+  }
+
+  return {
+    database: row?.database ?? "unknown",
+    user: row?.user ?? "unknown",
+    host,
+  };
+}
+
 async function main() {
   const findings: Finding[] = [];
+
+  // Printed before any check runs, so a run that fails partway still says
+  // which database it was pointed at.
+  const target = await describeTarget();
+  console.log(JSON.stringify({ auditing: target }));
 
   const activeFestivals = await db
     .select({ id: festivals.id })
@@ -960,11 +1000,19 @@ async function main() {
   }
 
   if (findings.length === 0) {
-    console.log(JSON.stringify({ ok: true, findings: 0 }));
+    console.log(
+      JSON.stringify({ ok: true, findings: 0, database: target.database }),
+    );
     return;
   }
 
-  console.error(JSON.stringify({ ok: false, findings: findings.length }));
+  console.error(
+    JSON.stringify({
+      ok: false,
+      findings: findings.length,
+      database: target.database,
+    }),
+  );
   process.exit(1);
 }
 
