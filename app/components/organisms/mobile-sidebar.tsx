@@ -23,6 +23,7 @@ import {
   CalendarCheck2Icon,
   CalendarIcon,
   CircleAlertIcon,
+  CoinsIcon,
   HomeIcon,
   ImagesIcon,
   LogOutIcon,
@@ -244,6 +245,10 @@ const MobileSidebar = ({
                 <MobileSidebarItem href="/dashboard/profile_requests?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc&profileCompletion=complete">
                   <UsersIcon className="mr-2 h-6 w-6" />
                   Solicitudes de perfil
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/credits">
+                  <CoinsIcon className="mr-2 h-6 w-6" />
+                  Créditos
                 </MobileSidebarItem>
                 <li>
                   <h4 className="flex items-center p-2 text-lg">

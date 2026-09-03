@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import {
   adjustCreditAccount,
+  CREDIT_DEBT_RESOLUTIONS,
+  resolveCreditDebt,
   reviewCreditTopUp,
 } from "@/app/lib/credits/service";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
@@ -13,6 +15,13 @@ const reviewCreditTopUpSchema = z.object({
   topUpId: z.coerce.number().int().positive(),
   decision: z.enum(["approved", "rejected"]),
   rejectionReason: z.string().trim().min(1).max(1_000).optional(),
+});
+const resolveCreditDebtSchema = z.object({
+  userId: z.coerce.number().int().positive(),
+  amount: z.coerce.number().multipleOf(0.01).positive().max(99_999_999.99),
+  resolution: z.enum(CREDIT_DEBT_RESOLUTIONS),
+  reason: z.string().trim().min(1).max(1_000),
+  idempotencyKey: z.uuid(),
 });
 const adjustCreditAccountSchema = z.object({
   userId: z.coerce.number().int().positive(),
@@ -52,6 +61,49 @@ export async function reviewCreditTopUpAction(input: unknown) {
       parsed.data.decision === "approved"
         ? "Créditos aprobados."
         : "Carga de créditos rechazada y revertida.",
+  };
+}
+
+/**
+ * Global-admin debt resolution. Clearing a debt never reinstates or reverses
+ * the reservation, partner, or release the reversed credits paid for.
+ */
+export async function resolveCreditDebtAction(input: unknown) {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
+    return { success: false, message: "No autorizado." };
+  }
+
+  const parsed = resolveCreditDebtSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: "Datos inválidos." };
+  }
+
+  const result = await resolveCreditDebt({
+    ...parsed.data,
+    reviewerUserId: actor.id,
+  });
+  if (!result.ok) {
+    if (result.code === "NOT_IN_DEBT") {
+      return {
+        success: false,
+        message: "Esta cuenta ya no tiene saldo pendiente.",
+      };
+    }
+    if (result.code === "AMOUNT_EXCEEDS_DEBT") {
+      return {
+        success: false,
+        message: "El monto supera el saldo pendiente de la cuenta.",
+      };
+    }
+    return { success: false, message: "No se pudo regularizar el saldo." };
+  }
+  return {
+    success: true,
+    message:
+      parsed.data.resolution === "mark_paid"
+        ? "Saldo marcado como pagado."
+        : "Saldo condonado.",
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { applyInvoiceCreditsAction } from "@/app/lib/reservations/payment-actions";
+import { formatCredits } from "@/app/components/credits/credit-amount";
 import { Button } from "@/app/components/ui/button";
 import { CoinsIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -9,11 +10,17 @@ import { toast } from "sonner";
 
 type ApplyInvoiceCreditsButtonProps = {
   invoiceId: number;
+  /** Display only. The server recalculates the safe maximum under lock. */
+  applicableAmount: number;
+  /** When set the control stays visible but disabled, and says why. */
+  disabledReason?: string;
 };
 
 /** Explicit opt-in: the server determines the safe maximum allocation. */
 export default function ApplyInvoiceCreditsButton({
   invoiceId,
+  applicableAmount,
+  disabledReason,
 }: ApplyInvoiceCreditsButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -43,21 +50,24 @@ export default function ApplyInvoiceCreditsButton({
   }
 
   return (
-    <div className="mt-4 border-t pt-4">
-      <p className="mb-3 text-center text-sm text-muted-foreground">
-        Aplicaremos hasta el saldo confirmado disponible. Los créditos en
-        revisión no se pueden usar para esta factura.
-      </p>
+    <div>
       <Button
         type="button"
         variant="outline"
         className="w-full"
         onClick={applyCredits}
-        disabled={isPending}
+        disabled={isPending || Boolean(disabledReason)}
       >
-        {isPending ? "Aplicando créditos..." : "Usar mis créditos"}
+        {isPending
+          ? "Aplicando créditos..."
+          : `Usar ${formatCredits(applicableAmount)} de mis créditos`}
         <CoinsIcon className="ml-2 h-4 w-4" />
       </Button>
+      {disabledReason && (
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          {disabledReason}
+        </p>
+      )}
     </div>
   );
 }

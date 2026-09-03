@@ -690,6 +690,18 @@ export const creditTopUpIntendedUseTypeEnum = pgEnum(
   "credit_top_up_intended_use_type",
   ["feature", "invoice", "debt"],
 );
+export const standGroupTypeEnum = pgEnum("stand_group_type", [
+  "visual_group",
+  "full_table",
+]);
+export const festivalReservationFeatureTypeEnum = pgEnum(
+  "festival_reservation_feature_type",
+  ["full_table", "late_partner", "reservation_release"],
+);
+export const reservationFeatureActionItemKindEnum = pgEnum(
+  "reservation_feature_action_item_kind",
+  ["feature_access", "shared_price_difference"],
+);
 export const reservationFeatureActionTypeEnum = pgEnum(
   "reservation_feature_action_type",
   ["full_table_access", "late_partner", "reservation_release"],
@@ -936,6 +948,12 @@ export const standGroups = pgTable(
     festivalSectorId: integer("festival_sector_id")
       .notNull()
       .references(() => festivalSectors.id, { onDelete: "cascade" }),
+    /**
+     * `full_table` pairs exactly two stands into one physical table. The
+     * exactly-two rule is a cross-row invariant the admin service and the
+     * health report enforce; a column cannot express it.
+     */
+    type: standGroupTypeEnum("type").default("visual_group").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -943,6 +961,7 @@ export const standGroups = pgTable(
     index("stand_groups_festival_sector_id_idx").on(
       standGroups.festivalSectorId,
     ),
+    index("stand_groups_type_idx").on(standGroups.type),
   ],
 );
 export const standGroupsRelations = relations(standGroups, ({ many, one }) => ({
@@ -970,7 +989,15 @@ export const stands = pgTable(
     height: real("height"),
     positionLeft: real("position_left"),
     positionTop: real("position_top"),
+    /** Migration adapter. Remove once every consumer reads the pair below. */
     price: money("price").notNull().default(0),
+    /** Total for one registered participant. */
+    individualPrice: money("individual_price").notNull().default(0),
+    /**
+     * Total for owner plus one illustration partner — the whole reservation,
+     * not a per-person price. Null where the category has no shared option.
+     */
+    sharedPrice: money("shared_price"),
     participationType: participationTypeEnum("participation_type")
       .default("standard")
       .notNull(),
@@ -990,6 +1017,11 @@ export const stands = pgTable(
     index("stand_label_idx").on(stands.label),
     index("stands_festival_sector_id_idx").on(stands.festivalSectorId),
     index("stands_stand_group_id_idx").on(stands.standGroupId),
+    check("stands_individual_price_nonnegative", sql`${stands.individualPrice} >= 0`),
+    check(
+      "stands_shared_price_not_below_individual",
+      sql`${stands.sharedPrice} IS NULL OR ${stands.sharedPrice} >= ${stands.individualPrice}`,
+    ),
   ],
 );
 export const standRelations = relations(stands, ({ many, one }) => ({
@@ -1651,6 +1683,77 @@ export const invoiceSettlementSubmissionsRelations = relations(
  * These rows are created by the later feature flows. Defining the aggregate
  * now lets a credit hold have one durable owner from its first use.
  */
+/**
+ * Per-festival availability and price for an optional reservation feature.
+ *
+ * `category` is only meaningful for `full_table`, which is priced separately
+ * for illustration and entrepreneurship; the other types are festival-wide and
+ * store null. `deadline_override_at` only applies to `late_partner`, whose
+ * default is the earliest festival start minus 21 days.
+ */
+export const festivalReservationFeatures = pgTable(
+  "festival_reservation_features",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    type: festivalReservationFeatureTypeEnum("type").notNull(),
+    category: userCategoryEnum("category"),
+    enabled: boolean("enabled").default(false).notNull(),
+    creditPrice: money("credit_price").notNull(),
+    deadlineOverrideAt: timestamp("deadline_override_at"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // The PRD's "(festival_id, type, category) with nulls treated as equal"
+    // split into two partial uniques: Postgres treats nulls as distinct, so a
+    // single index would let duplicate festival-wide rows through.
+    uniqueIndex("festival_reservation_features_scoped_unique")
+      .on(t.festivalId, t.type, t.category)
+      .where(sql`${t.category} IS NOT NULL`),
+    uniqueIndex("festival_reservation_features_festival_wide_unique")
+      .on(t.festivalId, t.type)
+      .where(sql`${t.category} IS NULL`),
+    index("festival_reservation_features_festival_id_idx").on(t.festivalId),
+    check(
+      "festival_reservation_features_credit_price_nonnegative",
+      sql`${t.creditPrice} >= 0`,
+    ),
+    // The IS NOT NULL guard is load-bearing: `category IN (...)` yields NULL
+    // for a null category, and a CHECK passes on NULL, so without it a
+    // full_table row with no category would slip through.
+    check(
+      "festival_reservation_features_category_by_type",
+      sql`(${t.type} = 'full_table' AND ${t.category} IS NOT NULL
+           AND ${t.category} IN ('illustration', 'entrepreneurship'))
+          OR (${t.type} <> 'full_table' AND ${t.category} IS NULL)`,
+    ),
+    check(
+      "festival_reservation_features_deadline_by_type",
+      sql`${t.deadlineOverrideAt} IS NULL OR ${t.type} = 'late_partner'`,
+    ),
+  ],
+);
+export const festivalReservationFeaturesRelations = relations(
+  festivalReservationFeatures,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [festivalReservationFeatures.festivalId],
+      references: [festivals.id],
+    }),
+    updatedByUser: one(users, {
+      fields: [festivalReservationFeatures.updatedByUserId],
+      references: [users.id],
+    }),
+    actions: many(reservationFeatureActions),
+  }),
+);
+
 export const reservationFeatureActions = pgTable(
   "reservation_feature_actions",
   {
@@ -1669,6 +1772,15 @@ export const reservationFeatureActions = pgTable(
     status: reservationFeatureActionStatusEnum("status")
       .default("active")
       .notNull(),
+    /**
+     * The configuration this action was priced from. Nullable because the
+     * column arrives after Phase 1A actions already exist; new actions set it.
+     * Restricted on delete so a priced action always keeps its provenance.
+     */
+    featureConfigId: integer("feature_config_id").references(
+      () => festivalReservationFeatures.id,
+      { onDelete: "restrict" },
+    ),
     featurePriceSnapshot: money("feature_price_snapshot").notNull(),
     targetPartnerUserId: integer("target_partner_user_id").references(
       () => users.id,
@@ -1693,11 +1805,52 @@ export const reservationFeatureActions = pgTable(
     uniqueIndex("reservation_feature_actions_idempotency_key_unique")
       .on(t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
+    index("reservation_feature_actions_feature_config_id_idx").on(
+      t.featureConfigId,
+    ),
     check(
       "reservation_feature_actions_feature_price_nonnegative",
       sql`${t.featurePriceSnapshot} >= 0`,
     ),
   ],
+);
+
+/**
+ * Explicit amount breakdown for accounting. A late partner charges a shared
+ * price difference plus the feature price; both are stored separately even
+ * when one credit spend covers the total.
+ */
+export const reservationFeatureActionItems = pgTable(
+  "reservation_feature_action_items",
+  {
+    id: serial("id").primaryKey(),
+    featureActionId: integer("feature_action_id")
+      .notNull()
+      .references(() => reservationFeatureActions.id, { onDelete: "cascade" }),
+    kind: reservationFeatureActionItemKindEnum("kind").notNull(),
+    amount: money("amount").notNull(),
+    descriptionSnapshot: text("description_snapshot"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("reservation_feature_action_items_action_kind_unique").on(
+      t.featureActionId,
+      t.kind,
+    ),
+    check(
+      "reservation_feature_action_items_amount_nonnegative",
+      sql`${t.amount} >= 0`,
+    ),
+  ],
+);
+export const reservationFeatureActionItemsRelations = relations(
+  reservationFeatureActionItems,
+  ({ one }) => ({
+    featureAction: one(reservationFeatureActions, {
+      fields: [reservationFeatureActionItems.featureActionId],
+      references: [reservationFeatureActions.id],
+    }),
+  }),
 );
 
 /** Locked projection; the append-only ledger remains the source of truth. */
@@ -1898,6 +2051,11 @@ export const reservationFeatureActionsRelations = relations(
     }),
     ledgerEntries: many(creditLedgerEntries),
     holds: many(creditHolds),
+    items: many(reservationFeatureActionItems),
+    featureConfig: one(festivalReservationFeatures, {
+      fields: [reservationFeatureActions.featureConfigId],
+      references: [festivalReservationFeatures.id],
+    }),
   }),
 );
 export const creditAccountsRelations = relations(creditAccounts, ({ one }) => ({
@@ -2001,6 +2159,8 @@ export const reservationRequestRegistry = pgTable(
         'createOrReplaceStandHold',
         'confirmStandHold',
         'submitPaymentProof',
+        'applyInvoiceCredits',
+        'createInvoiceCreditTopUp',
         'submitZeroValueInvoice',
         'createAdminReservation',
         'adminConfirmReservation',
