@@ -4,8 +4,8 @@ import { readCreditBalances } from "@/app/lib/credits/service";
 import { fetchFeatureConfig } from "@/app/lib/festivals/feature-config-service";
 import {
   findActiveFullTableAccess,
-  hasCompleteFullTable,
   isFullTableCategory,
+  summarizeFullTableAvailability,
 } from "@/app/lib/reservations/full-table-access";
 import { db } from "@/db";
 
@@ -57,17 +57,23 @@ export async function fetchFullTableOffer(input: {
 
   // Plain reads: wrapping each in its own transaction checked out a separate
   // pooled connection per map render for no isolation benefit.
-  const [access, complete, balances] = await Promise.all([
+  const [access, availability, balances] = await Promise.all([
     findActiveFullTableAccess(db, {
       userId: input.userId,
       festivalId: input.festivalId,
     }),
-    hasCompleteFullTable(db, {
+    summarizeFullTableAvailability(db, {
       festivalId: input.festivalId,
       category: input.category,
     }),
     readCreditBalances(input.userId),
   ]);
+
+  // Priced but never paired: the festival has no full tables in this category
+  // at all. Showing the panel would quote a price for inventory that does not
+  // exist and invite a purchase for it, under copy promising a table might free
+  // up. Someone who already activated still sees theirs.
+  if (availability.declaredPairs === 0 && access == null) return unavailable;
 
   const shortfall = Math.max(
     0,
@@ -80,10 +86,10 @@ export async function fetchFullTableOffer(input: {
     creditPrice: config.creditPrice,
     spendableBalance: balances.spendableBalance,
     shortfall,
-    hasCompleteTable: complete,
+    hasCompleteTable: availability.hasFreePair,
     blockedReason: access
       ? null
-      : !complete
+      : !availability.hasFreePair
         ? "no_complete_table"
         : shortfall > 0
           ? "insufficient_credits"

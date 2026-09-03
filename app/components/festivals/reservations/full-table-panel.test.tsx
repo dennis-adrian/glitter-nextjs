@@ -103,6 +103,17 @@ describe("FullTablePanel", () => {
     expect(container.innerHTML).toBe("");
   });
 
+  /**
+   * A festival that priced the feature but never paired any stands has no
+   * inventory, which `fetchFullTableOffer` reports as `offered: false` rather
+   * than as a table that might free up later.
+   */
+  it("renders nothing when the festival has no full tables to sell", () => {
+    const { container } = renderPanel(offer({ offered: false }));
+
+    expect(container.innerHTML).toBe("");
+  });
+
   it("renders nothing when the festival does not offer the feature", () => {
     const { container } = renderPanel(offer({ offered: false }));
 

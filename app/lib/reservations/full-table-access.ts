@@ -35,9 +35,7 @@ export function isFullTableCategory(
  * `tx`; read-only callers can hand over `db` rather than opening a transaction
  * just to satisfy the signature.
  */
-type DbTx =
-  | typeof db
-  | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * The other half of a declared full table.
@@ -117,19 +115,33 @@ export async function availableStandIds(
   );
 }
 
+export type FullTableAvailability = {
+  /**
+   * Full tables an admin has declared for this category, free or not.
+   *
+   * Zero is a different thing from "all taken", and the two must not be shown
+   * the same way: an admin who priced the feature but never paired any stands
+   * has no inventory at all, and telling a participant to check back later for
+   * one to free up would be untrue.
+   */
+  declaredPairs: number;
+  /** At least one declared table has both halves free right now. */
+  hasFreePair: boolean;
+};
+
 /**
- * Whether the festival currently has at least one full table with both halves
- * free.
+ * What full-table inventory this festival has for a category, and how much of
+ * it is free.
  *
  * PRD §5: full-table access is not offered when no configured table is
  * complete, because paying for permission to try something with no inventory
  * left is exactly what the feature must not do.
  */
-export async function hasCompleteFullTable(
+export async function summarizeFullTableAvailability(
   tx: DbTx,
   input: { festivalId: number; category: FullTableCategory },
   now = new Date(),
-): Promise<boolean> {
+): Promise<FullTableAvailability> {
   const members = await tx
     .select({ groupId: stands.standGroupId, standId: stands.id })
     .from(stands)
@@ -141,8 +153,6 @@ export async function hasCompleteFullTable(
         eq(standGroups.type, "full_table"),
       ),
     );
-  if (members.length === 0) return false;
-
   const byGroup = new Map<number, number[]>();
   for (const member of members) {
     if (member.groupId == null) continue;
@@ -151,6 +161,11 @@ export async function hasCompleteFullTable(
       member.standId,
     ]);
   }
+  // Only a two-member group is a table; a malformed group is not inventory.
+  const declaredPairs = [...byGroup.values()].filter(
+    (groupStandIds) => groupStandIds.length === 2,
+  ).length;
+  if (declaredPairs === 0) return { declaredPairs: 0, hasFreePair: false };
 
   const free = await availableStandIds(
     tx,
@@ -162,10 +177,19 @@ export async function hasCompleteFullTable(
       groupStandIds.length === 2 &&
       groupStandIds.every((standId) => free.has(standId))
     ) {
-      return true;
+      return { declaredPairs, hasFreePair: true };
     }
   }
-  return false;
+  return { declaredPairs, hasFreePair: false };
+}
+
+/** Whether at least one declared table has both halves free right now. */
+export async function hasCompleteFullTable(
+  tx: DbTx,
+  input: { festivalId: number; category: FullTableCategory },
+  now = new Date(),
+): Promise<boolean> {
+  return (await summarizeFullTableAvailability(tx, input, now)).hasFreePair;
 }
 
 export type FullTableAccess = {
