@@ -57,6 +57,13 @@ function commonValue(values: (number | null)[]) {
   return first === null ? "" : String(first);
 }
 
+/** Whether the selected stands disagree, which is why the field reads blank. */
+function isMixed(values: (number | null)[]) {
+  if (values.length === 0) return false;
+  const [first, ...rest] = values;
+  return rest.some((value) => value !== first);
+}
+
 /**
  * Sets individual and shared prices for one stand or a whole selection.
  *
@@ -74,6 +81,8 @@ export default function StandPriceDialog({
   const [isPending, startTransition] = useTransition();
   const [individual, setIndividual] = useState("");
   const [shared, setShared] = useState("");
+  const [sharedMixed, setSharedMixed] = useState(false);
+  const [sharedTouched, setSharedTouched] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
 
   // The dialog stays mounted between openings, so the fields are seeded here
@@ -85,13 +94,15 @@ export default function StandPriceDialog({
     if (!open) return;
     const current = standsRef.current;
     setIndividual(commonValue(current.map((stand) => stand.individualPrice)));
-    setShared(
-      commonValue(
-        current
-          .filter((stand) => stand.standCategory === "illustration")
-          .map((stand) => stand.sharedPrice),
-      ),
-    );
+    const sharedPrices = current
+      .filter((stand) => stand.standCategory === "illustration")
+      .map((stand) => stand.sharedPrice);
+    setShared(commonValue(sharedPrices));
+    // A blank shared field means "remove the shared price". When the blank came
+    // from a mixed selection rather than the admin, saving must leave those
+    // prices alone.
+    setSharedMixed(isMixed(sharedPrices));
+    setSharedTouched(false);
     setProblems([]);
   }, [open]);
 
@@ -102,6 +113,9 @@ export default function StandPriceDialog({
     stands.length > 0 && illustrationStands.length === stands.length;
   const someIllustration = illustrationStands.length > 0;
 
+  // A mixed selection the admin has not edited must not carry its blank into
+  // the request, where blank clears the stored shared price.
+  const sharedApplies = !sharedMixed || sharedTouched;
   const individualValue = Number(individual);
   const sharedValue = shared.trim() === "" ? null : Number(shared);
   const individualValid =
@@ -127,7 +141,7 @@ export default function StandPriceDialog({
             individualPrice: individualValue,
             // Only illustration carries a shared price; omit it elsewhere so
             // the server does not reject the batch outright.
-            ...(stand.standCategory === "illustration"
+            ...(stand.standCategory === "illustration" && sharedApplies
               ? { sharedPrice: sharedValue }
               : {}),
           })),
@@ -211,7 +225,10 @@ export default function StandPriceDialog({
                 step="0.01"
                 inputMode="decimal"
                 value={shared}
-                onChange={(event) => setShared(event.target.value)}
+                onChange={(event) => {
+                  setShared(event.target.value);
+                  setSharedTouched(true);
+                }}
                 disabled={isPending}
                 placeholder="Dejalo vacío para quitarlo"
               />
@@ -221,6 +238,13 @@ export default function StandPriceDialog({
                 {!allIllustration &&
                   " Solo se aplica a los espacios de ilustración de la selección."}
               </p>
+              {sharedMixed && !sharedTouched && (
+                <p className="text-xs text-amber-700">
+                  Los espacios seleccionados tienen precios compartidos
+                  distintos. Si lo dejás vacío se mantienen como están; escribí
+                  un valor para igualarlos.
+                </p>
+              )}
               {!sharedValid && (
                 <p className="text-xs text-red-600">
                   El precio compartido debe ser 0 o más, con hasta dos
