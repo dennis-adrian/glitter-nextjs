@@ -1839,21 +1839,21 @@
     {
       "idx": 263,
       "version": "7",
-      "when": 1788459336596,
+      "when": 1788400000000,
       "tag": "0263_stand_individual_price_backfill",
       "breakpoints": true
     },
     {
       "idx": 264,
       "version": "7",
-      "when": 1788545736596,
+      "when": 1788410000000,
       "tag": "0264_stand_reservation_stands",
       "breakpoints": true
     },
     {
       "idx": 265,
       "version": "7",
-      "when": 1788632136596,
+      "when": 1788420000000,
       "tag": "0265_full_table_access_operations",
       "breakpoints": true
     },
