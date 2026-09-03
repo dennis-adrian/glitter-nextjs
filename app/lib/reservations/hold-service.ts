@@ -755,6 +755,11 @@ export async function confirmStandHold(
       const locked = await lockReservationAggregate(tx, {
         festivalId: holdPreview.festivalId,
         userIds: participantIds,
+        // Credit accounts are locked before stands in the canonical order
+        // (locks.ts). Confirmation may capture or release a full-table credit
+        // hold, so it takes the account here rather than after the stand locks,
+        // which would invert the order loadInvoiceAggregate relies on.
+        creditAccountUserIds: [actor.id],
         standIds:
           previewMemberStandIds.length > 0
             ? previewMemberStandIds
@@ -951,8 +956,9 @@ export async function confirmStandHold(
 
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
 
-      // Credit classes come last in the §14 lock order, so the hold is settled
-      // only once the reservation and its invoice exist.
+      // The credit account was locked with the aggregate; the ledger and hold
+      // rows themselves come last in the §14 order, so the hold is settled only
+      // once the reservation and its invoice exist.
       if (fullTableAccess) {
         if (isFullTable) {
           // The companion half was allocated, so the feature is earned.

@@ -77,7 +77,10 @@ function displayTopUpStatus(
   uploadDeadlineAt: Date,
   now: Date,
 ): CreditTopUpDisplayStatus {
-  if (status === "awaiting_voucher" && uploadDeadlineAt.getTime() <= now.getTime()) {
+  if (
+    status === "awaiting_voucher" &&
+    uploadDeadlineAt.getTime() <= now.getTime()
+  ) {
     return "expired";
   }
   return status as CreditTopUpDisplayStatus;
@@ -143,7 +146,10 @@ export async function fetchCreditWallet(
         eq(invoiceCreditAllocations.ledgerEntryId, creditLedgerEntries.id),
       )
       .where(eq(creditLedgerEntries.userId, userId))
-      .orderBy(desc(creditLedgerEntries.createdAt), desc(creditLedgerEntries.id))
+      .orderBy(
+        desc(creditLedgerEntries.createdAt),
+        desc(creditLedgerEntries.id),
+      )
       .limit(LEDGER_PAGE_SIZE),
   ]);
 
@@ -231,7 +237,11 @@ export async function fetchOpenInvoiceCreditTopUp(
   invoiceId: number,
   userId: number,
   now = new Date(),
-): Promise<{ id: number; amount: number; status: CreditTopUpDisplayStatus } | null> {
+): Promise<{
+  id: number;
+  amount: number;
+  status: CreditTopUpDisplayStatus;
+} | null> {
   const rows = await db
     .select({
       id: creditTopUps.id,
@@ -248,7 +258,14 @@ export async function fetchOpenInvoiceCreditTopUp(
         sql`${creditTopUps.status} IN ('awaiting_voucher', 'under_review')`,
       ),
     )
-    .orderBy(desc(creditTopUps.createdAt))
+    // Under-review rows first: only `awaiting_voucher` ever expires, so a run
+    // of abandoned uploads could otherwise push the one row that actually
+    // blocks a new purchase outside the window, leaving the caller to render a
+    // buy button that the server then refuses.
+    .orderBy(
+      sql`CASE WHEN ${creditTopUps.status} = 'under_review' THEN 0 ELSE 1 END`,
+      desc(creditTopUps.createdAt),
+    )
     .limit(5);
 
   for (const row of rows) {
