@@ -12,6 +12,7 @@ import {
   reservationSuccess,
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
+import { getSelfServiceDenialAtOpen } from "@/app/lib/reservations/entry";
 import {
   findActiveFullTableAccess,
   hasCompleteFullTable,
@@ -134,6 +135,18 @@ export async function activateFullTableAccess(input: {
     if (!category) {
       return finish(reservationFailure("FULL_TABLE_CATEGORY_INELIGIBLE"));
     }
+
+    // Activation is deliberately reachable before reservations open, so it
+    // cannot lean on the map page's gate the way every other participant
+    // mutation does. Evaluated at the opening instant: the clock is the one
+    // rule that must not apply here, and enrollment, terms, verification and
+    // sanctions all still must.
+    const denial = await getSelfServiceDenialAtOpen({
+      actor: { id: actor.id, role: actor.role },
+      profileId: actor.id,
+      festivalId: input.festivalId,
+    });
+    if (denial) return finish(reservationFailure(denial.code));
 
     // Read on this transaction's connection: reaching for the pool while
     // holding festival and user locks can self-deadlock under load.

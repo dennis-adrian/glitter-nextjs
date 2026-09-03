@@ -37,6 +37,22 @@ const FormSchema = z.object({
     ),
 });
 
+/**
+ * Where someone lands right after accepting.
+ *
+ * Categories that can buy a full table get the credits introduction first
+ * (PRD §7.2): the money decision belongs before the map, not inside it. The
+ * introduction sends them straight on when the festival has not configured the
+ * feature, so this does not need to know that.
+ */
+function postAcceptanceHref(profile: ProfileType, festival: FestivalBase) {
+  const base = `/profiles/${profile.id}/festivals/${festival.id}/reservations`;
+  return profile.category === "illustration" ||
+    profile.category === "entrepreneurship"
+    ? `${base}/intro`
+    : `${base}/new`;
+}
+
 export default function TermsForm({
   profile,
   festival,
@@ -83,16 +99,14 @@ export default function TermsForm({
           router.push(
             profile.category === "gastronomy"
               ? "/portal"
-              : `/profiles/${profile.id}/festivals/${festival.id}/reservations/new`,
+              : postAcceptanceHref(profile, festival),
           );
         } else if (profile.category === "gastronomy") {
           toast.success("Postulación enviada. Te avisaremos si es aprobada.");
           router.push(`/portal`);
         } else {
           toast.success(res.message);
-          router.push(
-            `/profiles/${profile.id}/festivals/${festival.id}/reservations/new`,
-          );
+          router.push(postAcceptanceHref(profile, festival));
         }
       } else {
         toast.error(res.message);
