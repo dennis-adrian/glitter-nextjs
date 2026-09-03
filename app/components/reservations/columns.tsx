@@ -238,7 +238,10 @@ export const columns: ColumnDef<FullReservation>[] = [
       />
     ),
     cell: ({ row }) => {
+      // Key on the join row's id: identification numbers repeat when the same
+      // person is registered twice.
       const formattedCollaborators = row.original.collaborators.map((c) => ({
+        id: c.id,
         name: [c.collaborator.firstName, c.collaborator.lastName].join(" "),
         idNumber: c.collaborator.identificationNumber,
       }));
@@ -246,7 +249,7 @@ export const columns: ColumnDef<FullReservation>[] = [
       return formattedCollaborators.length > 0 ? (
         <ol className="list-decimal text-sm text-muted-foreground max-w-40">
           {formattedCollaborators.map((c) => (
-            <li className="" key={c.idNumber}>
+            <li className="" key={c.id}>
               {c.name} - {c.idNumber}
             </li>
           ))}

@@ -10,6 +10,7 @@ import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 import {
   externalParticipants,
+  reservationCollaborators,
   reservationParticipants,
   reservationExternalParticipants,
   scheduledTasks,
@@ -74,8 +75,8 @@ export type FullReservation = ReservationBase & {
   stand: StandBase;
   festival: FestivalWithDates;
   invoices: InvoiceWithPayments[];
-  collaborators: {
+  collaborators: (typeof reservationCollaborators.$inferSelect & {
     collaborator: Collaborator;
-  }[];
+  })[];
   scheduledTasks: ReservationScheduledTask[];
 };
