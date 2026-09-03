@@ -52,6 +52,8 @@ const integrationDb = pool ? drizzle(pool, { schema }) : null;
 const describeDatabase = integrationDb ? describe : describe.skip;
 
 let setStandGroupFullTable: (typeof import("@/app/lib/stands/full-table-service"))["setStandGroupFullTable"];
+let declareFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["declareFullTablePair"];
+let dissolveFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["dissolveFullTablePair"];
 let findMalformedFullTableGroups: (typeof import("@/app/lib/stands/full-table-health"))["findMalformedFullTableGroups"];
 let updateStandPrices: (typeof import("@/app/lib/stands/pricing-service"))["updateStandPrices"];
 let guardLegacySinglePriceEdit: (typeof import("@/app/lib/stands/pricing-service"))["guardLegacySinglePriceEdit"];
@@ -109,7 +111,7 @@ describeDatabase("setStandGroupFullTable", () => {
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
-    ({ setStandGroupFullTable } =
+    ({ setStandGroupFullTable, declareFullTablePair, dissolveFullTablePair } =
       await import("@/app/lib/stands/full-table-service"));
     ({ findMalformedFullTableGroups } =
       await import("@/app/lib/stands/full-table-health"));
@@ -527,6 +529,162 @@ describeDatabase("setStandGroupFullTable", () => {
       );
 
       expect(result).toEqual({ ok: true });
+    });
+  });
+
+  /**
+   * The command behind the stands table, where grouping and declaring have to
+   * happen together: doing them in sequence from a browser is what leaves a
+   * bare `visual_group` behind when the second half fails.
+   */
+  describe("declareFullTablePair", () => {
+    async function loneStands(overrides: StandOverrides[] = [{}, {}]) {
+      const db = integrationDb!;
+      const [festival] = await db
+        .insert(festivals)
+        .values({ name: `declare-${randomUUID()}` })
+        .returning({ id: festivals.id });
+      createdFestivalIds.push(festival!.id);
+      const [sector] = await db
+        .insert(festivalSectors)
+        .values({ festivalId: festival!.id, name: "loose" })
+        .returning({ id: festivalSectors.id });
+
+      const base: typeof stands.$inferInsert = {
+        standNumber: 1,
+        festivalSectorId: sector!.id,
+        standCategory: "illustration",
+        individualPrice: 200,
+        sharedPrice: 300,
+        positionLeft: 10,
+        positionTop: 10,
+      };
+      const inserted = await db
+        .insert(stands)
+        .values(
+          overrides.map((override, index) => ({
+            ...base,
+            standNumber: index + 1,
+            label: "B",
+            // Same row, different columns: aligned, as the group rule needs.
+            positionLeft: 10 + index * 6,
+            ...override,
+          })),
+        )
+        .returning({ id: stands.id });
+
+      return { sectorId: sector!.id, standIds: inserted.map((row) => row.id) };
+    }
+
+    async function trackGroupOf(standId: number) {
+      const [row] = await integrationDb!
+        .select({ standGroupId: stands.standGroupId })
+        .from(stands)
+        .where(eq(stands.id, standId));
+      if (row?.standGroupId != null) createdGroupIds.push(row.standGroupId);
+      return row?.standGroupId ?? null;
+    }
+
+    it("groups and declares in one step", async () => {
+      const { standIds } = await loneStands();
+
+      const result = await declareFullTablePair({ standIds });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      createdGroupIds.push(result.groupId);
+      expect(await groupType(result.groupId)).toBe("full_table");
+      // Both halves point at the new group.
+      expect(await trackGroupOf(standIds[0])).toBe(result.groupId);
+      expect(await trackGroupOf(standIds[1])).toBe(result.groupId);
+    });
+
+    it("leaves no group behind when the pair is invalid", async () => {
+      // Illustration halves must agree on a shared price; these do not.
+      const { sectorId, standIds } = await loneStands([
+        {},
+        { sharedPrice: 350 },
+      ]);
+
+      const result = await declareFullTablePair({ standIds });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe("INVALID_PAIR");
+      expect(result.problems.map((problem) => problem.code)).toContain(
+        "SHARED_PRICE_MISMATCH",
+      );
+
+      // The whole point of the single command: nothing half-made survives.
+      const groups = await integrationDb!
+        .select({ id: standGroups.id })
+        .from(standGroups)
+        .where(eq(standGroups.festivalSectorId, sectorId));
+      expect(groups).toHaveLength(0);
+      expect(await trackGroupOf(standIds[0])).toBeNull();
+      expect(await trackGroupOf(standIds[1])).toBeNull();
+    });
+
+    it("names each half by label and number so the admin knows which to fix", async () => {
+      const { standIds } = await loneStands([{}, { individualPrice: 250 }]);
+
+      const result = await declareFullTablePair({ standIds });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      const message = result.problems
+        .map((problem) => problem.message)
+        .join(" ");
+      // Both stands carry label "B" — the sector letter — so a message built
+      // from labels alone would read "B and B" and name nothing.
+      expect(message).toContain("B1");
+      expect(message).toContain("B2");
+    });
+
+    it("refuses stands that are not aligned on the map", async () => {
+      const { sectorId, standIds } = await loneStands([
+        {},
+        { positionLeft: 40, positionTop: 80 },
+      ]);
+
+      const result = await declareFullTablePair({ standIds });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe("NOT_ALIGNED");
+      expect(result.problems[0].message).toMatch(/alineados/i);
+      const groups = await integrationDb!
+        .select({ id: standGroups.id })
+        .from(standGroups)
+        .where(eq(standGroups.festivalSectorId, sectorId));
+      expect(groups).toHaveLength(0);
+    });
+
+    it("refuses anything other than exactly two stands", async () => {
+      const { standIds } = await loneStands([{}, {}, {}]);
+
+      expect(await declareFullTablePair({ standIds })).toMatchObject({
+        ok: false,
+        code: "INVALID_PAIR",
+      });
+      expect(
+        await declareFullTablePair({ standIds: [standIds[0], standIds[0]] }),
+      ).toMatchObject({ ok: false, code: "DUPLICATE_STANDS" });
+    });
+
+    it("dissolving returns both halves to being independent stands", async () => {
+      const { standIds } = await loneStands();
+      const declared = await declareFullTablePair({ standIds });
+      if (!declared.ok) throw new Error("expected the pair to be declared");
+      createdGroupIds.push(declared.groupId);
+
+      expect(
+        await dissolveFullTablePair({ groupId: declared.groupId }),
+      ).toEqual({ ok: true });
+
+      expect(await groupType(declared.groupId)).toBeUndefined();
+      expect(await trackGroupOf(standIds[0])).toBeNull();
+      expect(await trackGroupOf(standIds[1])).toBeNull();
     });
   });
 });
