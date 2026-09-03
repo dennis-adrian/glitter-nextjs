@@ -58,9 +58,13 @@ export function withMembershipReservations<
 
     return {
       ...stand,
-      // Falling back to the stand's own rows keeps this correct for a database
-      // whose membership has not been backfilled yet.
-      reservations: resolved.length > 0 ? resolved : stand.reservations,
+      // Membership is authoritative wherever it exists, including when every
+      // member was released: the parent's `stand_id` still points at the stand
+      // it started on, so falling back on an empty result would keep a released
+      // half looking occupied. The fallback is only for a database whose
+      // membership has not been backfilled at all.
+      reservations:
+        stand.reservationMembers.length > 0 ? resolved : stand.reservations,
     };
   });
 }

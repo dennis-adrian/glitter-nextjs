@@ -73,6 +73,20 @@ describe("withMembershipReservations", () => {
     expect(result[1].reservations).toEqual([]);
   });
 
+  it("frees the primary half once its member is released", () => {
+    // The parent's stand_id still points here, so the stand's own rows keep
+    // listing the reservation. Membership is what says it is no longer held.
+    const stands = [
+      {
+        id: 10,
+        reservations: [reservation(7)],
+        reservationMembers: [member(7, 0, new Date())],
+      },
+    ];
+
+    expect(withMembershipReservations(stands)[0].reservations).toEqual([]);
+  });
+
   it("leaves a genuinely free stand free", () => {
     expect(
       withMembershipReservations([
