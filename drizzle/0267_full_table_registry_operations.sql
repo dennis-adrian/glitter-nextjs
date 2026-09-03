@@ -1,17 +1,11 @@
-ALTER TABLE "reservation_request_registry" DROP CONSTRAINT "reservation_request_registry_operation_check";--> statement-breakpoint
-ALTER TABLE "reservation_request_registry" ADD CONSTRAINT "reservation_request_registry_operation_check" CHECK ("reservation_request_registry"."operation" IN (
-        'createOrReplaceStandHold',
-        'confirmStandHold',
-        'submitPaymentProof',
-        'applyInvoiceCredits',
-        'createInvoiceCreditTopUp',
-        'submitZeroValueInvoice',
-        'createAdminReservation',
-        'adminConfirmReservation',
-        'extendReservationPaymentDeadline',
-        'createExternalParticipantReservation',
-        'correctSettlementProof',
-        'activateFullTableAccess',
-        'deactivateFullTableAccess',
-        'downgradeFullTableReservation'
-      ));
+-- Intentionally empty, like 0266.
+--
+-- 0265 already widened reservation_request_registry_operation_check to accept
+-- the three full-table operations. This migration exists only because
+-- db/schema.ts had not been updated to match, so `pnpm generate` kept wanting
+-- to rebuild the constraint; it carries meta/0267_snapshot.json, which records
+-- the schema as 0265 already left it.
+--
+-- Re-running the DDL would take an ACCESS EXCLUSIVE lock and revalidate the
+-- whole table on every fresh deploy for no change.
+SELECT 1;

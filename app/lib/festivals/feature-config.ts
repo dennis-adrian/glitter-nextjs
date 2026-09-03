@@ -13,11 +13,15 @@ export const FEATURE_TYPES = [
 export type FeatureType = (typeof FEATURE_TYPES)[number];
 
 /** Only full_table is priced per category; the rest are festival-wide. */
-export const FULL_TABLE_CATEGORIES = [
-  "illustration",
-  "entrepreneurship",
-] as const;
-export type FullTableCategory = (typeof FULL_TABLE_CATEGORIES)[number];
+// Re-exported from the pairing rules so the eligible set has one definition:
+// a second copy means adding a category in two places and casting between two
+// identical types.
+import {
+  FULL_TABLE_CATEGORIES,
+  type FullTableCategory,
+} from "@/app/lib/stands/full-table-pairs";
+
+export { FULL_TABLE_CATEGORIES, type FullTableCategory };
 
 /** Late partner closes this far before the festival unless overridden. */
 export const LATE_PARTNER_DEFAULT_LEAD_DAYS = 21;

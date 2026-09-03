@@ -118,7 +118,12 @@ export async function fetchFeatureConfig(
   if (!row) return null;
 
   return resolveFeatureConfig(toRow(row), {
-    earliestStartDate: await earliestStartDate(festivalId, database),
+    // Only the late-partner deadline consults it, and activation calls this
+    // while holding the festival and user locks.
+    earliestStartDate:
+      type === "late_partner"
+        ? await earliestStartDate(festivalId, database)
+        : null,
     now,
   });
 }

@@ -23,7 +23,6 @@ type PaymentConfirmationForAdminsEmailTemplateProps = {
 export default function PaymentConfirmationForAdminsEmailTemplate(
   props: PaymentConfirmationForAdminsEmailTemplateProps,
 ) {
-  const stand = props.invoice.reservation.stand;
   const standLabel = reservationStandLabel(props.invoice.reservation);
   const payment = props.invoice.payments[props.invoice.payments.length - 1];
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";

@@ -15,7 +15,10 @@ export type ReservationStandsSummary = {
   active: ReservationMemberStand[];
   /** Halves retired by an admin downgrade; retained as history (PRD §7.7). */
   released: ReservationMemberStand[];
-  /** The half the participant originally selected. */
+  /**
+   * The lowest-positioned member still occupied — what the reservation holds
+   * now. `released` carries the halves an admin downgrade retired.
+   */
   primary: ReservationMemberStand | null;
   isFullTable: boolean;
   /** `A1 y A2`, ready to drop into a sentence. */
@@ -46,8 +49,10 @@ export function summarizeReservationStands(
   const sorted = [...members].sort(byPosition);
   const active = sorted.filter((member) => member.releasedAt == null);
   const released = sorted.filter((member) => member.releasedAt != null);
-  // Position 0 is the originally selected half, whether or not it survived a
-  // downgrade — so fall back to the whole sorted set, not just the active one.
+  // The lowest-positioned member still occupied, because category and
+  // dimensions have to describe what the reservation actually holds. Falls back
+  // to the released set only so a fully released reservation still names a
+  // stand rather than nothing.
   const primary = active[0] ?? sorted[0] ?? null;
   const isFullTable = active.length > 1;
 

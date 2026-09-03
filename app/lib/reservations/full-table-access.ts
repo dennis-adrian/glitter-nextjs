@@ -30,7 +30,14 @@ export function isFullTableCategory(
   return FULL_TABLE_CATEGORIES.includes(category as FullTableCategory);
 }
 
-type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/**
+ * A transaction, or the pool itself for plain reads. Writers must pass their
+ * `tx`; read-only callers can hand over `db` rather than opening a transaction
+ * just to satisfy the signature.
+ */
+type DbTx =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * The other half of a declared full table.

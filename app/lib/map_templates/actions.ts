@@ -8,12 +8,10 @@ import {
   festivalSectors,
   mapElements,
   mapTemplates,
-  standReservationStands,
-  standReservations,
   stands,
   users,
 } from "@/db/schema";
-import { eq, inArray, or } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {

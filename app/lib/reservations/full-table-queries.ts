@@ -55,19 +55,17 @@ export async function fetchFullTableOffer(input: {
   );
   if (!config || !config.enabled || !config.available) return unavailable;
 
+  // Plain reads: wrapping each in its own transaction checked out a separate
+  // pooled connection per map render for no isolation benefit.
   const [access, complete, balances] = await Promise.all([
-    db.transaction((tx) =>
-      findActiveFullTableAccess(tx, {
-        userId: input.userId,
-        festivalId: input.festivalId,
-      }),
-    ),
-    db.transaction((tx) =>
-      hasCompleteFullTable(tx, {
-        festivalId: input.festivalId,
-        category: input.category as "illustration" | "entrepreneurship",
-      }),
-    ),
+    findActiveFullTableAccess(db, {
+      userId: input.userId,
+      festivalId: input.festivalId,
+    }),
+    hasCompleteFullTable(db, {
+      festivalId: input.festivalId,
+      category: input.category,
+    }),
     readCreditBalances(input.userId),
   ]);
 

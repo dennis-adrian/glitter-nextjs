@@ -64,60 +64,6 @@ export async function markCategoryCatalogBackfillCompleted() {
   }
 }
 
-export async function standIndividualPriceBackfillCompleted(): Promise<boolean> {
-  await ensureCategoryCatalogBackfillMarker();
-  const client = await pool.connect();
-  try {
-    const { rows } = await client.query(
-      `SELECT 1 FROM category_catalog_backfill WHERE name = $1`,
-      [STAND_INDIVIDUAL_PRICE_BACKFILL],
-    );
-    return rows.length > 0;
-  } finally {
-    client.release();
-  }
-}
-
-export async function markStandIndividualPriceBackfillCompleted() {
-  await ensureCategoryCatalogBackfillMarker();
-  const client = await pool.connect();
-  try {
-    await client.query(
-      `INSERT INTO category_catalog_backfill (name) VALUES ($1)
-       ON CONFLICT (name) DO NOTHING`,
-      [STAND_INDIVIDUAL_PRICE_BACKFILL],
-    );
-  } finally {
-    client.release();
-  }
-}
-
-/**
- * 0261 adds `stands.individual_price` defaulting to 0. Copy the legacy single
- * `price` across so existing stands keep their real price instead of silently
- * becoming free the moment a consumer switches to the new column.
- *
- * Guarded by a completion marker: once run, an admin who deliberately sets an
- * individual price of 0 must not have it overwritten on the next deploy.
- */
-export async function backfillStandIndividualPrice() {
-  const client = await pool.connect();
-  try {
-    const column = await client.query(
-      `SELECT 1 FROM information_schema.columns
-       WHERE table_schema = 'public' AND table_name = 'stands'
-         AND column_name = 'individual_price'`,
-    );
-    if (column.rows.length === 0) return;
-    await client.query(
-      `UPDATE stands SET individual_price = price, updated_at = now()
-       WHERE individual_price = 0 AND price <> 0`,
-    );
-  } finally {
-    client.release();
-  }
-}
-
 export async function invoiceVerificationPaymentBackfillCompleted(): Promise<boolean> {
   await ensureCategoryCatalogBackfillMarker();
   const client = await pool.connect();
