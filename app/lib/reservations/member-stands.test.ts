@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
+import {
+  reservationStandCount,
+  summarizeReservationStands,
+} from "@/app/lib/reservations/member-stands";
 
 function member(
   id: number,
@@ -90,5 +93,45 @@ describe("summarizeReservationStands", () => {
     expect(summary.primary).toBeNull();
     expect(summary.label).toBe("");
     expect(summary.isFullTable).toBe(false);
+  });
+});
+
+describe("reservationStandCount", () => {
+  const stand = { label: "A", standNumber: 1 };
+
+  it("counts a full table's two halves", () => {
+    expect(
+      reservationStandCount({
+        stand,
+        members: [
+          { position: 0, releasedAt: null, stand },
+          {
+            position: 1,
+            releasedAt: null,
+            stand: { label: "A", standNumber: 2 },
+          },
+        ],
+      }),
+    ).toBe(2);
+  });
+
+  it("ignores released halves", () => {
+    expect(
+      reservationStandCount({
+        stand,
+        members: [
+          { position: 0, releasedAt: null, stand },
+          {
+            position: 1,
+            releasedAt: new Date(),
+            stand: { label: "A", standNumber: 2 },
+          },
+        ],
+      }),
+    ).toBe(1);
+  });
+
+  it("falls back to the selected half when membership was not loaded", () => {
+    expect(reservationStandCount({ stand })).toBe(1);
   });
 });

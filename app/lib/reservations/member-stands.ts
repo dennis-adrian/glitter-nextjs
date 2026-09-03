@@ -92,3 +92,23 @@ export function reservationStandLabel(reservation: {
   if (active.length === 0) return formatStandLabel(reservation.stand);
   return active.map((member) => formatStandLabel(member.stand)).join(" y ");
 }
+
+/**
+ * How many stands `reservationStandLabel` just named.
+ *
+ * Copy that talks about what was released has to agree in number with the
+ * label, so it needs the count from the same source the label came from.
+ */
+export function reservationStandCount(reservation: {
+  stand: StandLabelParts;
+  members?: ReadonlyArray<{
+    position: number;
+    releasedAt: Date | null;
+    stand: StandLabelParts;
+  }> | null;
+}): number {
+  const active = (reservation.members ?? []).filter(
+    (member) => member.releasedAt == null,
+  );
+  return active.length === 0 ? 1 : active.length;
+}

@@ -1,5 +1,8 @@
 import "server-only";
-import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
+import {
+  reservationStandCount,
+  reservationStandLabel,
+} from "@/app/lib/reservations/member-stands";
 
 import { randomUUID } from "crypto";
 import { after } from "next/server";
@@ -257,6 +260,7 @@ async function deliverJob(
         profile: owner,
         stand: reservation.stand,
         standLabel: reservationStandLabel(reservation),
+        standCount: reservationStandCount(reservation),
         reason: rejectionReasonFromPayload(payload),
       }),
     });
@@ -274,6 +278,7 @@ async function deliverJob(
           profile: owner,
           stand: reservation.stand,
           standLabel: reservationStandLabel(reservation),
+          standCount: reservationStandCount(reservation),
           reason: rejectionReasonFromPayload(payload),
         }),
       });

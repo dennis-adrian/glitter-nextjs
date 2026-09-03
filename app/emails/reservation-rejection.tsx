@@ -21,6 +21,8 @@ type ProfileRejectionEmailTemplateProps = {
   stand: StandBase;
   /** Every stand the reservation held, already formatted. */
   standLabel?: string;
+  /** How many stands `standLabel` names; drives singular/plural copy. */
+  standCount?: number;
   festival: FestivalBase;
   reason?: string;
 };
@@ -29,6 +31,8 @@ export default function ReservationRejectionEmailTemplate(
   props: ProfileRejectionEmailTemplateProps,
 ) {
   const userName = getUserName(props.profile);
+  const standCount = props.standCount ?? 1;
+  const isPlural = standCount > 1;
 
   return (
     <Html>
@@ -40,13 +44,17 @@ export default function ReservationRejectionEmailTemplate(
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              Tu reserva para el espacio{" "}
+              Tu reserva para {isPlural ? "los espacios" : "el espacio"}{" "}
               <strong>
                 {props.standLabel ??
                   `${props.stand.label ?? ""}${props.stand.standNumber}`}
               </strong>{" "}
               en el festival <strong>{props.festival.name}</strong> ha sido
-              cancelada y el espacio está disponible nuevamente.
+              cancelada y{" "}
+              {isPlural
+                ? "los espacios están disponibles"
+                : "el espacio está disponible"}{" "}
+              nuevamente.
             </Text>
             {props.reason ? (
               <>
