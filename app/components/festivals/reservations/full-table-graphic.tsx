@@ -130,12 +130,12 @@ export type FullTableGraphicVariant =
   | "full-selected";
 
 const DESCRIPTIONS: Record<FullTableGraphicVariant, string> = {
-  half: "Medio stand: una mesa de 120 por 60 centímetros.",
-  full: "Mesa completa: dos espacios unidos, 240 por 60 centímetros.",
+  half: "Un stand: media mesa, de 120 por 60 centímetros.",
+  full: "Mesa completa: dos stands unidos, 240 por 60 centímetros.",
   "companion-unavailable":
-    "Mesa con una sola mitad disponible: el espacio contiguo está ocupado.",
+    "Mesa con un solo stand disponible: el stand contiguo está ocupado.",
   "full-selected":
-    "Mesa completa seleccionada: dos espacios unidos, con la división visible al medio.",
+    "Mesa completa seleccionada: dos stands unidos, con la división visible al medio.",
 };
 
 export default function FullTableGraphic({

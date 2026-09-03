@@ -125,6 +125,7 @@ export async function fetchLatestInvoiceByProfileId(
         reservation: {
           with: {
             stand: true,
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -170,6 +171,8 @@ export async function fetchInvoicesByReservation(
                 qrCode: true,
               },
             },
+            // What the reservation occupies, which a full table makes plural.
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -208,6 +211,7 @@ export async function fetchInvoice(
         reservation: {
           with: {
             stand: true,
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -269,6 +273,7 @@ export async function fetchReservationsWithInvoicesByProfileAndFestival(
             festivalSector: true,
           },
         },
+        members: { with: { stand: true } },
         festival: {
           with: {
             festivalDates: true,
@@ -343,6 +348,8 @@ export async function fetchPendingInvoicesByProfile(
                 qrCode: true,
               },
             },
+            // What the reservation occupies, which a full table makes plural.
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,
@@ -382,6 +389,7 @@ export async function fetchInvoicesByFestival(
         reservation: {
           with: {
             stand: true,
+            members: { with: { stand: true } },
             festival: {
               with: {
                 festivalDates: true,

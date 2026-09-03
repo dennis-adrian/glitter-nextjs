@@ -53,9 +53,9 @@ export default function FullTableSelectionNotice({
           {companionLabel
             ? `El espacio ${companionLabel} ya está ocupado. `
             : "La otra mitad no está disponible. "}
-          Si seguís, vas a reservar medio stand (120 × 60 cm), no la mesa
-          completa. Tus créditos no se usarán y vas a poder aplicarlos al pago
-          de tu reserva, o podés elegir otra mesa.
+          Si seguís, vas a reservar un solo stand (media mesa, 120 × 60 cm), no
+          la mesa completa. Tus créditos no se usarán y vas a poder aplicarlos
+          al pago de tu reserva, o podés elegir otra mesa.
         </p>
       </div>
     </div>

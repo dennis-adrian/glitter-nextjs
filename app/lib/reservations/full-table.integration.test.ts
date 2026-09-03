@@ -15,6 +15,7 @@ import {
 } from "vitest";
 
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
+import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import * as schema from "@/db/schema";
 import {
   creditHolds,
@@ -659,6 +660,60 @@ describeDatabase("full table", () => {
       idempotencyKey: randomUUID(),
     });
     expect(held).toMatchObject({ success: true, data: { isFullTable: false } });
+  });
+
+  it("reports both stands on the reservation detail query", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    // The detail view reads membership, so the query behind it must carry both
+    // halves — the parent stand_id names only the one that was picked first.
+    const detail = await integrationDb!.query.standReservations.findFirst({
+      where: eq(standReservations.id, reservationId),
+      with: { members: { with: { stand: true } } },
+    });
+
+    expect(
+      detail!.members.map((member) => member.standId).sort((a, b) => a - b),
+    ).toEqual([standIds[0], standIds[1]].sort((a, b) => a - b));
+    expect(detail!.members.every((member) => member.releasedAt === null)).toBe(
+      true,
+    );
+    expect(
+      summarizeReservationStands(
+        detail!.members.map((member) => ({
+          id: member.standId,
+          label: member.stand.label,
+          standNumber: member.stand.standNumber,
+          standCategory: member.stand.standCategory,
+          releasedAt: member.releasedAt,
+          position: member.position,
+        })),
+      ),
+    ).toMatchObject({ isFullTable: true, dimensions: "60cm x 240cm" });
   });
 
   it("downgrades a full table to its original half without touching the money", async () => {

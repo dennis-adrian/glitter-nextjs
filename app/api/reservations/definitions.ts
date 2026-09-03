@@ -52,8 +52,17 @@ export type ReservationWithParticipantsAndUsersAndStandAndCollaborators =
     }[];
   };
 
+/** One stand of a reservation aggregate; a full table has two. */
+export type ReservationStandMember = {
+  standId: number;
+  position: number;
+  releasedAt: Date | null;
+  stand: StandBase;
+};
+
 export type ReservationWithParticipantsAndUsersAndStandAndFestival =
   ReservationWithParticipantsAndUsersAndStand & {
+    members: ReservationStandMember[];
     festival: FestivalWithDates;
     scheduledTasks: ReservationScheduledTask[];
   };
@@ -72,6 +81,7 @@ export type FullReservation = ReservationBase & {
   })[];
   externalParticipants?: ReservationExternalParticipant[];
   stand: StandBase;
+  members: ReservationStandMember[];
   festival: FestivalWithDates;
   invoices: InvoiceWithPayments[];
   collaborators: {

@@ -23,6 +23,7 @@ import { getExternalParticipantCategoryLabel } from "@/app/lib/external_particip
 import { formatDate, formatDateWithTime } from "@/app/lib/formatters";
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { EyeOffIcon } from "lucide-react";
 import {
   DisplayPaymentStatus,
@@ -41,6 +42,25 @@ export const columnTitles = {
   collaborators: "Colaboradores",
   participantCategory: "Categoría",
 };
+
+/**
+ * What the reservation occupies. Reading `row.stand` alone showed a full table
+ * as a single space, because that column names only the originally selected
+ * half.
+ */
+function standCellLabel(reservation: FullReservation): string {
+  const summary = summarizeReservationStands(
+    reservation.members.map((member) => ({
+      id: member.standId,
+      label: member.stand.label,
+      standNumber: member.stand.standNumber,
+      standCategory: member.stand.standCategory,
+      releasedAt: member.releasedAt,
+      position: member.position,
+    })),
+  );
+  return summary.label || formatStandLabel(reservation.stand);
+}
 
 export const columns: ColumnDef<FullReservation>[] = [
   {
@@ -73,7 +93,7 @@ export const columns: ColumnDef<FullReservation>[] = [
   },
   {
     id: "stand",
-    accessorFn: (row) => formatStandLabel(row.stand),
+    accessorFn: (row) => standCellLabel(row),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.stand} />
     ),
@@ -82,7 +102,7 @@ export const columns: ColumnDef<FullReservation>[] = [
       const hidden = isReservationHidden(reservation);
       return (
         <div className="flex items-center gap-1.5">
-          <span>{formatStandLabel(reservation.stand)}</span>
+          <span>{standCellLabel(reservation)}</span>
           {hidden && reservation.revealAt && (
             <TooltipProvider>
               <Tooltip>

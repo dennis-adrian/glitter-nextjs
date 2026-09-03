@@ -68,9 +68,9 @@ export default function HalfTableFallbackDialog({
                 Podés reservar solo el espacio {standLabel} o elegir otra mesa.
               </p>
               <p className="mt-2 font-medium text-foreground">
-                Vas a reservar medio stand (120 × 60 cm), no la mesa completa.
-                Tus créditos no se usarán y podrás aplicarlos al pago de tu
-                reserva.
+                Vas a reservar un solo stand (media mesa, 120 × 60 cm), no la
+                mesa completa. Tus créditos no se usarán y podrás aplicarlos al
+                pago de tu reserva.
               </p>
             </div>
           </AlertDialogDescription>
@@ -80,7 +80,7 @@ export default function HalfTableFallbackDialog({
             Elegir otra mesa
           </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={isPending}>
-            Reservar medio stand
+            Reservar un solo stand
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

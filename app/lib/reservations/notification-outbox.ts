@@ -160,6 +160,7 @@ async function deliverJob(
     where: eq(standReservations.id, reservationId),
     with: {
       stand: true,
+      members: { with: { stand: true } },
       festival: { with: { festivalDates: true } },
       participants: { with: { user: true } },
       invoices: { with: { user: true, payments: true } },

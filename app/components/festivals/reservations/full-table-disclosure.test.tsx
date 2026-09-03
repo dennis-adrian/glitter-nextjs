@@ -61,7 +61,7 @@ describe("full-table disclosure", () => {
     expect(screen.getByText(/240 × 60 cm/)).toBeTruthy();
   });
 
-  it("states medio stand and its real size when the companion is gone", () => {
+  it("says one stand, not half a stand, when the companion is gone", () => {
     render(
       <FullTableSelectionNotice
         selection={{ kind: "fallback", companion: stand(2, "B") }}
@@ -71,7 +71,9 @@ describe("full-table disclosure", () => {
     expect(
       screen.getByText(/esta mesa ya no está disponible completa/i),
     ).toBeTruthy();
-    expect(screen.getByText(/medio stand \(120 × 60 cm\)/i)).toBeTruthy();
+    expect(
+      screen.getByText(/un solo stand \(media mesa, 120 × 60 cm\)/i),
+    ).toBeTruthy();
     expect(screen.getByText(/tus créditos no se usarán/i)).toBeTruthy();
   });
 
@@ -82,10 +84,36 @@ describe("full-table disclosure", () => {
       />,
     );
 
-    expect(screen.getByText(/medio stand \(120 × 60 cm\)/i)).toBeTruthy();
+    expect(
+      screen.getByText(/un solo stand \(media mesa, 120 × 60 cm\)/i),
+    ).toBeTruthy();
   });
 
-  it("makes the confirmation dialog say medio stand before taking capacity", () => {
+  // A stand *is* half a table, so "medio stand" would describe half of a
+  // 120 x 60 space. Guarding the phrase because it reads as plausible and the
+  // PRD's own suggested copy uses it.
+  it("never calls a single stand half a stand", () => {
+    render(
+      <FullTableSelectionNotice
+        selection={{ kind: "fallback", companion: stand(2, "B") }}
+      />,
+    );
+    render(
+      <HalfTableFallbackDialog
+        open
+        stand={stand(1, "A")}
+        companion={stand(2, "B")}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+        isPending={false}
+      />,
+    );
+
+    expect(document.body.textContent).not.toMatch(/medio stand/i);
+    expect(document.body.textContent).not.toMatch(/medio espacio/i);
+  });
+
+  it("makes the confirmation dialog name one stand before taking capacity", () => {
     render(
       <HalfTableFallbackDialog
         open
@@ -105,7 +133,7 @@ describe("full-table disclosure", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        /vas a reservar medio stand \(120 × 60 cm\), no la mesa completa/i,
+        /vas a reservar un solo stand \(media mesa, 120 × 60 cm\), no la mesa completa/i,
       ),
     ).toBeTruthy();
     // Both ways out are offered, so accepting half a table is a real choice.
@@ -113,7 +141,7 @@ describe("full-table disclosure", () => {
       screen.getByRole("button", { name: /elegir otra mesa/i }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: /reservar medio stand/i }),
+      screen.getByRole("button", { name: /reservar un solo stand/i }),
     ).toBeTruthy();
   });
 });

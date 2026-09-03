@@ -1,4 +1,5 @@
 import { StandReservationWithFestival } from "@/app/api/stands/actions";
+import { ReservationStandMember } from "@/app/api/reservations/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import {
@@ -28,9 +29,11 @@ export type ReservationWithStandAndInvoicesAndFestival =
   };
 export type InvoiceWithPaymentsAndStand = InvoiceWithPayments & {
   reservation: StandReservationWithFestival & {
+    /** The originally selected half. Use `members` for what is occupied. */
     stand: StandBase & {
       qrCode?: typeof qrCodes.$inferSelect | null;
     };
+    members: ReservationStandMember[];
   };
 };
 

@@ -49,9 +49,9 @@ export default function FullTableSummaryNotice({
             Esta mesa ya no está disponible completa
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vas a reservar medio stand ({stands}), 120 × 60 cm, no la mesa
-            completa. Tus créditos no se usarán y vas a poder aplicarlos al pago
-            de tu reserva.
+            Vas a reservar un solo stand ({stands}): media mesa, 120 × 60 cm, no
+            la mesa completa. Tus créditos no se usarán y vas a poder aplicarlos
+            al pago de tu reserva.
           </p>
         </div>
       </div>
