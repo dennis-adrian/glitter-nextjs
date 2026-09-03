@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -28,6 +29,7 @@ export default function FullTablePanel({
   offer: FullTableOffer;
   festivalId: number;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dismissed, setDismissed] = useState(false);
 
@@ -39,8 +41,10 @@ export default function FullTablePanel({
         festivalId,
         idempotencyKey: crypto.randomUUID(),
       });
-      if (result.success) toast.success(result.message);
-      else toast.error(result.message);
+      if (result.success) {
+        toast.success(result.message);
+        router.refresh();
+      } else toast.error(result.message);
     });
   }
 

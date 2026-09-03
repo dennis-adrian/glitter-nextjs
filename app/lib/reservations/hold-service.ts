@@ -930,7 +930,11 @@ export async function confirmStandHold(
             featureActionId: fullTableAccess.featureActionId,
             idempotencyKey: `full-table-capture:${idempotencyKey}`,
           });
-          if (!captured.ok) return finish(reservationFailure("CONFLICT_RETRY"));
+          // Throwing rolls the whole transaction back: returning here would
+          // commit the reservation, its invoice and the reserved stands while
+          // the credits stayed on hold. The outer catch maps it to
+          // CONFLICT_RETRY, same as the stand-status conflict above.
+          if (!captured.ok) throw new Error("full_table_capture_conflict");
           await tx
             .update(reservationFeatureActions)
             .set({
@@ -950,7 +954,8 @@ export async function confirmStandHold(
             featureActionId: fullTableAccess.featureActionId,
             status: "released",
           });
-          if (!released.ok) return finish(reservationFailure("CONFLICT_RETRY"));
+          // Same rollback reasoning as the capture path above.
+          if (!released.ok) throw new Error("full_table_release_conflict");
           await tx
             .update(reservationFeatureActions)
             .set({ status: "cancelled", updatedAt: new Date() })

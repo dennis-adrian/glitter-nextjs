@@ -25,7 +25,10 @@ import {
 } from "@/app/lib/reservations/dto";
 import { buildFestivalReservationMapDto } from "@/app/lib/reservations/map-dto";
 import { searchRecentPartners } from "@/app/lib/reservations/partner-search";
-import { findActiveFullTableAccess } from "@/app/lib/reservations/full-table-access";
+import {
+  findActiveFullTableAccess,
+  isFullTableCategory,
+} from "@/app/lib/reservations/full-table-access";
 import { profileCategoryForStandMatch } from "@/app/lib/reservations/policy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { deriveEffectiveStandStatus } from "@/app/lib/stands/effective-status";
@@ -38,6 +41,7 @@ import {
   profileSubcategories,
   reservationExternalParticipants,
   reservationParticipants,
+  standGroups,
   standHoldMembers,
   standHolds,
   standReservationStands,
@@ -156,6 +160,8 @@ export async function fetchFestivalReservationMapDto(input: {
       activeHold: null,
       reservationsByStandId: new Map(),
       revealHiddenIdentities: input.revealHiddenIdentities,
+      fullTableGroupIds: new Set(),
+      fullTableAccessActive: false,
       now,
     });
   }
@@ -424,20 +430,24 @@ export async function fetchFestivalReservationMapDto(input: {
     status: MapDtoReservationStatus,
     revealAt: Date | null,
   ) => {
-    const existing = reservationIndex.get(reservationId);
-    if (existing) return existing;
-    const created: ReservationBucket = {
-      standId,
-      status,
-      revealAt,
-      participants: [],
-      externalParticipants: [],
-    };
-    reservationIndex.set(reservationId, created);
+    const bucket =
+      reservationIndex.get(reservationId) ??
+      ({
+        standId,
+        status,
+        revealAt,
+        participants: [],
+        externalParticipants: [],
+      } satisfies ReservationBucket);
+    reservationIndex.set(reservationId, bucket);
+    // A full-table reservation covers more than one stand, so every member
+    // stand has to resolve the same bucket or its half renders unoccupied.
     const list = reservationsByStandId.get(standId) ?? [];
-    list.push(created);
-    reservationsByStandId.set(standId, list);
-    return created;
+    if (!list.includes(bucket)) {
+      list.push(bucket);
+      reservationsByStandId.set(standId, list);
+    }
+    return bucket;
   };
 
   for (const row of reservationParticipantRows) {
@@ -467,6 +477,33 @@ export async function fetchFestivalReservationMapDto(input: {
     });
   }
 
+  // Which of this festival's groups are declared full tables, and whether the
+  // participant may act on that. Both feed the map's disclosure only: the
+  // server rechecks availability at every capacity mutation.
+  const fullTableGroupRows = await db
+    .selectDistinct({ groupId: stands.standGroupId })
+    .from(stands)
+    .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
+    .where(
+      and(
+        eq(stands.festivalId, festival.id),
+        eq(standGroups.type, "full_table"),
+      ),
+    );
+  const fullTableGroupIds = new Set(
+    fullTableGroupRows
+      .map((row) => row.groupId)
+      .filter((id): id is number => id != null),
+  );
+  const fullTableAccessActive = isFullTableCategory(profile.category)
+    ? (await db.transaction((tx) =>
+        findActiveFullTableAccess(tx, {
+          userId: profile.id,
+          festivalId: festival.id,
+        }),
+      )) != null
+    : false;
+
   return buildFestivalReservationMapDto({
     festival: {
       id: festival.id,
@@ -485,6 +522,8 @@ export async function fetchFestivalReservationMapDto(input: {
     activeHold: activeHold ?? null,
     reservationsByStandId,
     revealHiddenIdentities: input.revealHiddenIdentities,
+    fullTableGroupIds,
+    fullTableAccessActive,
     now,
   });
 }

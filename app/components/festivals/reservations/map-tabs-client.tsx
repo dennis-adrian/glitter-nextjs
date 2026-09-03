@@ -104,6 +104,7 @@ export default function MapTabsClient({ map }: MapTabsClientProps) {
                   activeHold={map.activeHold}
                   alreadyReserved={map.alreadyReserved}
                   subcategoryIds={map.subcategoryIds}
+                  fullTableAccessActive={map.fullTableAccessActive}
                   mapBounds={sector.mapBounds ?? undefined}
                   onAvailableCountChange={(count) =>
                     setStandCounts((prev) => ({

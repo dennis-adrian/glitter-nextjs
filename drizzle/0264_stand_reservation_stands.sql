@@ -81,9 +81,14 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
+  -- Lock the parent while copying its status. Without the lock a concurrent
+  -- status transition can commit between this read and the insert becoming
+  -- visible, and the AFTER sync trigger would miss the new member, leaving a
+  -- stale status the occupancy index then trusts.
   SELECT "status" INTO NEW."reservation_status"
   FROM "stand_reservations"
-  WHERE "id" = NEW."reservation_id";
+  WHERE "id" = NEW."reservation_id"
+  FOR NO KEY UPDATE;
   IF NEW."reservation_status" IS NULL THEN
     RAISE EXCEPTION 'stand reservation % does not exist', NEW."reservation_id";
   END IF;

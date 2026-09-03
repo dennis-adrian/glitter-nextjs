@@ -315,6 +315,16 @@ export async function guardLegacySinglePriceEdit(
   standIds: readonly number[],
   individualPrice: number,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
+  // The legacy editors validate the amount loosely, so a value the pair-aware
+  // path would refuse can still arrive here. Reject it with the same rule
+  // instead of letting it reach the column.
+  if (individualPrice < 0 || !isTwoDecimals(individualPrice)) {
+    return {
+      ok: false,
+      message: "El precio individual debe ser 0 o más, con hasta dos decimales.",
+    };
+  }
+
   if (standIds.length === 0) return { ok: true };
 
   const rows = await tx
