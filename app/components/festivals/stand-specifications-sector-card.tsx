@@ -155,23 +155,55 @@ export default function StandSpecificationsSectorCard({
                 espacios
               </p>
             </div>
-            <Badge className="text-lg font-semibold text-primary-foreground">
+            {/* One number in the band, so the sectors stay comparable while
+                scrolling. When there are two ways to take the space, it becomes
+                the entry price and both rates are named in full below —
+                booking apps price a room the same way. */}
+            <Badge className="shrink-0 text-lg font-semibold text-primary-foreground">
+              {sharedPrice != null && (
+                <span className="mr-1.5 text-[11px] font-normal uppercase tracking-wide opacity-80">
+                  Desde
+                </span>
+              )}
               <span>Bs.</span> {individualPrice.toLocaleString()}
             </Badge>
           </div>
           <div className="p-4 space-y-3 text-sm">
+            {/* A rate per row, each with the name of what it buys and the price
+                right-aligned against it. The shared price used to sit in a
+                sentence halfway down the card, where it read as prose rather
+                than as the second of two options. */}
+            {sharedPrice != null && (
+              <dl className="divide-y rounded-lg border">
+                <div className="flex items-baseline justify-between gap-3 px-3 py-2">
+                  <dt>
+                    <span className="font-medium">Espacio individual</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Para vos solo
+                    </span>
+                  </dt>
+                  <dd className="shrink-0 whitespace-nowrap font-semibold tabular-nums">
+                    Bs. {individualPrice.toLocaleString()}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 px-3 py-2">
+                  <dt>
+                    <span className="font-medium">Espacio compartido</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Total de la reserva, no por persona, y lo paga quien
+                      reserva
+                    </span>
+                  </dt>
+                  <dd className="shrink-0 whitespace-nowrap font-semibold tabular-nums">
+                    Bs. {sharedPrice.toLocaleString()}
+                  </dd>
+                </div>
+              </dl>
+            )}
+
             <div>
               <span className="font-medium">Especificaciones:</span>
               <p className="text-muted-foreground">{sectorSpecifications}</p>
-              {sharedPrice != null && (
-                <p className="text-muted-foreground">
-                  Compartiéndolo, el espacio cuesta{" "}
-                  <span className="font-medium text-foreground">
-                    Bs. {sharedPrice.toLocaleString()}
-                  </span>{" "}
-                  en total — no por persona — y lo paga quien reserva.
-                </p>
-              )}
             </div>
 
             <div>
