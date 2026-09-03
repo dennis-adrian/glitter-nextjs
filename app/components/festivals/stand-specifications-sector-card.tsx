@@ -169,18 +169,6 @@ export default function StandSpecificationsSectorCard({
                 ))}
               </ul>
             </div>
-
-            {hasMap && (
-              <Button
-                variant="link"
-                size="sm"
-                className="w-full mt-1"
-                onClick={() => setMapOpen(true)}
-              >
-                <MapIcon className="w-4 h-4 mr-2" />
-                Ver mapa del sector
-              </Button>
-            )}
           </div>
 
           {/* Its own section, closing the card: what the space is, then what it
@@ -227,6 +215,18 @@ export default function StandSpecificationsSectorCard({
                   </dd>
                 </div>
               </dl>
+            )}
+
+            {hasMap && (
+              <Button
+                variant="link"
+                size="sm"
+                className="mt-2 w-full border-t pt-4"
+                onClick={() => setMapOpen(true)}
+              >
+                <MapIcon className="w-4 h-4 mr-2" />
+                Ver mapa del sector
+              </Button>
             )}
           </div>
         </CardContent>
