@@ -78,7 +78,12 @@ export type MapDtoBuildInput = {
   stands: MapDtoStandRow[];
   subcategoryIdsByStandId: Map<number, number[]>;
   activeHoldStandIds: ReadonlySet<number>;
-  activeHold: { id: number; standId: number; expiresAt: Date } | null;
+  activeHold: {
+    id: number;
+    standId: number;
+    standIds: number[];
+    expiresAt: Date;
+  } | null;
   /** Stand-group ids the admin declared as full tables. */
   fullTableGroupIds: ReadonlySet<number>;
   fullTableAccessActive: boolean;
@@ -236,6 +241,7 @@ export function buildFestivalReservationMapDto(
       ? {
           id: input.activeHold.id,
           standId: input.activeHold.standId,
+          standIds: input.activeHold.standIds,
           expiresAt: input.activeHold.expiresAt.toISOString(),
         }
       : null,

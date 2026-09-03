@@ -521,7 +521,19 @@ export async function fetchFestivalReservationMapDto(input: {
     stands: eligibleStands,
     subcategoryIdsByStandId,
     activeHoldStandIds: new Set(holdRows.map((hold) => hold.standId)),
-    activeHold: activeHold ?? null,
+    activeHold: activeHold
+      ? {
+          ...activeHold,
+          // Both halves of a full table, so the participant's own companion
+          // does not render as someone else's held stand.
+          standIds: (
+            await db
+              .select({ standId: standHoldMembers.standId })
+              .from(standHoldMembers)
+              .where(eq(standHoldMembers.holdId, activeHold.id))
+          ).map((row) => row.standId),
+        }
+      : null,
     reservationsByStandId,
     revealHiddenIdentities: input.revealHiddenIdentities,
     fullTableGroupIds,

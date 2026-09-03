@@ -138,7 +138,10 @@ export type ReservationMapSectorDto = {
 
 export type ReservationActiveHoldDto = {
   id: number;
+  /** The half the participant picked first. Use `standIds` for what is held. */
   standId: number;
+  /** Every stand this hold covers; two for a full table. */
+  standIds: number[];
   expiresAt: string;
 };
 

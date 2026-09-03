@@ -26,7 +26,23 @@ import {
 } from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
 
-type ActiveHold = ReservationActiveHoldDto | { id: number; standId: number } | null;
+type ActiveHold =
+  | ReservationActiveHoldDto
+  | { id: number; standId: number; standIds?: number[] }
+  | null;
+
+/**
+ * Whether this stand is part of the viewer's own hold.
+ *
+ * A full table is held as two stands, and only one of them is named by the
+ * hold's adapter column — matching on that alone made the participant's own
+ * companion half look like someone else's.
+ */
+function heldByViewer(standId: number, hold: ActiveHold): boolean {
+  if (!hold) return false;
+  const held = "standIds" in hold && hold.standIds ? hold.standIds : [];
+  return hold.standId === standId || held.includes(standId);
+}
 
 type StandInfoCardProps = {
   stand: ReservationMapStandDto;
@@ -75,7 +91,7 @@ function getEligibilityMessage(
   activeHold?: ActiveHold,
 ): string | null {
   if (stand.effectiveStatus === "disabled") return "Espacio deshabilitado";
-  if (stand.effectiveStatus === "held" && stand.id !== activeHold?.standId)
+  if (stand.effectiveStatus === "held" && !heldByViewer(stand.id, activeHold ?? null))
     return "Espacio en espera por otro participante";
   if (
     profile.category !== stand.standCategory &&
@@ -117,7 +133,7 @@ export function StandInfoCard({
   const [fallbackOpen, setFallbackOpen] = useState(false);
 
   const isOwnHold =
-    stand.effectiveStatus === "held" && stand.id === activeHold?.standId;
+    stand.effectiveStatus === "held" && heldByViewer(stand.id, activeHold ?? null);
 
   const isStandTaken =
     stand.effectiveStatus === "reserved" ||
