@@ -900,13 +900,25 @@ export async function resolveCreditDebt(input: {
       .select({
         id: creditLedgerEntries.id,
         userId: creditLedgerEntries.userId,
+        amount: creditLedgerEntries.amount,
+        metadata: creditLedgerEntries.metadata,
       })
       .from(creditLedgerEntries)
       .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
       .limit(1)
       .for("update");
     if (existing) {
-      if (existing.userId !== input.userId) {
+      // A key reused with different terms is a different operation, not a
+      // retry: replaying it would report a resolution that never happened.
+      const recordedResolution =
+        existing.metadata && typeof existing.metadata === "object"
+          ? (existing.metadata as { resolution?: unknown }).resolution
+          : undefined;
+      if (
+        existing.userId !== input.userId ||
+        existing.amount !== amount ||
+        recordedResolution !== input.resolution
+      ) {
         return failure("IDEMPOTENCY_CONFLICT");
       }
       return {
