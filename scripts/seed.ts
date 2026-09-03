@@ -13,9 +13,8 @@ async function main() {
 
   // Import after env load so @/db and Zod env validation see .env.local.
   const { pool } = await import("@/db");
-  const { getDevSeedGate, seedDemoUsers } = await import(
-    "@/scripts/seed/demo-users"
-  );
+  const { getDevSeedGate, seedDemoUsers } =
+    await import("@/scripts/seed/demo-users");
 
   const gate = getDevSeedGate();
   if (!gate.allowed) {
@@ -25,6 +24,9 @@ async function main() {
   }
 
   try {
+    const { seedFestivals } = await import("@/scripts/seed/festivals");
+    const { db } = await import("@/db");
+
     const result = await seedDemoUsers();
     console.info(
       `Demo user seed completed (${result.users.length} users; password from ${result.passwordSource}).`,
@@ -32,6 +34,15 @@ async function main() {
     console.info(
       "Sign in with any seeded +clerk_test email and SEED_DEMO_PASSWORD (or the documented default).",
     );
+
+    const festivalResult = await seedFestivals(db);
+    for (const festival of festivalResult.festivals) {
+      console.info(
+        festival.reservations === 0
+          ? `[seed] festival "${festival.name}": already present, left alone`
+          : `[seed] festival "${festival.name}": ${festival.reservations} reservations, ${festival.freeStands} stands free`,
+      );
+    }
   } catch (err: unknown) {
     const pgError = err as { code?: string };
     if (pgError.code === "ECONNREFUSED") {

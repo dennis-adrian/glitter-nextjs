@@ -49,9 +49,9 @@ describe("getDevSeedGate", () => {
 
 describe("resolveSeedDemoPassword", () => {
   it("uses SEED_DEMO_PASSWORD when set", () => {
-    expect(resolveSeedDemoPassword({ SEED_DEMO_PASSWORD: "Custom-Pass-1!" })).toBe(
-      "Custom-Pass-1!",
-    );
+    expect(
+      resolveSeedDemoPassword({ SEED_DEMO_PASSWORD: "Custom-Pass-1!" }),
+    ).toBe("Custom-Pass-1!");
   });
 
   it("falls back to the documented default", () => {
@@ -60,9 +60,19 @@ describe("resolveSeedDemoPassword", () => {
 });
 
 describe("DEMO_USERS", () => {
-  it("uses Clerk test email subaddresses", () => {
+  it("keeps Clerk on test subaddresses so sign-in needs no real inbox", () => {
     for (const user of DEMO_USERS) {
-      expect(user.email).toContain("+clerk_test@");
+      expect(user.clerkEmail).toContain("+clerk_test@");
+    }
+  });
+
+  it("sends app mail to a real inbox, tagged per role", () => {
+    // The two differ on purpose: Clerk's +clerk_test addresses skip real
+    // verification mail, while the app's own notifications need somewhere a
+    // person can actually read them.
+    for (const user of DEMO_USERS) {
+      expect(user.email).toMatch(/^dennisguzmanbo\+[a-z_]+@gmail\.com$/);
+      expect(user.email).not.toBe(user.clerkEmail);
     }
   });
 

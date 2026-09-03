@@ -17,7 +17,14 @@ export type DemoUserCategory =
 export type DemoUserSeed = {
   /** Stable key for logs; not stored. */
   key: string;
+  /** Where the app sends mail. A real inbox, so notifications can be read. */
   email: string;
+  /**
+   * The address Clerk knows. Kept on `+clerk_test` so sign-in keeps Clerk's
+   * fixed test code instead of mailing a real one-time password; the app's own
+   * notifications go to `email` above, which Clerk never sees.
+   */
+  clerkEmail: string;
   firstName: string;
   lastName: string;
   displayName: string;
@@ -36,7 +43,8 @@ export type DemoUserSeed = {
 export const DEMO_USERS: readonly DemoUserSeed[] = [
   {
     key: "admin",
-    email: "admin+clerk_test@example.com",
+    email: "dennisguzmanbo+admin@gmail.com",
+    clerkEmail: "admin+clerk_test@example.com",
     firstName: "Admin",
     lastName: "Glitter",
     displayName: "Admin Glitter",
@@ -46,7 +54,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "festival_admin",
-    email: "festival-admin+clerk_test@example.com",
+    email: "dennisguzmanbo+festival_admin@gmail.com",
+    clerkEmail: "festival-admin+clerk_test@example.com",
     firstName: "Festival",
     lastName: "Admin",
     displayName: "Festival Admin",
@@ -56,7 +65,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "illustration_participant",
-    email: "illustration+clerk_test@example.com",
+    email: "dennisguzmanbo+illustration@gmail.com",
+    clerkEmail: "illustration+clerk_test@example.com",
     firstName: "Ilustracion",
     lastName: "Demo",
     displayName: "Ilustración Demo",
@@ -66,7 +76,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "gastronomy_participant",
-    email: "gastronomy+clerk_test@example.com",
+    email: "dennisguzmanbo+gastronomy@gmail.com",
+    clerkEmail: "gastronomy+clerk_test@example.com",
     firstName: "Gastronomia",
     lastName: "Demo",
     displayName: "Gastronomía Demo",
@@ -76,7 +87,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "entrepreneurship_participant",
-    email: "entrepreneurship+clerk_test@example.com",
+    email: "dennisguzmanbo+entrepreneurship@gmail.com",
+    clerkEmail: "entrepreneurship+clerk_test@example.com",
     firstName: "Emprendimiento",
     lastName: "Demo",
     displayName: "Emprendimiento Demo",
@@ -86,7 +98,8 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
   },
   {
     key: "pending_user",
-    email: "pending+clerk_test@example.com",
+    email: "dennisguzmanbo+pending@gmail.com",
+    clerkEmail: "pending+clerk_test@example.com",
     firstName: "Pending",
     lastName: "User",
     displayName: "Pending User",
@@ -170,7 +183,7 @@ async function ensureClerkUser(
   demo: DemoUserSeed,
   password: string,
 ): Promise<{ user: User; created: boolean }> {
-  const existing = await findClerkUserByEmail(client, demo.email);
+  const existing = await findClerkUserByEmail(client, demo.clerkEmail);
   if (existing) {
     // Keep password + profile fields in sync so cloud agents can always log in.
     const updated = await client.users.updateUser(existing.id, {
