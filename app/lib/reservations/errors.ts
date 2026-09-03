@@ -32,6 +32,7 @@ export const RESERVATION_ERROR_CODES = [
   "FULL_TABLE_INSUFFICIENT_CREDITS",
   "FULL_TABLE_ACCESS_INACTIVE",
   "FULL_TABLE_NOT_DOWNGRADABLE",
+  "FULL_TABLE_HOLD_ACTIVE",
   "VALIDATION",
 ] as const;
 
@@ -95,6 +96,8 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "No tenés la mesa completa activada en este festival.",
     FULL_TABLE_NOT_DOWNGRADABLE:
       "Esta reserva no ocupa dos espacios, así que no hay nada que liberar.",
+    FULL_TABLE_HOLD_ACTIVE:
+      "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
 

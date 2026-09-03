@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
 import {
   createCreditHoldForFeatureInTx,
@@ -40,7 +40,13 @@ import {
 } from "@/app/lib/reservations/request-registry";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { reservationFeatureActions, standReservations } from "@/db/schema";
+import {
+  reservationFeatureActions,
+  standHoldMembers,
+  standHolds,
+  standReservationStands,
+  standReservations,
+} from "@/db/schema";
 
 import {
   FULL_TABLE_CATEGORIES,
@@ -129,10 +135,14 @@ export async function activateFullTableAccess(input: {
       return finish(reservationFailure("FULL_TABLE_CATEGORY_INELIGIBLE"));
     }
 
+    // Read on this transaction's connection: reaching for the pool while
+    // holding festival and user locks can self-deadlock under load.
     const config = await fetchFeatureConfig(
       input.festivalId,
       "full_table",
       category,
+      new Date(),
+      tx,
     );
     if (!config || !config.enabled || !config.available) {
       return finish(reservationFailure("FULL_TABLE_UNAVAILABLE"));
@@ -261,6 +271,27 @@ export async function deactivateFullTableAccess(input: {
 
     await lockUserRows(tx, [actor.id]);
     await lockCreditAccountRows(tx, [actor.id]);
+
+    // A live two-stand hold was taken on the strength of this access. Letting
+    // it go now would leave the participant holding a full table with nothing
+    // paying for it, so the hold has to be cancelled first.
+    const [fullTableHold] = await tx
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
+      .where(
+        and(
+          eq(standHolds.userId, actor.id),
+          eq(standHolds.festivalId, input.festivalId),
+          gt(standHolds.expiresAt, new Date()),
+          gt(standHoldMembers.position, 0),
+        ),
+      )
+      .limit(1);
+    if (fullTableHold) {
+      await abandonRequest(tx, input.idempotencyKey);
+      return reservationFailure("FULL_TABLE_HOLD_ACTIVE");
+    }
 
     const access = await findActiveFullTableAccess(tx, {
       userId: actor.id,

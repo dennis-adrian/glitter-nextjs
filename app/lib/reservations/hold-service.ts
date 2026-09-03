@@ -313,10 +313,28 @@ export async function createStandHold(standIdInput: unknown): Promise<
         ? await resolveFullTableCompanion(tx, stand.id)
         : null;
 
+      // Every stand the existing hold occupies, not just its adapter column:
+      // replacing a full-table hold has to lock and release both halves.
+      const existingHoldStandIds =
+        existingHoldPreview.length > 0
+          ? (
+              await tx
+                .select({ standId: standHoldMembers.standId })
+                .from(standHoldMembers)
+                .where(
+                  inArray(
+                    standHoldMembers.holdId,
+                    existingHoldPreview.map((hold) => hold.id),
+                  ),
+                )
+            ).map((row) => row.standId)
+          : [];
+
       const standIdsToLock = uniqueSortedIds([
         stand.id,
         ...(pair ? [pair.companionStandId] : []),
         ...existingHoldPreview.map((hold) => hold.standId),
+        ...existingHoldStandIds,
       ]);
 
       await lockParticipants(tx, stand.festivalId, [actor.id]);
@@ -408,15 +426,22 @@ export async function createStandHold(standIdInput: unknown): Promise<
       }
 
       if (existingHold.length > 0) {
-        const oldStandId = existingHold[0].standId;
         if (freshStand.status !== "available") {
           return finish(reservationFailure("STAND_UNAVAILABLE"));
         }
 
+        // Read membership before the delete cascades it away. Releasing only
+        // the adapter column would strand a full table's companion as `held`
+        // with no hold row, and nothing else ever releases it.
+        const oldStandIds = await holdMemberStandIds(tx, existingHold[0].id);
         await tx
           .delete(standHolds)
           .where(eq(standHolds.id, existingHold[0].id));
-        await releaseStandIfVacant(tx, oldStandId, now);
+        for (const standId of oldStandIds.length > 0
+          ? oldStandIds
+          : [existingHold[0].standId]) {
+          await releaseStandIfVacant(tx, standId, now);
+        }
       }
 
       const [currentStand] = await tx
@@ -831,6 +856,12 @@ export async function confirmStandHold(
             festivalId: hold.festivalId,
           })
         : null;
+
+      // Access deactivated after the hold was taken would otherwise hand over
+      // two stands for the price of one, with no credits captured.
+      if (isFullTable && !fullTableAccess) {
+        return finish(reservationFailure("CONFLICT_RETRY"));
+      }
 
       const individualPrice = roundMoney(
         hold.individualPriceSnapshot ??

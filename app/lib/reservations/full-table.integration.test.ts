@@ -679,6 +679,70 @@ describeDatabase("full table", () => {
     expect(spends).toHaveLength(0);
   });
 
+  it("frees both halves when a full-table hold is replaced", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed({ pairCount: 2 });
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held).toMatchObject({ success: true, data: { isFullTable: true } });
+
+    // Moving to the other table replaces the hold. Releasing only the adapter
+    // column would strand the companion as `held` with no hold row.
+    await createStandHold({
+      standId: standIds[2],
+      idempotencyKey: randomUUID(),
+    });
+
+    const after = await integrationDb!
+      .select({ id: stands.id, status: stands.status })
+      .from(stands)
+      .where(inArray(stands.id, [standIds[0], standIds[1]]));
+    expect(after.map((row) => row.status)).toEqual(["available", "available"]);
+  });
+
+  it("refuses to deactivate access while a full table is held", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+
+    // Letting this through would hand over two stands billed as one, with no
+    // credits captured at confirmation.
+    const off = await deactivateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(off).toMatchObject({
+      success: false,
+      code: "FULL_TABLE_HOLD_ACTIVE",
+    });
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "active" },
+    ]);
+  });
+
   it("deactivation releases the hold and stops claiming the companion", async () => {
     const {
       festival,
