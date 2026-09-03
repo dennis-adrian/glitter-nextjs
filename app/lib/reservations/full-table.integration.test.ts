@@ -26,7 +26,9 @@ import {
   festivalTermsDocuments,
   festivalTermsVersions,
   festivals,
+  invoiceSettlementSubmissions,
   invoices,
+  payments,
   reservationFeatureActions,
   reservationParticipants,
   reservationRequestRegistry,
@@ -51,6 +53,9 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
   enqueueReservationNotification: vi.fn(),
   scheduleReservationNotificationJobs: vi.fn(),
+}));
+vi.mock("@/app/api/users/actions", () => ({
+  fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -94,6 +99,8 @@ let activateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-s
 let deactivateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["deactivateFullTableAccess"];
 let downgradeFullTableReservation: (typeof import("@/app/lib/reservations/full-table-service"))["downgradeFullTableReservation"];
 let cancelReservation: (typeof import("@/app/lib/reservations/admin-service"))["cancelReservation"];
+let submitPaymentProof: (typeof import("@/app/lib/reservations/payment-service"))["submitPaymentProof"];
+let rejectInvoiceSettlement: (typeof import("@/app/lib/reservations/payment-service"))["rejectInvoiceSettlement"];
 let publishedTermsVersionId: number;
 
 const ACCESS_PRICE = 50;
@@ -119,9 +126,10 @@ describeDatabase("full table", () => {
       deactivateFullTableAccess,
       downgradeFullTableReservation,
     } = await import("@/app/lib/reservations/full-table-service"));
-    ({ cancelReservation } = await import(
-      "@/app/lib/reservations/admin-service"
-    ));
+    ({ cancelReservation } =
+      await import("@/app/lib/reservations/admin-service"));
+    ({ submitPaymentProof, rejectInvoiceSettlement } =
+      await import("@/app/lib/reservations/payment-service"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -152,6 +160,21 @@ describeDatabase("full table", () => {
         .where(eq(standReservations.festivalId, fixture.festivalId));
       const reservationIds = reservationRows.map((row) => row.id);
       if (reservationIds.length > 0) {
+        const invoiceRows = await db
+          .select({ id: invoices.id })
+          .from(invoices)
+          .where(inArray(invoices.reservationId, reservationIds));
+        const invoiceIds = invoiceRows.map((row) => row.id);
+        if (invoiceIds.length > 0) {
+          // Submissions point at their payment, and the FK nulls that column
+          // on delete -- which the kind/payment_id check rejects. They go first.
+          await db
+            .delete(invoiceSettlementSubmissions)
+            .where(inArray(invoiceSettlementSubmissions.invoiceId, invoiceIds));
+          await db
+            .delete(payments)
+            .where(inArray(payments.invoiceId, invoiceIds));
+        }
         await db
           .delete(invoices)
           .where(inArray(invoices.reservationId, reservationIds));
@@ -806,6 +829,77 @@ describeDatabase("full table", () => {
 
     // Both halves must go back to the pool. Releasing only the parent's
     // stand_id would strand the companion as permanently unavailable.
+    const after = await integrationDb!
+      .select({ id: stands.id, status: stands.status })
+      .from(stands)
+      .where(inArray(stands.id, standIds));
+    expect(after.map((row) => row.status)).toEqual(["available", "available"]);
+  });
+
+  it("frees both stands when a settlement rejection cancels the reservation", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    const [invoice] = await integrationDb!
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    const proofKey = randomUUID();
+    expect(
+      (
+        await submitPaymentProof({
+          invoiceId: invoice.id,
+          voucherUrl: "https://utfs.io/f/full-table-rejected-proof",
+          fileKey: `full-table-rejected-${proofKey}`,
+          source: "uploadthing",
+          idempotencyKey: proofKey,
+        })
+      ).success,
+    ).toBe(true);
+    const [submission] = await integrationDb!
+      .select({ id: invoiceSettlementSubmissions.id })
+      .from(invoiceSettlementSubmissions)
+      .where(eq(invoiceSettlementSubmissions.invoiceId, invoice.id));
+
+    currentProfileMock.mockResolvedValue({
+      id: owner.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    const rejected = await rejectInvoiceSettlement({
+      submissionId: submission.id,
+      reason: "Comprobante rechazado; cancelar reserva",
+      correction: { type: "cancel_reservation" },
+    });
+    expect(rejected.success).toBe(true);
+
+    // The settlement path cancels through the same aggregate that locked both
+    // halves, so both must go back to the pool -- not just the parent's
+    // stand_id, which would strand the companion as permanently unavailable.
     const after = await integrationDb!
       .select({ id: stands.id, status: stands.status })
       .from(stands)

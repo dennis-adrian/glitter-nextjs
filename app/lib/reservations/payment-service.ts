@@ -20,6 +20,7 @@ import {
 import {
   lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
+  sameIdSet,
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
@@ -117,6 +118,8 @@ type InvoiceAggregateOk = {
   invoice: typeof invoices.$inferSelect;
   reservation: typeof standReservations.$inferSelect;
   participants: Array<{ userId: number }>;
+  /** Every stand the reservation occupies, all locked. A full table holds two. */
+  standIds: number[];
 };
 
 async function loadInvoiceAggregate(
@@ -159,6 +162,18 @@ async function loadInvoiceAggregate(
     .from(invoiceSettlementSubmissions)
     .where(eq(invoiceSettlementSubmissions.invoiceId, invoicePreview.id));
 
+  // Every stand the reservation occupies, not just the parent's `stand_id`.
+  // Cancelling from here hands back both halves of a full table, and a half
+  // released without its own lock is a half two writers can hand out twice.
+  const memberStandPreview = await activeReservationStandIds(
+    tx,
+    reservationPreview.id,
+  );
+  const standIdPreview = uniqueSortedIds([
+    reservationPreview.standId,
+    ...memberStandPreview,
+  ]);
+
   const userIds = uniqueSortedIds([
     invoicePreview.userId,
     ...participantPreview.map((row) => row.userId),
@@ -173,7 +188,7 @@ async function loadInvoiceAggregate(
     // Settlement and credit allocation races serialize on the payer account.
     // This is intentionally before stand/invoice locks in the total order.
     creditAccountUserIds: [invoicePreview.userId],
-    standIds: [reservationPreview.standId],
+    standIds: standIdPreview,
     reservationIds: [reservationPreview.id],
     invoiceIds: [invoicePreview.id],
     paymentIds: paymentPreview.map((row) => row.id),
@@ -206,6 +221,13 @@ async function loadInvoiceAggregate(
     return { kind: "conflict" };
   }
 
+  // Membership was previewed before the stand locks existed. Re-reading it now
+  // is what makes the locked set the set the caller may release; a membership
+  // that moved means someone else got there first.
+  const memberStandIds = await activeReservationStandIds(tx, reservation.id);
+  const standIds = uniqueSortedIds([reservation.standId, ...memberStandIds]);
+  if (!sameIdSet(standIds, standIdPreview)) return { kind: "conflict" };
+
   const participants = await tx
     .select({ userId: reservationParticipants.userId })
     .from(reservationParticipants)
@@ -222,7 +244,13 @@ async function loadInvoiceAggregate(
     return { kind: "conflict" };
   }
 
-  return { kind: "ok", invoice, reservation, participants };
+  return {
+    kind: "ok",
+    invoice,
+    reservation,
+    participants,
+    standIds: memberStandIds.length > 0 ? memberStandIds : standIds,
+  };
 }
 
 type InvoiceTenderTotals = {
@@ -1298,7 +1326,7 @@ export async function rejectInvoiceSettlement(
         return reservationFailure("INVOICE_NOT_PENDING");
       }
 
-      const { invoice, reservation } = aggregate;
+      const { invoice, reservation, standIds } = aggregate;
 
       if (
         reservation.status !== "verification_payment" ||
@@ -1336,8 +1364,8 @@ export async function rejectInvoiceSettlement(
           actorUserId,
           eventType: "settlement_rejected",
           reason: parsed.data.reason,
-          // A full table hands back both halves.
-          standIds: await activeReservationStandIds(tx, reservation.id),
+          // A full table hands back both halves, and the aggregate locked them.
+          standIds,
           payload: {
             invoiceId: invoice.id,
             submissionId: submission.id,

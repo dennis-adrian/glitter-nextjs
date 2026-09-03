@@ -44,54 +44,62 @@ vi.mock("@/app/lib/credits/service", () => ({
 
 const lockCallOrder = vi.hoisted(() => ({ current: [] as string[] }));
 
-vi.mock("@/app/lib/reservations/locks", () => ({
-  uniqueSortedIds: (ids: readonly number[]) =>
+vi.mock("@/app/lib/reservations/locks", () => {
+  const uniqueSortedIds = (ids: readonly number[]) =>
     [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))].sort(
       (a, b) => a - b,
-    ),
-  lockParticipantsBeforeRegistryClaim: vi.fn(),
-  lockReservationAggregate: vi.fn(
-    async (
-      _tx: unknown,
-      preview: {
-        userIds: readonly number[];
-        submissionIds?: readonly number[];
-      },
-    ) => {
-      lockCallOrder.current.push(
-        "advisory",
-        "festival",
-        "terms",
-        "eligibility",
-        "credit_account",
-        "stand",
-      );
-      if ((preview.submissionIds?.length ?? 0) > 0) {
-        lockCallOrder.current.push("submission");
-      }
-      const userIds = [
-        ...new Set(
-          preview.userIds.filter((id) => Number.isInteger(id) && id > 0),
-        ),
-      ].sort((a, b) => a - b);
-      return {
-        ok: true,
-        locked: {
-          festivalId: 10,
-          userIds,
-          standIds: [7],
-          holdIds: [],
-          reservationIds: [4],
-          invoiceIds: [9],
-          paymentIds: [],
-          submissionIds: preview.submissionIds ?? [],
-          scheduledTaskIds: [],
-          participantsByReservationId: new Map(),
-        },
-      };
+    );
+  return {
+    uniqueSortedIds,
+    sameIdSet: (left: readonly number[], right: readonly number[]) => {
+      const a = uniqueSortedIds(left);
+      const b = uniqueSortedIds(right);
+      return a.length === b.length && a.every((id, index) => id === b[index]);
     },
-  ),
-}));
+    lockParticipantsBeforeRegistryClaim: vi.fn(),
+    lockReservationAggregate: vi.fn(
+      async (
+        _tx: unknown,
+        preview: {
+          userIds: readonly number[];
+          submissionIds?: readonly number[];
+        },
+      ) => {
+        lockCallOrder.current.push(
+          "advisory",
+          "festival",
+          "terms",
+          "eligibility",
+          "credit_account",
+          "stand",
+        );
+        if ((preview.submissionIds?.length ?? 0) > 0) {
+          lockCallOrder.current.push("submission");
+        }
+        const userIds = [
+          ...new Set(
+            preview.userIds.filter((id) => Number.isInteger(id) && id > 0),
+          ),
+        ].sort((a, b) => a - b);
+        return {
+          ok: true,
+          locked: {
+            festivalId: 10,
+            userIds,
+            standIds: [7],
+            holdIds: [],
+            reservationIds: [4],
+            invoiceIds: [9],
+            paymentIds: [],
+            submissionIds: preview.submissionIds ?? [],
+            scheduledTaskIds: [],
+            participantsByReservationId: new Map(),
+          },
+        };
+      },
+    ),
+  };
+});
 
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueAdminAndOwnerNotifications: enqueueNotificationsMock,
@@ -815,7 +823,10 @@ describe("createInvoiceCreditTopUp", () => {
     });
     installTransaction();
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_OWNED" });
     expect(createCreditTopUpMock).not.toHaveBeenCalled();
@@ -830,7 +841,10 @@ describe("createInvoiceCreditTopUp", () => {
     });
     installTransaction({ amount: 150, approvedCashAmount: 30 });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(createCreditTopUpMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -886,7 +900,10 @@ describe("createInvoiceCreditTopUp", () => {
       ],
     });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({
       success: false,
@@ -912,7 +929,10 @@ describe("createInvoiceCreditTopUp", () => {
       ],
     });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({
       success: true,
@@ -929,7 +949,10 @@ describe("createInvoiceCreditTopUp", () => {
     });
     installTransaction({ amount: 150 });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({
       success: false,
