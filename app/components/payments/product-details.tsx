@@ -5,6 +5,7 @@ import FullTableGraphic from "@/app/components/festivals/reservations/full-table
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type ProductDetailsProps = {
@@ -61,7 +62,7 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
             <h3 className="font-semibold text-lg leading-5 mb-2">
               {standCount} {standCount === 1 ? "espacio" : "espacios"} de{" "}
               {category.toLowerCase()} -{" "}
-              {summary.label || `${stand.label}${stand.standNumber}`}
+              {summary.label || formatStandLabel(stand)}
             </h3>
             {summary.isFullTable && (
               <p className="mb-1 text-sm font-medium text-primary">
