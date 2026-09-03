@@ -823,7 +823,6 @@ export async function confirmStandHold(
       if (memberStandIds.length === 0) {
         return finish(reservationFailure("HOLD_EXPIRED"));
       }
-      const isFullTable = memberStandIds.length > 1;
 
       const fullTableAccess = isFullTableCategory(actor.category)
         ? await findActiveFullTableAccess(tx, {
@@ -831,6 +830,19 @@ export async function confirmStandHold(
             festivalId: hold.festivalId,
           })
         : null;
+
+      // Access can be deactivated — or the participant's category changed —
+      // while the hold is open, and neither shrinks the hold it already took.
+      // Reserving the pair anyway would hand out a full table with no credits
+      // behind it, so the companion is dropped and the picked half (member
+      // position 0, the same one a manual downgrade keeps) is what gets
+      // reserved: the half-table fallback, reached a different way.
+      const reservedStandIds =
+        memberStandIds.length > 1 && !fullTableAccess
+          ? memberStandIds.slice(0, 1)
+          : memberStandIds;
+      const droppedStandIds = memberStandIds.slice(reservedStandIds.length);
+      const isFullTable = reservedStandIds.length > 1;
 
       const individualPrice = roundMoney(
         hold.individualPriceSnapshot ??
@@ -868,7 +880,7 @@ export async function confirmStandHold(
         })
         .returning();
 
-      await insertReservationMembers(tx, reservation.id, memberStandIds);
+      await insertReservationMembers(tx, reservation.id, reservedStandIds);
 
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
@@ -884,7 +896,7 @@ export async function confirmStandHold(
         toStatus: "pending",
         payload: {
           standId: hold.standId,
-          standIds: memberStandIds,
+          standIds: reservedStandIds,
           partnerId: partnerId ?? null,
           fullTable: isFullTable,
         },
@@ -894,10 +906,10 @@ export async function confirmStandHold(
         .update(stands)
         .set({ status: "reserved", updatedAt: new Date() })
         .where(
-          and(inArray(stands.id, memberStandIds), eq(stands.status, "held")),
+          and(inArray(stands.id, reservedStandIds), eq(stands.status, "held")),
         )
         .returning({ id: stands.id });
-      if (updatedStands.length !== memberStandIds.length) {
+      if (updatedStands.length !== reservedStandIds.length) {
         throw new Error("stand_status_conflict");
       }
 
@@ -919,6 +931,12 @@ export async function confirmStandHold(
       });
 
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
+
+      // Dropped companions only stop being held once the hold row is gone:
+      // its member rows go with it, so the stand reads as vacant here.
+      for (const standId of droppedStandIds) {
+        await releaseStandIfVacant(tx, standId);
+      }
 
       // Credit classes come last in the §14 lock order, so the hold is settled
       // only once the reservation and its invoice exist.

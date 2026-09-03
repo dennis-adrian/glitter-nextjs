@@ -667,6 +667,73 @@ describeDatabase("full table", () => {
     expect(held).toMatchObject({ success: true, data: { isFullTable: false } });
   });
 
+  it("keeps only the selected half when access is deactivated after the hold", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held).toMatchObject({ success: true, data: { isFullTable: true } });
+
+    // Deactivation frees the credits but leaves the two-stand hold standing.
+    const off = await deactivateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(off.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(confirmed.success).toBe(true);
+
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    // Confirming the pair would have been a full table nobody paid for.
+    expect(await memberStandIds(reservationId)).toEqual([standIds[0]]);
+    const companion = await integrationDb!
+      .select({ status: stands.status })
+      .from(stands)
+      .where(eq(stands.id, standIds[1]));
+    expect(companion).toEqual([{ status: "available" }]);
+
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "released" },
+    ]);
+    const spends = await integrationDb!
+      .select({ id: creditLedgerEntries.id })
+      .from(creditLedgerEntries)
+      .where(
+        and(
+          eq(creditLedgerEntries.userId, owner.id),
+          eq(creditLedgerEntries.type, "spend"),
+        ),
+      );
+    expect(spends).toHaveLength(0);
+
+    const invoiceRows = await integrationDb!
+      .select({ amount: invoices.amount })
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    expect(invoiceRows).toEqual([{ amount: STAND_PRICE }]);
+  });
+
   it("reports both stands on the reservation detail query", async () => {
     const {
       festival,
