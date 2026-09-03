@@ -24,7 +24,11 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
   props: PaymentConfirmationForAdminsEmailTemplateProps,
 ) {
   const stand = props.invoice.reservation.stand;
+  // A full table is two stands; name both.
   const standLabel = reservationStandLabel(props.invoice.reservation);
+  const standCount = (props.invoice.reservation.members ?? []).filter(
+    (member) => member.releasedAt == null,
+  ).length;
   const payment = props.invoice.payments[props.invoice.payments.length - 1];
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(props.invoice.user);
@@ -33,7 +37,8 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
     <Html>
       <Head />
       <Preview>
-        Nueva reserva por confirmar para el espacio {standLabel}
+        Nueva reserva por confirmar para{" "}
+        {standCount > 1 ? "los espacios" : "el espacio"} {standLabel}
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
@@ -42,7 +47,8 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
             <Text style={styles.text}>
               El participante {userName} hizo un pago de{" "}
               <strong>Bs{props.invoice.amount?.toFixed(2) || 0}</strong> de su
-              reserva para el espacio <strong>{standLabel}</strong>{" "}
+              reserva para {standCount > 1 ? "los espacios" : "el espacio"}{" "}
+              <strong>{standLabel}</strong>{" "}
               en el festival {props.invoice.reservation.festival.name}.
             </Text>
             {payment?.voucherUrl && (
