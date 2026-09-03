@@ -27,6 +27,17 @@ describe("standReservationsFromMembers", () => {
   it("reports an unoccupied stand as empty", () => {
     expect(standReservationsFromMembers([])).toEqual([]);
   });
+
+  it("drops a member whose filtered reservation came back empty", () => {
+    // A caller that filters the nested relation gets `null` for every member
+    // the filter excluded — a rejected reservation keeps its rows unreleased.
+    expect(
+      standReservationsFromMembers([
+        { position: 0, releasedAt: null, reservation: null },
+        member(2, 1),
+      ]),
+    ).toEqual([{ id: 2 }]);
+  });
 });
 
 describe("withMembershipReservations", () => {
@@ -47,6 +58,19 @@ describe("withMembershipReservations", () => {
     // Other stand columns survive the rewrite.
     expect(result[0].label).toBe("A");
     expect(result[0]).not.toHaveProperty("reservationMembers");
+  });
+
+  it("leaves a stand free when every reservation was filtered out", () => {
+    expect(
+      withMembershipReservations([
+        {
+          id: 10,
+          reservationMembers: [
+            { position: 0, releasedAt: null, reservation: null },
+          ],
+        },
+      ])[0].reservations,
+    ).toEqual([]);
   });
 
   it("leaves a genuinely free stand free", () => {

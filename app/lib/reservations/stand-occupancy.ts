@@ -11,7 +11,7 @@
 type StandMemberRow<TReservation> = {
   position: number;
   releasedAt: Date | null;
-  reservation: TReservation;
+  reservation: TReservation | null;
 };
 
 /**
@@ -19,15 +19,21 @@ type StandMemberRow<TReservation> = {
  *
  * A member released by an admin downgrade is dropped: the row is retained as
  * history, but it no longer occupies the stand.
+ *
+ * A member whose reservation came back empty is dropped too. The join column is
+ * `NOT NULL`, so Drizzle types the nested relation as always present, but a
+ * caller that filters it (`with: { reservation: { where: ... } }`) gets `null`
+ * for every member the filter excluded — a rejected or canceled reservation
+ * keeps its member rows unreleased, so those rows reach here.
  */
 export function standReservationsFromMembers<TReservation>(
   members: readonly StandMemberRow<TReservation>[],
-): TReservation[] {
+): NonNullable<TReservation>[] {
   return members
-    .filter((member) => member.releasedAt == null)
+    .filter((member) => member.releasedAt == null && member.reservation != null)
     .slice()
     .sort((a, b) => a.position - b.position)
-    .map((member) => member.reservation);
+    .map((member) => member.reservation as NonNullable<TReservation>);
 }
 
 /**
