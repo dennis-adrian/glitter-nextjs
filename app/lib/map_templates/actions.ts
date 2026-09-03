@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { standsHaveReservations } from "@/app/lib/reservations/members";
 import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
 import {
   festivals,
@@ -317,34 +318,6 @@ export async function deleteMapTemplate(
     console.error("Error deleting map template", error);
     return { success: false, message: "Error al eliminar la plantilla" };
   }
-}
-
-/**
- * A stand can be reserved through either relationship: `stand_reservations`
- * points at the primary stand, while the second half of a full table is only
- * reachable through `stand_reservation_stands`. Membership rows are history and
- * are never deleted, so a released half still pins its stand.
- */
-async function standsHaveReservations(
-  tx: DrizzleTransactionScope,
-  standIds: number[],
-): Promise<boolean> {
-  const existing = await tx
-    .select({ id: standReservations.id })
-    .from(standReservations)
-    .leftJoin(
-      standReservationStands,
-      eq(standReservationStands.reservationId, standReservations.id),
-    )
-    .where(
-      or(
-        inArray(standReservations.standId, standIds),
-        inArray(standReservationStands.standId, standIds),
-      ),
-    )
-    .limit(1);
-
-  return existing.length > 0;
 }
 
 // Import template to festival

@@ -6,6 +6,7 @@ import {
   FestivalWithUserRequests,
 } from "@/app/lib/festivals/definitions";
 import { lockFestivalRow, lockStandRows } from "@/app/lib/reservations/locks";
+import { standsHaveReservations } from "@/app/lib/reservations/members";
 import { guardLegacySinglePriceEdit } from "@/app/lib/stands/pricing-service";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -256,13 +257,10 @@ export async function deleteStands(
     const parsed = deleteStandsSchema.parse(standIds);
 
     const result = await db.transaction(async (tx) => {
-      const reservations = await tx
-        .select({ standId: standReservations.standId })
-        .from(standReservations)
-        .where(inArray(standReservations.standId, parsed))
-        .limit(1);
-
-      if (reservations.length > 0) {
+      // Membership as well as the parent column: a full table's companion is
+      // reachable only through membership, so checking `stand_id` alone let the
+      // delete through and the foreign key rejected it with a generic error.
+      if (await standsHaveReservations(tx, parsed)) {
         return {
           success: false as const,
           message: "No se pueden eliminar espacios con reservaciones",

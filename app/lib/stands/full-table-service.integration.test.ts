@@ -4,9 +4,18 @@ import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, inArray } from "drizzle-orm";
 import { Pool } from "pg";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
+import { standsHaveReservations } from "@/app/lib/reservations/members";
 import {
   festivalSectors,
   festivals,
@@ -100,18 +109,18 @@ describeDatabase("setStandGroupFullTable", () => {
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
-    ({ setStandGroupFullTable } = await import(
-      "@/app/lib/stands/full-table-service"
-    ));
-    ({ findMalformedFullTableGroups } = await import(
-      "@/app/lib/stands/full-table-health"
-    ));
-    ({ updateStandPrices, guardLegacySinglePriceEdit } = await import(
-      "@/app/lib/stands/pricing-service"
-    ));
+    ({ setStandGroupFullTable } =
+      await import("@/app/lib/stands/full-table-service"));
+    ({ findMalformedFullTableGroups } =
+      await import("@/app/lib/stands/full-table-health"));
+    ({ updateStandPrices, guardLegacySinglePriceEdit } =
+      await import("@/app/lib/stands/pricing-service"));
 
     try {
-      await integrationDb!.select({ id: standGroups.type }).from(standGroups).limit(1);
+      await integrationDb!
+        .select({ id: standGroups.type })
+        .from(standGroups)
+        .limit(1);
     } catch (error) {
       throw new Error(
         "TEST_DATABASE_URL is safe but unmigrated; apply Drizzle migrations first.",
@@ -132,7 +141,9 @@ describeDatabase("setStandGroupFullTable", () => {
       await db
         .delete(stands)
         .where(inArray(stands.standGroupId, createdGroupIds));
-      await db.delete(standGroups).where(inArray(standGroups.id, createdGroupIds));
+      await db
+        .delete(standGroups)
+        .where(inArray(standGroups.id, createdGroupIds));
       createdGroupIds.length = 0;
     }
     if (createdFestivalIds.length > 0) {
@@ -186,24 +197,22 @@ describeDatabase("setStandGroupFullTable", () => {
       .from(stands)
       .where(eq(stands.standGroupId, groupId))
       .limit(1);
-    await integrationDb!
-      .insert(stands)
-      .values({
-        standNumber: 3,
-        label: "A3",
-        standGroupId: groupId,
-        festivalSectorId: (
-          await integrationDb!
-            .select({ id: stands.festivalSectorId })
-            .from(stands)
-            .where(eq(stands.id, extra!.id))
-        )[0]!.id,
-        standCategory: "illustration",
-        individualPrice: 200,
-        sharedPrice: 300,
-        positionLeft: 10,
-        positionTop: 10,
-      });
+    await integrationDb!.insert(stands).values({
+      standNumber: 3,
+      label: "A3",
+      standGroupId: groupId,
+      festivalSectorId: (
+        await integrationDb!
+          .select({ id: stands.festivalSectorId })
+          .from(stands)
+          .where(eq(stands.id, extra!.id))
+      )[0]!.id,
+      standCategory: "illustration",
+      individualPrice: 200,
+      sharedPrice: 300,
+      positionLeft: 10,
+      positionTop: 10,
+    });
 
     const result = await setStandGroupFullTable({ groupId, enabled: true });
 
@@ -428,6 +437,64 @@ describeDatabase("setStandGroupFullTable", () => {
    * the guard has to catch the two edits that could break an invariant before
    * they reach the row.
    */
+  describe("standsHaveReservations", () => {
+    it("sees a companion reachable only through membership", async () => {
+      const { standIds } = await createPair();
+      const [festivalId] = createdFestivalIds.slice(-1);
+      const [reservation] = await integrationDb!
+        .insert(standReservations)
+        .values({ standId: standIds[0], festivalId, status: "accepted" })
+        .returning({ id: standReservations.id });
+      createdReservationIds.push(reservation!.id);
+      await integrationDb!.insert(standReservationStands).values([
+        { reservationId: reservation!.id, standId: standIds[0], position: 0 },
+        { reservationId: reservation!.id, standId: standIds[1], position: 1 },
+      ]);
+
+      // The companion has no stand_reservations row of its own; checking the
+      // parent column alone would report it deletable and the foreign key
+      // would then reject the delete with an opaque error.
+      await expect(
+        integrationDb!.transaction((tx) =>
+          standsHaveReservations(tx, [standIds[1]]),
+        ),
+      ).resolves.toBe(true);
+    });
+
+    it("still sees a half retired by a downgrade", async () => {
+      const { standIds } = await createPair();
+      const [festivalId] = createdFestivalIds.slice(-1);
+      const [reservation] = await integrationDb!
+        .insert(standReservations)
+        .values({ standId: standIds[0], festivalId, status: "accepted" })
+        .returning({ id: standReservations.id });
+      createdReservationIds.push(reservation!.id);
+      await integrationDb!.insert(standReservationStands).values({
+        reservationId: reservation!.id,
+        standId: standIds[1],
+        position: 1,
+        releasedAt: new Date(),
+      });
+
+      // Membership rows are history and are never deleted, so the released
+      // half still pins its stand.
+      await expect(
+        integrationDb!.transaction((tx) =>
+          standsHaveReservations(tx, [standIds[1]]),
+        ),
+      ).resolves.toBe(true);
+    });
+
+    it("reports an untouched stand as deletable", async () => {
+      const { standIds } = await createPair();
+      await expect(
+        integrationDb!.transaction((tx) =>
+          standsHaveReservations(tx, [standIds[1]]),
+        ),
+      ).resolves.toBe(false);
+    });
+  });
+
   describe("guardLegacySinglePriceEdit", () => {
     it("blocks a half of a declared full table", async () => {
       const { groupId, standIds } = await createPair();

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -179,4 +179,37 @@ export async function liveReservationsForStands(
         ]),
       ),
     );
+}
+
+/**
+ * Whether any reservation — live or historical — still references these stands.
+ *
+ * Checks membership as well as the parent's `stand_id`: a full table's
+ * companion is reachable only through membership, and a half retired by an
+ * admin downgrade keeps its member row, so both pin the stand. Callers use this
+ * to refuse a delete that the `stand_reservation_stands` foreign key would
+ * otherwise reject with an opaque error.
+ */
+export async function standsHaveReservations(
+  tx: DbTx,
+  standIds: readonly number[],
+): Promise<boolean> {
+  if (standIds.length === 0) return false;
+  const ids = [...standIds];
+  const [existing] = await tx
+    .select({ id: standReservations.id })
+    .from(standReservations)
+    .leftJoin(
+      standReservationStands,
+      eq(standReservationStands.reservationId, standReservations.id),
+    )
+    .where(
+      or(
+        inArray(standReservations.standId, ids),
+        inArray(standReservationStands.standId, ids),
+      ),
+    )
+    .limit(1);
+
+  return existing != null;
 }
