@@ -76,11 +76,11 @@ describe("StandSpecificationsSectorCard", () => {
     expect(band.textContent).not.toContain("Bs.");
   });
 
-  it("says the shared price covers the reservation, not one person", () => {
+  it("says what the shared rate buys, not just its amount", () => {
     renderCard();
 
     expect(
-      screen.getByText(/Total de la reserva, no por persona/),
+      screen.getByText(/Para compartirlo con otro ilustrador/),
     ).toBeTruthy();
   });
 

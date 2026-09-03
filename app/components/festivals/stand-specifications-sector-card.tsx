@@ -140,19 +140,24 @@ export default function StandSpecificationsSectorCard({
 
   return (
     <>
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
+      {/* The grid stretches every card to the tallest in its row, so the
+          column has to fill that height and the price section has to sit at the
+          bottom of it. Otherwise a short card leaves its spare height below the
+          tinted footer, where it reads as the card carrying on past its own
+          content. */}
+      <Card className="flex h-full flex-col overflow-hidden">
+        <CardContent className="flex flex-1 flex-col p-0">
           {/* Title and count read as one line; the band carries no price so
               the card has exactly one place to look for money. */}
           <div className="bg-primary p-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <h3 className="font-semibold text-primary-foreground">
+            <h3 className="font-semibold text-lg text-primary-foreground">
               {sector.name}
               {category === "entrepreneurship" &&
                 sector.name.toLowerCase().includes("balliv") &&
                 " (Activaciones)"}
             </h3>
             <p className="text-xs text-primary-foreground/80">
-              · {standCount} {standCount === 1 ? "espacio" : "espacios"}
+              {standCount} {standCount === 1 ? "espacio" : "espacios"}
             </p>
           </div>
           <div className="p-4 space-y-3 text-sm">
@@ -176,7 +181,7 @@ export default function StandSpecificationsSectorCard({
               right-aligned against it — the shared price used to sit inside a
               sentence, where it read as prose rather than as the second of two
               options. */}
-          <div className="border-t bg-muted/40 px-4 py-3">
+          <div className="mt-auto border-t bg-muted/40 px-4 py-3">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {sharedPrice != null ? "Precios" : "Precio"}
             </h4>
@@ -198,7 +203,7 @@ export default function StandSpecificationsSectorCard({
                       Para vos solo
                     </span>
                   </dt>
-                  <dd className="shrink-0 whitespace-nowrap font-semibold tabular-nums">
+                  <dd className="shrink-0 text-lg whitespace-nowrap font-semibold tabular-nums">
                     Bs. {individualPrice.toLocaleString()}
                   </dd>
                 </div>
@@ -206,8 +211,7 @@ export default function StandSpecificationsSectorCard({
                   <dt>
                     <span className="font-medium">Espacio compartido</span>
                     <span className="block text-xs text-muted-foreground">
-                      Total de la reserva, no por persona, y lo paga quien
-                      reserva
+                      Para compartirlo con otro ilustrador
                     </span>
                   </dt>
                   <dd className="shrink-0 whitespace-nowrap font-semibold tabular-nums">
@@ -218,15 +222,19 @@ export default function StandSpecificationsSectorCard({
             )}
 
             {hasMap && (
-              <Button
-                variant="link"
-                size="sm"
-                className="mt-2 w-full border-t pt-4"
-                onClick={() => setMapOpen(true)}
-              >
-                <MapIcon className="w-4 h-4 mr-2" />
-                Ver mapa del sector
-              </Button>
+              // The rule goes on the wrapper: the button is a pill, so a border
+              // on it curves with the radius instead of dividing the section.
+              <div className="mt-3 border-t pt-2">
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setMapOpen(true)}
+                >
+                  <MapIcon className="w-4 h-4 mr-2" />
+                  Ver mapa del sector
+                </Button>
+              </div>
             )}
           </div>
         </CardContent>
