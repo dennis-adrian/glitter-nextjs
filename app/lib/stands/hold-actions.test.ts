@@ -121,15 +121,17 @@ function selectChain(rows: unknown[]) {
     // Aggregate membership is read ordered by position.
     orderBy: vi.fn().mockResolvedValue(rows),
   });
+  const joined: Record<string, unknown> = {
+    where: vi.fn(() => thenable),
+  };
+  joined.innerJoin = vi.fn(() => joined);
+  joined.leftJoin = vi.fn(() => joined);
+
   return {
     from: vi.fn(() => ({
       where: vi.fn(() => thenable),
-      innerJoin: vi.fn(() => ({
-        where: vi.fn(() => thenable),
-        innerJoin: vi.fn(() => ({
-          where: vi.fn(() => thenable),
-        })),
-      })),
+      innerJoin: vi.fn(() => joined),
+      leftJoin: vi.fn(() => joined),
     })),
   };
 }

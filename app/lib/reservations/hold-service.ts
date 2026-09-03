@@ -165,10 +165,14 @@ async function reconcileExpiredHolds(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   input: { standId: number; userId: number; festivalId: number; now: Date },
 ) {
+  // Left join: nothing in the database guarantees a hold has members since
+  // 0264 dropped the cardinality trigger, and an inner join would make such a
+  // row invisible here — leaving it to occupy the (user, festival) unique key
+  // with nothing ever deleting it.
   const expired = await tx
     .select({ id: standHolds.id })
     .from(standHolds)
-    .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
+    .leftJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
     .where(
       and(
         lte(standHolds.expiresAt, input.now),
@@ -1060,7 +1064,9 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
         standId: standHoldMembers.standId,
       })
       .from(standHolds)
-      .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
+      // Left join for the same reason as above: a member-less hold still has
+      // to be counted and deleted.
+      .leftJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
       .where(lte(standHolds.expiresAt, now));
 
     if (expiredHolds.length === 0) return { expired: 0 };
@@ -1069,7 +1075,11 @@ export async function cleanupExpiredHolds(): Promise<{ expired: number }> {
 
     await db.transaction(async (tx) => {
       const standIds = [
-        ...new Set(expiredHolds.map((hold) => hold.standId)),
+        ...new Set(
+          expiredHolds
+            .map((hold) => hold.standId)
+            .filter((standId): standId is number => standId != null),
+        ),
       ].sort((a, b) => a - b);
       for (const standId of standIds) {
         await tx

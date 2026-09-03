@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 
 import {
   type FullTablePairProblem,
@@ -10,7 +10,13 @@ import { loadStandGroupMembers } from "@/app/lib/stands/full-table-health";
 import { lockStandRows } from "@/app/lib/reservations/locks";
 import { OCCUPYING_RESERVATION_STATUSES } from "@/app/lib/reservations/members";
 import { db } from "@/db";
-import { standGroups, standReservationStands, stands } from "@/db/schema";
+import {
+  standGroups,
+  standHoldMembers,
+  standHolds,
+  standReservationStands,
+  stands,
+} from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -23,6 +29,23 @@ export type FullTableConfigResult =
 /** Any reservation still holding one of these stands. */
 async function hasLiveOccupancy(tx: DbTx, standIds: readonly number[]) {
   if (standIds.length === 0) return false;
+
+  // A participant holding both halves is mid-booking on this pair. Retyping
+  // the group underneath them would let confirmation create a two-stand
+  // reservation on a group that is no longer a declared full table.
+  const [heldRow] = await tx
+    .select({ id: standHoldMembers.id })
+    .from(standHoldMembers)
+    .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
+    .where(
+      and(
+        inArray(standHoldMembers.standId, [...standIds]),
+        gt(standHolds.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+  if (heldRow != null) return true;
+
   const [row] = await tx
     .select({ id: standReservationStands.id })
     .from(standReservationStands)
