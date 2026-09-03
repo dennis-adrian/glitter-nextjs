@@ -1,8 +1,8 @@
 import { createClerkClient, type User } from "@clerk/backend";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type { db as DbType } from "@/db";
-import { users } from "@/db/schema";
+import { profileSubcategories, subcategories, users } from "@/db/schema";
 
 /** Roles used by the seed. Omits unused `artist` (zero prod users; pending cleanup). */
 export type DemoUserRole = "admin" | "festival_admin" | "user";
@@ -101,9 +101,7 @@ export const DEMO_USERS: readonly DemoUserSeed[] = [
  * Former demo emails removed from DEMO_USERS. Deleted on each seed run so local
  * DBs and the shared Clerk development instance stay aligned with the current list.
  */
-export const RETIRED_DEMO_EMAILS = [
-  "artist+clerk_test@example.com",
-] as const;
+export const RETIRED_DEMO_EMAILS = ["artist+clerk_test@example.com"] as const;
 
 /** Default password for local/cloud-agent login when SEED_DEMO_PASSWORD is unset. */
 export const DEFAULT_SEED_DEMO_PASSWORD = "Glitter-Dev-Seed-1!";
@@ -249,6 +247,53 @@ async function upsertLocalProfile(
   return row;
 }
 
+/**
+ * Gives a participant one subcategory matching their festival category.
+ *
+ * Not cosmetic: the festival terms page — the entry point to the whole
+ * reservation flow — calls notFound() for a profile with no subcategories, so
+ * a seeded participant could not reach it at all. Picks the first selectable,
+ * non-admin-only subcategory for the category, and leaves any existing
+ * assignment alone.
+ */
+async function ensureProfileSubcategory(
+  database: typeof DbType,
+  demo: DemoUserSeed,
+  profileId: number,
+): Promise<string | null> {
+  if (demo.category === "none") return null;
+
+  const existing = await database.query.profileSubcategories.findFirst({
+    where: eq(profileSubcategories.profileId, profileId),
+    columns: { id: true },
+  });
+  if (existing) return null;
+
+  const [subcategory] = await database
+    .select({ id: subcategories.id, label: subcategories.label })
+    .from(subcategories)
+    .where(
+      and(
+        eq(subcategories.category, demo.category),
+        eq(subcategories.visibility, "selectable"),
+        eq(subcategories.isAdminAssignableOnly, false),
+      ),
+    )
+    .orderBy(subcategories.sortOrder, subcategories.id)
+    .limit(1);
+
+  // A database with no subcategories for this category is a valid state; the
+  // seed should not fail over it.
+  if (!subcategory) return null;
+
+  await database
+    .insert(profileSubcategories)
+    .values({ profileId, subcategoryId: subcategory.id })
+    .onConflictDoNothing();
+
+  return subcategory.label;
+}
+
 async function retireFormerDemoUsers(
   client: ReturnType<typeof createClerkClient>,
   database: typeof DbType,
@@ -311,6 +356,7 @@ export async function seedDemoUsers(
     if (!local?.id) {
       throw new Error(`Failed to upsert local profile for ${demo.email}`);
     }
+    const subcategoryName = await ensureProfileSubcategory(db, demo, local.id);
     results.push({
       key: demo.key,
       email: demo.email,
@@ -319,7 +365,8 @@ export async function seedDemoUsers(
       localUserId: local.id,
     });
     console.info(
-      `[seed] ${demo.key}: clerk=${created ? "created" : "updated"} id=${user.id} localUserId=${local.id}`,
+      `[seed] ${demo.key}: clerk=${created ? "created" : "updated"} id=${user.id} localUserId=${local.id}` +
+        (subcategoryName ? ` subcategory="${subcategoryName}"` : ""),
     );
   }
 
