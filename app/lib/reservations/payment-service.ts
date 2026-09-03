@@ -1,4 +1,5 @@
 import "server-only";
+import { activeReservationStandIds } from "@/app/lib/reservations/members";
 
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
@@ -1335,6 +1336,8 @@ export async function rejectInvoiceSettlement(
           actorUserId,
           eventType: "settlement_rejected",
           reason: parsed.data.reason,
+          // A full table hands back both halves.
+          standIds: await activeReservationStandIds(tx, reservation.id),
           payload: {
             invoiceId: invoice.id,
             submissionId: submission.id,

@@ -93,6 +93,7 @@ let confirmStandHold: (typeof import("@/app/lib/reservations/hold-service"))["co
 let activateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["activateFullTableAccess"];
 let deactivateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["deactivateFullTableAccess"];
 let downgradeFullTableReservation: (typeof import("@/app/lib/reservations/full-table-service"))["downgradeFullTableReservation"];
+let cancelReservation: (typeof import("@/app/lib/reservations/admin-service"))["cancelReservation"];
 let publishedTermsVersionId: number;
 
 const ACCESS_PRICE = 50;
@@ -118,6 +119,9 @@ describeDatabase("full table", () => {
       deactivateFullTableAccess,
       downgradeFullTableReservation,
     } = await import("@/app/lib/reservations/full-table-service"));
+    ({ cancelReservation } = await import(
+      "@/app/lib/reservations/admin-service"
+    ));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -759,6 +763,54 @@ describeDatabase("full table", () => {
     expect(
       new Set(occupancy.map((stand) => stand.reservations[0]!.id)).size,
     ).toBe(1);
+  });
+
+  it("frees both stands when a full-table reservation is cancelled", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    currentProfileMock.mockResolvedValue({
+      id: owner.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    const cancelled = await cancelReservation({
+      reservationId,
+      reason: "test",
+    });
+    expect(cancelled.success).toBe(true);
+
+    // Both halves must go back to the pool. Releasing only the parent's
+    // stand_id would strand the companion as permanently unavailable.
+    const after = await integrationDb!
+      .select({ id: stands.id, status: stands.status })
+      .from(stands)
+      .where(inArray(stands.id, standIds));
+    expect(after.map((row) => row.status)).toEqual(["available", "available"]);
   });
 
   it("downgrades a full table to its original half without touching the money", async () => {
