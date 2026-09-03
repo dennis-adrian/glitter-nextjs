@@ -22,6 +22,8 @@ const ORIGIN: readonly [number, number] = [10, 46];
 const THICKNESS = 4.6;
 /** How far the legs drop below the surface. */
 const LEG_LENGTH = 48;
+/** Stroke width of a leg; its round cap extends half of this past the foot. */
+const LEG_STROKE = 3.4;
 
 type Point = [number, number];
 
@@ -100,7 +102,7 @@ function Half({ index, muted, seam, selected }: HalfProps) {
           x2={foot[0]}
           y2={foot[1] + THICKNESS + LEG_LENGTH}
           stroke={leg}
-          strokeWidth={3.4}
+          strokeWidth={LEG_STROKE}
           strokeLinecap="round"
         />
       ))}
@@ -152,8 +154,16 @@ export default function FullTableGraphic({
   // The viewBox grows with the number of halves so a full table is drawn twice
   // as long rather than squeezed into the same footprint.
   const width = ORIGIN[0] + DEPTH[0] + WIDTH[0] * halves + 12;
+  // The rear legs hang from the back edge (depth 0), so the lowest point in the
+  // drawing is that edge plus the top's thickness, the leg, and half the leg
+  // stroke that its round cap adds below the foot.
   const height =
-    ORIGIN[1] + DEPTH[1] + WIDTH[1] * halves + THICKNESS + LEG_LENGTH + 12;
+    ORIGIN[1] +
+    WIDTH[1] * halves +
+    THICKNESS +
+    LEG_LENGTH +
+    LEG_STROKE / 2 +
+    12;
 
   return (
     <svg
