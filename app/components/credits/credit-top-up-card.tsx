@@ -29,7 +29,7 @@ const STATUS_VARIANTS: Record<CreditTopUpDisplayStatus, BadgeVariant> = {
 function purposeLabel(topUp: CreditWalletTopUp) {
   if (topUp.intendedUseType === "invoice") return "Para el pago de una reserva";
   if (topUp.intendedUseType === "debt") return "Para regularizar tu saldo";
-  return "Para una función opcional";
+  return "Para una función opcional del festival";
 }
 
 type CreditTopUpCardProps = {
@@ -44,6 +44,13 @@ export default function CreditTopUpCard({
   const reservationHref =
     topUp.invoiceFestivalId && topUp.invoiceReservationId
       ? `/profiles/${profileId}/festivals/${topUp.invoiceFestivalId}/reservations/${topUp.invoiceReservationId}/payments`
+      : null;
+
+  // A feature purchase stores the festival it funds, which is where the
+  // participant goes back to spend it.
+  const featureHref =
+    topUp.intendedUseType === "feature" && topUp.intendedUseId
+      ? `/profiles/${profileId}/festivals/${topUp.intendedUseId}/reservations/new`
       : null;
 
   return (
@@ -100,6 +107,15 @@ export default function CreditTopUpCard({
             className="inline-block text-sm text-primary underline underline-offset-2"
           >
             Ver el pago de la reserva
+          </Link>
+        )}
+
+        {featureHref && (
+          <Link
+            href={featureHref}
+            className="inline-block text-sm text-primary underline underline-offset-2"
+          >
+            Volver a la función del festival
           </Link>
         )}
       </CardContent>

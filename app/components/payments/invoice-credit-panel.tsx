@@ -4,6 +4,7 @@ import { formatCredits } from "@/app/components/credits/credit-amount";
 import ApplyInvoiceCreditsButton from "@/app/components/payments/apply-invoice-credits-button";
 import BuyInvoiceCreditsButton from "@/app/components/payments/buy-invoice-credits-button";
 import { invoiceCreditPlan } from "@/app/lib/credits/balances";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import {
   fetchCurrentUserCreditBalances,
   fetchOpenInvoiceCreditTopUp,
@@ -40,11 +41,14 @@ export default async function InvoiceCreditPanel({
   ownerUserId,
   outstandingAmount,
 }: InvoiceCreditPanelProps) {
-  const [actor, balances] = await Promise.all([
+  // Every control here either leads to the wallet or creates a purchase the
+  // wallet is the only place to finish, so the panel goes when credits do.
+  const [creditsEnabled, actor, balances] = await Promise.all([
+    isFeatureEnabled("credits"),
     getCurrentUserProfile(),
     fetchCurrentUserCreditBalances(),
   ]);
-  if (!actor || !balances) return null;
+  if (!creditsEnabled || !actor || !balances) return null;
   // Credits are the invoice owner's to spend, and applyInvoiceCredits refuses
   // anyone else. An admin viewing this page would otherwise be shown their own
   // balance on someone else's invoice, above a button that always fails.

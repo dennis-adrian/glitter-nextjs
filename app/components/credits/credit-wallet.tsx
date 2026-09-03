@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import CreditBalanceSummary from "@/app/components/credits/credit-balance-summary";
 import CreditLedgerList from "@/app/components/credits/credit-ledger-list";
 import CreditTopUpCard from "@/app/components/credits/credit-top-up-card";
@@ -10,8 +12,12 @@ type CreditWalletProps = {
 };
 
 /**
- * Read-only wallet. Credits are bought from the thing that needs them — a
- * reservation payment today — so there is deliberately no top-up button here.
+ * The wallet shows what you have and every purchase in flight; it is still not
+ * where a purchase starts. Credits are always bought from the thing that needs
+ * them — a reservation payment, or an optional feature like the full table —
+ * so the amount is the exact shortfall for one named use and never a figure the
+ * participant types. The one exception is settling a negative balance, which
+ * belongs to no single use and is offered on the balance card above.
  */
 export default function CreditWallet({ wallet, profileId }: CreditWalletProps) {
   const openTopUps = wallet.topUps.filter(
@@ -54,10 +60,19 @@ export default function CreditWallet({ wallet, profileId }: CreditWalletProps) {
         </section>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Los créditos no se transfieren, no vencen y no se devuelven en efectivo.
-        Si no los usás en una función, quedan disponibles en tu billetera.
-      </p>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Los créditos no se transfieren, no vencen y no se devuelven en
+          efectivo. Si no los usás en una función, quedan disponibles en tu
+          billetera.
+        </p>
+        <Link
+          href="/credits_info"
+          className="inline-block text-sm text-primary underline underline-offset-2"
+        >
+          Cómo funcionan los créditos
+        </Link>
+      </div>
     </div>
   );
 }

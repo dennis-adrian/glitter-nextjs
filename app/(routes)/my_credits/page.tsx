@@ -2,11 +2,14 @@ import { notFound } from "next/navigation";
 
 import Title from "@/app/components/atoms/heading";
 import CreditWallet from "@/app/components/credits/credit-wallet";
+import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { fetchCreditWallet } from "@/app/lib/credits/queries";
 import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 
 export default async function MyCreditsPage() {
+  await requireFeatureEnabled("credits");
+
   const currentProfile = await getCurrentUserProfile();
   await protectRoute(currentProfile || undefined, currentProfile?.id, {
     allowedStatuses: [...PARTICIPANT_READ_ONLY_ROUTE_STATUSES],

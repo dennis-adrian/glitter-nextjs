@@ -1870,6 +1870,13 @@
       "when": 1788463075707,
       "tag": "0267_full_table_registry_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1788470483703,
+      "tag": "0268_credit_top_up_operations",
+      "breakpoints": true
     }
   ]
 }

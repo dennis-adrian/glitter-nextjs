@@ -9,6 +9,7 @@ import {
   fetchSelfServiceTargetProfile,
 } from "@/app/lib/reservations/map-queries";
 import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
@@ -67,18 +68,25 @@ export default async function MapReservationPage(
   // the session, so an admin viewing someone else's map would be shown that
   // participant's balance while spending their own credits.
   const viewingOwnMap = currentProfile?.id === forProfile.id;
-  const fullTableOffer = viewingOwnMap
-    ? await fetchFullTableOffer({
-        userId: forProfile.id,
-        festivalId: festival.id,
-        category: forProfile.category,
-      })
-    : null;
+  const [fullTableOffer, creditsEnabled] = await Promise.all([
+    viewingOwnMap
+      ? fetchFullTableOffer({
+          userId: forProfile.id,
+          festivalId: festival.id,
+          category: forProfile.category,
+        })
+      : null,
+    isFeatureEnabled("credits"),
+  ]);
 
   return (
     <>
       {fullTableOffer && (
-        <FullTablePanel offer={fullTableOffer} festivalId={festival.id} />
+        <FullTablePanel
+          offer={fullTableOffer}
+          festivalId={festival.id}
+          creditsEnabled={creditsEnabled}
+        />
       )}
       <MapTabsClient map={map} />
     </>

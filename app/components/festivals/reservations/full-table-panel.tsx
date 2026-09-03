@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import BuyFeatureCreditsButton from "@/app/components/credits/buy-feature-credits-button";
 import FullTableGraphic from "@/app/components/festivals/reservations/full-table-graphic";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -25,9 +26,16 @@ import type { FullTableOffer } from "@/app/lib/reservations/full-table-queries";
 export default function FullTablePanel({
   offer,
   festivalId,
+  creditsEnabled,
 }: {
   offer: FullTableOffer;
   festivalId: number;
+  /**
+   * A purchase can only be finished in the wallet, so the buy button is hidden
+   * while the wallet is. The shortfall is still stated: a control that vanishes
+   * without a reason reads as a broken feature.
+   */
+  creditsEnabled: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -123,9 +131,18 @@ export default function FullTablePanel({
               </Button>
             )}
 
-            {offer.blockedReason === "insufficient_credits" ? (
-              <Button variant="outline" asChild>
-                <a href="/my_credits">Comprar créditos</a>
+            {offer.blockedReason === "insufficient_credits" && creditsEnabled ? (
+              <BuyFeatureCreditsButton
+                festivalId={festivalId}
+                featureType="full_table"
+                shortfallAmount={offer.shortfall}
+                disabled={pending}
+              />
+            ) : null}
+
+            {creditsEnabled ? (
+              <Button variant="ghost" asChild>
+                <a href="/credits_info">Cómo funcionan los créditos</a>
               </Button>
             ) : null}
 

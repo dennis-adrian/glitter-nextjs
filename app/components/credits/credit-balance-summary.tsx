@@ -1,5 +1,6 @@
 import { AlertCircleIcon, CoinsIcon } from "lucide-react";
 
+import BuyDebtCreditsButton from "@/app/components/credits/buy-debt-credits-button";
 import CreditAmount, {
   formatCredits,
 } from "@/app/components/credits/credit-amount";
@@ -90,10 +91,14 @@ export default function CreditBalanceSummary({
           <Alert variant="destructive">
             <AlertCircleIcon className="h-4 w-4" />
             <AlertTitle>Tenés un saldo pendiente</AlertTitle>
-            <AlertDescription>
-              Rechazamos un comprobante después de que usaste esos créditos, así
-              que quedaste debiendo {formatCredits(debt)}. No vas a poder usar
-              créditos hasta regularizarlo. Escribinos para resolverlo.
+            <AlertDescription className="space-y-3">
+              <p>
+                Rechazamos un comprobante después de que usaste esos créditos,
+                así que quedaste debiendo {formatCredits(debt)}. No vas a poder
+                usar créditos hasta regularizarlo. Lo que pagaste con esos
+                créditos sigue en pie: nada se cancela por este saldo.
+              </p>
+              <BuyDebtCreditsButton debtAmount={debt} />
             </AlertDescription>
           </Alert>
         )}

@@ -2209,7 +2209,9 @@ export const reservationRequestRegistry = pgTable(
         'correctSettlementProof',
         'activateFullTableAccess',
         'deactivateFullTableAccess',
-        'downgradeFullTableReservation'
+        'downgradeFullTableReservation',
+        'createFeatureCreditTopUp',
+        'createDebtCreditTopUp'
       )`,
     ),
   ],

@@ -29,8 +29,10 @@ import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info
 
 export default function UserDropdown({
   profile,
+  creditsEnabled,
 }: {
   profile?: NavbarProfile | null;
+  creditsEnabled: boolean;
 }) {
   const clerk = useUser();
   const pathname = usePathname();
@@ -88,12 +90,14 @@ export default function UserDropdown({
               <span>Mis pedidos</span>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/my_credits">
-              <CoinsIcon className="mr-2 h-4 w-4" />
-              <span>Mis créditos</span>
-            </Link>
-          </DropdownMenuItem>
+          {creditsEnabled && (
+            <DropdownMenuItem asChild>
+              <Link href="/my_credits">
+                <CoinsIcon className="mr-2 h-4 w-4" />
+                <span>Mis créditos</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <SignOutButton />
         </DropdownMenuContent>
