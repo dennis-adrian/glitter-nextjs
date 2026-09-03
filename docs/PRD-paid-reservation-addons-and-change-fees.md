@@ -6,7 +6,7 @@
 
 **Status:** Product decisions complete; implementation follows reservation hardening
 
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-03
 
 **Depends on:** [PLAN-stand-reservation-hardening.md](./PLAN-stand-reservation-hardening.md)
 
@@ -421,7 +421,9 @@ The half-table fallback must be explicit at multiple stages:
 Suggested copy:
 
 > Esta mesa ya no está disponible completa. Podés reservar solo el espacio {stand} o elegir otra mesa.
-> Vas a reservar medio stand (120 × 60 cm), no la mesa completa. Tus créditos no se usarán y podrás aplicarlos al pago de tu reserva.
+> Vas a reservar un solo stand (media mesa, 120 × 60 cm), no la mesa completa. Tus créditos no se usarán y podrás aplicarlos al pago de tu reserva.
+
+Never phrase the fallback as `medio stand`. §2 defines one stand as half a table, so `medio stand` names half of a 120 × 60 space — a quarter table, which does not exist. The unit is `un stand`, equivalently `media mesa`.
 
 The server rechecks current availability at each capacity mutation. UI availability is informational.
 
@@ -937,7 +939,7 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 5. Full table vs half stand race has one winner.
 6. Full table created as one reservation with two members.
 7. Half fallback remains bookable and releases credit hold.
-8. Every fallback confirmation clearly says `medio stand`.
+8. Every fallback confirmation clearly says the participant is taking one stand — `un solo stand` / `media mesa` — and never `medio stand`.
 9. Full confirmation captures feature credits exactly once.
 10. Capacity-hold expiry preserves access; deactivation releases credit hold.
 11. Rejected source credits do not auto-downgrade.
