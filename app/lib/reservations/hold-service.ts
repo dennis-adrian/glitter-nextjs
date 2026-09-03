@@ -1,6 +1,10 @@
 import "server-only";
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
+import {
+  captureCreditHoldForFeatureInTx,
+  releaseCreditHoldForFeatureInTx,
+} from "@/app/lib/credits/service";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
   reservationFailure,
@@ -18,6 +22,12 @@ import {
   lockStandRows,
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
+import {
+  availableStandIds,
+  findActiveFullTableAccess,
+  isFullTableCategory,
+  resolveFullTableCompanion,
+} from "@/app/lib/reservations/full-table-access";
 import {
   holdMemberStandIds,
   insertHoldMembers,
@@ -50,6 +60,7 @@ import { db } from "@/db";
 import {
   festivals,
   invoices,
+  reservationFeatureActions,
   reservationParticipants,
   scheduledTasks,
   standHoldMembers,
@@ -57,7 +68,7 @@ import {
   standReservations,
   stands,
 } from "@/db/schema";
-import { and, eq, gt, lte, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
@@ -182,6 +193,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
     holdId?: number;
     alreadyHeld?: boolean;
     reservationId?: number;
+    /** True when the hold covers both halves of a declared full table. */
+    isFullTable?: boolean;
   }>
 > {
   const parsed = parseHoldStandInput(standIdInput);
@@ -285,8 +298,24 @@ export async function createStandHold(standIdInput: unknown): Promise<
           ),
         );
 
+      // Full-table access is resolved before locking so the companion half is
+      // in the lock set from the start; locking it later would invert the
+      // ascending-id order this transaction shares with every other writer.
+      // Categories that can never activate the feature skip the lookup, which
+      // is most participants.
+      const access = isFullTableCategory(actor.category)
+        ? await findActiveFullTableAccess(tx, {
+            userId: actor.id,
+            festivalId: stand.festivalId,
+          })
+        : null;
+      const pair = access
+        ? await resolveFullTableCompanion(tx, stand.id)
+        : null;
+
       const standIdsToLock = uniqueSortedIds([
         stand.id,
+        ...(pair ? [pair.companionStandId] : []),
         ...existingHoldPreview.map((hold) => hold.standId),
       ]);
 
@@ -400,6 +429,20 @@ export async function createStandHold(standIdInput: unknown): Promise<
         return finish(reservationFailure("STAND_UNAVAILABLE"));
       }
 
+      // The companion is re-checked under its own lock. If it went while the
+      // participant was choosing, the selected half stays reservable and the
+      // hold quietly becomes a half-table one — the fallback the PRD requires,
+      // which the confirmation screens then have to state explicitly.
+      const companionAvailable =
+        pair != null &&
+        (await availableStandIds(tx, [pair.companionStandId], now)).has(
+          pair.companionStandId,
+        );
+      const memberStandIds =
+        pair && companionAvailable
+          ? [freshStand.id, pair.companionStandId]
+          : [freshStand.id];
+
       const [festivalHold] = await tx
         .select({
           reservationHoldMinutes: festivals.reservationHoldMinutes,
@@ -430,17 +473,20 @@ export async function createStandHold(standIdInput: unknown): Promise<
         })
         .returning();
 
-      await insertHoldMembers(tx, hold.id, [freshStand.id]);
+      await insertHoldMembers(tx, hold.id, memberStandIds);
 
       await tx
         .update(stands)
         .set({ status: "held", updatedAt: now })
-        .where(eq(stands.id, standId));
+        .where(inArray(stands.id, memberStandIds));
 
+      const isFullTable = memberStandIds.length > 1;
       return finish(
         reservationSuccess(
-          { holdId: hold.id },
-          "Espacio reservado temporalmente",
+          { holdId: hold.id, isFullTable },
+          isFullTable
+            ? "Mesa completa reservada temporalmente"
+            : "Espacio reservado temporalmente",
         ),
         { holdId: hold.id },
       );
@@ -675,10 +721,19 @@ export async function confirmStandHold(
       }
 
       const participantIds = partnerId ? [actor.id, partnerId] : [actor.id];
+      // Every member stand is locked, ascending, so a full table is confirmed
+      // as one aggregate rather than two racing single-stand reservations.
+      const previewMemberStandIds = await holdMemberStandIds(
+        tx,
+        holdPreview.id,
+      );
       const locked = await lockReservationAggregate(tx, {
         festivalId: holdPreview.festivalId,
         userIds: participantIds,
-        standIds: [holdPreview.standId],
+        standIds:
+          previewMemberStandIds.length > 0
+            ? previewMemberStandIds
+            : [holdPreview.standId],
         holdIds: [holdPreview.id],
       });
       if (!locked.ok) return finish(reservationFailure("CONFLICT_RETRY"));
@@ -762,6 +817,21 @@ export async function confirmStandHold(
       });
       if (ineligibleStand) return finish(ineligibleStand);
 
+      // Membership is re-read under the aggregate lock: the set that gets
+      // reserved is the one this transaction verified, not the one previewed.
+      const memberStandIds = await holdMemberStandIds(tx, hold.id);
+      if (memberStandIds.length === 0) {
+        return finish(reservationFailure("HOLD_EXPIRED"));
+      }
+      const isFullTable = memberStandIds.length > 1;
+
+      const fullTableAccess = isFullTableCategory(actor.category)
+        ? await findActiveFullTableAccess(tx, {
+            userId: actor.id,
+            festivalId: hold.festivalId,
+          })
+        : null;
+
       const individualPrice = roundMoney(
         hold.individualPriceSnapshot ??
           hold.priceAmountSnapshot ??
@@ -798,7 +868,7 @@ export async function confirmStandHold(
         })
         .returning();
 
-      await insertReservationMembers(tx, reservation.id, [hold.standId]);
+      await insertReservationMembers(tx, reservation.id, memberStandIds);
 
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
@@ -812,15 +882,22 @@ export async function confirmStandHold(
         actorUserId: actor.id,
         eventType: "created",
         toStatus: "pending",
-        payload: { standId: hold.standId, partnerId: partnerId ?? null },
+        payload: {
+          standId: hold.standId,
+          standIds: memberStandIds,
+          partnerId: partnerId ?? null,
+          fullTable: isFullTable,
+        },
       });
 
       const updatedStands = await tx
         .update(stands)
         .set({ status: "reserved", updatedAt: new Date() })
-        .where(and(eq(stands.id, hold.standId), eq(stands.status, "held")))
+        .where(
+          and(inArray(stands.id, memberStandIds), eq(stands.status, "held")),
+        )
         .returning({ id: stands.id });
-      if (updatedStands.length === 0) {
+      if (updatedStands.length !== memberStandIds.length) {
         throw new Error("stand_status_conflict");
       }
 
@@ -842,6 +919,46 @@ export async function confirmStandHold(
       });
 
       await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
+
+      // Credit classes come last in the §14 lock order, so the hold is settled
+      // only once the reservation and its invoice exist.
+      if (fullTableAccess) {
+        if (isFullTable) {
+          // The companion half was allocated, so the feature is earned.
+          const captured = await captureCreditHoldForFeatureInTx(tx, {
+            userId: actor.id,
+            featureActionId: fullTableAccess.featureActionId,
+            idempotencyKey: `full-table-capture:${idempotencyKey}`,
+          });
+          if (!captured.ok) return finish(reservationFailure("CONFLICT_RETRY"));
+          await tx
+            .update(reservationFeatureActions)
+            .set({
+              status: "fulfilled",
+              reservationId: reservation.id,
+              fulfilledAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              eq(reservationFeatureActions.id, fullTableAccess.featureActionId),
+            );
+        } else {
+          // Half-table fallback: the participant is not charged, and the freed
+          // credits can go toward this very invoice if they choose.
+          const released = await releaseCreditHoldForFeatureInTx(tx, {
+            userId: actor.id,
+            featureActionId: fullTableAccess.featureActionId,
+            status: "released",
+          });
+          if (!released.ok) return finish(reservationFailure("CONFLICT_RETRY"));
+          await tx
+            .update(reservationFeatureActions)
+            .set({ status: "cancelled", updatedAt: new Date() })
+            .where(
+              eq(reservationFeatureActions.id, fullTableAccess.featureActionId),
+            );
+        }
+      }
 
       const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
         kind: "reservation_created",

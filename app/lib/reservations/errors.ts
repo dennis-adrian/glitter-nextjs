@@ -26,6 +26,11 @@ export const RESERVATION_ERROR_CODES = [
   "INSUFFICIENT_CREDITS",
   "CREDIT_TOP_UP_UNDER_REVIEW",
   "CREDIT_TOP_UP_NOT_NEEDED",
+  "FULL_TABLE_CATEGORY_INELIGIBLE",
+  "FULL_TABLE_UNAVAILABLE",
+  "FULL_TABLE_NONE_COMPLETE",
+  "FULL_TABLE_INSUFFICIENT_CREDITS",
+  "FULL_TABLE_ACCESS_INACTIVE",
   "VALIDATION",
 ] as const;
 
@@ -77,6 +82,16 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "Ya tenés una compra de créditos en revisión para este pago. Esperá la confirmación.",
     CREDIT_TOP_UP_NOT_NEEDED:
       "Tus créditos disponibles ya cubren el saldo. Usalos desde el resumen del pago.",
+    FULL_TABLE_CATEGORY_INELIGIBLE:
+      "La mesa completa está disponible solo para ilustración y emprendimiento.",
+    FULL_TABLE_UNAVAILABLE:
+      "La mesa completa no está habilitada en este festival.",
+    FULL_TABLE_NONE_COMPLETE:
+      "Por ahora no queda ninguna mesa con las dos mitades libres.",
+    FULL_TABLE_INSUFFICIENT_CREDITS:
+      "No te alcanzan los créditos para activar la mesa completa. Comprá la diferencia y volvé.",
+    FULL_TABLE_ACCESS_INACTIVE:
+      "No tenés la mesa completa activada en este festival.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
 

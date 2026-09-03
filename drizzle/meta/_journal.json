@@ -1849,6 +1849,13 @@
       "when": 1788545736596,
       "tag": "0264_stand_reservation_stands",
       "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1788632136596,
+      "tag": "0265_full_table_access_operations",
+      "breakpoints": true
     }
   ]
 }

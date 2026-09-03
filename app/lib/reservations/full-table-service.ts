@@ -1,0 +1,274 @@
+import "server-only";
+
+import { and, eq } from "drizzle-orm";
+
+import {
+  createCreditHoldForFeatureInTx,
+  releaseCreditHoldForFeatureInTx,
+} from "@/app/lib/credits/service";
+import { fetchFeatureConfig } from "@/app/lib/festivals/feature-config-service";
+import {
+  reservationFailure,
+  reservationSuccess,
+  type ReservationActionResult,
+} from "@/app/lib/reservations/errors";
+import {
+  findActiveFullTableAccess,
+  hasCompleteFullTable,
+} from "@/app/lib/reservations/full-table-access";
+import {
+  lockCreditAccountRows,
+  lockFestivalRow,
+  lockParticipantsBeforeRegistryClaim,
+  lockUserRows,
+} from "@/app/lib/reservations/locks";
+import {
+  abandonRequest,
+  claimRequest,
+  completeRequest,
+} from "@/app/lib/reservations/request-registry";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { db } from "@/db";
+import { reservationFeatureActions } from "@/db/schema";
+
+import {
+  FULL_TABLE_CATEGORIES,
+  type FullTableCategory,
+} from "@/app/lib/stands/full-table-pairs";
+
+function eligibleCategory(category: unknown): FullTableCategory | null {
+  return FULL_TABLE_CATEGORIES.includes(category as FullTableCategory)
+    ? (category as FullTableCategory)
+    : null;
+}
+
+export type FullTableActivationResult = ReservationActionResult<{
+  featureActionId: number;
+  creditPrice: number;
+  /** True when access was already active, so the caller can skip re-announcing it. */
+  alreadyActive: boolean;
+}>;
+
+/**
+ * Activates full-table access for the caller in one festival.
+ *
+ * Activation buys permission to try while availability lasts — never a
+ * guarantee of a table or a location (PRD §7.3). The feature action and an
+ * equal credit hold are created in one transaction, so access can never exist
+ * without the credits behind it. The held credits stay in the wallet but
+ * cannot be spent elsewhere until the participant either confirms a two-stand
+ * reservation (capture) or settles for one half / deactivates (release).
+ */
+export async function activateFullTableAccess(input: {
+  festivalId: number;
+  idempotencyKey: string;
+}): Promise<FullTableActivationResult> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+
+  const category = eligibleCategory(actor.category);
+  if (!category) return reservationFailure("FULL_TABLE_CATEGORY_INELIGIBLE");
+
+  const config = await fetchFeatureConfig(
+    input.festivalId,
+    "full_table",
+    category,
+  );
+  if (!config || !config.enabled || !config.available) {
+    return reservationFailure("FULL_TABLE_UNAVAILABLE");
+  }
+
+  return db.transaction(async (tx) => {
+    await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [actor.id]);
+
+    const claim = await claimRequest(tx, {
+      requestKey: input.idempotencyKey,
+      operation: "activateFullTableAccess",
+      actorUserId: actor.id,
+      scope: { festivalId: input.festivalId },
+    });
+    if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
+    if (claim.kind === "replayed") {
+      const featureActionId = claim.resultIds.featureActionId;
+      if (typeof featureActionId !== "number") {
+        return reservationFailure("CONFLICT_RETRY");
+      }
+      return reservationSuccess(
+        {
+          featureActionId,
+          creditPrice: config.creditPrice,
+          alreadyActive: true,
+        },
+        "Ya tenés la mesa completa activada.",
+      );
+    }
+
+    const finish = async (
+      outcome: FullTableActivationResult,
+      featureActionId?: number,
+    ) => {
+      if (outcome.success && featureActionId != null) {
+        await completeRequest(tx, input.idempotencyKey, { featureActionId });
+      } else {
+        await abandonRequest(tx, input.idempotencyKey);
+      }
+      return outcome;
+    };
+
+    await lockFestivalRow(tx, input.festivalId);
+    await lockUserRows(tx, [actor.id]);
+    await lockCreditAccountRows(tx, [actor.id]);
+
+    const existing = await findActiveFullTableAccess(tx, {
+      userId: actor.id,
+      festivalId: input.festivalId,
+    });
+    if (existing) {
+      return finish(
+        reservationSuccess(
+          {
+            featureActionId: existing.featureActionId,
+            creditPrice: existing.featurePriceSnapshot,
+            alreadyActive: true,
+          },
+          "Ya tenés la mesa completa activada.",
+        ),
+        existing.featureActionId,
+      );
+    }
+
+    // Offering access with nothing complete left would sell permission to try
+    // something that cannot succeed.
+    if (
+      !(await hasCompleteFullTable(tx, {
+        festivalId: input.festivalId,
+        category,
+      }))
+    ) {
+      return finish(reservationFailure("FULL_TABLE_NONE_COMPLETE"));
+    }
+
+    const [action] = await tx
+      .insert(reservationFeatureActions)
+      .values({
+        festivalId: input.festivalId,
+        ownerUserId: actor.id,
+        type: "full_table_access",
+        status: "active",
+        featureConfigId: config.id,
+        featurePriceSnapshot: config.creditPrice,
+        idempotencyKey: `full-table-access:${input.idempotencyKey}`,
+      })
+      .returning({ id: reservationFeatureActions.id });
+    if (!action) return finish(reservationFailure("CONFLICT_RETRY"));
+
+    const hold = await createCreditHoldForFeatureInTx(tx, {
+      userId: actor.id,
+      festivalId: input.festivalId,
+      featureActionId: action.id,
+      amount: config.creditPrice,
+      idempotencyKey: `full-table-hold:${input.idempotencyKey}`,
+    });
+    if (!hold.ok) {
+      // `finish` still has to commit its registry release, so the transaction
+      // cannot be rolled back to undo the insert — the action is deleted
+      // explicitly instead. Access must never exist without the credits behind
+      // it, and nothing references the row yet.
+      await tx
+        .delete(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.id, action.id));
+      return finish(
+        hold.code === "INSUFFICIENT_CREDITS"
+          ? reservationFailure("FULL_TABLE_INSUFFICIENT_CREDITS")
+          : reservationFailure("CONFLICT_RETRY"),
+      );
+    }
+
+    return finish(
+      reservationSuccess(
+        {
+          featureActionId: action.id,
+          creditPrice: config.creditPrice,
+          alreadyActive: false,
+        },
+        "Mesa completa activada.",
+      ),
+      action.id,
+    );
+  });
+}
+
+/**
+ * Turns access off before booking and frees the held credits.
+ *
+ * The credits are not refunded — they were never spent. They simply become
+ * spendable again, including on the participant's own stand invoice.
+ */
+export async function deactivateFullTableAccess(input: {
+  festivalId: number;
+  idempotencyKey: string;
+}): Promise<ReservationActionResult<{ featureActionId: number | null }>> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+
+  return db.transaction(async (tx) => {
+    await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [actor.id]);
+
+    const claim = await claimRequest(tx, {
+      requestKey: input.idempotencyKey,
+      operation: "deactivateFullTableAccess",
+      actorUserId: actor.id,
+      scope: { festivalId: input.festivalId },
+    });
+    if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
+    if (claim.kind === "replayed") {
+      return reservationSuccess(
+        { featureActionId: null },
+        "Mesa completa desactivada.",
+      );
+    }
+
+    await lockUserRows(tx, [actor.id]);
+    await lockCreditAccountRows(tx, [actor.id]);
+
+    const access = await findActiveFullTableAccess(tx, {
+      userId: actor.id,
+      festivalId: input.festivalId,
+    });
+    if (!access) {
+      await completeRequest(tx, input.idempotencyKey, {});
+      return reservationSuccess(
+        { featureActionId: null },
+        "Mesa completa desactivada.",
+      );
+    }
+
+    const released = await releaseCreditHoldForFeatureInTx(tx, {
+      userId: actor.id,
+      featureActionId: access.featureActionId,
+      status: "released",
+    });
+    if (!released.ok) {
+      await abandonRequest(tx, input.idempotencyKey);
+      return reservationFailure("CONFLICT_RETRY");
+    }
+
+    await tx
+      .update(reservationFeatureActions)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        and(
+          eq(reservationFeatureActions.id, access.featureActionId),
+          eq(reservationFeatureActions.status, "active"),
+        ),
+      );
+
+    await completeRequest(tx, input.idempotencyKey, {
+      featureActionId: access.featureActionId,
+    });
+    return reservationSuccess(
+      { featureActionId: access.featureActionId },
+      "Mesa completa desactivada. Tus créditos vuelven a estar disponibles.",
+    );
+  });
+}
