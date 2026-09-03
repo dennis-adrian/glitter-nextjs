@@ -171,6 +171,8 @@ function createTx(options: {
     status: string;
     festivalId?: number;
   };
+  /** Stands the reservation occupies; defaults to the parent's single stand. */
+  memberStandIds?: number[];
   payments?: Array<{
     id: number;
     invoiceId: number;
