@@ -104,30 +104,29 @@ export async function fetchFestivalSectors(
       with: {
         stands: {
           with: {
-            // Occupancy resolves through membership, so a full table's
-            // companion half is not reported as free.
-            reservationMembers: {
+            // The nested reservation is fetched under its own short alias:
+            // Postgres truncates identifiers at 63 bytes, and a deeper chain
+            // here collides `_participants` with `_participants_user`.
+            reservations: {
               with: {
-                reservation: {
+                participants: {
                   with: {
-                    participants: {
+                    user: {
                       with: {
-                        user: {
-                          with: {
-                            userSocials: true,
-                          },
-                        },
-                      },
-                    },
-                    externalParticipants: {
-                      with: {
-                        externalParticipant: true,
+                        userSocials: true,
                       },
                     },
                   },
                 },
+                externalParticipants: {
+                  with: {
+                    externalParticipant: true,
+                  },
+                },
               },
             },
+            // Flat membership; joined to the reservations above in memory.
+            reservationMembers: true,
             standSubcategories: {
               with: { subcategory: true },
             },
@@ -261,30 +260,29 @@ export async function fetchFestivalSectorsByUserCategory(
         with: {
           stands: {
             with: {
-              // Occupancy resolves through membership, so a full table's
-              // companion half is not reported as free.
-              reservationMembers: {
+              // The nested reservation is fetched under its own short alias:
+              // Postgres truncates identifiers at 63 bytes, and a deeper chain
+              // here collides `_participants` with `_participants_user`.
+              reservations: {
                 with: {
-                  reservation: {
+                  participants: {
                     with: {
-                      participants: {
+                      user: {
                         with: {
-                          user: {
-                            with: {
-                              userSocials: true,
-                            },
-                          },
-                        },
-                      },
-                      externalParticipants: {
-                        with: {
-                          externalParticipant: true,
+                          userSocials: true,
                         },
                       },
                     },
                   },
+                  externalParticipants: {
+                    with: {
+                      externalParticipant: true,
+                    },
+                  },
                 },
               },
+              // Flat membership; joined to the reservations above in memory.
+              reservationMembers: true,
               standSubcategories: {
                 with: { subcategory: true },
               },
@@ -612,22 +610,21 @@ export async function fetchSectorWithStandsAndReservations(sectorId: number) {
       with: {
         stands: {
           with: {
-            // Occupancy resolves through membership, so a full table's
-            // companion half is not reported as free.
-            reservationMembers: {
+            // The nested reservation is fetched under its own short alias:
+            // Postgres truncates identifiers at 63 bytes, and a deeper chain
+            // here collides `_participants` with `_participants_user`.
+            reservations: {
               with: {
-                reservation: {
+                participants: { with: { user: true } },
+                externalParticipants: {
                   with: {
-                    participants: { with: { user: true } },
-                    externalParticipants: {
-                      with: {
-                        externalParticipant: true,
-                      },
-                    },
+                    externalParticipant: true,
                   },
                 },
               },
             },
+            // Flat membership; joined to the reservations above in memory.
+            reservationMembers: true,
           },
         },
       },

@@ -600,17 +600,16 @@ export async function fetchFestivalWithDatesAndSectors(
           with: {
             stands: {
               with: {
-                // Occupancy resolves through membership, so a full table's
-                // companion half is not reported as free.
-                reservationMembers: {
-                  with: {
-                    reservation: {
-                      columns: {
-                        id: true,
-                      },
-                    },
+                // The nested reservation is fetched under its own short alias:
+                // Postgres truncates identifiers at 63 bytes, and a deeper chain
+                // here collides `_participants` with `_participants_user`.
+                reservations: {
+                  columns: {
+                    id: true,
                   },
                 },
+                // Flat membership; joined to the reservations above in memory.
+                reservationMembers: true,
               },
             },
           },

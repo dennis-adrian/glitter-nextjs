@@ -119,9 +119,8 @@ describeDatabase("full table", () => {
       deactivateFullTableAccess,
       downgradeFullTableReservation,
     } = await import("@/app/lib/reservations/full-table-service"));
-    ({ cancelReservation } = await import(
-      "@/app/lib/reservations/admin-service"
-    ));
+    ({ cancelReservation } =
+      await import("@/app/lib/reservations/admin-service"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -749,9 +748,11 @@ describeDatabase("full table", () => {
     // Maps and tooltips resolve occupancy through membership. Through the old
     // stands.reservations relation the companion half had no reservation at
     // all and showed as free.
+    // The same shape the map and sector queries fetch: the stand's own
+    // reservations plus flat membership, joined in memory.
     const standsWithMembers = await integrationDb!.query.stands.findMany({
       where: inArray(stands.id, standIds),
-      with: { reservationMembers: { with: { reservation: true } } },
+      with: { reservations: true, reservationMembers: true },
     });
 
     const occupancy = withMembershipReservations(standsWithMembers);

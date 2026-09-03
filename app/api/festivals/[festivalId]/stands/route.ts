@@ -78,38 +78,37 @@ export async function GET(
     festivalStands = await db.query.stands.findMany({
       where: eq(stands.festivalId, festivalId),
       with: {
-        // Occupancy resolves through membership, so a full table's
-        // companion half is not reported as free.
-        reservationMembers: {
+        // The nested reservation is fetched under its own short alias:
+        // Postgres truncates identifiers at 63 bytes, and a deeper chain
+        // here collides `_participants` with `_participants_user`.
+        reservations: {
+          // Include accepted reservations plus active admin timed reservations
+          // (non-terminal + revealAt), so the game can reveal them itself.
+          // Rejected/canceled timed reservations must not leak through revealAt alone.
+          where: or(
+            eq(standReservations.status, "accepted"),
+            and(
+              isNotNull(standReservations.revealAt),
+              inArray(standReservations.status, [
+                "pending",
+                "verification_payment",
+              ]),
+            ),
+          ),
           with: {
-            reservation: {
-              // Include accepted reservations plus active admin timed reservations
-              // (non-terminal + revealAt), so the game can reveal them itself.
-              // Rejected/canceled timed reservations must not leak through revealAt alone.
-              where: or(
-                eq(standReservations.status, "accepted"),
-                and(
-                  isNotNull(standReservations.revealAt),
-                  inArray(standReservations.status, [
-                    "pending",
-                    "verification_payment",
-                  ]),
-                ),
-              ),
+            participants: {
               with: {
-                participants: {
+                user: {
                   with: {
-                    user: {
-                      with: {
-                        userSocials: true,
-                      },
-                    },
+                    userSocials: true,
                   },
                 },
               },
             },
           },
         },
+        // Flat membership; joined to the reservations above in memory.
+        reservationMembers: true,
       },
     });
   } catch (err) {
