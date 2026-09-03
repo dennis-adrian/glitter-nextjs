@@ -440,6 +440,47 @@ describeDatabase("full table", () => {
     expect(spends).toHaveLength(0);
   });
 
+  it("replays an activation retry even after the feature is turned off", async () => {
+    const {
+      festival,
+      users: [owner],
+    } = await seed();
+    asUser(owner);
+
+    const key = randomUUID();
+    const first = await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: key,
+    });
+    expect(first).toMatchObject({ success: true });
+    const featureActionId = (first as { data: { featureActionId: number } })
+      .data.featureActionId;
+
+    // An admin disables the feature and reprices it between the call and the
+    // participant's retry.
+    await integrationDb!
+      .update(festivalReservationFeatures)
+      .set({ enabled: false, creditPrice: ACCESS_PRICE + 25 })
+      .where(eq(festivalReservationFeatures.festivalId, festival.id));
+
+    const replay = await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: key,
+    });
+
+    // The retry must return what the first call did, not fail on the new
+    // configuration and not quote the new price.
+    expect(replay).toMatchObject({
+      success: true,
+      data: { featureActionId, creditPrice: ACCESS_PRICE, alreadyActive: true },
+    });
+
+    // And it must not have taken a second hold.
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "active" },
+    ]);
+  });
+
   it("refuses activation when the credits do not cover the price", async () => {
     const {
       festival,

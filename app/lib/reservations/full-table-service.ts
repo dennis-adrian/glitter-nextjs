@@ -77,21 +77,13 @@ export async function activateFullTableAccess(input: {
   const actor = await getCurrentUserProfile();
   if (!actor) return reservationFailure("UNAUTHENTICATED");
 
-  const category = eligibleCategory(actor.category);
-  if (!category) return reservationFailure("FULL_TABLE_CATEGORY_INELIGIBLE");
-
-  const config = await fetchFeatureConfig(
-    input.festivalId,
-    "full_table",
-    category,
-  );
-  if (!config || !config.enabled || !config.available) {
-    return reservationFailure("FULL_TABLE_UNAVAILABLE");
-  }
-
   return db.transaction(async (tx) => {
     await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [actor.id]);
 
+    // Claimed before any eligibility or configuration check: a retry of a
+    // request that already succeeded has to replay that result, and would
+    // otherwise fail because an admin has since disabled the feature or the
+    // participant's category changed.
     const claim = await claimRequest(tx, {
       requestKey: input.idempotencyKey,
       operation: "activateFullTableAccess",
@@ -101,13 +93,17 @@ export async function activateFullTableAccess(input: {
     if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
     if (claim.kind === "replayed") {
       const featureActionId = claim.resultIds.featureActionId;
+      const creditPrice = claim.resultIds.creditPrice;
       if (typeof featureActionId !== "number") {
         return reservationFailure("CONFLICT_RETRY");
       }
       return reservationSuccess(
         {
           featureActionId,
-          creditPrice: config.creditPrice,
+          // The price this access was actually taken at. Reading the current
+          // configuration would report a later admin edit as though the
+          // participant had been charged it.
+          creditPrice: typeof creditPrice === "number" ? creditPrice : 0,
           alreadyActive: true,
         },
         "Ya tenés la mesa completa activada.",
@@ -116,15 +112,31 @@ export async function activateFullTableAccess(input: {
 
     const finish = async (
       outcome: FullTableActivationResult,
-      featureActionId?: number,
+      result?: { featureActionId: number; creditPrice: number },
     ) => {
-      if (outcome.success && featureActionId != null) {
-        await completeRequest(tx, input.idempotencyKey, { featureActionId });
+      if (outcome.success && result != null) {
+        await completeRequest(tx, input.idempotencyKey, result);
       } else {
         await abandonRequest(tx, input.idempotencyKey);
       }
       return outcome;
     };
+
+    // Validation happens under the claim, so a refusal releases it rather than
+    // leaving the key stuck in progress.
+    const category = eligibleCategory(actor.category);
+    if (!category) {
+      return finish(reservationFailure("FULL_TABLE_CATEGORY_INELIGIBLE"));
+    }
+
+    const config = await fetchFeatureConfig(
+      input.festivalId,
+      "full_table",
+      category,
+    );
+    if (!config || !config.enabled || !config.available) {
+      return finish(reservationFailure("FULL_TABLE_UNAVAILABLE"));
+    }
 
     await lockFestivalRow(tx, input.festivalId);
     await lockUserRows(tx, [actor.id]);
@@ -144,7 +156,10 @@ export async function activateFullTableAccess(input: {
           },
           "Ya tenés la mesa completa activada.",
         ),
-        existing.featureActionId,
+        {
+          featureActionId: existing.featureActionId,
+          creditPrice: existing.featurePriceSnapshot,
+        },
       );
     }
 
@@ -204,7 +219,7 @@ export async function activateFullTableAccess(input: {
         },
         "Mesa completa activada.",
       ),
-      action.id,
+      { featureActionId: action.id, creditPrice: config.creditPrice },
     );
   });
 }
@@ -233,8 +248,13 @@ export async function deactivateFullTableAccess(input: {
     });
     if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
     if (claim.kind === "replayed") {
+      // Null only when the original call found nothing active to turn off.
+      const featureActionId = claim.resultIds.featureActionId;
       return reservationSuccess(
-        { featureActionId: null },
+        {
+          featureActionId:
+            typeof featureActionId === "number" ? featureActionId : null,
+        },
         "Mesa completa desactivada.",
       );
     }
