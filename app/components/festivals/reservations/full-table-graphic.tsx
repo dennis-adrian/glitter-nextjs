@@ -152,8 +152,9 @@ export default function FullTableGraphic({
   // The viewBox grows with the number of halves so a full table is drawn twice
   // as long rather than squeezed into the same footprint.
   const width = ORIGIN[0] + DEPTH[0] + WIDTH[0] * halves + 12;
-  const height =
-    ORIGIN[1] + DEPTH[1] + WIDTH[1] * halves + THICKNESS + LEG_LENGTH + 12;
+  // The lowest point is a rear leg's foot, and the back edge sits at depth 0,
+  // so no DEPTH term belongs here — including it clipped the rear legs.
+  const height = ORIGIN[1] + WIDTH[1] * halves + THICKNESS + LEG_LENGTH + 12;
 
   return (
     <svg
