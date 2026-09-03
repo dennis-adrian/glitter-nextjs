@@ -1,7 +1,10 @@
 "use server";
 
 import { StandBase } from "@/app/api/stands/definitions";
-import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
+import {
+  withMembershipReservations,
+  withMembershipReservationsBySector,
+} from "@/app/lib/reservations/stand-occupancy";
 import {
   BaseProfile,
   Participation,
@@ -605,7 +608,7 @@ export async function fetchFullFestivalById(
 
 export async function fetchSectorWithStandsAndReservations(sectorId: number) {
   try {
-    return await db.query.festivalSectors.findFirst({
+    const sector = await db.query.festivalSectors.findFirst({
       where: eq(festivalSectors.id, sectorId),
       with: {
         stands: {
@@ -629,6 +632,12 @@ export async function fetchSectorWithStandsAndReservations(sectorId: number) {
         },
       },
     });
+    if (!sector) return null;
+
+    return {
+      ...sector,
+      stands: withMembershipReservations(sector.stands),
+    };
   } catch (error) {
     console.error("Error fetching sector with stands and reservations", error);
     return null;

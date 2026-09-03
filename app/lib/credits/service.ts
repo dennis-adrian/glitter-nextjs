@@ -494,6 +494,11 @@ export async function debitConfirmedCreditsForInvoiceInTx(
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
   }
+  // Same guard every other credit mutation applies: an account being deleted
+  // must not keep spending.
+  if (!(await lockCreditUserForMutation(tx, input.userId))) {
+    return failure("USER_DELETION_PENDING");
+  }
 
   const [existing] = await tx
     .select({

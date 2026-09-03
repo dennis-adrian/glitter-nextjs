@@ -1,5 +1,12 @@
 import "server-only";
 
+/**
+ * A database handle. Callers inside a transaction must pass their `tx`:
+ * reaching for the module-level pool while holding locks checks out a second
+ * connection that only a finishing transaction can free.
+ */
+type FeatureConfigDb = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 import { and, asc, eq, isNull } from "drizzle-orm";
 
 import {
@@ -20,8 +27,11 @@ export type FestivalFeatureScope = {
   config: EffectiveFeatureConfig | null;
 };
 
-async function earliestStartDate(festivalId: number): Promise<Date | null> {
-  const [row] = await db
+async function earliestStartDate(
+  festivalId: number,
+  database: FeatureConfigDb = db,
+): Promise<Date | null> {
+  const [row] = await database
     .select({ startDate: festivalDates.startDate })
     .from(festivalDates)
     .where(eq(festivalDates.festivalId, festivalId))
@@ -90,8 +100,9 @@ export async function fetchFeatureConfig(
   type: FeatureType,
   category: FullTableCategory | null = null,
   now = new Date(),
+  database: FeatureConfigDb = db,
 ): Promise<EffectiveFeatureConfig | null> {
-  const [row] = await db
+  const [row] = await database
     .select()
     .from(festivalReservationFeatures)
     .where(
@@ -107,7 +118,7 @@ export async function fetchFeatureConfig(
   if (!row) return null;
 
   return resolveFeatureConfig(toRow(row), {
-    earliestStartDate: await earliestStartDate(festivalId),
+    earliestStartDate: await earliestStartDate(festivalId, database),
     now,
   });
 }
