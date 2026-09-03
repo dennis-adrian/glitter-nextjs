@@ -71,6 +71,7 @@ type HoldConfirmationClientProps = {
     standNumber: number;
     standCategory: UserCategory;
     price: number;
+    sharedPrice: number | null;
   };
   sectorName: string;
   sectorStands: ThumbnailStand[];
@@ -183,6 +184,12 @@ export default function HoldConfirmationClient({
   const [selectedPartnerId, setSelectedPartnerId] = useState<
     number | undefined
   >();
+
+  // Confirmation bills the shared price as soon as a partner is on the
+  // reservation, so the total shown has to follow the selection rather than
+  // stay on the individual price.
+  const sharesPrice = selectedPartnerId != null && stand.sharedPrice != null;
+  const payableAmount = sharesPrice ? stand.sharedPrice! : stand.price;
   const [isRefreshing, startRefreshTransition] = useTransition();
   const [dynamicPartnerOptions, setDynamicPartnerOptions] = useState<
     SearchOption[]
@@ -339,7 +346,7 @@ export default function HoldConfirmationClient({
             festival_name: festival.name,
             stand_id: stand.id,
             stand_number: stand.standNumber,
-            stand_price: stand.price,
+            stand_price: payableAmount,
             profile_category: profile.category,
             has_partner: !!selectedPartnerId,
             reservation_id: res.data.reservationId,
@@ -484,8 +491,14 @@ export default function HoldConfirmationClient({
             {/* Price */}
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
               <p className="text-sm text-muted-foreground">Total a pagar</p>
-              <p className="text-lg font-bold">{formatPrice(stand.price)}</p>
+              <p className="text-lg font-bold">{formatPrice(payableAmount)}</p>
             </div>
+            {sharesPrice && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Precio para dos participantes. Es el total de la reserva, no por
+                persona, y lo paga quien reserva.
+              </p>
+            )}
           </div>
 
           {/* Partner selection (illustration/new_artist only) */}

@@ -1652,6 +1652,11 @@ export default function StandPositionEditor({
                         ...stand,
                         individualPrice: update.individualPrice,
                         sharedPrice: update.sharedPrice,
+                        // The server mirrors the individual price into the
+                        // legacy column; the admin tables still read it, so
+                        // leaving it stale shows the old price right after a
+                        // save and would write it back from the edit dialog.
+                        price: update.individualPrice,
                       }
                     : stand;
                 }),

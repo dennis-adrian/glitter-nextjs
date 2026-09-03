@@ -76,7 +76,15 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
                 outstandingAmount={outstandingAmount}
               />
             ) : (
-              <PaymentSummary invoice={invoice} festivalId={festival.id} />
+              <PaymentSummary
+                invoice={invoice}
+                festivalId={festival.id}
+                // Without the tender the defaults show the full total, which
+                // contradicts the summary beside it on the same screen.
+                approvedCashAmount={tender?.approvedCashAmount}
+                creditAppliedAmount={tender?.confirmedCreditAmount}
+                outstandingAmount={outstandingAmount}
+              />
             )}
           </div>
         </div>

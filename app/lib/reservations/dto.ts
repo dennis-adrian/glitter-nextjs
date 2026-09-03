@@ -166,7 +166,13 @@ export type ReservationConfirmationStandDto = {
   label: string | null;
   standNumber: number;
   standCategory: UserCategory;
+  /** Billed when the participant books alone. */
   price: number;
+  /**
+   * Billed instead when a partner is confirmed — the total for the pair, not
+   * per person. Null where the stand has no shared price configured.
+   */
+  sharedPrice: number | null;
 };
 
 export type ReservationConfirmationThumbnailStandDto = {

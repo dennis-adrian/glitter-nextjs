@@ -562,6 +562,7 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       expiresAt: true,
       festivalId: true,
       individualPriceSnapshot: true,
+      sharedPriceSnapshot: true,
     },
   });
   if (!hold || hold.expiresAt <= now) return null;
@@ -575,6 +576,7 @@ export async function fetchFestivalReservationConfirmationDto(input: {
         standNumber: true,
         standCategory: true,
         individualPrice: true,
+        sharedPrice: true,
         festivalSectorId: true,
       },
     }),
@@ -710,6 +712,9 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       // billed; the stand column is only a fallback for holds taken before
       // snapshots existed.
       price: hold.individualPriceSnapshot ?? stand.individualPrice,
+      // Confirmation bills the shared price once a partner is added, so the
+      // screen has to be able to show that instead.
+      sharedPrice: hold.sharedPriceSnapshot ?? stand.sharedPrice,
     },
     sector: {
       id: sector.id,

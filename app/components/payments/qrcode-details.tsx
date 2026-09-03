@@ -48,6 +48,7 @@ export default async function QRCodeDetails({
         <CompletePaymentButton invoice={invoice} />
         <InvoiceCreditPanel
           invoiceId={invoice.id}
+          ownerUserId={invoice.userId}
           outstandingAmount={outstandingAmount}
         />
       </div>

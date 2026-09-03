@@ -12,6 +12,8 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 type InvoiceCreditPanelProps = {
   invoiceId: number;
+  /** Whose credits these are; the panel is hidden from everyone else. */
+  ownerUserId: number;
   outstandingAmount: number;
 };
 
@@ -35,6 +37,7 @@ function applyDenialReason(plan: {
  */
 export default async function InvoiceCreditPanel({
   invoiceId,
+  ownerUserId,
   outstandingAmount,
 }: InvoiceCreditPanelProps) {
   const [actor, balances] = await Promise.all([
@@ -42,6 +45,10 @@ export default async function InvoiceCreditPanel({
     fetchCurrentUserCreditBalances(),
   ]);
   if (!actor || !balances) return null;
+  // Credits are the invoice owner's to spend, and applyInvoiceCredits refuses
+  // anyone else. An admin viewing this page would otherwise be shown their own
+  // balance on someone else's invoice, above a button that always fails.
+  if (actor.id !== ownerUserId) return null;
 
   const plan = invoiceCreditPlan(balances, outstandingAmount);
   const openTopUp = await fetchOpenInvoiceCreditTopUp(invoiceId, actor.id);

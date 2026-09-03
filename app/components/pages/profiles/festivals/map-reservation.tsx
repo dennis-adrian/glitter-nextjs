@@ -63,15 +63,23 @@ export default async function MapReservationPage(
 
   // The full-table decision happens here, before the map: the map is for
   // choosing a space, never for financial setup (PRD §7.2).
-  const fullTableOffer = await fetchFullTableOffer({
-    userId: forProfile.id,
-    festivalId: festival.id,
-    category: forProfile.category,
-  });
+  // Only for the participant themselves. Its actions resolve the actor from
+  // the session, so an admin viewing someone else's map would be shown that
+  // participant's balance while spending their own credits.
+  const viewingOwnMap = currentProfile?.id === forProfile.id;
+  const fullTableOffer = viewingOwnMap
+    ? await fetchFullTableOffer({
+        userId: forProfile.id,
+        festivalId: festival.id,
+        category: forProfile.category,
+      })
+    : null;
 
   return (
     <>
-      <FullTablePanel offer={fullTableOffer} festivalId={festival.id} />
+      {fullTableOffer && (
+        <FullTablePanel offer={fullTableOffer} festivalId={festival.id} />
+      )}
       <MapTabsClient map={map} />
     </>
   );
