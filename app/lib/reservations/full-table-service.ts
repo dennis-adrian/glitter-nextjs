@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import {
   createCreditHoldForFeatureInTx,
@@ -23,8 +23,14 @@ import {
   lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
   lockUserRows,
+  readReservationParticipantIds,
+  sameIdSet,
+  uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
-import { releaseReservationMember } from "@/app/lib/reservations/members";
+import {
+  activeReservationStandIds,
+  releaseReservationMember,
+} from "@/app/lib/reservations/members";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import {
@@ -34,11 +40,7 @@ import {
 } from "@/app/lib/reservations/request-registry";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import {
-  reservationFeatureActions,
-  standReservationStands,
-  standReservations,
-} from "@/db/schema";
+import { reservationFeatureActions, standReservations } from "@/db/schema";
 
 import {
   FULL_TABLE_CATEGORIES,
@@ -312,11 +314,25 @@ export async function downgradeFullTableReservation(input: {
         id: standReservations.id,
         festivalId: standReservations.festivalId,
         status: standReservations.status,
+        ownerUserId: standReservations.ownerUserId,
       })
       .from(standReservations)
       .where(eq(standReservations.id, input.reservationId))
       .limit(1);
     if (!reservation) return reservationFailure("STAND_NOT_FOUND");
+
+    // The aggregate lock re-reads these under the locks and refuses when they
+    // moved, so they have to be previewed before the registry claim takes its
+    // foreign-key share lock on the actor.
+    const previewUserIds = uniqueSortedIds([
+      ...(await readReservationParticipantIds(tx, reservation.id)),
+      ...(reservation.ownerUserId != null ? [reservation.ownerUserId] : []),
+    ]);
+    await lockParticipantsBeforeRegistryClaim(
+      tx,
+      reservation.festivalId,
+      previewUserIds,
+    );
 
     const claim = await claimRequest(tx, {
       requestKey: input.idempotencyKey,
@@ -340,46 +356,46 @@ export async function downgradeFullTableReservation(input: {
       );
     }
 
-    const members = await tx
-      .select({
-        standId: standReservationStands.standId,
-        position: standReservationStands.position,
-      })
-      .from(standReservationStands)
-      .where(
-        and(
-          eq(standReservationStands.reservationId, reservation.id),
-          isNull(standReservationStands.releasedAt),
-        ),
-      )
-      .orderBy(asc(standReservationStands.position));
-
-    if (members.length !== 2) {
+    const previewStandIds = await activeReservationStandIds(tx, reservation.id);
+    if (previewStandIds.length !== 2) {
       await abandonRequest(tx, input.idempotencyKey);
       return reservationFailure("FULL_TABLE_NOT_DOWNGRADABLE");
     }
 
     // Occupancy is revalidated under the stand locks before anything moves.
-    await lockReservationAggregate(tx, {
+    const locked = await lockReservationAggregate(tx, {
       festivalId: reservation.festivalId,
-      userIds: [],
-      standIds: members.map((member) => member.standId),
+      userIds: previewUserIds,
+      standIds: previewStandIds,
       reservationIds: [reservation.id],
     });
+    if (!locked.ok) {
+      await abandonRequest(tx, input.idempotencyKey);
+      return reservationFailure("CONFLICT_RETRY");
+    }
 
-    const kept = members[0];
-    const released = members[1];
+    // Membership was previewed before those locks existed. Re-reading it now
+    // is what makes the release act on stands whose occupancy is actually
+    // pinned; a set that moved means someone else got there first.
+    const memberStandIds = await activeReservationStandIds(tx, reservation.id);
+    if (!sameIdSet(memberStandIds, previewStandIds)) {
+      await abandonRequest(tx, input.idempotencyKey);
+      return reservationFailure("CONFLICT_RETRY");
+    }
+
+    const keptStandId = memberStandIds[0];
+    const releasedStandId = memberStandIds[1];
 
     const didRelease = await releaseReservationMember(tx, {
       reservationId: reservation.id,
-      standId: released.standId,
+      standId: releasedStandId,
     });
     if (!didRelease) {
       await abandonRequest(tx, input.idempotencyKey);
       return reservationFailure("CONFLICT_RETRY");
     }
 
-    await releaseStandIfVacant(tx, released.standId);
+    await releaseStandIfVacant(tx, releasedStandId);
 
     await insertStandReservationEvent(tx, {
       reservationId: reservation.id,
@@ -389,19 +405,19 @@ export async function downgradeFullTableReservation(input: {
       toStatus: reservation.status,
       payload: {
         action: "full_table_manually_downgraded",
-        keptStandId: kept.standId,
-        releasedStandId: released.standId,
+        keptStandId,
+        releasedStandId,
       },
       idempotencyKey: `downgrade:${input.idempotencyKey}`,
     });
 
     await completeRequest(tx, input.idempotencyKey, {
-      releasedStandId: released.standId,
-      keptStandId: kept.standId,
+      releasedStandId,
+      keptStandId,
     });
 
     return reservationSuccess(
-      { releasedStandId: released.standId, keptStandId: kept.standId },
+      { releasedStandId, keptStandId },
       "La reserva quedó con media mesa. El otro espacio volvió a estar disponible.",
     );
   });
