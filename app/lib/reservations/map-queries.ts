@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   and,
+  asc,
   eq,
   exists,
   gt,
@@ -24,7 +25,9 @@ import {
 } from "@/app/lib/reservations/dto";
 import { buildFestivalReservationMapDto } from "@/app/lib/reservations/map-dto";
 import { searchRecentPartners } from "@/app/lib/reservations/partner-search";
+import { findActiveFullTableAccess } from "@/app/lib/reservations/full-table-access";
 import { profileCategoryForStandMatch } from "@/app/lib/reservations/policy";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { deriveEffectiveStandStatus } from "@/app/lib/stands/effective-status";
 import { db } from "@/db";
 import {
@@ -87,7 +90,8 @@ export async function fetchSelfServiceTargetProfile(
 ) {
   const profile = await db.query.users.findFirst({
     where: eq(users.id, profileId),
-    columns: { id: true, status: true },
+    // Category decides whether the full-table feature is offered at all.
+    columns: { id: true, status: true, category: true },
   });
   if (!profile) return null;
 
@@ -607,7 +611,40 @@ export async function fetchFestivalReservationConfirmationDto(input: {
 
   const recentPartners = await searchRecentPartners(festival.id);
 
+  // Membership decides what this hold really covers; the adapter column only
+  // names the half the participant picked first.
+  const holdMembers = await db
+    .select({
+      standId: standHoldMembers.standId,
+      label: stands.label,
+      standNumber: stands.standNumber,
+    })
+    .from(standHoldMembers)
+    .innerJoin(stands, eq(stands.id, standHoldMembers.standId))
+    .where(eq(standHoldMembers.holdId, hold.id))
+    .orderBy(asc(standHoldMembers.position));
+
+  const isFullTable = holdMembers.length > 1;
+  const access = isFullTable
+    ? null
+    : await db.transaction((tx) =>
+        findActiveFullTableAccess(tx, {
+          userId: input.profileId,
+          festivalId: input.festivalId,
+        }),
+      );
+
   return {
+    fullTable: {
+      isFullTable,
+      isHalfTableFallback: !isFullTable && access != null,
+      standLabels: holdMembers.map((member) =>
+        formatStandLabel({
+          label: member.label,
+          standNumber: member.standNumber,
+        }),
+      ),
+    },
     festival,
     profile,
     hold: { id: hold.id, expiresAt: hold.expiresAt.toISOString() },

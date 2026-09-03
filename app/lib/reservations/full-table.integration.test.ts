@@ -90,6 +90,7 @@ let createStandHold: (typeof import("@/app/lib/reservations/hold-service"))["cre
 let confirmStandHold: (typeof import("@/app/lib/reservations/hold-service"))["confirmStandHold"];
 let activateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["activateFullTableAccess"];
 let deactivateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["deactivateFullTableAccess"];
+let downgradeFullTableReservation: (typeof import("@/app/lib/reservations/full-table-service"))["downgradeFullTableReservation"];
 let publishedTermsVersionId: number;
 
 const ACCESS_PRICE = 50;
@@ -110,8 +111,11 @@ describeDatabase("full table", () => {
 
     ({ createStandHold, confirmStandHold } =
       await import("@/app/lib/reservations/hold-service"));
-    ({ activateFullTableAccess, deactivateFullTableAccess } =
-      await import("@/app/lib/reservations/full-table-service"));
+    ({
+      activateFullTableAccess,
+      deactivateFullTableAccess,
+      downgradeFullTableReservation,
+    } = await import("@/app/lib/reservations/full-table-service"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -655,6 +659,116 @@ describeDatabase("full table", () => {
       idempotencyKey: randomUUID(),
     });
     expect(held).toMatchObject({ success: true, data: { isFullTable: false } });
+  });
+
+  it("downgrades a full table to its original half without touching the money", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    currentProfileMock.mockResolvedValue({
+      id: owner.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    const downgraded = await downgradeFullTableReservation({
+      reservationId,
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(downgraded).toMatchObject({
+      success: true,
+      data: { keptStandId: standIds[0], releasedStandId: standIds[1] },
+    });
+    // The half the participant originally picked is the one that stays.
+    expect(await memberStandIds(reservationId)).toEqual([standIds[0]]);
+
+    const [companion] = await integrationDb!
+      .select({ status: stands.status })
+      .from(stands)
+      .where(eq(stands.id, standIds[1]));
+    expect(companion.status).toBe("available");
+
+    // A downgrade is a capacity correction, never a refund: the captured
+    // credits and the invoice are left exactly as they were.
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "captured" },
+    ]);
+    const invoiceRows = await integrationDb!
+      .select({ amount: invoices.amount })
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    expect(invoiceRows).toEqual([{ amount: STAND_PRICE }]);
+
+    // The released member is retained as history, not deleted.
+    const allMembers = await integrationDb!
+      .select({ standId: standReservationStands.standId })
+      .from(standReservationStands)
+      .where(eq(standReservationStands.reservationId, reservationId));
+    expect(allMembers).toHaveLength(2);
+  });
+
+  it("refuses to downgrade a reservation that is only half a table", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    currentProfileMock.mockResolvedValue({
+      id: owner.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    const result = await downgradeFullTableReservation({
+      reservationId,
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "FULL_TABLE_NOT_DOWNGRADABLE",
+    });
   });
 
   it("gives the full table to exactly one of two racing participants", async () => {

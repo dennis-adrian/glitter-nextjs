@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 import {
   createCreditHoldForFeatureInTx,
@@ -16,12 +16,17 @@ import {
   findActiveFullTableAccess,
   hasCompleteFullTable,
 } from "@/app/lib/reservations/full-table-access";
+import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {
   lockCreditAccountRows,
   lockFestivalRow,
   lockParticipantsBeforeRegistryClaim,
+  lockReservationAggregate,
   lockUserRows,
 } from "@/app/lib/reservations/locks";
+import { releaseReservationMember } from "@/app/lib/reservations/members";
+import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import {
   abandonRequest,
   claimRequest,
@@ -29,7 +34,11 @@ import {
 } from "@/app/lib/reservations/request-registry";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { reservationFeatureActions } from "@/db/schema";
+import {
+  reservationFeatureActions,
+  standReservationStands,
+  standReservations,
+} from "@/db/schema";
 
 import {
   FULL_TABLE_CATEGORIES,
@@ -269,6 +278,131 @@ export async function deactivateFullTableAccess(input: {
     return reservationSuccess(
       { featureActionId: access.featureActionId },
       "Mesa completa desactivada. Tus créditos vuelven a estar disponibles.",
+    );
+  });
+}
+
+/**
+ * Admin-only manual downgrade of a full-table reservation to its original half
+ * (PRD §7.7).
+ *
+ * This is the sanctioned resolution when a credit voucher that funded a full
+ * table is later rejected. Nothing about it is automatic: rejection creates
+ * wallet debt and an admin decides, case by case, whether to ask for
+ * replacement payment, waive the debt, or come here.
+ *
+ * The reservation keeps the half the participant originally selected —
+ * member position 0 — and only the companion is released. Credits, invoice,
+ * payments and participants are all left exactly as they are.
+ */
+export async function downgradeFullTableReservation(input: {
+  reservationId: number;
+  idempotencyKey: string;
+}): Promise<
+  ReservationActionResult<{ releasedStandId: number; keptStandId: number }>
+> {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
+    return reservationFailure("UNAUTHORIZED");
+  }
+
+  return db.transaction(async (tx) => {
+    const [reservation] = await tx
+      .select({
+        id: standReservations.id,
+        festivalId: standReservations.festivalId,
+        status: standReservations.status,
+      })
+      .from(standReservations)
+      .where(eq(standReservations.id, input.reservationId))
+      .limit(1);
+    if (!reservation) return reservationFailure("STAND_NOT_FOUND");
+
+    const claim = await claimRequest(tx, {
+      requestKey: input.idempotencyKey,
+      operation: "downgradeFullTableReservation",
+      actorUserId: actor!.id,
+      scope: { reservationId: input.reservationId },
+    });
+    if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
+    if (claim.kind === "replayed") {
+      const releasedStandId = claim.resultIds.releasedStandId;
+      const keptStandId = claim.resultIds.keptStandId;
+      if (
+        typeof releasedStandId !== "number" ||
+        typeof keptStandId !== "number"
+      ) {
+        return reservationFailure("CONFLICT_RETRY");
+      }
+      return reservationSuccess(
+        { releasedStandId, keptStandId },
+        "La mesa completa ya fue reducida a media mesa.",
+      );
+    }
+
+    const members = await tx
+      .select({
+        standId: standReservationStands.standId,
+        position: standReservationStands.position,
+      })
+      .from(standReservationStands)
+      .where(
+        and(
+          eq(standReservationStands.reservationId, reservation.id),
+          isNull(standReservationStands.releasedAt),
+        ),
+      )
+      .orderBy(asc(standReservationStands.position));
+
+    if (members.length !== 2) {
+      await abandonRequest(tx, input.idempotencyKey);
+      return reservationFailure("FULL_TABLE_NOT_DOWNGRADABLE");
+    }
+
+    // Occupancy is revalidated under the stand locks before anything moves.
+    await lockReservationAggregate(tx, {
+      festivalId: reservation.festivalId,
+      userIds: [],
+      standIds: members.map((member) => member.standId),
+      reservationIds: [reservation.id],
+    });
+
+    const kept = members[0];
+    const released = members[1];
+
+    const didRelease = await releaseReservationMember(tx, {
+      reservationId: reservation.id,
+      standId: released.standId,
+    });
+    if (!didRelease) {
+      await abandonRequest(tx, input.idempotencyKey);
+      return reservationFailure("CONFLICT_RETRY");
+    }
+
+    await releaseStandIfVacant(tx, released.standId);
+
+    await insertStandReservationEvent(tx, {
+      reservationId: reservation.id,
+      actorUserId: actor!.id,
+      eventType: "status_changed",
+      fromStatus: reservation.status,
+      toStatus: reservation.status,
+      payload: {
+        action: "full_table_manually_downgraded",
+        keptStandId: kept.standId,
+        releasedStandId: released.standId,
+      },
+      idempotencyKey: `downgrade:${input.idempotencyKey}`,
+    });
+
+    await completeRequest(tx, input.idempotencyKey, {
+      releasedStandId: released.standId,
+      keptStandId: kept.standId,
+    });
+
+    return reservationSuccess(
+      { releasedStandId: released.standId, keptStandId: kept.standId },
+      "La reserva quedó con media mesa. El otro espacio volvió a estar disponible.",
     );
   });
 }

@@ -1,3 +1,4 @@
+import FullTablePanel from "@/app/components/festivals/reservations/full-table-panel";
 import MapTabsClient from "@/app/components/festivals/reservations/map-tabs-client";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
@@ -7,6 +8,7 @@ import {
   fetchSelfServiceFestivalSnapshot,
   fetchSelfServiceTargetProfile,
 } from "@/app/lib/reservations/map-queries";
+import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
@@ -59,5 +61,18 @@ export default async function MapReservationPage(
   });
   if (!map) notFound();
 
-  return <MapTabsClient map={map} />;
+  // The full-table decision happens here, before the map: the map is for
+  // choosing a space, never for financial setup (PRD §7.2).
+  const fullTableOffer = await fetchFullTableOffer({
+    userId: forProfile.id,
+    festivalId: festival.id,
+    category: forProfile.category,
+  });
+
+  return (
+    <>
+      <FullTablePanel offer={fullTableOffer} festivalId={festival.id} />
+      <MapTabsClient map={map} />
+    </>
+  );
 }

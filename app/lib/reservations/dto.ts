@@ -179,6 +179,19 @@ export type FestivalReservationConfirmationDto = {
     thumbnailStands: ReservationConfirmationThumbnailStandDto[];
   };
   recentPartners: PartnerSearchResultDto[];
+  /**
+   * What this hold actually covers. The half-table fallback has to be stated
+   * explicitly wherever a participant can still commit (PRD §7.4), so the
+   * summary screen needs to know both what was taken and what was hoped for.
+   */
+  fullTable: {
+    /** The hold covers both halves of a declared pair. */
+    isFullTable: boolean;
+    /** Access is active but only one half was available. */
+    isHalfTableFallback: boolean;
+    /** Labels of every stand in the hold, in selection order. */
+    standLabels: string[];
+  };
 };
 
 export const MAP_DTO_FORBIDDEN_KEYS = [
