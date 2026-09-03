@@ -600,9 +600,15 @@ export async function fetchFestivalWithDatesAndSectors(
           with: {
             stands: {
               with: {
-                reservations: {
-                  columns: {
-                    id: true,
+                // Occupancy resolves through membership, so a full table's
+                // companion half is not reported as free.
+                reservationMembers: {
+                  with: {
+                    reservation: {
+                      columns: {
+                        id: true,
+                      },
+                    },
                   },
                 },
               },

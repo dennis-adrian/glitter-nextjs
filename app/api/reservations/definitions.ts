@@ -19,7 +19,9 @@ import {
 export type ReservationBase = typeof standReservations.$inferSelect;
 export type ReservationScheduledTask = typeof scheduledTasks.$inferSelect;
 export type ReservationWithStand = ReservationBase & {
+  /** The originally selected half. `members` is what the reservation occupies. */
   stand: StandBase;
+  members?: ReservationStandMember[];
 };
 
 export type Participant = typeof reservationParticipants.$inferSelect & {

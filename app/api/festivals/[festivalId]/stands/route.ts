@@ -1,4 +1,5 @@
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
+import { withMembershipReservations } from "@/app/lib/reservations/stand-occupancy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
 import { stands, standReservations } from "@/db/schema";
@@ -77,26 +78,32 @@ export async function GET(
     festivalStands = await db.query.stands.findMany({
       where: eq(stands.festivalId, festivalId),
       with: {
-        reservations: {
-          // Include accepted reservations plus active admin timed reservations
-          // (non-terminal + revealAt), so the game can reveal them itself.
-          // Rejected/canceled timed reservations must not leak through revealAt alone.
-          where: or(
-            eq(standReservations.status, "accepted"),
-            and(
-              isNotNull(standReservations.revealAt),
-              inArray(standReservations.status, [
-                "pending",
-                "verification_payment",
-              ]),
-            ),
-          ),
+        // Occupancy resolves through membership, so a full table's
+        // companion half is not reported as free.
+        reservationMembers: {
           with: {
-            participants: {
+            reservation: {
+              // Include accepted reservations plus active admin timed reservations
+              // (non-terminal + revealAt), so the game can reveal them itself.
+              // Rejected/canceled timed reservations must not leak through revealAt alone.
+              where: or(
+                eq(standReservations.status, "accepted"),
+                and(
+                  isNotNull(standReservations.revealAt),
+                  inArray(standReservations.status, [
+                    "pending",
+                    "verification_payment",
+                  ]),
+                ),
+              ),
               with: {
-                user: {
+                participants: {
                   with: {
-                    userSocials: true,
+                    user: {
+                      with: {
+                        userSocials: true,
+                      },
+                    },
                   },
                 },
               },
@@ -116,7 +123,7 @@ export async function GET(
     );
   }
 
-  const result = festivalStands.map((stand) => ({
+  const result = withMembershipReservations(festivalStands).map((stand) => ({
     standId: stand.id,
     standLabel: stand.label,
     standNumber: stand.standNumber,

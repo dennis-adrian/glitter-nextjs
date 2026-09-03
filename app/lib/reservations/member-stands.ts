@@ -68,3 +68,27 @@ export function summarizeReservationStands(
     dimensions,
   };
 }
+
+/**
+ * A stand label for a reservation whose membership may not have been loaded.
+ *
+ * Emails and cards render from whatever their sender fetched. Where membership
+ * is available this names every occupied stand ("A1 y A2"); where it is not, it
+ * falls back to the originally selected half rather than showing nothing.
+ */
+export function reservationStandLabel(reservation: {
+  stand: StandLabelParts;
+  members?: ReadonlyArray<{
+    position: number;
+    releasedAt: Date | null;
+    stand: StandLabelParts;
+  }> | null;
+}): string {
+  const members = reservation.members ?? [];
+  const active = members
+    .filter((member) => member.releasedAt == null)
+    .slice()
+    .sort((a, b) => a.position - b.position);
+  if (active.length === 0) return formatStandLabel(reservation.stand);
+  return active.map((member) => formatStandLabel(member.stand)).join(" y ");
+}

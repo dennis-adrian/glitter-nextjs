@@ -16,6 +16,7 @@ import {
 
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
+import { withMembershipReservations } from "@/app/lib/reservations/stand-occupancy";
 import * as schema from "@/db/schema";
 import {
   creditHolds,
@@ -714,6 +715,50 @@ describeDatabase("full table", () => {
         })),
       ),
     ).toMatchObject({ isFullTable: true, dimensions: "60cm x 240cm" });
+  });
+
+  it("marks both halves occupied for map and tooltip queries", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    // Maps and tooltips resolve occupancy through membership. Through the old
+    // stands.reservations relation the companion half had no reservation at
+    // all and showed as free.
+    const standsWithMembers = await integrationDb!.query.stands.findMany({
+      where: inArray(stands.id, standIds),
+      with: { reservationMembers: { with: { reservation: true } } },
+    });
+
+    const occupancy = withMembershipReservations(standsWithMembers);
+    expect(occupancy).toHaveLength(2);
+    for (const stand of occupancy) {
+      expect(stand.reservations).toHaveLength(1);
+    }
+    // Both halves belong to the same reservation, not two.
+    expect(
+      new Set(occupancy.map((stand) => stand.reservations[0]!.id)).size,
+    ).toBe(1);
   });
 
   it("downgrades a full table to its original half without touching the money", async () => {

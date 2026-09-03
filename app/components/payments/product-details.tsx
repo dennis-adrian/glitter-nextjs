@@ -93,9 +93,9 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
               </li>
             )}
 
-            {/* Chairs and credentials are per reservation, and a full table is
-                still one reservation — only the space changes. */}
-            <li>• 2 sillas</li>
+            {/* Chairs come with each stand, so a full table has two stands'
+                worth. Credentials are per reservation. */}
+            <li>• {2 * standCount} sillas</li>
             <li>• 2 credenciales</li>
           </ul>
         </div>

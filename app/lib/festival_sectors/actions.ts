@@ -1,6 +1,7 @@
 "use server";
 
 import { StandBase } from "@/app/api/stands/definitions";
+import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
 import {
   BaseProfile,
   Participation,
@@ -103,20 +104,26 @@ export async function fetchFestivalSectors(
       with: {
         stands: {
           with: {
-            reservations: {
+            // Occupancy resolves through membership, so a full table's
+            // companion half is not reported as free.
+            reservationMembers: {
               with: {
-                participants: {
+                reservation: {
                   with: {
-                    user: {
+                    participants: {
                       with: {
-                        userSocials: true,
+                        user: {
+                          with: {
+                            userSocials: true,
+                          },
+                        },
                       },
                     },
-                  },
-                },
-                externalParticipants: {
-                  with: {
-                    externalParticipant: true,
+                    externalParticipants: {
+                      with: {
+                        externalParticipant: true,
+                      },
+                    },
                   },
                 },
               },
@@ -132,11 +139,12 @@ export async function fetchFestivalSectors(
       where: eq(festivalSectors.festivalId, festivalId),
     });
 
+    const withOccupancy = withMembershipReservationsBySector(sectors);
     try {
-      return await attachProfileSubcategories(sectors);
+      return await attachProfileSubcategories(withOccupancy);
     } catch (error) {
       console.error("Error attaching profile subcategories", error);
-      return sectors;
+      return withOccupancy;
     }
   } catch (error) {
     console.error("Error fetching festival sectors", error);
@@ -253,20 +261,26 @@ export async function fetchFestivalSectorsByUserCategory(
         with: {
           stands: {
             with: {
-              reservations: {
+              // Occupancy resolves through membership, so a full table's
+              // companion half is not reported as free.
+              reservationMembers: {
                 with: {
-                  participants: {
+                  reservation: {
                     with: {
-                      user: {
+                      participants: {
                         with: {
-                          userSocials: true,
+                          user: {
+                            with: {
+                              userSocials: true,
+                            },
+                          },
                         },
                       },
-                    },
-                  },
-                  externalParticipants: {
-                    with: {
-                      externalParticipant: true,
+                      externalParticipants: {
+                        with: {
+                          externalParticipant: true,
+                        },
+                      },
                     },
                   },
                 },
@@ -280,11 +294,12 @@ export async function fetchFestivalSectorsByUserCategory(
         },
       });
 
+      const withOccupancy = withMembershipReservationsBySector(sectors);
       try {
-        return await attachProfileSubcategories(sectors, tx);
+        return await attachProfileSubcategories(withOccupancy, tx);
       } catch (error) {
         console.error("Error attaching profile subcategories", error);
-        return sectors;
+        return withOccupancy;
       }
     });
   } catch (error) {
@@ -597,12 +612,18 @@ export async function fetchSectorWithStandsAndReservations(sectorId: number) {
       with: {
         stands: {
           with: {
-            reservations: {
+            // Occupancy resolves through membership, so a full table's
+            // companion half is not reported as free.
+            reservationMembers: {
               with: {
-                participants: { with: { user: true } },
-                externalParticipants: {
+                reservation: {
                   with: {
-                    externalParticipant: true,
+                    participants: { with: { user: true } },
+                    externalParticipants: {
+                      with: {
+                        externalParticipant: true,
+                      },
+                    },
                   },
                 },
               },

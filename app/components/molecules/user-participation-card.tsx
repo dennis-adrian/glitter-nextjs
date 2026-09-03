@@ -1,4 +1,5 @@
 import { Participation } from "@/app/api/users/definitions";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
 import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
 import { CalendarIcon, LandPlotIcon } from "lucide-react";
@@ -10,6 +11,10 @@ export default function UserParticipationCard({
   participation: Participation;
 }) {
   const { festivalDates } = participation.reservation.festival;
+  // A full table occupies two stands, so the card must not name only one.
+  const standCount = (participation.reservation.members ?? []).filter(
+    (member) => member.releasedAt == null,
+  ).length;
   const startDate =
     festivalDates?.length && festivalDates[0]?.startDate
       ? formatDate(festivalDates[0].startDate).toLocaleString({
@@ -60,8 +65,8 @@ export default function UserParticipationCard({
         <p className="text-xs md:text-sm leading-tight text-muted-foreground flex items-center gap-1">
           <LandPlotIcon className="w-4 h-4" />
           <span>
-            Espacio {participation.reservation.stand.label}
-            {participation.reservation.stand.standNumber}
+            {standCount > 1 ? "Espacios" : "Espacio"}{" "}
+            {reservationStandLabel(participation.reservation)}
           </span>
         </p>
       </div>

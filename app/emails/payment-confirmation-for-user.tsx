@@ -1,4 +1,5 @@
 import * as styles from "@/app/emails/styles";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import {
   Body,
   Button,
@@ -23,6 +24,11 @@ export default function PaymentConfirmationForUserEmailTemplate(
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(props.invoice.user);
+  // A full table is two stands; name both.
+  const standLabel = reservationStandLabel(props.invoice.reservation);
+  const standCount = (props.invoice.reservation.members ?? []).filter(
+    (member) => member.releasedAt == null,
+  ).length;
 
   return (
     <Html>
@@ -38,23 +44,18 @@ export default function PaymentConfirmationForUserEmailTemplate(
             <Text style={styles.text}>¡Hola {userName}!</Text>
             {props.invoice.amount === 0 ? (
               <Text style={styles.text}>
-                Hemos registrado tu reserva gratuita para el espacio{" "}
-                <strong>
-                  {props.invoice.reservation.stand.label}
-                  {props.invoice.reservation.stand.standNumber}
-                </strong>{" "}
+                Hemos registrado tu reserva gratuita para{" "}
+                {standCount > 1 ? "los espacios" : "el espacio"}{" "}
+                <strong>{standLabel}</strong>{" "}
                 en el festival{" "}
                 <strong>{props.invoice.reservation.festival.name}</strong>. Tu
                 código de descuento cubrió el costo total.
               </Text>
             ) : (
               <Text style={styles.text}>
-                Hemos recibido el comprobante de pago que subiste para el
-                espacio{" "}
-                <strong>
-                  {props.invoice.reservation.stand.label}
-                  {props.invoice.reservation.stand.standNumber}
-                </strong>{" "}
+                Hemos recibido el comprobante de pago que subiste para{" "}
+                {standCount > 1 ? "los espacios" : "el espacio"}{" "}
+                <strong>{standLabel}</strong>{" "}
                 en el festival{" "}
                 <strong>{props.invoice.reservation.festival.name}</strong>
               </Text>

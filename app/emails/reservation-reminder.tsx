@@ -1,4 +1,5 @@
 import EmailFooter from "@/app/emails/email-footer";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import * as styles from "@/app/emails/styles";
 import {
   Body,
@@ -24,6 +25,11 @@ export default function ReservationReminderTemplate(
 ) {
   const { task } = props;
   const userName = getUserName(task.profile);
+  // A full table is two stands, so the reminder has to name both.
+  const standLabel = reservationStandLabel(task.reservation);
+  const standCount = (task.reservation.members ?? []).filter(
+    (member) => member.releasedAt == null,
+  ).length;
 
   return (
     <Html>
@@ -38,11 +44,9 @@ export default function ReservationReminderTemplate(
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              Te recordamos que tu reserva para el espacio{" "}
-              <strong>
-                {task.reservation.stand.label}
-                {task.reservation.stand.standNumber}
-              </strong>{" "}
+              Te recordamos que tu reserva para{" "}
+              {standCount > 1 ? "los espacios" : "el espacio"}{" "}
+              <strong>{standLabel}</strong>{" "}
               para nuestro próximo festival{" "}
               <strong>{task.reservation.festival.name}</strong> aún está
               pendiente de pago.
