@@ -142,6 +142,41 @@ export async function denySelfServiceMutation(
   return reservationFailure(code, message);
 }
 
+/**
+ * `denySelfServiceMutation` with the clock — and only the clock — lifted.
+ *
+ * `RESERVATIONS_NOT_OPEN` is evaluated before enrollment, terms and sanctions,
+ * so before the map opens it masks every other reason someone cannot reserve.
+ * The full-table decision is deliberately reachable in that window (PRD §7.2),
+ * which leaves its commands with no page gate to lean on: evaluating at the
+ * opening instant is how they stay open to exactly the people who will be
+ * allowed to reserve, and closed to everyone else.
+ *
+ * Use this only for a mutation the window is meant not to block. Anything that
+ * touches a stand still goes through `denySelfServiceMutation`.
+ */
+export async function denySelfServiceMutationBeforeOpen(
+  tx: DbTx,
+  input: {
+    actor: ReservationActor;
+    userId: number;
+    festivalId: number;
+    now?: Date;
+  },
+): Promise<Extract<ReservationActionResult, { success: false }> | null> {
+  const now = input.now ?? new Date();
+  const festival = await tx.query.festivals.findFirst({
+    where: eq(festivals.id, input.festivalId),
+    columns: { reservationsStartDate: true },
+  });
+  const openAt = festival?.reservationsStartDate;
+
+  return denySelfServiceMutation(tx, {
+    ...input,
+    now: openAt && now.getTime() < openAt.getTime() ? openAt : now,
+  });
+}
+
 export async function denyIfStandNotEligibleForProfile(
   tx: DbTx,
   input: {

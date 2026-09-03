@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { EditIcon } from "lucide-react";
+import { AlertTriangleIcon, EditIcon } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { Badge } from "@/app/components/ui/badge";
@@ -26,6 +26,8 @@ import {
   standDisplayLabel,
 } from "@/app/components/maps/admin/stand-manage/shared";
 
+import type { FullTableInfo } from "@/app/components/maps/admin/stand-manage/full-table";
+
 export type StandRow = StandWithReservationsWithParticipants & {
   sectorId: number;
   sectorName: string;
@@ -38,6 +40,7 @@ export const columnTitles = {
   status: "Estado",
   standCategory: "Categoría",
   price: "Precio",
+  fullTable: "Mesa completa",
   reservation: "Reserva",
   actions: "",
 };
@@ -49,7 +52,62 @@ type ColumnOpts = {
   isSelected: (id: number) => boolean;
   onToggle: (id: number) => void;
   onToggleAll: (ids: number[], allOn: boolean) => void;
+  /** Keyed by stand id; absent means the stand is not half of a full table. */
+  fullTableByStandId: Map<number, FullTableInfo>;
 };
+
+/**
+ * A stand's half of a declared table, or a dash.
+ *
+ * A malformed pair is shown rather than hidden: it is invisible to
+ * participants, and it silently withholds every full table in its sector until
+ * an admin fixes it, so this table is the only place it can surface.
+ */
+function FullTableCell({ info }: { info: FullTableInfo | undefined }) {
+  if (!info) return <span className="text-sm text-muted-foreground">—</span>;
+
+  if (info.problems.length > 0) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+            aria-label="Ver los problemas de esta mesa completa"
+          >
+            <Badge variant="amber" className="gap-1">
+              <AlertTriangleIcon className="h-3 w-3" />
+              Mesa con problemas
+            </Badge>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 text-sm" align="start">
+          <p className="mb-2 font-medium">
+            Esta mesa no cumple las reglas, así que no se le ofrece a nadie:
+          </p>
+          <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+            {info.problems.map((problem, index) => (
+              <li key={index}>{problem.message}</li>
+            ))}
+          </ul>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Badge variant="secondary" className="w-fit">
+        Mesa completa
+      </Badge>
+      <span className="text-xs text-muted-foreground">
+        {info.companion
+          ? `con ${standDisplayLabel(info.companion)}`
+          : "sin la otra mitad"}
+      </span>
+    </div>
+  );
+}
 
 function StatusCell({
   stand,
@@ -108,6 +166,7 @@ export function createColumns({
   isSelected,
   onToggle,
   onToggleAll,
+  fullTableByStandId,
 }: ColumnOpts): ColumnDef<StandRow>[] {
   return [
     {
@@ -229,6 +288,16 @@ export function createColumns({
           {formatPrice(row.original.price ?? 0)}
         </span>
       ),
+    },
+    {
+      id: "fullTable",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={columnTitles.fullTable} />
+      ),
+      cell: ({ row }) => (
+        <FullTableCell info={fullTableByStandId.get(row.original.id)} />
+      ),
+      enableSorting: false,
     },
     {
       id: "reservation",

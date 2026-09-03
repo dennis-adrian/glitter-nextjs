@@ -35,6 +35,7 @@ import {
   standFilterOptions,
 } from "@/app/components/maps/admin/stand-manage/columns";
 import StandEditFormDialog from "@/app/components/maps/admin/stand-manage/edit-form-dialog";
+import { indexFullTables } from "@/app/components/maps/admin/stand-manage/full-table";
 import {
   STAND_STATUS_OPTIONS,
   StandCategory,
@@ -48,6 +49,8 @@ type Props = {
   festivalId: number;
   festivalName: string;
   sectors: Sector[];
+  /** Stand groups already declared full tables, so rows can name their half. */
+  fullTableGroupIds: number[];
 };
 
 const ALL_SECTOR_VALUE = "all";
@@ -79,6 +82,7 @@ export default function StandManageTable({
   festivalId,
   festivalName,
   sectors,
+  fullTableGroupIds,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -137,7 +141,23 @@ export default function StandManageTable({
     return m;
   }, [allRows]);
 
+  // Built from every row rather than the active tab's: a pair is only complete
+  // across the whole festival, and a half hidden by the sector filter would
+  // otherwise read as a table missing its other half.
+  const fullTableByStandId = useMemo(
+    () => indexFullTables(allRows, fullTableGroupIds, festivalId),
+    [allRows, fullTableGroupIds, festivalId],
+  );
+
   const selectedIdsArr = useMemo(() => Array.from(selectedIds), [selectedIds]);
+
+  const selectedRows = useMemo(
+    () =>
+      selectedIdsArr
+        .map((id) => rowsById.get(id))
+        .filter((row): row is StandRow => row != null),
+    [selectedIdsArr, rowsById],
+  );
 
   const selectedHaveReservation = useMemo(() => {
     for (const id of selectedIds) {
@@ -251,6 +271,7 @@ export default function StandManageTable({
         isSelected,
         onToggle,
         onToggleAll,
+        fullTableByStandId,
       }),
     [
       onEdit,
@@ -259,6 +280,7 @@ export default function StandManageTable({
       isSelected,
       onToggle,
       onToggleAll,
+      fullTableByStandId,
     ],
   );
 
@@ -290,6 +312,9 @@ export default function StandManageTable({
     <StandBulkActionsMenu
       festivalId={festivalId}
       selectedIds={selectedIdsArr}
+      selectedRows={selectedRows}
+      fullTableByStandId={fullTableByStandId}
+      rowsById={rowsById}
       hasReservation={selectedHaveReservation}
       onCleared={clearSelection}
       onDone={() => {
@@ -407,6 +432,7 @@ export default function StandManageTable({
             <StandManageCardList
               stands={rowsForTab}
               selectedIds={selectedIds}
+              fullTableByStandId={fullTableByStandId}
               onToggle={onToggle}
               onToggleAll={onToggleAll}
               onEdit={onEdit}

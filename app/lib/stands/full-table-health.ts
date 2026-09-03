@@ -5,7 +5,7 @@
  * `tsx` CLI, and that import throws outside a Next build. The mutating command
  * lives in `full-table-service.ts`, which keeps the guard.
  */
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, type SQL } from "drizzle-orm";
 
 import {
   type FullTablePairMember,
@@ -30,6 +30,28 @@ export async function loadStandGroupMembers(
   tx: DbTx,
   groupId: number,
 ): Promise<FullTablePairMember[]> {
+  return loadPairMembers(tx, eq(stands.standGroupId, groupId));
+}
+
+/**
+ * The same shape for stands that are not a group yet.
+ *
+ * Declaring a pair has to validate the rules *before* it writes anything, the
+ * way a price edit validates the projected pair: creating the group first and
+ * rolling back would lose the exact mismatch messages an admin needs.
+ */
+export async function loadStandsAsPairMembers(
+  tx: DbTx,
+  standIds: readonly number[],
+): Promise<FullTablePairMember[]> {
+  if (standIds.length === 0) return [];
+  return loadPairMembers(tx, inArray(stands.id, [...standIds]));
+}
+
+async function loadPairMembers(
+  tx: DbTx,
+  where: SQL,
+): Promise<FullTablePairMember[]> {
   const rows = await tx
     .select({
       id: stands.id,
@@ -46,7 +68,7 @@ export async function loadStandGroupMembers(
     })
     .from(stands)
     .leftJoin(festivalSectors, eq(festivalSectors.id, stands.festivalSectorId))
-    .where(eq(stands.standGroupId, groupId));
+    .where(where);
 
   if (rows.length === 0) return [];
 

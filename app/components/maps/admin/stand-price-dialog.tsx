@@ -32,6 +32,11 @@ type StandPriceDialogProps = {
   stands: PricedStand[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Shown above the fields. The stands table uses it to name the companion
+   * halves it added to the selection, rather than widening the write silently.
+   */
+  notice?: React.ReactNode;
   /** Lets the editor patch its local copy without a full reload. */
   onSaved?: (
     updates: {
@@ -75,6 +80,7 @@ export default function StandPriceDialog({
   stands,
   open,
   onOpenChange,
+  notice,
   onSaved,
 }: StandPriceDialogProps) {
   const router = useRouter();
@@ -89,7 +95,9 @@ export default function StandPriceDialog({
   // rather than in useState. Blank means "remove the shared price", so an
   // unseeded field would quietly wipe prices the admin never meant to touch.
   const standsRef = useRef(stands);
-  standsRef.current = stands;
+  useEffect(() => {
+    standsRef.current = stands;
+  }, [stands]);
   useEffect(() => {
     if (!open) return;
     const current = standsRef.current;
@@ -192,6 +200,8 @@ export default function StandPriceDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {notice}
+
           <div className="grid gap-2">
             <Label htmlFor="stand-individual-price">Precio individual</Label>
             <Input

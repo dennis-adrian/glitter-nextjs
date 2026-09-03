@@ -8,7 +8,6 @@ import {
   getCreditBalancesInTx,
 } from "@/app/lib/credits/service";
 import { fetchFeatureConfig } from "@/app/lib/festivals/feature-config-service";
-import { getSelfServiceDenialAtOpen } from "@/app/lib/reservations/entry";
 import {
   reservationFailure,
   reservationSuccess,
@@ -25,6 +24,7 @@ import {
   claimRequest,
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
+import { denySelfServiceMutationBeforeOpen } from "@/app/lib/reservations/tx-eligibility";
 import {
   FULL_TABLE_CATEGORIES,
   type FullTableCategory,
@@ -203,12 +203,12 @@ export async function createFeatureCreditTopUp(input: {
       // The same gate activation uses: buying is offered before reservations
       // open, so the clock is lifted and every other rule — enrollment, terms,
       // verification, sanctions — still decides.
-      const denial = await getSelfServiceDenialAtOpen({
+      const denial = await denySelfServiceMutationBeforeOpen(tx, {
         actor: { id: actor.id, role: actor.role },
-        profileId: actor.id,
+        userId: actor.id,
         festivalId: input.festivalId,
       });
-      if (denial) return fail(reservationFailure(denial.code));
+      if (denial) return fail(denial);
 
       const config = await fetchFeatureConfig(
         input.festivalId,

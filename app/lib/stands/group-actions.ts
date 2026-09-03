@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { pruneEmptyGroups } from "@/app/lib/stands/group-service";
 import { resolveJointAxis } from "@/app/lib/stands/groups";
 import { db } from "@/db";
 import { standGroups, stands } from "@/db/schema";
@@ -27,30 +28,6 @@ async function requireFestivalOrAdmin() {
     };
   }
   return { ok: true as const };
-}
-
-/** Drops groups that no longer have at least two members */
-async function pruneEmptyGroups(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  groupIds: number[],
-) {
-  if (groupIds.length === 0) return;
-  const remaining = await tx
-    .select({ id: stands.id, standGroupId: stands.standGroupId })
-    .from(stands)
-    .where(inArray(stands.standGroupId, groupIds));
-
-  const counts = new Map<number, number>();
-  for (const row of remaining) {
-    if (row.standGroupId == null) continue;
-    counts.set(row.standGroupId, (counts.get(row.standGroupId) ?? 0) + 1);
-  }
-
-  const stale = groupIds.filter((id) => (counts.get(id) ?? 0) < 2);
-  if (stale.length === 0) return;
-
-  // The stands FK is ON DELETE SET NULL, so the last member is released here
-  await tx.delete(standGroups).where(inArray(standGroups.id, stale));
 }
 
 /**

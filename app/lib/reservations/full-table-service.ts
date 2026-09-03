@@ -12,7 +12,6 @@ import {
   reservationSuccess,
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
-import { getSelfServiceDenialAtOpen } from "@/app/lib/reservations/entry";
 import {
   findActiveFullTableAccess,
   hasCompleteFullTable,
@@ -34,6 +33,7 @@ import {
 } from "@/app/lib/reservations/members";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { denySelfServiceMutationBeforeOpen } from "@/app/lib/reservations/tx-eligibility";
 import {
   abandonRequest,
   claimRequest,
@@ -138,15 +138,14 @@ export async function activateFullTableAccess(input: {
 
     // Activation is deliberately reachable before reservations open, so it
     // cannot lean on the map page's gate the way every other participant
-    // mutation does. Evaluated at the opening instant: the clock is the one
-    // rule that must not apply here, and enrollment, terms, verification and
-    // sanctions all still must.
-    const denial = await getSelfServiceDenialAtOpen({
+    // mutation does. The clock is the one rule that must not apply here;
+    // enrollment, terms, verification and sanctions all still must.
+    const denial = await denySelfServiceMutationBeforeOpen(tx, {
       actor: { id: actor.id, role: actor.role },
-      profileId: actor.id,
+      userId: actor.id,
       festivalId: input.festivalId,
     });
-    if (denial) return finish(reservationFailure(denial.code));
+    if (denial) return finish(denial);
 
     // Read on this transaction's connection: reaching for the pool while
     // holding festival and user locks can self-deadlock under load.

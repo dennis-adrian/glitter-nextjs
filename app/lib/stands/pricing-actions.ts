@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import {
+  declareFullTablePair,
+  dissolveFullTablePair,
   setStandGroupFullTable,
   type FullTableConfigResult,
 } from "@/app/lib/stands/full-table-service";
@@ -38,6 +40,14 @@ const priceUpdatesSchema = z
 const fullTableSchema = z.object({
   groupId: z.coerce.number().int().positive(),
   enabled: z.boolean(),
+});
+
+const declarePairSchema = z.object({
+  standIds: z.array(z.coerce.number().int().positive()).length(2),
+});
+
+const dissolvePairSchema = z.object({
+  groupId: z.coerce.number().int().positive(),
 });
 
 async function requireFestivalOrAdmin() {
@@ -147,5 +157,81 @@ export async function setStandGroupFullTableAction(
   } catch (error) {
     console.error("Error configuring full table", error);
     return { success: false, message: "Error al configurar la mesa completa." };
+  }
+}
+
+/**
+ * Declares two stands one full table from the stands table, where an admin can
+ * see prices and categories but not map positions.
+ *
+ * Grouping and declaring happen together: the browser never issues the two
+ * commands in sequence, so a refusal cannot leave a half-made group behind.
+ */
+export async function declareFullTablePairAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const auth = await requireFestivalOrAdmin();
+  if (!auth.ok) return { success: false, message: auth.message };
+
+  const parsed = declarePairSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Seleccioná exactamente dos espacios.",
+    };
+  }
+
+  try {
+    const result = await declareFullTablePair(parsed.data);
+    if (!result.ok) {
+      return {
+        success: false,
+        message:
+          result.code === "OCCUPIED"
+            ? "No se puede declarar: hay una reserva vigente en estos espacios."
+            : "Estos espacios no forman una mesa completa válida.",
+        problems: result.problems.map((problem) => problem.message),
+      };
+    }
+
+    revalidatePath("/dashboard/festivals");
+    revalidatePath("/", "layout");
+    return { success: true, message: "Mesa completa declarada." };
+  } catch (error) {
+    console.error("Error declaring full table pair", error);
+    return { success: false, message: "Error al declarar la mesa completa." };
+  }
+}
+
+/** Separates a declared pair: the stands stop being a table and stop being grouped. */
+export async function dissolveFullTablePairAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const auth = await requireFestivalOrAdmin();
+  if (!auth.ok) return { success: false, message: auth.message };
+
+  const parsed = dissolvePairSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: "Datos inválidos." };
+  }
+
+  try {
+    const result = await dissolveFullTablePair(parsed.data);
+    if (!result.ok) {
+      return {
+        success: false,
+        message:
+          result.code === "OCCUPIED"
+            ? "No se puede separar: hay una reserva vigente en estos espacios."
+            : "No se encontró la mesa completa.",
+      };
+    }
+
+    revalidatePath("/dashboard/festivals");
+    revalidatePath("/", "layout");
+    return { success: true, message: "Los espacios quedaron separados." };
+  } catch (error) {
+    console.error("Error dissolving full table pair", error);
+    return { success: false, message: "Error al separar la mesa completa." };
   }
 }

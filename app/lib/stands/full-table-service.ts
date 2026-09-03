@@ -6,7 +6,12 @@ import {
   type FullTablePairProblem,
   validateFullTablePair,
 } from "@/app/lib/stands/full-table-pairs";
-import { loadStandGroupMembers } from "@/app/lib/stands/full-table-health";
+import {
+  loadStandGroupMembers,
+  loadStandsAsPairMembers,
+} from "@/app/lib/stands/full-table-health";
+import { pruneEmptyGroups } from "@/app/lib/stands/group-service";
+import { resolveJointAxis } from "@/app/lib/stands/groups";
 import { lockStandRows } from "@/app/lib/reservations/locks";
 import { OCCUPYING_RESERVATION_STATUSES } from "@/app/lib/reservations/members";
 import { db } from "@/db";
@@ -116,5 +121,182 @@ export async function setStandGroupFullTable(input: {
       .where(eq(standGroups.id, input.groupId));
 
     return { ok: true, groupId: input.groupId, type };
+  });
+}
+
+export type DeclareFullTablePairResult =
+  | { ok: true; groupId: number }
+  | {
+      ok: false;
+      code:
+        | "STANDS_NOT_FOUND"
+        | "DUPLICATE_STANDS"
+        | "NO_SECTOR"
+        | "NOT_ALIGNED"
+        | "OCCUPIED"
+        | "INVALID_PAIR";
+      problems: FullTablePairProblem[];
+    };
+
+function pairRefusal(
+  code: Extract<DeclareFullTablePairResult, { ok: false }>["code"],
+  problem: FullTablePairProblem,
+): DeclareFullTablePairResult {
+  return { ok: false, code, problems: [problem] };
+}
+
+/**
+ * Creates the group and declares it a full table in one transaction.
+ *
+ * `groupStands` and `setStandGroupFullTable` are separate commands, and calling
+ * them in sequence from a browser leaves a bare `visual_group` behind whenever
+ * the second half fails — two stands silently joined into something nobody
+ * asked for. This is the single command the stands table uses instead.
+ *
+ * Everything is validated before the first write, the way a price edit
+ * validates the projected pair: a refusal then names every mismatch at once
+ * instead of surfacing them one discarded write at a time.
+ */
+export async function declareFullTablePair(input: {
+  standIds: readonly number[];
+}): Promise<DeclareFullTablePairResult> {
+  const standIds = [...new Set(input.standIds)];
+  if (standIds.length !== input.standIds.length) {
+    return pairRefusal("DUPLICATE_STANDS", {
+      code: "MEMBER_COUNT",
+      message: "Seleccionaste el mismo espacio dos veces.",
+    });
+  }
+  if (standIds.length !== 2) {
+    return pairRefusal("INVALID_PAIR", {
+      code: "MEMBER_COUNT",
+      message: `Una mesa completa son exactamente dos espacios; seleccionaste ${standIds.length}.`,
+    });
+  }
+
+  return db.transaction(async (tx) => {
+    await lockStandRows(tx, standIds);
+
+    const placement = await tx
+      .select({
+        id: stands.id,
+        festivalSectorId: stands.festivalSectorId,
+        positionLeft: stands.positionLeft,
+        positionTop: stands.positionTop,
+        standGroupId: stands.standGroupId,
+      })
+      .from(stands)
+      .where(inArray(stands.id, standIds));
+    if (placement.length !== 2) {
+      return pairRefusal("STANDS_NOT_FOUND", {
+        code: "MEMBER_COUNT",
+        message: "No se encontraron ambos espacios.",
+      });
+    }
+
+    if (await hasLiveOccupancy(tx, standIds)) {
+      return pairRefusal("OCCUPIED", {
+        code: "MEMBER_COUNT",
+        message:
+          "Hay una reserva vigente en estos espacios; liberala antes de declarar la mesa.",
+      });
+    }
+
+    const members = await loadStandsAsPairMembers(tx, standIds);
+    const validation = validateFullTablePair(members);
+    if (!validation.ok) {
+      return {
+        ok: false as const,
+        code: "INVALID_PAIR" as const,
+        problems: validation.problems,
+      };
+    }
+
+    const sectorId = placement[0].festivalSectorId;
+    if (sectorId == null) {
+      return pairRefusal("NO_SECTOR", {
+        code: "SECTOR_MISMATCH",
+        message: "Los espacios deben pertenecer a un sector.",
+      });
+    }
+
+    // The group's own rule, which the pairing rules do not cover: members that
+    // line up on neither axis can never be drawn as one clean outline. An admin
+    // working from the table cannot see positions, so this has to name itself
+    // rather than surface as a generic failure.
+    if (resolveJointAxis(placement) === null) {
+      return pairRefusal("NOT_ALIGNED", {
+        code: "NOT_PLACED_ON_MAP",
+        message:
+          "Los espacios no están alineados en una misma fila o columna del plano. Acomodalos en el editor de mapa y volvé.",
+      });
+    }
+
+    const previousGroupIds = [
+      ...new Set(
+        placement
+          .map((row) => row.standGroupId)
+          .filter((id): id is number => id != null),
+      ),
+    ];
+
+    const [group] = await tx
+      .insert(standGroups)
+      .values({ festivalSectorId: sectorId, type: "full_table" })
+      .returning({ id: standGroups.id });
+
+    await tx
+      .update(stands)
+      .set({ standGroupId: group.id, updatedAt: new Date() })
+      .where(inArray(stands.id, standIds));
+
+    await pruneEmptyGroups(tx, previousGroupIds);
+
+    return { ok: true as const, groupId: group.id };
+  });
+}
+
+export type DissolveFullTablePairResult =
+  | { ok: true }
+  | { ok: false; code: "GROUP_NOT_FOUND" | "OCCUPIED" };
+
+/**
+ * Undoes a declaration completely: the stands stop being a table and stop being
+ * grouped at all.
+ *
+ * Returning the group to `visual_group` is the narrower undo and stays
+ * available through `setStandGroupFullTable`. From the stands table the admin's
+ * question is whether these two stands are one table, and a leftover group they
+ * cannot see from there is exactly what `declareFullTablePair` exists to avoid
+ * creating.
+ */
+export async function dissolveFullTablePair(input: {
+  groupId: number;
+}): Promise<DissolveFullTablePairResult> {
+  return db.transaction(async (tx) => {
+    const [group] = await tx
+      .select({ id: standGroups.id })
+      .from(standGroups)
+      .where(eq(standGroups.id, input.groupId))
+      .limit(1)
+      .for("update");
+    if (!group) return { ok: false as const, code: "GROUP_NOT_FOUND" as const };
+
+    const memberIds = (
+      await tx
+        .select({ id: stands.id })
+        .from(stands)
+        .where(eq(stands.standGroupId, input.groupId))
+    ).map((row) => row.id);
+    await lockStandRows(tx, memberIds);
+
+    if (await hasLiveOccupancy(tx, memberIds)) {
+      return { ok: false as const, code: "OCCUPIED" as const };
+    }
+
+    // The stands foreign key is ON DELETE SET NULL, so deleting the group
+    // releases every member still attached to it.
+    await tx.delete(standGroups).where(eq(standGroups.id, input.groupId));
+    return { ok: true as const };
   });
 }
