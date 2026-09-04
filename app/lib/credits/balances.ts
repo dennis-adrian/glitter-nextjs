@@ -5,8 +5,15 @@ export type CreditBalanceInput = {
 };
 
 export type CreditBalances = CreditBalanceInput & {
+  /**
+   * Everything the participant can spend right now, on anything.
+   *
+   * Credits are usable the moment their voucher is submitted. There is no
+   * confirmed-only tier: a voucher that turns out to be bad is reversed, which
+   * leaves the account in debt for an admin to resolve, and that is the same
+   * machinery whether the credits went to a feature or to an invoice.
+   */
   spendableBalance: number;
-  invoiceEligibleBalance: number;
 };
 
 /** Keep all arithmetic at the database's two-decimal money precision. */
@@ -14,7 +21,9 @@ export function roundCredits(amount: number): number {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
-export function calculateCreditBalances(input: CreditBalanceInput): CreditBalances {
+export function calculateCreditBalances(
+  input: CreditBalanceInput,
+): CreditBalances {
   const ledgerBalance = roundCredits(input.ledgerBalance);
   const activeHolds = roundCredits(input.activeHolds);
   const underReviewIssuance = roundCredits(input.underReviewIssuance);
@@ -23,12 +32,10 @@ export function calculateCreditBalances(input: CreditBalanceInput): CreditBalanc
   return {
     ledgerBalance,
     activeHolds,
+    // Reported, never withheld: how much of the balance is still awaiting
+    // review is worth telling someone, but it does not restrict them.
     underReviewIssuance,
     spendableBalance,
-    invoiceEligibleBalance: Math.max(
-      0,
-      roundCredits(spendableBalance - underReviewIssuance),
-    ),
   };
 }
 
@@ -39,18 +46,22 @@ export function exactCreditShortfall(
   return Math.max(0, roundCredits(requiredCredits - spendableBalance));
 }
 
-/** Positive invoices may use only confirmed, unheld credit. */
+/**
+ * Whether an invoice allocation of this size can be funded.
+ *
+ * The only bar is a non-negative ledger: debt blocks every credit operation
+ * until it is cleared. Credits still under review are spendable here, exactly
+ * as they already were for optional features.
+ */
 export function canFundInvoiceCreditAllocation(
   balances: CreditBalances,
   amount: number,
 ) {
-  return (
-    balances.ledgerBalance >= 0 && balances.invoiceEligibleBalance >= amount
-  );
+  return balances.ledgerBalance >= 0 && balances.spendableBalance >= amount;
 }
 
 export type InvoiceCreditPlan = {
-  /** Confirmed, unheld credit that may be posted against the invoice now. */
+  /** Unheld credit that may be posted against the invoice now. */
   applicableAmount: number;
   /** Exact credits to buy so the invoice can be settled entirely with credit. */
   shortfallAmount: number;
@@ -69,20 +80,19 @@ export function invoiceCreditPlan(
 ): InvoiceCreditPlan {
   const outstanding = Math.max(0, roundCredits(outstandingAmount));
   const debtAmount = Math.max(0, roundCredits(-balances.ledgerBalance));
+  // Floored: a negative balance is debt, counted once in `debtAmount`. Letting
+  // it through as a negative "usable" amount would add the debt to the
+  // shortfall a second time.
+  const usableBalance = Math.max(0, balances.spendableBalance);
   const applicableAmount =
     debtAmount > 0
       ? 0
-      : Math.max(
-          0,
-          roundCredits(
-            Math.min(outstanding, balances.invoiceEligibleBalance),
-          ),
-        );
+      : Math.max(0, roundCredits(Math.min(outstanding, usableBalance)));
   return {
     applicableAmount,
     shortfallAmount: Math.max(
       0,
-      roundCredits(outstanding + debtAmount - balances.invoiceEligibleBalance),
+      roundCredits(outstanding + debtAmount - usableBalance),
     ),
     debtAmount,
   };

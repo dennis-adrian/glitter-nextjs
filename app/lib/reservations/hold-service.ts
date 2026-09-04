@@ -498,6 +498,13 @@ export async function createStandHold(standIdInput: unknown): Promise<
             freshStand.sharedPrice == null
               ? null
               : roundMoney(freshStand.sharedPrice),
+          // The table's own price replaces its halves' on the invoice, so it is
+          // snapshotted here too: a reprice between holding and confirming must
+          // not change what the participant was quoted.
+          fullTablePriceSnapshot:
+            memberStandIds.length > 1 && pair != null
+              ? roundMoney(pair.fullTablePrice)
+              : null,
           idempotencyKey,
         })
         .returning();
@@ -698,6 +705,7 @@ export async function confirmStandHold(
         priceAmountSnapshot: standHolds.priceAmountSnapshot,
         individualPriceSnapshot: standHolds.individualPriceSnapshot,
         sharedPriceSnapshot: standHolds.sharedPriceSnapshot,
+        fullTablePriceSnapshot: standHolds.fullTablePriceSnapshot,
         standFestivalId: stands.festivalId,
         standIndividualPrice: stands.individualPrice,
         standSharedPrice: stands.sharedPrice,
@@ -884,14 +892,33 @@ export async function confirmStandHold(
           ? null
           : roundMoney(hold.standSharedPrice));
 
-      // PRD §6.1: the initial invoice uses the price matching the participant
-      // count confirmed at booking. The shared price is the total for owner
-      // plus partner and stays owner-paid; until an admin configures one it is
-      // null and a two-person booking still bills the individual price.
+      const fullTablePrice =
+        hold.fullTablePriceSnapshot == null
+          ? null
+          : roundMoney(hold.fullTablePriceSnapshot);
+
+      // A full table is a priced product in its own right, so its price
+      // replaces its halves' rather than adding to them — the reservation
+      // occupies both stands and is billed once, for the table. Only a
+      // half-table booking falls through to PRD §6.1's rule, where the initial
+      // invoice uses the price matching the participant count confirmed at
+      // booking: the shared price is the total for owner plus partner and stays
+      // owner-paid, and until an admin configures one a two-person booking
+      // still bills the individual price.
       const standPrice =
-        participantIds.length > 1 && sharedPrice != null
-          ? sharedPrice
-          : individualPrice;
+        isFullTable && fullTablePrice != null
+          ? fullTablePrice
+          : participantIds.length > 1 && sharedPrice != null
+            ? sharedPrice
+            : individualPrice;
+
+      // Both halves were handed over, so something has to bill for them. An
+      // unpriced table is never offered and `resolveFullTableCompanion` refuses
+      // to pair one, so reaching here means the price was cleared between the
+      // hold and this confirmation.
+      if (isFullTable && fullTablePrice == null) {
+        return finish(reservationFailure("CONFLICT_RETRY"));
+      }
 
       const [reservation] = await tx
         .insert(standReservations)
@@ -903,6 +930,7 @@ export async function confirmStandHold(
           priceAmountSnapshot: standPrice,
           individualPriceSnapshot: individualPrice,
           sharedPriceSnapshot: sharedPrice,
+          fullTablePriceSnapshot: fullTablePrice,
           bookedParticipantCount: participantIds.length,
           idempotencyKey,
         })

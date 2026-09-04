@@ -22,6 +22,8 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "activateFullTableAccess",
   "deactivateFullTableAccess",
   "downgradeFullTableReservation",
+  "createFeatureCreditTopUp",
+  "createDebtCreditTopUp",
 ] as const;
 
 export type ReservationRequestOperation =

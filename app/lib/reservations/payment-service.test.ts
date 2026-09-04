@@ -681,9 +681,9 @@ describe("applyInvoiceCredits", () => {
     );
   }
 
-  it("allocates the maximum confirmed balance and fulfills a fully covered invoice", async () => {
+  it("allocates the maximum spendable balance and fulfills a fully covered invoice", async () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    creditBalancesMock.mockResolvedValue({ invoiceEligibleBalance: 150 });
+    creditBalancesMock.mockResolvedValue({ spendableBalance: 150 });
     installPendingInvoiceTransaction();
 
     const result = await applyInvoiceCredits({
@@ -713,7 +713,7 @@ describe("applyInvoiceCredits", () => {
 
   it("keeps a partially credit-funded invoice pending for the voucher remainder", async () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    creditBalancesMock.mockResolvedValue({ invoiceEligibleBalance: 40 });
+    creditBalancesMock.mockResolvedValue({ spendableBalance: 40 });
     installPendingInvoiceTransaction(150);
 
     const result = await applyInvoiceCredits({
@@ -731,9 +731,9 @@ describe("applyInvoiceCredits", () => {
     });
   });
 
-  it("does not debit provisional-only credit", async () => {
+  it("debits nothing when there is no spendable balance", async () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
-    creditBalancesMock.mockResolvedValue({ invoiceEligibleBalance: 0 });
+    creditBalancesMock.mockResolvedValue({ spendableBalance: 0 });
     installPendingInvoiceTransaction();
 
     const result = await applyInvoiceCredits({
@@ -811,26 +811,32 @@ describe("createInvoiceCreditTopUp", () => {
     currentProfileMock.mockResolvedValue({ id: 99, role: "user" });
     creditBalancesMock.mockResolvedValue({
       ledgerBalance: 0,
-      invoiceEligibleBalance: 0,
+      spendableBalance: 0,
     });
     installTransaction();
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({ success: false, code: "INVOICE_NOT_OWNED" });
     expect(createCreditTopUpMock).not.toHaveBeenCalled();
     expect(abandonRequestMock).toHaveBeenCalled();
   });
 
-  it("buys only the shortfall left after confirmed credit and approved cash", async () => {
+  it("buys only the shortfall left after existing credit and approved cash", async () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
     creditBalancesMock.mockResolvedValue({
       ledgerBalance: 20,
-      invoiceEligibleBalance: 20,
+      spendableBalance: 20,
     });
     installTransaction({ amount: 150, approvedCashAmount: 30 });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(createCreditTopUpMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -857,7 +863,7 @@ describe("createInvoiceCreditTopUp", () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
     creditBalancesMock.mockResolvedValue({
       ledgerBalance: -25,
-      invoiceEligibleBalance: 0,
+      spendableBalance: 0,
     });
     installTransaction({ amount: 150 });
 
@@ -873,7 +879,7 @@ describe("createInvoiceCreditTopUp", () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
     creditBalancesMock.mockResolvedValue({
       ledgerBalance: 0,
-      invoiceEligibleBalance: 0,
+      spendableBalance: 0,
     });
     installTransaction({
       openCreditTopUps: [
@@ -886,7 +892,10 @@ describe("createInvoiceCreditTopUp", () => {
       ],
     });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({
       success: false,
@@ -899,7 +908,7 @@ describe("createInvoiceCreditTopUp", () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
     creditBalancesMock.mockResolvedValue({
       ledgerBalance: 0,
-      invoiceEligibleBalance: 0,
+      spendableBalance: 0,
     });
     installTransaction({
       openCreditTopUps: [
@@ -912,7 +921,10 @@ describe("createInvoiceCreditTopUp", () => {
       ],
     });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({
       success: true,
@@ -921,15 +933,18 @@ describe("createInvoiceCreditTopUp", () => {
     expect(createCreditTopUpMock).not.toHaveBeenCalled();
   });
 
-  it("does not open a purchase when confirmed credit already covers the invoice", async () => {
+  it("does not open a purchase when existing credit already covers the invoice", async () => {
     currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
     creditBalancesMock.mockResolvedValue({
       ledgerBalance: 200,
-      invoiceEligibleBalance: 200,
+      spendableBalance: 200,
     });
     installTransaction({ amount: 150 });
 
-    const result = await createInvoiceCreditTopUp({ invoiceId: 9, idempotencyKey: key });
+    const result = await createInvoiceCreditTopUp({
+      invoiceId: 9,
+      idempotencyKey: key,
+    });
 
     expect(result).toMatchObject({
       success: false,

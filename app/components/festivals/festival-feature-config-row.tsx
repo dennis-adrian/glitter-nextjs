@@ -4,14 +4,20 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import FullTableReadinessList from "@/app/components/festivals/full-table-readiness";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
 import { formatDateWithTime } from "@/app/lib/formatters";
+import {
+  FEATURE_NOT_IMPLEMENTED_REASON,
+  isFeatureTypeImplemented,
+} from "@/app/lib/festivals/feature-config";
 import { upsertFestivalFeatureConfigAction } from "@/app/lib/festivals/feature-config-actions";
 import type { FestivalFeatureScope } from "@/app/lib/festivals/feature-config-service";
+import type { FullTableReadiness } from "@/app/lib/stands/full-table-queries";
 
 const TYPE_LABELS: Record<string, string> = {
   full_table: "Mesa completa",
@@ -35,12 +41,23 @@ type FestivalFeatureConfigRowProps = {
   festivalId: number;
   scope: FestivalFeatureScope;
   canEdit: boolean;
+  /**
+   * What this scope's category still needs before participants are offered a
+   * table, or null where the feature has no inventory of its own. Enabling and
+   * pricing is not enough to make an offer appear, and every remaining gate is
+   * silent from the participant's side.
+   */
+  readiness: FullTableReadiness | null;
+  /** Whether the `credits` flag is public. Global, not per category. */
+  creditsLaunched: boolean;
 };
 
 export default function FestivalFeatureConfigRow({
   festivalId,
   scope,
   canEdit,
+  readiness,
+  creditsLaunched,
 }: FestivalFeatureConfigRowProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -53,6 +70,12 @@ export default function FestivalFeatureConfigRow({
   );
 
   const isLatePartner = scope.type === "late_partner";
+  // Phases 4 and 5 have configuration rows and no implementation. The row stays
+  // visible with its reason rather than disappearing: a switch that vanished
+  // would read as a feature that never existed, and admins already know these
+  // are coming.
+  const implemented = isFeatureTypeImplemented(scope.type);
+  const editable = canEdit && implemented;
   const priceValue = Number(price);
   const priceValid =
     price.trim() !== "" &&
@@ -74,9 +97,7 @@ export default function FestivalFeatureConfigRow({
           enabled,
           creditPrice: priceValue,
           deadlineOverrideAt:
-            isLatePartner && deadline
-              ? new Date(deadline).toISOString()
-              : null,
+            isLatePartner && deadline ? new Date(deadline).toISOString() : null,
         });
         if (!result.success) {
           toast.error(result.message);
@@ -107,7 +128,21 @@ export default function FestivalFeatureConfigRow({
         )}
       </div>
 
-      {scope.config?.unavailableReason && (
+      {!implemented && (
+        <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
+          {FEATURE_NOT_IMPLEMENTED_REASON} Va a habilitarse cuando se publique.
+        </p>
+      )}
+
+      {implemented && readiness && (
+        <FullTableReadinessList
+          readiness={readiness}
+          creditsLaunched={creditsLaunched}
+          enabled={scope.config?.enabled ?? false}
+        />
+      )}
+
+      {implemented && scope.config?.unavailableReason && (
         <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
           {scope.config.unavailableReason}
         </p>
@@ -118,7 +153,7 @@ export default function FestivalFeatureConfigRow({
           <Switch
             checked={enabled}
             onCheckedChange={setEnabled}
-            disabled={!canEdit || isPending}
+            disabled={!editable || isPending}
           />
           <span className="text-sm">Activada</span>
         </label>
@@ -136,7 +171,7 @@ export default function FestivalFeatureConfigRow({
             className="w-32"
             value={price}
             onChange={(event) => setPrice(event.target.value)}
-            disabled={!canEdit || isPending}
+            disabled={!editable || isPending}
             placeholder="0.00"
           />
         </div>
@@ -149,7 +184,7 @@ export default function FestivalFeatureConfigRow({
               type="datetime-local"
               value={deadline}
               onChange={(event) => setDeadline(event.target.value)}
-              disabled={!canEdit || isPending}
+              disabled={!editable || isPending}
             />
           </div>
         )}
@@ -159,8 +194,7 @@ export default function FestivalFeatureConfigRow({
         <p className="text-xs text-muted-foreground">
           {scope.config?.effectiveDeadlineAt
             ? `Fecha límite vigente: ${formatDateWithTime(scope.config.effectiveDeadlineAt)}.`
-            : "Sin fecha límite: se calcula desde el inicio del festival menos 21 días, o definila acá."}
-          {" "}
+            : "Sin fecha límite: se calcula desde el inicio del festival menos 21 días, o definila acá."}{" "}
           Dejala vacía para volver al cálculo automático.
         </p>
       )}
@@ -170,7 +204,7 @@ export default function FestivalFeatureConfigRow({
           type="button"
           size="sm"
           onClick={save}
-          disabled={!priceValid || isPending}
+          disabled={!editable || !priceValid || isPending}
         >
           {isPending ? "Guardando..." : "Guardar"}
         </Button>

@@ -8,6 +8,7 @@
  * Pure on purpose: the admin command, the health report, and the tests all
  * apply the same rules to rows they fetched themselves.
  */
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 /** Categories that may be sold as a full table. */
 export const FULL_TABLE_CATEGORIES = [
@@ -55,8 +56,16 @@ export type FullTablePairValidation =
   | { ok: true }
   | { ok: false; problems: FullTablePairProblem[] };
 
+/**
+ * How a stand is named in a problem message.
+ *
+ * The label alone is not an identity: it is the sector letter, so every stand
+ * in a sector shares it and a two-stand mismatch reads as "B and B". These
+ * messages exist to name the exact stands an admin has to go and fix, so they
+ * use the same label-plus-number the rest of the app shows.
+ */
 function standName(member: FullTablePairMember) {
-  return member.label?.trim() || `#${member.standNumber}`;
+  return formatStandLabel(member);
 }
 
 function sameIdSet(left: number[], right: number[]) {

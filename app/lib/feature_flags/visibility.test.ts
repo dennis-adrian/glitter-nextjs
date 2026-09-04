@@ -4,6 +4,7 @@ import type { BaseProfile } from "@/app/api/users/definitions";
 import type { FeatureFlagVisibility } from "@/app/lib/feature_flags/definitions";
 import {
   canPreviewUnlaunchedFeatures,
+  isFeatureLaunchedForParticipants,
   isFeatureVisible,
   isTargetedUser,
   type FeatureFlagRule,
@@ -107,5 +108,19 @@ describe("canPreviewUnlaunchedFeatures", () => {
     expect(canPreviewUnlaunchedFeatures(viewer("festival_admin"))).toBe(true);
     expect(canPreviewUnlaunchedFeatures(viewer("artist"))).toBe(false);
     expect(canPreviewUnlaunchedFeatures(null)).toBe(false);
+  });
+});
+
+describe("isFeatureLaunchedForParticipants", () => {
+  it("only counts a public flag as launched", () => {
+    expect(isFeatureLaunchedForParticipants(rule("public"))).toBe(true);
+    expect(isFeatureLaunchedForParticipants(rule("admin_only"))).toBe(false);
+    expect(isFeatureLaunchedForParticipants(rule("hidden"))).toBe(false);
+  });
+
+  it("ignores individually targeted testers", () => {
+    expect(isFeatureLaunchedForParticipants(rule("hidden", [1, 2]))).toBe(
+      false,
+    );
   });
 });

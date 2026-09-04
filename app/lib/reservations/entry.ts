@@ -5,6 +5,10 @@ import { eq } from "drizzle-orm";
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
 import {
+  fetchSelfServiceFestivalSnapshot,
+  fetchSelfServiceTargetProfile,
+} from "@/app/lib/reservations/map-queries";
+import {
   evaluateSelfServiceEligibility,
   summarizeFestivalParticipations,
   type ReservationActor,
@@ -117,4 +121,41 @@ export async function getSelfServicePageDenial(input: {
       ? { sanctionBlock }
       : {}),
   };
+}
+
+/**
+ * The denial a participant would still face the moment reservations open.
+ *
+ * `RESERVATIONS_NOT_OPEN` is evaluated before enrollment, terms and sanctions,
+ * so during the days before the map opens it masks every other reason someone
+ * cannot reserve. Re-evaluating at the opening instant lifts the clock and
+ * leaves every other rule in force.
+ *
+ * That is exactly what full-table activation needs: the PRD puts the money
+ * decision before the map on purpose, so the feature must be reachable early —
+ * but only to people who would otherwise be allowed to reserve at all.
+ * Returns null when nothing but the clock is in the way.
+ */
+export async function getSelfServiceDenialAtOpen(input: {
+  actor: ReservationActor | null;
+  profileId: number;
+  festivalId: number;
+  now?: Date;
+}): Promise<SelfServicePageDenial | null> {
+  const now = input.now ?? new Date();
+  const [festival, targetProfile] = await Promise.all([
+    fetchSelfServiceFestivalSnapshot(input.festivalId),
+    fetchSelfServiceTargetProfile(input.profileId, input.festivalId),
+  ]);
+  if (!festival || !targetProfile) {
+    return { code: "FESTIVAL_NOT_ACTIVE" };
+  }
+
+  const openAt = festival.reservationsStartDate.getTime();
+  return getSelfServicePageDenial({
+    actor: input.actor,
+    targetProfile,
+    festival,
+    now: now.getTime() < openAt ? festival.reservationsStartDate : now,
+  });
 }

@@ -33,6 +33,12 @@ export const FEATURE_FLAGS = {
       "Muestra el acceso a Semana Glitter en el menú principal. Independiente de `paid_programs`, para poder abrir las inscripciones por enlace directo antes de anunciarlas en el sitio. El acceso solo aparece si ambas están visibles.",
     defaultVisibility: "hidden",
   },
+  credits: {
+    label: "Créditos",
+    description:
+      "Billetera de créditos para participantes: `/my_credits`, la página explicativa y la compra de créditos para funciones opcionales como la mesa completa. La cola de revisión del panel de administración no depende de esta bandera.",
+    defaultVisibility: "hidden",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

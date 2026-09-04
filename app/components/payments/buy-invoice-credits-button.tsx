@@ -43,7 +43,9 @@ export default function BuyInvoiceCreditsButton({
           return;
         }
         toast.success(result.message);
-        router.push("/my_credits");
+        // Straight to the payment screen: the purchase is not finished until
+        // the voucher is in, so there is nowhere else useful to land.
+        router.push(`/my_credits/${result.data.topUpId}`);
       } catch (error) {
         console.error("Error creating invoice credit top-up", error);
         toast.error("No se pudo iniciar la compra. Intentá nuevamente.");

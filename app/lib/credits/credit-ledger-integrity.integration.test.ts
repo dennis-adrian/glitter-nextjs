@@ -26,7 +26,10 @@ const pool = testDatabaseUrl
   : null;
 const describeDatabase = pool ? describe : describe.skip;
 
-async function expectAppendOnlyDeleteFailure(client: PoolClient, statement: string) {
+async function expectAppendOnlyDeleteFailure(
+  client: PoolClient,
+  statement: string,
+) {
   await client.query("SAVEPOINT append_only_delete");
   await expect(client.query(statement)).rejects.toThrow(
     "credit ledger entries are append-only",

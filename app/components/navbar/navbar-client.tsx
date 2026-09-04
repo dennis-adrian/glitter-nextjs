@@ -11,9 +11,11 @@ import Link from "next/link";
 type Props = {
   /** Null when the entry is switched off, gated, or nothing is published. */
   programsHref: string | null;
+  /** Hides the wallet entry in the user menu until credits are revealed. */
+  creditsEnabled: boolean;
 };
 
-export default function NavbarClient({ programsHref }: Props) {
+export default function NavbarClient({ programsHref, creditsEnabled }: Props) {
   const { profile } = useNavbarProfile();
 
   return (
@@ -49,7 +51,7 @@ export default function NavbarClient({ programsHref }: Props) {
             />
           </li>
           <li className="flex shrink-0 justify-self-end">
-            <SessionButtons profile={profile} />
+            <SessionButtons profile={profile} creditsEnabled={creditsEnabled} />
           </li>
         </ul>
       </nav>

@@ -29,15 +29,19 @@ async function resolveProgramsHref(): Promise<string | null> {
 }
 
 export default async function Navbar() {
-  const [programsHref, landingContent] = await Promise.all([
+  const [programsHref, creditsEnabled, landingContent] = await Promise.all([
     resolveProgramsHref(),
+    isFeatureEnabled("credits"),
     getPublishedLandingContent(),
   ]);
 
   return (
     <div data-site-navbar className="sticky top-0 z-50">
       <AnnouncementStrip announcement={landingContent.announcement} />
-      <NavbarClient programsHref={programsHref} />
+      <NavbarClient
+        programsHref={programsHref}
+        creditsEnabled={creditsEnabled}
+      />
     </div>
   );
 }

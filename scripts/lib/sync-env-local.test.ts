@@ -146,9 +146,16 @@ describe("sync-env-local", () => {
     expect(pkg.scripts.migrate).toBe(
       "tsx scripts/sync-env-local.ts --exec tsx scripts/migrate.ts",
     );
+    // The test target is built from compose.test.yml's fixed credentials and
+    // GLITTER_TEST_DB_PORT rather than read from the environment. That is the
+    // safety property worth pinning: `.env.local` carries a Railway URL, and
+    // `scripts/migrate.ts` has no name guard of its own, so a value read from
+    // the environment here could migrate a real database.
     expect(pkg.scripts["migrate:test"]).toBe(
-      'tsx scripts/sync-env-local.ts --exec sh -c \'POSTGRES_URL="$TEST_DATABASE_URL" exec tsx scripts/migrate.ts\'',
+      'tsx scripts/sync-env-local.ts --exec sh -c \'POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT:-55432}/glitter_test" exec tsx scripts/migrate.ts\'',
     );
+    expect(pkg.scripts["migrate:test"]).not.toContain("$TEST_DATABASE_URL");
+    expect(pkg.scripts["test:integration"]).not.toContain("$TEST_DATABASE_URL");
   });
 
   it("parses env files without treating comments as keys", () => {

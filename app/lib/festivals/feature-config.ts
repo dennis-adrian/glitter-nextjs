@@ -23,6 +23,31 @@ import {
 
 export { FULL_TABLE_CATEGORIES, type FullTableCategory };
 
+/**
+ * The feature types that actually have an implementation behind them.
+ *
+ * `late_partner` (PRD phase 4) and `reservation_release` (phase 5) have
+ * configuration rows and nothing else. Without this an admin can enable and
+ * price a feature no code implements, and participants would be charged for
+ * something that never happens.
+ */
+export const IMPLEMENTED_FEATURE_TYPES: readonly FeatureType[] = [
+  "full_table",
+];
+
+/**
+ * Deliberately not a type predicate: narrowing `type` to the implemented set
+ * would make the rules for the unimplemented ones — the late-partner deadline
+ * below, say — look like dead code to the compiler, and those rules are what
+ * phases 4 and 5 will switch back on.
+ */
+export function isFeatureTypeImplemented(type: FeatureType): boolean {
+  return IMPLEMENTED_FEATURE_TYPES.includes(type);
+}
+
+export const FEATURE_NOT_IMPLEMENTED_REASON =
+  "Esta función todavía no está implementada, así que no se puede activar.";
+
 /** Late partner closes this far before the festival unless overridden. */
 export const LATE_PARTNER_DEFAULT_LEAD_DAYS = 21;
 
@@ -96,6 +121,13 @@ export function resolveFeatureConfig(
     } else if (effectiveDeadlineAt.getTime() <= context.now.getTime()) {
       unavailableReason = "El plazo para agregar un compañero ya venció.";
     }
+  }
+
+  // Applied last so a more specific reason still speaks when there is one, but
+  // an unimplemented feature can never resolve as available — not even one an
+  // admin managed to enable before the panel started refusing it.
+  if (unavailableReason === null && !isFeatureTypeImplemented(row.type)) {
+    unavailableReason = FEATURE_NOT_IMPLEMENTED_REASON;
   }
 
   return {

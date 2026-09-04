@@ -108,12 +108,37 @@ async function backfillInvoiceVerificationPayment() {
   }
 }
 
+/**
+ * Where this run is about to apply migrations.
+ *
+ * Migrating is one-way and `POSTGRES_URL` is not a fixed target — it moves
+ * between the local Postgres, the disposable Docker one, and Railway, which
+ * hosts both a dev and a production database under indistinguishable hostnames.
+ * Nothing here can tell those apart, so this states the target rather than
+ * judging it: the person running the command is the one who knows.
+ *
+ * Credentials are dropped rather than redacted — they are not what anyone is
+ * checking, and a printed password ends up in CI logs and scrollback.
+ */
+function migrationTargetLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+    return `${parsed.host}/${database || "(none)"}`;
+  } catch {
+    // A malformed URL still fails loudly a moment later, at connect time.
+    return "(unparseable POSTGRES_URL)";
+  }
+}
+
 async function main() {
   if (!process.env.POSTGRES_URL) {
     console.info("POSTGRES_URL is not set. Skipping migration.");
     await pool.end();
     return;
   }
+
+  console.info(`Migrating ${migrationTargetLabel(process.env.POSTGRES_URL)}`);
 
   try {
     const catalogPending = await catalogMigrationPending();

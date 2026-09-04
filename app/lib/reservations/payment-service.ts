@@ -945,10 +945,7 @@ export async function applyInvoiceCredits(input: unknown): Promise<
       }
       const balances = await getCreditBalancesInTx(tx, invoice.userId);
       const amount = roundMoney(
-        Math.min(
-          tenderBefore.outstandingAmount,
-          balances.invoiceEligibleBalance,
-        ),
+        Math.min(tenderBefore.outstandingAmount, balances.spendableBalance),
       );
       if (amount <= 0) return fail(reservationFailure("INSUFFICIENT_CREDITS"));
 
