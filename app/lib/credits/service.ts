@@ -107,10 +107,7 @@ async function lockedCreditBalances(
     .select({ amount: sql<number>`coalesce(sum(${creditHolds.amount}), 0)` })
     .from(creditHolds)
     .where(
-      and(
-        eq(creditHolds.userId, userId),
-        eq(creditHolds.status, "active"),
-      ),
+      and(eq(creditHolds.userId, userId), eq(creditHolds.status, "active")),
     );
   const [underReview] = await tx
     .select({ amount: sql<number>`coalesce(sum(${creditTopUps.amount}), 0)` })
@@ -181,7 +178,7 @@ async function lockOwnedFeatureAction(
 export type CreditTopUpRequirement = {
   userId: number;
   amount: number;
-  intendedUseType: "feature" | "invoice" | "debt";
+  intendedUseType: CreditTopUpIntendedUse;
   intendedUseId?: number;
   idempotencyKey: string;
   now?: Date;
@@ -193,7 +190,9 @@ export type CreditTopUpRequirement = {
  */
 export async function createCreditTopUpForRequirement(
   input: CreditTopUpRequirement,
-): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
+): Promise<
+  CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>
+> {
   return db.transaction((tx) => createCreditTopUpForRequirementInTx(tx, input));
 }
 
@@ -205,7 +204,9 @@ export async function createCreditTopUpForRequirement(
 export async function createCreditTopUpForRequirementInTx(
   tx: CreditTx,
   input: CreditTopUpRequirement,
-): Promise<CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>> {
+): Promise<
+  CreditResult<{ id: number; amount: number; uploadDeadlineAt: Date }>
+> {
   const amount = positiveCreditAmount(input.amount);
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
@@ -276,7 +277,8 @@ export async function getCreditTopUpUploadTarget(input: {
       .for("update");
     if (!topUp) return failure("TOP_UP_NOT_FOUND");
     if (topUp.userId !== input.userId) return failure("TOP_UP_NOT_OWNED");
-    if (topUp.status !== "awaiting_voucher") return failure("TOP_UP_NOT_REVIEWABLE");
+    if (topUp.status !== "awaiting_voucher")
+      return failure("TOP_UP_NOT_REVIEWABLE");
     if (topUp.uploadDeadlineAt.getTime() <= now.getTime()) {
       await tx
         .update(creditTopUps)
@@ -288,6 +290,9 @@ export async function getCreditTopUpUploadTarget(input: {
   });
 }
 
+/** What a purchase was started for, recorded when it is created. */
+export type CreditTopUpIntendedUse = "feature" | "invoice" | "debt";
+
 /** Called only by the authoritative UploadThing completion callback. */
 export async function submitCreditTopUpVoucher(input: {
   topUpId: number;
@@ -295,7 +300,18 @@ export async function submitCreditTopUpVoucher(input: {
   voucherUrl: string;
   fileKey: string;
   now?: Date;
-}): Promise<CreditResult<{ topUpId: number; balances: CreditBalances }>> {
+}): Promise<
+  CreditResult<{
+    topUpId: number;
+    balances: CreditBalances;
+    /**
+     * What the participant said the credits were for when they started the
+     * purchase. Returned so the caller can honour that intent — buying from a
+     * feature's own screen is the participant asking for the feature.
+     */
+    intendedUse: { type: CreditTopUpIntendedUse; id: number | null };
+  }>
+> {
   if (!input.voucherUrl || !input.fileKey) return failure("INVALID_AMOUNT");
   const now = input.now ?? new Date();
 
@@ -324,10 +340,18 @@ export async function submitCreditTopUpVoucher(input: {
       }
       return {
         ok: true,
-        data: { topUpId: topUp.id, balances: await lockedCreditBalances(tx, input.userId) },
+        data: {
+          topUpId: topUp.id,
+          balances: await lockedCreditBalances(tx, input.userId),
+          intendedUse: {
+            type: topUp.intendedUseType,
+            id: topUp.intendedUseId,
+          },
+        },
       };
     }
-    if (topUp.status !== "awaiting_voucher") return failure("TOP_UP_NOT_REVIEWABLE");
+    if (topUp.status !== "awaiting_voucher")
+      return failure("TOP_UP_NOT_REVIEWABLE");
     if (topUp.uploadDeadlineAt.getTime() <= now.getTime()) {
       await tx
         .update(creditTopUps)
@@ -358,7 +382,11 @@ export async function submitCreditTopUpVoucher(input: {
 
     return {
       ok: true,
-      data: { topUpId: topUp.id, balances: await lockedCreditBalances(tx, input.userId) },
+      data: {
+        topUpId: topUp.id,
+        balances: await lockedCreditBalances(tx, input.userId),
+        intendedUse: { type: topUp.intendedUseType, id: topUp.intendedUseId },
+      },
     };
   });
 }
@@ -408,13 +436,19 @@ export async function reviewCreditTopUp(input: {
     if (input.decision === "approved" && topUp.status === "approved") {
       return {
         ok: true,
-        data: { topUpId: topUp.id, balances: await lockedCreditBalances(tx, topUp.userId) },
+        data: {
+          topUpId: topUp.id,
+          balances: await lockedCreditBalances(tx, topUp.userId),
+        },
       };
     }
     if (input.decision === "rejected" && topUp.status === "rejected") {
       return {
         ok: true,
-        data: { topUpId: topUp.id, balances: await lockedCreditBalances(tx, topUp.userId) },
+        data: {
+          topUpId: topUp.id,
+          balances: await lockedCreditBalances(tx, topUp.userId),
+        },
       };
     }
     if (topUp.status !== "under_review" || !issue) {
@@ -447,7 +481,10 @@ export async function reviewCreditTopUp(input: {
       .where(eq(creditTopUps.id, topUp.id));
     return {
       ok: true,
-      data: { topUpId: topUp.id, balances: await lockedCreditBalances(tx, topUp.userId) },
+      data: {
+        topUpId: topUp.id,
+        balances: await lockedCreditBalances(tx, topUp.userId),
+      },
     };
   });
 }
@@ -588,7 +625,11 @@ export async function createCreditHoldForFeatureInTx(
       input.featureActionId,
       input.userId,
     );
-    if (!action || action.festivalId !== input.festivalId || action.type !== "full_table_access") {
+    if (
+      !action ||
+      action.festivalId !== input.festivalId ||
+      action.type !== "full_table_access"
+    ) {
       return failure("TOP_UP_NOT_FOUND");
     }
     const [existing] = await tx
@@ -672,7 +713,9 @@ export async function spendCreditsForFeature(input: {
       return failure("USER_DELETION_PENDING");
     }
     await lockCreditAccount(tx, input.userId);
-    if (!(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))) {
+    if (
+      !(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))
+    ) {
       return failure("TOP_UP_NOT_FOUND");
     }
     const [existing] = await tx
@@ -743,7 +786,9 @@ export async function captureCreditHoldForFeatureInTx(
       return failure("USER_DELETION_PENDING");
     }
     await lockCreditAccount(tx, input.userId);
-    if (!(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))) {
+    if (
+      !(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))
+    ) {
       return failure("TOP_UP_NOT_FOUND");
     }
     const [hold] = await tx
@@ -752,7 +797,8 @@ export async function captureCreditHoldForFeatureInTx(
       .where(eq(creditHolds.featureActionId, input.featureActionId))
       .limit(1)
       .for("update");
-    if (!hold || hold.userId !== input.userId) return failure("TOP_UP_NOT_FOUND");
+    if (!hold || hold.userId !== input.userId)
+      return failure("TOP_UP_NOT_FOUND");
     const [existing] = await tx
       .select({ id: creditLedgerEntries.id })
       .from(creditLedgerEntries)
@@ -830,7 +876,9 @@ export async function releaseCreditHoldForFeatureInTx(
       return failure("USER_DELETION_PENDING");
     }
     await lockCreditAccount(tx, input.userId);
-    if (!(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))) {
+    if (
+      !(await lockOwnedFeatureAction(tx, input.featureActionId, input.userId))
+    ) {
       return failure("TOP_UP_NOT_FOUND");
     }
     const [hold] = await tx
@@ -839,7 +887,8 @@ export async function releaseCreditHoldForFeatureInTx(
       .where(eq(creditHolds.featureActionId, input.featureActionId))
       .limit(1)
       .for("update");
-    if (!hold || hold.userId !== input.userId) return failure("TOP_UP_NOT_FOUND");
+    if (!hold || hold.userId !== input.userId)
+      return failure("TOP_UP_NOT_FOUND");
     if (hold.status === "active") {
       await tx
         .update(creditHolds)

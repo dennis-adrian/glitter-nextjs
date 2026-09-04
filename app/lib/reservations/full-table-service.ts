@@ -50,6 +50,7 @@ import {
   standHolds,
   standReservationStands,
   standReservations,
+  users,
 } from "@/db/schema";
 
 import {
@@ -62,6 +63,16 @@ function eligibleCategory(category: unknown): FullTableCategory | null {
     ? (category as FullTableCategory)
     : null;
 }
+
+/**
+ * Who is activating. Structural rather than the full profile: the credit
+ * purchase path resolves these three columns itself, having no session to read.
+ */
+type FullTableActor = {
+  id: number;
+  role: string;
+  category: unknown;
+};
 
 export type FullTableActivationResult = ReservationActionResult<{
   featureActionId: number;
@@ -87,6 +98,25 @@ export async function activateFullTableAccess(input: {
   const actor = await getCurrentUserProfile();
   if (!actor) return reservationFailure("UNAUTHENTICATED");
 
+  return activateFullTableAccessAs(actor, input);
+}
+
+/**
+ * The activation itself, for a caller that has already established who is
+ * acting.
+ *
+ * Kept separate from the exported entry points rather than given an optional
+ * `actor` override: the override would sit on the same function the server
+ * action calls, one stray field away from letting a request name its own
+ * actor.
+ */
+async function activateFullTableAccessAs(
+  actor: FullTableActor,
+  input: {
+    festivalId: number;
+    idempotencyKey: string;
+  },
+): Promise<FullTableActivationResult> {
   return db.transaction(async (tx) => {
     await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [actor.id]);
 
@@ -246,6 +276,40 @@ export async function activateFullTableAccess(input: {
       ),
       { featureActionId: action.id, creditPrice: config.creditPrice },
     );
+  });
+}
+
+/**
+ * Activates full-table access off the back of the purchase that funded it.
+ *
+ * Buying credits from a full-table screen is already the participant saying
+ * what they are for, so asking them to press "Activar" afterwards is asking the
+ * same question twice. Credits topped up for anything else — an invoice, a
+ * debt, an admin grant, a purchase they never spent — carry no such intent, and
+ * those still take an explicit activation.
+ *
+ * Best-effort by design: the credits are issued either way, and a refusal here
+ * (nothing complete left, terms since changed) just leaves them spendable in
+ * the wallet with the panel offering activation the ordinary way.
+ */
+export async function activateFullTableAccessAfterPurchase(input: {
+  userId: number;
+  festivalId: number;
+  topUpId: number;
+}): Promise<FullTableActivationResult> {
+  const [actor] = await db
+    .select({ id: users.id, role: users.role, category: users.category })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+
+  return activateFullTableAccessAs(actor, {
+    festivalId: input.festivalId,
+    // Derived from the top-up rather than random: the upload callback can be
+    // retried by UploadThing, and the registry is what stops that becoming a
+    // second activation and a second credit hold.
+    idempotencyKey: `credit-top-up:${input.topUpId}:full-table`,
   });
 }
 

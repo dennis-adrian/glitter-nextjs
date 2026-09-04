@@ -94,6 +94,7 @@ let submitCreditTopUpVoucher: (typeof import("@/app/lib/credits/service"))["subm
 let reviewCreditTopUp: (typeof import("@/app/lib/credits/service"))["reviewCreditTopUp"];
 let readCreditBalances: (typeof import("@/app/lib/credits/service"))["readCreditBalances"];
 let activateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["activateFullTableAccess"];
+let activateFullTableAccessAfterPurchase: (typeof import("@/app/lib/reservations/full-table-service"))["activateFullTableAccessAfterPurchase"];
 let createStandHold: (typeof import("@/app/lib/reservations/hold-service"))["createStandHold"];
 let confirmStandHold: (typeof import("@/app/lib/reservations/hold-service"))["confirmStandHold"];
 let publishedTermsVersionId: number;
@@ -125,7 +126,7 @@ describeDatabase("feature credit top-up", () => {
       await import("@/app/lib/credits/purchase-service"));
     ({ submitCreditTopUpVoucher, reviewCreditTopUp, readCreditBalances } =
       await import("@/app/lib/credits/service"));
-    ({ activateFullTableAccess } =
+    ({ activateFullTableAccess, activateFullTableAccessAfterPurchase } =
       await import("@/app/lib/reservations/full-table-service"));
     ({ createStandHold, confirmStandHold } =
       await import("@/app/lib/reservations/hold-service"));
@@ -506,6 +507,130 @@ describeDatabase("feature credit top-up", () => {
     const secondId = (second as { data: { topUpId: number } }).data.topUpId;
     expect(secondId).not.toBe(expiredId);
     expect(await topUpsFor(user.id)).toHaveLength(2);
+  });
+
+  /**
+   * Buying from a full-table screen already says what the credits are for, so
+   * the purchase stands in for pressing "Activar". The intent is recorded on
+   * the top-up itself, which is what makes it safe to act on after the fact.
+   */
+  it("activates the feature off the purchase that funded it", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+
+    const activation = await activateFullTableAccessAfterPurchase({
+      userId: user.id,
+      festivalId: festival.id,
+      topUpId,
+    });
+
+    expect(activation).toMatchObject({
+      success: true,
+      data: { alreadyActive: false },
+    });
+    // The credits the purchase issued are held against the access now, not
+    // left free to spend on something else.
+    const balances = await readCreditBalances(user.id);
+    expect(balances).toMatchObject({
+      ledgerBalance: ACCESS_PRICE,
+      spendableBalance: 0,
+      activeHolds: ACCESS_PRICE,
+    });
+  });
+
+  /**
+   * The upload callback is retried by UploadThing, and the request registry is
+   * the only thing between a retry and a second hold on the same credits.
+   */
+  it("does not activate twice when the upload callback is retried", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+
+    const first = await activateFullTableAccessAfterPurchase({
+      userId: user.id,
+      festivalId: festival.id,
+      topUpId,
+    });
+    const second = await activateFullTableAccessAfterPurchase({
+      userId: user.id,
+      festivalId: festival.id,
+      topUpId,
+    });
+
+    expect(first.success).toBe(true);
+    expect(second).toMatchObject({
+      success: true,
+      data: { alreadyActive: true },
+    });
+
+    const balances = await readCreditBalances(user.id);
+    expect(balances.activeHolds).toBe(ACCESS_PRICE);
+  });
+
+  /**
+   * The intent is what the caller branches on: only a `feature` purchase is
+   * consent to activate. An invoice or debt top-up funds something else and
+   * has to leave the credits alone.
+   */
+  it("reports what the completed purchase was for", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+
+    const submitted = await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+
+    expect(submitted).toMatchObject({
+      ok: true,
+      data: { intendedUse: { type: "feature", id: festival.id } },
+    });
+
+    // A replayed submission has to report the same intent, or a retried
+    // callback would skip the activation the first one earned.
+    const replay = await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+    expect(replay).toMatchObject({
+      ok: true,
+      data: { intendedUse: { type: "feature", id: festival.id } },
+    });
   });
 
   it("refuses a purchase the participant does not need", async () => {
