@@ -19,9 +19,16 @@ import { deactivateFullTableAccessAction } from "@/app/lib/reservations/full-tab
 export default function ReleaseFeatureCreditsButton({
   festivalId,
   label,
+  userId,
 }: {
   festivalId: number;
   label: string;
+  /**
+   * Whose access to release. Omitted by the participant's own wallet; set by
+   * the admin screen, where the service checks the rights rather than trusting
+   * the browser to have sent the right id.
+   */
+  userId?: number;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -32,6 +39,7 @@ export default function ReleaseFeatureCreditsButton({
         const result = await deactivateFullTableAccessAction({
           festivalId,
           idempotencyKey: crypto.randomUUID(),
+          ...(userId != null ? { userId } : {}),
         });
         if (!result.success) {
           toast.error(result.message);

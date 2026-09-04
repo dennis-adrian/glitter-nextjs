@@ -84,7 +84,7 @@ describe("CreditBalanceSummary", () => {
   it("does not promise credits back from a reservation that lost them", () => {
     renderSummary({ ledgerBalance: 0, activeHolds: 20 }, [hold]);
 
-    expect(screen.getByText(/Todavía no debés nada/)).toBeTruthy();
+    expect(screen.getByText(/tu saldo se restablecerá/)).toBeTruthy();
     expect(screen.getByText(/vas a quedar debiendo 20 créditos/)).toBeTruthy();
     expect(screen.queryByText(/volvés a tenerlos disponibles/)).toBeNull();
   });

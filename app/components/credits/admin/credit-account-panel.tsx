@@ -1,8 +1,11 @@
 import { CoinsIcon } from "lucide-react";
 
-import CreditAmount from "@/app/components/credits/credit-amount";
+import CreditAmount, {
+  formatCreditCount,
+} from "@/app/components/credits/credit-amount";
 import CreditAdjustButton from "@/app/components/credits/admin/credit-adjust-button";
 import CreditRevertButton from "@/app/components/credits/admin/credit-revert-button";
+import ReleaseFeatureCreditsButton from "@/app/components/credits/release-feature-credits-button";
 import {
   Card,
   CardContent,
@@ -10,7 +13,10 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { formatDateWithTime } from "@/app/lib/formatters";
-import { fetchCreditWallet } from "@/app/lib/credits/queries";
+import {
+  fetchCreditWallet,
+  fetchFeatureHolds,
+} from "@/app/lib/credits/queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -44,11 +50,14 @@ export default async function CreditAccountPanel({
   // has no balance worth reporting here either.
   if (!(await isFeatureEnabled("credits"))) return null;
 
-  const [actor, wallet] = await Promise.all([
+  const [actor, wallet, holds] = await Promise.all([
     getCurrentUserProfile(),
     fetchCreditWallet(userId),
+    fetchFeatureHolds(userId),
   ]);
   if (!wallet) return null;
+
+  const activeHolds = holds.filter((hold) => hold.status === "active");
 
   const canAdjust = canMutateAdminReservations(actor);
   const recentEntries = wallet.entries.slice(0, RECENT_ENTRY_LIMIT);
@@ -94,6 +103,32 @@ export default async function CreditAccountPanel({
             </>
           )}
         </dl>
+
+        {/* An activation only the participant could undo is unreachable once
+            they stop coming back — and the one whose voucher was rejected has
+            the least reason to. Releasing posts no entry either way; it hands
+            the earmarked credits back. */}
+        {activeHolds.length > 0 && (
+          <div className="space-y-2 rounded-md bg-muted p-3">
+            <p className="text-xs text-muted-foreground">
+              Tiene la mesa completa activada. Liberarla devuelve los créditos
+              reservados a su saldo disponible.
+            </p>
+            {activeHolds.map((hold) => (
+              <ReleaseFeatureCreditsButton
+                key={hold.featureActionId}
+                userId={userId}
+                festivalId={hold.festivalId}
+                label={`Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`}
+              />
+            ))}
+            {!canAdjust && (
+              <p className="text-xs text-muted-foreground">
+                Solo un administrador general puede liberarla.
+              </p>
+            )}
+          </div>
+        )}
 
         {recentEntries.length > 0 && (
           <div className="space-y-1">
