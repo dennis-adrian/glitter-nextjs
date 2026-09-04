@@ -765,15 +765,21 @@ export async function fetchCreditDebtReport(): Promise<
   });
 }
 
-export type ActiveFeatureHold = {
+export type FeatureHoldStatus = "active" | "captured" | "released" | "expired";
+
+export type FeatureHold = {
   featureActionId: number;
   festivalId: number;
   festivalName: string;
   amount: number;
+  status: FeatureHoldStatus;
+  reservedAt: Date;
+  /** When it stopped being active, or null while it still is. */
+  closedAt: Date | null;
 };
 
 /**
- * The features this participant has activated and is holding credits against.
+ * Every feature earmark this participant has had, open or closed.
  *
  * Held credits are the one balance a participant can move on their own, and
  * until now the only control that released them lived on the festival's
@@ -781,22 +787,30 @@ export type ActiveFeatureHold = {
  * up with a hold and no credits behind it — the wallet reads as a debt, the
  * map may be closed, and nothing on either screen says the hold is theirs to
  * let go.
+ *
+ * Closed ones are kept because reserving and releasing are the only things
+ * that move a balance without posting a ledger entry. Dropping them on release
+ * took the whole episode out of the history and left an unexplained dip.
+ *
+ * `updatedAt` stands in for the closing time: a hold row is only ever written
+ * to change its status, so the two coincide.
  */
-export async function fetchActiveFeatureHolds(
+export async function fetchFeatureHolds(
   userId: number,
-): Promise<ActiveFeatureHold[]> {
+): Promise<FeatureHold[]> {
   const rows = await db
     .select({
       featureActionId: creditHolds.featureActionId,
       festivalId: creditHolds.festivalId,
       festivalName: festivals.name,
       amount: creditHolds.amount,
+      status: creditHolds.status,
+      createdAt: creditHolds.createdAt,
+      updatedAt: creditHolds.updatedAt,
     })
     .from(creditHolds)
     .innerJoin(festivals, eq(festivals.id, creditHolds.festivalId))
-    .where(
-      and(eq(creditHolds.userId, userId), eq(creditHolds.status, "active")),
-    )
+    .where(eq(creditHolds.userId, userId))
     .orderBy(desc(creditHolds.createdAt));
 
   return rows.map((row) => ({
@@ -804,5 +818,8 @@ export async function fetchActiveFeatureHolds(
     festivalId: row.festivalId,
     festivalName: row.festivalName,
     amount: Number(row.amount),
+    status: row.status,
+    reservedAt: row.createdAt,
+    closedAt: row.status === "active" ? null : row.updatedAt,
   }));
 }

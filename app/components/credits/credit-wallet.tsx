@@ -5,15 +5,15 @@ import CreditLedgerList from "@/app/components/credits/credit-ledger-list";
 import CreditTopUpCard from "@/app/components/credits/credit-top-up-card";
 import Title from "@/app/components/atoms/heading";
 import {
-  type ActiveFeatureHold,
+  type FeatureHold,
   type CreditWallet as CreditWalletData,
 } from "@/app/lib/credits/queries";
 
 type CreditWalletProps = {
   wallet: CreditWalletData;
   profileId: number;
-  /** Features the participant activated, and can take the credits back from. */
-  activeHolds?: ActiveFeatureHold[];
+  /** Every feature earmark, open or closed. */
+  holds?: FeatureHold[];
 };
 
 /**
@@ -29,8 +29,9 @@ type CreditWalletProps = {
 export default function CreditWallet({
   wallet,
   profileId,
-  activeHolds,
+  holds = [],
 }: CreditWalletProps) {
+  const activeHolds = holds.filter((hold) => hold.status === "active");
   // Only a purchase still missing its voucher is unfinished business. Once the
   // voucher is in the credits are already issued, so the ledger tells that part
   // of the story and the purchase drops into the history below.
@@ -51,7 +52,7 @@ export default function CreditWallet({
       <CreditLedgerList
         entries={wallet.entries}
         pendingTopUps={pendingTopUps}
-        activeHolds={activeHolds}
+        holds={holds}
       />
 
       {pastTopUps.length > 0 && (

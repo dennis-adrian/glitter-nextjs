@@ -24,6 +24,7 @@ import type {
   CreditWallet as CreditWalletData,
   CreditWalletEntry,
   CreditWalletTopUp,
+  FeatureHold,
 } from "@/app/lib/credits/queries";
 
 const now = new Date("2026-09-03T12:00:00Z");
@@ -60,12 +61,18 @@ function entry(overrides: Partial<CreditWalletEntry> = {}): CreditWalletEntry {
   };
 }
 
-const hold = {
-  featureActionId: 1,
-  festivalId: 619,
-  festivalName: "Glitter ¡Feliz Cumple!",
-  amount: 20,
-};
+function hold(overrides: Partial<FeatureHold> = {}): FeatureHold {
+  return {
+    featureActionId: 1,
+    festivalId: 619,
+    festivalName: "Glitter ¡Feliz Cumple!",
+    amount: 20,
+    status: "active",
+    reservedAt: new Date(now.getTime() - 60_000),
+    closedAt: null,
+    ...overrides,
+  };
+}
 
 function wallet(overrides: Partial<CreditWalletData> = {}): CreditWalletData {
   return {
@@ -130,14 +137,62 @@ describe("CreditWallet", () => {
    * lost track of 20 credits.
    */
   it("accounts for earmarked credits in the movements", () => {
-    render(
-      <CreditWallet wallet={wallet()} profileId={42} activeHolds={[hold]} />,
-    );
+    render(<CreditWallet wallet={wallet()} profileId={42} holds={[hold()]} />);
 
-    expect(screen.getByText("Reservado para la mesa completa")).toBeTruthy();
-    expect(screen.getByText("−20 créditos")).toBeTruthy();
+    expect(
+      screen.getByText("Créditos reservados para la mesa completa"),
+    ).toBeTruthy();
+    expect(screen.getByText("-20 créditos")).toBeTruthy();
     // Reserved, not charged (PRD §7.3).
     expect(screen.getByText(/Todavía no se descontaron/)).toBeTruthy();
     expect(screen.queryByText("Todavía no tenés movimientos")).toBeNull();
+  });
+
+  /**
+   * Releasing used to take the whole episode out of the history, leaving an
+   * unexplained dip. Both ends of it are now permanent.
+   */
+  it("keeps both ends of a released reservation in the history", () => {
+    render(
+      <CreditWallet
+        wallet={wallet()}
+        profileId={42}
+        holds={[
+          hold({
+            status: "released",
+            closedAt: new Date(now.getTime() - 30_000),
+          }),
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText("Créditos reservados para la mesa completa"),
+    ).toBeTruthy();
+    expect(screen.getByText("Reserva de créditos liberada")).toBeTruthy();
+    expect(screen.getByText("-20 créditos")).toBeTruthy();
+    expect(screen.getByText("+20 créditos")).toBeTruthy();
+  });
+
+  /** Capture posts a `spend`; a second row would double-count it. */
+  it("leaves a captured reservation to its ledger entry", () => {
+    render(
+      <CreditWallet
+        wallet={wallet()}
+        profileId={42}
+        holds={[
+          hold({
+            status: "captured",
+            closedAt: new Date(now.getTime() - 30_000),
+          }),
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText("Créditos reservados para la mesa completa"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Reserva de créditos liberada")).toBeNull();
+    expect(screen.queryByText("+20 créditos")).toBeNull();
   });
 });

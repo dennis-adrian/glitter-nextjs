@@ -4,8 +4,8 @@ import Title from "@/app/components/atoms/heading";
 import CreditWallet from "@/app/components/credits/credit-wallet";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import {
-  fetchActiveFeatureHolds,
   fetchCreditWallet,
+  fetchFeatureHolds,
 } from "@/app/lib/credits/queries";
 import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -20,9 +20,9 @@ export default async function MyCreditsPage() {
 
   if (!currentProfile) notFound();
 
-  const [wallet, activeHolds] = await Promise.all([
+  const [wallet, holds] = await Promise.all([
     fetchCreditWallet(currentProfile.id),
-    fetchActiveFeatureHolds(currentProfile.id),
+    fetchFeatureHolds(currentProfile.id),
   ]);
   if (!wallet) notFound();
 
@@ -38,7 +38,7 @@ export default async function MyCreditsPage() {
       <CreditWallet
         wallet={wallet}
         profileId={currentProfile.id}
-        activeHolds={activeHolds}
+        holds={holds}
       />
     </div>
   );

@@ -12,12 +12,12 @@ import {
 } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { type CreditBalances } from "@/app/lib/credits/balances";
-import { type ActiveFeatureHold } from "@/app/lib/credits/queries";
+import { type FeatureHold } from "@/app/lib/credits/queries";
 
 type CreditBalanceSummaryProps = {
   balances: CreditBalances;
-  /** Features this participant activated, and can hand the credits back from. */
-  activeHolds?: ActiveFeatureHold[];
+  /** Open earmarks this participant can hand back. */
+  activeHolds?: FeatureHold[];
 };
 
 /**
