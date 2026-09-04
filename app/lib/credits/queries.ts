@@ -234,9 +234,66 @@ export async function fetchCreditTopUpForOwner(
   userId: number,
   now = new Date(),
 ): Promise<CreditWalletTopUp | null> {
-  const wallet = await fetchCreditWallet(userId, now);
-  if (!wallet) return null;
-  return wallet.topUps.find((topUp) => topUp.id === topUpId) ?? null;
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+  if (
+    actor.id !== userId &&
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return null;
+  }
+
+  // Fetched by id rather than scanned out of the wallet page: a purchase older
+  // than the wallet's most recent rows is still a payment screen its owner can
+  // open.
+  const [row] = await db
+    .select({
+      id: creditTopUps.id,
+      amount: creditTopUps.amount,
+      status: creditTopUps.status,
+      intendedUseType: creditTopUps.intendedUseType,
+      intendedUseId: creditTopUps.intendedUseId,
+      uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
+      submittedAt: creditTopUps.submittedAt,
+      reviewedAt: creditTopUps.reviewedAt,
+      rejectionReason: creditTopUps.rejectionReason,
+      createdAt: creditTopUps.createdAt,
+    })
+    .from(creditTopUps)
+    .where(and(eq(creditTopUps.id, topUpId), eq(creditTopUps.userId, userId)))
+    .limit(1);
+  if (!row) return null;
+
+  const [target] =
+    row.intendedUseType === "invoice" && row.intendedUseId
+      ? await db
+          .select({
+            reservationId: invoices.reservationId,
+            festivalId: standReservations.festivalId,
+          })
+          .from(invoices)
+          .innerJoin(
+            standReservations,
+            eq(standReservations.id, invoices.reservationId),
+          )
+          .where(eq(invoices.id, row.intendedUseId))
+          .limit(1)
+      : [];
+
+  return {
+    id: row.id,
+    amount: Number(row.amount),
+    status: displayTopUpStatus(row.status, row.uploadDeadlineAt, now),
+    intendedUseType: row.intendedUseType,
+    intendedUseId: row.intendedUseId,
+    uploadDeadlineAt: row.uploadDeadlineAt,
+    submittedAt: row.submittedAt,
+    reviewedAt: row.reviewedAt,
+    rejectionReason: row.rejectionReason,
+    createdAt: row.createdAt,
+    invoiceReservationId: target?.reservationId ?? null,
+    invoiceFestivalId: target?.festivalId ?? null,
+  };
 }
 
 /** Credit balances for the signed-in participant, or null when signed out. */

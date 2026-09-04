@@ -57,6 +57,18 @@ type ColumnOpts = {
 };
 
 /**
+ * The state an admin sorts and filters this column by.
+ *
+ * Every state one of them has to act on is distinct, so a festival's worth of
+ * stands can be narrowed to the ones still waiting on them.
+ */
+function fullTableState(info: FullTableInfo | undefined) {
+  if (!info) return "none";
+  if (info.problems.length > 0) return "problems";
+  return info.fullTablePrice == null ? "unpriced" : "priced";
+}
+
+/**
  * A stand's half of a declared table, or a dash.
  *
  * A malformed pair is shown rather than hidden: it is invisible to
@@ -311,22 +323,15 @@ export function createColumns({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={columnTitles.fullTable} />
       ),
+      accessorFn: (row) => fullTableState(fullTableByStandId.get(row.id)),
       cell: ({ row }) => (
         <FullTableCell info={fullTableByStandId.get(row.original.id)} />
       ),
       filterFn: (row, _columnId, filterValue: string[]) => {
         if (!filterValue?.length) return true;
-        const info = fullTableByStandId.get(row.original.id);
-        // Every state an admin has to act on is selectable, so a festival's
-        // worth of stands can be narrowed to the ones still waiting on them.
-        const state = !info
-          ? "none"
-          : info.problems.length > 0
-            ? "problems"
-            : info.fullTablePrice == null
-              ? "unpriced"
-              : "priced";
-        return filterValue.includes(state);
+        return filterValue.includes(
+          fullTableState(fullTableByStandId.get(row.original.id)),
+        );
       },
       enableSorting: false,
     },

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import FestivalFeatureConfigRow from "@/app/components/festivals/festival-feature-config-row";
-import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { isFeatureLaunched } from "@/app/lib/feature_flags/helpers";
 import { fetchFestivalFeatureScopes } from "@/app/lib/festivals/feature-config-service";
 import { countDeclaredFullTablesByCategory } from "@/app/lib/stands/full-table-queries";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
@@ -23,15 +23,17 @@ export default async function FestivalFeatureConfigPanel({
   const [actor, scopes, creditsRevealed, declaredTables] = await Promise.all([
     getCurrentUserProfile(),
     fetchFestivalFeatureScopes(festivalId),
-    isFeatureEnabled("credits"),
+    isFeatureLaunched("credits"),
     countDeclaredFullTablesByCategory(festivalId),
   ]);
   const canEdit = canMutateAdminReservations(actor);
 
   // Enabling a feature here is necessary but not sufficient: every one of them
   // is paid for in credits, and the `credits` flag is what reveals credits to
-  // participants at all. With it hidden, switching a feature on looks like it
-  // worked and changes nothing anyone can see.
+  // participants at all. Until that flag is public, switching a feature on
+  // looks like it worked and changes nothing a participant can see — which is
+  // why this asks whether participants can reach credits, not whether the admin
+  // reading this screen can.
   const enabledButUnreachable =
     !creditsRevealed && scopes.some((scope) => scope.config?.enabled);
 

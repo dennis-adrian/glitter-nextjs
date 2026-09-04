@@ -1,8 +1,4 @@
-import {
-  CoinsIcon,
-  ShieldCheckIcon,
-  WalletIcon,
-} from "lucide-react";
+import { CoinsIcon, ShieldCheckIcon, WalletIcon } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/app/components/ui/button";
@@ -127,8 +123,8 @@ export default function CreditsExplainer() {
             Si el comprobante no corresponde, esos créditos saldrán de tu
             billetera y quedarás con un saldo negativo que te impedirá
             participar en futuros festivales o en cualquier actividad organizada
-            por la Productora Glitter. La administración podrá cancelar
-            cualquier acción que se haya hecho con los créditos no confirmados.
+            por la Productora Glitter. Lo que ya pagaste con esos créditos sigue
+            en pie: nada se cancela por este saldo.
           </p>
         </CardContent>
       </Card>
