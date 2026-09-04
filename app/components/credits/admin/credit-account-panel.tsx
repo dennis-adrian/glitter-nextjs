@@ -1,16 +1,23 @@
 import { CoinsIcon } from "lucide-react";
 
-import CreditAmount from "@/app/components/credits/credit-amount";
+import CreditAmount, {
+  formatCreditCount,
+} from "@/app/components/credits/credit-amount";
 import CreditAdjustButton from "@/app/components/credits/admin/credit-adjust-button";
 import CreditRevertButton from "@/app/components/credits/admin/credit-revert-button";
+import ReleaseFeatureCreditsButton from "@/app/components/credits/release-feature-credits-button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { unbackedHoldAmount } from "@/app/lib/credits/balances";
 import { formatDateWithTime } from "@/app/lib/formatters";
-import { fetchCreditWallet } from "@/app/lib/credits/queries";
+import {
+  fetchCreditWallet,
+  fetchFeatureHolds,
+} from "@/app/lib/credits/queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -44,11 +51,19 @@ export default async function CreditAccountPanel({
   // has no balance worth reporting here either.
   if (!(await isFeatureEnabled("credits"))) return null;
 
-  const [actor, wallet] = await Promise.all([
+  const [actor, wallet, holds] = await Promise.all([
     getCurrentUserProfile(),
     fetchCreditWallet(userId),
+    fetchFeatureHolds(userId),
   ]);
   if (!wallet) return null;
+
+  const activeHolds = holds.filter((hold) => hold.status === "active");
+
+  // Releasing a backed hold gives the credits back; releasing one whose
+  // credits were reversed closes the earmark and returns nothing, so the
+  // two cannot share copy.
+  const unbackedHolds = unbackedHoldAmount(wallet.balances);
 
   const canAdjust = canMutateAdminReservations(actor);
   const recentEntries = wallet.entries.slice(0, RECENT_ENTRY_LIMIT);
@@ -94,6 +109,52 @@ export default async function CreditAccountPanel({
             </>
           )}
         </dl>
+
+        {/* An activation only the participant could undo is unreachable once
+            they stop coming back — and the one whose voucher was rejected has
+            the least reason to. Releasing posts no entry either way; it drops
+            the earmark, which frees only credit that is still there. */}
+        {activeHolds.length > 0 && (
+          <div
+            className={
+              unbackedHolds > 0
+                ? "space-y-2 rounded-md bg-amber-50 p-3 text-amber-900"
+                : "space-y-2 rounded-md bg-muted p-3"
+            }
+          >
+            <p
+              className={
+                unbackedHolds > 0 ? "text-xs" : "text-xs text-muted-foreground"
+              }
+            >
+              {unbackedHolds > 0
+                ? `Tiene la mesa completa activada con créditos que después se revirtieron. Liberarla cierra la reserva, pero no devuelve ${formatCreditCount(unbackedHolds)} a su saldo: esos créditos ya no están.`
+                : "Tiene la mesa completa activada. Liberarla devuelve los créditos reservados a su saldo disponible."}
+            </p>
+            {activeHolds.map((hold) => (
+              <ReleaseFeatureCreditsButton
+                key={hold.featureActionId}
+                userId={userId}
+                festivalId={hold.festivalId}
+                label={
+                  unbackedHolds > 0
+                    ? `Liberar la mesa completa de ${hold.festivalName}`
+                    : `Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`
+                }
+                disabledReason={
+                  canAdjust
+                    ? undefined
+                    : "Solo un administrador general puede liberarla"
+                }
+              />
+            ))}
+            {!canAdjust && (
+              <p className="text-xs text-muted-foreground">
+                Solo un administrador general puede liberarla.
+              </p>
+            )}
+          </div>
+        )}
 
         {recentEntries.length > 0 && (
           <div className="space-y-1">

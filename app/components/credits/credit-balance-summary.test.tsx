@@ -17,13 +17,16 @@ vi.mock("next/navigation", () => ({
 
 import CreditBalanceSummary from "@/app/components/credits/credit-balance-summary";
 import { calculateCreditBalances } from "@/app/lib/credits/balances";
-import type { ActiveFeatureHold } from "@/app/lib/credits/queries";
+import type { FeatureHold } from "@/app/lib/credits/queries";
 
-const hold: ActiveFeatureHold = {
+const hold: FeatureHold = {
   featureActionId: 1,
   festivalId: 619,
   festivalName: "Glitter ¡Feliz Cumple!",
   amount: 20,
+  status: "active",
+  reservedAt: new Date("2026-09-04T10:00:00Z"),
+  closedAt: null,
 };
 
 function renderSummary(
@@ -32,7 +35,7 @@ function renderSummary(
     activeHolds?: number;
     underReviewIssuance?: number;
   },
-  holds: ActiveFeatureHold[] = [],
+  holds: FeatureHold[] = [],
 ) {
   return render(
     <CreditBalanceSummary
@@ -84,7 +87,7 @@ describe("CreditBalanceSummary", () => {
   it("does not promise credits back from a reservation that lost them", () => {
     renderSummary({ ledgerBalance: 0, activeHolds: 20 }, [hold]);
 
-    expect(screen.getByText(/Todavía no debés nada/)).toBeTruthy();
+    expect(screen.getByText(/tu saldo se restablecerá/)).toBeTruthy();
     expect(screen.getByText(/vas a quedar debiendo 20 créditos/)).toBeTruthy();
     expect(screen.queryByText(/volvés a tenerlos disponibles/)).toBeNull();
   });

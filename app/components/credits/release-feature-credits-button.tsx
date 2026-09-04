@@ -19,9 +19,24 @@ import { deactivateFullTableAccessAction } from "@/app/lib/reservations/full-tab
 export default function ReleaseFeatureCreditsButton({
   festivalId,
   label,
+  userId,
+  disabledReason,
 }: {
   festivalId: number;
   label: string;
+  /**
+   * Whose access to release. Omitted by the participant's own wallet; set by
+   * the admin screen, where the service checks the rights rather than trusting
+   * the browser to have sent the right id.
+   */
+  userId?: number;
+  /**
+   * Why this viewer cannot release, when they cannot. Set it and the button
+   * stays visible but inert: the service would refuse the call anyway, and an
+   * admin who lacks the permission should see the action exists rather than
+   * wonder where it went.
+   */
+  disabledReason?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -32,6 +47,7 @@ export default function ReleaseFeatureCreditsButton({
         const result = await deactivateFullTableAccessAction({
           festivalId,
           idempotencyKey: crypto.randomUUID(),
+          ...(userId != null ? { userId } : {}),
         });
         if (!result.success) {
           toast.error(result.message);
@@ -51,7 +67,8 @@ export default function ReleaseFeatureCreditsButton({
       type="button"
       variant="outline"
       size="sm"
-      disabled={isPending}
+      disabled={isPending || disabledReason != null}
+      title={disabledReason}
       onClick={release}
     >
       {isPending ? "Liberando..." : label}

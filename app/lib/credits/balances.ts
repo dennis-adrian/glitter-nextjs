@@ -97,3 +97,19 @@ export function invoiceCreditPlan(
     debtAmount,
   };
 }
+
+/**
+ * The part of what is reserved that no credit backs any more.
+ *
+ * A reservation outlives the credits that paid for it when the voucher behind
+ * them is rejected: the ledger drops back while the hold stays. Nothing is
+ * owed yet — a hold posts no entry, only its capture does — but releasing
+ * this hold hands back nothing, and using it is what would create the debt.
+ * Anywhere a release is offered has to say which of the two it is.
+ */
+export function unbackedHoldAmount(balances: CreditBalances): number {
+  return Math.max(
+    0,
+    roundCredits(balances.activeHolds - Math.max(0, balances.ledgerBalance)),
+  );
+}

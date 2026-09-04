@@ -13,6 +13,13 @@ const schema = z.object({
   idempotencyKey: z.string().uuid(),
 });
 
+// Its own schema rather than the shared one: only deactivation accepts a
+// target, and activation would silently ignore a `userId` a request sent it.
+const deactivateSchema = schema.extend({
+  /** Admin-only; the service refuses it from anybody else. */
+  userId: z.coerce.number().int().positive().optional(),
+});
+
 function revalidateReservationEntry() {
   try {
     revalidatePath("/profiles", "layout");
@@ -39,7 +46,7 @@ export async function activateFullTableAccessAction(input: unknown) {
 }
 
 export async function deactivateFullTableAccessAction(input: unknown) {
-  const parsed = schema.safeParse(input);
+  const parsed = deactivateSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false as const, message: "Datos inválidos." };
   }
