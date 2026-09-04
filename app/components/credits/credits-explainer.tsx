@@ -90,7 +90,7 @@ export default function CreditsExplainer() {
               </span>{" "}
               Tal vez cometiste un error y te gustaría agarrar un espacio en
               otra ubicación. O tal vez querés ser el compañero de stand de otro
-              ilustración. Para eso podés activar la opción de liberar tu
+              ilustrador. Para eso podés activar la opción de liberar tu
               reserva y modificar la manera en la que participas en festival.
             </li>
           </ul>
