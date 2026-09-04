@@ -11,7 +11,7 @@ import {
   activateFullTableAccessAction,
   deactivateFullTableAccessAction,
 } from "@/app/lib/reservations/full-table-actions";
-import { formatCredits } from "@/app/components/credits/credit-amount";
+import { formatCreditCount } from "@/app/components/credits/credit-amount";
 
 import type { FullTableOffer } from "@/app/lib/reservations/full-table-queries";
 
@@ -101,7 +101,7 @@ export default function FullTablePanel({
           <span className="text-muted-foreground">
             {offer.active
               ? "· ya la tenés activada"
-              : `· 240 × 60 cm para vos solo, por ${formatCredits(offer.creditPrice)} en créditos`}
+              : `· 240 × 60 cm para vos solo, por ${formatCreditCount(offer.creditPrice)}`}
           </span>
         </p>
 

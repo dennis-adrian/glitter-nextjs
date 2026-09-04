@@ -48,7 +48,7 @@ function renderPanel(
   );
 }
 
-const BUY = /Comprar .* en créditos/;
+const BUY = /Comprar \d+ créditos?/;
 
 describe("FullTablePanel", () => {
   afterEach(cleanup);

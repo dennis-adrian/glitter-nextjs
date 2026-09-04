@@ -27,15 +27,18 @@ export default function CreditsExplainer() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CoinsIcon className="h-5 w-5 text-amber-500" />1 crédito = Bs 1
+            <CoinsIcon className="h-5 w-5 text-amber-500" />Entendiendo los créditos
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>
-            Los créditos son una nueva forma de pago y a través de ellos podés activar funcionalidades extra que antes no eran posibles de hacer. Te pueden ayudar a mejorar la experencia de tu reserva, o a corregir detalles que te faltaron al crear tu reserva.
+            Los créditos son una nueva opción de pago y actualmente la forma de activar funcionalidades extra que antes no era posible hacer. Te pueden ayudar a mejorar la experencia de tu reserva, o a corregir detalles que te faltaron al crear tu reserva.
           </p>
           <p>
             Son acumulativos y podés comprarlos cuando los necesités. Si no llegás a usar tus créditos en su momento, luego los podrás usar para descontar el valor de tu reserva.
+          </p>
+          <p>
+            Todo lo que podías hacer en nuestro sitio web seguirá siendo posible, nada se quitará. Pero en el futuro los créditos traerán beneficios adicionales.
           </p>
         </CardContent>
       </Card>
@@ -66,20 +69,21 @@ export default function CreditsExplainer() {
             </li>
             <li>
               <span className="font-medium text-foreground">
-                Activar la mesa completa.
+                Editar tu reserva y agregar a un compañero de stand (solo ilustración).
               </span>{" "}
-              Un espacio es media mesa, de 120 × 60 cm. La mesa completa son dos
-              espacios contiguos, 240 × 60 cm, para vos solo. Activarla te
-              habilita a intentar tomar una mientras haya disponibles; no
-              reserva ni garantiza ninguna mesa ni ubicación.
+              Todos los ilustradores tienen la opción de agregar a un compañero de stand, pero esto se debe hacer al momento de crear tu reserva
+              ya que una reserva creada ya no se puede modificar. Pero por tiempo limitado podrás usar créditos para adicionar un compañero de stand
+              y corregir tu reserva.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">
+                Liberar tu reserva.
+              </span>{" "}
+              Tal vez cometiste un error y te gustaría agarrar un espacio en otra ubicación. O tal vez querés ser el compañero de stand de otro ilustración.
+              Para eso podés activar la opción de liberar tu reserva y modificar la manera en la que participas en festival.
             </li>
           </ul>
-          <p>
-            Mientras la mesa completa está activada, esos créditos quedan
-            apartados y no se pueden usar en otra cosa. Si al final tomás un
-            solo espacio o desactivás la función, vuelven a estar disponibles y
-            podés usarlos para pagar tu reserva.
-          </p>
+
         </CardContent>
       </Card>
 
@@ -109,13 +113,13 @@ export default function CreditsExplainer() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheckIcon className="h-5 w-5 text-emerald-500" />
-            En revisión y confirmados
+            Los créditos son instantáneos
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>
-            Apenas subís el comprobante los créditos entran a tu billetera{" "}
-            <span className="font-medium text-foreground">en revisión</span>.
+            Apenas subís tu comprobante de pago los créditos entran a tu billetera y aunque{" "}
+            estén <span className="font-medium text-foreground">en revisión</span> ya los podrás usar.
             Con esos ya podés activar funciones opcionales como la mesa
             completa, sin esperar a que revisemos nada.
           </p>
@@ -132,6 +136,7 @@ export default function CreditsExplainer() {
             mientras tanto. Lo que hayas hecho con ellos sigue en pie: nada se
             cancela por ese saldo, y lo resolvés desde tu billetera.
           </p>
+          <p>Un administrador se encargará de confirmar tu comprobante de luego y en caso de que haya algún error, nos contactaremos para solucionarlo.</p>
         </CardContent>
       </Card>
 

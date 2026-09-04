@@ -58,7 +58,7 @@ async function renderIntro() {
   return render(await CreditsIntroduction({ profileId: 7, festivalId: 1 }));
 }
 
-const BUY = /Comprar .* en créditos/;
+const BUY = /Comprar \d+ créditos?/;
 
 describe("CreditsIntroduction", () => {
   beforeEach(() => {
@@ -83,8 +83,8 @@ describe("CreditsIntroduction", () => {
     await renderIntro();
 
     expect(screen.getByText(BUY)).toBeTruthy();
-    // The configured price, quoted before the purchase is offered.
-    expect(screen.getAllByText(/Bs120\.00/).length).toBeGreaterThan(0);
+    // The configured cost, counted in credits rather than priced in Bs.
+    expect(screen.getAllByText(/120 créditos/).length).toBeGreaterThan(0);
     expect(screen.getByText("Ahora no, seguir al mapa")).toBeTruthy();
   });
 
@@ -98,7 +98,7 @@ describe("CreditsIntroduction", () => {
 
     expect(
       screen.getByRole("link", {
-        name: /Qué es una mesa completa y cómo funcionan los créditos/,
+        name: /Cómo funcionan los créditos/,
       }),
     ).toBeTruthy();
     // The long explanation that used to sit on this page is gone.
@@ -112,7 +112,7 @@ describe("CreditsIntroduction", () => {
     await renderIntro();
 
     expect(
-      screen.getByText(/en caso de que encuentres alguna disponible/),
+      screen.getByText(/en caso de que encontrés alguna disponible/),
     ).toBeTruthy();
   });
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import BuyFeatureCreditsButton from "@/app/components/credits/buy-feature-credits-button";
-import { formatCredits } from "@/app/components/credits/credit-amount";
+import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import Title from "@/app/components/atoms/heading";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -85,11 +85,10 @@ export default async function CreditsIntroduction({
               <dt className="text-sm text-muted-foreground">
                 Activar la reserva de mesa completa tiene un costo de
               </dt>
+              {/* Counted, not priced: this screen is buying credits, so the Bs
+                  equivalence belongs to the wallet rather than here. */}
               <dd className="text-3xl font-semibold tabular-nums">
-                {formatCredits(offer.creditPrice)}
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  en créditos
-                </span>
+                {formatCreditCount(offer.creditPrice)}
               </dd>
             </dl>
 
@@ -105,7 +104,7 @@ export default async function CreditsIntroduction({
                 it stays in front of anyone about to spend (PRD §7.3). */}
             <p className="text-sm text-muted-foreground">
               Cargar créditos te dará la opción de reservar una mesa completa
-              (dos espacios) en caso de que encuentres alguna disponible. Si no
+              (dos espacios) en caso de que encontrés alguna disponible. Si no
               lográs agarrar una mesa completa, podrás guardar tus créditos o
               usarlos para tu reserva.
             </p>
@@ -137,7 +136,7 @@ export default async function CreditsIntroduction({
               href="/credits_info"
               className="inline-block text-sm text-primary underline underline-offset-2"
             >
-              Qué es una mesa completa y cómo funcionan los créditos
+              Cómo funcionan los créditos
             </Link>
           </CardContent>
         </Card>

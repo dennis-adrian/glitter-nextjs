@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { formatCredits } from "@/app/components/credits/credit-amount";
+import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { Button } from "@/app/components/ui/button";
 import { createFeatureCreditTopUpAction } from "@/app/lib/credits/purchase-actions";
 import type { PurchasableFeatureType } from "@/app/lib/credits/purchase-service";
@@ -62,14 +62,10 @@ export default function BuyFeatureCreditsButton({
   }
 
   return (
-    <Button
-      type="button"
-      onClick={buyCredits}
-      disabled={isPending || disabled}
-    >
+    <Button type="button" onClick={buyCredits} disabled={isPending || disabled}>
       {isPending
         ? "Preparando la compra..."
-        : `Comprar ${formatCredits(shortfallAmount)} en créditos`}
+        : `Comprar ${formatCreditCount(shortfallAmount)}`}
       <CoinsIcon className="ml-2 h-4 w-4" />
     </Button>
   );
