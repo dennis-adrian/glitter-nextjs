@@ -1,5 +1,4 @@
 import {
-  ClockIcon,
   CoinsIcon,
   ShieldCheckIcon,
   WalletIcon,

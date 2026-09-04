@@ -30,7 +30,7 @@ export function PaymentQRCode(props: PaymentQRCodeProps) {
   }, []);
 
   return (
-    <div className="relative w-64 h-80 border rounded-lg p-4 bg-white">
+    <div className="relative w-64 min-h-80 border rounded-lg p-4 bg-white">
       {isLoading ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />

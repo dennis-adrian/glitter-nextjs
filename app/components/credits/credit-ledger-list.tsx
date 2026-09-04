@@ -1,6 +1,7 @@
 import { PackageOpenIcon } from "lucide-react";
 
 import CreditAmount from "@/app/components/credits/credit-amount";
+import CreditPendingPurchaseRow from "@/app/components/credits/credit-pending-purchase-row";
 import {
   Card,
   CardContent,
@@ -8,7 +9,10 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { formatDateWithTime } from "@/app/lib/formatters";
-import { type CreditWalletEntry } from "@/app/lib/credits/queries";
+import {
+  type CreditWalletEntry,
+  type CreditWalletTopUp,
+} from "@/app/lib/credits/queries";
 
 const TYPE_LABELS: Record<CreditWalletEntry["type"], string> = {
   top_up: "Compra de créditos",
@@ -26,23 +30,39 @@ function entryDetail(entry: CreditWalletEntry) {
 
 type CreditLedgerListProps = {
   entries: CreditWalletEntry[];
+  /**
+   * Purchases still waiting on their voucher. They have no ledger entry yet,
+   * and they are the one thing here the participant can still act on, so they
+   * sit above the history rather than inside it.
+   */
+  pendingTopUps?: CreditWalletTopUp[];
 };
 
 /** The ledger is append-only, so every row here is permanent history. */
-export default function CreditLedgerList({ entries }: CreditLedgerListProps) {
+export default function CreditLedgerList({
+  entries,
+  pendingTopUps = [],
+}: CreditLedgerListProps) {
+  const isEmpty = entries.length === 0 && pendingTopUps.length === 0;
   return (
     <Card>
       <CardHeader>
         <CardTitle>Movimientos</CardTitle>
       </CardHeader>
       <CardContent>
-        {entries.length === 0 ? (
+        {isEmpty ? (
           <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
             <PackageOpenIcon className="h-10 w-10" />
             <span className="text-sm">Todavía no tenés movimientos</span>
           </div>
         ) : (
           <ul className="divide-y">
+            {pendingTopUps.map((topUp) => (
+              <CreditPendingPurchaseRow
+                key={`top-up-${topUp.id}`}
+                topUp={topUp}
+              />
+            ))}
             {entries.map((entry) => {
               const detail = entryDetail(entry);
               return (

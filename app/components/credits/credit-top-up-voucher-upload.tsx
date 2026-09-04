@@ -14,6 +14,8 @@ type CreditTopUpVoucherUploadProps = {
   amount: number;
   /** ISO timestamp; the server rejects an upload that arrives after it. */
   uploadDeadlineAt: string;
+  /** Where to send the participant once the voucher is in. */
+  redirectTo?: string;
 };
 
 function remainingLabel(msLeft: number) {
@@ -32,6 +34,7 @@ export default function CreditTopUpVoucherUpload({
   topUpId,
   amount,
   uploadDeadlineAt,
+  redirectTo,
 }: CreditTopUpVoucherUploadProps) {
   const router = useRouter();
   const deadline = new Date(uploadDeadlineAt).getTime();
@@ -103,7 +106,10 @@ export default function CreditTopUpVoucherUpload({
           toast.success(
             "Recibimos tu comprobante. Ya podés usar tus créditos en funciones opcionales.",
           );
-          router.refresh();
+          // The credits land in the wallet, so that is where the confirmation
+          // is worth reading; this page stays reachable as a receipt.
+          if (redirectTo) router.push(redirectTo);
+          else router.refresh();
         }}
       />
       {isUploading && (

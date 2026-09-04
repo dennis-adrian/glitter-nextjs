@@ -20,7 +20,7 @@ type BuyFeatureCreditsButtonProps = {
 
 /**
  * Starts a credit purchase for an optional feature and sends the participant to
- * the wallet to upload the voucher.
+ * its payment page to pay and upload the voucher.
  *
  * It activates nothing: the purchase only funds the wallet, and the participant
  * comes back to the panel to decide. Credits bought here are never stranded —
@@ -52,7 +52,9 @@ export default function BuyFeatureCreditsButton({
           return;
         }
         toast.success(result.message);
-        router.push("/my_credits");
+        // Straight to the payment screen: the purchase is not finished until
+        // the voucher is in, so there is nowhere else useful to land.
+        router.push(`/my_credits/${result.topUpId}`);
       } catch (error) {
         console.error("Error creating feature credit top-up", error);
         toast.error("No se pudo iniciar la compra. Intentá nuevamente.");

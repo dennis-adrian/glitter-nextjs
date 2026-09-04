@@ -12,45 +12,39 @@ type CreditWalletProps = {
 };
 
 /**
- * The wallet shows what you have and every purchase in flight; it is still not
- * where a purchase starts. Credits are always bought from the thing that needs
- * them — a reservation payment, or an optional feature like the full table —
+ * The wallet shows what you have and what you have spent; it is neither where a
+ * purchase starts nor where one is paid. Paying happens on the purchase's own
+ * page, reached from the unfinished entry in the movements — the wallet is a
+ * page people open to read, and a ten-minute countdown does not belong in the
+ * middle of it. Credits are always bought from the thing that needs them — a reservation payment, or an optional feature like the full table —
  * so the amount is the exact shortfall for one named use and never a figure the
  * participant types. The one exception is settling a negative balance, which
  * belongs to no single use and is offered on the balance card above.
  */
 export default function CreditWallet({ wallet, profileId }: CreditWalletProps) {
-  const openTopUps = wallet.topUps.filter(
-    (topUp) =>
-      topUp.status === "awaiting_voucher" || topUp.status === "under_review",
+  // Only a purchase still missing its voucher is unfinished business. Once the
+  // voucher is in the credits are already issued, so the ledger tells that part
+  // of the story and the purchase drops into the history below.
+  const pendingTopUps = wallet.topUps.filter(
+    (topUp) => topUp.status === "awaiting_voucher",
   );
-  const closedTopUps = wallet.topUps.filter(
-    (topUp) => !openTopUps.includes(topUp),
+  const pastTopUps = wallet.topUps.filter(
+    (topUp) => topUp.status !== "awaiting_voucher",
   );
 
   return (
     <div className="space-y-6">
       <CreditBalanceSummary balances={wallet.balances} />
 
-      {openTopUps.length > 0 && (
-        <section className="space-y-3">
-          <Title level={4}>Compras en curso</Title>
-          {openTopUps.map((topUp) => (
-            <CreditTopUpCard
-              key={topUp.id}
-              topUp={topUp}
-              profileId={profileId}
-            />
-          ))}
-        </section>
-      )}
+      <CreditLedgerList
+        entries={wallet.entries}
+        pendingTopUps={pendingTopUps}
+      />
 
-      <CreditLedgerList entries={wallet.entries} />
-
-      {closedTopUps.length > 0 && (
+      {pastTopUps.length > 0 && (
         <section className="space-y-3">
           <Title level={4}>Compras anteriores</Title>
-          {closedTopUps.map((topUp) => (
+          {pastTopUps.map((topUp) => (
             <CreditTopUpCard
               key={topUp.id}
               topUp={topUp}

@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import CreditAmount from "@/app/components/credits/credit-amount";
-import CreditTopUpVoucherUpload from "@/app/components/credits/credit-top-up-voucher-upload";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDateWithTime } from "@/app/lib/formatters";
@@ -32,6 +31,11 @@ function purposeLabel(topUp: CreditWalletTopUp) {
   return "Para una función opcional del festival";
 }
 
+/**
+ * A finished purchase, for the history below the movements. Paying and
+ * uploading the voucher live on the purchase's own page, so nothing here is
+ * actionable — an unpaid purchase never reaches this card.
+ */
 type CreditTopUpCardProps = {
   topUp: CreditWalletTopUp;
   profileId: number;
@@ -73,14 +77,6 @@ export default function CreditTopUpCard({
         <p className="text-xs text-muted-foreground">
           Iniciada el {formatDateWithTime(topUp.createdAt)}
         </p>
-
-        {topUp.status === "awaiting_voucher" && (
-          <CreditTopUpVoucherUpload
-            topUpId={topUp.id}
-            amount={topUp.amount}
-            uploadDeadlineAt={topUp.uploadDeadlineAt.toISOString()}
-          />
-        )}
 
         {topUp.status === "under_review" && (
           <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">

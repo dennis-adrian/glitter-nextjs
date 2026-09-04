@@ -40,7 +40,7 @@ export default function BuyDebtCreditsButton({
           return;
         }
         toast.success(result.message);
-        router.refresh();
+        router.push(`/my_credits/${result.topUpId}`);
       } catch (error) {
         console.error("Error creating debt credit top-up", error);
         toast.error("No se pudo iniciar la compra. Intentá nuevamente.");

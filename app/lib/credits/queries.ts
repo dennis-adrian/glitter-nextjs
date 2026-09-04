@@ -222,6 +222,23 @@ export async function fetchResumableCreditTopUp(
   );
 }
 
+/**
+ * One purchase, for the page that finishes it.
+ *
+ * Scoped to its owner rather than fetched by id alone: the purchase page is a
+ * payment screen, and somebody else's amount and deadline are not theirs to
+ * read.
+ */
+export async function fetchCreditTopUpForOwner(
+  topUpId: number,
+  userId: number,
+  now = new Date(),
+): Promise<CreditWalletTopUp | null> {
+  const wallet = await fetchCreditWallet(userId, now);
+  if (!wallet) return null;
+  return wallet.topUps.find((topUp) => topUp.id === topUpId) ?? null;
+}
+
 /** Credit balances for the signed-in participant, or null when signed out. */
 export async function fetchCurrentUserCreditBalances(): Promise<CreditBalances | null> {
   const actor = await getCurrentUserProfile();
