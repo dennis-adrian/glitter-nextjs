@@ -170,6 +170,12 @@ export async function createFeatureCreditTopUp(input: {
       await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [
         actor.id,
       ]);
+      // Before the claim: the registry insert takes a FOR KEY SHARE on
+      // `users` through `actor_user_id`, and this transaction later needs FOR
+      // UPDATE on the same row. Two purchases that both held the share lock
+      // first would deadlock upgrading it — the advisory lock above only
+      // serialises them within one festival.
+      await lockUserRows(tx, [actor.id]);
 
       // Claimed before any configuration check, so a retry of a request that
       // already opened a purchase replays it rather than failing because an
@@ -220,7 +226,6 @@ export async function createFeatureCreditTopUp(input: {
       }
 
       await lockFestivalRow(tx, input.festivalId);
-      await lockUserRows(tx, [actor.id]);
       await lockCreditAccountRows(tx, [actor.id]);
 
       // One open purchase per festival feature. Resuming the pending one keeps
@@ -300,6 +305,13 @@ export async function createDebtCreditTopUp(input: {
 
   try {
     return await db.transaction(async (tx) => {
+      // Before the claim, for the reason spelled out in
+      // `createFeatureCreditTopUp`: the registry insert share-locks the actor's
+      // `users` row, and this transaction upgrades that row to FOR UPDATE
+      // below. There is no festival to scope an advisory lock to here, so this
+      // row lock is the whole defence.
+      await lockUserRows(tx, [actor.id]);
+
       const claim = await claimRequest(tx, {
         requestKey: input.idempotencyKey,
         operation: "createDebtCreditTopUp",
@@ -318,7 +330,6 @@ export async function createDebtCreditTopUp(input: {
         return result;
       };
 
-      await lockUserRows(tx, [actor.id]);
       await lockCreditAccountRows(tx, [actor.id]);
 
       // Checked before the balance: an open purchase has already issued its

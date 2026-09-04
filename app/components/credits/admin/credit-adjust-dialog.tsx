@@ -90,9 +90,11 @@ export default function CreditAdjustDialog({
         onOpenChange(false);
         router.refresh();
       } catch (error) {
+        // The key is deliberately kept: a thrown request has an unknown
+        // outcome, so the adjustment may already be posted. Retrying with the
+        // same key replays that entry instead of posting a second one.
         console.error("Error adjusting credit account", error);
         toast.error("No se pudo ajustar el saldo. Intentá nuevamente.");
-        setIdempotencyKey(crypto.randomUUID());
       }
     });
   }

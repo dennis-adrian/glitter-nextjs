@@ -1045,6 +1045,33 @@ export async function adjustCreditAccount(input: {
       return failure("USER_DELETION_PENDING");
     }
     await lockCreditAccount(tx, input.userId);
+    // Ahead of the reversal checks: a retry of a reversal that already
+    // succeeded carries the same key, and must replay that success rather than
+    // trip over the opposite entry its own first attempt posted.
+    const [existing] = await tx
+      .select({
+        id: creditLedgerEntries.id,
+        userId: creditLedgerEntries.userId,
+      })
+      .from(creditLedgerEntries)
+      .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+      .limit(1)
+      .for("update");
+    if (existing) {
+      // The ledger key is intentionally global (per the PRD/schema), so an
+      // entry for another user cannot safely fall through to an insert.
+      if (existing.userId !== input.userId) {
+        return failure("IDEMPOTENCY_CONFLICT");
+      }
+      return {
+        ok: true,
+        data: {
+          ledgerEntryId: existing.id,
+          balances: await lockedCreditBalances(tx, input.userId),
+        },
+      };
+    }
+
     if (input.reversesEntryId != null) {
       // Under `lockCreditAccount`, so two admins clicking at once serialise
       // here and the second sees the first's row.
@@ -1080,29 +1107,6 @@ export async function adjustCreditAccount(input: {
       if (alreadyReverted) return failure("ENTRY_ALREADY_REVERTED");
     }
 
-    const [existing] = await tx
-      .select({
-        id: creditLedgerEntries.id,
-        userId: creditLedgerEntries.userId,
-      })
-      .from(creditLedgerEntries)
-      .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
-      .limit(1)
-      .for("update");
-    if (existing) {
-      // The ledger key is intentionally global (per the PRD/schema), so an
-      // entry for another user cannot safely fall through to an insert.
-      if (existing.userId !== input.userId) {
-        return failure("IDEMPOTENCY_CONFLICT");
-      }
-      return {
-        ok: true,
-        data: {
-          ledgerEntryId: existing.id,
-          balances: await lockedCreditBalances(tx, input.userId),
-        },
-      };
-    }
     const [entry] = await tx
       .insert(creditLedgerEntries)
       .values({

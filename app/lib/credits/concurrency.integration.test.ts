@@ -387,6 +387,60 @@ describeDatabase("credit mutation concurrency", () => {
     expect(await ledgerBalance(userId)).toBe(0);
   });
 
+  /**
+   * A reversal whose response is lost is retried with the same key. The undo
+   * its first attempt posted is exactly what the duplicate-undo check looks
+   * for, so without replaying the key the retry reports the reversal as
+   * already done and the admin is left unsure whether theirs landed.
+   */
+  it("replays a reversal retried with the same idempotency key", async () => {
+    const userId = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+    const entryId = grant.data.ledgerEntryId;
+
+    const reversalKey = randomUUID();
+    const first = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert",
+      idempotencyKey: reversalKey,
+      reversesEntryId: entryId,
+    });
+    const retry = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert",
+      idempotencyKey: reversalKey,
+      reversesEntryId: entryId,
+    });
+
+    expect(first.ok).toBe(true);
+    expect(retry.ok).toBe(true);
+    if (!first.ok || !retry.ok) return;
+    // The same entry, not a second one.
+    expect(retry.data.ledgerEntryId).toBe(first.data.ledgerEntryId);
+    expect(await ledgerBalance(userId)).toBe(0);
+
+    // A genuinely new reversal request still finds the entry already undone.
+    const another = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert otra vez",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: entryId,
+    });
+    expect(another.ok).toBe(false);
+    if (another.ok) return;
+    expect(another.code).toBe("ENTRY_ALREADY_REVERTED");
+    expect(await ledgerBalance(userId)).toBe(0);
+  });
+
   it("refuses to undo an entry that is not the admin's own", async () => {
     const userId = await createUser();
     const other = await createUser();

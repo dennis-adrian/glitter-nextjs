@@ -1884,6 +1884,13 @@
       "when": 1788484368300,
       "tag": "0269_full_table_price",
       "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1788484369300,
+      "tag": "0270_validate_registry_operation_check",
+      "breakpoints": true
     }
   ]
 }
