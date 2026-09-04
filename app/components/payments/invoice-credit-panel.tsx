@@ -26,7 +26,7 @@ function applyDenialReason(plan: {
     return `Tenés ${formatCredits(plan.debtAmount)} pendientes por un comprobante rechazado. Regularizá ese saldo para volver a usar créditos.`;
   }
   if (plan.applicableAmount <= 0) {
-    return "Todavía no tenés créditos confirmados para este pago. Los créditos en revisión no se pueden aplicar a una reserva.";
+    return "Todavía no tenés créditos para este pago.";
   }
   return undefined;
 }
@@ -60,9 +60,8 @@ export default async function InvoiceCreditPanel({
   return (
     <div className="mt-4 space-y-3 border-t pt-4">
       <p className="text-center text-sm text-muted-foreground">
-        Tenés {formatCredits(balances.invoiceEligibleBalance)} en créditos
-        confirmados. Los créditos en revisión no se pueden usar para esta
-        factura.
+        Tenés {formatCredits(balances.spendableBalance)} en créditos para usar
+        en este pago.
       </p>
 
       <ApplyInvoiceCreditsButton

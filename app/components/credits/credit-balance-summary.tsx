@@ -19,9 +19,12 @@ type CreditBalanceSummaryProps = {
 };
 
 /**
- * Provisional and confirmed money are separated on purpose: credits from a
- * voucher we have not reviewed yet can pay for optional features, but never a
- * reservation invoice.
+ * One spendable balance, with what is still under review reported beside it.
+ *
+ * Credits are usable the moment their voucher is submitted, wherever they are
+ * spent. A voucher that cannot be confirmed is reversed, which leaves the
+ * account in debt for an admin to resolve — the money is recovered afterwards
+ * rather than withheld beforehand.
  */
 export default function CreditBalanceSummary({
   balances,
@@ -56,17 +59,11 @@ export default function CreditBalanceSummary({
             </dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Reservado para una función</dt>
-            <dd>
-              <CreditAmount amount={balances.activeHolds} />
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">
-              Disponible para pagar una reserva
+              Reservado para una función
             </dt>
             <dd>
-              <CreditAmount amount={balances.invoiceEligibleBalance} />
+              <CreditAmount amount={balances.activeHolds} />
             </dd>
           </div>
           {balances.underReviewIssuance > 0 && (
@@ -79,11 +76,14 @@ export default function CreditBalanceSummary({
           )}
         </dl>
 
+        {/* Reported, not withheld: credits are spendable from the moment their
+            voucher is submitted, so this says where they are, not what they
+            cannot do. */}
         {balances.underReviewIssuance > 0 && (
           <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-            Tenés {formatCredits(balances.underReviewIssuance)} en revisión.
-            Podés usarlos en funciones opcionales, pero recién vas a poder
-            aplicarlos al pago de una reserva cuando aprobemos tu comprobante.
+            Tenés {formatCredits(balances.underReviewIssuance)} en revisión. Ya
+            podés usarlos; si algún comprobante no se puede confirmar, te
+            avisamos.
           </p>
         )}
 

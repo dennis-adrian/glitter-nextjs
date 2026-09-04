@@ -8,7 +8,9 @@ import {
 } from "@/app/lib/credits/balances";
 
 describe("credit balances", () => {
-  it("keeps provisional issuance spendable for features but ineligible for invoices", () => {
+  it("keeps provisional issuance spendable, and reports how much it is", () => {
+    // Credits are usable from the moment their voucher is submitted; what is
+    // still under review is reported, never withheld.
     expect(
       calculateCreditBalances({
         ledgerBalance: 40,
@@ -17,7 +19,7 @@ describe("credit balances", () => {
       }),
     ).toMatchObject({
       spendableBalance: 40,
-      invoiceEligibleBalance: 0,
+      underReviewIssuance: 40,
     });
   });
 
@@ -31,7 +33,6 @@ describe("credit balances", () => {
     ).toMatchObject({
       ledgerBalance: 50,
       spendableBalance: 37.5,
-      invoiceEligibleBalance: 37.5,
     });
   });
 
@@ -42,10 +43,7 @@ describe("credit balances", () => {
         activeHolds: 0,
         underReviewIssuance: 0,
       }),
-    ).toMatchObject({
-      spendableBalance: -15,
-      invoiceEligibleBalance: 0,
-    });
+    ).toMatchObject({ spendableBalance: -15 });
   });
 
   it("requires a top-up to first cover debt", () => {
@@ -54,7 +52,8 @@ describe("credit balances", () => {
     expect(exactCreditShortfall(10, 12)).toBe(0);
   });
 
-  it("does not let provisional or held credits fund an invoice", () => {
+  it("lets provisional credit fund an invoice, but never held or owed credit", () => {
+    // Under review is spendable...
     expect(
       canFundInvoiceCreditAllocation(
         calculateCreditBalances({
@@ -62,9 +61,21 @@ describe("credit balances", () => {
           activeHolds: 0,
           underReviewIssuance: 100,
         }),
+        100,
+      ),
+    ).toBe(true);
+    // ...debt is not, whatever else the account holds.
+    expect(
+      canFundInvoiceCreditAllocation(
+        calculateCreditBalances({
+          ledgerBalance: -1,
+          activeHolds: 0,
+          underReviewIssuance: 0,
+        }),
         1,
       ),
     ).toBe(false);
+    // ...and credit already earmarked for a feature stays earmarked.
     expect(
       canFundInvoiceCreditAllocation(
         calculateCreditBalances({
@@ -108,17 +119,17 @@ describe("invoiceCreditPlan", () => {
     });
   });
 
-  it("buys only the remainder confirmed credit cannot cover", () => {
+  it("buys only the remainder the balance cannot cover", () => {
     expect(invoiceCreditPlan(balances(40), 150)).toMatchObject({
       applicableAmount: 40,
       shortfallAmount: 110,
     });
   });
 
-  it("treats provisional credit as unusable for the invoice", () => {
+  it("applies provisional credit to the invoice like any other", () => {
     expect(invoiceCreditPlan(balances(150, 0, 150), 150)).toMatchObject({
-      applicableAmount: 0,
-      shortfallAmount: 150,
+      applicableAmount: 150,
+      shortfallAmount: 0,
     });
   });
 

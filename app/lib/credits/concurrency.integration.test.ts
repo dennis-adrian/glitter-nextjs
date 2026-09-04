@@ -4,7 +4,15 @@ import { randomUUID } from "crypto";
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
 import {
@@ -309,7 +317,7 @@ describeDatabase("credit mutation concurrency", () => {
     expect(await ledgerBalance(userId)).toBe(0);
   }, 30_000);
 
-  it("keeps provisional credits out of an invoice while a hold reduces only spendable", async () => {
+  it("earmarks held credit without touching the ledger", async () => {
     const userId = await createUser();
     const festivalId = await createFestival();
     await grantCredits(userId, 100);
@@ -329,7 +337,6 @@ describeDatabase("credit mutation concurrency", () => {
       ledgerBalance: 100,
       activeHolds: 30,
       spendableBalance: 70,
-      invoiceEligibleBalance: 70,
     });
     // The hold is an earmark, not a debit: the ledger is untouched.
     expect(await ledgerBalance(userId)).toBe(100);

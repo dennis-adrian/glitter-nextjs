@@ -14,6 +14,7 @@ import {
   vi,
 } from "vitest";
 
+import { canFundInvoiceCreditAllocation } from "@/app/lib/credits/balances";
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import * as schema from "@/db/schema";
 import {
@@ -700,6 +701,43 @@ describeDatabase("feature credit top-up", () => {
     expect(debtRows).toEqual([
       { intendedUseType: "debt", intendedUseId: null, amount: ACCESS_PRICE },
     ]);
+  });
+
+  /**
+   * Credits are usable the moment their voucher is submitted, on anything.
+   * There used to be a confirmed-only tier that let provisional credit activate
+   * a feature but not pay a reservation; a bad voucher is now recovered
+   * afterwards through debt rather than withheld beforehand.
+   */
+  it("lets a purchase under review pay a reservation invoice", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `v-${topUpId}`,
+    });
+
+    // Submitted, not yet reviewed.
+    const [row] = await integrationDb!
+      .select({ status: creditTopUps.status })
+      .from(creditTopUps)
+      .where(eq(creditTopUps.id, topUpId));
+    expect(row.status).toBe("under_review");
+
+    const balances = await readCreditBalances(user.id);
+    expect(balances.underReviewIssuance).toBe(ACCESS_PRICE);
+    // Spendable in full, with the under-review portion reported rather than
+    // deducted.
+    expect(balances.spendableBalance).toBe(ACCESS_PRICE);
+    expect(canFundInvoiceCreditAllocation(balances, ACCESS_PRICE)).toBe(true);
   });
 
   it("refuses a debt purchase when nothing is owed", async () => {

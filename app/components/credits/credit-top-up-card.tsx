@@ -84,8 +84,8 @@ export default function CreditTopUpCard({
 
         {topUp.status === "under_review" && (
           <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-            Ya podés usar estos créditos en funciones opcionales. Para aplicarlos
-            al pago de una reserva esperá a que aprobemos el comprobante.
+            Ya podés usar estos créditos en lo que quieras. Un administrador
+            revisa el comprobante después; si algo no cuadra, te avisamos.
           </p>
         )}
 
