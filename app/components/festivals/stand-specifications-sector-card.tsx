@@ -69,13 +69,15 @@ export default function StandSpecificationsSectorCard({
   // reservation — owner plus partner — not a price per person.
   //
   // A `new_artist` profile takes illustration inventory, so every category
-  // branch below reads the mapped category: a sector stocks illustration
-  // stands, never `new_artist` ones, and the raw category finds nothing to
-  // price. `new_artist` may also take a partner (see
+  // branch below reads the mapped category: the raw one finds nothing to
+  // price. Which stands count is `isMyCategory`'s to decide, the same rule the
+  // map highlights by — `stand_category` is the `user_category` enum and so can
+  // hold `new_artist`, and comparing against the mapped category alone counted
+  // such a stand on the map while leaving it out of the price and the total. `new_artist` may also take a partner (see
   // `evaluatePartnerSearchDenial`), so it has to be quoted the shared rate and
   // told the space is shareable — the raw category sold it neither.
-  const pricedStand = sector.stands.find(
-    (stand) => stand.standCategory === effectiveCategory,
+  const pricedStand = sector.stands.find((stand) =>
+    isMyCategory(stand.standCategory),
   );
   const individualPrice = pricedStand?.individualPrice ?? 0;
   const sharedPrice =
@@ -83,8 +85,8 @@ export default function StandSpecificationsSectorCard({
       ? (pricedStand?.sharedPrice ?? null)
       : null;
 
-  const standCount = sector.stands.filter(
-    (stand) => stand.standCategory === effectiveCategory,
+  const standCount = sector.stands.filter((stand) =>
+    isMyCategory(stand.standCategory),
   ).length;
 
   let sectorSpecifications = "";

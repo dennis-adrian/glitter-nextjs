@@ -17,13 +17,16 @@ vi.mock("next/navigation", () => ({
 
 import CreditBalanceSummary from "@/app/components/credits/credit-balance-summary";
 import { calculateCreditBalances } from "@/app/lib/credits/balances";
-import type { ActiveFeatureHold } from "@/app/lib/credits/queries";
+import type { FeatureHold } from "@/app/lib/credits/queries";
 
-const hold: ActiveFeatureHold = {
+const hold: FeatureHold = {
   featureActionId: 1,
   festivalId: 619,
   festivalName: "Glitter ¡Feliz Cumple!",
   amount: 20,
+  status: "active",
+  reservedAt: new Date("2026-09-04T10:00:00Z"),
+  closedAt: null,
 };
 
 function renderSummary(
@@ -32,7 +35,7 @@ function renderSummary(
     activeHolds?: number;
     underReviewIssuance?: number;
   },
-  holds: ActiveFeatureHold[] = [],
+  holds: FeatureHold[] = [],
 ) {
   return render(
     <CreditBalanceSummary

@@ -798,6 +798,19 @@ export type FeatureHold = {
 export async function fetchFeatureHolds(
   userId: number,
 ): Promise<FeatureHold[]> {
+  // Same gate as `fetchCreditWallet`: this says what somebody activated, at
+  // which festival and for how much. It is only ever called with the signed-in
+  // participant today, but a read that takes a `userId` and checks nothing is
+  // one careless caller away from leaking somebody else's.
+  const actor = await getCurrentUserProfile();
+  if (!actor) return [];
+  if (
+    actor.id !== userId &&
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return [];
+  }
+
   const rows = await db
     .select({
       featureActionId: creditHolds.featureActionId,

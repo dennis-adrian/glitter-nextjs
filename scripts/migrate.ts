@@ -124,7 +124,11 @@ function migrationTargetLabel(url: string): string {
   try {
     const parsed = new URL(url);
     const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
-    return `${parsed.host}/${database || "(none)"}`;
+    // Spelled out when the URL leaves it off, so two targets that differ only
+    // by port cannot print the same line. Postgres' own default is the one
+    // libpq would use.
+    const port = parsed.port || "5432";
+    return `${parsed.hostname}:${port}/${database || "(none)"}`;
   } catch {
     // A malformed URL still fails loudly a moment later, at connect time.
     return "(unparseable POSTGRES_URL)";
