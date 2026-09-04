@@ -39,12 +39,19 @@ type FestivalFeatureConfigRowProps = {
   festivalId: number;
   scope: FestivalFeatureScope;
   canEdit: boolean;
+  /**
+   * Full tables declared for this scope's category, or null where the feature
+   * has no inventory of its own. Enabling and pricing is not enough to make an
+   * offer appear, and without this the shortfall is invisible from here.
+   */
+  declaredTables: number | null;
 };
 
 export default function FestivalFeatureConfigRow({
   festivalId,
   scope,
   canEdit,
+  declaredTables,
 }: FestivalFeatureConfigRowProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -84,9 +91,7 @@ export default function FestivalFeatureConfigRow({
           enabled,
           creditPrice: priceValue,
           deadlineOverrideAt:
-            isLatePartner && deadline
-              ? new Date(deadline).toISOString()
-              : null,
+            isLatePartner && deadline ? new Date(deadline).toISOString() : null,
         });
         if (!result.success) {
           toast.error(result.message);
@@ -120,6 +125,22 @@ export default function FestivalFeatureConfigRow({
       {!implemented && (
         <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
           {FEATURE_NOT_IMPLEMENTED_REASON} Va a habilitarse cuando se publique.
+        </p>
+      )}
+
+      {implemented && declaredTables === 0 && scope.config?.enabled && (
+        <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+          No hay ninguna mesa completa declarada en esta categoría, así que no
+          se le ofrece a nadie. Declarala desde la gestión de espacios,
+          seleccionando las dos mitades.
+        </p>
+      )}
+
+      {implemented && declaredTables != null && declaredTables > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {declaredTables} mesa{declaredTables === 1 ? "" : "s"} completa
+          {declaredTables === 1 ? "" : "s"} declarada
+          {declaredTables === 1 ? "" : "s"} en esta categoría.
         </p>
       )}
 
@@ -175,8 +196,7 @@ export default function FestivalFeatureConfigRow({
         <p className="text-xs text-muted-foreground">
           {scope.config?.effectiveDeadlineAt
             ? `Fecha límite vigente: ${formatDateWithTime(scope.config.effectiveDeadlineAt)}.`
-            : "Sin fecha límite: se calcula desde el inicio del festival menos 21 días, o definila acá."}
-          {" "}
+            : "Sin fecha límite: se calcula desde el inicio del festival menos 21 días, o definila acá."}{" "}
           Dejala vacía para volver al cálculo automático.
         </p>
       )}

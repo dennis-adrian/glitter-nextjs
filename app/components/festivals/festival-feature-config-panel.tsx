@@ -3,6 +3,7 @@ import Link from "next/link";
 import FestivalFeatureConfigRow from "@/app/components/festivals/festival-feature-config-row";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { fetchFestivalFeatureScopes } from "@/app/lib/festivals/feature-config-service";
+import { countDeclaredFullTablesByCategory } from "@/app/lib/stands/full-table-queries";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -19,10 +20,11 @@ type FestivalFeatureConfigPanelProps = {
 export default async function FestivalFeatureConfigPanel({
   festivalId,
 }: FestivalFeatureConfigPanelProps) {
-  const [actor, scopes, creditsRevealed] = await Promise.all([
+  const [actor, scopes, creditsRevealed, declaredTables] = await Promise.all([
     getCurrentUserProfile(),
     fetchFestivalFeatureScopes(festivalId),
     isFeatureEnabled("credits"),
+    countDeclaredFullTablesByCategory(festivalId),
   ]);
   const canEdit = canMutateAdminReservations(actor);
 
@@ -62,6 +64,9 @@ export default async function FestivalFeatureConfigPanel({
             festivalId={festivalId}
             scope={scope}
             canEdit={canEdit}
+            declaredTables={
+              scope.category ? declaredTables[scope.category] : null
+            }
           />
         ))}
       </div>
