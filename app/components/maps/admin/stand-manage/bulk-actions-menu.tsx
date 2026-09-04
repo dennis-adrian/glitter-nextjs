@@ -23,6 +23,7 @@ import {
 import {
   declareFullTablePairAction,
   dissolveFullTablePairAction,
+  setFullTablePriceAction,
 } from "@/app/lib/stands/pricing-actions";
 import StandPriceDialog from "@/app/components/maps/admin/stand-price-dialog";
 import { Button } from "@/app/components/ui/button";
@@ -88,7 +89,8 @@ type DialogKey =
   | "renumber"
   | "delete"
   | "declareFullTable"
-  | "dissolveFullTable";
+  | "dissolveFullTable"
+  | "fullTablePrice";
 
 /**
  * A menu item that is never hidden: an action an admin cannot take right now
@@ -130,6 +132,7 @@ export default function StandBulkActionsMenu({
   const [pending, setPending] = useState(false);
 
   const [status, setStatus] = useState<StandStatus>("available");
+  const [fullTablePrice, setFullTablePrice] = useState("");
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState<StandCategory>("illustration");
   const [renumberStart, setRenumberStart] = useState(1);
@@ -194,6 +197,17 @@ export default function StandBulkActionsMenu({
   }, [selectedFullTableGroupIds]);
 
   const dissolveGroupId = selectedFullTableGroupIds[0] ?? null;
+  const selectedFullTable =
+    dissolveGroupId == null
+      ? null
+      : (fullTableByStandId.get(selectedIds[0]) ??
+        [...fullTableByStandId.values()].find(
+          (info) => info.groupId === dissolveGroupId,
+        ) ??
+        null);
+
+  // Same selection rule as separating one: the price belongs to a single table.
+  const priceTableReason = dissolveReason;
   const dissolveMembers = useMemo(() => {
     if (dissolveGroupId == null) return [];
     return [...rowsById.values()].filter(
@@ -202,7 +216,11 @@ export default function StandBulkActionsMenu({
   }, [dissolveGroupId, rowsById, fullTableByStandId]);
 
   async function runBulk(
-    fn: () => Promise<{ success: boolean; message: string; problems?: string[] }>,
+    fn: () => Promise<{
+      success: boolean;
+      message: string;
+      problems?: string[];
+    }>,
     onSuccess?: () => void,
   ) {
     if (count === 0) return;
@@ -274,6 +292,25 @@ export default function StandBulkActionsMenu({
                 <span>
                   Convertir en mesa completa
                   {declareReason && <DisabledReason reason={declareReason} />}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={priceTableReason != null}
+                onSelect={() => {
+                  setFullTablePrice(
+                    selectedFullTable?.fullTablePrice != null
+                      ? String(selectedFullTable.fullTablePrice)
+                      : "",
+                  );
+                  setDialog("fullTablePrice");
+                }}
+              >
+                <WalletIcon className="mr-2 h-4 w-4 shrink-0" />
+                <span>
+                  Precio de la mesa completa
+                  {priceTableReason && (
+                    <DisabledReason reason={priceTableReason} />
+                  )}
                 </span>
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -592,6 +629,69 @@ export default function StandBulkActionsMenu({
               }
             >
               {pending ? "Declarando…" : "Declarar mesa completa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={dialog === "fullTablePrice"}
+        onOpenChange={(o) => !o && setDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Precio de la mesa completa</DialogTitle>
+            <DialogDescription>
+              Lo que cuesta reservar la mesa entera. Reemplaza el precio
+              individual de sus dos mitades en la factura, no se suma a él. Los
+              créditos de la función se cobran aparte.
+            </DialogDescription>
+          </DialogHeader>
+
+          {dissolveMembers.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {dissolveMembers.map(standDisplayLabel).join(" + ")} · individual{" "}
+              {formatPrice(dissolveMembers[0].individualPrice)} cada mitad
+            </p>
+          )}
+
+          <div className="grid gap-2">
+            <Label htmlFor="full-table-price">Precio de la mesa (BOB)</Label>
+            <Input
+              id="full-table-price"
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              value={fullTablePrice}
+              onChange={(e) => setFullTablePrice(e.target.value)}
+              placeholder="Dejalo vacío para dejar de ofrecerla"
+            />
+            <p className="text-xs text-muted-foreground">
+              Sin precio, la mesa no se le ofrece a nadie y sus mitades se
+              reservan por separado.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={pending || dissolveGroupId == null}
+              onClick={() =>
+                void runBulk(() =>
+                  setFullTablePriceAction({
+                    groupId: dissolveGroupId,
+                    price:
+                      fullTablePrice.trim() === ""
+                        ? null
+                        : Number(fullTablePrice),
+                  }),
+                )
+              }
+            >
+              {pending ? "Guardando…" : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>

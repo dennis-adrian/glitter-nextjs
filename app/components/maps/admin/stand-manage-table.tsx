@@ -36,6 +36,7 @@ import {
 } from "@/app/components/maps/admin/stand-manage/columns";
 import StandEditFormDialog from "@/app/components/maps/admin/stand-manage/edit-form-dialog";
 import { indexFullTables } from "@/app/components/maps/admin/stand-manage/full-table";
+import type { FullTableGroup } from "@/app/lib/stands/full-table-queries";
 import {
   STAND_STATUS_OPTIONS,
   StandCategory,
@@ -49,8 +50,8 @@ type Props = {
   festivalId: number;
   festivalName: string;
   sectors: Sector[];
-  /** Stand groups already declared full tables, so rows can name their half. */
-  fullTableGroupIds: number[];
+  /** Declared full tables with their prices, so rows can name their half. */
+  fullTableGroups: FullTableGroup[];
 };
 
 const ALL_SECTOR_VALUE = "all";
@@ -82,7 +83,7 @@ export default function StandManageTable({
   festivalId,
   festivalName,
   sectors,
-  fullTableGroupIds,
+  fullTableGroups,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -145,8 +146,8 @@ export default function StandManageTable({
   // across the whole festival, and a half hidden by the sector filter would
   // otherwise read as a table missing its other half.
   const fullTableByStandId = useMemo(
-    () => indexFullTables(allRows, fullTableGroupIds, festivalId),
-    [allRows, fullTableGroupIds, festivalId],
+    () => indexFullTables(allRows, fullTableGroups, festivalId),
+    [allRows, fullTableGroups, festivalId],
   );
 
   const selectedIdsArr = useMemo(() => Array.from(selectedIds), [selectedIds]);
@@ -285,7 +286,7 @@ export default function StandManageTable({
   );
 
   const tableFilters = useMemo(() => {
-    const { status, category, reservation } = standFilterOptions();
+    const { status, category, reservation, fullTable } = standFilterOptions();
     const base = [
       { columnId: "status", label: "Estado", options: status },
       { columnId: "standCategory", label: "Categoría", options: category },
@@ -294,6 +295,7 @@ export default function StandManageTable({
         label: "Reservas",
         options: reservation,
       },
+      { columnId: "fullTable", label: "Mesa completa", options: fullTable },
     ];
     if (activeTab === ALL_SECTOR_VALUE) {
       base.unshift({

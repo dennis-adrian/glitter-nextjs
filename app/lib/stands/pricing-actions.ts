@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   declareFullTablePair,
   dissolveFullTablePair,
+  setFullTablePrice,
   setStandGroupFullTable,
   type FullTableConfigResult,
 } from "@/app/lib/stands/full-table-service";
@@ -48,6 +49,11 @@ const declarePairSchema = z.object({
 
 const dissolvePairSchema = z.object({
   groupId: z.coerce.number().int().positive(),
+});
+
+const fullTablePriceSchema = z.object({
+  groupId: z.coerce.number().int().positive(),
+  price: moneySchema.nullable(),
 });
 
 async function requireFestivalOrAdmin() {
@@ -233,5 +239,52 @@ export async function dissolveFullTablePairAction(
   } catch (error) {
     console.error("Error dissolving full table pair", error);
     return { success: false, message: "Error al separar la mesa completa." };
+  }
+}
+
+/**
+ * Sets what a whole table costs to book, replacing its halves' individual price
+ * on the invoice. Clearing it withdraws the table from participants.
+ */
+export async function setFullTablePriceAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const auth = await requireFestivalOrAdmin();
+  if (!auth.ok) return { success: false, message: auth.message };
+
+  const parsed = fullTablePriceSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Revisá el monto: hasta dos decimales y 0 o más.",
+    };
+  }
+
+  try {
+    const result = await setFullTablePrice(parsed.data);
+    if (!result.ok) {
+      return {
+        success: false,
+        message:
+          result.code === "GROUP_NOT_FOUND"
+            ? "No se encontró la mesa completa."
+            : result.code === "NOT_A_FULL_TABLE"
+              ? "Ese grupo no es una mesa completa."
+              : "El precio no es válido.",
+      };
+    }
+
+    revalidatePath("/dashboard/festivals");
+    revalidatePath("/", "layout");
+    return {
+      success: true,
+      message:
+        parsed.data.price == null
+          ? "La mesa quedó sin precio, así que deja de ofrecerse."
+          : "Precio de la mesa completa actualizado.",
+    };
+  } catch (error) {
+    console.error("Error setting full table price", error);
+    return { success: false, message: "Error al actualizar el precio." };
   }
 }

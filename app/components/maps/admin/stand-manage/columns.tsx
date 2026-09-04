@@ -97,13 +97,30 @@ function FullTableCell({ info }: { info: FullTableInfo | undefined }) {
 
   return (
     <div className="flex flex-col gap-0.5">
-      <Badge variant="secondary" className="w-fit">
+      <Badge
+        variant={info.fullTablePrice == null ? "amber" : "secondary"}
+        className="w-fit"
+      >
         Mesa completa
       </Badge>
       <span className="text-xs text-muted-foreground">
         {info.companion
           ? `con ${standDisplayLabel(info.companion)}`
           : "sin la otra mitad"}
+      </span>
+      {/* An unpriced table is withheld from participants, so the gap has to be
+          as visible here as a malformed pair is. */}
+      <span
+        className={cn(
+          "text-xs tabular-nums",
+          info.fullTablePrice == null
+            ? "font-medium text-amber-700"
+            : "text-muted-foreground",
+        )}
+      >
+        {info.fullTablePrice == null
+          ? "Sin precio"
+          : formatPrice(info.fullTablePrice)}
       </span>
     </div>
   );
@@ -297,6 +314,20 @@ export function createColumns({
       cell: ({ row }) => (
         <FullTableCell info={fullTableByStandId.get(row.original.id)} />
       ),
+      filterFn: (row, _columnId, filterValue: string[]) => {
+        if (!filterValue?.length) return true;
+        const info = fullTableByStandId.get(row.original.id);
+        // Every state an admin has to act on is selectable, so a festival's
+        // worth of stands can be narrowed to the ones still waiting on them.
+        const state = !info
+          ? "none"
+          : info.problems.length > 0
+            ? "problems"
+            : info.fullTablePrice == null
+              ? "unpriced"
+              : "priced";
+        return filterValue.includes(state);
+      },
       enableSorting: false,
     },
     {
@@ -360,6 +391,12 @@ export function standFilterOptions() {
     reservation: [
       { value: "yes", label: "Con reserva" },
       { value: "no", label: "Sin reserva" },
+    ],
+    fullTable: [
+      { value: "priced", label: "Mesa completa con precio" },
+      { value: "unpriced", label: "Mesa completa sin precio" },
+      { value: "problems", label: "Mesa con problemas" },
+      { value: "none", label: "Sin mesa completa" },
     ],
   };
 }

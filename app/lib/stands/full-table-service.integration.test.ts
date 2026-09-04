@@ -52,6 +52,8 @@ const integrationDb = pool ? drizzle(pool, { schema }) : null;
 const describeDatabase = integrationDb ? describe : describe.skip;
 
 let setStandGroupFullTable: (typeof import("@/app/lib/stands/full-table-service"))["setStandGroupFullTable"];
+let setFullTablePrice: (typeof import("@/app/lib/stands/full-table-service"))["setFullTablePrice"];
+let resolveFullTableCompanion: (typeof import("@/app/lib/reservations/full-table-access"))["resolveFullTableCompanion"];
 let declareFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["declareFullTablePair"];
 let dissolveFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["dissolveFullTablePair"];
 let findMalformedFullTableGroups: (typeof import("@/app/lib/stands/full-table-health"))["findMalformedFullTableGroups"];
@@ -111,8 +113,15 @@ describeDatabase("setStandGroupFullTable", () => {
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
-    ({ setStandGroupFullTable, declareFullTablePair, dissolveFullTablePair } =
-      await import("@/app/lib/stands/full-table-service"));
+    ({
+      setStandGroupFullTable,
+      declareFullTablePair,
+      dissolveFullTablePair,
+      setFullTablePrice,
+    } = await import("@/app/lib/stands/full-table-service"));
+    ({ resolveFullTableCompanion } = await import(
+      "@/app/lib/reservations/full-table-access"
+    ));
     ({ findMalformedFullTableGroups } =
       await import("@/app/lib/stands/full-table-health"));
     ({ updateStandPrices, guardLegacySinglePriceEdit } =
@@ -670,6 +679,65 @@ describeDatabase("setStandGroupFullTable", () => {
       expect(
         await declareFullTablePair({ standIds: [standIds[0], standIds[0]] }),
       ).toMatchObject({ ok: false, code: "DUPLICATE_STANDS" });
+    });
+
+    it("prices a table, and clearing the price withdraws it", async () => {
+      const { standIds } = await loneStands();
+      const declared = await declareFullTablePair({ standIds });
+      if (!declared.ok) throw new Error("expected the pair to be declared");
+      createdGroupIds.push(declared.groupId);
+
+      // Declared but unpriced: not inventory, and its halves are reserved on
+      // their own rather than as a table nobody can be billed for.
+      expect(
+        await integrationDb!.transaction((tx) =>
+          resolveFullTableCompanion(tx, standIds[0]),
+        ),
+      ).toBeNull();
+
+      expect(
+        await setFullTablePrice({ groupId: declared.groupId, price: 700 }),
+      ).toEqual({ ok: true, groupId: declared.groupId });
+
+      const paired = await integrationDb!.transaction((tx) =>
+        resolveFullTableCompanion(tx, standIds[0]),
+      );
+      expect(paired).toMatchObject({
+        companionStandId: standIds[1],
+        fullTablePrice: 700,
+      });
+
+      // Clearing it takes the table back out of circulation.
+      expect(
+        await setFullTablePrice({ groupId: declared.groupId, price: null }),
+      ).toEqual({ ok: true, groupId: declared.groupId });
+      expect(
+        await integrationDb!.transaction((tx) =>
+          resolveFullTableCompanion(tx, standIds[0]),
+        ),
+      ).toBeNull();
+    });
+
+    it("refuses a price on a group that is not a full table", async () => {
+      const { groupId } = await createPair();
+
+      expect(await setFullTablePrice({ groupId, price: 700 })).toMatchObject({
+        ok: false,
+        code: "NOT_A_FULL_TABLE",
+      });
+    });
+
+    it("refuses a price that is not money", async () => {
+      const { standIds } = await loneStands();
+      const declared = await declareFullTablePair({ standIds });
+      if (!declared.ok) throw new Error("expected the pair to be declared");
+      createdGroupIds.push(declared.groupId);
+
+      for (const price of [-1, 10.005]) {
+        expect(
+          await setFullTablePrice({ groupId: declared.groupId, price }),
+        ).toMatchObject({ ok: false, code: "INVALID_PRICE" });
+      }
     });
 
     it("dissolving returns both halves to being independent stands", async () => {

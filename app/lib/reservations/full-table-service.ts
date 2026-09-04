@@ -42,6 +42,9 @@ import {
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  invoiceCreditAllocations,
+  invoices,
+  payments,
   reservationFeatureActions,
   standHoldMembers,
   standHolds,
@@ -378,6 +381,10 @@ export async function downgradeFullTableReservation(input: {
         festivalId: standReservations.festivalId,
         status: standReservations.status,
         ownerUserId: standReservations.ownerUserId,
+        individualPriceSnapshot: standReservations.individualPriceSnapshot,
+        sharedPriceSnapshot: standReservations.sharedPriceSnapshot,
+        fullTablePriceSnapshot: standReservations.fullTablePriceSnapshot,
+        bookedParticipantCount: standReservations.bookedParticipantCount,
       })
       .from(standReservations)
       .where(eq(standReservations.id, input.reservationId))
@@ -459,6 +466,62 @@ export async function downgradeFullTableReservation(input: {
     }
 
     await releaseStandIfVacant(tx, releasedStandId);
+
+    // The reservation was billed for a whole table, and it no longer is one.
+    // Leaving the invoice alone would charge the participant a table's price
+    // for one half — under the old model the invoice already was a single
+    // stand's price, so downgrading really did leave the money alone.
+    if (reservation.fullTablePriceSnapshot != null) {
+      const halfPrice =
+        reservation.bookedParticipantCount > 1 &&
+        reservation.sharedPriceSnapshot != null
+          ? Number(reservation.sharedPriceSnapshot)
+          : Number(reservation.individualPriceSnapshot ?? 0);
+
+      const [invoice] = await tx
+        .select({ id: invoices.id, amount: invoices.amount })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservation.id))
+        .limit(1)
+        .for("update");
+
+      if (invoice) {
+        // Anything already tendered against the table's price would have to be
+        // refunded or re-applied, which is a decision this command cannot make.
+        const [settled] = await tx
+          .select({ id: payments.id })
+          .from(payments)
+          .where(eq(payments.invoiceId, invoice.id))
+          .limit(1);
+        const [allocated] = await tx
+          .select({ id: invoiceCreditAllocations.id })
+          .from(invoiceCreditAllocations)
+          .where(eq(invoiceCreditAllocations.invoiceId, invoice.id))
+          .limit(1);
+        if (settled || allocated) {
+          await abandonRequest(tx, input.idempotencyKey);
+          return reservationFailure("FULL_TABLE_NOT_DOWNGRADABLE");
+        }
+
+        await tx
+          .update(invoices)
+          .set({
+            amount: halfPrice,
+            originalAmount: halfPrice,
+            updatedAt: new Date(),
+          })
+          .where(eq(invoices.id, invoice.id));
+      }
+
+      await tx
+        .update(standReservations)
+        .set({
+          priceAmountSnapshot: halfPrice,
+          fullTablePriceSnapshot: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(standReservations.id, reservation.id));
+    }
 
     await insertStandReservationEvent(tx, {
       reservationId: reservation.id,

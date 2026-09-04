@@ -100,6 +100,8 @@ let publishedTermsVersionId: number;
 const ACCESS_PRICE = 50;
 const STAND_PRICE = 200;
 const SHARED_PRICE = 320;
+/** A table is priced in its own right and is not inventory without one. */
+const FULL_TABLE_PRICE = 380;
 const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
 
 /**
@@ -300,8 +302,8 @@ describeDatabase("feature credit top-up", () => {
       .insert(standGroups)
       .values({
         festivalSectorId: sector.id,
-        label: `T-${suffix}`,
         type: "full_table" as const,
+        fullTablePrice: FULL_TABLE_PRICE,
       })
       .returning();
 

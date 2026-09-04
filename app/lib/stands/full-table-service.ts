@@ -103,14 +103,23 @@ export async function setStandGroupFullTable(input: {
     // Re-read under the stand locks; membership may have changed.
     const members = await loadStandGroupMembers(tx, input.groupId);
 
-    if (await hasLiveOccupancy(tx, members.map((member) => member.id))) {
+    if (
+      await hasLiveOccupancy(
+        tx,
+        members.map((member) => member.id),
+      )
+    ) {
       return { ok: false, code: "OCCUPIED" };
     }
 
     if (input.enabled) {
       const validation = validateFullTablePair(members);
       if (!validation.ok) {
-        return { ok: false, code: "INVALID_PAIR", problems: validation.problems };
+        return {
+          ok: false,
+          code: "INVALID_PAIR",
+          problems: validation.problems,
+        };
       }
     }
 
@@ -298,5 +307,60 @@ export async function dissolveFullTablePair(input: {
     // releases every member still attached to it.
     await tx.delete(standGroups).where(eq(standGroups.id, input.groupId));
     return { ok: true as const };
+  });
+}
+
+export type SetFullTablePriceResult =
+  | { ok: true; groupId: number }
+  | {
+      ok: false;
+      code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | "INVALID_PRICE";
+    };
+
+/**
+ * Sets what booking a whole table costs.
+ *
+ * Priced per table rather than per category: stand prices already vary by
+ * sector, so one number for every table in a category would sell an expensive
+ * table for the same as a cheap one. Clearing it withdraws the table from
+ * participants rather than falling back to a guess — a table nobody has priced
+ * is not something to sell.
+ *
+ * Live reservations keep their own snapshot, so repricing never rewrites what
+ * someone was already billed.
+ */
+export async function setFullTablePrice(input: {
+  groupId: number;
+  price: number | null;
+}): Promise<SetFullTablePriceResult> {
+  if (input.price != null) {
+    const rounded = Math.round(input.price * 100) / 100;
+    if (
+      !Number.isFinite(input.price) ||
+      input.price < 0 ||
+      Math.abs(rounded - input.price) > 1e-9
+    ) {
+      return { ok: false, code: "INVALID_PRICE" };
+    }
+  }
+
+  return db.transaction(async (tx) => {
+    const [group] = await tx
+      .select({ id: standGroups.id, type: standGroups.type })
+      .from(standGroups)
+      .where(eq(standGroups.id, input.groupId))
+      .limit(1)
+      .for("update");
+    if (!group) return { ok: false as const, code: "GROUP_NOT_FOUND" as const };
+    if (group.type !== "full_table") {
+      return { ok: false as const, code: "NOT_A_FULL_TABLE" as const };
+    }
+
+    await tx
+      .update(standGroups)
+      .set({ fullTablePrice: input.price, updatedAt: new Date() })
+      .where(eq(standGroups.id, input.groupId));
+
+    return { ok: true as const, groupId: input.groupId };
   });
 }

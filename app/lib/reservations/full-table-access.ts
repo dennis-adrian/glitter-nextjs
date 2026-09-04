@@ -48,14 +48,25 @@ type DbTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 export async function resolveFullTableCompanion(
   tx: DbTx,
   standId: number,
-): Promise<{ companionStandId: number; groupId: number } | null> {
+): Promise<{
+  companionStandId: number;
+  groupId: number;
+  fullTablePrice: number;
+} | null> {
   const [self] = await tx
-    .select({ groupId: stands.standGroupId, groupType: standGroups.type })
+    .select({
+      groupId: stands.standGroupId,
+      groupType: standGroups.type,
+      fullTablePrice: standGroups.fullTablePrice,
+    })
     .from(stands)
     .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
     .where(eq(stands.id, standId))
     .limit(1);
   if (!self?.groupId || self.groupType !== "full_table") return null;
+  // An unpriced table has nothing to bill, so it is not a table anyone can
+  // take: the half is reserved on its own, exactly as if it were never paired.
+  if (self.fullTablePrice == null) return null;
 
   const companions = await tx
     .select({ id: stands.id })
@@ -63,7 +74,11 @@ export async function resolveFullTableCompanion(
     .where(and(eq(stands.standGroupId, self.groupId), ne(stands.id, standId)));
   if (companions.length !== 1) return null;
 
-  return { companionStandId: companions[0].id, groupId: self.groupId };
+  return {
+    companionStandId: companions[0].id,
+    groupId: self.groupId,
+    fullTablePrice: self.fullTablePrice,
+  };
 }
 
 /** Stands that nothing currently holds or occupies. */
@@ -125,8 +140,12 @@ export type FullTableAvailability = {
    * one to free up would be untrue.
    */
   declaredPairs: number;
-  /** At least one declared table has both halves free right now. */
+  /** Declared tables with no price set, which are not sellable. */
+  unpricedPairs: number;
+  /** At least one priced table has both halves free right now. */
   hasFreePair: boolean;
+  /** Cheapest priced table with both halves free, for quoting before the map. */
+  lowestFreePrice: number | null;
 };
 
 /**
@@ -143,7 +162,11 @@ export async function summarizeFullTableAvailability(
   now = new Date(),
 ): Promise<FullTableAvailability> {
   const members = await tx
-    .select({ groupId: stands.standGroupId, standId: stands.id })
+    .select({
+      groupId: stands.standGroupId,
+      standId: stands.id,
+      fullTablePrice: standGroups.fullTablePrice,
+    })
     .from(stands)
     .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
     .where(
@@ -153,34 +176,50 @@ export async function summarizeFullTableAvailability(
         eq(standGroups.type, "full_table"),
       ),
     );
-  const byGroup = new Map<number, number[]>();
+
+  const byGroup = new Map<
+    number,
+    { standIds: number[]; price: number | null }
+  >();
   for (const member of members) {
     if (member.groupId == null) continue;
-    byGroup.set(member.groupId, [
-      ...(byGroup.get(member.groupId) ?? []),
-      member.standId,
-    ]);
+    const group = byGroup.get(member.groupId) ?? {
+      standIds: [],
+      price: member.fullTablePrice,
+    };
+    group.standIds.push(member.standId);
+    byGroup.set(member.groupId, group);
   }
+
   // Only a two-member group is a table; a malformed group is not inventory.
-  const declaredPairs = [...byGroup.values()].filter(
-    (groupStandIds) => groupStandIds.length === 2,
-  ).length;
-  if (declaredPairs === 0) return { declaredPairs: 0, hasFreePair: false };
+  const tables = [...byGroup.values()].filter(
+    (group) => group.standIds.length === 2,
+  );
+  // A table with no price cannot be sold, so it is not inventory either — it
+  // is counted separately so an admin can see what is waiting on them.
+  const priced = tables.filter((group) => group.price != null);
+  const summary = {
+    declaredPairs: priced.length,
+    unpricedPairs: tables.length - priced.length,
+  };
+  if (priced.length === 0) {
+    return { ...summary, hasFreePair: false, lowestFreePrice: null };
+  }
 
   const free = await availableStandIds(
     tx,
     members.map((member) => member.standId),
     now,
   );
-  for (const groupStandIds of byGroup.values()) {
-    if (
-      groupStandIds.length === 2 &&
-      groupStandIds.every((standId) => free.has(standId))
-    ) {
-      return { declaredPairs, hasFreePair: true };
-    }
-  }
-  return { declaredPairs, hasFreePair: false };
+  const freePrices = priced
+    .filter((group) => group.standIds.every((standId) => free.has(standId)))
+    .map((group) => group.price!);
+
+  return {
+    ...summary,
+    hasFreePair: freePrices.length > 0,
+    lowestFreePrice: freePrices.length > 0 ? Math.min(...freePrices) : null,
+  };
 }
 
 /** Whether at least one declared table has both halves free right now. */

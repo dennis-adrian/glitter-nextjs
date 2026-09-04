@@ -90,8 +90,20 @@ export default function FullTablePanel({
           </p>
 
           <dl className="mt-3 space-y-1 text-sm">
+            {/* Two different amounts, so each says what it is for: the credits
+                buy the chance to take a table, the price is the reservation
+                itself. Tables are priced one by one, so before the map there is
+                only a "desde". */}
+            {offer.lowestTablePrice != null ? (
+              <div className="flex gap-2">
+                <dt className="text-muted-foreground">Reservarla cuesta:</dt>
+                <dd className="font-medium">
+                  desde Bs{offer.lowestTablePrice.toFixed(2)}
+                </dd>
+              </div>
+            ) : null}
             <div className="flex gap-2">
-              <dt className="text-muted-foreground">Precio:</dt>
+              <dt className="text-muted-foreground">Activarla cuesta:</dt>
               <dd className="font-medium">
                 {formatCredits(offer.creditPrice)} en créditos
               </dd>

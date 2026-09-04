@@ -1877,6 +1877,13 @@
       "when": 1788470483703,
       "tag": "0268_credit_top_up_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1788484368300,
+      "tag": "0269_full_table_price",
+      "breakpoints": true
     }
   ]
 }

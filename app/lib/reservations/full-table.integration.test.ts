@@ -99,6 +99,8 @@ let publishedTermsVersionId: number;
 const ACCESS_PRICE = 50;
 const STAND_PRICE = 200;
 const SHARED_PRICE = 320;
+/** A table is priced in its own right and is not inventory without one. */
+const FULL_TABLE_PRICE = 380;
 
 /**
  * The full-table path end to end (PRD §7): activation earmarks credits, a
@@ -301,8 +303,8 @@ describeDatabase("full table", () => {
         .insert(standGroups)
         .values({
           festivalSectorId: sector.id,
-          label: `T${i}-${suffix}`,
           type: "full_table" as const,
+          fullTablePrice: FULL_TABLE_PRICE,
         })
         .returning();
       groupIds.push(group.id);
@@ -606,13 +608,14 @@ describeDatabase("full table", () => {
       );
     expect(spends).toEqual([{ amount: -ACCESS_PRICE }]);
 
-    // The companion half is compensated by the feature price, not a second
-    // stand invoice (PRD §7.6).
+    // A table is a priced product in its own right, so the invoice is the
+    // table's price and not either half's. The credits are the access fee and
+    // are charged separately (PRD §7.6).
     const invoiceRows = await integrationDb!
       .select({ amount: invoices.amount })
       .from(invoices)
       .where(eq(invoices.reservationId, reservationId));
-    expect(invoiceRows).toEqual([{ amount: STAND_PRICE }]);
+    expect(invoiceRows).toEqual([{ amount: FULL_TABLE_PRICE }]);
 
     const action = await integrationDb!
       .select({
@@ -970,11 +973,13 @@ describeDatabase("full table", () => {
       .where(eq(stands.id, standIds[1]));
     expect(companion.status).toBe("available");
 
-    // A downgrade is a capacity correction, never a refund: the captured
-    // credits and the invoice are left exactly as they were.
+    // A downgrade is a capacity correction, never a refund of the access fee:
+    // the captured credits stay captured.
     expect(await activeHoldAmount(owner.id)).toEqual([
       { amount: ACCESS_PRICE, status: "captured" },
     ]);
+    // The invoice does move, because it was the table's price and this is no
+    // longer a table. Leaving it would bill a whole table for one half.
     const invoiceRows = await integrationDb!
       .select({ amount: invoices.amount })
       .from(invoices)

@@ -6,19 +6,28 @@ import type { FullTableCategory } from "@/app/lib/stands/full-table-pairs";
 import { db } from "@/db";
 import { festivalSectors, standGroups, stands } from "@/db/schema";
 
+export type FullTableGroup = {
+  id: number;
+  /** Null until an admin prices it, which withholds it from participants. */
+  fullTablePrice: number | null;
+};
+
 /**
- * Which of a festival's stand groups are declared full tables.
+ * A festival's declared full tables, with what each costs to book.
  *
- * The stands table already carries `standGroupId` on every row, so this one set
- * is all it needs to tell a full-table half from a plain visual group — cheaper
- * than joining `stand_groups` into the sector query that every other consumer
- * shares.
+ * The stands table already carries `standGroupId` on every row, so this small
+ * list is all it needs to tell a full-table half from a plain visual group and
+ * to show its price — cheaper than joining `stand_groups` into the sector query
+ * that every other consumer shares.
  */
-export async function fetchFullTableGroupIds(
+export async function fetchFullTableGroups(
   festivalId: number,
-): Promise<number[]> {
-  const rows = await db
-    .select({ id: standGroups.id })
+): Promise<FullTableGroup[]> {
+  return db
+    .select({
+      id: standGroups.id,
+      fullTablePrice: standGroups.fullTablePrice,
+    })
     .from(standGroups)
     .innerJoin(
       festivalSectors,
@@ -30,8 +39,6 @@ export async function fetchFullTableGroupIds(
         eq(standGroups.type, "full_table"),
       ),
     );
-
-  return rows.map((row) => row.id);
 }
 
 /**

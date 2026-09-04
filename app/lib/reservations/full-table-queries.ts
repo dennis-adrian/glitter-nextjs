@@ -20,6 +20,15 @@ export type FullTableOffer = {
   hasCompleteTable: boolean;
   /** Set when the feature is offered but cannot be activated right now. */
   blockedReason: "no_complete_table" | "insufficient_credits" | null;
+  /**
+   * What the cheapest currently-free table costs to book, in Bs.
+   *
+   * Separate money from `creditPrice`: the credits are the access fee, this is
+   * the reservation itself. Tables are priced individually, so before the map
+   * there is no single number — this is the "desde" one, and null when nothing
+   * is free.
+   */
+  lowestTablePrice: number | null;
 };
 
 /**
@@ -44,6 +53,7 @@ export async function fetchFullTableOffer(input: {
     shortfall: 0,
     hasCompleteTable: false,
     blockedReason: null,
+    lowestTablePrice: null,
   };
 
   if (!isFullTableCategory(input.category)) return unavailable;
@@ -87,6 +97,7 @@ export async function fetchFullTableOffer(input: {
     spendableBalance: balances.spendableBalance,
     shortfall,
     hasCompleteTable: availability.hasFreePair,
+    lowestTablePrice: availability.lowestFreePrice,
     blockedReason: access
       ? null
       : !availability.hasFreePair

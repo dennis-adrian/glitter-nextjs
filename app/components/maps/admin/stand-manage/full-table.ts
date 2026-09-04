@@ -5,6 +5,7 @@ import {
 } from "@/app/lib/stands/full-table-pairs";
 
 import type { StandRow } from "@/app/components/maps/admin/stand-manage/columns";
+import type { FullTableGroup } from "@/app/lib/stands/full-table-queries";
 
 export type FullTableInfo = {
   groupId: number;
@@ -12,6 +13,8 @@ export type FullTableInfo = {
   companion: StandRow | null;
   /** Every rule the declared pair currently breaks; empty when it is sound. */
   problems: FullTablePairProblem[];
+  /** What booking the whole table costs; null withholds it from participants. */
+  fullTablePrice: number | null;
 };
 
 function toPairMember(row: StandRow, festivalId: number): FullTablePairMember {
@@ -45,10 +48,13 @@ function toPairMember(row: StandRow, festivalId: number): FullTablePairMember {
  */
 export function indexFullTables(
   rows: StandRow[],
-  fullTableGroupIds: readonly number[],
+  fullTableGroups: readonly FullTableGroup[],
   festivalId: number,
 ): Map<number, FullTableInfo> {
-  const declared = new Set(fullTableGroupIds);
+  const priceByGroup = new Map(
+    fullTableGroups.map((group) => [group.id, group.fullTablePrice]),
+  );
+  const declared = new Set(fullTableGroups.map((group) => group.id));
 
   const byGroup = new Map<number, StandRow[]>();
   for (const row of rows) {
@@ -70,6 +76,7 @@ export function indexFullTables(
         groupId,
         companion: members.find((row) => row.id !== member.id) ?? null,
         problems,
+        fullTablePrice: priceByGroup.get(groupId) ?? null,
       });
     }
   }

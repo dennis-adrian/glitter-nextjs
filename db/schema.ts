@@ -954,6 +954,17 @@ export const standGroups = pgTable(
      * health report enforce; a column cannot express it.
      */
     type: standGroupTypeEnum("type").default("visual_group").notNull(),
+    /**
+     * What booking this whole table costs, replacing its halves' individual
+     * price on the invoice.
+     *
+     * Priced per table rather than per category because stand prices already
+     * vary by sector, and a table is worth what its own two halves are worth.
+     * Null until an admin sets one, which withholds the table from
+     * participants — it is not inventory until it has a price. Meaningless
+     * outside `type = 'full_table'`.
+     */
+    fullTablePrice: money("full_table_price"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -1096,6 +1107,8 @@ export const standHolds = pgTable(
     priceAmountSnapshot: money("price_amount_snapshot"),
     individualPriceSnapshot: money("individual_price_snapshot"),
     sharedPriceSnapshot: money("shared_price_snapshot"),
+    /** Set only when the hold covers both halves of a declared full table. */
+    fullTablePriceSnapshot: money("full_table_price_snapshot"),
     idempotencyKey: text("idempotency_key"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1195,6 +1208,8 @@ export const standReservations = pgTable(
     priceAmountSnapshot: money("price_amount_snapshot"),
     individualPriceSnapshot: money("individual_price_snapshot"),
     sharedPriceSnapshot: money("shared_price_snapshot"),
+    /** Set only when the reservation covers both halves of a full table. */
+    fullTablePriceSnapshot: money("full_table_price_snapshot"),
     bookedParticipantCount: smallint("booked_participant_count")
       .default(1)
       .notNull(),
