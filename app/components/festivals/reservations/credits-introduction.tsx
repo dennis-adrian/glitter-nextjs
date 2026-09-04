@@ -2,6 +2,7 @@ import { CoinsIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import BuyFeatureCreditsButton from "@/app/components/credits/buy-feature-credits-button";
 import { formatCredits } from "@/app/components/credits/credit-amount";
 import FullTableGraphic from "@/app/components/festivals/reservations/full-table-graphic";
 import Title from "@/app/components/atoms/heading";
@@ -13,8 +14,8 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
-import { fetchFeatureConfig } from "@/app/lib/festivals/feature-config-service";
 import { isFullTableCategory } from "@/app/lib/reservations/full-table-access";
+import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
 import { fetchSelfServiceTargetProfile } from "@/app/lib/reservations/map-queries";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 
@@ -51,13 +52,25 @@ export default async function CreditsIntroduction({
 
   if (!isFullTableCategory(forProfile.category)) redirect(mapHref);
 
-  const [creditsEnabled, config] = await Promise.all([
+  // The same offer the panel uses, so this screen cannot quote a price for a
+  // festival that has no full tables to sell.
+  const [creditsEnabled, offer] = await Promise.all([
     isFeatureEnabled("credits"),
-    fetchFeatureConfig(festivalId, "full_table", forProfile.category),
+    fetchFullTableOffer({
+      userId: forProfile.id,
+      festivalId,
+      category: forProfile.category,
+    }),
   ]);
-  if (!creditsEnabled || !config || !config.enabled || !config.available) {
-    redirect(mapHref);
-  }
+  if (!creditsEnabled || !offer.offered) redirect(mapHref);
+
+  // The purchase spends the session's own credits, so it is only ever offered
+  // to the participant themselves — an admin looking at someone else's
+  // enrolment still sees the explanation.
+  const canBuy =
+    currentProfile?.id === forProfile.id &&
+    !offer.active &&
+    offer.shortfall > 0;
 
   return (
     <div className="container max-w-[720px] p-4 md:p-6">
@@ -112,7 +125,7 @@ export default async function CreditsIntroduction({
                 <p className="text-foreground">
                   Cuesta{" "}
                   <span className="font-semibold">
-                    {formatCredits(config.creditPrice)} en créditos
+                    {formatCredits(offer.creditPrice)} en créditos
                   </span>
                   .
                 </p>
@@ -155,9 +168,28 @@ export default async function CreditsIntroduction({
           </CardContent>
         </Card>
 
-        <Button asChild className="w-full sm:w-auto">
-          <Link href={mapHref}>Continuar</Link>
-        </Button>
+        {/* This screen exists to settle the money question before the map, so
+            it has to be answerable here. Explaining the price and sending the
+            participant off to find the purchase somewhere else is what made it
+            a dead end. */}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {canBuy && (
+            <BuyFeatureCreditsButton
+              festivalId={festivalId}
+              featureType="full_table"
+              shortfallAmount={offer.shortfall}
+            />
+          )}
+          <Button
+            asChild
+            variant={canBuy ? "outline" : "default"}
+            className="w-full sm:w-auto"
+          >
+            <Link href={mapHref}>
+              {canBuy ? "Ahora no, seguir al plano" : "Continuar"}
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );
