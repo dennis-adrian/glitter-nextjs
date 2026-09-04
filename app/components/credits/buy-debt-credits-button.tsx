@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { formatCredits } from "@/app/components/credits/credit-amount";
+import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { Button } from "@/app/components/ui/button";
 import { createDebtCreditTopUpAction } from "@/app/lib/credits/purchase-actions";
 
@@ -53,7 +53,7 @@ export default function BuyDebtCreditsButton({
     <Button type="button" onClick={buyCredits} disabled={isPending}>
       {isPending
         ? "Preparando la compra..."
-        : `Regularizar ${formatCredits(debtAmount)}`}
+        : `Regularizar ${formatCreditCount(debtAmount)}`}
       <CoinsIcon className="ml-2 h-4 w-4" />
     </Button>
   );

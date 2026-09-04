@@ -82,6 +82,7 @@ export default function CreditLedgerList({
                     </p>
                   </div>
                   <CreditAmount
+                    variant="count"
                     amount={entry.amount}
                     signed
                     className={

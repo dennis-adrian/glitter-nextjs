@@ -1,9 +1,8 @@
 import { AlertCircleIcon, CoinsIcon } from "lucide-react";
 
 import BuyDebtCreditsButton from "@/app/components/credits/buy-debt-credits-button";
-import CreditAmount, {
-  formatCredits,
-} from "@/app/components/credits/credit-amount";
+import { formatCreditCount } from "@/app/components/credits/credit-amount";
+import ReleaseFeatureCreditsButton from "@/app/components/credits/release-feature-credits-button";
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
 import {
   Card,
@@ -13,23 +12,36 @@ import {
 } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { type CreditBalances } from "@/app/lib/credits/balances";
+import { type ActiveFeatureHold } from "@/app/lib/credits/queries";
 
 type CreditBalanceSummaryProps = {
   balances: CreditBalances;
+  /** Features this participant activated, and can hand the credits back from. */
+  activeHolds?: ActiveFeatureHold[];
 };
 
 /**
- * One spendable balance, with what is still under review reported beside it.
+ * One spendable balance, with what is reserved and what is owed kept apart.
  *
  * Credits are usable the moment their voucher is submitted, wherever they are
  * spent. A voucher that cannot be confirmed is reversed, which leaves the
  * account in debt for an admin to resolve — the money is recovered afterwards
  * rather than withheld beforehand.
+ *
+ * Reserved and owed look identical in a raw spendable balance and are not the
+ * same thing at all: reserved credits are still the participant's and they can
+ * take them back, while a debt is money that has to be settled. Showing the
+ * raw figure told someone holding an unused reservation that they were 20
+ * credits in the red.
  */
 export default function CreditBalanceSummary({
   balances,
+  activeHolds = [],
 }: CreditBalanceSummaryProps) {
   const debt = Math.max(0, -balances.ledgerBalance);
+  // Floored: what is reserved is subtracted below and explained on its own.
+  // Only a negative ledger is a debt, and it has its own alert.
+  const available = Math.max(0, balances.spendableBalance);
 
   return (
     <Card>
@@ -41,11 +53,9 @@ export default function CreditBalanceSummary({
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-3xl font-bold">
-            <CreditAmount amount={balances.spendableBalance} />
-          </p>
+          <p className="text-3xl font-bold">{formatCreditCount(available)}</p>
           <p className="text-sm text-muted-foreground">
-            Disponible para usar ahora
+            Disponibles para usar ahora
           </p>
         </div>
 
@@ -54,24 +64,20 @@ export default function CreditBalanceSummary({
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Saldo total</dt>
-            <dd>
-              <CreditAmount amount={balances.ledgerBalance} />
-            </dd>
+            <dd>{formatCreditCount(balances.ledgerBalance)}</dd>
           </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">
-              Reservado para una función
-            </dt>
-            <dd>
-              <CreditAmount amount={balances.activeHolds} />
-            </dd>
-          </div>
+          {balances.activeHolds > 0 && (
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">
+                Reservados para una función
+              </dt>
+              <dd>{formatCreditCount(balances.activeHolds)}</dd>
+            </div>
+          )}
           {balances.underReviewIssuance > 0 && (
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">En revisión</dt>
-              <dd>
-                <CreditAmount amount={balances.underReviewIssuance} />
-              </dd>
+              <dd>{formatCreditCount(balances.underReviewIssuance)}</dd>
             </div>
           )}
         </dl>
@@ -81,10 +87,30 @@ export default function CreditBalanceSummary({
             cannot do. */}
         {balances.underReviewIssuance > 0 && (
           <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-            Tenés {formatCredits(balances.underReviewIssuance)} en revisión. Ya
-            podés usarlos; si algún comprobante no se puede confirmar, te
+            Tenés {formatCreditCount(balances.underReviewIssuance)} en revisión.
+            Ya podés usarlos; si algún comprobante no se puede confirmar, te
             avisamos.
           </p>
+        )}
+
+        {/* The reserved credits are still theirs, and this is the only place
+            outside the festival's map that says so or lets them take them
+            back. */}
+        {activeHolds.length > 0 && (
+          <div className="space-y-3 rounded-md bg-muted p-3 text-sm">
+            <p className="text-muted-foreground">
+              Tenés {formatCreditCount(balances.activeHolds)} reservados porque
+              activaste la mesa completa. Siguen siendo tuyos: si ya no la
+              querés, liberalos y volvés a tenerlos disponibles.
+            </p>
+            {activeHolds.map((hold) => (
+              <ReleaseFeatureCreditsButton
+                key={hold.featureActionId}
+                festivalId={hold.festivalId}
+                label={`Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`}
+              />
+            ))}
+          </div>
         )}
 
         {debt > 0 && (
@@ -94,8 +120,8 @@ export default function CreditBalanceSummary({
             <AlertDescription className="space-y-3">
               <p>
                 Rechazamos un comprobante después de que usaste esos créditos,
-                así que quedaste debiendo {formatCredits(debt)}. No vas a poder
-                usar créditos hasta regularizarlo. Lo que pagaste con esos
+                así que quedaste debiendo {formatCreditCount(debt)}. No vas a
+                poder usar créditos hasta regularizarlo. Lo que pagaste con esos
                 créditos sigue en pie: nada se cancela por este saldo.
               </p>
               <BuyDebtCreditsButton debtAmount={debt} />

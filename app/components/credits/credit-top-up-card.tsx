@@ -58,7 +58,7 @@ export default function CreditTopUpCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-lg font-semibold">
-              <CreditAmount amount={topUp.amount} />
+              <CreditAmount variant="count" amount={topUp.amount} />
             </p>
             <p className="text-sm text-muted-foreground">
               {purposeLabel(topUp)}

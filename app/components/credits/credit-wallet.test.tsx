@@ -9,6 +9,10 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/credits/purchase-actions", () => ({
   createDebtCreditTopUpAction: vi.fn(),
 }));
+// The release control on the balance card reaches another one.
+vi.mock("@/app/lib/reservations/full-table-actions", () => ({
+  deactivateFullTableAccessAction: vi.fn(),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),

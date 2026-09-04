@@ -16,6 +16,7 @@ import {
   creditHolds,
   creditLedgerEntries,
   creditTopUps,
+  festivals,
   invoiceCreditAllocations,
   invoices,
   standReservations,
@@ -762,4 +763,46 @@ export async function fetchCreditDebtReport(): Promise<
       lastReversalAt: lastReversalByUser.get(row.userId) ?? null,
     };
   });
+}
+
+export type ActiveFeatureHold = {
+  featureActionId: number;
+  festivalId: number;
+  festivalName: string;
+  amount: number;
+};
+
+/**
+ * The features this participant has activated and is holding credits against.
+ *
+ * Held credits are the one balance a participant can move on their own, and
+ * until now the only control that released them lived on the festival's
+ * reservation map. Somebody whose voucher was rejected after activating ends
+ * up with a hold and no credits behind it — the wallet reads as a debt, the
+ * map may be closed, and nothing on either screen says the hold is theirs to
+ * let go.
+ */
+export async function fetchActiveFeatureHolds(
+  userId: number,
+): Promise<ActiveFeatureHold[]> {
+  const rows = await db
+    .select({
+      featureActionId: creditHolds.featureActionId,
+      festivalId: creditHolds.festivalId,
+      festivalName: festivals.name,
+      amount: creditHolds.amount,
+    })
+    .from(creditHolds)
+    .innerJoin(festivals, eq(festivals.id, creditHolds.festivalId))
+    .where(
+      and(eq(creditHolds.userId, userId), eq(creditHolds.status, "active")),
+    )
+    .orderBy(desc(creditHolds.createdAt));
+
+  return rows.map((row) => ({
+    featureActionId: row.featureActionId,
+    festivalId: row.festivalId,
+    festivalName: row.festivalName,
+    amount: Number(row.amount),
+  }));
 }

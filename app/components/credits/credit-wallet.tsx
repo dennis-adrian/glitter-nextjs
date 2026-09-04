@@ -4,11 +4,16 @@ import CreditBalanceSummary from "@/app/components/credits/credit-balance-summar
 import CreditLedgerList from "@/app/components/credits/credit-ledger-list";
 import CreditTopUpCard from "@/app/components/credits/credit-top-up-card";
 import Title from "@/app/components/atoms/heading";
-import { type CreditWallet as CreditWalletData } from "@/app/lib/credits/queries";
+import {
+  type ActiveFeatureHold,
+  type CreditWallet as CreditWalletData,
+} from "@/app/lib/credits/queries";
 
 type CreditWalletProps = {
   wallet: CreditWalletData;
   profileId: number;
+  /** Features the participant activated, and can take the credits back from. */
+  activeHolds?: ActiveFeatureHold[];
 };
 
 /**
@@ -21,7 +26,11 @@ type CreditWalletProps = {
  * participant types. The one exception is settling a negative balance, which
  * belongs to no single use and is offered on the balance card above.
  */
-export default function CreditWallet({ wallet, profileId }: CreditWalletProps) {
+export default function CreditWallet({
+  wallet,
+  profileId,
+  activeHolds,
+}: CreditWalletProps) {
   // Only a purchase still missing its voucher is unfinished business. Once the
   // voucher is in the credits are already issued, so the ledger tells that part
   // of the story and the purchase drops into the history below.
@@ -34,7 +43,10 @@ export default function CreditWallet({ wallet, profileId }: CreditWalletProps) {
 
   return (
     <div className="space-y-6">
-      <CreditBalanceSummary balances={wallet.balances} />
+      <CreditBalanceSummary
+        balances={wallet.balances}
+        activeHolds={activeHolds}
+      />
 
       <CreditLedgerList
         entries={wallet.entries}

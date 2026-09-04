@@ -33,7 +33,11 @@ export default function CreditPendingPurchaseRow({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1 text-muted-foreground">
-          <CreditAmount amount={topUp.amount} className="text-sm font-medium" />
+          <CreditAmount
+            variant="count"
+            amount={topUp.amount}
+            className="text-sm font-medium"
+          />
           <ChevronRightIcon className="h-4 w-4" />
         </div>
       </Link>
