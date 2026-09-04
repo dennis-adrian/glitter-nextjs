@@ -1,6 +1,7 @@
 import { PackageOpenIcon } from "lucide-react";
 
 import CreditAmount from "@/app/components/credits/credit-amount";
+import CreditHoldRow from "@/app/components/credits/credit-hold-row";
 import CreditPendingPurchaseRow from "@/app/components/credits/credit-pending-purchase-row";
 import {
   Card,
@@ -10,6 +11,7 @@ import {
 } from "@/app/components/ui/card";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import {
+  type ActiveFeatureHold,
   type CreditWalletEntry,
   type CreditWalletTopUp,
 } from "@/app/lib/credits/queries";
@@ -36,14 +38,23 @@ type CreditLedgerListProps = {
    * sit above the history rather than inside it.
    */
   pendingTopUps?: CreditWalletTopUp[];
+  /**
+   * Credits earmarked against an activated feature. They post no entry, so
+   * without them the list cannot account for the balance it sits under.
+   */
+  activeHolds?: ActiveFeatureHold[];
 };
 
 /** The ledger is append-only, so every row here is permanent history. */
 export default function CreditLedgerList({
   entries,
   pendingTopUps = [],
+  activeHolds = [],
 }: CreditLedgerListProps) {
-  const isEmpty = entries.length === 0 && pendingTopUps.length === 0;
+  const isEmpty =
+    entries.length === 0 &&
+    pendingTopUps.length === 0 &&
+    activeHolds.length === 0;
   return (
     <Card>
       <CardHeader>
@@ -62,6 +73,9 @@ export default function CreditLedgerList({
                 key={`top-up-${topUp.id}`}
                 topUp={topUp}
               />
+            ))}
+            {activeHolds.map((hold) => (
+              <CreditHoldRow key={`hold-${hold.featureActionId}`} hold={hold} />
             ))}
             {entries.map((entry) => {
               const detail = entryDetail(entry);

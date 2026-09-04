@@ -60,6 +60,13 @@ function entry(overrides: Partial<CreditWalletEntry> = {}): CreditWalletEntry {
   };
 }
 
+const hold = {
+  featureActionId: 1,
+  festivalId: 619,
+  festivalName: "Glitter ¡Feliz Cumple!",
+  amount: 20,
+};
+
 function wallet(overrides: Partial<CreditWalletData> = {}): CreditWalletData {
   return {
     balances: calculateCreditBalances({
@@ -115,5 +122,22 @@ describe("CreditWallet", () => {
     render(<CreditWallet wallet={wallet()} profileId={42} />);
 
     expect(screen.getByText("Todavía no tenés movimientos")).toBeTruthy();
+  });
+
+  /**
+   * An earmark posts no ledger entry, so without a row here the movements
+   * cannot account for the balance they sit under — the wallet looks like it
+   * lost track of 20 credits.
+   */
+  it("accounts for earmarked credits in the movements", () => {
+    render(
+      <CreditWallet wallet={wallet()} profileId={42} activeHolds={[hold]} />,
+    );
+
+    expect(screen.getByText("Reservado para la mesa completa")).toBeTruthy();
+    expect(screen.getByText("−20 créditos")).toBeTruthy();
+    // Reserved, not charged (PRD §7.3).
+    expect(screen.getByText(/Todavía no se descontaron/)).toBeTruthy();
+    expect(screen.queryByText("Todavía no tenés movimientos")).toBeNull();
   });
 });

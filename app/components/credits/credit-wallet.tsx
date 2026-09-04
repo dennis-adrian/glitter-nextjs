@@ -51,6 +51,7 @@ export default function CreditWallet({
       <CreditLedgerList
         entries={wallet.entries}
         pendingTopUps={pendingTopUps}
+        activeHolds={activeHolds}
       />
 
       {pastTopUps.length > 0 && (
