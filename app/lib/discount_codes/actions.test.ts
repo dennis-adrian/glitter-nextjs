@@ -123,7 +123,7 @@ describe("validateAndApplyDiscountCode lock order", () => {
     });
     vi.mocked(lockFestivalRow).mockImplementation(async () => {
       order.push("festival");
-      return null;
+      return { id: 10 };
     });
     vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
       order.push("terms");

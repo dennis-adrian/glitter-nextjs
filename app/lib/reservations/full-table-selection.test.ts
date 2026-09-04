@@ -19,6 +19,7 @@ function stand(
     standCategory: "illustration",
     participationType: "standard",
     price: 100,
+    sharedPrice: null,
     eligibleSubcategoryIds: [],
     festivalSectorId: 1,
     standGroupId: 7,

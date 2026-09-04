@@ -4,12 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStandPolling } from "@/app/hooks/use-stand-polling";
 import { STAND_STATUS_STALE_AFTER_MS } from "@/app/lib/stands/status-poll";
 
-function jsonResponse(body: unknown, status = 200) {
+function jsonResponse(body: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
-  };
+  } as unknown as Response;
 }
 
 describe("useStandPolling", () => {
@@ -17,9 +17,11 @@ describe("useStandPolling", () => {
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({ stands: [], availableCount: 0, version: 1 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ stands: [], availableCount: 0, version: 1 }),
+        ),
     );
     Object.defineProperty(document, "hidden", {
       configurable: true,
@@ -35,7 +37,7 @@ describe("useStandPolling", () => {
 
   it("applies a successful payload and does not overlap in-flight polls", async () => {
     const onUpdate = vi.fn();
-    let resolveFetch: ((value: unknown) => void) | undefined;
+    let resolveFetch: ((value: Response) => void) | undefined;
     vi.mocked(fetch).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -122,7 +124,7 @@ describe("useStandPolling", () => {
 
   it("clears stale on a successful poll with an unchanged version", async () => {
     const onUpdate = vi.fn();
-    let resolveSecondFetch: ((value: unknown) => void) | undefined;
+    let resolveSecondFetch: ((value: Response) => void) | undefined;
 
     vi.mocked(fetch)
       .mockResolvedValueOnce(
@@ -186,7 +188,7 @@ describe("useStandPolling", () => {
   });
 
   it("aborts the in-flight request on unmount", async () => {
-    let seenSignal: AbortSignal | undefined;
+    let seenSignal: AbortSignal | null | undefined;
     vi.mocked(fetch).mockImplementation((_url, init) => {
       seenSignal = init?.signal;
       return new Promise(() => {});

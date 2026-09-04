@@ -211,6 +211,16 @@ function tableAwareTx(options?: {
   };
 }
 
+/**
+ * The shape `tableAwareTx` hands back for `tx.update`.
+ *
+ * Tests swap in doubles that inspect the table or the payload, which infer
+ * narrower mock generics than the default. Matching those generics exactly
+ * would mean restating every nested builder for no benefit — a double's type
+ * parameters are not what any of these tests are about.
+ */
+type UpdateDouble = ReturnType<typeof tableAwareTx>["update"];
+
 describe("cancelReservation lock ordering", () => {
   beforeEach(() => {
     lockCallOrder.current = [];
@@ -415,7 +425,7 @@ describe("applyReservationCancellation writes without re-locking", () => {
           return Promise.resolve([]);
         }),
       })),
-    }));
+    })) as unknown as UpdateDouble;
 
     await applyReservationCancellation(tx as never, {
       reservation: pendingReservation,
@@ -606,7 +616,7 @@ describe("updateReservationPartner", () => {
         updates.push({ table, payload });
         return { where: vi.fn().mockResolvedValue([]) };
       }),
-    }));
+    })) as unknown as UpdateDouble;
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -659,7 +669,7 @@ describe("updateReservationPartner", () => {
         updates.push({ table, payload });
         return { where: vi.fn().mockResolvedValue([]) };
       }),
-    }));
+    })) as unknown as UpdateDouble;
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -711,7 +721,7 @@ describe("updateReservationPartner", () => {
         updates.push({ table, payload });
         return { where: vi.fn().mockResolvedValue([]) };
       }),
-    }));
+    })) as unknown as UpdateDouble;
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
@@ -832,7 +842,7 @@ describe("extendReservationPaymentDeadline", () => {
         taskUpdateSets.push(payload);
         return { where: vi.fn().mockResolvedValue([]) };
       }),
-    }));
+    })) as unknown as UpdateDouble;
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
     );
