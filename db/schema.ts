@@ -962,7 +962,8 @@ export const standGroups = pgTable(
      * vary by sector, and a table is worth what its own two halves are worth.
      * Null until an admin sets one, which withholds the table from
      * participants — it is not inventory until it has a price. Meaningless
-     * outside `type = 'full_table'`.
+     * outside `type = 'full_table'`, so returning a group to `visual_group`
+     * clears it: re-enabling the feature asks the admin for a price again.
      */
     fullTablePrice: money("full_table_price"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

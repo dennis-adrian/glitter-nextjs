@@ -119,9 +119,8 @@ describeDatabase("setStandGroupFullTable", () => {
       dissolveFullTablePair,
       setFullTablePrice,
     } = await import("@/app/lib/stands/full-table-service"));
-    ({ resolveFullTableCompanion } = await import(
-      "@/app/lib/reservations/full-table-access"
-    ));
+    ({ resolveFullTableCompanion } =
+      await import("@/app/lib/reservations/full-table-access"));
     ({ findMalformedFullTableGroups } =
       await import("@/app/lib/stands/full-table-health"));
     ({ updateStandPrices, guardLegacySinglePriceEdit } =
@@ -175,6 +174,14 @@ describeDatabase("setStandGroupFullTable", () => {
       .from(standGroups)
       .where(eq(standGroups.id, groupId));
     return row?.type;
+  }
+
+  async function fullTablePriceOf(groupId: number) {
+    const [row] = await integrationDb!
+      .select({ price: standGroups.fullTablePrice })
+      .from(standGroups)
+      .where(eq(standGroups.id, groupId));
+    return row?.price;
   }
 
   it("declares a matching illustration pair a full table", async () => {
@@ -291,6 +298,21 @@ describeDatabase("setStandGroupFullTable", () => {
 
     expect(result).toMatchObject({ ok: true, type: "visual_group" });
     expect(await groupType(groupId)).toBe("visual_group");
+  });
+
+  it("clears the price when the table is turned back into a visual group", async () => {
+    const { groupId } = await createPair();
+    await setStandGroupFullTable({ groupId, enabled: true });
+    await setFullTablePrice({ groupId, price: 700 });
+
+    await setStandGroupFullTable({ groupId, enabled: false });
+
+    // `setFullTablePrice` refuses a group that is not a full table, so a
+    // surviving price would be uneditable — and re-enabling would put the
+    // table back on sale at it without anyone confirming the number.
+    expect(await fullTablePriceOf(groupId)).toBeNull();
+    await setStandGroupFullTable({ groupId, enabled: true });
+    expect(await fullTablePriceOf(groupId)).toBeNull();
   });
 
   it("reports a missing group", async () => {
@@ -667,6 +689,60 @@ describeDatabase("setStandGroupFullTable", () => {
         .from(standGroups)
         .where(eq(standGroups.festivalSectorId, sectorId));
       expect(groups).toHaveLength(0);
+    });
+
+    it("refuses a half that already belongs to a declared table", async () => {
+      const { sectorId, standIds } = await loneStands([{}, {}, {}]);
+      const declared = await declareFullTablePair({
+        standIds: [standIds[0], standIds[1]],
+      });
+      if (!declared.ok) throw new Error("expected the first pair to declare");
+      createdGroupIds.push(declared.groupId);
+
+      // Re-pairing a declared half would leave its table with one member — a
+      // `full_table` group no rule can satisfy.
+      const result = await declareFullTablePair({
+        standIds: [standIds[1], standIds[2]],
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe("ALREADY_FULL_TABLE");
+      expect(result.problems[0].message).toContain("B2");
+      expect(result.problems[0].message).toMatch(/mesa completa/i);
+
+      // The first table is untouched and no second group was made.
+      expect(await groupType(declared.groupId)).toBe("full_table");
+      expect(await trackGroupOf(standIds[0])).toBe(declared.groupId);
+      expect(await trackGroupOf(standIds[1])).toBe(declared.groupId);
+      expect(await trackGroupOf(standIds[2])).toBeNull();
+      const groups = await integrationDb!
+        .select({ id: standGroups.id })
+        .from(standGroups)
+        .where(eq(standGroups.festivalSectorId, sectorId));
+      expect(groups).toHaveLength(1);
+    });
+
+    it("still re-parents a half that is only in a visual group", async () => {
+      const { sectorId, standIds } = await loneStands([{}, {}, {}]);
+      const [visual] = await integrationDb!
+        .insert(standGroups)
+        .values({ festivalSectorId: sectorId, type: "visual_group" })
+        .returning({ id: standGroups.id });
+      createdGroupIds.push(visual!.id);
+      await integrationDb!
+        .update(stands)
+        .set({ standGroupId: visual!.id })
+        .where(inArray(stands.id, [standIds[1], standIds[2]]));
+
+      const result = await declareFullTablePair({
+        standIds: [standIds[0], standIds[1]],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      createdGroupIds.push(result.groupId);
+      expect(await trackGroupOf(standIds[1])).toBe(result.groupId);
     });
 
     it("refuses anything other than exactly two stands", async () => {

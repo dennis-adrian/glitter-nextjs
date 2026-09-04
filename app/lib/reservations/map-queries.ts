@@ -565,6 +565,7 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       festivalId: true,
       individualPriceSnapshot: true,
       sharedPriceSnapshot: true,
+      fullTablePriceSnapshot: true,
     },
   });
   if (!hold || hold.expiresAt <= now) return null;
@@ -712,11 +713,18 @@ export async function fetchFestivalReservationConfirmationDto(input: {
       standCategory: stand.standCategory,
       // The hold already snapshotted the prices this participant will be
       // billed; the stand columns are only a fallback for holds taken before
-      // snapshots existed.
-      price: hold.individualPriceSnapshot ?? stand.individualPrice,
+      // snapshots existed. A whole table is billed at the table's own price,
+      // replacing its halves', so that is what the screen has to quote.
+      price:
+        isFullTable && hold.fullTablePriceSnapshot != null
+          ? hold.fullTablePriceSnapshot
+          : (hold.individualPriceSnapshot ?? stand.individualPrice),
       // Confirmation bills the shared price once a partner is added, so the
-      // screen has to be able to show that instead.
-      sharedPrice: hold.sharedPriceSnapshot ?? stand.sharedPrice,
+      // screen has to be able to show that instead — except on a full table,
+      // where adding a partner does not change what the table costs.
+      sharedPrice: isFullTable
+        ? null
+        : (hold.sharedPriceSnapshot ?? stand.sharedPrice),
     },
     sector: {
       id: sector.id,

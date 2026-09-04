@@ -95,6 +95,7 @@ let deactivateFullTableAccess: (typeof import("@/app/lib/reservations/full-table
 let downgradeFullTableReservation: (typeof import("@/app/lib/reservations/full-table-service"))["downgradeFullTableReservation"];
 let cancelReservation: (typeof import("@/app/lib/reservations/admin-service"))["cancelReservation"];
 let fetchFullTableOffer: (typeof import("@/app/lib/reservations/full-table-queries"))["fetchFullTableOffer"];
+let fetchFestivalReservationConfirmationDto: (typeof import("@/app/lib/reservations/map-queries"))["fetchFestivalReservationConfirmationDto"];
 let publishedTermsVersionId: number;
 
 const ACCESS_PRICE = 50;
@@ -126,6 +127,8 @@ describeDatabase("full table", () => {
       await import("@/app/lib/reservations/admin-service"));
     ({ fetchFullTableOffer } =
       await import("@/app/lib/reservations/full-table-queries"));
+    ({ fetchFestivalReservationConfirmationDto } =
+      await import("@/app/lib/reservations/map-queries"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -695,6 +698,81 @@ describeDatabase("full table", () => {
       .from(reservationFeatureActions)
       .where(eq(reservationFeatureActions.festivalId, festival.id));
     expect(action).toEqual([{ status: "fulfilled", reservationId }]);
+  });
+
+  /**
+   * The summary screen has to quote what confirmation will bill. A table is a
+   * priced product in its own right, so quoting either half's price would
+   * understate it — and a partner does not move a table's price, so the shared
+   * price has nothing to say here.
+   */
+  it("quotes the table's own price on the confirmation screen", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held).toMatchObject({ success: true, data: { isFullTable: true } });
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: owner.id,
+      holdId: hold.id,
+    });
+
+    expect(confirmation?.fullTable.isFullTable).toBe(true);
+    expect(confirmation?.stand).toMatchObject({
+      price: FULL_TABLE_PRICE,
+      sharedPrice: null,
+    });
+  });
+
+  it("quotes both half-table prices when the hold covers one stand", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held).toMatchObject({ success: true, data: { isFullTable: false } });
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: owner.id,
+      holdId: hold.id,
+    });
+
+    expect(confirmation?.fullTable.isFullTable).toBe(false);
+    expect(confirmation?.stand).toMatchObject({
+      price: STAND_PRICE,
+      sharedPrice: SHARED_PRICE,
+    });
   });
 
   it("falls back to the selected half and frees the credits when the companion is gone", async () => {

@@ -11,6 +11,7 @@ import {
   loadStandsAsPairMembers,
 } from "@/app/lib/stands/full-table-health";
 import { pruneEmptyGroups } from "@/app/lib/stands/group-service";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { resolveJointAxis } from "@/app/lib/stands/groups";
 import { lockStandRows } from "@/app/lib/reservations/locks";
 import { OCCUPYING_RESERVATION_STATUSES } from "@/app/lib/reservations/members";
@@ -126,7 +127,15 @@ export async function setStandGroupFullTable(input: {
     const type = input.enabled ? "full_table" : "visual_group";
     await tx
       .update(standGroups)
-      .set({ type, updatedAt: new Date() })
+      .set({
+        type,
+        // Turning the feature off clears the price: `setFullTablePrice`
+        // refuses a group that is not a full table, so a price left behind
+        // here is one no admin can see or edit, and re-enabling would put the
+        // table straight back on sale at a number nobody re-confirmed.
+        ...(input.enabled ? {} : { fullTablePrice: null }),
+        updatedAt: new Date(),
+      })
       .where(eq(standGroups.id, input.groupId));
 
     return { ok: true, groupId: input.groupId, type };
@@ -140,6 +149,7 @@ export type DeclareFullTablePairResult =
       code:
         | "STANDS_NOT_FOUND"
         | "DUPLICATE_STANDS"
+        | "ALREADY_FULL_TABLE"
         | "NO_SECTOR"
         | "NOT_ALIGNED"
         | "OCCUPIED"
@@ -189,6 +199,8 @@ export async function declareFullTablePair(input: {
     const placement = await tx
       .select({
         id: stands.id,
+        label: stands.label,
+        standNumber: stands.standNumber,
         festivalSectorId: stands.festivalSectorId,
         positionLeft: stands.positionLeft,
         positionTop: stands.positionTop,
@@ -200,6 +212,47 @@ export async function declareFullTablePair(input: {
       return pairRefusal("STANDS_NOT_FOUND", {
         code: "MEMBER_COUNT",
         message: "No se encontraron ambos espacios.",
+      });
+    }
+
+    const previousGroupIds = [
+      ...new Set(
+        placement
+          .map((row) => row.standGroupId)
+          .filter((id): id is number => id != null),
+      ),
+    ];
+
+    // A half already spoken for cannot be re-paired. Re-parenting it would
+    // leave the table it came from with a single member — a `full_table` group
+    // no rule can satisfy — so the second table has to be refused rather than
+    // silently dismantle the first. `StandBulkActionsMenu` greys the action out
+    // for the same reason; this is the rule itself.
+    const declaredGroupIds = new Set(
+      previousGroupIds.length === 0
+        ? []
+        : (
+            await tx
+              .select({ id: standGroups.id })
+              .from(standGroups)
+              .where(
+                and(
+                  inArray(standGroups.id, previousGroupIds),
+                  eq(standGroups.type, "full_table"),
+                ),
+              )
+          ).map((row) => row.id),
+    );
+    const alreadyPaired = placement.filter(
+      (row) =>
+        row.standGroupId != null && declaredGroupIds.has(row.standGroupId),
+    );
+    if (alreadyPaired.length > 0) {
+      return pairRefusal("ALREADY_FULL_TABLE", {
+        code: "MEMBER_COUNT",
+        message: `${alreadyPaired.map(formatStandLabel).join(" y ")} ya ${
+          alreadyPaired.length === 1 ? "es mitad" : "son mitades"
+        } de una mesa completa; separá esa mesa antes de declarar otra.`,
       });
     }
 
@@ -240,14 +293,6 @@ export async function declareFullTablePair(input: {
           "Los espacios no están alineados en una misma fila o columna del plano. Acomodalos en el editor de mapa y volvé.",
       });
     }
-
-    const previousGroupIds = [
-      ...new Set(
-        placement
-          .map((row) => row.standGroupId)
-          .filter((id): id is number => id != null),
-      ),
-    ];
 
     const [group] = await tx
       .insert(standGroups)

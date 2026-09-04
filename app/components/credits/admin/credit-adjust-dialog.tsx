@@ -48,6 +48,11 @@ export default function CreditAdjustDialog({
   const [isPending, startTransition] = useTransition();
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  // Minted once per attempt rather than per call, so a double submit of the
+  // same adjustment lands as one ledger entry instead of two.
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    crypto.randomUUID(),
+  );
 
   const parsedAmount = Number(amount);
   // Mirrors adjustCreditAccountSchema, including its two-decimal precision:
@@ -72,19 +77,22 @@ export default function CreditAdjustDialog({
           userId,
           amount: roundCredits(parsedAmount) * direction,
           reason: reason.trim(),
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey,
         });
         if (!result.success) {
           toast.error(result.message);
+          setIdempotencyKey(crypto.randomUUID());
           return;
         }
         toast.success(result.message);
+        setIdempotencyKey(crypto.randomUUID());
         reset();
         onOpenChange(false);
         router.refresh();
       } catch (error) {
         console.error("Error adjusting credit account", error);
         toast.error("No se pudo ajustar el saldo. Intentá nuevamente.");
+        setIdempotencyKey(crypto.randomUUID());
       }
     });
   }

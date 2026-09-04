@@ -195,7 +195,9 @@ export async function declareFullTablePairAction(
         message:
           result.code === "OCCUPIED"
             ? "No se puede declarar: hay una reserva vigente en estos espacios."
-            : "Estos espacios no forman una mesa completa válida.",
+            : result.code === "ALREADY_FULL_TABLE"
+              ? "Alguno de los espacios ya es mitad de una mesa completa."
+              : "Estos espacios no forman una mesa completa válida.",
         problems: result.problems.map((problem) => problem.message),
       };
     }
