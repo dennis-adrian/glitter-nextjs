@@ -28,11 +28,13 @@ type CreditBalanceSummaryProps = {
  * account in debt for an admin to resolve — the money is recovered afterwards
  * rather than withheld beforehand.
  *
- * Reserved and owed look identical in a raw spendable balance and are not the
- * same thing at all: reserved credits are still the participant's and they can
- * take them back, while a debt is money that has to be settled. Showing the
- * raw figure told someone holding an unused reservation that they were 20
- * credits in the red.
+ * Three states look identical in a raw spendable balance and are not the same
+ * thing at all: credits reserved against a feature are still the
+ * participant's and come back on release; a reservation whose credits were
+ * reversed owes nothing yet but returns nothing either, and only turns into a
+ * debt if it is used; a negative ledger is money that has to be settled.
+ * Showing the raw figure told someone holding an unused reservation they were
+ * 20 credits in the red.
  */
 export default function CreditBalanceSummary({
   balances,
@@ -42,6 +44,17 @@ export default function CreditBalanceSummary({
   // Floored: what is reserved is subtracted below and explained on its own.
   // Only a negative ledger is a debt, and it has its own alert.
   const available = Math.max(0, balances.spendableBalance);
+
+  // A reservation outlives the credits that paid for it when the voucher
+  // behind them is rejected: the ledger goes back to zero while the hold
+  // stays. Nothing is owed yet — a hold posts no entry, only its capture
+  // does — but the two states cannot share copy. Releasing a backed hold
+  // gives the credits back; releasing this one gives nothing back, and using
+  // it is what would create the debt.
+  const unbackedHolds = Math.max(
+    0,
+    balances.activeHolds - Math.max(0, balances.ledgerBalance),
+  );
 
   return (
     <Card>
@@ -97,17 +110,38 @@ export default function CreditBalanceSummary({
             outside the festival's map that says so or lets them take them
             back. */}
         {activeHolds.length > 0 && (
-          <div className="space-y-3 rounded-md bg-muted p-3 text-sm">
-            <p className="text-muted-foreground">
-              Tenés {formatCreditCount(balances.activeHolds)} reservados porque
-              activaste la mesa completa. Siguen siendo tuyos: si ya no la
-              querés, liberalos y volvés a tenerlos disponibles.
+          <div
+            className={
+              unbackedHolds > 0
+                ? "space-y-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900"
+                : "space-y-3 rounded-md bg-muted p-3 text-sm"
+            }
+          >
+            <p className={unbackedHolds > 0 ? "" : "text-muted-foreground"}>
+              {unbackedHolds > 0 ? (
+                <>
+                  Activaste la mesa completa con créditos que después no pudimos
+                  confirmar. Todavía no debés nada. Si liberás la activación no
+                  vas a deber nada; si la usás para reservar, vas a quedar
+                  debiendo {formatCreditCount(unbackedHolds)}.
+                </>
+              ) : (
+                <>
+                  Tenés {formatCreditCount(balances.activeHolds)} reservados
+                  porque activaste la mesa completa. Siguen siendo tuyos: si ya
+                  no la querés, liberalos y volvés a tenerlos disponibles.
+                </>
+              )}
             </p>
             {activeHolds.map((hold) => (
               <ReleaseFeatureCreditsButton
                 key={hold.featureActionId}
                 festivalId={hold.festivalId}
-                label={`Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`}
+                label={
+                  unbackedHolds > 0
+                    ? `Liberar la mesa completa de ${hold.festivalName}`
+                    : `Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`
+                }
               />
             ))}
           </div>

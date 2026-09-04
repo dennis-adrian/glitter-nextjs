@@ -76,6 +76,19 @@ describe("CreditBalanceSummary", () => {
     expect(screen.queryByText("Tenés un saldo pendiente")).toBeNull();
   });
 
+  /**
+   * Releasing this hold returns nothing — the credits behind it were reversed
+   * — and using it is what would create the debt. Promising the credits back
+   * would be the same lie the raw balance told, in the other direction.
+   */
+  it("does not promise credits back from a reservation that lost them", () => {
+    renderSummary({ ledgerBalance: 0, activeHolds: 20 }, [hold]);
+
+    expect(screen.getByText(/Todavía no debés nada/)).toBeTruthy();
+    expect(screen.getByText(/vas a quedar debiendo 20 créditos/)).toBeTruthy();
+    expect(screen.queryByText(/volvés a tenerlos disponibles/)).toBeNull();
+  });
+
   it("offers to hand reserved credits back", () => {
     renderSummary({ ledgerBalance: 20, activeHolds: 20 }, [hold]);
 
@@ -84,6 +97,7 @@ describe("CreditBalanceSummary", () => {
         name: /Liberar 20 créditos de Glitter/,
       }),
     ).toBeTruthy();
+    expect(screen.getByText(/volvés a tenerlos disponibles/)).toBeTruthy();
   });
 
   it("says nothing about releasing when nothing is reserved", () => {
