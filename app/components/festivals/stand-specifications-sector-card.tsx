@@ -67,15 +67,19 @@ export default function StandSpecificationsSectorCard({
   // way out; both real prices live in their own columns. Illustration is the
   // only category that sells a shared price, and it is the total for the whole
   // reservation — owner plus partner — not a price per person.
+  //
+  // A `new_artist` profile takes illustration inventory, so the lookup has to
+  // read the mapped category: a sector stocks illustration stands, never
+  // `new_artist` ones, and the raw category finds nothing to price.
   const pricedStand = sector.stands.find(
-    (stand) => stand.standCategory === category,
+    (stand) => stand.standCategory === effectiveCategory,
   );
   const individualPrice = pricedStand?.individualPrice ?? 0;
   const sharedPrice =
     category === "illustration" ? (pricedStand?.sharedPrice ?? null) : null;
 
   const standCount = sector.stands.filter(
-    (stand) => stand.standCategory === category,
+    (stand) => stand.standCategory === effectiveCategory,
   ).length;
 
   let sectorSpecifications = "";

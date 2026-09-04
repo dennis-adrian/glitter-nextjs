@@ -100,4 +100,19 @@ describe("StandSpecificationsSectorCard", () => {
 
     expect(screen.queryByText("Espacio compartido")).toBeNull();
   });
+
+  /**
+   * `new_artist` is a deprecated alias for illustration: a sector stocks
+   * illustration stands, never `new_artist` ones, so a card that looked the
+   * raw category up found nothing to sell and offered Bs. 0 and no espacios.
+   */
+  it("prices a new_artist card off the illustration stands", () => {
+    renderCard({ standCategory: "illustration" }, "new_artist");
+
+    expect(screen.getByText("Bs. 350")).toBeTruthy();
+    expect(screen.queryByText("Bs. 0")).toBeNull();
+
+    const heading = screen.getByRole("heading", { name: /Lobby/ });
+    expect(heading.parentElement!.textContent).toContain("1 espacio");
+  });
 });
