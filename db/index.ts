@@ -57,6 +57,26 @@ function poolMax(): number {
     : DEFAULT_POOL_MAX;
 }
 
+/**
+ * Bounds only the wait for a pooled connection, not the work that follows, so
+ * it stacks with the transaction underneath it. `vercel.json` caps a function
+ * at 100s, and a request still has to take its locks and run its statements
+ * after checking a connection out; matching 100s here would let a request burn
+ * the whole budget queueing and be killed the moment it finally acquires one.
+ * 75s leaves room for the reservation write once the queue lets it through.
+ */
+const CONNECTION_TIMEOUT_MS = 75_000;
+
+/**
+ * A killed serverless function can leave its backend parked inside an open
+ * transaction, still holding the reservation locks, until the socket is
+ * reaped. Postgres ends such a session itself at this bound. No transaction
+ * here does network I/O — notifications go through the outbox, which only
+ * inserts job rows inside `tx` and sends afterwards — so the only gaps between
+ * statements are local work, and 30s is far past any honest one.
+ */
+const IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000;
+
 export const pool =
   globalForPool.__glitterPgPool ??
   (globalForPool.__glitterPgPool = new Pool({
@@ -65,8 +85,8 @@ export const pool =
     // Frozen serverless instances never run the reaper, but a shorter idle
     // window still returns connections between bursts on a warm instance.
     idleTimeoutMillis: 10_000,
-    // Fail the request instead of queueing behind an exhausted server.
-    connectionTimeoutMillis: 10_000,
+    connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+    options: `-c idle_in_transaction_session_timeout=${IDLE_IN_TRANSACTION_TIMEOUT_MS}`,
   }));
 
 export const db = drizzle(pool, { schema, logger: redactingLogger });
