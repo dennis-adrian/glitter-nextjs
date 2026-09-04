@@ -100,15 +100,22 @@ export default async function CreditsIntroduction({
                   : `Tenés ${formatCredits(offer.spendableBalance)}, así que ya te alcanza.`}
             </p>*/}
 
-            {/* A condition of the purchase, not an explanation of the product:
+            <div className="space-y-3">
+              {/* A condition of the purchase, not an explanation of the product:
                 it stays in front of anyone about to spend (PRD §7.3). */}
-            <p className="text-sm text-muted-foreground">
-              Cargar créditos te dará la opción de reservar una mesa completa
-              que corresponde a dos espacios con un total de 240 × 60 cm. Para
-              reservar una mesa completa tiene que haber disponibilidad. Si no
-              lográs reservar una, igual podrás guardar tus créditos o usarlos
-              para tu reserva.
-            </p>
+              <p className="text-sm text-muted-foreground">
+                Cargar créditos te dará la opción de reservar una mesa completa
+                que corresponde a dos espacios con un total de 240 × 60 cm. Para
+                reservar una mesa completa tiene que haber disponibilidad. Si no
+                lográs reservar una, igual podrás guardar tus créditos o usarlos
+                para tu reserva.
+              </p>
+
+              <p className="text-sm text-muted-foreground">
+                El precio de la mesa completa puede variar según el sector pero
+                en general será equivalente al precio de dos stands.
+              </p>
+            </div>
 
             {/* This screen exists to settle the money question before the map, so
             it has to be answerable here. Explaining the price and sending the
