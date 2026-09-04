@@ -115,4 +115,36 @@ describe("StandSpecificationsSectorCard", () => {
     const heading = screen.getByRole("heading", { name: /Lobby/ });
     expect(heading.parentElement!.textContent).toContain("1 espacio");
   });
+
+  /**
+   * A `new_artist` may take a partner exactly as an illustrator can, so the
+   * card owes it the second rate. Quoting only the individual price sent it
+   * into a reservation flow that then offered a partner it had never been
+   * priced for.
+   */
+  it("offers a new_artist both rates, not just the individual one", () => {
+    renderCard({ standCategory: "illustration" }, "new_artist");
+
+    expect(screen.getByText("Precios")).toBeTruthy();
+    expect(screen.getByText("Espacio compartido")).toBeTruthy();
+    expect(screen.getByText("Bs. 380")).toBeTruthy();
+  });
+
+  it("tells a new_artist the space can be shared", () => {
+    renderCard({ standCategory: "illustration" }, "new_artist");
+
+    expect(
+      screen.getByText(/Puede compartir espacio con otro ilustrador/),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(/No puede compartir espacio con otro expositor/),
+    ).toBeNull();
+  });
+
+  it("gives a new_artist the illustration credentials", () => {
+    renderCard({ standCategory: "illustration" }, "new_artist");
+
+    expect(screen.getByText("1 credencial por participante")).toBeTruthy();
+    expect(screen.queryByText("1 credencial para expositor")).toBeNull();
+  });
 });

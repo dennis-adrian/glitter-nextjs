@@ -65,36 +65,41 @@ export default function StandSpecificationsSectorCard({
 
   // `stands.price` is the legacy mirror of the individual price and is on its
   // way out; both real prices live in their own columns. Illustration is the
-  // only category that sells a shared price, and it is the total for the whole
+  // only inventory that sells a shared price, and it is the total for the whole
   // reservation — owner plus partner — not a price per person.
   //
-  // A `new_artist` profile takes illustration inventory, so the lookup has to
-  // read the mapped category: a sector stocks illustration stands, never
-  // `new_artist` ones, and the raw category finds nothing to price.
+  // A `new_artist` profile takes illustration inventory, so every category
+  // branch below reads the mapped category: a sector stocks illustration
+  // stands, never `new_artist` ones, and the raw category finds nothing to
+  // price. `new_artist` may also take a partner (see
+  // `evaluatePartnerSearchDenial`), so it has to be quoted the shared rate and
+  // told the space is shareable — the raw category sold it neither.
   const pricedStand = sector.stands.find(
     (stand) => stand.standCategory === effectiveCategory,
   );
   const individualPrice = pricedStand?.individualPrice ?? 0;
   const sharedPrice =
-    category === "illustration" ? (pricedStand?.sharedPrice ?? null) : null;
+    effectiveCategory === "illustration"
+      ? (pricedStand?.sharedPrice ?? null)
+      : null;
 
   const standCount = sector.stands.filter(
     (stand) => stand.standCategory === effectiveCategory,
   ).length;
 
   let sectorSpecifications = "";
-  if (category === "gastronomy") {
+  if (effectiveCategory === "gastronomy") {
     sectorSpecifications =
       "140cm x 70cm (2 mesas de 70cm x 70cm). Área final. No puede compartir espacio.";
   } else if (
-    category === "entrepreneurship" &&
+    effectiveCategory === "entrepreneurship" &&
     sector.name.toLowerCase().includes("balliv")
   ) {
     sectorSpecifications =
       "140cm x 70cm (dos mesas de 70cm x 70cm). Sector habilitado para emprendimientos cuyo negocio interactúa con el público con actividades.";
   } else {
     sectorSpecifications = "60cm x 120cm (media mesa).";
-    if (category === "illustration") {
+    if (effectiveCategory === "illustration") {
       sectorSpecifications += " Puede compartir espacio con otro ilustrador";
     } else {
       sectorSpecifications += " No puede compartir espacio con otro expositor";
@@ -120,7 +125,7 @@ export default function StandSpecificationsSectorCard({
   }
 
   // Adding services based on the category
-  if (category === "illustration") {
+  if (effectiveCategory === "illustration") {
     servicesIncluded.push(
       "1 pin de regalo por participante (acompañantes no incluidos)",
     );
@@ -128,7 +133,7 @@ export default function StandSpecificationsSectorCard({
     servicesIncluded.push(
       "1 credencial para acompañante en caso de no compartir espacio con otro ilustrador",
     );
-  } else if (category === "gastronomy") {
+  } else if (effectiveCategory === "gastronomy") {
     servicesIncluded.push("1 pin de regalo");
     servicesIncluded.push("2 credenciales con el nombre del expositor");
   } else {
@@ -139,7 +144,7 @@ export default function StandSpecificationsSectorCard({
   // All categories have these services
   servicesIncluded.push("2 sillas");
   servicesIncluded.push(
-    `${category === "gastronomy" ? "Mesas incluidas" : "Mesa incluida"}`,
+    `${effectiveCategory === "gastronomy" ? "Mesas incluidas" : "Mesa incluida"}`,
   );
 
   return (
@@ -156,7 +161,7 @@ export default function StandSpecificationsSectorCard({
           <div className="bg-primary p-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <h3 className="font-semibold text-lg text-primary-foreground">
               {sector.name}
-              {category === "entrepreneurship" &&
+              {effectiveCategory === "entrepreneurship" &&
                 sector.name.toLowerCase().includes("balliv") &&
                 " (Activaciones)"}
             </h3>
