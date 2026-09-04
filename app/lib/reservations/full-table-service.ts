@@ -520,21 +520,16 @@ export async function downgradeFullTableReservation(input: {
     const keptStandId = memberStandIds[0];
     const releasedStandId = memberStandIds[1];
 
-    const didRelease = await releaseReservationMember(tx, {
-      reservationId: reservation.id,
-      standId: releasedStandId,
-    });
-    if (!didRelease) {
-      await abandonRequest(tx, input.idempotencyKey);
-      return reservationFailure("CONFLICT_RETRY");
-    }
-
-    await releaseStandIfVacant(tx, releasedStandId);
-
     // The reservation was billed for a whole table, and it no longer is one.
     // Leaving the invoice alone would charge the participant a table's price
     // for one half — under the old model the invoice already was a single
     // stand's price, so downgrading really did leave the money alone.
+    //
+    // Priced and vetted before anything is released, under the invoice's own
+    // lock: a refusal returns rather than throws, so the transaction commits
+    // whatever came before it. Releasing first would free the companion stand
+    // and then report the downgrade as refused.
+    let repricing: { halfPrice: number; invoiceId: number | null } | null = null;
     if (reservation.fullTablePriceSnapshot != null) {
       const halfPrice =
         reservation.bookedParticipantCount > 1 &&
@@ -543,7 +538,7 @@ export async function downgradeFullTableReservation(input: {
           : Number(reservation.individualPriceSnapshot ?? 0);
 
       const [invoice] = await tx
-        .select({ id: invoices.id, amount: invoices.amount })
+        .select({ id: invoices.id })
         .from(invoices)
         .where(eq(invoices.reservationId, reservation.id))
         .limit(1)
@@ -566,21 +561,38 @@ export async function downgradeFullTableReservation(input: {
           await abandonRequest(tx, input.idempotencyKey);
           return reservationFailure("FULL_TABLE_NOT_DOWNGRADABLE");
         }
+      }
 
+      repricing = { halfPrice, invoiceId: invoice?.id ?? null };
+    }
+
+    const didRelease = await releaseReservationMember(tx, {
+      reservationId: reservation.id,
+      standId: releasedStandId,
+    });
+    if (!didRelease) {
+      await abandonRequest(tx, input.idempotencyKey);
+      return reservationFailure("CONFLICT_RETRY");
+    }
+
+    await releaseStandIfVacant(tx, releasedStandId);
+
+    if (repricing) {
+      if (repricing.invoiceId != null) {
         await tx
           .update(invoices)
           .set({
-            amount: halfPrice,
-            originalAmount: halfPrice,
+            amount: repricing.halfPrice,
+            originalAmount: repricing.halfPrice,
             updatedAt: new Date(),
           })
-          .where(eq(invoices.id, invoice.id));
+          .where(eq(invoices.id, repricing.invoiceId));
       }
 
       await tx
         .update(standReservations)
         .set({
-          priceAmountSnapshot: halfPrice,
+          priceAmountSnapshot: repricing.halfPrice,
           fullTablePriceSnapshot: null,
           updatedAt: new Date(),
         })

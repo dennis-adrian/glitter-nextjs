@@ -27,6 +27,7 @@ import {
   festivalTermsVersions,
   festivals,
   invoices,
+  payments,
   reservationFeatureActions,
   reservationParticipants,
   reservationRequestRegistry,
@@ -1140,6 +1141,76 @@ describeDatabase("full table", () => {
       .from(standReservationStands)
       .where(eq(standReservationStands.reservationId, reservationId));
     expect(allMembers).toHaveLength(2);
+  });
+
+  it("leaves both halves attached when the table's invoice was already paid", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    const [invoice] = await integrationDb!
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    await integrationDb!.insert(payments).values({
+      invoiceId: invoice.id,
+      amount: FULL_TABLE_PRICE,
+      date: new Date(),
+      voucherUrl: "https://example.test/voucher.png",
+    });
+
+    currentProfileMock.mockResolvedValue({
+      id: owner.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    const result = await downgradeFullTableReservation({
+      reservationId,
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "FULL_TABLE_NOT_DOWNGRADABLE",
+    });
+
+    // A refusal returns rather than throws, so the transaction commits either
+    // way. The companion has to still be the reservation's, and still taken.
+    expect(await memberStandIds(reservationId)).toEqual(standIds);
+    const after = await integrationDb!
+      .select({ id: stands.id, status: stands.status })
+      .from(stands)
+      .where(inArray(stands.id, standIds));
+    expect(after.map((row) => row.status)).toEqual(["reserved", "reserved"]);
+
+    const invoiceRows = await integrationDb!
+      .select({ amount: invoices.amount })
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    expect(invoiceRows).toEqual([{ amount: FULL_TABLE_PRICE }]);
   });
 
   it("refuses to downgrade a reservation that is only half a table", async () => {
