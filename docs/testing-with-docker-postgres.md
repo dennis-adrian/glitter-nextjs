@@ -45,21 +45,38 @@ POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitt
 
 `pnpm dev` reads `POSTGRES_URL`, and unlike the test commands it does not
 derive one — left unset it resolves from `.env.local`, whose target varies and
-has been Railway. Pass it explicitly every time, in the same shell:
+has been Railway. Pass it explicitly every time, in the same shell.
+
+Tag the connection with an `application_name` so this server can be told apart
+from every other client of the same database — another worktree's dev server,
+`pnpm seed`, drizzle-kit, a stray `psql`. The tag rides in the URL, and
+`node-postgres` sends it in the startup packet:
 
 ```bash
-POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitter_test" pnpm dev
+POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitter_test?application_name=glitter-dev-${GLITTER_TEST_DB_PORT}" pnpm dev
 ```
 
-To confirm which database the running server actually attached to, rather than
-assuming:
+First resolve and report the target the server was handed, rather than assuming
+it:
 
 ```bash
-docker exec "glitter-test-${GLITTER_TEST_DB_PORT}-postgres-1" psql -U glitter -d glitter_test -c "SELECT count(*) FROM pg_stat_activity WHERE datname='glitter_test' AND application_name <> 'psql';"
+POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitter_test?application_name=glitter-dev-${GLITTER_TEST_DB_PORT}" \
+  node -e 'const u = new URL(process.env.POSTGRES_URL); console.log(`${u.hostname}:${u.port}${u.pathname}`)'
+```
+
+Then confirm the running server actually attached there, by looking for that
+exact tag rather than counting every non-`psql` session:
+
+```bash
+docker exec "glitter-test-${GLITTER_TEST_DB_PORT}-postgres-1" psql -U glitter -d glitter_test -tAc "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND application_name = 'glitter-dev-${GLITTER_TEST_DB_PORT}';"
 ```
 
 A non-zero count while the server is serving means the override took. Zero means
-it did not, and the server is talking to whatever `.env.local` names.
+it did not, and the server is talking to whatever `.env.local` names — a count
+that only proves *some* client is connected proves nothing about this one.
+
+Never report schema state — which tables exist, which migrations ran — without
+naming the host, port, and database you read it from, resolved as above.
 
 Sign in with any seeded `+clerk_test` address and `SEED_DEMO_PASSWORD` (or the
 default in `scripts/seed/demo-users.ts`): `admin+clerk_test@example.com`,
