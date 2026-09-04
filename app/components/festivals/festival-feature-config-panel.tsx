@@ -3,7 +3,7 @@ import Link from "next/link";
 import FestivalFeatureConfigRow from "@/app/components/festivals/festival-feature-config-row";
 import { isFeatureLaunched } from "@/app/lib/feature_flags/helpers";
 import { fetchFestivalFeatureScopes } from "@/app/lib/festivals/feature-config-service";
-import { countDeclaredFullTablesByCategory } from "@/app/lib/stands/full-table-queries";
+import { fetchFullTableReadinessByCategory } from "@/app/lib/stands/full-table-queries";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -20,11 +20,11 @@ type FestivalFeatureConfigPanelProps = {
 export default async function FestivalFeatureConfigPanel({
   festivalId,
 }: FestivalFeatureConfigPanelProps) {
-  const [actor, scopes, creditsRevealed, declaredTables] = await Promise.all([
+  const [actor, scopes, creditsRevealed, readiness] = await Promise.all([
     getCurrentUserProfile(),
     fetchFestivalFeatureScopes(festivalId),
     isFeatureLaunched("credits"),
-    countDeclaredFullTablesByCategory(festivalId),
+    fetchFullTableReadinessByCategory(festivalId),
   ]);
   const canEdit = canMutateAdminReservations(actor);
 
@@ -66,9 +66,8 @@ export default async function FestivalFeatureConfigPanel({
             festivalId={festivalId}
             scope={scope}
             canEdit={canEdit}
-            declaredTables={
-              scope.category ? declaredTables[scope.category] : null
-            }
+            readiness={scope.category ? readiness[scope.category] : null}
+            creditsLaunched={creditsRevealed}
           />
         ))}
       </div>

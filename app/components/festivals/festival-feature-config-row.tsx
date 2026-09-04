@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import FullTableReadinessList from "@/app/components/festivals/full-table-readiness";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -16,6 +17,7 @@ import {
 } from "@/app/lib/festivals/feature-config";
 import { upsertFestivalFeatureConfigAction } from "@/app/lib/festivals/feature-config-actions";
 import type { FestivalFeatureScope } from "@/app/lib/festivals/feature-config-service";
+import type { FullTableReadiness } from "@/app/lib/stands/full-table-queries";
 
 const TYPE_LABELS: Record<string, string> = {
   full_table: "Mesa completa",
@@ -40,18 +42,22 @@ type FestivalFeatureConfigRowProps = {
   scope: FestivalFeatureScope;
   canEdit: boolean;
   /**
-   * Full tables declared for this scope's category, or null where the feature
-   * has no inventory of its own. Enabling and pricing is not enough to make an
-   * offer appear, and without this the shortfall is invisible from here.
+   * What this scope's category still needs before participants are offered a
+   * table, or null where the feature has no inventory of its own. Enabling and
+   * pricing is not enough to make an offer appear, and every remaining gate is
+   * silent from the participant's side.
    */
-  declaredTables: number | null;
+  readiness: FullTableReadiness | null;
+  /** Whether the `credits` flag is public. Global, not per category. */
+  creditsLaunched: boolean;
 };
 
 export default function FestivalFeatureConfigRow({
   festivalId,
   scope,
   canEdit,
-  declaredTables,
+  readiness,
+  creditsLaunched,
 }: FestivalFeatureConfigRowProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -128,20 +134,12 @@ export default function FestivalFeatureConfigRow({
         </p>
       )}
 
-      {implemented && declaredTables === 0 && scope.config?.enabled && (
-        <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
-          No hay ninguna mesa completa declarada en esta categoría, así que no
-          se le ofrece a nadie. Declarala desde la gestión de espacios,
-          seleccionando las dos mitades.
-        </p>
-      )}
-
-      {implemented && declaredTables != null && declaredTables > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {declaredTables} mesa{declaredTables === 1 ? "" : "s"} completa
-          {declaredTables === 1 ? "" : "s"} declarada
-          {declaredTables === 1 ? "" : "s"} en esta categoría.
-        </p>
+      {implemented && readiness && (
+        <FullTableReadinessList
+          readiness={readiness}
+          creditsLaunched={creditsLaunched}
+          enabled={scope.config?.enabled ?? false}
+        />
       )}
 
       {implemented && scope.config?.unavailableReason && (

@@ -85,8 +85,8 @@ export default function FullTablePanel({
   // There is no blocked variant to word: an offer with no free table is not
   // offered at all, and missing credits is what the button itself is for.
   const detail = offer.active
-    ? "ya la tenés activada"
-    : `240 × 60 cm para vos solo, por ${formatCreditCount(offer.creditPrice)}`;
+    ? "activada"
+    : `240 × 60 cm, el doble de un stand regular, por ${formatCreditCount(offer.creditPrice)}`;
 
   return (
     <section

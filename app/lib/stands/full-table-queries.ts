@@ -2,9 +2,13 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 
-import type { FullTableCategory } from "@/app/lib/stands/full-table-pairs";
+import { summarizeFullTableAvailability } from "@/app/lib/reservations/full-table-access";
+import {
+  FULL_TABLE_CATEGORIES,
+  type FullTableCategory,
+} from "@/app/lib/stands/full-table-pairs";
 import { db } from "@/db";
-import { festivalSectors, standGroups, stands } from "@/db/schema";
+import { festivalSectors, standGroups } from "@/db/schema";
 
 export type FullTableGroup = {
   id: number;
@@ -41,53 +45,45 @@ export async function fetchFullTableGroups(
     );
 }
 
+export type FullTableReadiness = {
+  /** Well-formed pairs an admin has priced. Only these are sellable. */
+  declaredPairs: number;
+  /** Priced but for the missing price — what is waiting on the admin. */
+  unpricedPairs: number;
+  /** Whether any priced pair has both halves free right now. */
+  hasFreePair: boolean;
+};
+
 /**
- * How many full tables a festival has declared, per category.
+ * What each full-table category still needs before participants see the offer.
  *
- * Enabling and pricing the feature is not enough to make it appear: an offer is
- * withheld when the category has no declared table to sell, which from the
- * admin panel is invisible — the switch reads as on and participants see
- * nothing. This is what lets the panel say so.
- *
- * Only two-member groups count, matching what participants can actually be
- * sold; a malformed group is inventory nobody can take.
+ * The same summary the participant-facing offer reads, so the admin screen
+ * cannot report a state the map disagrees with. Every gate here is silent from
+ * a participant's side — an unpriced pair or a half-taken one simply removes
+ * the banner — which is why they are worth stating on the screen that controls
+ * them.
  */
-export async function countDeclaredFullTablesByCategory(
+export async function fetchFullTableReadinessByCategory(
   festivalId: number,
-): Promise<Record<FullTableCategory, number>> {
-  const rows = await db
-    .select({
-      groupId: standGroups.id,
-      standCategory: stands.standCategory,
-    })
-    .from(stands)
-    .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
-    .where(
-      and(
-        eq(stands.festivalId, festivalId),
-        eq(standGroups.type, "full_table"),
-      ),
-    );
-
-  const membersByGroup = new Map<number, string[]>();
-  for (const row of rows) {
-    membersByGroup.set(row.groupId, [
-      ...(membersByGroup.get(row.groupId) ?? []),
-      row.standCategory,
-    ]);
-  }
-
-  const counts: Record<FullTableCategory, number> = {
-    illustration: 0,
-    entrepreneurship: 0,
-  };
-  for (const categories of membersByGroup.values()) {
-    if (categories.length !== 2) continue;
-    const [first, second] = categories;
-    if (first !== second) continue;
-    if (first === "illustration" || first === "entrepreneurship") {
-      counts[first] += 1;
-    }
-  }
-  return counts;
+): Promise<Record<FullTableCategory, FullTableReadiness>> {
+  const entries = await Promise.all(
+    FULL_TABLE_CATEGORIES.map(async (category) => {
+      const summary = await summarizeFullTableAvailability(db, {
+        festivalId,
+        category,
+      });
+      return [
+        category,
+        {
+          declaredPairs: summary.declaredPairs,
+          unpricedPairs: summary.unpricedPairs,
+          hasFreePair: summary.hasFreePair,
+        },
+      ] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as Record<
+    FullTableCategory,
+    FullTableReadiness
+  >;
 }
