@@ -1358,6 +1358,69 @@ describeDatabase("full table", () => {
     expect(Number(after.originalAmount)).toBe(STAND_PRICE);
   });
 
+  /**
+   * An activation only its owner can undo is unreachable once they stop coming
+   * back, and the participant whose voucher was rejected has the least reason
+   * to. The credits stay earmarked with nothing behind them and no way out.
+   */
+  it("lets an admin release someone else's activation", async () => {
+    const {
+      festival,
+      users: [owner, admin],
+    } = await seed({ userCount: 2 });
+    asUser(owner);
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "active" },
+    ]);
+
+    currentProfileMock.mockResolvedValue({
+      id: admin.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    const result = await deactivateFullTableAccess({
+      festivalId: festival.id,
+      userId: owner.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result.success).toBe(true);
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "released" },
+    ]);
+  });
+
+  it("refuses to release someone else's activation without admin rights", async () => {
+    const {
+      festival,
+      users: [owner, other],
+    } = await seed({ userCount: 2 });
+    asUser(owner);
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    // A plain participant naming another id is the whole reason the target is
+    // checked server-side rather than trusted from the browser.
+    asUser(other);
+    const result = await deactivateFullTableAccess({
+      festivalId: festival.id,
+      userId: owner.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "active" },
+    ]);
+  });
+
   it("refuses to downgrade a reservation that is only half a table", async () => {
     const {
       festival,

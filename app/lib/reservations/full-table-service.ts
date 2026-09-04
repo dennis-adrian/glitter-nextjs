@@ -323,18 +323,33 @@ export async function activateFullTableAccessAfterPurchase(input: {
 export async function deactivateFullTableAccess(input: {
   festivalId: number;
   idempotencyKey: string;
+  /**
+   * Whose access to turn off. Defaults to the caller.
+   *
+   * An abandoned activation is otherwise unreachable: the participant is the
+   * only one who could release it, and the one whose voucher was rejected has
+   * the least reason to come back. Naming somebody else takes admin rights,
+   * and the registry still records who actually did it.
+   */
+  userId?: number;
 }): Promise<ReservationActionResult<{ featureActionId: number | null }>> {
   const actor = await getCurrentUserProfile();
   if (!actor) return reservationFailure("UNAUTHENTICATED");
 
+  const ownerId = input.userId ?? actor.id;
+  if (ownerId !== actor.id && !canMutateAdminReservations(actor)) {
+    return reservationFailure("UNAUTHORIZED");
+  }
+  const onBehalf = ownerId !== actor.id;
+
   return db.transaction(async (tx) => {
-    await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [actor.id]);
+    await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [ownerId]);
 
     const claim = await claimRequest(tx, {
       requestKey: input.idempotencyKey,
       operation: "deactivateFullTableAccess",
       actorUserId: actor.id,
-      scope: { festivalId: input.festivalId },
+      scope: { festivalId: input.festivalId, userId: ownerId },
     });
     if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
     if (claim.kind === "replayed") {
@@ -349,8 +364,8 @@ export async function deactivateFullTableAccess(input: {
       );
     }
 
-    await lockUserRows(tx, [actor.id]);
-    await lockCreditAccountRows(tx, [actor.id]);
+    await lockUserRows(tx, [ownerId]);
+    await lockCreditAccountRows(tx, [ownerId]);
 
     // A live two-stand hold was taken on the strength of this access. Letting
     // it go now would leave the participant holding a full table with nothing
@@ -361,7 +376,7 @@ export async function deactivateFullTableAccess(input: {
       .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
       .where(
         and(
-          eq(standHolds.userId, actor.id),
+          eq(standHolds.userId, ownerId),
           eq(standHolds.festivalId, input.festivalId),
           gt(standHolds.expiresAt, new Date()),
           gt(standHoldMembers.position, 0),
@@ -374,7 +389,7 @@ export async function deactivateFullTableAccess(input: {
     }
 
     const access = await findActiveFullTableAccess(tx, {
-      userId: actor.id,
+      userId: ownerId,
       festivalId: input.festivalId,
     });
     if (!access) {
@@ -386,7 +401,7 @@ export async function deactivateFullTableAccess(input: {
     }
 
     const released = await releaseCreditHoldForFeatureInTx(tx, {
-      userId: actor.id,
+      userId: ownerId,
       featureActionId: access.featureActionId,
       status: "released",
     });
@@ -410,7 +425,9 @@ export async function deactivateFullTableAccess(input: {
     });
     return reservationSuccess(
       { featureActionId: access.featureActionId },
-      "Mesa completa desactivada. Tus créditos vuelven a estar disponibles.",
+      onBehalf
+        ? "Mesa completa desactivada. Los créditos vuelven a estar disponibles."
+        : "Mesa completa desactivada. Tus créditos vuelven a estar disponibles.",
     );
   });
 }

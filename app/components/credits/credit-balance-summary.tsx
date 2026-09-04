@@ -121,8 +121,9 @@ export default function CreditBalanceSummary({
               {unbackedHolds > 0 ? (
                 <>
                   Activaste la mesa completa con créditos que después no pudimos
-                  confirmar. Si liberás los créditos tu saldo se restablecerá pero si los usás para reservar, vas a quedar
-                  debiendo {formatCreditCount(unbackedHolds)}.
+                  confirmar. Si liberás los créditos tu saldo se restablecerá
+                  pero si los usás para reservar, vas a quedar debiendo{" "}
+                  {formatCreditCount(unbackedHolds)}.
                 </>
               ) : (
                 <>
