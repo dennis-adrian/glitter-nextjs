@@ -11,7 +11,10 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
-import { type CreditBalances } from "@/app/lib/credits/balances";
+import {
+  unbackedHoldAmount,
+  type CreditBalances,
+} from "@/app/lib/credits/balances";
 import { type FeatureHold } from "@/app/lib/credits/queries";
 
 type CreditBalanceSummaryProps = {
@@ -45,16 +48,9 @@ export default function CreditBalanceSummary({
   // Only a negative ledger is a debt, and it has its own alert.
   const available = Math.max(0, balances.spendableBalance);
 
-  // A reservation outlives the credits that paid for it when the voucher
-  // behind them is rejected: the ledger goes back to zero while the hold
-  // stays. Nothing is owed yet — a hold posts no entry, only its capture
-  // does — but the two states cannot share copy. Releasing a backed hold
-  // gives the credits back; releasing this one gives nothing back, and using
-  // it is what would create the debt.
-  const unbackedHolds = Math.max(
-    0,
-    balances.activeHolds - Math.max(0, balances.ledgerBalance),
-  );
+  // Releasing a backed hold gives the credits back; releasing one whose
+  // credits were reversed gives nothing back, so the two cannot share copy.
+  const unbackedHolds = unbackedHoldAmount(balances);
 
   return (
     <Card>

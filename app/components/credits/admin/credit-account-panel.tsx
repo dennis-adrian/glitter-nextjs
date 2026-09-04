@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { unbackedHoldAmount } from "@/app/lib/credits/balances";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import {
   fetchCreditWallet,
@@ -58,6 +59,11 @@ export default async function CreditAccountPanel({
   if (!wallet) return null;
 
   const activeHolds = holds.filter((hold) => hold.status === "active");
+
+  // Releasing a backed hold gives the credits back; releasing one whose
+  // credits were reversed closes the earmark and returns nothing, so the
+  // two cannot share copy.
+  const unbackedHolds = unbackedHoldAmount(wallet.balances);
 
   const canAdjust = canMutateAdminReservations(actor);
   const recentEntries = wallet.entries.slice(0, RECENT_ENTRY_LIMIT);
@@ -106,20 +112,40 @@ export default async function CreditAccountPanel({
 
         {/* An activation only the participant could undo is unreachable once
             they stop coming back — and the one whose voucher was rejected has
-            the least reason to. Releasing posts no entry either way; it hands
-            the earmarked credits back. */}
+            the least reason to. Releasing posts no entry either way; it drops
+            the earmark, which frees only credit that is still there. */}
         {activeHolds.length > 0 && (
-          <div className="space-y-2 rounded-md bg-muted p-3">
-            <p className="text-xs text-muted-foreground">
-              Tiene la mesa completa activada. Liberarla devuelve los créditos
-              reservados a su saldo disponible.
+          <div
+            className={
+              unbackedHolds > 0
+                ? "space-y-2 rounded-md bg-amber-50 p-3 text-amber-900"
+                : "space-y-2 rounded-md bg-muted p-3"
+            }
+          >
+            <p
+              className={
+                unbackedHolds > 0 ? "text-xs" : "text-xs text-muted-foreground"
+              }
+            >
+              {unbackedHolds > 0
+                ? `Tiene la mesa completa activada con créditos que después se revirtieron. Liberarla cierra la reserva, pero no devuelve ${formatCreditCount(unbackedHolds)} a su saldo: esos créditos ya no están.`
+                : "Tiene la mesa completa activada. Liberarla devuelve los créditos reservados a su saldo disponible."}
             </p>
             {activeHolds.map((hold) => (
               <ReleaseFeatureCreditsButton
                 key={hold.featureActionId}
                 userId={userId}
                 festivalId={hold.festivalId}
-                label={`Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`}
+                label={
+                  unbackedHolds > 0
+                    ? `Liberar la mesa completa de ${hold.festivalName}`
+                    : `Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`
+                }
+                disabledReason={
+                  canAdjust
+                    ? undefined
+                    : "Solo un administrador general puede liberarla"
+                }
               />
             ))}
             {!canAdjust && (
