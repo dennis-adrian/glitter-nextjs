@@ -86,13 +86,11 @@ export default function FullTablePanel({
   }
 
   // One clause after the name, never a second paragraph — this is a banner.
-  // A blocked offer spends it on the reason: "Activar" goes disabled, and a
-  // disabled control with no explanation reads as a broken feature.
+  // There is no blocked variant to word: an offer with no free table is not
+  // offered at all, and missing credits is what the button itself is for.
   const detail = offer.active
     ? "ya la tenés activada"
-    : offer.blockedReason === "no_complete_table"
-      ? "ahora mismo no queda ninguna con las dos mitades libres"
-      : `240 × 60 cm para vos solo, por ${formatCreditCount(offer.creditPrice)}`;
+    : `240 × 60 cm para vos solo, por ${formatCreditCount(offer.creditPrice)}`;
 
   return (
     <section
@@ -122,7 +120,7 @@ export default function FullTablePanel({
           <span className="text-muted-foreground">· {detail}</span>
         </p>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center justify-center gap-2 sm:justify-start">
           {offer.active ? (
             // Activation holds credits, so there has to be a way back out of it
             // wherever activation itself is offered (PRD §7.3).
@@ -145,7 +143,7 @@ export default function FullTablePanel({
           ) : (
             <Button
               size="sm"
-              disabled={pending || offer.blockedReason != null}
+              disabled={pending}
               onClick={() => run(activateFullTableAccessAction)}
             >
               Activar

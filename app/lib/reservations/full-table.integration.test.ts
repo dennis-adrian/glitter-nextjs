@@ -94,6 +94,7 @@ let activateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-s
 let deactivateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["deactivateFullTableAccess"];
 let downgradeFullTableReservation: (typeof import("@/app/lib/reservations/full-table-service"))["downgradeFullTableReservation"];
 let cancelReservation: (typeof import("@/app/lib/reservations/admin-service"))["cancelReservation"];
+let fetchFullTableOffer: (typeof import("@/app/lib/reservations/full-table-queries"))["fetchFullTableOffer"];
 let publishedTermsVersionId: number;
 
 const ACCESS_PRICE = 50;
@@ -123,6 +124,8 @@ describeDatabase("full table", () => {
     } = await import("@/app/lib/reservations/full-table-service"));
     ({ cancelReservation } =
       await import("@/app/lib/reservations/admin-service"));
+    ({ fetchFullTableOffer } =
+      await import("@/app/lib/reservations/full-table-queries"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -529,6 +532,73 @@ describeDatabase("full table", () => {
     expect(result).toMatchObject({
       success: false,
       code: "FULL_TABLE_NONE_COMPLETE",
+    });
+  });
+
+  /**
+   * A half-taken pair is not something to advertise: the panel would quote a
+   * price for a table nobody can book. It comes back on its own if the half is
+   * released, so nothing is lost by withholding it meanwhile.
+   */
+  it("withholds the offer once no table has both halves free", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    const before = await fetchFullTableOffer({
+      userId: owner.id,
+      festivalId: festival.id,
+      category: "illustration",
+    });
+    expect(before).toMatchObject({ offered: true, hasCompleteTable: true });
+
+    await integrationDb!
+      .update(stands)
+      .set({ status: "confirmed" })
+      .where(eq(stands.id, standIds[0]));
+
+    const after = await fetchFullTableOffer({
+      userId: owner.id,
+      festivalId: festival.id,
+      category: "illustration",
+    });
+    expect(after.offered).toBe(false);
+  });
+
+  /**
+   * Activation holds credits, and the only way to release them is the panel the
+   * offer draws. Withholding it from a holder would strand the credits.
+   */
+  it("keeps offering a holder their own access when no table is left free", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    await integrationDb!
+      .update(stands)
+      .set({ status: "confirmed" })
+      .where(eq(stands.id, standIds[0]));
+
+    const offer = await fetchFullTableOffer({
+      userId: owner.id,
+      festivalId: festival.id,
+      category: "illustration",
+    });
+
+    expect(offer).toMatchObject({
+      offered: true,
+      active: true,
+      hasCompleteTable: false,
     });
   });
 

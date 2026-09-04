@@ -61,20 +61,16 @@ describe("FullTablePanel", () => {
   });
 
   /**
-   * The server sells in this state on purpose: credits never expire and pay the
-   * participant's own reservation if no table ever frees up. Hiding the button
-   * here stranded anyone who wanted to be ready for one.
+   * `fetchFullTableOffer` withholds the offer entirely once no pair has both
+   * halves free, so the panel never has to word a "sold out for now" state.
+   * The one exception is somebody who already activated: their credits are
+   * held, and the way to release them is on this panel.
    */
-  it("still offers the purchase when no table has both halves free", () => {
-    renderPanel(
-      offer({ hasCompleteTable: false, blockedReason: "no_complete_table" }),
-    );
+  it("keeps the release path for a holder with no free table left", () => {
+    renderPanel(offer({ active: true, hasCompleteTable: false, shortfall: 0 }));
 
-    expect(screen.getByText(BUY)).toBeTruthy();
-    // The blocked reason is stated in place of the standing disclosure.
-    expect(
-      screen.getByText(/no queda ninguna con las dos mitades libres/i),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Desactivar" })).toBeTruthy();
+    expect(screen.queryByText(BUY)).toBeNull();
   });
 
   it("drops the purchase once the balance covers the price", () => {

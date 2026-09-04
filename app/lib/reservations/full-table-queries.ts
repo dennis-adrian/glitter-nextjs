@@ -18,8 +18,12 @@ export type FullTableOffer = {
   /** Missing credits for activation; 0 when the balance already covers it. */
   shortfall: number;
   hasCompleteTable: boolean;
-  /** Set when the feature is offered but cannot be activated right now. */
-  blockedReason: "no_complete_table" | "insufficient_credits" | null;
+  /**
+   * Set when the feature is offered but cannot be activated right now.
+   *
+   * Only ever the credits: an offer with no free table is not offered at all.
+   */
+  blockedReason: "insufficient_credits" | null;
   /**
    * What the cheapest currently-free table costs to book, in Bs.
    *
@@ -34,11 +38,11 @@ export type FullTableOffer = {
 /**
  * Everything the pre-booking full-table panel needs.
  *
- * A participant whose category can never use the feature gets `offered: false`
- * and sees nothing. Everyone else sees the panel even when they cannot activate
- * yet, with the reason stated — a table can free up and credits can be bought,
- * so a vanished control would read as a broken feature rather than a temporary
- * state.
+ * The offer only stands while there is a full table to take: a category that
+ * can never use the feature, a festival that paired none, and a festival whose
+ * pairs are all half-taken all get `offered: false` and show nothing. Missing
+ * credits is the one blocked state that still shows, because it is the one the
+ * participant can do something about from the panel itself.
  */
 export async function fetchFullTableOffer(input: {
   userId: number;
@@ -79,11 +83,12 @@ export async function fetchFullTableOffer(input: {
     readCreditBalances(input.userId),
   ]);
 
-  // Priced but never paired: the festival has no full tables in this category
-  // at all. Showing the panel would quote a price for inventory that does not
-  // exist and invite a purchase for it, under copy promising a table might free
-  // up. Someone who already activated still sees theirs.
-  if (availability.declaredPairs === 0 && access == null) return unavailable;
+  // Nothing to activate: either the festival never paired a full table in this
+  // category, or every pair it did has at least one half taken. Showing the
+  // panel would quote a price for inventory that is not there to book, so the
+  // offer goes rather than being shown blocked. Someone who already activated
+  // still sees theirs — the credits they are holding have to stay releasable.
+  if (!availability.hasFreePair && access == null) return unavailable;
 
   const shortfall = Math.max(
     0,
@@ -98,12 +103,7 @@ export async function fetchFullTableOffer(input: {
     shortfall,
     hasCompleteTable: availability.hasFreePair,
     lowestTablePrice: availability.lowestFreePrice,
-    blockedReason: access
-      ? null
-      : !availability.hasFreePair
-        ? "no_complete_table"
-        : shortfall > 0
-          ? "insufficient_credits"
-          : null,
+    blockedReason:
+      access == null && shortfall > 0 ? "insufficient_credits" : null,
   };
 }
