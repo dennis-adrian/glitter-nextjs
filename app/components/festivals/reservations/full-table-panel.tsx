@@ -85,78 +85,78 @@ export default function FullTablePanel({
     }
   }
 
-  const blockedCopy =
-    offer.blockedReason === "no_complete_table"
-      ? "Ahora mismo no queda ninguna con las dos mitades libres."
-      : null;
+  // One clause after the name, never a second paragraph — this is a banner.
+  // A blocked offer spends it on the reason: "Activar" goes disabled, and a
+  // disabled control with no explanation reads as a broken feature.
+  const detail = offer.active
+    ? "ya la tenés activada"
+    : offer.blockedReason === "no_complete_table"
+      ? "ahora mismo no queda ninguna con las dos mitades libres"
+      : `240 × 60 cm para vos solo, por ${formatCreditCount(offer.creditPrice)}`;
 
   return (
     <section
       aria-labelledby="full-table-heading"
-      className="mb-4 rounded-lg border bg-card px-3 py-2 text-sm"
+      className="relative mb-4 rounded-lg border bg-card py-2 pl-3 pr-10 text-sm"
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <p id="full-table-heading" className="flex-1">
+      {/* Dismissing is the point: this is an offer the participant has already
+          been shown a screen of its own, and they came here to pick a space.
+          Pinned to the corner, where a banner's close control belongs, so it
+          never competes with the offer's own buttons for the row. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="absolute right-1 top-1 h-7 w-7 p-0"
+        aria-label="Ocultar el aviso de mesa completa"
+        onClick={dismiss}
+      >
+        <XIcon className="h-4 w-4" />
+      </Button>
+
+      {/* Stacked until there is room for one line. Side by side on a phone the
+          sentence gets squeezed to a word per line while the button keeps its
+          width, which is the opposite of what a one-line banner is for. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <p id="full-table-heading" className="min-w-0">
           <span className="font-medium">Mesa completa</span>{" "}
-          <span className="text-muted-foreground">
-            {offer.active
-              ? "· ya la tenés activada"
-              : `· 240 × 60 cm para vos solo, por ${formatCreditCount(offer.creditPrice)}`}
-          </span>
+          <span className="text-muted-foreground">· {detail}</span>
         </p>
 
-        {offer.active ? (
-          // Activation holds credits, so there has to be a way back out of it
-          // wherever activation itself is offered (PRD §7.3).
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={pending}
-            onClick={() => run(deactivateFullTableAccessAction)}
-          >
-            Desactivar
-          </Button>
-        ) : offer.shortfall > 0 ? (
-          <BuyFeatureCreditsButton
-            festivalId={festivalId}
-            featureType="full_table"
-            shortfallAmount={offer.shortfall}
-            disabled={pending}
-          />
-        ) : (
-          <Button
-            size="sm"
-            disabled={pending || offer.blockedReason != null}
-            onClick={() => run(activateFullTableAccessAction)}
-          >
-            Activar
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {offer.active ? (
+            // Activation holds credits, so there has to be a way back out of it
+            // wherever activation itself is offered (PRD §7.3).
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(deactivateFullTableAccessAction)}
+            >
+              Desactivar
+            </Button>
+          ) : offer.shortfall > 0 ? (
+            <BuyFeatureCreditsButton
+              festivalId={festivalId}
+              featureType="full_table"
+              shortfallAmount={offer.shortfall}
+              disabled={pending}
+              size="sm"
+            />
+          ) : (
+            <Button
+              size="sm"
+              disabled={pending || offer.blockedReason != null}
+              onClick={() => run(activateFullTableAccessAction)}
+            >
+              Activar
+            </Button>
+          )}
 
-        <Button variant="ghost" size="sm" asChild>
-          <a href="/credits_info">Qué es</a>
-        </Button>
-
-        {/* Dismissing is the point: this is an offer the participant has
-            already been shown a screen of its own, and they came here to pick
-            a space. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label="Ocultar el aviso de mesa completa"
-          onClick={dismiss}
-        >
-          <XIcon className="h-4 w-4" />
-        </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <a href="/credits_info">Qué es</a>
+          </Button>
+        </div>
       </div>
-
-      {/* A condition of the purchase rather than a description of it, so it
-          stays wherever activation is offered — kept to one clause. */}
-      {!offer.active && (
-        <p className="text-xs text-muted-foreground">
-          {blockedCopy ?? "No reserva ni garantiza ninguna mesa ni ubicación."}
-        </p>
-      )}
     </section>
   );
 }

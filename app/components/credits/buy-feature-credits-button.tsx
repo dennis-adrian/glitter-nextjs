@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
-import { Button } from "@/app/components/ui/button";
+import { Button, type ButtonProps } from "@/app/components/ui/button";
 import { createFeatureCreditTopUpAction } from "@/app/lib/credits/purchase-actions";
 import type { PurchasableFeatureType } from "@/app/lib/credits/purchase-service";
 
@@ -16,6 +16,8 @@ type BuyFeatureCreditsButtonProps = {
   /** Display only. The server recalculates the exact shortfall under lock. */
   shortfallAmount: number;
   disabled?: boolean;
+  /** Matches the surrounding controls; a banner's row is shorter than a page's. */
+  size?: ButtonProps["size"];
 };
 
 /**
@@ -31,6 +33,7 @@ export default function BuyFeatureCreditsButton({
   featureType,
   shortfallAmount,
   disabled,
+  size,
 }: BuyFeatureCreditsButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -64,7 +67,12 @@ export default function BuyFeatureCreditsButton({
   }
 
   return (
-    <Button type="button" onClick={buyCredits} disabled={isPending || disabled}>
+    <Button
+      type="button"
+      size={size}
+      onClick={buyCredits}
+      disabled={isPending || disabled}
+    >
       {isPending
         ? "Preparando la compra..."
         : `Comprar ${formatCreditCount(shortfallAmount)}`}
