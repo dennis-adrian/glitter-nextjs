@@ -28,6 +28,8 @@ export type MapDtoStandRow = {
   standCategory: UserCategory;
   participationType: ParticipationType;
   price: number;
+  /** Illustration only; null everywhere else. */
+  sharedPrice: number | null;
   standGroupId: number | null;
 };
 
@@ -173,6 +175,7 @@ export function toReservationMapStandDto(
     standCategory: stand.standCategory,
     participationType: stand.participationType,
     price: stand.price,
+    sharedPrice: stand.sharedPrice,
     eligibleSubcategoryIds: input.subcategoryIdsByStandId.get(stand.id) ?? [],
     festivalSectorId: stand.festivalSectorId,
     standGroupId: stand.standGroupId,

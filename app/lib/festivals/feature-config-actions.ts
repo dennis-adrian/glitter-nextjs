@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import {
+  FEATURE_NOT_IMPLEMENTED_REASON,
   FEATURE_TYPES,
   FULL_TABLE_CATEGORIES,
 } from "@/app/lib/festivals/feature-config";
@@ -61,7 +62,9 @@ export async function upsertFestivalFeatureConfigAction(
         message:
           result.code === "INVALID_SCOPE"
             ? "Esa combinación de función y categoría no es válida."
-            : "El precio no es válido.",
+            : result.code === "NOT_IMPLEMENTED"
+              ? FEATURE_NOT_IMPLEMENTED_REASON
+              : "El precio no es válido.",
       };
     }
 

@@ -4,6 +4,7 @@ import { z } from "zod";
 import StandManageTable from "@/app/components/maps/admin/stand-manage-table";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
 import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchFullTableGroups } from "@/app/lib/stands/full-table-queries";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -18,9 +19,10 @@ export default async function StandManagePage({
   if (!parsed.success) return notFound();
 
   const { id } = parsed.data;
-  const [festival, sectors] = await Promise.all([
+  const [festival, sectors, fullTableGroups] = await Promise.all([
     getFestivalById(id),
     fetchFestivalSectors(id),
+    fetchFullTableGroups(id),
   ]);
 
   if (!festival) return notFound();
@@ -31,6 +33,7 @@ export default async function StandManagePage({
         festivalId={id}
         festivalName={festival.name}
         sectors={sectors}
+        fullTableGroups={fullTableGroups}
       />
     </div>
   );

@@ -22,8 +22,10 @@ import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 
 export default function SessionButtons({
   profile,
+  creditsEnabled,
 }: {
   profile?: NavbarProfile | null;
+  creditsEnabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -100,5 +102,5 @@ export default function SessionButtons({
     );
   }
 
-  return <UserDropdown profile={profile} />;
+  return <UserDropdown profile={profile} creditsEnabled={creditsEnabled} />;
 }

@@ -1,6 +1,7 @@
 import {
   ClockIcon,
   CoinsIcon,
+  HelpCircleIcon,
   PackageIcon,
   ShoppingBagIcon,
   StarIcon,
@@ -9,6 +10,7 @@ import {
 import Link from "next/link";
 
 import { ProfileType } from "@/app/api/users/definitions";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 
 type Action = {
   icon: React.ElementType;
@@ -21,7 +23,11 @@ type Props = {
   profile: ProfileType;
 };
 
-export default function QuickActions({ profile }: Props) {
+export default async function QuickActions({ profile }: Props) {
+  // Both credit tiles appear together or not at all: a wallet with no
+  // explanation beside it is where the questions come from.
+  const creditsEnabled = await isFeatureEnabled("credits");
+
   const actions: Action[] = [
     {
       icon: UserIcon,
@@ -57,12 +63,22 @@ export default function QuickActions({ profile }: Props) {
       href: "/my_orders",
       color: "bg-rose-100 text-rose-600 group-hover:bg-rose-200",
     },
-    {
-      icon: CoinsIcon,
-      label: "Mis créditos",
-      href: "/my_credits",
-      color: "bg-yellow-100 text-yellow-600 group-hover:bg-yellow-200",
-    },
+    ...(creditsEnabled
+      ? [
+          {
+            icon: CoinsIcon,
+            label: "Mis créditos",
+            href: "/my_credits",
+            color: "bg-yellow-100 text-yellow-600 group-hover:bg-yellow-200",
+          },
+          {
+            icon: HelpCircleIcon,
+            label: "Qué son los créditos",
+            href: "/credits_info",
+            color: "bg-cyan-100 text-cyan-600 group-hover:bg-cyan-200",
+          },
+        ]
+      : []),
   ];
 
   return (

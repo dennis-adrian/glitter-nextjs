@@ -312,6 +312,14 @@ export function StandInfoCard({
                 <p className="text-xl font-bold text-primary">
                   {formatPrice(stand.price)}
                 </p>
+                {/* The shared price is the total for the whole reservation,
+                    owner-paid — stating it here keeps the map honest about
+                    what confirming with a partner will actually cost. */}
+                {stand.sharedPrice != null && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatPrice(stand.sharedPrice)} compartido
+                  </p>
+                )}
               </div>
             )}
           </div>

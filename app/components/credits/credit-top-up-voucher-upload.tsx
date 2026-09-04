@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { formatCredits } from "@/app/components/credits/credit-amount";
+import { clearFullTableDismissal } from "@/app/components/festivals/reservations/full-table-dismissal";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 
@@ -14,6 +15,18 @@ type CreditTopUpVoucherUploadProps = {
   amount: number;
   /** ISO timestamp; the server rejects an upload that arrives after it. */
   uploadDeadlineAt: string;
+  /** Where to send the participant once the voucher is in. */
+  redirectTo?: string;
+  /**
+   * The festival whose full table this purchase funds, when it funds one.
+   *
+   * Paying for the banner's offer contradicts having dismissed it, so the
+   * dismissal is forgotten here. Without this, someone who hid the banner and
+   * then bought from the introduction screen could land back on a map with no
+   * way to activate what they just paid for — activation after a purchase is
+   * best-effort, and the banner is the only other route to it.
+   */
+  clearFullTableDismissalFor?: number;
 };
 
 function remainingLabel(msLeft: number) {
@@ -32,6 +45,8 @@ export default function CreditTopUpVoucherUpload({
   topUpId,
   amount,
   uploadDeadlineAt,
+  redirectTo,
+  clearFullTableDismissalFor,
 }: CreditTopUpVoucherUploadProps) {
   const router = useRouter();
   const deadline = new Date(uploadDeadlineAt).getTime();
@@ -103,7 +118,13 @@ export default function CreditTopUpVoucherUpload({
           toast.success(
             "Recibimos tu comprobante. Ya podés usar tus créditos en funciones opcionales.",
           );
-          router.refresh();
+          if (clearFullTableDismissalFor != null) {
+            clearFullTableDismissal(clearFullTableDismissalFor);
+          }
+          // The credits land in the wallet, so that is where the confirmation
+          // is worth reading; this page stays reachable as a receipt.
+          if (redirectTo) router.push(redirectTo);
+          else router.refresh();
         }}
       />
       {isUploading && (

@@ -92,9 +92,9 @@ describe("validateFullTablePair", () => {
   });
 
   it("compares subcategory eligibility as a set, not a sequence", () => {
-    expect(pair({ subcategoryIds: [7, 8] }, { subcategoryIds: [8, 7] })).toEqual(
-      { ok: true },
-    );
+    expect(
+      pair({ subcategoryIds: [7, 8] }, { subcategoryIds: [8, 7] }),
+    ).toEqual({ ok: true });
     expect(codes(pair({}, { subcategoryIds: [7] }))).toContain(
       "SUBCATEGORY_MISMATCH",
     );
@@ -109,6 +109,22 @@ describe("validateFullTablePair", () => {
     )!.message;
     expect(message).toContain("Bs200.00");
     expect(message).toContain("Bs250.00");
+  });
+
+  it("names each half by label and number, not by the shared sector letter", () => {
+    // Real stands carry the sector letter as their label, so naming a stand by
+    // its label alone renders both halves of a pair identically — "B and B" —
+    // and the admin cannot tell which one to go and fix.
+    const result = validateFullTablePair([
+      member({ id: 1, label: "B", standNumber: 27, sharedPrice: null }),
+      member({ id: 2, label: "B", standNumber: 28, sharedPrice: null }),
+    ]);
+    if (result.ok) throw new Error("expected a missing shared price");
+    const message = result.problems.find(
+      (problem) => problem.code === "SHARED_PRICE_MISSING",
+    )!.message;
+    expect(message).toContain("B27");
+    expect(message).toContain("B28");
   });
 
   it("requires illustration pairs to agree on a shared price", () => {

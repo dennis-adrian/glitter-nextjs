@@ -15,6 +15,7 @@ import {
   type FeatureConfigRow,
   type FeatureType,
   type FullTableCategory,
+  isFeatureTypeImplemented,
   resolveFeatureConfig,
 } from "@/app/lib/festivals/feature-config";
 import { db } from "@/db";
@@ -140,7 +141,7 @@ export type UpsertFeatureConfigInput = {
 
 export type UpsertFeatureConfigResult =
   | { ok: true; id: number }
-  | { ok: false; code: "INVALID_SCOPE" | "INVALID_PRICE" };
+  | { ok: false; code: "INVALID_SCOPE" | "INVALID_PRICE" | "NOT_IMPLEMENTED" };
 
 /**
  * Creates or updates one scope's configuration.
@@ -162,6 +163,11 @@ export async function upsertFestivalFeatureConfig(
   if (!scopeValid) return { ok: false, code: "INVALID_SCOPE" };
   if (input.deadlineOverrideAt && input.type !== "late_partner") {
     return { ok: false, code: "INVALID_SCOPE" };
+  }
+  // Turning one off stays allowed, so a row somebody enabled before this
+  // check existed can still be corrected.
+  if (input.enabled && !isFeatureTypeImplemented(input.type)) {
+    return { ok: false, code: "NOT_IMPLEMENTED" };
   }
   if (
     !Number.isFinite(input.creditPrice) ||

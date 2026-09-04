@@ -64,3 +64,16 @@ export function isFeatureVisible(
       return true;
   }
 }
+
+/**
+ * Whether the feature has launched for ordinary participants, ignoring who is
+ * asking. `isFeatureVisible` answers for one viewer, so an admin looking at an
+ * `admin_only` feature gets `true` — useless for warning that same admin that
+ * participants still cannot see it. Individually targeted testers are not
+ * participants at large either, so targeting does not count here.
+ */
+export function isFeatureLaunchedForParticipants(
+  rule: FeatureFlagRule,
+): boolean {
+  return rule.visibility === "public";
+}

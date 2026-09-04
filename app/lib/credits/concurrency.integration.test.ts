@@ -4,7 +4,15 @@ import { randomUUID } from "crypto";
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
 import {
@@ -309,7 +317,7 @@ describeDatabase("credit mutation concurrency", () => {
     expect(await ledgerBalance(userId)).toBe(0);
   }, 30_000);
 
-  it("keeps provisional credits out of an invoice while a hold reduces only spendable", async () => {
+  it("earmarks held credit without touching the ledger", async () => {
     const userId = await createUser();
     const festivalId = await createFestival();
     await grantCredits(userId, 100);
@@ -329,11 +337,157 @@ describeDatabase("credit mutation concurrency", () => {
       ledgerBalance: 100,
       activeHolds: 30,
       spendableBalance: 70,
-      invoiceEligibleBalance: 70,
     });
     // The hold is an earmark, not a debit: the ledger is untouched.
     expect(await ledgerBalance(userId)).toBe(100);
   }, 30_000);
+
+  /**
+   * The ledger is append-only, so undoing a grant means posting its opposite.
+   * Two admins clicking at once must still leave one: without the link and the
+   * check under the account lock, the account ends up short by the original
+   * amount with no way to tell the two undos apart.
+   */
+  it("undoes an admin grant exactly once under concurrent reverts", async () => {
+    const userId = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+    const entryId = grant.data.ledgerEntryId;
+
+    const results = await Promise.all([
+      service.adjustCreditAccount({
+        userId,
+        amount: -30,
+        reason: "revert a",
+        idempotencyKey: randomUUID(),
+        reversesEntryId: entryId,
+      }),
+      service.adjustCreditAccount({
+        userId,
+        amount: -30,
+        reason: "revert b",
+        idempotencyKey: randomUUID(),
+        reversesEntryId: entryId,
+      }),
+    ]);
+
+    const ok = results.filter((result) => result.ok);
+    expect(ok).toHaveLength(1);
+    expect(
+      results.filter(
+        (result) => !result.ok && result.code === "ENTRY_ALREADY_REVERTED",
+      ),
+    ).toHaveLength(1);
+    // The grant and its single undo cancel out.
+    expect(await ledgerBalance(userId)).toBe(0);
+  });
+
+  /**
+   * A reversal whose response is lost is retried with the same key. The undo
+   * its first attempt posted is exactly what the duplicate-undo check looks
+   * for, so without replaying the key the retry reports the reversal as
+   * already done and the admin is left unsure whether theirs landed.
+   */
+  it("replays a reversal retried with the same idempotency key", async () => {
+    const userId = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+    const entryId = grant.data.ledgerEntryId;
+
+    const reversalKey = randomUUID();
+    const first = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert",
+      idempotencyKey: reversalKey,
+      reversesEntryId: entryId,
+    });
+    const retry = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert",
+      idempotencyKey: reversalKey,
+      reversesEntryId: entryId,
+    });
+
+    expect(first.ok).toBe(true);
+    expect(retry.ok).toBe(true);
+    if (!first.ok || !retry.ok) return;
+    // The same entry, not a second one.
+    expect(retry.data.ledgerEntryId).toBe(first.data.ledgerEntryId);
+    expect(await ledgerBalance(userId)).toBe(0);
+
+    // A genuinely new reversal request still finds the entry already undone.
+    const another = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert otra vez",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: entryId,
+    });
+    expect(another.ok).toBe(false);
+    if (another.ok) return;
+    expect(another.code).toBe("ENTRY_ALREADY_REVERTED");
+    expect(await ledgerBalance(userId)).toBe(0);
+  });
+
+  it("refuses to undo an entry that is not the admin's own", async () => {
+    const userId = await createUser();
+    const other = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId: other,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+
+    // Same entry id, wrong account: the undo would move money on an account
+    // the entry never touched.
+    const result = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: grant.data.ledgerEntryId,
+    });
+
+    expect(result).toMatchObject({ ok: false, code: "ENTRY_NOT_REVERTIBLE" });
+  });
+
+  it("refuses an undo whose amount is not the original's opposite", async () => {
+    const userId = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+
+    // A partial undo is just another adjustment; calling it a revert would
+    // make the link to the original a lie.
+    const result = await service.adjustCreditAccount({
+      userId,
+      amount: -10,
+      reason: "revert",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: grant.data.ledgerEntryId,
+    });
+
+    expect(result).toMatchObject({ ok: false, code: "INVALID_AMOUNT" });
+    expect(await ledgerBalance(userId)).toBe(30);
+  });
 
   it("never credits more than the debt under concurrent resolution", async () => {
     const userId = await createUser();

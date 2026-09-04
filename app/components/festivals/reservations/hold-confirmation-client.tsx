@@ -70,7 +70,9 @@ type HoldConfirmationClientProps = {
     label: string | null;
     standNumber: number;
     standCategory: UserCategory;
+    /** Billed when the participant books alone. */
     price: number;
+    /** Billed instead once a partner is confirmed; null when none is configured. */
     sharedPrice: number | null;
   };
   sectorName: string;

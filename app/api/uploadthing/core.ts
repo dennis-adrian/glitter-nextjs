@@ -12,6 +12,7 @@ import {
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolveReservationPaymentUpload } from "@/app/lib/payments/helpers";
+import { activateFullTableAccessAfterPurchase } from "@/app/lib/reservations/full-table-service";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
@@ -173,7 +174,9 @@ export const ourFileRouter = {
         userId: profile.id,
       });
       if (!target.ok) {
-        throw new UploadThingError("La carga de créditos ya no está disponible");
+        throw new UploadThingError(
+          "La carga de créditos ya no está disponible",
+        );
       }
       return { profileId: profile.id, topUpId: target.data.topUpId };
     })
@@ -192,6 +195,36 @@ export const ourFileRouter = {
       if (!result.ok) {
         throw new UploadThingError("No se pudo registrar la carga de créditos");
       }
+
+      // Buying from a full-table screen is the participant saying what the
+      // credits are for, so the purchase doubles as the activation. Only
+      // `feature` carries that intent — an invoice or debt top-up funds
+      // something else entirely.
+      //
+      // Deliberately after the credits are issued and outside their
+      // transaction: activation takes festival and credit-account locks in its
+      // own order, and a refusal here must not undo a paid-for top-up. The
+      // participant simply activates from the panel instead.
+      if (
+        result.data.intendedUse.type === "feature" &&
+        result.data.intendedUse.id != null
+      ) {
+        try {
+          const activation = await activateFullTableAccessAfterPurchase({
+            userId: metadata.profileId,
+            festivalId: result.data.intendedUse.id,
+            topUpId: result.data.topUpId,
+          });
+          if (!activation.success) {
+            console.info(
+              `Full-table access not activated after top-up ${result.data.topUpId}: ${activation.code}`,
+            );
+          }
+        } catch (error) {
+          console.error("Error activating full table after top-up", error);
+        }
+      }
+
       return {
         results: {
           topUpId: result.data.topUpId,

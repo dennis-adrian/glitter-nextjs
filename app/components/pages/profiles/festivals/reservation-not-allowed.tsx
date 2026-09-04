@@ -87,6 +87,11 @@ export default function ReservationNotAllowed(
                   props.festival.reservationsStartDate,
                 ).toLocaleString(DateTime.DATE_SHORT)}
               </span>
+              {/* The date alone left people guessing whether to be here at
+                  midnight; reservations open at an hour, not on a day. */}
+              <span className="font-semibold text-lg">
+                {formattedStartDate.toLocaleString(DateTime.TIME_SIMPLE)}
+              </span>
             </div>
             {formattedStartDate.startOf("day").toMillis() !==
             today.startOf("day").toMillis() ? (
@@ -100,9 +105,8 @@ export default function ReservationNotAllowed(
             ) : (
               <div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
                 <span className="mb-2">
-                  Las reservas se habilitarán a las{" "}
-                  {formattedStartDate.toLocaleString(DateTime.TIME_SIMPLE)}.
-                  Podés copiar el enlace de esta página para regresar luego.
+                  Es hoy. Podés copiar el enlace de esta página para regresar a
+                  esa hora.
                 </span>
                 <CopyLinkButtonComponent />
                 <div className="text-xs text-muted-foreground italic mt-1">

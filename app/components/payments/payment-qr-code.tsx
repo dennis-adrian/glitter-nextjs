@@ -6,7 +6,11 @@ import QrCodeDownload from "@/app/components/payments/qr-code-download";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 
 type PaymentQRCodeProps = {
-  invoice: InvoiceWithPaymentsAndStand;
+  /**
+   * Only ever read for its amount. Optional because a credit purchase is paid
+   * the same way and has no invoice behind it.
+   */
+  invoice?: InvoiceWithPaymentsAndStand;
   amount?: number;
   qrCodeUrl?: string;
   /** False for the shared zero-amount code, which the payer fills in. */
@@ -14,7 +18,7 @@ type PaymentQRCodeProps = {
 };
 export function PaymentQRCode(props: PaymentQRCodeProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const amount = props.amount ?? props.invoice.amount;
+  const amount = props.amount ?? props.invoice?.amount ?? 0;
 
   // Simulate loading the QR code
   useEffect(() => {
@@ -26,7 +30,7 @@ export function PaymentQRCode(props: PaymentQRCodeProps) {
   }, []);
 
   return (
-    <div className="relative w-64 h-80 border rounded-lg p-4 bg-white">
+    <div className="relative w-64 min-h-80 border rounded-lg p-4 bg-white">
       {isLoading ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -31,8 +31,10 @@ import {
   activeReservationStandIds,
   releaseReservationMember,
 } from "@/app/lib/reservations/members";
+import { roundMoney } from "@/app/lib/reservations/money";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { denySelfServiceMutationBeforeOpen } from "@/app/lib/reservations/tx-eligibility";
 import {
   abandonRequest,
   claimRequest,
@@ -41,11 +43,15 @@ import {
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  invoiceCreditAllocations,
+  invoices,
+  payments,
   reservationFeatureActions,
   standHoldMembers,
   standHolds,
   standReservationStands,
   standReservations,
+  users,
 } from "@/db/schema";
 
 import {
@@ -58,6 +64,16 @@ function eligibleCategory(category: unknown): FullTableCategory | null {
     ? (category as FullTableCategory)
     : null;
 }
+
+/**
+ * Who is activating. Structural rather than the full profile: the credit
+ * purchase path resolves these three columns itself, having no session to read.
+ */
+type FullTableActor = {
+  id: number;
+  role: string;
+  category: unknown;
+};
 
 export type FullTableActivationResult = ReservationActionResult<{
   featureActionId: number;
@@ -83,6 +99,25 @@ export async function activateFullTableAccess(input: {
   const actor = await getCurrentUserProfile();
   if (!actor) return reservationFailure("UNAUTHENTICATED");
 
+  return activateFullTableAccessAs(actor, input);
+}
+
+/**
+ * The activation itself, for a caller that has already established who is
+ * acting.
+ *
+ * Kept separate from the exported entry points rather than given an optional
+ * `actor` override: the override would sit on the same function the server
+ * action calls, one stray field away from letting a request name its own
+ * actor.
+ */
+async function activateFullTableAccessAs(
+  actor: FullTableActor,
+  input: {
+    festivalId: number;
+    idempotencyKey: string;
+  },
+): Promise<FullTableActivationResult> {
   return db.transaction(async (tx) => {
     await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [actor.id]);
 
@@ -134,6 +169,17 @@ export async function activateFullTableAccess(input: {
     if (!category) {
       return finish(reservationFailure("FULL_TABLE_CATEGORY_INELIGIBLE"));
     }
+
+    // Activation is deliberately reachable before reservations open, so it
+    // cannot lean on the map page's gate the way every other participant
+    // mutation does. The clock is the one rule that must not apply here;
+    // enrollment, terms, verification and sanctions all still must.
+    const denial = await denySelfServiceMutationBeforeOpen(tx, {
+      actor: { id: actor.id, role: actor.role },
+      userId: actor.id,
+      festivalId: input.festivalId,
+    });
+    if (denial) return finish(denial);
 
     // Read on this transaction's connection: reaching for the pool while
     // holding festival and user locks can self-deadlock under load.
@@ -235,6 +281,40 @@ export async function activateFullTableAccess(input: {
 }
 
 /**
+ * Activates full-table access off the back of the purchase that funded it.
+ *
+ * Buying credits from a full-table screen is already the participant saying
+ * what they are for, so asking them to press "Activar" afterwards is asking the
+ * same question twice. Credits topped up for anything else — an invoice, a
+ * debt, an admin grant, a purchase they never spent — carry no such intent, and
+ * those still take an explicit activation.
+ *
+ * Best-effort by design: the credits are issued either way, and a refusal here
+ * (nothing complete left, terms since changed) just leaves them spendable in
+ * the wallet with the panel offering activation the ordinary way.
+ */
+export async function activateFullTableAccessAfterPurchase(input: {
+  userId: number;
+  festivalId: number;
+  topUpId: number;
+}): Promise<FullTableActivationResult> {
+  const [actor] = await db
+    .select({ id: users.id, role: users.role, category: users.category })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+  if (!actor) return reservationFailure("UNAUTHENTICATED");
+
+  return activateFullTableAccessAs(actor, {
+    festivalId: input.festivalId,
+    // Derived from the top-up rather than random: the upload callback can be
+    // retried by UploadThing, and the registry is what stops that becoming a
+    // second activation and a second credit hold.
+    idempotencyKey: `credit-top-up:${input.topUpId}:full-table`,
+  });
+}
+
+/**
  * Turns access off before booking and frees the held credits.
  *
  * The credits are not refunded — they were never spent. They simply become
@@ -243,18 +323,33 @@ export async function activateFullTableAccess(input: {
 export async function deactivateFullTableAccess(input: {
   festivalId: number;
   idempotencyKey: string;
+  /**
+   * Whose access to turn off. Defaults to the caller.
+   *
+   * An abandoned activation is otherwise unreachable: the participant is the
+   * only one who could release it, and the one whose voucher was rejected has
+   * the least reason to come back. Naming somebody else takes admin rights,
+   * and the registry still records who actually did it.
+   */
+  userId?: number;
 }): Promise<ReservationActionResult<{ featureActionId: number | null }>> {
   const actor = await getCurrentUserProfile();
   if (!actor) return reservationFailure("UNAUTHENTICATED");
 
+  const ownerId = input.userId ?? actor.id;
+  if (ownerId !== actor.id && !canMutateAdminReservations(actor)) {
+    return reservationFailure("UNAUTHORIZED");
+  }
+  const onBehalf = ownerId !== actor.id;
+
   return db.transaction(async (tx) => {
-    await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [actor.id]);
+    await lockParticipantsBeforeRegistryClaim(tx, input.festivalId, [ownerId]);
 
     const claim = await claimRequest(tx, {
       requestKey: input.idempotencyKey,
       operation: "deactivateFullTableAccess",
       actorUserId: actor.id,
-      scope: { festivalId: input.festivalId },
+      scope: { festivalId: input.festivalId, userId: ownerId },
     });
     if (claim.kind === "conflict") return reservationFailure("CONFLICT_RETRY");
     if (claim.kind === "replayed") {
@@ -269,8 +364,8 @@ export async function deactivateFullTableAccess(input: {
       );
     }
 
-    await lockUserRows(tx, [actor.id]);
-    await lockCreditAccountRows(tx, [actor.id]);
+    await lockUserRows(tx, [ownerId]);
+    await lockCreditAccountRows(tx, [ownerId]);
 
     // A live two-stand hold was taken on the strength of this access. Letting
     // it go now would leave the participant holding a full table with nothing
@@ -281,7 +376,7 @@ export async function deactivateFullTableAccess(input: {
       .innerJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
       .where(
         and(
-          eq(standHolds.userId, actor.id),
+          eq(standHolds.userId, ownerId),
           eq(standHolds.festivalId, input.festivalId),
           gt(standHolds.expiresAt, new Date()),
           gt(standHoldMembers.position, 0),
@@ -294,7 +389,7 @@ export async function deactivateFullTableAccess(input: {
     }
 
     const access = await findActiveFullTableAccess(tx, {
-      userId: actor.id,
+      userId: ownerId,
       festivalId: input.festivalId,
     });
     if (!access) {
@@ -306,7 +401,7 @@ export async function deactivateFullTableAccess(input: {
     }
 
     const released = await releaseCreditHoldForFeatureInTx(tx, {
-      userId: actor.id,
+      userId: ownerId,
       featureActionId: access.featureActionId,
       status: "released",
     });
@@ -330,7 +425,9 @@ export async function deactivateFullTableAccess(input: {
     });
     return reservationSuccess(
       { featureActionId: access.featureActionId },
-      "Mesa completa desactivada. Tus créditos vuelven a estar disponibles.",
+      onBehalf
+        ? "Mesa completa desactivada. Los créditos vuelven a estar disponibles."
+        : "Mesa completa desactivada. Tus créditos vuelven a estar disponibles.",
     );
   });
 }
@@ -366,6 +463,10 @@ export async function downgradeFullTableReservation(input: {
         festivalId: standReservations.festivalId,
         status: standReservations.status,
         ownerUserId: standReservations.ownerUserId,
+        individualPriceSnapshot: standReservations.individualPriceSnapshot,
+        sharedPriceSnapshot: standReservations.sharedPriceSnapshot,
+        fullTablePriceSnapshot: standReservations.fullTablePriceSnapshot,
+        bookedParticipantCount: standReservations.bookedParticipantCount,
       })
       .from(standReservations)
       .where(eq(standReservations.id, input.reservationId))
@@ -437,6 +538,66 @@ export async function downgradeFullTableReservation(input: {
     const keptStandId = memberStandIds[0];
     const releasedStandId = memberStandIds[1];
 
+    // The reservation was billed for a whole table, and it no longer is one.
+    // Leaving the invoice alone would charge the participant a table's price
+    // for one half — under the old model the invoice already was a single
+    // stand's price, so downgrading really did leave the money alone.
+    //
+    // Priced and vetted before anything is released, under the invoice's own
+    // lock: a refusal returns rather than throws, so the transaction commits
+    // whatever came before it. Releasing first would free the companion stand
+    // and then report the downgrade as refused.
+    let repricing: {
+      halfPrice: number;
+      invoiceId: number | null;
+      discountAmount: number;
+    } | null = null;
+    if (reservation.fullTablePriceSnapshot != null) {
+      const halfPrice =
+        reservation.bookedParticipantCount > 1 &&
+        reservation.sharedPriceSnapshot != null
+          ? Number(reservation.sharedPriceSnapshot)
+          : Number(reservation.individualPriceSnapshot ?? 0);
+
+      const [invoice] = await tx
+        .select({ id: invoices.id, discountAmount: invoices.discountAmount })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservation.id))
+        .limit(1)
+        .for("update");
+
+      if (invoice) {
+        // Anything already tendered against the table's price would have to be
+        // refunded or re-applied, which is a decision this command cannot make.
+        const [settled] = await tx
+          .select({ id: payments.id })
+          .from(payments)
+          .where(eq(payments.invoiceId, invoice.id))
+          .limit(1);
+        const [allocated] = await tx
+          .select({ id: invoiceCreditAllocations.id })
+          .from(invoiceCreditAllocations)
+          .where(eq(invoiceCreditAllocations.invoiceId, invoice.id))
+          .limit(1);
+        if (settled || allocated) {
+          await abandonRequest(tx, input.idempotencyKey);
+          return reservationFailure("FULL_TABLE_NOT_DOWNGRADABLE");
+        }
+      }
+
+      repricing = {
+        halfPrice,
+        invoiceId: invoice?.id ?? null,
+        // Clamped to the new price, the same bound `applyReservationWriteSet`
+        // uses: a discount agreed against a full table can exceed half of one,
+        // and a discount larger than the invoice would invert the total.
+        discountAmount: Math.min(
+          halfPrice,
+          roundMoney(Number(invoice?.discountAmount ?? 0)),
+        ),
+      };
+    }
+
     const didRelease = await releaseReservationMember(tx, {
       reservationId: reservation.id,
       standId: releasedStandId,
@@ -447,6 +608,33 @@ export async function downgradeFullTableReservation(input: {
     }
 
     await releaseStandIfVacant(tx, releasedStandId);
+
+    if (repricing) {
+      if (repricing.invoiceId != null) {
+        await tx
+          .update(invoices)
+          .set({
+            // `amount` is what is owed, so it has to keep honouring the
+            // discount. Writing the gross half price here billed a discounted
+            // participant the full amount and broke the invoice's own
+            // `amount = originalAmount - discountAmount` invariant.
+            originalAmount: repricing.halfPrice,
+            discountAmount: repricing.discountAmount,
+            amount: roundMoney(repricing.halfPrice - repricing.discountAmount),
+            updatedAt: new Date(),
+          })
+          .where(eq(invoices.id, repricing.invoiceId));
+      }
+
+      await tx
+        .update(standReservations)
+        .set({
+          priceAmountSnapshot: repricing.halfPrice,
+          fullTablePriceSnapshot: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(standReservations.id, reservation.id));
+    }
 
     await insertStandReservationEvent(tx, {
       reservationId: reservation.id,

@@ -8,6 +8,7 @@ import {
   type FeatureFlagKey,
 } from "@/app/lib/feature_flags/registry";
 import {
+  isFeatureLaunchedForParticipants,
   isFeatureVisible,
   type FeatureFlagViewer,
 } from "@/app/lib/feature_flags/visibility";
@@ -33,6 +34,15 @@ export async function isFeatureEnabled(
   ]);
 
   return isFeatureVisible(rule, profile);
+}
+
+/**
+ * Whether the feature has launched for ordinary participants — independent of
+ * who is signed in. Use it when an admin screen needs to say what participants
+ * can see, rather than what the admin can see.
+ */
+export async function isFeatureLaunched(key: FeatureFlagKey): Promise<boolean> {
+  return isFeatureLaunchedForParticipants(await fetchFeatureFlagRule(key));
 }
 
 /**

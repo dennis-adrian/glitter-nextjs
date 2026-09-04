@@ -1,4 +1,5 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
+import CreditAccountPanel from "@/app/components/credits/admin/credit-account-panel";
 import { notFound } from "next/navigation";
 import PrivateProfile from "@/app/components/user_profile/private_profile/overview";
 import PublicProfile from "@/app/components/user_profile/public_profile/profile";
@@ -7,6 +8,7 @@ import ProfileQuickActions from "@/app/components/user_profile/public_profile/qu
 import { fetchPendingInvoicesByProfile } from "@/app/data/invoices/actions";
 import { fetchParticipantActivitySummary } from "@/app/lib/participants/actions";
 import { isParticipantStatus } from "@/app/lib/participants/definitions";
+import { getUserName } from "@/app/lib/users/utils";
 
 type DashboardUserPageProps = {
   profileId: number;
@@ -67,6 +69,13 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
           />
         </div>
         <PublicProfile profile={forProfile} title="Perfil de Usuario" />
+        {/* Only participants hold credits, so only they get an account panel. */}
+        {isParticipantStatus(forProfile.status) && (
+          <CreditAccountPanel
+            userId={forProfile.id}
+            participantName={getUserName(forProfile) || forProfile.email}
+          />
+        )}
         <PrivateProfile profile={forProfile} />
       </div>
     </div>

@@ -15,10 +15,12 @@ import {
   standDisplayLabel,
 } from "@/app/components/maps/admin/stand-manage/shared";
 import { StandRow } from "@/app/components/maps/admin/stand-manage/columns";
+import type { FullTableInfo } from "@/app/components/maps/admin/stand-manage/full-table";
 
 type Props = {
   stands: StandRow[];
   selectedIds: Set<number>;
+  fullTableByStandId: Map<number, FullTableInfo>;
   onToggle: (id: number) => void;
   onToggleAll: (ids: number[], allOn: boolean) => void;
   onEdit: (stand: StandRow) => void;
@@ -27,6 +29,7 @@ type Props = {
 export default function StandManageCardList({
   stands,
   selectedIds,
+  fullTableByStandId,
   onToggle,
   onToggleAll,
   onEdit,
@@ -59,6 +62,7 @@ export default function StandManageCardList({
         {stands.map((stand) => {
           const isSelected = selectedIds.has(stand.id);
           const hasReservation = stand.reservations.length > 0;
+          const fullTable = fullTableByStandId.get(stand.id);
           return (
             <li
               key={stand.id}
@@ -85,7 +89,29 @@ export default function StandManageCardList({
                       Con reserva
                     </Badge>
                   )}
+                  {fullTable && (
+                    <Badge
+                      variant={
+                        fullTable.problems.length > 0 ? "amber" : "secondary"
+                      }
+                      className="text-xs"
+                    >
+                      {fullTable.problems.length > 0
+                        ? "Mesa con problemas"
+                        : "Mesa completa"}
+                    </Badge>
+                  )}
                 </div>
+
+                {/* Named here too: a malformed pair is invisible to
+                    participants and withholds every full table in its sector. */}
+                {fullTable && fullTable.problems.length > 0 && (
+                  <ul className="mt-1 list-disc pl-4 text-xs text-amber-700">
+                    {fullTable.problems.map((problem, index) => (
+                      <li key={index}>{problem.message}</li>
+                    ))}
+                  </ul>
+                )}
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span>{stand.sectorName}</span>
                   <span>·</span>

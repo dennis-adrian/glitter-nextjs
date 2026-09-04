@@ -16,6 +16,7 @@ import {
   creditHolds,
   creditLedgerEntries,
   creditTopUps,
+  festivals,
   invoiceCreditAllocations,
   invoices,
   standReservations,
@@ -61,6 +62,15 @@ export type CreditWalletEntry = {
   invoiceId: number | null;
   reason: string | null;
   createdAt: Date;
+  /** The admin entry this one undoes, when it undoes one. */
+  reversesEntryId: number | null;
+  /**
+   * Whether a later entry already undoes this one.
+   *
+   * Computed across the whole ledger, not just the page being shown: an
+   * adjustment reverted months later would otherwise still offer its button.
+   */
+  isReverted: boolean;
 };
 
 export type CreditWallet = {
@@ -139,6 +149,7 @@ export async function fetchCreditWallet(
         invoiceId: invoiceCreditAllocations.invoiceId,
         metadata: creditLedgerEntries.metadata,
         createdAt: creditLedgerEntries.createdAt,
+        reversesEntryId: creditLedgerEntries.reversesEntryId,
       })
       .from(creditLedgerEntries)
       .leftJoin(
@@ -172,6 +183,23 @@ export async function fetchCreditWallet(
     : [];
   const invoiceById = new Map(invoiceTargets.map((row) => [row.id, row]));
 
+  // One extra read rather than a self-join per row: the answer is only needed
+  // for the entries actually being shown, and an undo can be far newer than
+  // the entry it undoes.
+  const reversedTargets = entryRows
+    .map((row) => row.id)
+    .filter((id): id is number => id != null);
+  const revertedIds = new Set<number>();
+  if (reversedTargets.length > 0) {
+    const rows = await db
+      .select({ reversesEntryId: creditLedgerEntries.reversesEntryId })
+      .from(creditLedgerEntries)
+      .where(inArray(creditLedgerEntries.reversesEntryId, reversedTargets));
+    for (const row of rows) {
+      if (row.reversesEntryId != null) revertedIds.add(row.reversesEntryId);
+    }
+  }
+
   return {
     balances,
     topUps: topUpRows.map((row) => {
@@ -203,6 +231,8 @@ export async function fetchCreditWallet(
       invoiceId: row.invoiceId,
       reason: readReason(row.metadata),
       createdAt: row.createdAt,
+      reversesEntryId: row.reversesEntryId,
+      isReverted: revertedIds.has(row.id),
     })),
   };
 }
@@ -220,6 +250,80 @@ export async function fetchResumableCreditTopUp(
   return (
     wallet.topUps.find((topUp) => topUp.status === "awaiting_voucher") ?? null
   );
+}
+
+/**
+ * One purchase, for the page that finishes it.
+ *
+ * Scoped to its owner rather than fetched by id alone: the purchase page is a
+ * payment screen, and somebody else's amount and deadline are not theirs to
+ * read.
+ */
+export async function fetchCreditTopUpForOwner(
+  topUpId: number,
+  userId: number,
+  now = new Date(),
+): Promise<CreditWalletTopUp | null> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+  if (
+    actor.id !== userId &&
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return null;
+  }
+
+  // Fetched by id rather than scanned out of the wallet page: a purchase older
+  // than the wallet's most recent rows is still a payment screen its owner can
+  // open.
+  const [row] = await db
+    .select({
+      id: creditTopUps.id,
+      amount: creditTopUps.amount,
+      status: creditTopUps.status,
+      intendedUseType: creditTopUps.intendedUseType,
+      intendedUseId: creditTopUps.intendedUseId,
+      uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
+      submittedAt: creditTopUps.submittedAt,
+      reviewedAt: creditTopUps.reviewedAt,
+      rejectionReason: creditTopUps.rejectionReason,
+      createdAt: creditTopUps.createdAt,
+    })
+    .from(creditTopUps)
+    .where(and(eq(creditTopUps.id, topUpId), eq(creditTopUps.userId, userId)))
+    .limit(1);
+  if (!row) return null;
+
+  const [target] =
+    row.intendedUseType === "invoice" && row.intendedUseId
+      ? await db
+          .select({
+            reservationId: invoices.reservationId,
+            festivalId: standReservations.festivalId,
+          })
+          .from(invoices)
+          .innerJoin(
+            standReservations,
+            eq(standReservations.id, invoices.reservationId),
+          )
+          .where(eq(invoices.id, row.intendedUseId))
+          .limit(1)
+      : [];
+
+  return {
+    id: row.id,
+    amount: Number(row.amount),
+    status: displayTopUpStatus(row.status, row.uploadDeadlineAt, now),
+    intendedUseType: row.intendedUseType,
+    intendedUseId: row.intendedUseId,
+    uploadDeadlineAt: row.uploadDeadlineAt,
+    submittedAt: row.submittedAt,
+    reviewedAt: row.reviewedAt,
+    rejectionReason: row.rejectionReason,
+    createdAt: row.createdAt,
+    invoiceReservationId: target?.reservationId ?? null,
+    invoiceFestivalId: target?.festivalId ?? null,
+  };
 }
 
 /** Credit balances for the signed-in participant, or null when signed out. */
@@ -659,4 +763,76 @@ export async function fetchCreditDebtReport(): Promise<
       lastReversalAt: lastReversalByUser.get(row.userId) ?? null,
     };
   });
+}
+
+export type FeatureHoldStatus = "active" | "captured" | "released" | "expired";
+
+export type FeatureHold = {
+  featureActionId: number;
+  festivalId: number;
+  festivalName: string;
+  amount: number;
+  status: FeatureHoldStatus;
+  reservedAt: Date;
+  /** When it stopped being active, or null while it still is. */
+  closedAt: Date | null;
+};
+
+/**
+ * Every feature earmark this participant has had, open or closed.
+ *
+ * Held credits are the one balance a participant can move on their own, and
+ * until now the only control that released them lived on the festival's
+ * reservation map. Somebody whose voucher was rejected after activating ends
+ * up with a hold and no credits behind it — the wallet reads as a debt, the
+ * map may be closed, and nothing on either screen says the hold is theirs to
+ * let go.
+ *
+ * Closed ones are kept because reserving and releasing are the only things
+ * that move a balance without posting a ledger entry. Dropping them on release
+ * took the whole episode out of the history and left an unexplained dip.
+ *
+ * `updatedAt` stands in for the closing time: a hold row is only ever written
+ * to change its status, so the two coincide.
+ */
+export async function fetchFeatureHolds(
+  userId: number,
+): Promise<FeatureHold[]> {
+  // Same gate as `fetchCreditWallet`: this says what somebody activated, at
+  // which festival and for how much. It is only ever called with the signed-in
+  // participant today, but a read that takes a `userId` and checks nothing is
+  // one careless caller away from leaking somebody else's.
+  const actor = await getCurrentUserProfile();
+  if (!actor) return [];
+  if (
+    actor.id !== userId &&
+    !canViewAdminReservationData({ id: actor.id, role: actor.role })
+  ) {
+    return [];
+  }
+
+  const rows = await db
+    .select({
+      featureActionId: creditHolds.featureActionId,
+      festivalId: creditHolds.festivalId,
+      festivalName: festivals.name,
+      amount: creditHolds.amount,
+      status: creditHolds.status,
+      createdAt: creditHolds.createdAt,
+      updatedAt: creditHolds.updatedAt,
+    })
+    .from(creditHolds)
+    .innerJoin(festivals, eq(festivals.id, creditHolds.festivalId))
+    .where(eq(creditHolds.userId, userId))
+    .orderBy(desc(creditHolds.createdAt));
+
+  return rows.map((row) => ({
+    featureActionId: row.featureActionId,
+    festivalId: row.festivalId,
+    festivalName: row.festivalName,
+    amount: Number(row.amount),
+    status: row.status,
+    reservedAt: row.createdAt,
+    closedAt: row.status === "active" ? null : row.updatedAt,
+  }));
 }
