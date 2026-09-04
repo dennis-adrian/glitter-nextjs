@@ -342,6 +342,99 @@ describeDatabase("credit mutation concurrency", () => {
     expect(await ledgerBalance(userId)).toBe(100);
   }, 30_000);
 
+  /**
+   * The ledger is append-only, so undoing a grant means posting its opposite.
+   * Two admins clicking at once must still leave one: without the link and the
+   * check under the account lock, the account ends up short by the original
+   * amount with no way to tell the two undos apart.
+   */
+  it("undoes an admin grant exactly once under concurrent reverts", async () => {
+    const userId = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+    const entryId = grant.data.ledgerEntryId;
+
+    const results = await Promise.all([
+      service.adjustCreditAccount({
+        userId,
+        amount: -30,
+        reason: "revert a",
+        idempotencyKey: randomUUID(),
+        reversesEntryId: entryId,
+      }),
+      service.adjustCreditAccount({
+        userId,
+        amount: -30,
+        reason: "revert b",
+        idempotencyKey: randomUUID(),
+        reversesEntryId: entryId,
+      }),
+    ]);
+
+    const ok = results.filter((result) => result.ok);
+    expect(ok).toHaveLength(1);
+    expect(
+      results.filter(
+        (result) => !result.ok && result.code === "ENTRY_ALREADY_REVERTED",
+      ),
+    ).toHaveLength(1);
+    // The grant and its single undo cancel out.
+    expect(await ledgerBalance(userId)).toBe(0);
+  });
+
+  it("refuses to undo an entry that is not the admin's own", async () => {
+    const userId = await createUser();
+    const other = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId: other,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+
+    // Same entry id, wrong account: the undo would move money on an account
+    // the entry never touched.
+    const result = await service.adjustCreditAccount({
+      userId,
+      amount: -30,
+      reason: "revert",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: grant.data.ledgerEntryId,
+    });
+
+    expect(result).toMatchObject({ ok: false, code: "ENTRY_NOT_REVERTIBLE" });
+  });
+
+  it("refuses an undo whose amount is not the original's opposite", async () => {
+    const userId = await createUser();
+    const grant = await service.adjustCreditAccount({
+      userId,
+      amount: 30,
+      reason: "compensación",
+      idempotencyKey: randomUUID(),
+    });
+    if (!grant.ok) throw new Error("fixture grant failed");
+
+    // A partial undo is just another adjustment; calling it a revert would
+    // make the link to the original a lie.
+    const result = await service.adjustCreditAccount({
+      userId,
+      amount: -10,
+      reason: "revert",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: grant.data.ledgerEntryId,
+    });
+
+    expect(result).toMatchObject({ ok: false, code: "INVALID_AMOUNT" });
+    expect(await ledgerBalance(userId)).toBe(30);
+  });
+
   it("never credits more than the debt under concurrent resolution", async () => {
     const userId = await createUser();
     const reviewerId = await createUser();

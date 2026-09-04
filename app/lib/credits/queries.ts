@@ -61,6 +61,15 @@ export type CreditWalletEntry = {
   invoiceId: number | null;
   reason: string | null;
   createdAt: Date;
+  /** The admin entry this one undoes, when it undoes one. */
+  reversesEntryId: number | null;
+  /**
+   * Whether a later entry already undoes this one.
+   *
+   * Computed across the whole ledger, not just the page being shown: an
+   * adjustment reverted months later would otherwise still offer its button.
+   */
+  isReverted: boolean;
 };
 
 export type CreditWallet = {
@@ -139,6 +148,7 @@ export async function fetchCreditWallet(
         invoiceId: invoiceCreditAllocations.invoiceId,
         metadata: creditLedgerEntries.metadata,
         createdAt: creditLedgerEntries.createdAt,
+        reversesEntryId: creditLedgerEntries.reversesEntryId,
       })
       .from(creditLedgerEntries)
       .leftJoin(
@@ -172,6 +182,23 @@ export async function fetchCreditWallet(
     : [];
   const invoiceById = new Map(invoiceTargets.map((row) => [row.id, row]));
 
+  // One extra read rather than a self-join per row: the answer is only needed
+  // for the entries actually being shown, and an undo can be far newer than
+  // the entry it undoes.
+  const reversedTargets = entryRows
+    .map((row) => row.id)
+    .filter((id): id is number => id != null);
+  const revertedIds = new Set<number>();
+  if (reversedTargets.length > 0) {
+    const rows = await db
+      .select({ reversesEntryId: creditLedgerEntries.reversesEntryId })
+      .from(creditLedgerEntries)
+      .where(inArray(creditLedgerEntries.reversesEntryId, reversedTargets));
+    for (const row of rows) {
+      if (row.reversesEntryId != null) revertedIds.add(row.reversesEntryId);
+    }
+  }
+
   return {
     balances,
     topUps: topUpRows.map((row) => {
@@ -203,6 +230,8 @@ export async function fetchCreditWallet(
       invoiceId: row.invoiceId,
       reason: readReason(row.metadata),
       createdAt: row.createdAt,
+      reversesEntryId: row.reversesEntryId,
+      isReverted: revertedIds.has(row.id),
     })),
   };
 }

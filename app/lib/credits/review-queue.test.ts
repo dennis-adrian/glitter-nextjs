@@ -18,11 +18,7 @@ vi.mock("@/app/lib/credits/service", () => ({
 }));
 
 import { fetchCreditTopUpReviewQueue } from "@/app/lib/credits/queries";
-import {
-  creditHolds,
-  creditLedgerEntries,
-  creditTopUps,
-} from "@/db/schema";
+import { creditHolds, creditLedgerEntries, creditTopUps } from "@/db/schema";
 
 type Row = Record<string, unknown>;
 

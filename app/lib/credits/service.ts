@@ -38,6 +38,8 @@ export const CREDIT_FAILURE_CODES = [
   "HOLD_NOT_ACTIVE",
   "IDEMPOTENCY_CONFLICT",
   "USER_DELETION_PENDING",
+  "ENTRY_NOT_REVERTIBLE",
+  "ENTRY_ALREADY_REVERTED",
 ] as const;
 export type CreditFailureCode = (typeof CREDIT_FAILURE_CODES)[number];
 
@@ -1018,6 +1020,15 @@ export async function adjustCreditAccount(input: {
   amount: number;
   reason: string;
   idempotencyKey: string;
+  /**
+   * The admin entry this one undoes, if any.
+   *
+   * The ledger is append-only, so undoing a grant means posting its opposite
+   * and linking the two rather than removing anything. The link is what makes
+   * a second undo detectable — without it two clicks post two opposites and
+   * the account ends up short by the original amount.
+   */
+  reversesEntryId?: number;
 }): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
   if (
     !Number.isFinite(input.amount) ||
@@ -1034,6 +1045,41 @@ export async function adjustCreditAccount(input: {
       return failure("USER_DELETION_PENDING");
     }
     await lockCreditAccount(tx, input.userId);
+    if (input.reversesEntryId != null) {
+      // Under `lockCreditAccount`, so two admins clicking at once serialise
+      // here and the second sees the first's row.
+      const [target] = await tx
+        .select({
+          id: creditLedgerEntries.id,
+          userId: creditLedgerEntries.userId,
+          amount: creditLedgerEntries.amount,
+          type: creditLedgerEntries.type,
+        })
+        .from(creditLedgerEntries)
+        .where(eq(creditLedgerEntries.id, input.reversesEntryId))
+        .limit(1);
+      // Only an admin's own entry is undoable here. A top-up is undone by
+      // rejecting its voucher, and a spend by whatever booked it — reversing
+      // either from this screen would leave the thing it paid for standing
+      // with no matching money.
+      if (
+        !target ||
+        target.userId !== input.userId ||
+        (target.type !== "admin_grant" && target.type !== "admin_adjustment")
+      ) {
+        return failure("ENTRY_NOT_REVERTIBLE");
+      }
+      if (roundCredits(Number(target.amount)) !== -amount) {
+        return failure("INVALID_AMOUNT");
+      }
+      const [alreadyReverted] = await tx
+        .select({ id: creditLedgerEntries.id })
+        .from(creditLedgerEntries)
+        .where(eq(creditLedgerEntries.reversesEntryId, input.reversesEntryId))
+        .limit(1);
+      if (alreadyReverted) return failure("ENTRY_ALREADY_REVERTED");
+    }
+
     const [existing] = await tx
       .select({
         id: creditLedgerEntries.id,
@@ -1064,6 +1110,7 @@ export async function adjustCreditAccount(input: {
         amount,
         type: amount > 0 ? "admin_grant" : "admin_adjustment",
         idempotencyKey: input.idempotencyKey,
+        reversesEntryId: input.reversesEntryId ?? null,
         metadata: { reason: input.reason.trim() },
       })
       .returning({ id: creditLedgerEntries.id });

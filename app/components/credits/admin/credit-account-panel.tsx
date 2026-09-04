@@ -2,6 +2,7 @@ import { CoinsIcon } from "lucide-react";
 
 import CreditAmount from "@/app/components/credits/credit-amount";
 import CreditAdjustButton from "@/app/components/credits/admin/credit-adjust-button";
+import CreditRevertButton from "@/app/components/credits/admin/credit-revert-button";
 import {
   Card,
   CardContent,
@@ -49,6 +50,7 @@ export default async function CreditAccountPanel({
   ]);
   if (!wallet) return null;
 
+  const canAdjust = canMutateAdminReservations(actor);
   const recentEntries = wallet.entries.slice(0, RECENT_ENTRY_LIMIT);
   const inDebt = wallet.balances.ledgerBalance < 0;
 
@@ -62,7 +64,7 @@ export default async function CreditAccountPanel({
         <CreditAdjustButton
           userId={userId}
           participantName={participantName}
-          canAdjust={canMutateAdminReservations(actor)}
+          canAdjust={canAdjust}
         />
       </CardHeader>
       <CardContent className="space-y-4">
@@ -115,15 +117,35 @@ export default async function CreditAccountPanel({
                       {formatDateWithTime(entry.createdAt)}
                     </p>
                   </div>
-                  <CreditAmount
-                    amount={entry.amount}
-                    signed
-                    className={
-                      entry.amount > 0
-                        ? "shrink-0 text-sm font-medium text-green-600"
-                        : "shrink-0 text-sm font-medium"
-                    }
-                  />
+                  <div className="flex shrink-0 flex-col items-end gap-0.5">
+                    <CreditAmount
+                      amount={entry.amount}
+                      signed
+                      className={
+                        entry.amount > 0
+                          ? "text-sm font-medium text-green-600"
+                          : "text-sm font-medium"
+                      }
+                    />
+                    {/* Only an admin's own entry is undoable from here. A
+                        top-up is undone by rejecting its voucher and a spend
+                        by whatever booked it, so offering the control on those
+                        would promise something the service refuses. */}
+                    {canAdjust &&
+                      (entry.type === "admin_grant" ||
+                        entry.type === "admin_adjustment") &&
+                      (entry.isReverted ? (
+                        <span className="text-xs text-muted-foreground">
+                          Revertido
+                        </span>
+                      ) : (
+                        <CreditRevertButton
+                          userId={userId}
+                          entryId={entry.id}
+                          amount={entry.amount}
+                        />
+                      ))}
+                  </div>
                 </li>
               ))}
             </ul>
