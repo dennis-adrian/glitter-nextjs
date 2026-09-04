@@ -104,9 +104,10 @@ export default async function CreditsIntroduction({
                 it stays in front of anyone about to spend (PRD §7.3). */}
             <p className="text-sm text-muted-foreground">
               Cargar créditos te dará la opción de reservar una mesa completa
-              (dos espacios) en caso de que encontrés alguna disponible. Si no
-              lográs agarrar una mesa completa, podrás guardar tus créditos o
-              usarlos para tu reserva.
+              que corresponde a dos espacios con un total de 240 × 60 cm. Para
+              reservar una mesa completa tiene que haber disponibilidad. Si no
+              lográs reservar una, igual podrás guardar tus créditos o usarlos
+              para tu reserva.
             </p>
 
             {/* This screen exists to settle the money question before the map, so

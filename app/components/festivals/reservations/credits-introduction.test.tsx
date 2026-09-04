@@ -112,7 +112,7 @@ describe("CreditsIntroduction", () => {
     await renderIntro();
 
     expect(
-      screen.getByText(/en caso de que encontrés alguna disponible/),
+      screen.getByText(/tiene que haber disponibilidad/),
     ).toBeTruthy();
   });
 

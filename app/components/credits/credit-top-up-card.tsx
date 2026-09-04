@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import CreditAmount from "@/app/components/credits/credit-amount";
+import { topUpReturn } from "@/app/components/credits/top-up-return";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDateWithTime } from "@/app/lib/formatters";
@@ -45,17 +46,11 @@ export default function CreditTopUpCard({
   topUp,
   profileId,
 }: CreditTopUpCardProps) {
-  const reservationHref =
-    topUp.invoiceFestivalId && topUp.invoiceReservationId
-      ? `/profiles/${profileId}/festivals/${topUp.invoiceFestivalId}/reservations/${topUp.invoiceReservationId}/payments`
-      : null;
-
-  // A feature purchase stores the festival it funds, which is where the
-  // participant goes back to spend it.
-  const featureHref =
-    topUp.intendedUseType === "feature" && topUp.intendedUseId
-      ? `/profiles/${profileId}/festivals/${topUp.intendedUseId}/reservations/new`
-      : null;
+  // The same destinations the purchase page redirects to when the voucher
+  // lands, so a link here cannot point somewhere else than the flow did.
+  const returnTo = topUpReturn(topUp, profileId);
+  const reservationHref = returnTo?.kind === "invoice" ? returnTo.href : null;
+  const featureHref = returnTo?.kind === "feature" ? returnTo.href : null;
 
   return (
     <Card>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Title from "@/app/components/atoms/heading";
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import CreditPurchaseOutcome from "@/app/components/credits/credit-purchase-outcome";
+import { topUpReturn } from "@/app/components/credits/top-up-return";
 import CreditTopUpVoucherUpload from "@/app/components/credits/credit-top-up-voucher-upload";
 import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
@@ -34,6 +35,7 @@ function purposeLabel(topUp: CreditWalletTopUp) {
 
 type CreditPurchaseProps = {
   topUp: CreditWalletTopUp;
+  profileId: number;
 };
 
 /**
@@ -45,13 +47,20 @@ type CreditPurchaseProps = {
  * and no way to finish the purchase without doing it, because submitting the
  * voucher is what issues the credits.
  */
-export default async function CreditPurchase({ topUp }: CreditPurchaseProps) {
+export default async function CreditPurchase({
+  topUp,
+  profileId,
+}: CreditPurchaseProps) {
   // Exact amount when the team pre-generated one, otherwise the shared
   // zero-amount code the payer types the amount into.
   const qrCode =
     topUp.status === "awaiting_voucher"
       ? await getQrCodeForAmount(topUp.amount)
       : null;
+
+  // Back to whatever needed the credits. Only a purchase that settles a
+  // negative balance has no such place, and that one belongs to the wallet.
+  const returnTo = topUpReturn(topUp, profileId);
 
   return (
     <div className="container max-w-[560px] p-3 md:p-6">
@@ -111,7 +120,7 @@ export default async function CreditPurchase({ topUp }: CreditPurchaseProps) {
                 topUpId={topUp.id}
                 amount={topUp.amount}
                 uploadDeadlineAt={topUp.uploadDeadlineAt.toISOString()}
-                redirectTo="/my_credits"
+                redirectTo={returnTo?.href ?? "/my_credits"}
                 clearFullTableDismissalFor={
                   // `feature` is only ever the full table today, and its
                   // `intendedUseId` is the festival — the same pair the server

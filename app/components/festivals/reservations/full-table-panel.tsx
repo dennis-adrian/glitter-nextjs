@@ -152,8 +152,8 @@ export default function FullTablePanel({
             </Button>
           )}
 
-          <Button variant="ghost" size="sm" asChild>
-            <a href="/credits_info">Qué es</a>
+          <Button variant="link" size="sm" asChild>
+            <a href="/credits_info">Más información</a>
           </Button>
         </div>
       </div>

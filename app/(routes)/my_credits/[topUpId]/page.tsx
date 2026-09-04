@@ -26,5 +26,5 @@ export default async function CreditPurchasePage(props: {
   const topUp = await fetchCreditTopUpForOwner(parsedId, currentProfile.id);
   if (!topUp) notFound();
 
-  return <CreditPurchase topUp={topUp} />;
+  return <CreditPurchase topUp={topUp} profileId={currentProfile.id} />;
 }
