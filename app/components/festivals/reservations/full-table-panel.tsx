@@ -41,7 +41,8 @@ export default function FullTablePanel({
    * A full table is only ever paid for in credits, and a purchase can only be
    * finished in the wallet. With credits still behind their flag there is no
    * route from here to an activated table, so the whole offer goes rather than
-   * quoting a price nobody can pay.
+   * quoting a price nobody can pay. An already-activated table is the
+   * exception — see the guard below.
    */
   creditsEnabled: boolean;
 }) {
@@ -61,7 +62,13 @@ export default function FullTablePanel({
     }
   }, [festivalId]);
 
-  if (!offer.offered || !creditsEnabled || hidden) return null;
+  if (!offer.offered) return null;
+
+  // Everything below only silences a pitch. Once the table is activated the
+  // panel stops being one: those are the participant's credits on hold, and
+  // Desactivar is the only way to get them back (PRD §7.3). Neither turning the
+  // flag back off nor a dismissal from before activation may take that away.
+  if (!offer.active && (!creditsEnabled || hidden)) return null;
 
   function run(action: typeof activateFullTableAccessAction) {
     startTransition(async () => {
@@ -95,21 +102,27 @@ export default function FullTablePanel({
   return (
     <section
       aria-labelledby="full-table-heading"
-      className="relative mb-4 rounded-lg border bg-card py-2 pl-3 pr-10 text-sm"
+      className={`relative mb-4 rounded-lg border bg-card py-2 pl-3 text-sm ${
+        offer.active ? "pr-3" : "pr-10"
+      }`}
     >
       {/* Dismissing is the point: this is an offer the participant has already
           been shown a screen of its own, and they came here to pick a space.
           Pinned to the corner, where a banner's close control belongs, so it
-          never competes with the offer's own buttons for the row. */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute right-1 top-1 h-7 w-7 p-0"
-        aria-label="Ocultar el aviso de mesa completa"
-        onClick={dismiss}
-      >
-        <XIcon className="h-4 w-4" />
-      </Button>
+          never competes with the offer's own buttons for the row. Gone once the
+          table is activated: a control that comes back on the next render only
+          reads as broken, and the panel has to stay reachable for Desactivar. */}
+      {!offer.active && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute right-1 top-1 h-7 w-7 p-0"
+          aria-label="Ocultar el aviso de mesa completa"
+          onClick={dismiss}
+        >
+          <XIcon className="h-4 w-4" />
+        </Button>
+      )}
 
       {/* Stacked until there is room for one line. Side by side on a phone the
           sentence gets squeezed to a word per line while the button keeps its

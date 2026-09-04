@@ -50,8 +50,13 @@ function renderPanel(
 
 const BUY = /Comprar \d+ créditos?/;
 
+const DISMISSAL_KEY = "glitter:full-table-banner-dismissed:1";
+
 describe("FullTablePanel", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
 
   it("offers the purchase when credits are the only thing missing", () => {
     renderPanel(offer());
@@ -93,6 +98,61 @@ describe("FullTablePanel", () => {
     const { container } = renderPanel(offer(), { creditsEnabled: false });
 
     expect(container.innerHTML).toBe("");
+  });
+
+  /**
+   * The flag can go back off after somebody activated, and their credits stay
+   * held either way. Hiding the panel with the rest of the feature would leave
+   * no way to release them — there is no price quoted here to worry about.
+   */
+  it("keeps an activated table visible after credits are hidden again", () => {
+    renderPanel(offer({ active: true, shortfall: 0 }), {
+      creditsEnabled: false,
+    });
+
+    expect(screen.getByRole("button", { name: "Desactivar" })).toBeTruthy();
+  });
+
+  it("hides a dismissed offer that is not activated", () => {
+    window.localStorage.setItem(DISMISSAL_KEY, "1");
+
+    const { container } = renderPanel(offer());
+
+    expect(container.innerHTML).toBe("");
+  });
+
+  /**
+   * The dismissal is remembered per festival and outlives the activation that
+   * follows it, so a holder who closed the banner first must not lose the only
+   * control that gives their credits back.
+   */
+  it("ignores an earlier dismissal once the table is activated", () => {
+    window.localStorage.setItem(DISMISSAL_KEY, "1");
+
+    renderPanel(offer({ active: true, shortfall: 0 }));
+
+    expect(screen.getByRole("button", { name: "Desactivar" })).toBeTruthy();
+  });
+
+  it("drops the dismissal control while the table is activated", () => {
+    renderPanel(offer({ active: true, shortfall: 0 }));
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Ocultar el aviso de mesa completa",
+      }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Desactivar" })).toBeTruthy();
+  });
+
+  it("offers the dismissal control while the table is only on offer", () => {
+    renderPanel(offer());
+
+    expect(
+      screen.getByRole("button", {
+        name: "Ocultar el aviso de mesa completa",
+      }),
+    ).toBeTruthy();
   });
 
   /**
