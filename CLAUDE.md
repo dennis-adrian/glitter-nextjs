@@ -2,11 +2,17 @@
 
 - Following the Conventional Commits guideline, write commit messages that briefly describe the staged changes. The commit message can be a one-liner subject, or a subject plus a body based on how large the diff is
 
+# Database targets
+
+- `.env.local` holds two database URLs and **neither has a fixed target**. They get repointed depending on what is being worked on, so do not assume either one — including from this file. Resolve them and state the host/port/database you got before any command that reads or writes the database, starts a dev server, or reports on schema state.
+- Last observed 2026-09-04: `POSTGRES_URL` → `localhost:5432/glitter_dev`, `TEST_DATABASE_URL` → Railway. Treat that as a sample, not a fact.
+- When a URL resolves to Railway, treat it as production: read-only unless asked, and never a seed, a test suite, or a dev server. Applying migrations is always Dennis's call, and one-way.
+
 # Integration tests
 
 - Integration and migration tests need `TEST_DATABASE_URL`. Never point it at Railway, development, or production — the suites refuse any database whose name does not contain `test`/`ci`.
-- The value already in `.env.local` targets the Railway database (`railway`), so it fails that guard by design. Override it in the shell; do not edit it in the file.
-- `.env.local`'s `POSTGRES_URL` also targets Railway. Override it too before running `pnpm dev` against a scratch database — `process.env` wins over `.env.local`.
+- Whatever `.env.local` currently holds is not a substitute: check it, and override in the shell rather than editing the file.
+- Override `POSTGRES_URL` in the shell too before running `pnpm dev` against a scratch database — `process.env` wins over `.env.local`.
 - On a local machine, spin up a disposable Postgres per worktree with Docker. Full procedure: [docs/testing-with-docker-postgres.md](docs/testing-with-docker-postgres.md).
 
 ```bash
