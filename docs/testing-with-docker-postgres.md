@@ -12,7 +12,6 @@ data volume.
 
 ```bash
 export GLITTER_TEST_DB_PORT=55432
-export TEST_DATABASE_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitter_test"
 
 pnpm db:test:up
 ```
@@ -22,8 +21,10 @@ database names as a safety check.
 
 ## Migrate and test
 
-Keep `TEST_DATABASE_URL` exported in the same shell. The migration script uses
-it only as the guarded test target.
+Keep `GLITTER_TEST_DB_PORT` exported in the same shell. Both commands build the
+connection string from it and `compose.test.yml`'s fixed credentials, so there
+is nothing else to set — and no value in `.env.local` can redirect them at a
+real database.
 
 ```bash
 pnpm migrate:test
@@ -37,16 +38,17 @@ Clerk secrets are unavailable.
 
 ```bash
 pnpm env:sync
-POSTGRES_URL="$TEST_DATABASE_URL" pnpm seed
+POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitter_test" pnpm seed
 ```
 
 ## Run the app against it
 
-`pnpm dev` reads `POSTGRES_URL`. Left unset it resolves from `.env.local`, which
-points at Railway — so pass it explicitly every time, in the same shell:
+`pnpm dev` reads `POSTGRES_URL`, and unlike the test commands it does not
+derive one — left unset it resolves from `.env.local`, whose target varies and
+has been Railway. Pass it explicitly every time, in the same shell:
 
 ```bash
-POSTGRES_URL="$TEST_DATABASE_URL" pnpm dev
+POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitter_test" pnpm dev
 ```
 
 To confirm which database the running server actually attached to, rather than
@@ -75,7 +77,7 @@ To permanently discard it, run `docker compose -p "glitter-test-${GLITTER_TEST_D
 
 ## Troubleshooting
 
-- Port already in use: choose another value, e.g. `export GLITTER_TEST_DB_PORT=55433`, then re-export `TEST_DATABASE_URL`.
+- Port already in use: choose another value, e.g. `export GLITTER_TEST_DB_PORT=55433`, and re-run `pnpm db:test:up`.
 - Inspect logs: `pnpm db:test:logs`.
 - Do not put the Docker URL in a committed `.env` file. It is shell-local by
   design, so each worktree can select its own database.

@@ -26,17 +26,17 @@ Environment notes for this VM (the startup update script already runs `pnpm inst
   - Before `pnpm dev`, `pnpm seed`, sourcing `.env.local`, or any Clerk-backed check, run `pnpm env:sync`. That rewrites git-ignored `.env.local` from process/parent secrets plus local Postgres and refuses to write placeholders when a real value exists. `pnpm dev` / `pnpm migrate` / `pnpm seed` already run this first.
   - If `pnpm env:sync` prints `clerk=missing`, stop and say the dashboard Clerk secrets are unavailable. Never fabricate well-formed fake keys so the app "boots".
   - Resend and PostHog stay no-ops unless `VERCEL_ENV` is production. Do not treat a redacted `VERCEL_ENV` as a missing secret.
-- Apply migrations after schema changes: `pnpm migrate` (dev DB). `scripts/migrate.ts` reads `.env.local` from inside Node (`@next/env`), so `TEST_DATABASE_URL` does not exist yet when the shell expands it — a bare `POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate` passes an empty value and the script just prints "POSTGRES_URL is not set. Skipping migration." Run `pnpm env:sync` first, then load `.env.local` into the shell, and keep the safeguard that the target database name must contain `test`/`ci` (the integration tests assert the same rule). Run once for the integration-test DB:
+- Apply migrations after schema changes: `pnpm migrate` (dev DB), or `pnpm migrate:test` for the disposable Docker Postgres. `migrate:test` builds its own connection string from `compose.test.yml`'s fixed credentials and `GLITTER_TEST_DB_PORT`, so there is nothing to export and `.env.local` cannot redirect it at a real database.
 
 ```bash
-pnpm env:sync
-( set -a; . ./.env.local; set +a
-  node -e 'const n = decodeURIComponent(new URL(process.env.TEST_DATABASE_URL).pathname.slice(1)); if (!/(^|[_-])(test|ci)([_-]|$)/i.test(n)) { console.error(`Refusing to migrate: "${n}" is not a test/ci database`); process.exit(1); }' \
-    && POSTGRES_URL="$TEST_DATABASE_URL" pnpm migrate )
+export GLITTER_TEST_DB_PORT=55432
+pnpm db:test:up && pnpm migrate:test
 ```
 
+- **`scripts/migrate.ts` has no test/ci name guard of its own** — it migrates whatever `POSTGRES_URL` resolves to, and applying is one-way. Only `pnpm migrate:test` is safe to run unattended; `pnpm migrate` targets whatever `.env.local` currently points at, which is not fixed and has been Railway. Check before running it.
+
 - After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Storefront products and other domain fixtures are not seeded yet.
-- Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (loads `.env.local`, needs a migrated `TEST_DATABASE_URL`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
+- Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (needs the migrated Docker Postgres from `pnpm db:test:up` + `pnpm migrate:test`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
 - `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file and `CLAUDE.md`; commit that change rather than fighting it.
 
 ## Development seed (demo users)
