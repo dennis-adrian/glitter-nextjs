@@ -43,6 +43,27 @@ function drop([x, y]: Point, distance: number): Point {
   return [x, y + distance];
 }
 
+/**
+ * One leg, dropped from a corner of the surface.
+ *
+ * Legs belong to the table, not to each half: drawn per half they landed on
+ * every half's right-hand corners, which on a full table put two at the far end
+ * and two at the seam, leaving the near end apparently unsupported.
+ */
+function Leg({ foot, muted }: { foot: Point; muted: boolean }) {
+  return (
+    <line
+      x1={foot[0]}
+      y1={foot[1] + THICKNESS}
+      x2={foot[0]}
+      y2={foot[1] + THICKNESS + LEG_LENGTH}
+      stroke={muted ? "var(--table-muted-edge)" : "var(--table-leg)"}
+      strokeWidth={3.4}
+      strokeLinecap="round"
+    />
+  );
+}
+
 type HalfProps = {
   index: number;
   muted: boolean;
@@ -64,7 +85,6 @@ function Half({ index, muted, seam, selected }: HalfProps) {
       ? "var(--table-surface-selected)"
       : "var(--table-surface)";
   const edge = muted ? "var(--table-muted-edge)" : "var(--table-edge)";
-  const leg = muted ? "var(--table-muted-edge)" : "var(--table-leg)";
 
   return (
     <g>
@@ -94,18 +114,6 @@ function Half({ index, muted, seam, selected }: HalfProps) {
         ])}
         fill={edge}
       />
-      {[frontRight, backRight].map((foot, legIndex) => (
-        <line
-          key={legIndex}
-          x1={foot[0]}
-          y1={foot[1] + THICKNESS}
-          x2={foot[0]}
-          y2={foot[1] + THICKNESS + LEG_LENGTH}
-          stroke={leg}
-          strokeWidth={3.4}
-          strokeLinecap="round"
-        />
-      ))}
       {seam ? (
         <line
           x1={backLeft[0]}
@@ -148,7 +156,10 @@ export default function FullTableGraphic({
   className?: string;
 }) {
   const halves = variant === "half" ? 1 : 2;
-  const mutedIndex = variant === "companion-unavailable" ? 1 : null;
+  // Widened deliberately: which half is muted is a property of the variant, and
+  // the legs ask about both ends rather than assuming only the far one can be.
+  const mutedIndex: number | null =
+    variant === "companion-unavailable" ? 1 : null;
   const seam = variant === "full" || variant === "full-selected";
 
   // The viewBox grows with the number of halves so a full table is drawn twice
@@ -190,6 +201,10 @@ export default function FullTableGraphic({
           <line x1="0" y1="0" x2="0" y2="7" stroke="#948f8f" strokeWidth="2" />
         </pattern>
       </defs>
+      {/* Back legs first so the surface hides the part that runs behind it,
+          front legs after so they stand in front of it. */}
+      <Leg foot={at(0, 0, 0)} muted={mutedIndex === 0} />
+      <Leg foot={at(halves - 1, 0, 1)} muted={mutedIndex === halves - 1} />
       {Array.from({ length: halves }, (_, index) => (
         <Half
           key={index}
@@ -204,6 +219,8 @@ export default function FullTableGraphic({
           }
         />
       ))}
+      <Leg foot={at(0, 1, 0)} muted={mutedIndex === 0} />
+      <Leg foot={at(halves - 1, 1, 1)} muted={mutedIndex === halves - 1} />
     </svg>
   );
 }

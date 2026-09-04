@@ -88,6 +88,31 @@ describe("CreditsIntroduction", () => {
     expect(screen.getByText("Ahora no, seguir al plano")).toBeTruthy();
   });
 
+  /**
+   * The screen answers one question — what turning the feature on costs. What a
+   * full table actually is lives behind a link, not in front of someone
+   * deciding whether to pay.
+   */
+  it("keeps to the price and links the explanation out", async () => {
+    await renderIntro();
+
+    expect(
+      screen.getByRole("link", {
+        name: /Qué es una mesa completa y cómo funcionan los créditos/,
+      }),
+    ).toBeTruthy();
+    // The long explanation that used to sit on this page is gone.
+    expect(screen.queryByText("Media mesa y mesa completa")).toBeNull();
+    expect(screen.queryByText("Qué comprás exactamente")).toBeNull();
+  });
+
+  it("still states that activating guarantees nothing", async () => {
+    // A condition of the purchase, not an explanation of the product (PRD §7.3).
+    await renderIntro();
+
+    expect(screen.getByText(/No reserva ni garantiza/)).toBeTruthy();
+  });
+
   it("just continues when the balance already covers the price", async () => {
     fullTableOfferMock.mockResolvedValue(
       offer({ spendableBalance: 200, shortfall: 0, blockedReason: null }),
