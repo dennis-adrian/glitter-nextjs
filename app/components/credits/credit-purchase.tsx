@@ -112,6 +112,14 @@ export default async function CreditPurchase({ topUp }: CreditPurchaseProps) {
                 amount={topUp.amount}
                 uploadDeadlineAt={topUp.uploadDeadlineAt.toISOString()}
                 redirectTo="/my_credits"
+                clearFullTableDismissalFor={
+                  // `feature` is only ever the full table today, and its
+                  // `intendedUseId` is the festival — the same pair the server
+                  // reads to activate the access this purchase funds.
+                  topUp.intendedUseType === "feature"
+                    ? (topUp.intendedUseId ?? undefined)
+                    : undefined
+                }
               />
             </>
           ) : (

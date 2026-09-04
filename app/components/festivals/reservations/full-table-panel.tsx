@@ -8,17 +8,16 @@ import { toast } from "sonner";
 import BuyFeatureCreditsButton from "@/app/components/credits/buy-feature-credits-button";
 import { Button } from "@/app/components/ui/button";
 import {
+  dismissFullTableBanner,
+  isFullTableBannerDismissed,
+} from "@/app/components/festivals/reservations/full-table-dismissal";
+import {
   activateFullTableAccessAction,
   deactivateFullTableAccessAction,
 } from "@/app/lib/reservations/full-table-actions";
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
 
 import type { FullTableOffer } from "@/app/lib/reservations/full-table-queries";
-
-/** Remembered per festival, so a dismissal survives the reload after a hold. */
-function dismissalKey(festivalId: number) {
-  return `glitter:full-table-banner-dismissed:${festivalId}`;
-}
 
 /**
  * The full-table offer, as one dismissible line.
@@ -53,13 +52,7 @@ export default function FullTablePanel({
   // Read after mount: the server has no way to know what this browser dismissed,
   // and reading during render would make the markup disagree with hydration.
   useEffect(() => {
-    try {
-      if (window.localStorage.getItem(dismissalKey(festivalId)) === "1") {
-        setHidden(true);
-      }
-    } catch {
-      // A browser refusing storage just means the banner comes back.
-    }
+    setHidden(isFullTableBannerDismissed(festivalId));
   }, [festivalId]);
 
   if (!offer.offered) return null;
@@ -85,11 +78,7 @@ export default function FullTablePanel({
 
   function dismiss() {
     setHidden(true);
-    try {
-      window.localStorage.setItem(dismissalKey(festivalId), "1");
-    } catch {
-      // Nothing to do: it reappears next visit, which is the safe direction.
-    }
+    dismissFullTableBanner(festivalId);
   }
 
   // One clause after the name, never a second paragraph — this is a banner.
