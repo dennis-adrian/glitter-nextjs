@@ -64,7 +64,6 @@ export default function BuyFeatureCreditsButton({
   return (
     <Button
       type="button"
-      variant="outline"
       onClick={buyCredits}
       disabled={isPending || disabled}
     >

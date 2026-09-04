@@ -1,12 +1,11 @@
 "use client";
 
+import { XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import BuyFeatureCreditsButton from "@/app/components/credits/buy-feature-credits-button";
-import FullTableGraphic from "@/app/components/festivals/reservations/full-table-graphic";
-import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
   activateFullTableAccessAction,
@@ -16,12 +15,18 @@ import { formatCredits } from "@/app/components/credits/credit-amount";
 
 import type { FullTableOffer } from "@/app/lib/reservations/full-table-queries";
 
+/** Remembered per festival, so a dismissal survives the reload after a hold. */
+function dismissalKey(festivalId: number) {
+  return `glitter:full-table-banner-dismissed:${festivalId}`;
+}
+
 /**
- * The pre-booking full-table decision (PRD §7.2).
+ * The full-table offer, as one dismissible line.
  *
- * It lives before the map on purpose: the map is for choosing a space, and the
- * PRD forbids any financial setup inside it. A participant who declines here
- * can come back and activate later, right up until they book.
+ * It sits above the map and above the countdown, never in front of them: the
+ * pitch belongs to the introduction screen after the terms (PRD §7.2), and by
+ * the time someone reaches the map they came to pick a space. It stays an
+ * offer, not an explainer — what a full table is lives behind the link.
  */
 export default function FullTablePanel({
   offer,
@@ -35,16 +40,28 @@ export default function FullTablePanel({
    *
    * A full table is only ever paid for in credits, and a purchase can only be
    * finished in the wallet. With credits still behind their flag there is no
-   * route from this panel to an activated table, so the whole offer goes rather
-   * than quoting a price nobody can pay.
+   * route from here to an activated table, so the whole offer goes rather than
+   * quoting a price nobody can pay.
    */
   creditsEnabled: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [dismissed, setDismissed] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
-  if (!offer.offered || !creditsEnabled) return null;
+  // Read after mount: the server has no way to know what this browser dismissed,
+  // and reading during render would make the markup disagree with hydration.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(dismissalKey(festivalId)) === "1") {
+        setHidden(true);
+      }
+    } catch {
+      // A browser refusing storage just means the banner comes back.
+    }
+  }, [festivalId]);
+
+  if (!offer.offered || !creditsEnabled || hidden) return null;
 
   function run(action: typeof activateFullTableAccessAction) {
     startTransition(async () => {
@@ -59,127 +76,87 @@ export default function FullTablePanel({
     });
   }
 
+  function dismiss() {
+    setHidden(true);
+    try {
+      window.localStorage.setItem(dismissalKey(festivalId), "1");
+    } catch {
+      // Nothing to do: it reappears next visit, which is the safe direction.
+    }
+  }
+
   const blockedCopy =
     offer.blockedReason === "no_complete_table"
-      ? "Ahora mismo no queda ninguna mesa con las dos mitades libres. Volvé a mirar más tarde: puede liberarse alguna."
-      : offer.blockedReason === "insufficient_credits"
-        ? `Te faltan ${formatCredits(offer.shortfall)} en créditos para activarla.`
-        : null;
+      ? "Ahora mismo no queda ninguna con las dos mitades libres."
+      : null;
 
   return (
     <section
       aria-labelledby="full-table-heading"
-      className="mb-6 rounded-lg border bg-card p-4 sm:p-6"
+      className="mb-4 rounded-lg border bg-card px-3 py-2 text-sm"
     >
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-        <div className="mx-auto w-full max-w-[260px] shrink-0 sm:mx-0 sm:w-[240px]">
-          <FullTableGraphic variant={offer.active ? "full-selected" : "full"} />
-        </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p id="full-table-heading" className="flex-1">
+          <span className="font-medium">Mesa completa</span>{" "}
+          <span className="text-muted-foreground">
+            {offer.active
+              ? "· ya la tenés activada"
+              : `· 240 × 60 cm para vos solo, por ${formatCredits(offer.creditPrice)} en créditos`}
+          </span>
+        </p>
 
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 id="full-table-heading" className="text-lg font-semibold">
-              Mesa completa
-            </h2>
-            {offer.active ? <Badge variant="secondary">Activada</Badge> : null}
-          </div>
+        {offer.active ? (
+          // Activation holds credits, so there has to be a way back out of it
+          // wherever activation itself is offered (PRD §7.3).
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() => run(deactivateFullTableAccessAction)}
+          >
+            Desactivar
+          </Button>
+        ) : offer.shortfall > 0 ? (
+          <BuyFeatureCreditsButton
+            festivalId={festivalId}
+            featureType="full_table"
+            shortfallAmount={offer.shortfall}
+            disabled={pending}
+          />
+        ) : (
+          <Button
+            size="sm"
+            disabled={pending || offer.blockedReason != null}
+            onClick={() => run(activateFullTableAccessAction)}
+          >
+            Activar
+          </Button>
+        )}
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            Un espacio es media mesa: 120 × 60 cm. Una mesa completa son dos
-            espacios contiguos, 240 × 60 cm, para vos solo.
-          </p>
+        <Button variant="ghost" size="sm" asChild>
+          <a href="/credits_info">Qué es</a>
+        </Button>
 
-          <dl className="mt-3 space-y-1 text-sm">
-            {/* Two different amounts, so each says what it is for: the credits
-                buy the chance to take a table, the price is the reservation
-                itself. Tables are priced one by one, so before the map there is
-                only a "desde". */}
-            {offer.lowestTablePrice != null ? (
-              <div className="flex gap-2">
-                <dt className="text-muted-foreground">Reservarla cuesta:</dt>
-                <dd className="font-medium">
-                  desde Bs{offer.lowestTablePrice.toFixed(2)}
-                </dd>
-              </div>
-            ) : null}
-            <div className="flex gap-2">
-              <dt className="text-muted-foreground">Activarla cuesta:</dt>
-              <dd className="font-medium">
-                {formatCredits(offer.creditPrice)} en créditos
-              </dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-muted-foreground">Tus créditos:</dt>
-              <dd className="font-medium">
-                {formatCredits(offer.spendableBalance)}
-              </dd>
-            </div>
-          </dl>
-
-          {/* The most important thing on this screen: what the money buys. */}
-          <p className="mt-3 rounded-md bg-muted p-3 text-sm">
-            Activarla te habilita a intentar tomar una mesa completa mientras
-            haya disponibles. <strong>No reserva ni garantiza</strong> ninguna
-            mesa ni ubicación. Si al final tomás un solo espacio, no se te cobra
-            y podés usar esos créditos para pagar tu reserva.
-          </p>
-
-          {blockedCopy ? (
-            <p className="mt-3 text-sm text-muted-foreground">{blockedCopy}</p>
-          ) : null}
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {offer.active ? (
-              <Button
-                variant="outline"
-                disabled={pending}
-                onClick={() => run(deactivateFullTableAccessAction)}
-              >
-                Desactivar mesa completa
-              </Button>
-            ) : (
-              <Button
-                disabled={pending || offer.blockedReason != null}
-                onClick={() => run(activateFullTableAccessAction)}
-              >
-                Activar mesa completa
-              </Button>
-            )}
-
-            {/* Offered on any shortfall, not only when credits are the sole
-                thing missing. `createFeatureCreditTopUp` deliberately sells
-                while every table is taken, because credits never expire and
-                pay the participant's own reservation if the table never frees
-                up — so tying the button to `insufficient_credits` hid it in
-                exactly the case where someone still wants to get ready. */}
-            {!offer.active && offer.shortfall > 0 ? (
-              <BuyFeatureCreditsButton
-                festivalId={festivalId}
-                featureType="full_table"
-                shortfallAmount={offer.shortfall}
-                disabled={pending}
-              />
-            ) : null}
-
-            <Button variant="ghost" asChild>
-              <a href="/credits_info">Cómo funcionan los créditos</a>
-            </Button>
-
-            {!offer.active && !dismissed ? (
-              <Button variant="ghost" onClick={() => setDismissed(true)}>
-                Ahora no
-              </Button>
-            ) : null}
-          </div>
-
-          {dismissed && !offer.active ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Seguí eligiendo tu espacio normalmente. Podés volver acá y
-              activarla en cualquier momento antes de reservar.
-            </p>
-          ) : null}
-        </div>
+        {/* Dismissing is the point: this is an offer the participant has
+            already been shown a screen of its own, and they came here to pick
+            a space. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Ocultar el aviso de mesa completa"
+          onClick={dismiss}
+        >
+          <XIcon className="h-4 w-4" />
+        </Button>
       </div>
+
+      {/* A condition of the purchase rather than a description of it, so it
+          stays wherever activation is offered — kept to one clause. */}
+      {!offer.active && (
+        <p className="text-xs text-muted-foreground">
+          {blockedCopy ?? "No reserva ni garantiza ninguna mesa ni ubicación."}
+        </p>
+      )}
     </section>
   );
 }

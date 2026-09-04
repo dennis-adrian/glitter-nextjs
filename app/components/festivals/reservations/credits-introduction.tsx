@@ -68,10 +68,10 @@ export default async function CreditsIntroduction({
   return (
     <div className="container max-w-[560px] p-4 md:p-6">
       <div className="mb-4 flex flex-col gap-1 md:gap-2">
-        <Title>Mesa completa</Title>
+        <Title>¿Te gustaría reservar una mesa completa?</Title>
         <p className="text-sm leading-tight text-muted-foreground md:text-base">
-          Ya estás inscrito. Antes de elegir tu espacio, podés activar la mesa
-          completa.
+          Antes de pasar al mapa de reservas, podés activar la opción de
+          reservar una mesa completa con créditos.
         </p>
       </div>
 
@@ -83,7 +83,7 @@ export default async function CreditsIntroduction({
           <CardContent className="space-y-4 pt-6">
             <dl className="space-y-1">
               <dt className="text-sm text-muted-foreground">
-                Activarla cuesta
+                Activar la reserva de mesa completa tiene un costo de
               </dt>
               <dd className="text-3xl font-semibold tabular-nums">
                 {formatCredits(offer.creditPrice)}
@@ -93,22 +93,21 @@ export default async function CreditsIntroduction({
               </dd>
             </dl>
 
-            <p className="text-sm text-muted-foreground">
+            {/*<p className="text-sm text-muted-foreground">
               {offer.active
                 ? "Ya la tenés activada."
                 : offer.shortfall > 0
                   ? `Tenés ${formatCredits(offer.spendableBalance)}, así que te faltan ${formatCredits(offer.shortfall)}.`
                   : `Tenés ${formatCredits(offer.spendableBalance)}, así que ya te alcanza.`}
-            </p>
+            </p>*/}
 
             {/* A condition of the purchase, not an explanation of the product:
                 it stays in front of anyone about to spend (PRD §7.3). */}
             <p className="text-sm text-muted-foreground">
-              Activarla te habilita a intentar tomar una mesa completa.{" "}
-              <strong className="font-medium text-foreground">
-                No reserva ni garantiza
-              </strong>{" "}
-              ninguna mesa ni ubicación.
+              Cargar créditos te dará la opción de reservar una mesa completa
+              (dos espacios) en caso de que encuentres alguna disponible. Si no
+              lográs agarrar una mesa completa, podrás guardar tus créditos o
+              usarlos para tu reserva.
             </p>
 
             {/* This screen exists to settle the money question before the map, so
@@ -129,7 +128,7 @@ export default async function CreditsIntroduction({
                 className="w-full sm:w-auto"
               >
                 <Link href={mapHref}>
-                  {canBuy ? "Ahora no, seguir al plano" : "Continuar"}
+                  {canBuy ? "Ahora no, seguir al mapa" : "Continuar"}
                 </Link>
               </Button>
             </div>

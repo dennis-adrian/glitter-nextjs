@@ -95,9 +95,8 @@ export default async function MapReservationPage(
 
     return (
       <>
-        <ReservationNotAllowed festival={festival} policyCode={denial.code} />
         {offer ? (
-          <div className="container p-4 pt-0 md:p-6 md:pt-0">
+          <div className="container px-4 pt-4 md:px-6 md:pt-6">
             <div className="mx-auto max-w-[600px]">
               <FullTablePanel
                 offer={offer.fullTableOffer}
@@ -107,6 +106,7 @@ export default async function MapReservationPage(
             </div>
           </div>
         ) : null}
+        <ReservationNotAllowed festival={festival} policyCode={denial.code} />
       </>
     );
   }
@@ -150,6 +150,8 @@ export default async function MapReservationPage(
 
   return (
     <>
+      {/* A banner here, not the full pitch: this page is where the participant
+          picks a space, and the offer has already had a screen of its own. */}
       {fullTableOffer && (
         <FullTablePanel
           offer={fullTableOffer}

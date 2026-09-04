@@ -56,7 +56,7 @@ describe("FullTablePanel", () => {
   it("offers the purchase when credits are the only thing missing", () => {
     renderPanel(offer());
 
-    expect(screen.getByRole("heading", { name: "Mesa completa" })).toBeTruthy();
+    expect(screen.getByText("Mesa completa")).toBeTruthy();
     expect(screen.getByText(BUY)).toBeTruthy();
   });
 
@@ -71,12 +71,10 @@ describe("FullTablePanel", () => {
     );
 
     expect(screen.getByText(BUY)).toBeTruthy();
-    // Activation stays refused — buying credits is not taking a table.
+    // The blocked reason is stated in place of the standing disclosure.
     expect(
-      screen
-        .getByRole("button", { name: "Activar mesa completa" })
-        .hasAttribute("disabled"),
-    ).toBe(true);
+      screen.getByText(/no queda ninguna con las dos mitades libres/i),
+    ).toBeTruthy();
   });
 
   it("drops the purchase once the balance covers the price", () => {
@@ -86,9 +84,7 @@ describe("FullTablePanel", () => {
 
     expect(screen.queryByText(BUY)).toBeNull();
     expect(
-      screen
-        .getByRole("button", { name: "Activar mesa completa" })
-        .hasAttribute("disabled"),
+      screen.getByRole("button", { name: "Activar" }).hasAttribute("disabled"),
     ).toBe(false);
   });
 

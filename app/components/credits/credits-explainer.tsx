@@ -32,15 +32,10 @@ export default function CreditsExplainer() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>
-            Los créditos son la forma de pagar dentro del festival. Un crédito
-            vale exactamente un boliviano: no hay conversión ni comisión, y el
-            monto que ves es el monto que pagás.
+            Los créditos son una nueva forma de pago y a través de ellos podés activar funcionalidades extra que antes no eran posibles de hacer. Te pueden ayudar a mejorar la experencia de tu reserva, o a corregir detalles que te faltaron al crear tu reserva.
           </p>
           <p>
-            No los comprás por tu cuenta ni elegís cuántos: cada compra la
-            iniciás desde aquello que querés pagar, y es por la diferencia
-            exacta que te falta. Así nunca te quedan créditos sueltos que no
-            pediste.
+            Son acumulativos y podés comprarlos cuando los necesités. Si no llegás a usar tus créditos en su momento, luego los podrás usar para descontar el valor de tu reserva.
           </p>
         </CardContent>
       </Card>
@@ -58,8 +53,16 @@ export default function CreditsExplainer() {
               <span className="font-medium text-foreground">
                 Pagar tu reserva.
               </span>{" "}
-              Podés cubrir la factura de tu espacio entera o en parte con
+              Podés cubrir la parte del costo de tu espacio con
               créditos, y el resto con un comprobante como siempre.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">
+                Reservar una mesa completa.
+              </span>{" "}
+              En lo sectores de ilustración y emprendimientos creativos un espacio es media mesa, de 120 × 60 cm. La mesa completa son dos
+              espacios contiguos, 240 × 60 cm, para vos solo. Activar la función de reservar una mesa completa te permitirá intentarlo
+              pero no te garantiza ninguna mesa ni ubicación. Los créditos que no usaste los podrás ocupar luego.
             </li>
             <li>
               <span className="font-medium text-foreground">

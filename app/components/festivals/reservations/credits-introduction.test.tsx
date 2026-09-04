@@ -85,7 +85,7 @@ describe("CreditsIntroduction", () => {
     expect(screen.getByText(BUY)).toBeTruthy();
     // The configured price, quoted before the purchase is offered.
     expect(screen.getAllByText(/Bs120\.00/).length).toBeGreaterThan(0);
-    expect(screen.getByText("Ahora no, seguir al plano")).toBeTruthy();
+    expect(screen.getByText("Ahora no, seguir al mapa")).toBeTruthy();
   });
 
   /**
@@ -106,11 +106,14 @@ describe("CreditsIntroduction", () => {
     expect(screen.queryByText("Qué comprás exactamente")).toBeNull();
   });
 
-  it("still states that activating guarantees nothing", async () => {
-    // A condition of the purchase, not an explanation of the product (PRD §7.3).
+  it("still states that a table is not guaranteed", async () => {
+    // A condition of the purchase rather than a description of the product, so
+    // it belongs in front of anyone about to spend (PRD §7.3).
     await renderIntro();
 
-    expect(screen.getByText(/No reserva ni garantiza/)).toBeTruthy();
+    expect(
+      screen.getByText(/en caso de que encuentres alguna disponible/),
+    ).toBeTruthy();
   });
 
   it("just continues when the balance already covers the price", async () => {
