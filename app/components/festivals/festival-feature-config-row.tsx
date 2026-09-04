@@ -75,7 +75,17 @@ export default function FestivalFeatureConfigRow({
   // would read as a feature that never existed, and admins already know these
   // are coming.
   const implemented = isFeatureTypeImplemented(scope.type);
+  // Whether the stored row is on, not the switch: an unimplemented feature that
+  // somebody enabled before the panel started refusing it has to stay
+  // correctable. The service allows turning one off for exactly that reason, so
+  // the switch and Guardar stay live for it while price and deadline — the
+  // parts that only matter once it can be offered — stay locked.
+  const enabledOnServer = scope.config?.enabled ?? false;
   const editable = canEdit && implemented;
+  const canToggle = canEdit && (implemented || enabledOnServer);
+  // Turning it back on is the one thing the service would refuse, so Guardar
+  // says so before the round trip rather than after it.
+  const canSave = canToggle && (implemented || !enabled);
   const priceValue = Number(price);
   const priceValid =
     price.trim() !== "" &&
@@ -131,6 +141,7 @@ export default function FestivalFeatureConfigRow({
       {!implemented && (
         <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
           {FEATURE_NOT_IMPLEMENTED_REASON} Va a habilitarse cuando se publique.
+          {enabledOnServer ? " Podés desactivarla mientras tanto." : ""}
         </p>
       )}
 
@@ -153,7 +164,7 @@ export default function FestivalFeatureConfigRow({
           <Switch
             checked={enabled}
             onCheckedChange={setEnabled}
-            disabled={!editable || isPending}
+            disabled={!canToggle || isPending}
           />
           <span className="text-sm">Activada</span>
         </label>
@@ -204,7 +215,7 @@ export default function FestivalFeatureConfigRow({
           type="button"
           size="sm"
           onClick={save}
-          disabled={!editable || !priceValid || isPending}
+          disabled={!canSave || !priceValid || isPending}
         >
           {isPending ? "Guardando..." : "Guardar"}
         </Button>
