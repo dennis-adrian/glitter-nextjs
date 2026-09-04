@@ -312,7 +312,7 @@ export async function declareFullTablePair(input: {
 
 export type DissolveFullTablePairResult =
   | { ok: true }
-  | { ok: false; code: "GROUP_NOT_FOUND" | "OCCUPIED" };
+  | { ok: false; code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | "OCCUPIED" };
 
 /**
  * Undoes a declaration completely: the stands stop being a table and stop being
@@ -329,12 +329,20 @@ export async function dissolveFullTablePair(input: {
 }): Promise<DissolveFullTablePairResult> {
   return db.transaction(async (tx) => {
     const [group] = await tx
-      .select({ id: standGroups.id })
+      .select({ id: standGroups.id, type: standGroups.type })
       .from(standGroups)
       .where(eq(standGroups.id, input.groupId))
       .limit(1)
       .for("update");
     if (!group) return { ok: false as const, code: "GROUP_NOT_FOUND" as const };
+    // Only a declared table is this command's to delete. A `visual_group` is
+    // somebody else's grouping, and dropping it would take members with it that
+    // nobody asked about — `setFullTablePrice` refuses the same group for the
+    // same reason. The lock above is what makes the check hold if the type
+    // changed after the menu was drawn.
+    if (group.type !== "full_table") {
+      return { ok: false as const, code: "NOT_A_FULL_TABLE" as const };
+    }
 
     const memberIds = (
       await tx

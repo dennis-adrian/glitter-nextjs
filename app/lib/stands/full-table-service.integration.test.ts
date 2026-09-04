@@ -830,5 +830,15 @@ describeDatabase("setStandGroupFullTable", () => {
       expect(await trackGroupOf(standIds[0])).toBeNull();
       expect(await trackGroupOf(standIds[1])).toBeNull();
     });
+
+    it("refuses to dissolve a group that is not a full table", async () => {
+      const { groupId } = await createPair();
+
+      expect(await dissolveFullTablePair({ groupId })).toMatchObject({
+        ok: false,
+        code: "NOT_A_FULL_TABLE",
+      });
+      expect(await groupType(groupId)).toBe("visual_group");
+    });
   });
 });
