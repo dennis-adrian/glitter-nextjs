@@ -31,6 +31,7 @@ function offer(overrides: Partial<FullTableOffer> = {}): FullTableOffer {
     shortfall: 90,
     hasCompleteTable: true,
     blockedReason: "insufficient_credits",
+    lowestTablePrice: null,
     ...overrides,
   };
 }
