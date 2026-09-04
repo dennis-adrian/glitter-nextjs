@@ -23,7 +23,7 @@ export default function CreditsExplainer() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CoinsIcon className="h-5 w-5 text-amber-500" />
-            Entendiendo los créditos
+            ¿Qué son los créditos?
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
@@ -50,7 +50,7 @@ export default function CreditsExplainer() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <WalletIcon className="h-5 w-5 text-violet-500" />
-            Para qué sirven hoy
+            ¿Para qué sirven los créditos?
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
@@ -101,7 +101,7 @@ export default function CreditsExplainer() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheckIcon className="h-5 w-5 text-emerald-500" />
-            Los créditos son instantáneos
+            ¿Los créditos son instantáneos?
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
