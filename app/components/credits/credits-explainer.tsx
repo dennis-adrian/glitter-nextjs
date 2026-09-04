@@ -66,12 +66,17 @@ export default function CreditsExplainer() {
               <span className="font-medium text-foreground">
                 Reservar una mesa completa.
               </span>{" "}
-              En lo sectores de ilustración y emprendimientos creativos un
+              En los sectores de ilustración y emprendimientos creativos un
               espacio es media mesa, de 120 × 60 cm. La mesa completa son dos
-              espacios contiguos, 240 × 60 cm, para vos solo. Activar la función
+              espacios contiguos, 240 × 60 cm. Activar la función
               de reservar una mesa completa te permitirá intentarlo pero no te
-              garantiza ninguna mesa ni ubicación. Los créditos que no usaste
-              los podrás ocupar luego.
+              garantiza ninguna mesa ni ubicación.
+              <span className="block mt-1">
+                Toma en cuenta que con los créditos solo estarías activando la opción de reservar{" "}
+                una mesa completa. Esto es una funcionalidad adicional que no se puede hacaer regularmente.{" "}
+                El precio de una mesa completa puede variar según el sector, pero en general es el equivalente al pago de{" "}
+                dos espacios.
+              </span>
             </li>
             <li>
               <span className="font-medium text-foreground">
