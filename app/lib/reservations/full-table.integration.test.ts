@@ -1213,6 +1213,151 @@ describeDatabase("full table", () => {
     expect(invoiceRows).toEqual([{ amount: FULL_TABLE_PRICE }]);
   });
 
+  /**
+   * A discount is agreed against the table's price, and downgrading rewrites
+   * that price. Writing the gross half price into `amount` billed a discounted
+   * participant the full half and left the invoice claiming a discount it was
+   * not applying — `amount = originalAmount - discountAmount` is the invariant
+   * the rest of the payment code reads.
+   */
+  it("keeps honouring a discount when the table is downgraded", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    // A discount granted against the full table, small enough to survive the
+    // clamp so the arithmetic is what is under test.
+    const DISCOUNT = 25;
+    const [before] = await integrationDb!
+      .select({ id: invoices.id, originalAmount: invoices.originalAmount })
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    await integrationDb!
+      .update(invoices)
+      .set({
+        discountAmount: DISCOUNT,
+        amount: Number(before.originalAmount) - DISCOUNT,
+      })
+      .where(eq(invoices.id, before.id));
+
+    currentProfileMock.mockResolvedValue({
+      id: owner.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    const downgraded = await downgradeFullTableReservation({
+      reservationId,
+      idempotencyKey: randomUUID(),
+    });
+    expect(downgraded.success).toBe(true);
+
+    const [after] = await integrationDb!
+      .select({
+        originalAmount: invoices.originalAmount,
+        discountAmount: invoices.discountAmount,
+        amount: invoices.amount,
+      })
+      .from(invoices)
+      .where(eq(invoices.id, before.id));
+
+    expect(Number(after.originalAmount)).toBe(STAND_PRICE);
+    expect(Number(after.discountAmount)).toBe(DISCOUNT);
+    expect(Number(after.amount)).toBe(STAND_PRICE - DISCOUNT);
+  });
+
+  /**
+   * A discount agreed against a whole table can be larger than one half of it.
+   * Carried over unclamped it would invert the total.
+   */
+  it("clamps a discount that outgrows the downgraded price", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    const [before] = await integrationDb!
+      .select({ id: invoices.id, originalAmount: invoices.originalAmount })
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    const oversized = STAND_PRICE + 10;
+    await integrationDb!
+      .update(invoices)
+      .set({
+        discountAmount: oversized,
+        amount: Number(before.originalAmount) - oversized,
+      })
+      .where(eq(invoices.id, before.id));
+
+    currentProfileMock.mockResolvedValue({
+      id: owner.id,
+      role: "admin",
+      status: "verified",
+      category: "illustration",
+    });
+    await downgradeFullTableReservation({
+      reservationId,
+      idempotencyKey: randomUUID(),
+    });
+
+    const [after] = await integrationDb!
+      .select({
+        originalAmount: invoices.originalAmount,
+        discountAmount: invoices.discountAmount,
+        amount: invoices.amount,
+      })
+      .from(invoices)
+      .where(eq(invoices.id, before.id));
+
+    // Free, never negative.
+    expect(Number(after.discountAmount)).toBe(STAND_PRICE);
+    expect(Number(after.amount)).toBe(0);
+    expect(Number(after.originalAmount)).toBe(STAND_PRICE);
+  });
+
   it("refuses to downgrade a reservation that is only half a table", async () => {
     const {
       festival,

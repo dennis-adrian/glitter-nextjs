@@ -31,6 +31,7 @@ import {
   activeReservationStandIds,
   releaseReservationMember,
 } from "@/app/lib/reservations/members";
+import { roundMoney } from "@/app/lib/reservations/money";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { denySelfServiceMutationBeforeOpen } from "@/app/lib/reservations/tx-eligibility";
@@ -529,7 +530,11 @@ export async function downgradeFullTableReservation(input: {
     // lock: a refusal returns rather than throws, so the transaction commits
     // whatever came before it. Releasing first would free the companion stand
     // and then report the downgrade as refused.
-    let repricing: { halfPrice: number; invoiceId: number | null } | null = null;
+    let repricing: {
+      halfPrice: number;
+      invoiceId: number | null;
+      discountAmount: number;
+    } | null = null;
     if (reservation.fullTablePriceSnapshot != null) {
       const halfPrice =
         reservation.bookedParticipantCount > 1 &&
@@ -538,7 +543,7 @@ export async function downgradeFullTableReservation(input: {
           : Number(reservation.individualPriceSnapshot ?? 0);
 
       const [invoice] = await tx
-        .select({ id: invoices.id })
+        .select({ id: invoices.id, discountAmount: invoices.discountAmount })
         .from(invoices)
         .where(eq(invoices.reservationId, reservation.id))
         .limit(1)
@@ -563,7 +568,17 @@ export async function downgradeFullTableReservation(input: {
         }
       }
 
-      repricing = { halfPrice, invoiceId: invoice?.id ?? null };
+      repricing = {
+        halfPrice,
+        invoiceId: invoice?.id ?? null,
+        // Clamped to the new price, the same bound `applyReservationWriteSet`
+        // uses: a discount agreed against a full table can exceed half of one,
+        // and a discount larger than the invoice would invert the total.
+        discountAmount: Math.min(
+          halfPrice,
+          roundMoney(Number(invoice?.discountAmount ?? 0)),
+        ),
+      };
     }
 
     const didRelease = await releaseReservationMember(tx, {
@@ -582,8 +597,13 @@ export async function downgradeFullTableReservation(input: {
         await tx
           .update(invoices)
           .set({
-            amount: repricing.halfPrice,
+            // `amount` is what is owed, so it has to keep honouring the
+            // discount. Writing the gross half price here billed a discounted
+            // participant the full amount and broke the invoice's own
+            // `amount = originalAmount - discountAmount` invariant.
             originalAmount: repricing.halfPrice,
+            discountAmount: repricing.discountAmount,
+            amount: roundMoney(repricing.halfPrice - repricing.discountAmount),
             updatedAt: new Date(),
           })
           .where(eq(invoices.id, repricing.invoiceId));
