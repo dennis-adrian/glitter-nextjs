@@ -172,6 +172,7 @@ describe("stand hold authorization and eligibility wiring", () => {
       locked: {
         festivalId: 10,
         userIds: [3],
+        creditAccountUserIds: [3],
         standIds: [7],
         holdIds: [20],
         reservationIds: [],
@@ -267,7 +268,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     });
     vi.mocked(lockFestivalRow).mockImplementation(async () => {
       order.push("festival");
-      return null;
+      return { id: 10 };
     });
     vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
       order.push("terms");
@@ -318,9 +319,11 @@ describe("stand hold authorization and eligibility wiring", () => {
       "holds",
       "eligibilityCheck",
     ]);
-    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(tx, 10, [
-      3,
-    ]);
+    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(
+      tx,
+      10,
+      [3],
+    );
   });
 
   it("locks festival and participant eligibility rows before the stand on confirm", async () => {
@@ -331,7 +334,7 @@ describe("stand hold authorization and eligibility wiring", () => {
     });
     vi.mocked(lockFestivalRow).mockImplementation(async () => {
       order.push("festival");
-      return null;
+      return { id: 10 };
     });
     vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
       order.push("terms");
@@ -359,6 +362,7 @@ describe("stand hold authorization and eligibility wiring", () => {
           locked: {
             festivalId: preview.festivalId,
             userIds: [...preview.userIds],
+            creditAccountUserIds: [...(preview.creditAccountUserIds ?? [])],
             standIds: [...preview.standIds],
             holdIds: [...(preview.holdIds ?? [])],
             reservationIds: [],
@@ -406,9 +410,11 @@ describe("stand hold authorization and eligibility wiring", () => {
       "stand",
       "eligibilityCheck",
     ]);
-    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(tx, 10, [
-      3, 4,
-    ]);
+    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(
+      tx,
+      10,
+      [3, 4],
+    );
     expect(lockParticipants).toHaveBeenCalledWith(tx, 10, [3, 4]);
     expect(lockParticipantEligibilityRows).toHaveBeenCalledWith(tx, 10, [3, 4]);
     expect(lockStandRows).toHaveBeenCalledWith(tx, [7]);
@@ -570,9 +576,11 @@ describe("stand hold authorization and eligibility wiring", () => {
       success: true,
       data: { reservationId: 88 },
     });
-    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(tx, 10, [
-      3, 4,
-    ]);
+    expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(
+      tx,
+      10,
+      [3, 4],
+    );
     expect(denySelfServiceMock).not.toHaveBeenCalled();
   });
 

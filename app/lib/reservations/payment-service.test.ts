@@ -170,6 +170,8 @@ function createTx(options: {
     status: string;
     festivalId?: number;
   };
+  /** Both halves, for the aggregate a full-table cancellation hands back. */
+  memberStandIds?: number[];
   payments?: Array<{
     id: number;
     invoiceId: number;

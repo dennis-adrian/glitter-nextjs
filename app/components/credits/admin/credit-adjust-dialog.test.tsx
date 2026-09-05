@@ -12,10 +12,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const { adjustCreditAccountAction } = vi.hoisted(() => ({
-  adjustCreditAccountAction: vi.fn(async () => ({
-    success: true as const,
-    message: "Saldo ajustado.",
-  })),
+  // Typed through the generic so `mock.calls[0][0]` is the recorded argument
+  // rather than an index into an empty tuple.
+  adjustCreditAccountAction: vi.fn<
+    (input: unknown) => Promise<{ success: true; message: string }>
+  >(async () => ({ success: true as const, message: "Saldo ajustado." })),
 }));
 vi.mock("@/app/lib/credits/actions", () => ({ adjustCreditAccountAction }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));

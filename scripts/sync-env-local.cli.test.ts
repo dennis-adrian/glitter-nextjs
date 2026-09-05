@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { ChildProcess, SpawnOptions } from "node:child_process";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -31,13 +32,13 @@ describe("parseExecArgs", () => {
 
 describe("sync-env-local --exec fail-closed", () => {
   it("exits 1 for Cloud Agent when Clerk is missing (same as bare env:sync)", () => {
-    expect(
-      syncEnvStatusExitCode({ cloudAgent: true, clerk: "missing" }),
-    ).toBe(1);
+    expect(syncEnvStatusExitCode({ cloudAgent: true, clerk: "missing" })).toBe(
+      1,
+    );
     expect(syncEnvStatusExitCode({ cloudAgent: true, clerk: "ok" })).toBe(0);
-    expect(
-      syncEnvStatusExitCode({ cloudAgent: false, clerk: "missing" }),
-    ).toBe(0);
+    expect(syncEnvStatusExitCode({ cloudAgent: false, clerk: "missing" })).toBe(
+      0,
+    );
   });
 
   it("does not spawn when Cloud Agent Clerk is missing", () => {
@@ -64,7 +65,15 @@ describe("sync-env-local --exec fail-closed", () => {
     const child = new EventEmitter() as EventEmitter & {
       on: EventEmitter["on"];
     };
-    const spawn = vi.fn(() => child);
+    // Typed through the generic rather than by declaring parameters the double
+    // ignores, so the recorded call is still a tuple the assertions can index.
+    const spawn = vi.fn<
+      (
+        command: string,
+        args: readonly string[],
+        options: SpawnOptions,
+      ) => ChildProcess
+    >(() => child as unknown as ChildProcess);
     const exit = vi.fn();
 
     launchExecAfterSync(

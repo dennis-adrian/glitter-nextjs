@@ -36,7 +36,7 @@ pnpm db:test:up && pnpm migrate:test
 - **`scripts/migrate.ts` has no test/ci name guard of its own** — it migrates whatever `POSTGRES_URL` resolves to, and applying is one-way. Only `pnpm migrate:test` is safe to run unattended; `pnpm migrate` targets whatever `.env.local` currently points at, which is not fixed and has been Railway. Check before running it.
 
 - After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Storefront products and other domain fixtures are not seeded yet.
-- Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (needs the migrated Docker Postgres from `pnpm db:test:up` + `pnpm migrate:test`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
+- Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); typecheck `pnpm typecheck` (app **and** tests, via `tsconfig.test.json`; plain `tsc --noEmit` uses the base config, which excludes tests because `next build` type-checks with it); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (needs the migrated Docker Postgres from `pnpm db:test:up` + `pnpm migrate:test`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
 - `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file and `CLAUDE.md`; commit that change rather than fighting it.
 
 ## Development seed (demo users)

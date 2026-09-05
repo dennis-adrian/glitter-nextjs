@@ -15,6 +15,7 @@ const baseVariantFields = {
   unitCost: null,
   rentalStock: null,
   imageUrl: null,
+  lowStockThreshold: null,
   sortOrder: 0,
   updatedAt: baseTimestamp,
   createdAt: baseTimestamp,

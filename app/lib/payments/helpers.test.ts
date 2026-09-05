@@ -20,6 +20,7 @@ function invoice(status: InvoiceBase["status"]): InvoiceBase {
     discountAmount: 0,
     amount: 100,
     date: new Date("2026-01-01T00:00:00.000Z"),
+    dueAt: null,
     status,
     userId: 8,
     reservationId: 4,
@@ -29,15 +30,20 @@ function invoice(status: InvoiceBase["status"]): InvoiceBase {
   };
 }
 
-function reservation(
-  status: ReservationBase["status"],
-): ReservationBase {
+function reservation(status: ReservationBase["status"]): ReservationBase {
   return {
     id: 4,
     standId: 7,
     festivalId: 2,
     status,
     source: "user_reservation",
+    ownerUserId: 8,
+    priceAmountSnapshot: null,
+    individualPriceSnapshot: null,
+    sharedPriceSnapshot: null,
+    fullTablePriceSnapshot: null,
+    bookedParticipantCount: 1,
+    idempotencyKey: null,
     revealAt: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),

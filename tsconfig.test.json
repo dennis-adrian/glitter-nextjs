@@ -1,0 +1,12 @@
+{
+  // Everything `tsconfig.json` checks, plus the test files it deliberately
+  // leaves out.
+  //
+  // The base config excludes tests because `next build` type-checks with it,
+  // and a broken test double should not fail a production build. That left the
+  // tests checked by nothing at all: vitest strips types without reading them,
+  // so a fixture could name a type that no longer existed and every suite
+  // still passed green. This config is what `pnpm typecheck` runs.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "e2e"]
+}

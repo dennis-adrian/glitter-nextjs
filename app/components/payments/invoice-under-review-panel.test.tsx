@@ -6,6 +6,34 @@ vi.mock("@/app/components/payments/complete-payment-button", () => ({
 }));
 
 import InvoiceUnderReviewPanel from "@/app/components/payments/invoice-under-review-panel";
+import type { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
+
+/**
+ * A stand-in, not a faithful row.
+ *
+ * This panel reads the payments' voucher URLs and the invoice status; the
+ * nested stand and festival exist only because the type carries them. The cast
+ * is deliberate and stops at this boundary — `payment()` below builds real
+ * rows, so drift in the part the panel actually touches still fails the build.
+ */
+type InvoicePayment = InvoiceWithPaymentsAndStand["payments"][number];
+
+/** A real payment row, so a column added later fails here rather than silently. */
+function payment(overrides: Partial<InvoicePayment> = {}): InvoicePayment {
+  return {
+    id: 10,
+    invoiceId: 1,
+    amount: 150,
+    date: new Date(),
+    voucherUrl: "https://files.example.com/voucher.pdf",
+    fileKey: "uploadthing-key",
+    idempotencyKey: null,
+    uploadedByUserId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
 
 const baseInvoice = {
   id: 1,
@@ -15,18 +43,7 @@ const baseInvoice = {
   status: "verification_payment" as const,
   createdAt: new Date(),
   updatedAt: new Date(),
-  payments: [
-    {
-      id: 10,
-      invoiceId: 1,
-      amount: 150,
-      date: new Date(),
-      voucherUrl: "https://files.example.com/voucher.pdf",
-      fileKey: "uploadthing-key",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ],
+  payments: [payment()],
   reservation: {
     id: 4,
     standId: 7,
@@ -53,7 +70,7 @@ const baseInvoice = {
       festivalDates: [],
     },
   },
-};
+} as unknown as InvoiceWithPaymentsAndStand;
 
 describe("InvoiceUnderReviewPanel", () => {
   afterEach(() => {
@@ -62,29 +79,30 @@ describe("InvoiceUnderReviewPanel", () => {
 
   it("shows the voucher link for the invoice owner by default", () => {
     render(<InvoiceUnderReviewPanel invoice={baseInvoice} />);
-    const link = screen.getByRole("link", { name: "Ver el comprobante enviado" });
-    expect(link.getAttribute("href")).toBe("https://files.example.com/voucher.pdf");
+    const link = screen.getByRole("link", {
+      name: "Ver el comprobante enviado",
+    });
+    expect(link.getAttribute("href")).toBe(
+      "https://files.example.com/voucher.pdf",
+    );
   });
 
   it("links to the latest payment voucher even when payments are unordered", () => {
-    const older = {
-      ...baseInvoice.payments[0],
+    const older = payment({
       id: 10,
       voucherUrl: "https://files.example.com/old.pdf",
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
-    };
-    const newer = {
-      ...baseInvoice.payments[0],
+    });
+    const newer = payment({
       id: 11,
       voucherUrl: "https://files.example.com/new.pdf",
       createdAt: new Date("2026-02-01T00:00:00.000Z"),
-    };
-    const newestWithoutVoucher = {
-      ...baseInvoice.payments[0],
+    });
+    const newestWithoutVoucher = payment({
       id: 12,
       voucherUrl: "",
       createdAt: new Date("2026-03-01T00:00:00.000Z"),
-    };
+    });
 
     const { rerender } = render(
       <InvoiceUnderReviewPanel

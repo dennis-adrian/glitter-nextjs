@@ -57,6 +57,8 @@ function entry(overrides: Partial<CreditWalletEntry> = {}): CreditWalletEntry {
     invoiceId: null,
     reason: null,
     createdAt: now,
+    reversesEntryId: null,
+    isReverted: false,
     ...overrides,
   };
 }
