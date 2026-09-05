@@ -37,6 +37,11 @@ export const RESERVATION_ERROR_CODES = [
   "RELEASE_NOT_PENDING",
   "RELEASE_INSUFFICIENT_CREDITS",
   "RELEASE_INVOICE_SETTLED",
+  "LATE_PARTNER_UNAVAILABLE",
+  "LATE_PARTNER_DEADLINE_PASSED",
+  "LATE_PARTNER_ALREADY_SHARED",
+  "LATE_PARTNER_NOT_PRICEABLE",
+  "LATE_PARTNER_INSUFFICIENT_CREDITS",
   "VALIDATION",
 ] as const;
 
@@ -116,6 +121,17 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "No te alcanzan los créditos para liberar la reserva. Comprá la diferencia y volvé.",
     RELEASE_INVOICE_SETTLED:
       "Esta reserva ya tiene un pago registrado. Escribinos y lo resolvemos.",
+    LATE_PARTNER_UNAVAILABLE:
+      "Agregar un compañero no está disponible para esta reserva.",
+    LATE_PARTNER_DEADLINE_PASSED:
+      "Ya pasó la fecha límite para agregar un compañero a tu reserva.",
+    LATE_PARTNER_ALREADY_SHARED: "Tu reserva ya tiene un compañero.",
+    // The reservation was booked without a shared price on record, so there is
+    // no agreed figure for what two people cost.
+    LATE_PARTNER_NOT_PRICEABLE:
+      "No podemos calcular el precio compartido de esta reserva. Escribinos y lo resolvemos.",
+    LATE_PARTNER_INSUFFICIENT_CREDITS:
+      "No te alcanzan los créditos para agregar un compañero. Comprá la diferencia y volvé.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
 

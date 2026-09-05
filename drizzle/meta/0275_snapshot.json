@@ -1,6 +1,6 @@
 {
-  "id": "94b3fe61-5ec0-439b-a298-20104e3dddad",
-  "prevId": "fda0e52c-43e5-4272-948f-6a7126ce5c3e",
+  "id": "fee3e5c0-e088-426e-9928-4e0fea8ceb4b",
+  "prevId": "63b9f4f6-e6da-49f9-b4ab-3fcfb68e8ac8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11035,7 +11035,7 @@
       "checkConstraints": {
         "reservation_request_registry_operation_check": {
           "name": "reservation_request_registry_operation_check",
-          "value": "\"reservation_request_registry\".\"operation\" IN (\n        'createOrReplaceStandHold',\n        'confirmStandHold',\n        'submitPaymentProof',\n        'applyInvoiceCredits',\n        'createInvoiceCreditTopUp',\n        'submitZeroValueInvoice',\n        'createAdminReservation',\n        'adminConfirmReservation',\n        'extendReservationPaymentDeadline',\n        'createExternalParticipantReservation',\n        'correctSettlementProof',\n        'activateFullTableAccess',\n        'deactivateFullTableAccess',\n        'downgradeFullTableReservation',\n        'createFeatureCreditTopUp',\n        'createDebtCreditTopUp',\n        'releaseReservation'\n      )"
+          "value": "\"reservation_request_registry\".\"operation\" IN (\n        'createOrReplaceStandHold',\n        'confirmStandHold',\n        'submitPaymentProof',\n        'applyInvoiceCredits',\n        'createInvoiceCreditTopUp',\n        'submitZeroValueInvoice',\n        'createAdminReservation',\n        'adminConfirmReservation',\n        'extendReservationPaymentDeadline',\n        'createExternalParticipantReservation',\n        'correctSettlementProof',\n        'activateFullTableAccess',\n        'deactivateFullTableAccess',\n        'downgradeFullTableReservation',\n        'createFeatureCreditTopUp',\n        'createDebtCreditTopUp',\n        'releaseReservation',\n        'addLatePartner'\n      )"
         }
       },
       "isRLSEnabled": false

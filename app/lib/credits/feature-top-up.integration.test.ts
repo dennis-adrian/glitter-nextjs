@@ -27,6 +27,7 @@ import {
   festivalTermsVersions,
   festivals,
   invoices,
+  reservationFeatureActionItems,
   reservationFeatureActions,
   reservationNotificationJobs,
   reservationParticipants,
@@ -99,6 +100,7 @@ let activateFullTableAccessAfterPurchase: (typeof import("@/app/lib/reservations
 let createStandHold: (typeof import("@/app/lib/reservations/hold-service"))["createStandHold"];
 let confirmStandHold: (typeof import("@/app/lib/reservations/hold-service"))["confirmStandHold"];
 let releaseReservation: (typeof import("@/app/lib/reservations/release-service"))["releaseReservation"];
+let addLatePartner: (typeof import("@/app/lib/reservations/late-partner-service"))["addLatePartner"];
 let publishedTermsVersionId: number;
 
 const ACCESS_PRICE = 50;
@@ -107,6 +109,10 @@ const SHARED_PRICE = 320;
 /** A table is priced in its own right and is not inventory without one. */
 const FULL_TABLE_PRICE = 380;
 const RELEASE_PRICE = 40;
+const LATE_PARTNER_PRICE = 25;
+/** `SHARED_PRICE - STAND_PRICE`, the difference a second person costs. */
+const SHARED_DIFFERENCE = SHARED_PRICE - STAND_PRICE;
+const LATE_PARTNER_TOTAL = SHARED_DIFFERENCE + LATE_PARTNER_PRICE;
 const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
 
 /**
@@ -135,6 +141,8 @@ describeDatabase("feature credit top-up", () => {
       await import("@/app/lib/reservations/hold-service"));
     ({ releaseReservation } =
       await import("@/app/lib/reservations/release-service"));
+    ({ addLatePartner } =
+      await import("@/app/lib/reservations/late-partner-service"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -347,6 +355,16 @@ describeDatabase("feature credit top-up", () => {
         category: null,
         enabled: true,
         creditPrice: RELEASE_PRICE,
+      },
+      {
+        festivalId: festival.id,
+        type: "late_partner" as const,
+        category: null,
+        enabled: true,
+        creditPrice: LATE_PARTNER_PRICE,
+        // Well clear of `now`, so the deadline is never what a test trips on
+        // unless it means to.
+        deadlineOverrideAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     ]);
 
@@ -1206,6 +1224,289 @@ describeDatabase("feature credit top-up", () => {
         .from(creditHolds)
         .where(eq(creditHolds.userId, user.id));
       expect(holds).toEqual([]);
+    });
+  });
+
+  /**
+   * Adding a partner after booking (PRD §8). The owner pays the difference
+   * between one person and two, plus a fee for doing it late — in credits, and
+   * without the original invoice ever moving.
+   */
+  describe("late partner", () => {
+    async function seedEligiblePartner(festivalId: number, suffix: string) {
+      const [partner] = await integrationDb!
+        .insert(users)
+        .values({
+          clerkId: `lp-${suffix}`,
+          email: `lp-${suffix}@example.test`,
+          displayName: `LP ${suffix}`,
+          status: "verified" as const,
+          category: "illustration" as const,
+        })
+        .returning();
+      await integrationDb!.insert(userRequests).values({
+        userId: partner.id,
+        festivalId,
+        type: "festival_participation" as const,
+        status: "accepted" as const,
+        termsVersionId: publishedTermsVersionId,
+      });
+      fixtures[fixtures.length - 1]?.userIds.push(partner.id);
+      return partner;
+    }
+
+    async function seedReservationWithPartner(credits: number) {
+      const seeded = await seed({ credits });
+      await createStandHold({
+        standId: seeded.standIds[0],
+        idempotencyKey: randomUUID(),
+      });
+      const [hold] = await integrationDb!
+        .select({ id: standHolds.id })
+        .from(standHolds)
+        .where(eq(standHolds.festivalId, seeded.festival.id));
+      const confirmed = await confirmStandHold({
+        holdId: hold.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(confirmed.success).toBe(true);
+      const reservationId = (confirmed as { data: { reservationId: number } })
+        .data.reservationId;
+      const partner = await seedEligiblePartner(
+        seeded.festival.id,
+        `${reservationId}-${Math.random().toString(36).slice(2, 7)}`,
+      );
+      return { ...seeded, reservationId, partner };
+    }
+
+    it("charges the difference plus the fee, and adds the partner once", async () => {
+      const { user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(result.success).toBe(true);
+
+      const participants = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(new Set(participants.map((row) => row.userId))).toEqual(
+        new Set([user.id, partner.id]),
+      );
+
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+
+      // Both components recorded separately, so reporting can tell a price
+      // adjustment from a fee (PRD §6.2).
+      const [action] = await integrationDb!
+        .select({ id: reservationFeatureActions.id })
+        .from(reservationFeatureActions)
+        .where(
+          and(
+            eq(reservationFeatureActions.reservationId, reservationId),
+            eq(reservationFeatureActions.type, "late_partner"),
+          ),
+        );
+      const items = await integrationDb!
+        .select({
+          kind: reservationFeatureActionItems.kind,
+          amount: reservationFeatureActionItems.amount,
+        })
+        .from(reservationFeatureActionItems)
+        .where(eq(reservationFeatureActionItems.featureActionId, action.id));
+      expect(
+        Object.fromEntries(items.map((row) => [row.kind, row.amount])),
+      ).toEqual({
+        shared_price_difference: SHARED_DIFFERENCE,
+        feature_access: LATE_PARTNER_PRICE,
+      });
+    });
+
+    /**
+     * §8.4, and the reason the difference is charged in credits at all: the
+     * original invoice may already be paid, and a participant action must not
+     * rewrite settled money.
+     */
+    it("leaves the original invoice exactly as it was", async () => {
+      const { reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      const before = await integrationDb!
+        .select({
+          amount: invoices.amount,
+          originalAmount: invoices.originalAmount,
+          status: invoices.status,
+        })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservationId));
+
+      await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      const after = await integrationDb!
+        .select({
+          amount: invoices.amount,
+          originalAmount: invoices.originalAmount,
+          status: invoices.status,
+        })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservationId));
+      expect(after).toEqual(before);
+      expect(after[0].amount).toBe(STAND_PRICE);
+    });
+
+    it("replays a retry without charging or adding twice", async () => {
+      const { user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      const key = randomUUID();
+
+      const first = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: key,
+      });
+      const second = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: key,
+      });
+
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      const participants = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(participants).toHaveLength(2);
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+    });
+
+    it("refuses a reservation that already has a partner", async () => {
+      const { festival, user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL * 2);
+      await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+      const second = await seedEligiblePartner(festival.id, `again-${user.id}`);
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: second.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "LATE_PARTNER_ALREADY_SHARED",
+      });
+    });
+
+    it("refuses once the deadline has passed", async () => {
+      const { festival, user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      await integrationDb!
+        .update(festivalReservationFeatures)
+        .set({ deadlineOverrideAt: new Date(Date.now() - 1000) })
+        .where(
+          and(
+            eq(festivalReservationFeatures.festivalId, festival.id),
+            eq(festivalReservationFeatures.type, "late_partner"),
+          ),
+        );
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "LATE_PARTNER_DEADLINE_PASSED",
+      });
+      // Credits bought earlier do not extend the deadline, and nothing is
+      // taken for an action that cannot finish (§8.1).
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        LATE_PARTNER_TOTAL,
+      );
+    });
+
+    it("refuses when the credits do not cover the total", async () => {
+      const { user, reservationId, partner } = await seedReservationWithPartner(
+        LATE_PARTNER_TOTAL - 1,
+      );
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "LATE_PARTNER_INSUFFICIENT_CREDITS",
+      });
+      const participants = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(participants).toHaveLength(1);
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        LATE_PARTNER_TOTAL - 1,
+      );
+    });
+
+    it("refuses somebody who does not own the reservation", async () => {
+      const { reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      currentProfileMock.mockResolvedValue({
+        id: partner.id,
+        role: "user",
+        status: "verified",
+        category: "illustration",
+      });
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+    });
+
+    it("tells the owner and the new partner", async () => {
+      const { user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+
+      await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      const queued = await integrationDb!
+        .select({
+          kind: reservationNotificationJobs.notificationKind,
+          userId: reservationNotificationJobs.userId,
+        })
+        .from(reservationNotificationJobs)
+        .where(eq(reservationNotificationJobs.reservationId, reservationId));
+      expect(queued).toHaveLength(2);
+      expect(new Set(queued.map((row) => row.userId))).toEqual(
+        new Set([user.id, partner.id]),
+      );
+      expect(queued.every((row) => row.kind === "late_partner_added")).toBe(
+        true,
+      );
     });
   });
 

@@ -2245,7 +2245,8 @@ export const reservationRequestRegistry = pgTable(
         'downgradeFullTableReservation',
         'createFeatureCreditTopUp',
         'createDebtCreditTopUp',
-        'releaseReservation'
+        'releaseReservation',
+        'addLatePartner'
       )`,
     ),
   ],

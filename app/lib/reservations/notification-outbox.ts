@@ -15,6 +15,7 @@ import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-pa
 import FestivalParticipationRejectedEmailTemplate from "@/app/emails/festival-participation-rejected";
 import CreditTopUpRejectedTemplate from "@/app/emails/credit-top-up-rejected";
 import ReservationReleasedTemplate from "@/app/emails/reservation-released";
+import LatePartnerAddedTemplate from "@/app/emails/late-partner-added";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -244,6 +245,43 @@ async function deliverJob(
     }
     // Proof sent back for correction: reservation stays pending. Do not send
     // the cancellation template.
+    return;
+  }
+
+  if (kind === "late_partner_added") {
+    const partnerUserId = payloadNumber(payload, "partnerUserId");
+    const ownerUser =
+      reservation.participants.find(
+        (participant) => participant.userId === reservation.ownerUserId,
+      )?.user ?? owner;
+    const partnerUser = reservation.participants.find(
+      (participant) => participant.userId === partnerUserId,
+    )?.user;
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    if (!recipient || !ownerUser || !partnerUser) return;
+
+    const isOwner = recipient.id === ownerUser.id;
+    await sendEmail({
+      to: [recipientEmail],
+      from: FROM,
+      subject: isOwner
+        ? "Agregaste un compañero a tu reserva"
+        : `Vas a compartir un espacio en ${festival.name}`,
+      react: LatePartnerAddedTemplate({
+        recipient,
+        owner: ownerUser,
+        partner: partnerUser,
+        isOwner,
+        festivalId: reservation.festivalId,
+        festivalName: festival.name,
+        standLabel: reservationStandLabel(reservation),
+        reservationId: reservation.id,
+        totalCredits: payloadAmount(payload, "totalCredits") ?? 0,
+      }),
+    });
     return;
   }
 

@@ -36,6 +36,9 @@ export const RESERVATION_NOTIFICATION_KINDS = [
   // The owner chose it; a partner is finding out, which is why delivery tells
   // them apart rather than sending one message to everybody.
   "reservation_released",
+  // Sent to the owner who paid and the partner who was added. The partner did
+  // not ask for this, so their copy is an invitation rather than a receipt.
+  "late_partner_added",
 ] as const;
 
 export type ReservationNotificationKind =

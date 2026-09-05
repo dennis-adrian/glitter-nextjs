@@ -25,6 +25,7 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "createFeatureCreditTopUp",
   "createDebtCreditTopUp",
   "releaseReservation",
+  "addLatePartner",
 ] as const;
 
 export type ReservationRequestOperation =
