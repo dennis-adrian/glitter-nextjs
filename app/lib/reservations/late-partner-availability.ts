@@ -55,20 +55,3 @@ export function latePartnerBlockReason(
 
   return null;
 }
-
-/**
- * Whether the reason should hide the feature outright rather than explain it.
- *
- * §8.1 is explicit that at or after the deadline the feature is hidden, not
- * shown disabled: advertising an action that can no longer finish, next to a
- * price, invites somebody to buy credits for it. The same goes for a
- * reservation that already has two people — there is nothing to offer.
- *
- * This is the one place the house rule of disabling rather than hiding gives
- * way, and only because the alternative is selling something undeliverable.
- */
-export function shouldHideLatePartner(
-  reason: LatePartnerBlockReason | null,
-): boolean {
-  return reason !== null;
-}

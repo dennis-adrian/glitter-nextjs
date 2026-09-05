@@ -10,6 +10,7 @@ import {
   reservationSuccess,
 } from "@/app/lib/reservations/errors";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { getInvoiceTenderTotalsInTx } from "@/app/lib/reservations/payment-service";
 import {
   lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
@@ -29,11 +30,11 @@ import {
   claimRequest,
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
+import { denySelfServiceMutation } from "@/app/lib/reservations/tx-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   invoices,
-  payments,
   reservationFeatureActions,
   scheduledTasks,
   standReservations,
@@ -140,7 +141,7 @@ export async function releaseReservation(input: {
 
     const previewStandIds = await activeReservationStandIds(tx, preview.id);
     const invoiceRows = await tx
-      .select({ id: invoices.id })
+      .select({ id: invoices.id, amount: invoices.amount })
       .from(invoices)
       .where(eq(invoices.reservationId, preview.id));
 
@@ -175,6 +176,23 @@ export async function releaseReservation(input: {
       return fail(reservationFailure("RELEASE_NOT_PENDING"));
     }
 
+    // Every other reason self-service can be refused still applies here: a
+    // sanctioned, unenrolled, terms-stale or closed-out owner must not be able
+    // to spend credits or move a reservation. This gate was missing entirely,
+    // so the two new commands were the only participant mutations in the
+    // codebase that skipped it.
+    //
+    // `ALREADY_RESERVED` is the one exemption, for the reason
+    // `createFeatureCreditTopUp` already spells out: you cannot release a
+    // reservation you do not hold, so holding one is the precondition rather
+    // than the disqualification.
+    const denial = await denySelfServiceMutation(tx, {
+      actor: { id: actor.id, role: actor.role },
+      userId: actor.id,
+      festivalId: preview.festivalId,
+    });
+    if (denial && denial.code !== "ALREADY_RESERVED") return fail(denial);
+
     const lockedParticipantIds = await readReservationParticipantIds(
       tx,
       reservation.id,
@@ -184,16 +202,32 @@ export async function releaseReservation(input: {
       return fail(reservationFailure("CONFLICT_RETRY"));
     }
 
-    // A `pending` reservation has no approved payment by definition, so this
-    // should never fire. It is here because "should never" and "cannot" are
-    // different things, and guessing at a refund is the one outcome this
+    // Refuse if anything has actually been paid, across every invoice this
+    // release would cancel. Guessing at a refund is the one outcome this
     // command must never produce.
-    const [settled] = await tx
-      .select({ id: payments.id })
-      .from(payments)
-      .where(eq(payments.invoiceId, invoiceRows[0]?.id ?? -1))
-      .limit(1);
-    if (settled) return fail(reservationFailure("RELEASE_INVOICE_SETTLED"));
+    //
+    // Two separate bugs lived in what this replaces. It asked whether a
+    // `payments` row existed at all — but a row is written when a proof is
+    // *submitted*, and `payments` carries no status, so a proof that an admin
+    // later rejected blocked release permanently. That is exactly the person
+    // the feature exists for. It also inspected `invoiceRows[0]`, an
+    // unordered pick, while the transaction cancels all of them.
+    //
+    // `getInvoiceTenderTotalsInTx` is the canonical answer: cash counts only
+    // through an approved settlement submission, and credits only through
+    // posted allocations.
+    //
+    // Credit allocations refuse too. That is a deliberate stop rather than a
+    // solution: cancelling an invoice does not reverse an allocation, and no
+    // reversal path exists anywhere in the codebase, so releasing would
+    // destroy credits the owner had already applied while the dialog and the
+    // email both say nothing was paid.
+    for (const row of invoiceRows) {
+      const tender = await getInvoiceTenderTotalsInTx(tx, row);
+      if (tender.approvedCashAmount > 0 || tender.confirmedCreditAmount > 0) {
+        return fail(reservationFailure("RELEASE_INVOICE_SETTLED"));
+      }
+    }
 
     const [action] = await tx
       .insert(reservationFeatureActions)

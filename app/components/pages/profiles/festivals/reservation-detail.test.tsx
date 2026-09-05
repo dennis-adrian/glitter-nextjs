@@ -169,7 +169,7 @@ describe("ReservationDetailPage", () => {
     );
 
     expect(html).toContain("B48 y B49");
-    expect(html).toContain("mesa completa");
+    expect(html).toContain("Mesa completa");
     expect(html).toContain("60cm x 240cm");
   });
 

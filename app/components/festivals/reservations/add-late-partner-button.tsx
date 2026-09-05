@@ -61,6 +61,14 @@ export default function AddLatePartnerButton({
   const [selected, setSelected] = useState<PartnerOption | null>(null);
   const [searching, setSearching] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Held across retries, not minted per submit. A request whose response is
+  // lost has still been claimed by the registry: retrying with the same key
+  // replays its result, while a fresh key would run a second partner addition or report a
+  // failure for something that in fact succeeded. Only an explicit refusal —
+  // which proves the server decided — earns a new one.
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    crypto.randomUUID(),
+  );
 
   /**
    * Debouncing collapses keystrokes; it does not order the requests it does
@@ -75,6 +83,10 @@ export default function AddLatePartnerButton({
     const requestId = ++latestSearch.current;
     if (value.trim().length < 2) {
       setOptions([]);
+      // Cleared here as well: incrementing above already superseded any
+      // request in flight, so its own `finally` will decline to touch this
+      // and the spinner would sit there for good.
+      setSearching(false);
       return;
     }
     setSearching(true);
@@ -101,7 +113,7 @@ export default function AddLatePartnerButton({
         result = await addLatePartnerAction({
           reservationId,
           partnerUserId: selected.id,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey,
         });
       } catch (error) {
         console.error("Error adding partner", error);
@@ -111,6 +123,7 @@ export default function AddLatePartnerButton({
 
       if (!result.success) {
         toast.error(result.message);
+        setIdempotencyKey(crypto.randomUUID());
         return;
       }
       toast.success(result.message);

@@ -1,3 +1,4 @@
+import { ArrowRightIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -5,6 +6,7 @@ import Title from "@/app/components/atoms/heading";
 import ReservationAvailableActions from "@/app/components/festivals/reservations/reservation-available-actions";
 import AddLatePartnerButton from "@/app/components/festivals/reservations/add-late-partner-button";
 import ReleaseReservationButton from "@/app/components/festivals/reservations/release-reservation-button";
+import ReservationSpaceSummary from "@/app/components/festivals/reservations/reservation-space-summary";
 import ReservationStatusPanel from "@/app/components/festivals/reservations/reservation-status-panel";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -17,6 +19,9 @@ import { fetchReleaseOffer } from "@/app/lib/reservations/release-queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { getUserName } from "@/app/lib/users/utils";
+
+import type { ReservationAction } from "@/app/components/festivals/reservations/reservation-available-actions";
+import type { ReservationSummaryRow } from "@/app/components/festivals/reservations/reservation-space-summary";
 
 type ReservationDetailPageProps = {
   profileId: number;
@@ -31,6 +36,11 @@ type ReservationDetailPageProps = {
  * anybody: what did I book, where does it stand, and what can I do about it.
  * The third is why both remaining phases need this page — `Agregar compañero`
  * and `Liberar reserva` have nowhere else to live.
+ *
+ * One card per question, in the order somebody asks them: where it stands (and
+ * the way forward, if there is one), what it is, what can be done to it. They
+ * used to share a single card at a single volume, which made a reservation
+ * that needs paying today look exactly like one that is finished.
  *
  * Money stays deliberately thin here. The payments page is where an invoice is
  * settled, and duplicating its totals would give a participant two screens
@@ -100,10 +110,75 @@ export default async function ReservationDetailPage({
   const owesPayment =
     invoice != null &&
     (invoice.status === "pending" || invoice.status === "verification_payment");
+  const paymentDeadline =
+    owesPayment && invoice.dueAt
+      ? formatDate(invoice.dueAt).toFormat("dd/MM/yyyy HH:mm")
+      : null;
+
+  // The owner who owes money reads the price as the amount to pay, so it is
+  // set beside the button that pays it. For everyone else it is one more fact
+  // about the reservation and belongs in the list with the others; naming it
+  // in both places would be the same number twice on one short screen.
+  const showsTotalWithPayment = owesPayment && isOwner;
+
+  const summaryRows: ReservationSummaryRow[] = [
+    {
+      label:
+        reservation.participants.length > 1 ? "Participantes" : "A nombre de",
+      value: reservation.participants
+        .map((participant) => getUserName(participant.user))
+        .join(" y "),
+    },
+  ];
+  if (invoice && !showsTotalWithPayment) {
+    summaryRows.push({ label: "Precio", value: `Bs${invoice.amount}` });
+  }
+
+  const actions: ReservationAction[] =
+    creditsEnabled && (releaseOffer.offered || latePartnerOffer?.offered)
+      ? [
+          ...(latePartnerOffer?.offered
+            ? [
+                {
+                  id: "late-partner",
+                  control: (
+                    <AddLatePartnerButton
+                      reservationId={reservationId}
+                      festivalId={festivalId}
+                      sharedPriceDifference={
+                        latePartnerOffer.sharedPriceDifference
+                      }
+                      featurePrice={latePartnerOffer.featurePrice}
+                      totalCredits={latePartnerOffer.totalCredits}
+                      shortfall={latePartnerOffer.shortfall}
+                      deadlineLabel={partnerDeadline}
+                    />
+                  ),
+                },
+              ]
+            : []),
+          ...(releaseOffer.offered
+            ? [
+                {
+                  id: "release",
+                  control: (
+                    <ReleaseReservationButton
+                      reservationId={reservationId}
+                      festivalId={festivalId}
+                      creditPrice={releaseOffer.creditPrice}
+                      shortfall={releaseOffer.shortfall}
+                      standLabel={stands.label}
+                    />
+                  ),
+                },
+              ]
+            : []),
+        ]
+      : [];
 
   return (
-    <div className="container max-w-[640px] p-4 md:p-6">
-      <div className="mb-4 flex flex-col gap-1">
+    <div className="container max-w-[640px] space-y-4 p-4 md:p-6">
+      <div className="flex flex-col gap-1">
         <Title>Tu reserva</Title>
         <p className="text-sm text-muted-foreground">
           {reservation.festival.name}
@@ -111,71 +186,35 @@ export default async function ReservationDetailPage({
       </div>
 
       <Card>
-        <CardContent className="space-y-6 pt-6">
-          <ReservationStatusPanel copy={copy} />
-
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">
-              {stands.isFullTable ? "Espacios" : "Espacio"}
-            </dt>
-            <dd className="font-medium">
-              {stands.label}
-              {stands.isFullTable ? " · mesa completa" : null}
-            </dd>
-
-            <dt className="text-muted-foreground">Medidas</dt>
-            <dd>{stands.dimensions}</dd>
-
-            {reservation.stand.festivalSector && (
-              <>
-                <dt className="text-muted-foreground">Sector</dt>
-                <dd>{reservation.stand.festivalSector.name}</dd>
-              </>
-            )}
-
-            <dt className="text-muted-foreground">
-              {reservation.participants.length > 1
-                ? "Participantes"
-                : "A nombre de"}
-            </dt>
-            <dd>
-              {reservation.participants
-                .map((participant) => getUserName(participant.user))
-                .join(" y ")}
-            </dd>
-
-            {invoice && (
-              <>
-                <dt className="text-muted-foreground">Precio</dt>
-                <dd>Bs{invoice.amount}</dd>
-              </>
-            )}
-
-            {invoice?.dueAt && owesPayment && (
-              <>
-                <dt className="text-muted-foreground">Fecha límite</dt>
-                <dd>
-                  {formatDate(invoice.dueAt).toFormat("dd/MM/yyyy HH:mm")}
-                </dd>
-              </>
-            )}
-          </dl>
+        <CardContent className="space-y-4 p-5 md:p-6">
+          <ReservationStatusPanel copy={copy} deadlineLabel={paymentDeadline} />
 
           {/* A partner sees the reservation and its price but never the
               payment: the owner pays (PRD §14). */}
-          {owesPayment && isOwner && (
-            <Button asChild className="w-full sm:w-auto">
-              <Link
-                href={`/profiles/${profileId}/festivals/${festivalId}/reservations/${reservationId}/payments`}
-              >
-                {invoice.status === "verification_payment"
-                  ? "Ver estado del pago"
-                  : "Completar el pago"}
-              </Link>
-            </Button>
+          {showsTotalWithPayment && (
+            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Total
+                </p>
+                <p className="font-space-grotesk text-2xl font-bold leading-none">
+                  Bs{invoice.amount}
+                </p>
+              </div>
+              <Button asChild size="lg" className="w-full sm:w-auto">
+                <Link
+                  href={`/profiles/${profileId}/festivals/${festivalId}/reservations/${reservationId}/payments`}
+                >
+                  {invoice.status === "verification_payment"
+                    ? "Ver estado del pago"
+                    : "Completar el pago"}
+                  <ArrowRightIcon className="ml-2 h-4 w-4 shrink-0" />
+                </Link>
+              </Button>
+            </div>
           )}
           {owesPayment && !isOwner && (
-            <p className="text-sm text-muted-foreground">
+            <p className="border-t pt-4 text-sm text-muted-foreground">
               El pago corre por cuenta de{" "}
               {getUserName(
                 reservation.participants.find(
@@ -186,46 +225,35 @@ export default async function ReservationDetailPage({
               .
             </p>
           )}
+        </CardContent>
+      </Card>
 
-          {/* Shown to both, actionable only for the owner. A partner who saw
-              nothing here would be left wondering whether the section was
-              broken or whether they had missed a deadline. */}
+      <Card>
+        <CardContent className="p-5 md:p-6">
+          <ReservationSpaceSummary
+            isFullTable={stands.isFullTable}
+            standLabel={stands.label}
+            dimensions={stands.dimensions}
+            sectorName={reservation.stand.festivalSector?.name ?? null}
+            rows={summaryRows}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Shown to both, actionable only for the owner. A partner who saw
+          nothing here would be left wondering whether the section was broken
+          or whether they had missed a deadline. */}
+      <Card>
+        <CardContent className="p-5 md:p-6">
           <ReservationAvailableActions
             canAct={isOwner}
+            actions={actions}
             deadlineNote={
               partnerDeadline
                 ? `Si olvidaste agregar a tu compañero, podés hacerlo hasta el ${partnerDeadline} usando créditos.`
                 : undefined
             }
-          >
-            {creditsEnabled &&
-            (releaseOffer.offered || latePartnerOffer?.offered) ? (
-              <>
-                {latePartnerOffer?.offered && (
-                  <AddLatePartnerButton
-                    reservationId={reservationId}
-                    festivalId={festivalId}
-                    sharedPriceDifference={
-                      latePartnerOffer.sharedPriceDifference
-                    }
-                    featurePrice={latePartnerOffer.featurePrice}
-                    totalCredits={latePartnerOffer.totalCredits}
-                    shortfall={latePartnerOffer.shortfall}
-                    deadlineLabel={partnerDeadline}
-                  />
-                )}
-                {releaseOffer.offered && (
-                  <ReleaseReservationButton
-                    reservationId={reservationId}
-                    festivalId={festivalId}
-                    creditPrice={releaseOffer.creditPrice}
-                    shortfall={releaseOffer.shortfall}
-                    standLabel={stands.label}
-                  />
-                )}
-              </>
-            ) : undefined}
-          </ReservationAvailableActions>
+          />
         </CardContent>
       </Card>
     </div>

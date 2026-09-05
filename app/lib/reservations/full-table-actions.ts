@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+
+import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { z } from "zod";
 
 import {
@@ -42,6 +44,12 @@ function revalidateReservationEntry() {
  * own configuration.
  */
 export async function activateFullTableAccessAction(input: unknown) {
+  // The feature is paid for in credits, so hiding the wallet has to withdraw
+  // this too. Without the guard the map's activation button stayed live behind
+  // a flag that was meant to have taken it away.
+  const blocked = await featureFlagGuard("credits");
+  if (blocked) return blocked;
+
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
     return { success: false as const, message: "Datos inválidos." };

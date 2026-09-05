@@ -234,14 +234,14 @@ async function loadInvoiceAggregate(
   return { kind: "ok", invoice, reservation, participants };
 }
 
-type InvoiceTenderTotals = {
+export type InvoiceTenderTotals = {
   approvedCashAmount: number;
   confirmedCreditAmount: number;
   coveredAmount: number;
   outstandingAmount: number;
 };
 
-async function getInvoiceTenderTotalsInTx(
+export async function getInvoiceTenderTotalsInTx(
   tx: DbTx,
   invoice: Pick<typeof invoices.$inferSelect, "id" | "amount">,
 ): Promise<InvoiceTenderTotals> {

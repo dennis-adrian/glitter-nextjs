@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import {
   and,
   asc,
@@ -122,6 +123,16 @@ export async function fetchFestivalReservationMapDto(input: {
   festivalId: number;
   profileId: number;
   revealHiddenIdentities: boolean;
+  /**
+   * The signed-in viewer, when there is one.
+   *
+   * The map is priced for `profileId`, but `activateFullTableAccessAction`
+   * resolves its actor from the session and spends *that* person's credits. An
+   * admin on a participant's map was therefore offered activation at the
+   * participant's price and would have bought the pair with their own wallet.
+   * The offer is withheld unless the two are the same person.
+   */
+  actorProfileId?: number | null;
   now?: Date;
 }): Promise<FestivalReservationMapDto | null> {
   const now = input.now ?? new Date();
@@ -513,8 +524,17 @@ export async function fetchFestivalReservationMapDto(input: {
   // Only for somebody who could activate on the spot. Anyone short of the fee
   // is deliberately left out: sending them to buy from inside the map is the
   // financial setup §7.2 keeps out of it, and the panel already handles them.
+  const viewingOwnMap =
+    input.actorProfileId != null && input.actorProfileId === profile.id;
+  // Credits pay for it, so hiding the wallet has to withdraw the offer too.
+  const creditsEnabled = viewingOwnMap
+    ? await isFeatureEnabled("credits")
+    : false;
   const activationOffer =
-    !fullTableAccessActive && isFullTableCategory(profile.category)
+    viewingOwnMap &&
+    creditsEnabled &&
+    !fullTableAccessActive &&
+    isFullTableCategory(profile.category)
       ? await fetchFullTableOffer({
           userId: profile.id,
           festivalId: festival.id,

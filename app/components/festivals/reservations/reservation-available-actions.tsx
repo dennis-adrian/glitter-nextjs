@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
 
+export type ReservationAction = {
+  /** Stable key for the row; the control itself is opaque here. */
+  id: string;
+  control: ReactNode;
+};
+
 /**
  * `Acciones disponibles` (PRD §12).
  *
@@ -8,17 +14,23 @@ import type { ReactNode } from "react";
  * are fixed once it exists. Saying so up front is what stops the section
  * reading as a settings page with the settings missing.
  *
- * Phases 4 and 5 fill it — `Agregar compañero` and `Liberar reserva`. Until
- * one of them applies the section still renders, because "you cannot change
+ * Each action gets its own full-width row. Side by side they produced a line
+ * that read `[Agregar compañero] Liberar tu reserva cuesta 20 créditos. Te
+ * faltan 20 créditos. [Comprar 20 créditos]` — a control, then a sentence
+ * belonging to the next control, then that control. An action here can carry
+ * its own price and its own shortfall, so it needs a line of its own to say so
+ * in.
+ *
+ * The section renders even when nothing applies, because "you cannot change
  * this" is itself the answer to the question a participant came here with.
  */
 export default function ReservationAvailableActions({
-  children,
+  actions = [],
   deadlineNote,
   canAct = true,
 }: {
   /** Action controls, when any apply to this reservation. */
-  children?: ReactNode;
+  actions?: ReservationAction[];
   /** Extra line for a deadline that governs one of the actions. */
   deadlineNote?: string;
   /**
@@ -28,11 +40,12 @@ export default function ReservationAvailableActions({
    */
   canAct?: boolean;
 }) {
-  const hasActions = Boolean(children);
-
   return (
     <section className="space-y-3" aria-labelledby="available-actions">
-      <h2 id="available-actions" className="text-sm font-medium">
+      <h2
+        id="available-actions"
+        className="font-space-grotesk text-base font-semibold"
+      >
         Acciones disponibles
       </h2>
       <p className="text-sm text-muted-foreground">
@@ -46,8 +59,14 @@ export default function ReservationAvailableActions({
         <p className="text-sm text-muted-foreground">
           Solo el titular puede hacer cambios en esta reserva.
         </p>
-      ) : hasActions ? (
-        <div className="flex flex-col gap-2 sm:flex-row">{children}</div>
+      ) : actions.length > 0 ? (
+        <ul className="divide-y border-t">
+          {actions.map((action) => (
+            <li key={action.id} className="py-4 last:pb-0">
+              {action.control}
+            </li>
+          ))}
+        </ul>
       ) : (
         <p className="text-sm text-muted-foreground">
           Por ahora no hay acciones disponibles para esta reserva.

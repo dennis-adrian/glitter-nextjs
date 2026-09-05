@@ -12,6 +12,7 @@ import {
   reservationFailure,
   reservationSuccess,
   type ReservationActionResult,
+  type ReservationErrorCode,
 } from "@/app/lib/reservations/errors";
 import {
   lockCreditAccountRows,
@@ -93,6 +94,22 @@ const FEATURE_COPY: Record<
 const FEATURE_PRICE_FROM_CALLER: readonly PurchasableFeatureType[] = [
   "late_partner",
 ];
+
+/**
+ * The refusal each feature gets when its configuration is off or out of date.
+ *
+ * A record rather than a ternary: the union has three members, and the two-arm
+ * conditional this replaces told a late-partner buyer that releasing
+ * reservations was unavailable.
+ */
+const FEATURE_UNAVAILABLE_CODE: Record<
+  PurchasableFeatureType,
+  ReservationErrorCode
+> = {
+  full_table: "FULL_TABLE_UNAVAILABLE",
+  reservation_release: "RELEASE_UNAVAILABLE",
+  late_partner: "LATE_PARTNER_UNAVAILABLE",
+};
 
 export type CreditPurchase = {
   topUpId: number;
@@ -317,11 +334,7 @@ export async function createFeatureCreditTopUp(input: {
           : config?.creditPrice;
       if (!config || !config.enabled || !config.available) {
         return fail(
-          reservationFailure(
-            input.featureType === "full_table"
-              ? "FULL_TABLE_UNAVAILABLE"
-              : "RELEASE_UNAVAILABLE",
-          ),
+          reservationFailure(FEATURE_UNAVAILABLE_CODE[input.featureType]),
         );
       }
 

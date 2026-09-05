@@ -49,6 +49,14 @@ export default function FullTableDowngradeButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Held across retries, not minted per submit. A request whose response is
+  // lost has still been claimed by the registry: retrying with the same key
+  // replays its result, while a fresh key would run a second downgrade or report a
+  // failure for something that in fact succeeded. Only an explicit refusal —
+  // which proves the server decided — earns a new one.
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    crypto.randomUUID(),
+  );
 
   function confirm() {
     startTransition(async () => {
@@ -56,7 +64,7 @@ export default function FullTableDowngradeButton({
       try {
         result = await downgradeFullTableReservationAction({
           reservationId,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey,
         });
       } catch (error) {
         console.error("Error downgrading full table", error);
@@ -66,6 +74,7 @@ export default function FullTableDowngradeButton({
 
       if (!result.success) {
         toast.error(result.message);
+        setIdempotencyKey(crypto.randomUUID());
         return;
       }
 

@@ -25,6 +25,7 @@ import {
   claimRequest,
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
+import { denySelfServiceMutation } from "@/app/lib/reservations/tx-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
@@ -191,6 +192,23 @@ export async function addLatePartner(input: {
       return fail(reservationFailure("UNAUTHORIZED"));
     }
 
+    // Every other reason self-service can be refused still applies here: a
+    // sanctioned, unenrolled, terms-stale or closed-out owner must not be able
+    // to spend credits or move a reservation. This gate was missing entirely,
+    // so the two new commands were the only participant mutations in the
+    // codebase that skipped it.
+    //
+    // `ALREADY_RESERVED` is the one exemption, for the reason
+    // `createFeatureCreditTopUp` already spells out: you cannot share a
+    // reservation you do not hold, so holding one is the precondition rather
+    // than the disqualification.
+    const denial = await denySelfServiceMutation(tx, {
+      actor: { id: actor.id, role: actor.role },
+      userId: actor.id,
+      festivalId: preview.festivalId,
+    });
+    if (denial && denial.code !== "ALREADY_RESERVED") return fail(denial);
+
     const participantIds = await readReservationParticipantIds(tx, preview.id);
     const blocked = latePartnerBlockReason({
       isOwner: true,
@@ -345,6 +363,11 @@ export async function addLatePartner(input: {
         reservationId: preview.id,
         userId: recipient.id,
         recipientEmail: recipient.email,
+        // Keyed on the action, not just the reservation: the default
+        // `kind:reservationId:email` key collides when a reservation gains a
+        // partner twice (one added, removed by an admin, another added), and
+        // the second notification is dropped as a duplicate.
+        deduplicationKey: `late_partner_added:${action.id}:${recipient.id}`,
         payload: {
           partnerUserId: input.partnerUserId,
           totalCredits: price.totalCredits,

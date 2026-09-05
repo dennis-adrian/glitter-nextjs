@@ -48,6 +48,14 @@ export default function ReleaseReservationButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Held across retries, not minted per submit. A request whose response is
+  // lost has still been claimed by the registry: retrying with the same key
+  // replays its result, while a fresh key would run a second release or report a
+  // failure for something that in fact succeeded. Only an explicit refusal —
+  // which proves the server decided — earns a new one.
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    crypto.randomUUID(),
+  );
 
   if (shortfall > 0) {
     return (
@@ -71,7 +79,7 @@ export default function ReleaseReservationButton({
       try {
         result = await releaseReservationAction({
           reservationId,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey,
         });
       } catch (error) {
         console.error("Error releasing reservation", error);
@@ -81,6 +89,7 @@ export default function ReleaseReservationButton({
 
       if (!result.success) {
         toast.error(result.message);
+        setIdempotencyKey(crypto.randomUUID());
         return;
       }
 
