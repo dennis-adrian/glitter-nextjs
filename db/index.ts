@@ -52,7 +52,10 @@ const DEFAULT_POOL_MAX = 5;
 
 function poolMax(): number {
   const configured = Number(process.env.POSTGRES_POOL_MAX);
-  return Number.isFinite(configured) && configured > 0
+  // Integers only: pg admits clients while `length >= max`, so a fractional
+  // value rounds *up* (2.5 yields 3). This knob exists to shed connections
+  // under pressure, and quietly handing back more than asked for defeats it.
+  return Number.isInteger(configured) && configured > 0
     ? configured
     : DEFAULT_POOL_MAX;
 }
