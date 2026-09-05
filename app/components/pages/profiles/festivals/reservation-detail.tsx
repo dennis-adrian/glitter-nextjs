@@ -6,7 +6,6 @@ import ReservationAvailableActions from "@/app/components/festivals/reservations
 import AddLatePartnerButton from "@/app/components/festivals/reservations/add-late-partner-button";
 import ReleaseReservationButton from "@/app/components/festivals/reservations/release-reservation-button";
 import ReservationStatusPanel from "@/app/components/festivals/reservations/reservation-status-panel";
-import ReservationSummary from "@/app/components/festivals/reservations/reservation-summary";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate } from "@/app/lib/formatters";
@@ -113,41 +112,54 @@ export default async function ReservationDetailPage({
 
       <Card>
         <CardContent className="space-y-6 pt-6">
-          <ReservationStatusPanel
-            copy={copy}
-            deadlineLabel={
-              invoice?.dueAt && owesPayment
-                ? formatDate(invoice.dueAt).toFormat("dd/MM/yyyy HH:mm")
-                : null
-            }
-          />
+          <ReservationStatusPanel copy={copy} />
 
-          <ReservationSummary
-            isFullTable={stands.isFullTable}
-            standLabel={stands.label}
-            dimensions={stands.dimensions}
-            sectorName={reservation.stand.festivalSector?.name ?? null}
-            rows={[
-              {
-                label:
-                  reservation.participants.length > 1
-                    ? "Participantes"
-                    : "A nombre de",
-                value: reservation.participants
-                  .map((participant) => getUserName(participant.user))
-                  .join(" y "),
-              },
-              ...(invoice
-                ? [
-                    {
-                      label: "Precio",
-                      value: `Bs${invoice.amount}`,
-                      emphasis: true,
-                    },
-                  ]
-                : []),
-            ]}
-          />
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt className="text-muted-foreground">
+              {stands.isFullTable ? "Espacios" : "Espacio"}
+            </dt>
+            <dd className="font-medium">
+              {stands.label}
+              {stands.isFullTable ? " · mesa completa" : null}
+            </dd>
+
+            <dt className="text-muted-foreground">Medidas</dt>
+            <dd>{stands.dimensions}</dd>
+
+            {reservation.stand.festivalSector && (
+              <>
+                <dt className="text-muted-foreground">Sector</dt>
+                <dd>{reservation.stand.festivalSector.name}</dd>
+              </>
+            )}
+
+            <dt className="text-muted-foreground">
+              {reservation.participants.length > 1
+                ? "Participantes"
+                : "A nombre de"}
+            </dt>
+            <dd>
+              {reservation.participants
+                .map((participant) => getUserName(participant.user))
+                .join(" y ")}
+            </dd>
+
+            {invoice && (
+              <>
+                <dt className="text-muted-foreground">Precio</dt>
+                <dd>Bs{invoice.amount}</dd>
+              </>
+            )}
+
+            {invoice?.dueAt && owesPayment && (
+              <>
+                <dt className="text-muted-foreground">Fecha límite</dt>
+                <dd>
+                  {formatDate(invoice.dueAt).toFormat("dd/MM/yyyy HH:mm")}
+                </dd>
+              </>
+            )}
+          </dl>
 
           {/* A partner sees the reservation and its price but never the
               payment: the owner pays (PRD §14). */}

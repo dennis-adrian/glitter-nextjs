@@ -95,7 +95,7 @@ export default function ReleaseReservationButton({
       <Button
         type="button"
         variant="outline"
-        className="w-full"
+        className="w-full sm:w-auto"
         onClick={() => setOpen(true)}
       >
         Liberar reserva ({formatCreditCount(creditPrice)})

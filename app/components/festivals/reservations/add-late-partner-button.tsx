@@ -124,7 +124,7 @@ export default function AddLatePartnerButton({
       <Button
         type="button"
         variant="outline"
-        className="w-full"
+        className="w-full sm:w-auto"
         onClick={() => setOpen(true)}
       >
         Agregar compañero

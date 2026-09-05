@@ -47,14 +47,7 @@ export default function ReservationAvailableActions({
           Solo el titular puede hacer cambios en esta reserva.
         </p>
       ) : hasActions ? (
-        // Stacked and boxed, never side by side. Each action carries its own
-        // explanation — what it costs, what is still missing — and setting two
-        // of those in a row put a paragraph between two buttons and left both
-        // misaligned. The border is what makes them read as a short list of
-        // things you may do, which is what the heading promises.
-        <div className="flex flex-col gap-3 rounded-lg border p-3">
-          {children}
-        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">{children}</div>
       ) : (
         <p className="text-sm text-muted-foreground">
           Por ahora no hay acciones disponibles para esta reserva.

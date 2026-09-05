@@ -1,46 +1,35 @@
-import { Banner, type BannerVariant } from "@/app/components/ui/banner";
+import { Badge } from "@/app/components/ui/badge";
+import { cn } from "@/app/lib/utils";
 
 import type { ParticipantStatusCopy } from "@/app/lib/reservations/participant-status";
 
-const TONE_VARIANT: Record<ParticipantStatusCopy["tone"], BannerVariant> = {
-  action: "warning",
-  waiting: "info",
-  done: "success",
-  closed: "note",
+const TONE_STYLES: Record<ParticipantStatusCopy["tone"], string> = {
+  action: "bg-amber-100 text-amber-900 hover:bg-amber-100",
+  waiting: "bg-blue-100 text-blue-900 hover:bg-blue-100",
+  done: "bg-emerald-100 text-emerald-900 hover:bg-emerald-100",
+  closed: "bg-muted text-muted-foreground hover:bg-muted",
 };
 
 /**
  * What state the reservation is in, and what the participant should do about
  * it.
  *
- * A `Banner` rather than the bare badge it used to be: the state is the first
- * question this page answers, and a small pill above two grey lines made the
- * loudest thing on the card its least important. This is also the shape the
- * rest of the app already uses for "here is where you stand" — the portal card
- * says the same things the same way.
- *
- * The deadline rides here instead of sitting as one more row in the summary
- * below. A date is only urgent next to the thing it expires, and a reservation
- * that is `pending` is exactly a reservation with a clock on it.
- *
- * Colour is never the only carrier: four tones distinguish states the text
- * already names, so this reads correctly in greyscale and to a screen reader.
+ * The badge is never the only carrier of the state: colour distinguishes four
+ * tones that the text already names, so the panel still reads correctly in
+ * greyscale and to a screen reader.
  */
 export default function ReservationStatusPanel({
   copy,
-  deadlineLabel,
 }: {
   copy: ParticipantStatusCopy;
-  /** The payment deadline, already formatted. Only while one is owed. */
-  deadlineLabel?: string | null;
 }) {
   return (
-    <Banner variant={TONE_VARIANT[copy.tone]} title={copy.label}>
-      <p>{copy.description}</p>
-      {copy.whatNext && <p className="mt-1">{copy.whatNext}</p>}
-      {deadlineLabel && (
-        <p className="mt-2 font-semibold">Fecha límite: {deadlineLabel}</p>
-      )}
-    </Banner>
+    <div className="space-y-2">
+      <Badge className={cn("font-medium", TONE_STYLES[copy.tone])}>
+        {copy.label}
+      </Badge>
+      <p className="text-sm text-muted-foreground">{copy.description}</p>
+      {copy.whatNext && <p className="text-sm">{copy.whatNext}</p>}
+    </div>
   );
 }
