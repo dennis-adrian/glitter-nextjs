@@ -6,6 +6,7 @@ vi.mock("server-only", () => ({}));
 const fetchReservationMock = vi.hoisted(() => vi.fn());
 const currentProfileMock = vi.hoisted(() => vi.fn());
 const releaseOfferMock = vi.hoisted(() => vi.fn());
+const latePartnerOfferMock = vi.hoisted(() => vi.fn());
 const featureFlagMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/reservations/queries", () => ({
@@ -13,6 +14,16 @@ vi.mock("@/app/lib/reservations/queries", () => ({
 }));
 vi.mock("@/app/lib/reservations/release-queries", () => ({
   fetchReleaseOffer: releaseOfferMock,
+}));
+vi.mock("@/app/lib/reservations/late-partner-queries", () => ({
+  fetchLatePartnerOffer: latePartnerOfferMock,
+}));
+vi.mock("@/app/lib/reservations/late-partner-actions", () => ({
+  addLatePartnerAction: vi.fn(),
+  createLatePartnerCreditTopUpAction: vi.fn(),
+}));
+vi.mock("@/app/lib/reservations/participant-actions", () => ({
+  searchPotentialPartners: vi.fn(),
 }));
 vi.mock("@/app/lib/feature_flags/helpers", () => ({
   isFeatureEnabled: featureFlagMock,
@@ -82,14 +93,32 @@ const NO_RELEASE = {
   shortfall: 0,
 };
 
+const NO_LATE_PARTNER = {
+  offered: false,
+  festivalId: 7,
+  deadlineAt: null,
+  sharedPriceDifference: 0,
+  featurePrice: 0,
+  totalCredits: 0,
+  spendableBalance: 0,
+  shortfall: 0,
+};
+
 async function render(
   data: ReturnType<typeof reservation> | null,
   viewer: { id: number; displayName: string } = OWNER,
-  options: { release?: typeof NO_RELEASE; creditsEnabled?: boolean } = {},
+  options: {
+    release?: typeof NO_RELEASE;
+    latePartner?: typeof NO_LATE_PARTNER;
+    creditsEnabled?: boolean;
+  } = {},
 ) {
   fetchReservationMock.mockResolvedValue(data);
   currentProfileMock.mockResolvedValue(viewer);
   releaseOfferMock.mockResolvedValue(options.release ?? NO_RELEASE);
+  latePartnerOfferMock.mockResolvedValue(
+    options.latePartner ?? NO_LATE_PARTNER,
+  );
   featureFlagMock.mockResolvedValue(options.creditsEnabled ?? true);
   const element = await ReservationDetailPage({
     profileId: viewer.id,
@@ -244,6 +273,59 @@ describe("ReservationDetailPage", () => {
       });
 
       expect(html).not.toContain("Liberar reserva");
+    });
+  });
+
+  describe("late partner", () => {
+    const OFFERED = {
+      offered: true,
+      festivalId: 7,
+      deadlineAt: new Date("2026-10-15T12:00:00Z"),
+      sharedPriceDifference: 30,
+      featurePrice: 25,
+      totalCredits: 55,
+      spendableBalance: 55,
+      shortfall: 0,
+    };
+
+    it("offers the action and names the deadline", async () => {
+      const html = await render(reservation(), OWNER, {
+        latePartner: OFFERED,
+      });
+
+      expect(html).toContain("Agregar compañero");
+      // A deadline nobody mentions is a deadline somebody misses (PRD §5).
+      expect(html).toContain("15/10/2026");
+    });
+
+    it("shows nothing when the offer is withheld", async () => {
+      const html = await render(reservation(), OWNER);
+
+      expect(html).not.toContain("Agregar compañero");
+    });
+
+    it("withholds it while credits are hidden from participants", async () => {
+      const html = await render(reservation(), OWNER, {
+        latePartner: OFFERED,
+        creditsEnabled: false,
+      });
+
+      expect(html).not.toContain("Agregar compañero");
+    });
+
+    it("offers both actions when both apply", async () => {
+      const html = await render(reservation(), OWNER, {
+        latePartner: OFFERED,
+        release: {
+          offered: true,
+          creditPrice: 40,
+          spendableBalance: 100,
+          shortfall: 0,
+        },
+      });
+
+      expect(html).toContain("Agregar compañero");
+      expect(html).toContain("Liberar reserva");
     });
   });
 

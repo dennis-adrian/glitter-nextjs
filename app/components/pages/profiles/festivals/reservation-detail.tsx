@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import Title from "@/app/components/atoms/heading";
 import ReservationAvailableActions from "@/app/components/festivals/reservations/reservation-available-actions";
+import AddLatePartnerButton from "@/app/components/festivals/reservations/add-late-partner-button";
 import ReleaseReservationButton from "@/app/components/festivals/reservations/release-reservation-button";
 import ReservationStatusPanel from "@/app/components/festivals/reservations/reservation-status-panel";
 import { Button } from "@/app/components/ui/button";
@@ -11,6 +12,7 @@ import { formatDate } from "@/app/lib/formatters";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { participantStatusCopy } from "@/app/lib/reservations/participant-status";
 import { fetchReservationForParticipant } from "@/app/lib/reservations/queries";
+import { fetchLatePartnerOffer } from "@/app/lib/reservations/late-partner-queries";
 import { fetchReleaseOffer } from "@/app/lib/reservations/release-queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -67,7 +69,7 @@ export default async function ReservationDetailPage({
   // Release is paid for in credits and finished in the wallet, so with credits
   // still behind their flag there is no route from the button to a released
   // reservation. The offer goes rather than quoting a price nobody can pay.
-  const [creditsEnabled, releaseOffer] = await Promise.all([
+  const [creditsEnabled, releaseOffer, latePartnerOffer] = await Promise.all([
     isFeatureEnabled("credits"),
     fetchReleaseOffer({
       userId: currentProfile?.id ?? 0,
@@ -75,7 +77,20 @@ export default async function ReservationDetailPage({
       reservationStatus: reservation.status,
       isOwner,
     }),
+    isOwner
+      ? fetchLatePartnerOffer({
+          reservationId,
+          userId: currentProfile?.id ?? 0,
+        })
+      : null,
   ]);
+
+  // Always shown while the feature is on, because a deadline nobody mentions
+  // is a deadline somebody misses (§5).
+  const partnerDeadline =
+    latePartnerOffer?.offered && latePartnerOffer.deadlineAt
+      ? formatDate(latePartnerOffer.deadlineAt).toFormat("dd/MM/yyyy")
+      : null;
 
   const invoice =
     reservation.invoices.find((row) => row.status !== "cancelled") ??
@@ -173,15 +188,40 @@ export default async function ReservationDetailPage({
           {/* Shown to both, actionable only for the owner. A partner who saw
               nothing here would be left wondering whether the section was
               broken or whether they had missed a deadline. */}
-          <ReservationAvailableActions canAct={isOwner}>
-            {creditsEnabled && releaseOffer.offered ? (
-              <ReleaseReservationButton
-                reservationId={reservationId}
-                festivalId={festivalId}
-                creditPrice={releaseOffer.creditPrice}
-                shortfall={releaseOffer.shortfall}
-                standLabel={stands.label}
-              />
+          <ReservationAvailableActions
+            canAct={isOwner}
+            deadlineNote={
+              partnerDeadline
+                ? `Si olvidaste agregar a tu compañero, podés hacerlo hasta el ${partnerDeadline} usando créditos.`
+                : undefined
+            }
+          >
+            {creditsEnabled &&
+            (releaseOffer.offered || latePartnerOffer?.offered) ? (
+              <>
+                {latePartnerOffer?.offered && (
+                  <AddLatePartnerButton
+                    reservationId={reservationId}
+                    festivalId={festivalId}
+                    sharedPriceDifference={
+                      latePartnerOffer.sharedPriceDifference
+                    }
+                    featurePrice={latePartnerOffer.featurePrice}
+                    totalCredits={latePartnerOffer.totalCredits}
+                    shortfall={latePartnerOffer.shortfall}
+                    deadlineLabel={partnerDeadline}
+                  />
+                )}
+                {releaseOffer.offered && (
+                  <ReleaseReservationButton
+                    reservationId={reservationId}
+                    festivalId={festivalId}
+                    creditPrice={releaseOffer.creditPrice}
+                    shortfall={releaseOffer.shortfall}
+                    standLabel={stands.label}
+                  />
+                )}
+              </>
             ) : undefined}
           </ReservationAvailableActions>
         </CardContent>

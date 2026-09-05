@@ -4,7 +4,7 @@
 
 **Feature area:** Credits, stand reservations, full tables, illustration partners, reservation release
 
-**Status:** Phases 0–3 delivered (credits, pricing, feature configuration, full table). Phases 4–5 not started; see §16 for per-phase status and open items.
+**Status:** Phases 0–5 delivered. Phase 6 (rollout) is what remains; see §16 for per-phase status and open items.
 
 **Last updated:** 2026-09-04
 
@@ -19,8 +19,8 @@
 After reservation hardening, Glitter will introduce a credit wallet and three optional reservation features:
 
 1. **Full table:** an illustration or entrepreneurship participant can attempt to reserve the two half-stands that form one physical table. _(Delivered.)_
-2. **Late partner addition:** the owner of a live illustration reservation can add one illustration partner after booking and before a configurable deadline. _(Not started.)_
-3. **Reservation release:** the owner of an unpaid reservation can pay to give it up, freeing the stand and themselves to book something else. _(Not started.)_
+2. **Late partner addition:** the owner of a live illustration reservation can add one illustration partner after booking and before a configurable deadline. _(Delivered.)_
+3. **Reservation release:** the owner of an unpaid reservation can pay to give it up, freeing the stand and themselves to book something else. _(Delivered.)_
 
 These are optional features, not penalties or sanctions. Each feature is paid only with Glitter credits. Participants buy credits before starting an action; purchasing credits does not start, reserve, or complete the action.
 
@@ -913,7 +913,7 @@ Notifications:
   release and paid for it, so their copy confirms what they did and states the
   cost; a partner did not choose it, so theirs names who released it and quotes
   no price. Both say the space went back on the map rather than being held.
-- Added partner: only after successful addition. _(Phase 4.)_
+- Added partner and the owner who paid: after a successful addition. _(Built.)_ The partner did not ask for this, so their copy is an invitation that says they owe nothing; the owner's confirms the debit.
 
 Buying credits notifies nobody, and neither does approving a voucher. The
 purchase is synchronous — the participant watches the balance change and the
@@ -1034,9 +1034,9 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 - Credit-paid shared-price adjustment and partner insertion.
 - Transactional eligibility/race handling.
 
-**Not started.** What already exists to build on: `reservation_feature_actions` carries `target_partner_user_id` and both price snapshots, `reservation_feature_action_items` holds the two-component breakdown, `resolveLatePartnerDeadline` computes the effective cutoff, `assertReservationPartner` and `searchPotentialPartnersForActor` are the canonical eligibility and search rules, and `spendCreditsForFeature` is the direct-debit path — written, tested, and so far called only by tests.
+**Delivered.** The command, its funding, and the participant surface on the reservation-detail page.
 
-What is missing: the `addLatePartner` command itself, its Server Action, and somewhere to put it. There is no participant reservation-detail page today — only `reservations/[reservationId]/payments` — so §12's `Acciones disponibles` has no home yet. Add `late_partner` to `IMPLEMENTED_FEATURE_TYPES` last, once the command exists.
+Two things about it are worth knowing before changing it. The price is the only one that is not the festival's configured figure alone — it also carries this reservation's own shared-price difference — so its purchase has a dedicated entry point that derives the total from the reservation id rather than accepting an amount. And the eligibility gate's `ALREADY_RESERVED` rule is exempted here, as it is for release: you cannot share a reservation you do not hold, so holding one is the precondition rather than the disqualification.
 
 ### Phase 5 — Reservation release
 
@@ -1046,9 +1046,9 @@ What is missing: the `addLatePartner` command itself, its Server Action, and som
 - Retained history: the released reservation, its participants, stands and events stay queryable.
 - Released participants become free to book again; every other eligibility rule still applies.
 
-**Not started.** It needs no schema work and no change to how reservations are closed: `released` is already in the enum, `policy.ts` already treats it as non-blocking and separates that from stand occupancy, and the shared invoice rule is already implemented at all three admin closing paths.
+**Delivered.** No schema work was needed: `released` was already in the enum, `policy.ts` already treated it as non-blocking and kept that separate from stand occupancy, and the shared invoice rule was already implemented at all three admin closing paths.
 
-What is left is the command itself and its participant surface. The surface is the gap worth planning for — there is no participant reservation-detail page today, only `reservations/[reservationId]/payments`, so §12's `Acciones disponibles` has nowhere to live yet. That page is shared with Phase 4.
+The command refuses anything but `pending` and rechecks that under lock, so a payment submitted while the confirmation dialog is open cannot be released out from under review.
 
 ### Phase 6 — Rollout
 
@@ -1170,13 +1170,13 @@ What is left is the command itself and its participant surface. The surface is t
 - [x] Two halves reserve atomically as one reservation, priced at the pair's own rate; half fallback remains available and explicit.
 - [x] Full-table SVG variants derive from the existing half-table asset and carry text and non-colour cues for every state.
 - [ ] Full-table variants pass a formal accessibility review (keyboard, screen reader, 200% zoom). Covered by unit tests, not yet reviewed end to end.
-- [ ] Late partner is illustration-only, deadline-safe, immediately credit-funded, and owner-paid. _(Phase 4, not started.)_
-- [ ] Original individual invoices/payments/discounts remain unchanged after late partner addition. _(Phase 4, not started.)_
+- [x] Late partner is illustration-only, deadline-safe, immediately credit-funded, and owner-paid.
+- [x] Original individual invoices/payments/discounts remain unchanged after late partner addition.
 - [ ] The owner of a `pending` reservation can pay credits to release it, freeing the stand and themselves to book again. _(Phase 5, not started.)_
 - [x] Every terminal reservation blocks participation; only `released` is non-blocking. Predicates are in place and separated from stand occupancy.
 - [x] Rejected provisional credits never trigger automatic domain reversals.
 - [x] Admin can resolve debt and full-table exceptions manually with an audit trail — approve, mark paid, waive, downgrade a table to its original half, release an abandoned activation.
 - [x] Owners are notified when a voucher is rejected, with the debt and the fact that what it paid for still stands. Submission and approval deliberately send nothing.
 - [x] Everyone on a released reservation is told, in words that fit whether they chose it or not.
-- [ ] Partner-added notification. _(Phase 4.)_
+- [x] Both people are told when a partner is added, in words that fit whether they chose it or not.
 - [x] Authorization, idempotency, concurrency, and migration tests pass for everything delivered.

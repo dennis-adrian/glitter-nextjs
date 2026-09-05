@@ -21,6 +21,7 @@ import {
   creditHolds,
   creditLedgerEntries,
   creditTopUps,
+  featureFlags,
   festivalReservationFeatures,
   festivalSectors,
   festivalTermsDocuments,
@@ -1481,6 +1482,51 @@ describeDatabase("feature credit top-up", () => {
       });
 
       expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+    });
+
+    /**
+     * The one feature whose price is not the festival's configured figure: it
+     * also carries this reservation's own shared-price difference. The
+     * shortfall has to be sized against the real total, and the top-up has to
+     * record which feature it funds so the upload callback does not mistake it
+     * for a full-table purchase.
+     */
+    it("sells the shortfall for the whole total, not just the fee", async () => {
+      const { festival, user, reservationId } =
+        await seedReservationWithPartner(10);
+
+      // The action goes through the participant-facing credits flag, which
+      // defaults to hidden. Everything else in this file calls services
+      // directly and never meets it.
+      await integrationDb!
+        .insert(featureFlags)
+        .values({ key: "credits", visibility: "public" as const })
+        .onConflictDoUpdate({
+          target: featureFlags.key,
+          set: { visibility: "public" as const },
+        });
+
+      const { createLatePartnerCreditTopUpAction } =
+        await import("@/app/lib/reservations/late-partner-actions");
+      const purchase = await createLatePartnerCreditTopUpAction({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(purchase).toMatchObject({
+        success: true,
+        amount: LATE_PARTNER_TOTAL - 10,
+      });
+
+      const [row] = await integrationDb!
+        .select({
+          featureType: creditTopUps.intendedFeatureType,
+          intendedUseId: creditTopUps.intendedUseId,
+        })
+        .from(creditTopUps)
+        .where(eq(creditTopUps.userId, user.id));
+      expect(row.featureType).toBe("late_partner");
+      expect(row.intendedUseId).toBe(festival.id);
     });
 
     it("tells the owner and the new partner", async () => {

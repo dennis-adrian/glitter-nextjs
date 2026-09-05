@@ -50,6 +50,7 @@ type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export const PURCHASABLE_FEATURE_TYPES = [
   "full_table",
   "reservation_release",
+  "late_partner",
 ] as const;
 export type PurchasableFeatureType = (typeof PURCHASABLE_FEATURE_TYPES)[number];
 
@@ -73,7 +74,25 @@ const FEATURE_COPY: Record<
     notNeeded:
       "Ya tenés los créditos que cuesta liberar tu reserva. Liberala desde el detalle de la reserva.",
   },
+  late_partner: {
+    underReview:
+      "Ya tenés una compra de créditos en revisión. Esperá la confirmación para agregar a tu compañero.",
+    notNeeded:
+      "Ya tenés los créditos que cuesta agregar un compañero. Agregalo desde el detalle de la reserva.",
+  },
 };
+
+/**
+ * Features whose price is only part of what the action costs.
+ *
+ * A late partner is billed the configured fee *plus* the difference between
+ * the individual and shared price of their own reservation, so the shortfall
+ * cannot be sized from the festival's configuration alone. The caller passes
+ * the full amount it worked out from the reservation's own snapshots.
+ */
+const FEATURE_PRICE_FROM_CALLER: readonly PurchasableFeatureType[] = [
+  "late_partner",
+];
 
 export type CreditPurchase = {
   topUpId: number;
@@ -199,6 +218,12 @@ function purchased(topUp: {
 export async function createFeatureCreditTopUp(input: {
   festivalId: number;
   featureType: PurchasableFeatureType;
+  /**
+   * The total the action will cost, for a feature whose price is not the
+   * festival's configured figure alone. Server-derived by the caller from the
+   * reservation's own price snapshots — never a number the browser sent.
+   */
+  requiredCredits?: number;
   idempotencyKey: string;
 }): Promise<CreditPurchaseResult> {
   const actor = await getCurrentUserProfile();
@@ -260,13 +285,16 @@ export async function createFeatureCreditTopUp(input: {
         festivalId: input.festivalId,
       });
       // `ALREADY_RESERVED` stops somebody booking a second stand, which is
-      // right for full table and backwards for release: you can only release a
-      // reservation you already hold, so holding one is the precondition
-      // rather than the disqualification. Every other reason the gate gives —
-      // enrolment, terms, verification, sanctions — still applies.
+      // right for full table and backwards for the two features that act on a
+      // reservation you already hold: you cannot release or share one you do
+      // not have, so holding one is the precondition rather than the
+      // disqualification. Every other reason the gate gives — enrolment,
+      // terms, verification, sanctions — still applies.
+      const actsOnExistingReservation =
+        input.featureType === "reservation_release" ||
+        input.featureType === "late_partner";
       const ignorable =
-        input.featureType === "reservation_release" &&
-        denial?.code === "ALREADY_RESERVED";
+        actsOnExistingReservation && denial?.code === "ALREADY_RESERVED";
       if (denial && !ignorable) return fail(denial);
 
       // Read on this transaction's connection: reaching for the pool while
@@ -279,6 +307,14 @@ export async function createFeatureCreditTopUp(input: {
         new Date(),
         tx,
       );
+      // A late partner's price depends on the reservation, not only the
+      // festival, so its caller sizes the requirement. Everything else is
+      // priced entirely by configuration.
+      const requiredCredits =
+        FEATURE_PRICE_FROM_CALLER.includes(input.featureType) &&
+        input.requiredCredits != null
+          ? input.requiredCredits
+          : config?.creditPrice;
       if (!config || !config.enabled || !config.available) {
         return fail(
           reservationFailure(
@@ -321,7 +357,7 @@ export async function createFeatureCreditTopUp(input: {
 
       const balances = await getCreditBalancesInTx(tx, actor.id);
       const required = exactCreditShortfall(
-        config.creditPrice,
+        requiredCredits ?? config.creditPrice,
         balances.spendableBalance,
       );
       if (required <= 0) {
