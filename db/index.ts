@@ -51,14 +51,37 @@ const globalForPool = globalThis as typeof globalThis & {
  */
 const DEFAULT_POOL_MAX = 5;
 
+/**
+ * No single instance may be able to exhaust the server by itself. The database
+ * allows 100 connections, so a ceiling of 20 still leaves room for five
+ * instances at the worst setting an operator can choose — and `Number` accepts
+ * exponent and hex forms, so `1e3` would otherwise authorise a thousand
+ * connections per instance and reproduce the outage this file exists to
+ * prevent.
+ */
+const MAX_POOL_MAX = 20;
+
 function poolMax(): number {
   const configured = Number(process.env.POSTGRES_POOL_MAX);
+
   // Integers only: pg admits clients while `length >= max`, so a fractional
   // value rounds *up* (2.5 yields 3). This knob exists to shed connections
   // under pressure, and quietly handing back more than asked for defeats it.
-  return Number.isInteger(configured) && configured > 0
-    ? configured
-    : DEFAULT_POOL_MAX;
+  if (!Number.isInteger(configured) || configured <= 0) {
+    return DEFAULT_POOL_MAX;
+  }
+
+  // Clamped rather than dropped to the default: someone raising this during an
+  // incident needs the largest safe value, not a silent reversion to a number
+  // smaller than they started from.
+  if (configured > MAX_POOL_MAX) {
+    console.warn(
+      `POSTGRES_POOL_MAX=${configured} exceeds the ${MAX_POOL_MAX} per-instance ceiling; using ${MAX_POOL_MAX}.`,
+    );
+    return MAX_POOL_MAX;
+  }
+
+  return configured;
 }
 
 /**

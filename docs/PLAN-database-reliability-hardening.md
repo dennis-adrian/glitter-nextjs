@@ -178,19 +178,27 @@ name, which fails open for every table nobody remembered to list.
 ## 5. `POSTGRES_POOL_MAX` sits outside the env schema
 
 **Severity: low.** It is the only server environment variable not validated in
-[`env.ts`](../env.ts). `poolMax()` in [`db/index.ts`](../db/index.ts) requires a
-positive integer, which rejects fractions, but `Number` still accepts exponent
-and hex forms: `POSTGRES_POOL_MAX=1e3` authorises 1000 connections per
-instance, and `0x10` gives 16. There is no ceiling.
+[`env.ts`](../env.ts).
 
-The failure is quiet in both directions. Too large invites back the exact
-`FATAL 53300` this work was about, with no boot error. Anything unparseable —
-`20 connections`, a typo'd key — silently falls back to 5, so someone raising
-the cap mid-incident gets the old value and concludes the cap is not the
+**Partly addressed.** `poolMax()` in [`db/index.ts`](../db/index.ts) now
+requires a positive integer and clamps anything above `MAX_POOL_MAX` (20) with
+a warning, so the exponent and hex forms `Number` accepts — `1e3` was 1000,
+`0x100` is 256 — can no longer authorise an unbounded per-instance pool.
+Oversized values clamp rather than reverting to the default, so raising the
+knob during an incident cannot hand back a number smaller than the one already
+in effect.
+
+**Still open:** an unparseable value — `20 connections`, a typo'd key — falls
+back to 5 silently, at module load rather than at boot. Someone raising the cap
+mid-incident still gets the old value and may conclude the cap is not the
 problem.
 
 **Fix:** move it into the zod schema as
-`z.coerce.number().int().positive().max(N).default(5)` and delete `poolMax()`.
+`z.coerce.number().int().positive().max(20).default(5)` and delete `poolMax()`,
+so a bad value fails fast at startup with the rest of the environment instead
+of degrading quietly. Note that `z.coerce.number()` uses the same `Number`
+conversion, so the `.int()` and `.max()` constraints are doing the real work
+and must be kept.
 
 ---
 
