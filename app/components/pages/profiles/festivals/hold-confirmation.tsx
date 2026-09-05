@@ -72,6 +72,7 @@ export default async function HoldConfirmationPage(
     <div className="container p-3 md:p-6">
       <FullTableSummaryNotice fullTable={confirmation.fullTable} />
       <HoldConfirmationClient
+        fullTable={confirmation.fullTable}
         recentPartners={confirmation.recentPartners}
         hold={confirmation.hold}
         stand={confirmation.stand}

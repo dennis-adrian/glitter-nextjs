@@ -225,6 +225,8 @@ export type FestivalReservationConfirmationDto = {
     isFullTable: boolean;
     /** Access is active but only one half was available. */
     isHalfTableFallback: boolean;
+    /** Every stand the hold covers, for highlighting the real footprint. */
+    standIds: number[];
     /** Labels of every stand in the hold, in selection order. */
     standLabels: string[];
   };

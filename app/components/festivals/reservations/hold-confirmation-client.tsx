@@ -65,6 +65,12 @@ type HoldConfirmationClientProps = {
     id: number;
     expiresAt: string;
   };
+  /** What the hold really covers; `stand` is only the half picked first. */
+  fullTable: {
+    isFullTable: boolean;
+    standLabels: string[];
+    standIds: number[];
+  };
   stand: {
     id: number;
     label: string | null;
@@ -96,13 +102,15 @@ const RING_PADDING = 0.8;
 
 function StandMapThumbnail({
   stands,
-  selectedStandId,
+  selectedStandIds,
   mapBounds,
 }: {
   stands: ThumbnailStand[];
-  selectedStandId: number;
+  /** Every stand the hold covers — two of them for a full table. */
+  selectedStandIds: readonly number[];
   mapBounds: { minX: number; minY: number; width: number; height: number };
 }) {
+  const selected = new Set(selectedStandIds);
   const positioned = stands.filter(
     (s) => s.positionLeft != null && s.positionTop != null,
   );
@@ -113,7 +121,7 @@ function StandMapThumbnail({
       className="w-full h-full rounded-lg overflow-hidden"
     >
       {positioned.map((s) => {
-        const isSelected = s.id === selectedStandId;
+        const isSelected = selected.has(s.id);
         const left = s.positionLeft ?? 0;
         const top = s.positionTop ?? 0;
 
@@ -172,6 +180,7 @@ function StandMapThumbnail({
 
 export default function HoldConfirmationClient({
   festival,
+  fullTable,
   hold,
   mapBounds,
   profile,
@@ -236,13 +245,15 @@ export default function HoldConfirmationClient({
   );
 
   const defaultPartnerOptions = useMemo(() => {
-    return recentPartners.map((partner): SearchOption => ({
-      label: partner.displayName || "Sin nombre",
-      value: String(partner.id),
-      imageUrl: partner.imageUrl,
-      disabled: !partner.selectable,
-      disabledReason: partnerDisabledReason(partner.denialCode),
-    }));
+    return recentPartners.map(
+      (partner): SearchOption => ({
+        label: partner.displayName || "Sin nombre",
+        value: String(partner.id),
+        imageUrl: partner.imageUrl,
+        disabled: !partner.selectable,
+        disabledReason: partnerDisabledReason(partner.denialCode),
+      }),
+    );
   }, [recentPartners]);
 
   const handleRefreshPartners = () => {
@@ -468,11 +479,22 @@ export default function HoldConfirmationClient({
               <div className="flex-1 space-y-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    Stand seleccionado
+                    {fullTable.isFullTable
+                      ? "Espacios seleccionados"
+                      : "Stand seleccionado"}
                   </p>
                   <p className="text-lg font-bold text-primary">
-                    Stand {formatStandLabel(stand)}
+                    {fullTable.isFullTable
+                      ? `Stands ${fullTable.standLabels.join(" y ")}`
+                      : `Stand ${formatStandLabel(stand)}`}
                   </p>
+                  {/* The price below is the table's, not a stand's, so the
+                      card has to say which one is being bought. */}
+                  {fullTable.isFullTable && (
+                    <p className="text-sm text-muted-foreground">
+                      Mesa completa · 240 × 60 cm
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Ubicación</p>
@@ -484,7 +506,11 @@ export default function HoldConfirmationClient({
               <div className="w-24 h-24 shrink-0 rounded-lg border bg-muted/30 overflow-hidden">
                 <StandMapThumbnail
                   stands={sectorStands}
-                  selectedStandId={stand.id}
+                  selectedStandIds={
+                    fullTable.standIds.length > 0
+                      ? fullTable.standIds
+                      : [stand.id]
+                  }
                   mapBounds={mapBounds}
                 />
               </div>

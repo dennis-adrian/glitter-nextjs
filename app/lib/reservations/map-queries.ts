@@ -723,6 +723,9 @@ export async function fetchFestivalReservationConfirmationDto(input: {
           standNumber: member.standNumber,
         }),
       ),
+      // Both halves, so the summary can highlight what is actually held
+      // rather than only the one the participant clicked.
+      standIds: holdMembers.map((member) => member.standId),
     },
     festival,
     profile,

@@ -1,6 +1,7 @@
 "use client";
 
 import FullTableGraphic from "@/app/components/festivals/reservations/full-table-graphic";
+import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 import type { FullTableSelection } from "@/app/lib/reservations/full-table-selection";
@@ -64,6 +65,33 @@ export default function FullTableSelectionNotice({
       </div>
     );
   }
+
+  /**
+   * The pair is whole and they could activate right now. Same news as `full`,
+   * with the fee named — this is the moment they decide to spend it.
+   */
+  if (selection.kind === "offer") {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
+        <div className="w-20 shrink-0">
+          <FullTableGraphic variant="full" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Podés tomar la mesa completa</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Este espacio y el {companionLabel} forman una mesa de 240 × 60 cm.
+            Activarla usa {formatCreditCount(selection.creditPrice)} y reserva
+            los dos espacios.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Everything remaining is the fallback. Named rather than left to fall
+  // through: a bare trailing return is what let the activation offer render as
+  // "el otro espacio ya está ocupado" when it plainly was not.
+  if (selection.kind !== "fallback") return null;
 
   return (
     <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3">

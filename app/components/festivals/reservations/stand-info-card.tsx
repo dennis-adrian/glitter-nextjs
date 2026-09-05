@@ -476,14 +476,15 @@ export function StandInfoCard({
             (fullTableSelection.kind === "full" ||
               fullTableSelection.kind === "offer") ? (
             /* Two ways to take a whole table's half, so neither is a guess.
-               Column-reverse on a phone puts the table — the priced, primary
-               choice — above the plain stand, and the row order left-to-right
-               keeps the cheaper option first on a wider screen. */
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+               Always stacked, never side by side: the card is a fixed width at
+               every breakpoint and "Activar y seleccionar mesa completa" alone
+               overflows it on one line. Column-reverse puts the table — what
+               the fee buys — on top, with the plain stand under it. */
+            <div className="flex flex-col-reverse gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="w-full sm:w-auto"
+                className="w-full"
                 onClick={handleSelectHalf}
                 disabled={isPending}
               >
@@ -491,7 +492,7 @@ export function StandInfoCard({
               </Button>
               <Button
                 type="button"
-                className="w-full sm:w-auto"
+                className="w-full"
                 onClick={
                   fullTableSelection.kind === "offer"
                     ? handleActivateAndSelect
