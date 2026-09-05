@@ -169,7 +169,8 @@ describe("ReservationDetailPage", () => {
     );
 
     expect(html).toContain("B48 y B49");
-    expect(html).toContain("mesa completa");
+    // Case-insensitive: it is a standalone label now, not mid-sentence.
+    expect(html).toMatch(/mesa completa/i);
     expect(html).toContain("60cm x 240cm");
   });
 
