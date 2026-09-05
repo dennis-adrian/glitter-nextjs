@@ -1186,6 +1186,14 @@ describeDatabase("feature credit top-up", () => {
         .from(standReservations)
         .where(eq(standReservations.id, reservationId));
       expect(reservation.status).toBe("pending");
+
+      // Nothing released and nothing charged, so no `fulfilled` action may
+      // survive the refusal.
+      const actions = await integrationDb!
+        .select({ id: reservationFeatureActions.id })
+        .from(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.reservationId, reservationId));
+      expect(actions).toEqual([]);
       expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
         RELEASE_PRICE - 1,
       );
@@ -1463,6 +1471,34 @@ describeDatabase("feature credit top-up", () => {
       expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
         LATE_PARTNER_TOTAL - 1,
       );
+
+      // A refusal still commits — `fail` has a registry release to write — so
+      // the action inserted before the debit has to be gone. Left behind it is
+      // a `fulfilled` action with no partner and nothing charged, and its
+      // unique key would poison a retry of the same request.
+      const actions = await integrationDb!
+        .select({ id: reservationFeatureActions.id })
+        .from(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.reservationId, reservationId));
+      expect(actions).toEqual([]);
+      const items = await integrationDb!
+        .select({ id: reservationFeatureActionItems.id })
+        .from(reservationFeatureActionItems);
+      expect(items).toEqual([]);
+
+      // And the same request may be retried once they have the credits.
+      await integrationDb!.insert(creditLedgerEntries).values({
+        userId: user.id,
+        amount: 1,
+        type: "admin_grant" as const,
+        idempotencyKey: `retry-grant-${reservationId}`,
+      });
+      const retried = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(retried.success).toBe(true);
     });
 
     it("refuses somebody who does not own the reservation", async () => {

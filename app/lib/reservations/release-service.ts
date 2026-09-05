@@ -220,6 +220,13 @@ export async function releaseReservation(input: {
       idempotencyKey: `reservation-release-spend:${input.idempotencyKey}`,
     });
     if (!spend.ok) {
+      // Same reasoning as the late-partner path: `fail` returns so its
+      // registry release can commit, which would commit this action too. A
+      // `fulfilled` release with nothing released and nothing charged is
+      // worse than no row at all, and its unique key would poison a retry.
+      await tx
+        .delete(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.id, action.id));
       return fail(
         reservationFailure(
           spend.code === "INSUFFICIENT_CREDITS"

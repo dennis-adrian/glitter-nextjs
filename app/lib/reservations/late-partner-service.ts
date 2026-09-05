@@ -280,6 +280,18 @@ export async function addLatePartner(input: {
       idempotencyKey: `late-partner-spend:${input.idempotencyKey}`,
     });
     if (!spend.ok) {
+      // A refusal returns rather than throws, so `fail` can commit its
+      // registry release — which means the rows above are committed too
+      // unless they go now. Left behind, they are a `fulfilled` late-partner
+      // action with no partner, no debit, and two accounting items nobody
+      // paid, and its unique key would poison a retry of the same request.
+      //
+      // Deleted rather than reordered: the spend locks this action and the
+      // ledger entry points at it, so it cannot run before the insert. The
+      // items go with it through their cascade.
+      await tx
+        .delete(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.id, action.id));
       return fail(
         reservationFailure(
           spend.code === "INSUFFICIENT_CREDITS"
