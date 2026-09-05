@@ -261,7 +261,15 @@ async function deliverJob(
       (participant) =>
         participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
     )?.user;
-    if (!recipient || !ownerUser || !partnerUser) return;
+    // Thrown, not returned. Returning here reaches the caller's success path,
+    // which stamps the job `completed` with a null `lastError` — an email
+    // nobody received and no record that anything went wrong. Every other
+    // delivery path (`enrollment_context_missing`, `credit_profile_missing`)
+    // throws so the job retries and, once out of attempts, fails visibly.
+    // Named one at a time because the message is what lands in `lastError`.
+    if (!recipient) throw new Error("late_partner_recipient_missing");
+    if (!ownerUser) throw new Error("late_partner_owner_missing");
+    if (!partnerUser) throw new Error("late_partner_partner_missing");
 
     const isOwner = recipient.id === ownerUser.id;
     await sendEmail({
@@ -297,7 +305,10 @@ async function deliverJob(
       (participant) =>
         participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
     )?.user;
-    if (!recipient || !releasedBy) return;
+    // Same reasoning as the late-partner branch above: a silent return would
+    // mark the job completed and lose the reason.
+    if (!recipient) throw new Error("release_recipient_missing");
+    if (!releasedBy) throw new Error("release_owner_missing");
 
     const standCount = Math.max(1, reservation.members.length);
     await sendEmail({

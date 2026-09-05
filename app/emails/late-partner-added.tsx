@@ -79,7 +79,7 @@ export default function LatePartnerAddedTemplate({
                   Se usaron <strong>{formatCreditCount(totalCredits)}</strong>,
                   que cubren la diferencia entre el precio individual y el
                   compartido más el costo de agregar a alguien después de
-                  reservar. Tu factura original no cambia.
+                  reservar.
                 </Text>
               </>
             ) : (

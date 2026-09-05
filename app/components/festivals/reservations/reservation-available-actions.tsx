@@ -48,10 +48,6 @@ export default function ReservationAvailableActions({
       >
         Acciones disponibles
       </h2>
-      <p className="text-sm text-muted-foreground">
-        Tu reserva no se puede editar. No se puede cambiar el espacio, el precio
-        ni a quién pertenece.
-      </p>
       {deadlineNote && canAct && (
         <p className="text-sm text-muted-foreground">{deadlineNote}</p>
       )}
