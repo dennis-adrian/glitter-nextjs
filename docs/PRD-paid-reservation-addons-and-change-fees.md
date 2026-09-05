@@ -1175,7 +1175,7 @@ The command refuses anything but `pending` and rechecks that under lock, so a pa
 - [ ] Full-table variants pass a formal accessibility review (keyboard, screen reader, 200% zoom). Covered by unit tests, not yet reviewed end to end.
 - [x] Late partner is illustration-only, deadline-safe, immediately credit-funded, and owner-paid.
 - [x] Original individual invoices/payments/discounts remain unchanged after late partner addition.
-- [ ] The owner of a `pending` reservation can pay credits to release it, freeing the stand and themselves to book again. _(Phase 5, not started.)_
+- [x] The owner of a `pending` reservation can pay credits to release it, freeing the stand and themselves to book again. Refused in every other status, rechecked under lock.
 - [x] Every terminal reservation blocks participation; only `released` is non-blocking. Predicates are in place and separated from stand occupancy.
 - [x] Rejected provisional credits never trigger automatic domain reversals.
 - [x] Admin can resolve debt and full-table exceptions manually with an audit trail — approve, mark paid, waive, downgrade a table to its original half, release an abandoned activation.
