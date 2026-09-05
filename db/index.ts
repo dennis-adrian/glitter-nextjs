@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import "@/app/lib/config";
+import { getPostgresUrl } from "@/env";
 
 function redactQueryParams(query: string, params: unknown[]): unknown[] {
   if (!/external_participants/i.test(query)) {
@@ -61,35 +62,61 @@ function poolMax(): number {
 }
 
 /**
- * Bounds only the wait for a pooled connection, not the work that follows, so
- * it stacks with the transaction underneath it. `vercel.json` caps a function
- * at 100s, and a request still has to take its locks and run its statements
- * after checking a connection out; matching 100s here would let a request burn
- * the whole budget queueing and be killed the moment it finally acquires one.
- * 75s leaves room for the reservation write once the queue lets it through.
+ * Bounds two separate waits, both armed with this same value: queueing for a
+ * pooled connection, and establishing a brand-new TCP/TLS one. Neither covers
+ * the transaction that follows, so it stacks with that work under
+ * `vercel.json`'s 100s function cap — matching 100s here would let a request
+ * burn the whole budget waiting and be killed the moment it acquires a
+ * connection. Note the second arming: while the database is unreachable every
+ * invocation spends the full budget before erroring rather than failing fast.
  */
 const CONNECTION_TIMEOUT_MS = 75_000;
 
 /**
  * A killed serverless function can leave its backend parked inside an open
  * transaction, still holding the reservation locks, until the socket is
- * reaped. Postgres ends such a session itself at this bound. No transaction
- * here does network I/O — notifications go through the outbox, which only
- * inserts job rows inside `tx` and sends afterwards — so the only gaps between
- * statements are local work, and 30s is far past any honest one.
+ * reaped. Postgres ends such a session itself at this bound.
+ *
+ * Deliberately above the 100s function cap. Several transactions do await
+ * network I/O while open — Resend in `festival_activites/actions.ts` and
+ * `profile_tasks/actions.ts`, UploadThing in `products/scheduled-actions.ts` —
+ * so a bound below the cap would tear down a live transaction mid-flight and
+ * roll back writes whose side effects had already left the process. Above the
+ * cap it can only ever reach a session whose function is already dead, which
+ * is the only case it is meant to catch.
  */
-const IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000;
+const IDLE_IN_TRANSACTION_TIMEOUT_MS = 120_000;
+
+function createPool(): Pool {
+  const created = new Pool({
+    // Not `process.env.POSTGRES_URL` directly: `env.ts` also blesses the
+    // four-part POSTGRES_USER/PASSWORD/HOST/DATABASE shape that local dev
+    // uses, and pg would silently fall through to PGHOST defaults for it.
+    connectionString: getPostgresUrl(),
+    max: poolMax(),
+    connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+    // A first-class client field, not the raw libpq `options` string: pg
+    // merges the parsed connection string *over* this config and copies every
+    // search param, so an `options` in the URL would silently drop the bound.
+    idle_in_transaction_session_timeout: IDLE_IN_TRANSACTION_TIMEOUT_MS,
+  });
+
+  // pg-pool re-attaches an idle listener to every parked client and that
+  // listener ends in `pool.emit('error')`. Without a subscriber an
+  // EventEmitter turns that into ERR_UNHANDLED_ERROR and takes the process
+  // down, so a Railway restart or a socket reaped during the idle window
+  // would kill the instance rather than retire one connection. Attached here
+  // rather than beside the export so the second module layer, which reuses
+  // the pool through the global, does not add a duplicate listener.
+  created.on("error", (error) => {
+    console.error("Postgres pool error (client discarded)", error);
+  });
+
+  return created;
+}
 
 export const pool =
   globalForPool.__glitterPgPool ??
-  (globalForPool.__glitterPgPool = new Pool({
-    connectionString: process.env.POSTGRES_URL!,
-    max: poolMax(),
-    // Frozen serverless instances never run the reaper, but a shorter idle
-    // window still returns connections between bursts on a warm instance.
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
-    options: `-c idle_in_transaction_session_timeout=${IDLE_IN_TRANSACTION_TIMEOUT_MS}`,
-  }));
+  (globalForPool.__glitterPgPool = createPool());
 
 export const db = drizzle(pool, { schema, logger: redactingLogger });

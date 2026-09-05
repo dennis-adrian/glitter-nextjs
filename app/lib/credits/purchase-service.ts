@@ -216,10 +216,15 @@ export async function createFeatureCreditTopUp(input: {
       });
       if (denial) return fail(denial);
 
+      // Read on this transaction's connection: reaching for the pool while
+      // holding user locks checks out a second connection that only a
+      // finishing transaction can free.
       const config = await fetchFeatureConfig(
         input.festivalId,
         input.featureType,
         category,
+        new Date(),
+        tx,
       );
       if (!config || !config.enabled || !config.available) {
         return fail(reservationFailure("FULL_TABLE_UNAVAILABLE"));
