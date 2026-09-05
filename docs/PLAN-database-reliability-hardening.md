@@ -222,12 +222,50 @@ back to 5 silently, at module load rather than at boot. Someone raising the cap
 mid-incident still gets the old value and may conclude the cap is not the
 problem.
 
-**Fix:** move it into the zod schema as
-`z.coerce.number().int().positive().max(20).default(5)` and delete `poolMax()`,
-so a bad value fails fast at startup with the rest of the environment instead
-of degrading quietly. Note that `z.coerce.number()` uses the same `Number`
-conversion, so the `.int()` and `.max()` constraints are doing the real work
-and must be kept.
+**The contract to settle first.** `poolMax()` converts with `Number`, which
+accepts more syntax than an environment variable ever means to: `0x10` is 16,
+`+7` and `" 7 "` are 7. None of those is plausible intent — they are typos that
+currently resolve to a number instead of being caught. Decide explicitly
+whether the knob takes **plain decimal digits only**, and write the schema to
+say so rather than inheriting whatever `Number` happens to allow.
+
+**Fix.** Recommended, decimal-only:
+
+```ts
+POSTGRES_POOL_MAX: z
+  .string()
+  .regex(/^\d+$/)
+  .transform(Number)
+  .pipe(z.number().int().positive().max(20))
+  .default("5"),
+```
+
+The looser `z.coerce.number().int().positive().max(20).default(5)` also bounds
+the value safely, but keeps the surprises. Measured against the project's zod:
+
+| input              | `z.coerce…` | decimal-only |
+| ------------------ | ----------- | ------------ |
+| `"5"`              | 5           | 5            |
+| `"1e3"`            | reject      | reject       |
+| `"0x10"`           | **16**      | reject       |
+| `"0x100"`          | reject      | reject       |
+| `"2.5"`            | reject      | reject       |
+| `" 7 "`            | **7**       | reject       |
+| `"+7"`             | **7**       | reject       |
+| `"20 connections"` | reject      | reject       |
+
+Both bound the value — `1e3` and `0x100` fail `.max(20)` rather than slipping
+through — so either is safe. They differ only in whether a malformed value is
+caught or quietly reinterpreted.
+
+**Note the behaviour change.** Either schema **rejects** an oversized value at
+boot; the current `poolMax()` **clamps** it to 20 and warns. That is a
+deliberate trade, not a regression: the clamp exists only because `poolMax()`
+runs at module load, where throwing would take the instance down mid-request.
+In `env.ts` the parse happens at startup with the rest of the environment, so a
+bad value should fail the deploy loudly instead of silently running at a number
+nobody chose. Delete `poolMax()` and `MAX_POOL_MAX` when this lands, and keep
+the ceiling in the schema.
 
 ---
 
