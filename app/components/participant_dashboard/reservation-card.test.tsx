@@ -29,7 +29,11 @@ function festival(artwork: Partial<Record<string, string | null>> = {}) {
 function participation(reservationId: number) {
   return {
     id: reservationId,
-    reservation: { id: reservationId, status: "pending", createdAt: new Date() },
+    reservation: {
+      id: reservationId,
+      status: "pending",
+      createdAt: new Date(),
+    },
   } as never;
 }
 
@@ -111,7 +115,9 @@ describe("the way through to the reservation detail", () => {
     renderCard({ festival: festival(), outstandingInvoiceCount: 1 });
 
     // Paying keeps the primary button; the detail page gets its own.
-    expect(screen.getByRole("link", { name: /completar el pago/i })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: /completar el pago/i }),
+    ).toBeTruthy();
     const detail = screen.getByRole("link", {
       name: /ver el detalle de mi reserva/i,
     });
