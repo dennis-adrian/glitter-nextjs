@@ -13,11 +13,14 @@ import Link from "next/link";
 
 export default function InfoTabContent({
   festival,
+  profileId,
   reservation,
   festivalStartDate,
   festivalEndDate,
 }: {
   festival: Festival;
+  /** Whose participation this card belongs to, for the detail-page link. */
+  profileId: number;
   reservation: ReservationWithParticipantsAndUsersAndStand | undefined;
   festivalStartDate: string;
   festivalEndDate: string;
@@ -77,6 +80,14 @@ export default function InfoTabContent({
                 </div>
               ))}
             </div>
+            {/* The card summarises; the detail page is where the reservation's
+                own state and its available actions live. */}
+            <Link
+              href={`/profiles/${profileId}/festivals/${festival.id}/reservations/${reservation.id}`}
+              className="mt-2 inline-block text-sm text-primary underline underline-offset-2"
+            >
+              Ver detalle de la reserva
+            </Link>
           </div>
         )}
       </div>
