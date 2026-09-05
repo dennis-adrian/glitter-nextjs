@@ -121,9 +121,38 @@ leave zero usable slots: every later query waits the full
 `connectionTimeoutMillis` and fails, permanently. The previous ~20-slot
 ceiling absorbed this; the reduced pool does not.
 
+**Confirmed by experiment**, not only by reading the source. Against
+drizzle-orm 0.44.2 with a `max: 3` pool and a `pg.Client` subclass that throws
+only on `begin` — so the checkout succeeds and the failure lands exactly where
+`session.cjs` runs it:
+
+```
+after failed BEGIN #1   total=1 idle=0 waiting=0
+after failed BEGIN #2   total=2 idle=0 waiting=0
+after failed BEGIN #3   total=3 idle=0 waiting=0
+
+BEGIN now succeeds; can the pool still serve a transaction?
+RESULT: pool unusable — TIMED OUT waiting for a connection
+final                   total=3 idle=0 waiting=1
+```
+
+`totalCount` climbs while `idleCount` stays at zero: every client is checked
+out and never returned. Once the pool is full, a subsequent perfectly valid
+transaction never gets a connection. The reproduction is a standalone script —
+build a `Pool` with `{ Client: BeginFailingClient, max: N }`, wrap it in
+`drizzle()`, call `db.transaction()` N times catching each rejection, then let
+`begin` succeed and race a real transaction against a timeout.
+
 **Fix:** wrap `transaction()` so the client is released when `BEGIN` fails, or
 add a health check that discards and rebuilds the cached pool. The `error`
 listener added in PR #502 gives visibility but does not stop the leak.
+
+**On adding a regression test:** it belongs with that fix, not before it. A
+test asserting the client _is_ released fails today, and one asserting the leak
+exists is a test that must be deleted the moment anybody fixes it. Land the
+probe above as the regression test in the same change that repairs the
+behaviour, where it guards something real. It needs a live database, so it
+belongs in the integration suite and its explicit file list in `package.json`.
 
 ### 3b. `pool.end()` poisons the process-global pool
 
