@@ -909,8 +909,11 @@ Two of these are emitted as `stand_reservation_events` rows today: `full_table_m
 Notifications:
 
 - Owner: **top-up rejection only.** _(Built.)_
+- All released participants: release completion. _(Built.)_ The owner chose the
+  release and paid for it, so their copy confirms what they did and states the
+  cost; a partner did not choose it, so theirs names who released it and quotes
+  no price. Both say the space went back on the map rather than being held.
 - Added partner: only after successful addition. _(Phase 4.)_
-- All released participants: release completion. _(Phase 5.)_
 
 Buying credits notifies nobody, and neither does approving a voucher. The
 purchase is synchronous — the participant watches the balance change and the
@@ -1174,5 +1177,6 @@ What is left is the command itself and its participant surface. The surface is t
 - [x] Rejected provisional credits never trigger automatic domain reversals.
 - [x] Admin can resolve debt and full-table exceptions manually with an audit trail — approve, mark paid, waive, downgrade a table to its original half, release an abandoned activation.
 - [x] Owners are notified when a voucher is rejected, with the debt and the fact that what it paid for still stands. Submission and approval deliberately send nothing.
-- [ ] Partner-added and release-completed notifications. _(Phases 4 and 5.)_
+- [x] Everyone on a released reservation is told, in words that fit whether they chose it or not.
+- [ ] Partner-added notification. _(Phase 4.)_
 - [x] Authorization, idempotency, concurrency, and migration tests pass for everything delivered.

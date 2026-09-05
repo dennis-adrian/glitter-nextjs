@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { scheduleReservationNotificationJobs } from "@/app/lib/reservations/notification-outbox";
 import { releaseReservation } from "@/app/lib/reservations/release-service";
 
 const schema = z.object({
@@ -26,6 +27,9 @@ export async function releaseReservationAction(input: unknown) {
 
   const result = await releaseReservation(parsed.data);
   if (result.success) {
+    // Post-commit, like every other outbox caller: the rows are durable, so a
+    // send that fails here is retried rather than lost.
+    scheduleReservationNotificationJobs(result.data.jobIds);
     try {
       // The stand is back on the map and the reservation is gone from their
       // participation, so both the participant's own pages and the admin

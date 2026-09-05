@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { spendCreditsForFeatureInTx } from "@/app/lib/credits/service";
 import { fetchFeatureConfig } from "@/app/lib/festivals/feature-config-service";
@@ -21,6 +21,7 @@ import {
   activeReservationStandIds,
   releaseReservationMember,
 } from "@/app/lib/reservations/members";
+import { enqueueReservationNotification } from "@/app/lib/reservations/notification-queue";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { statusAllowsRelease } from "@/app/lib/reservations/participant-status";
 import {
@@ -36,6 +37,7 @@ import {
   reservationFeatureActions,
   scheduledTasks,
   standReservations,
+  users,
 } from "@/db/schema";
 
 /**
@@ -53,7 +55,9 @@ import {
 export async function releaseReservation(input: {
   reservationId: number;
   idempotencyKey: string;
-}): Promise<ReservationActionResult<{ releasedStandIds: number[] }>> {
+}): Promise<
+  ReservationActionResult<{ releasedStandIds: number[]; jobIds: number[] }>
+> {
   const actor = await getCurrentUserProfile();
   if (!actor) return reservationFailure("UNAUTHENTICATED");
 
@@ -104,6 +108,9 @@ export async function releaseReservation(input: {
             typeof released === "string"
               ? released.split(",").map(Number).filter(Number.isInteger)
               : [],
+          // A replay already sent the mail; the outbox would dedupe it anyway,
+          // but there is no reason to hand the caller jobs to re-run.
+          jobIds: [],
         },
         "Liberaste tu reserva.",
       );
@@ -266,13 +273,37 @@ export async function releaseReservation(input: {
       idempotencyKey: `release:${input.idempotencyKey}`,
     });
 
+    // Everyone on the reservation hears about it, not just the person who
+    // pressed the button: a partner loses their space too, and finding that
+    // out by opening the map is worse than being told.
+    const recipients =
+      lockedParticipantIds.length === 0
+        ? []
+        : await tx
+            .select({ id: users.id, email: users.email })
+            .from(users)
+            .where(inArray(users.id, lockedParticipantIds));
+
+    const jobIds: number[] = [];
+    for (const recipient of recipients) {
+      if (!recipient.email) continue;
+      const jobId = await enqueueReservationNotification(tx, {
+        kind: "reservation_released",
+        reservationId: reservation.id,
+        userId: recipient.id,
+        recipientEmail: recipient.email,
+        payload: { creditPrice: config.creditPrice },
+      });
+      if (jobId) jobIds.push(jobId);
+    }
+
     await completeRequest(tx, input.idempotencyKey, {
       releasedStandIds: memberStandIds.join(","),
       featureActionId: action.id,
     });
 
     return reservationSuccess(
-      { releasedStandIds: memberStandIds },
+      { releasedStandIds: memberStandIds, jobIds },
       "Liberaste tu reserva. El espacio volvió al mapa y ya podés reservar otro.",
     );
   });

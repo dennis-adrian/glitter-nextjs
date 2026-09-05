@@ -1026,6 +1026,65 @@ describeDatabase("feature credit top-up", () => {
       expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
     });
 
+    /**
+     * A partner loses their space too. Finding that out by opening the map is
+     * worse than being told, so everyone registered on the reservation is
+     * notified — not only whoever pressed the button.
+     */
+    it("tells every participant, not just the owner", async () => {
+      const { user, reservationId } =
+        await seedPendingReservation(RELEASE_PRICE);
+
+      const [partner] = await integrationDb!
+        .insert(users)
+        .values({
+          clerkId: `rel-partner-${reservationId}`,
+          email: `rel-partner-${reservationId}@example.test`,
+          displayName: "Partner",
+          status: "verified" as const,
+          category: "illustration" as const,
+        })
+        .returning();
+      await integrationDb!
+        .insert(reservationParticipants)
+        .values({ reservationId, userId: partner.id });
+      fixtures[fixtures.length - 1]?.userIds.push(partner.id);
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+      expect(result.success).toBe(true);
+
+      const queued = await integrationDb!
+        .select({
+          kind: reservationNotificationJobs.notificationKind,
+          recipientEmail: reservationNotificationJobs.recipientEmail,
+          userId: reservationNotificationJobs.userId,
+          payload: reservationNotificationJobs.payload,
+        })
+        .from(reservationNotificationJobs)
+        .where(eq(reservationNotificationJobs.reservationId, reservationId));
+
+      expect(queued).toHaveLength(2);
+      expect(new Set(queued.map((row) => row.userId))).toEqual(
+        new Set([user.id, partner.id]),
+      );
+      for (const row of queued) {
+        expect(row.kind).toBe("reservation_released");
+        // The price is carried so the owner's copy can state what it cost;
+        // recomputing it at send time would report a later config change.
+        expect(row.payload).toMatchObject({ creditPrice: RELEASE_PRICE });
+      }
+
+      // One release frees every participant on it (PRD §9.3).
+      const remaining = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(remaining).toHaveLength(2);
+    });
+
     it("replays a retry without debiting twice", async () => {
       const { user, reservationId } =
         await seedPendingReservation(RELEASE_PRICE);

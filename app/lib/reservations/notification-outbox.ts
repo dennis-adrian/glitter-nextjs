@@ -14,6 +14,7 @@ import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confir
 import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-participation-approved";
 import FestivalParticipationRejectedEmailTemplate from "@/app/emails/festival-participation-rejected";
 import CreditTopUpRejectedTemplate from "@/app/emails/credit-top-up-rejected";
+import ReservationReleasedTemplate from "@/app/emails/reservation-released";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -243,6 +244,42 @@ async function deliverJob(
     }
     // Proof sent back for correction: reservation stays pending. Do not send
     // the cancellation template.
+    return;
+  }
+
+  if (kind === "reservation_released") {
+    // The canonical owner, not the invoice's user: a released reservation's
+    // invoice is cancelled, and identifying who did this from payment records
+    // would be guessing at it.
+    const releasedBy =
+      reservation.participants.find(
+        (participant) => participant.userId === reservation.ownerUserId,
+      )?.user ?? owner;
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    if (!recipient || !releasedBy) return;
+
+    const standCount = Math.max(1, reservation.members.length);
+    await sendEmail({
+      to: [recipientEmail],
+      from: FROM,
+      subject:
+        recipient.id === releasedBy.id
+          ? "Liberaste tu reserva"
+          : "Se liberó la reserva que compartías",
+      react: ReservationReleasedTemplate({
+        recipient,
+        owner: releasedBy,
+        isOwner: recipient.id === releasedBy.id,
+        festivalId: reservation.festivalId,
+        festivalName: festival.name,
+        standLabel: reservationStandLabel(reservation),
+        standCount,
+        creditPrice: payloadAmount(payload, "creditPrice") ?? 0,
+      }),
+    });
     return;
   }
 

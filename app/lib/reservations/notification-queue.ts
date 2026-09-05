@@ -32,6 +32,10 @@ export const RESERVATION_NOTIFICATION_KINDS = [
   // noise; a rejection is the one thing that happens later, out of the
   // participant's sight, and can leave them owing money.
   "credit_top_up_rejected",
+  // Sent to the owner and every participant when a reservation is released.
+  // The owner chose it; a partner is finding out, which is why delivery tells
+  // them apart rather than sending one message to everybody.
+  "reservation_released",
 ] as const;
 
 export type ReservationNotificationKind =
