@@ -46,6 +46,48 @@ describe("FullTableGraphic", () => {
     expect(legFeet(container)).toHaveLength(4);
   });
 
+  /**
+   * A lone half at thumbnail size reads as a whole table, so the stand that is
+   * not part of a pair borrows the two-half drawing with its neighbour muted.
+   */
+  it("draws a highlighted half beside a muted neighbour", () => {
+    const { container } = render(
+      <FullTableGraphic variant="half-highlighted" />,
+    );
+
+    const surfaces = Array.from(container.querySelectorAll("polygon")).filter(
+      (polygon) =>
+        polygon.getAttribute("fill")?.includes("surface") ||
+        polygon.getAttribute("fill")?.includes("hatch"),
+    );
+    // One highlighted, one hatched: the hatch is what survives greyscale.
+    expect(
+      surfaces.some((s) => s.getAttribute("fill")?.includes("hatch")),
+    ).toBe(true);
+    expect(
+      surfaces.some((s) => s.getAttribute("fill")?.includes("selected")),
+    ).toBe(true);
+  });
+
+  /**
+   * It shares a drawing with `companion-unavailable` and not its meaning:
+   * there is no companion here, so nothing is occupied. Telling a screen
+   * reader otherwise would be a plain falsehood.
+   */
+  it("does not claim a neighbouring stand is occupied", () => {
+    const { container } = render(
+      <FullTableGraphic variant="half-highlighted" />,
+    );
+    const label = container
+      .querySelector("svg")
+      ?.getAttribute("aria-label")
+      ?.toLowerCase();
+
+    expect(label).toBeTruthy();
+    expect(label).not.toContain("ocupado");
+    expect(label).toContain("no forma parte");
+  });
+
   it("puts a full table's legs further apart than a half's", () => {
     const half = render(<FullTableGraphic variant="half" />);
     const halfSpan = (() => {

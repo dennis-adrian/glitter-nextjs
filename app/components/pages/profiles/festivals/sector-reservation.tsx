@@ -88,6 +88,7 @@ export default async function SectorReservationPage(
               alreadyReserved={map.alreadyReserved}
               subcategoryIds={map.subcategoryIds}
               fullTableAccessActive={map.fullTableAccessActive}
+              fullTableActivationPrice={map.fullTableActivationPrice}
               mapBounds={sector.mapBounds ?? undefined}
             />
           </div>

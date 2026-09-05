@@ -16,6 +16,15 @@ export const moneyAmountSchema = z
 export const holdStandIdSchema = z.object({
   standId: positiveIntSchema,
   idempotencyKey: uuidSchema,
+  /**
+   * Take only this stand, even while full-table access is active.
+   *
+   * Access means the participant *may* take the pair, not that they must:
+   * §7.3 lists "confirm only one stand" as a normal outcome, and the map has
+   * to be able to say which one they meant. Absent, a holder still gets the
+   * whole table, which is the default the feature was bought for.
+   */
+  singleStandOnly: z.boolean().optional(),
 });
 
 export const holdIdSchema = z.object({

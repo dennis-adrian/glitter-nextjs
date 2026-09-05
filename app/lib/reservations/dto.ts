@@ -166,6 +166,13 @@ export type FestivalReservationMapDto = {
    * informational).
    */
   fullTableAccessActive: boolean;
+  /**
+   * The fee, when the viewer could activate full-table access right now
+   * without buying anything. Null when they already hold it, cannot have it,
+   * or would have to top up first — a purchase belongs on the panel, not in
+   * the map (PRD §7.2).
+   */
+  fullTableActivationPrice: number | null;
 };
 
 export type ReservationConfirmationStandDto = {

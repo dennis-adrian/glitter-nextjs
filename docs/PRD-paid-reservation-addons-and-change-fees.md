@@ -46,7 +46,7 @@ Participant-facing copy is Spanish and uses voseo.
 | Full-table meaning          | One stand is half a table: `120 cm × 60 cm`. Two paired stands are a full table: `240 cm × 60 cm`.                                                              |
 | Full-table identity         | An admin-declared `stand_groups` row with `type = full_table` canonically pairs exactly two stands. Never infer pairing from geometry.                          |
 | Full-table guarantee        | Credits grant permission to try while availability lasts. They do not guarantee any full table or location.                                                     |
-| Full-table purchase timing  | Activated before entering the reservation map, never during stand selection.                                                                                    |
+| Full-table purchase timing  | Buying credits happens before the map. Activation may also happen at stand selection, for somebody whose balance already covers the fee.                        |
 | Full-table fallback         | If the companion half is unavailable, the selected half remains reservable. Repeated confirmation must state that only one half will be booked.                 |
 | Full-table charge           | Earmark credits at activation; debit only when a two-stand reservation is confirmed. Release the earmark when the user confirms one half or deactivates access. |
 | Full-table stand price      | A declared pair carries its own `stand_groups.full_table_price`. It replaces both halves' prices on the reservation invoice; the access fee is separate.        |
@@ -418,9 +418,11 @@ Credit purchase remains non-refundable. Failure to obtain a full table does not 
 With active full-table access:
 
 - Selecting either member resolves its companion server-side.
-- If both halves are available, show the full-table selection as the default result.
+- If both halves are available, offer **both**: taking the whole table and taking just this stand. Access means the participant may take the pair, not that they must — §7.3 lists confirming one stand as a normal outcome, so the map has to let them say which they meant. The table is the primary choice, since it is what they paid for.
 - If the companion is unavailable, still allow the selected half.
 - Never make the participant return to credit purchase from the map.
+
+Somebody who has **not** activated, but whose balance already covers the fee, is offered activation here too, beside the plain stand. This is not the financial setup §7.2 keeps out of the map: no voucher, no checkout, no upsell to somebody who would have to buy. It spends credits already held, in one click, instead of sending a funded participant back out to the panel and in again. Anyone short of the fee is not offered it — they go to the panel, where the purchase lives.
 
 The half-table fallback must be explicit at multiple stages:
 

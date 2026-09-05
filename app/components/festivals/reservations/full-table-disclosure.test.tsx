@@ -69,7 +69,7 @@ describe("full-table disclosure", () => {
     );
 
     expect(
-      screen.getByText(/esta mesa ya no está disponible completa/i),
+      screen.getByText(/la mesa completa ya no está disponible/i),
     ).toBeTruthy();
     expect(
       screen.getByText(/un solo stand \(media mesa, 120 × 60 cm\)/i),

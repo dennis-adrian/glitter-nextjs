@@ -24,6 +24,7 @@ import {
   type ReservationMapElementDto,
 } from "@/app/lib/reservations/dto";
 import { buildFestivalReservationMapDto } from "@/app/lib/reservations/map-dto";
+import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
 import { searchRecentPartners } from "@/app/lib/reservations/partner-search";
 import {
   findActiveFullTableAccess,
@@ -162,6 +163,7 @@ export async function fetchFestivalReservationMapDto(input: {
       revealHiddenIdentities: input.revealHiddenIdentities,
       fullTableGroupIds: new Set(),
       fullTableAccessActive: false,
+      fullTableActivationPrice: null,
       now,
     });
   }
@@ -508,6 +510,24 @@ export async function fetchFestivalReservationMapDto(input: {
       )) != null
     : false;
 
+  // Only for somebody who could activate on the spot. Anyone short of the fee
+  // is deliberately left out: sending them to buy from inside the map is the
+  // financial setup §7.2 keeps out of it, and the panel already handles them.
+  const activationOffer =
+    !fullTableAccessActive && isFullTableCategory(profile.category)
+      ? await fetchFullTableOffer({
+          userId: profile.id,
+          festivalId: festival.id,
+          category: profile.category,
+        })
+      : null;
+  const fullTableActivationPrice =
+    activationOffer?.offered &&
+    !activationOffer.active &&
+    activationOffer.shortfall === 0
+      ? activationOffer.creditPrice
+      : null;
+
   return buildFestivalReservationMapDto({
     festival: {
       id: festival.id,
@@ -540,6 +560,7 @@ export async function fetchFestivalReservationMapDto(input: {
     revealHiddenIdentities: input.revealHiddenIdentities,
     fullTableGroupIds,
     fullTableAccessActive,
+    fullTableActivationPrice,
     now,
   });
 }

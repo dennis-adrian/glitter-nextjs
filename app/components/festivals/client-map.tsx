@@ -24,7 +24,10 @@ import { getActiveHold } from "@/app/lib/stands/hold-actions";
 import { findJointGroup } from "@/app/lib/stands/groups";
 import { mergePolledStandStatuses } from "@/app/lib/stands/status-poll";
 
-type ActiveHold = ReservationActiveHoldDto | { id: number; standId: number } | null;
+type ActiveHold =
+  | ReservationActiveHoldDto
+  | { id: number; standId: number }
+  | null;
 
 export default function ClientMap({
   festival,
@@ -38,6 +41,7 @@ export default function ClientMap({
   alreadyReserved,
   subcategoryIds = [],
   fullTableAccessActive = false,
+  fullTableActivationPrice = null,
   onAvailableCountChange,
 }: {
   festival: ReservationMapFestivalDto;
@@ -51,6 +55,7 @@ export default function ClientMap({
   alreadyReserved: boolean;
   subcategoryIds?: number[];
   fullTableAccessActive?: boolean;
+  fullTableActivationPrice?: number | null;
   onAvailableCountChange?: (count: number) => void;
 }) {
   const [stands, setStands] = useState(initialStands);
@@ -158,6 +163,7 @@ export default function ClientMap({
           // what the participant is looking at right now.
           sectorStands={stands}
           fullTableAccessActive={fullTableAccessActive}
+          fullTableActivationPrice={fullTableActivationPrice}
           onHoldChange={handleHoldChange}
           onClose={() => setSelectedStandId(null)}
           isPending={isPending}

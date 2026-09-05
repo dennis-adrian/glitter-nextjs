@@ -16,6 +16,31 @@ export default function FullTableSelectionNotice({
 }) {
   if (selection.kind === "none") return null;
 
+  /**
+   * Holding access on a stand that is not half of anything. Stated calmly
+   * rather than as a warning: nothing went wrong and nothing was lost, this
+   * stand simply is not a table. The credits stay where they are.
+   */
+  if (selection.kind === "single") {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
+        <div className="w-20 shrink-0">
+          {/* Not the bare `half`: at this size a lone table reads as a whole
+              one. The muted neighbour is what makes "only this stand" land. */}
+          <FullTableGraphic variant="half-highlighted" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Este espacio es un solo stand</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Este espacio no forma parte de una mesa completa. Si lo seleccionás
+            vas a reservar solo un stand (media mesa, 120 × 60 cm). Tus créditos no se usarán y podrás aplicarlos
+            al pago de tu reserva, o podés elegir otra mesa.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const companionLabel = selection.companion
     ? formatStandLabel({
         label: selection.companion.label,
@@ -47,14 +72,14 @@ export default function FullTableSelectionNotice({
       </div>
       <div>
         <p className="text-sm font-semibold text-amber-900">
-          Esta mesa ya no está disponible completa
+          La mesa completa ya no está disponible
         </p>
         <p className="mt-1 text-sm text-amber-800">
           {companionLabel
             ? `El espacio ${companionLabel} ya está ocupado. `
             : "La otra mitad no está disponible. "}
-          Si seguís, vas a reservar un solo stand (media mesa, 120 × 60 cm), no
-          la mesa completa. Tus créditos no se usarán y vas a poder aplicarlos
+          Podés seleccionarlo y reservar un solo stand (media mesa, 120 × 60 cm),
+          Tus créditos no se usarán y podrás aplicarlos
           al pago de tu reserva, o podés elegir otra mesa.
         </p>
       </div>
