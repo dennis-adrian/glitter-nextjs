@@ -20,7 +20,7 @@ After reservation hardening, Glitter will introduce a credit wallet and three op
 
 1. **Full table:** an illustration or entrepreneurship participant can attempt to reserve the two half-stands that form one physical table. _(Delivered.)_
 2. **Late partner addition:** the owner of a live illustration reservation can add one illustration partner after booking and before a configurable deadline. _(Not started.)_
-3. **Reservation release:** the owner of a participant-cancelled reservation can soft-delete it, removing its participation block while retaining its history. _(Not started.)_
+3. **Reservation release:** the owner of an unpaid reservation can pay to give it up, freeing the stand and themselves to book something else. _(Not started.)_
 
 These are optional features, not penalties or sanctions. Each feature is paid only with Glitter credits. Participants buy credits before starting an action; purchasing credits does not start, reserve, or complete the action.
 
@@ -57,9 +57,10 @@ Participant-facing copy is Spanish and uses voseo.
 | Existing discount           | Never applies to the shared-price difference or late-partner feature price.                                                                                     |
 | Late partner eligibility    | Illustration only, owner only, one partner maximum, any live reservation.                                                                                       |
 | Late partner deadline       | Admin-configurable; default is 21 days before the earliest festival start. At/after the deadline the feature is hidden and unavailable.                         |
-| Release scope               | One festival-configured credit price releases a participant-cancelled reservation and all registered participants on it. Owner only.                            |
-| Blocking statuses           | `rejected` and `cancelled` remain blocking. Only `released` is non-blocking.                                                                                    |
+| Release scope               | One festival-configured credit price releases a `pending` reservation and all registered participants on it. Owner only, unlimited, credits only.               |
+| Blocking statuses           | Every terminal reservation is `rejected` and blocks permanently, whatever ended it. Only `released` is non-blocking, and only `pending` can reach it.           |
 | Fulfillment                 | Partner addition and release execute immediately with credits. A later credit reversal creates debt but does not undo the action.                               |
+| Release eligibility         | `pending` only. Never from `verification_payment`, `accepted`, or any terminal status — those are refund questions, not stand choices.                          |
 
 There are no remaining product questions blocking implementation. Two decisions above were revised during implementation and are recorded here as they now stand: provisional credits are spendable on reservation invoices as well as features, and a declared pair carries its own table price.
 
@@ -75,8 +76,8 @@ There are no remaining product questions blocking implementation. Two decisions 
 - **Credit reversal:** an immutable debit created after a top-up rejection.
 - **Credit debt:** a negative balance caused by reversing provisional credits that were already spent.
 - **Feature configuration:** festival-specific availability, price, and optional deadline.
-- **Live reservation:** a reservation still in its active lifecycle, including pending payment, payment verification, or accepted; excludes cancelled, rejected, and released.
-- **Released reservation:** retained historical reservation that no longer blocks its participants.
+- **Live reservation:** a reservation still in its active lifecycle — `pending`, `verification_payment`, or `accepted`; excludes `rejected` and `released`.
+- **Released reservation:** an unpaid reservation whose owner paid a fee to give it up. Retained as history, occupies no stand, and blocks nobody.
 
 Do not use `penalización`, `multa`, or refund language in participant UX. Credit top-ups are non-refundable purchases; unused credits remain in the wallet.
 
@@ -549,57 +550,146 @@ There is no long-lived partner claim and no payment-review waiting state. A race
 
 ## 9. Feature C — Reservation release
 
+Release is a **change fee**, not a way back from a block. It lets the owner of
+a reservation they have not paid for yet give it up, for a price in credits,
+so they can do something else with their participation.
+
+The cases it exists for:
+
+- The stand is in the wrong sector, or is simply not the one they wanted.
+- They picked the wrong stand by mistake.
+- An illustrator would rather join another illustrator's stand as their
+  partner than hold one of their own.
+
+Without a fee, any of these would be a free stand swap, and participants would
+churn the map hunting for a better spot while genuinely decided people wait.
+The credits are the friction. There is no other way to release a reservation —
+credits are the only tender, and an admin does not do it on request.
+
 ### 9.1 Status meaning
 
-| Status      | Meaning                                   | Occupies stand | Blocks later participation |
-| ----------- | ----------------------------------------- | -------------: | -------------------------: |
-| `rejected`  | Admin rejected/terminated the reservation |             No |                    **Yes** |
-| `cancelled` | Participant cancelled the reservation     |             No |                    **Yes** |
-| `released`  | Owner completed the paid release action   |             No |                         No |
+| Status     | Meaning                                                  | Occupies stand | Blocks later participation |
+| ---------- | -------------------------------------------------------- | -------------: | -------------------------: |
+| `pending`  | Booked, not yet paid. The only releasable state.         |            Yes |           n/a — it is live |
+| `rejected` | The reservation ended, for any reason at all             |             No |                    **Yes** |
+| `released` | The owner paid to give it up before paying for the stand |             No |                         No |
 
-Only `released` is non-blocking. `Rejected` remains an administrative blocker and is not self-releasable. Admin handles exceptions manually.
+**Every terminal reservation blocks its participants permanently, whatever
+ended it** — a deadline that passed, a terms violation, a participant who
+wrote in asking to cancel, an administrative decision. All of them are
+`rejected`, and none of them can be bought back. Only an admin lifts one, by
+hand, as an exception. There is no self-service path out of a terminal
+reservation, and release must never become one.
 
-Release is a soft delete: reservation, participants, stands, invoices, payments, and events remain queryable. Participant flows never hard-delete reservation history.
+`released` is the single non-blocking historical status, and it is reachable
+only from `pending`. That is what makes it safe: a released reservation was
+never paid for and never terminated, so letting its owner book again returns
+them to exactly where they started.
 
-Use the hardening plan's explicit `cancelReservation` command to record `cancelled` plus actor, participant-request provenance, reason, and event. This PRD does not add a new general cancellation flow. Whether cancellation is recorded by an admin or a future owner-facing action, self-service release is allowed only for a canonical participant-requested cancellation—not an admin rejection/termination.
+The `cancelled` value exists in the `reservation_status` enum from the Phase 0B
+migration and is unused. Nothing writes it. It is not a synonym for `released`
+and must not become one.
 
-Invoice handling is independent from the terminal reservation status and must be consistent across every cancellation/rejection entry point:
+### 9.2 Why only `pending`
 
-- The existing admin reservation delete/cancel action, admin rejection action, and payment-dashboard fallback cancellation must use the same shared transition.
-- Lock the linked invoices and payments before the reservation transition.
-- If an invoice has no payment row, cancel that invoice with the reservation.
-- If any payment row exists, do not automatically change the invoice status, delete evidence, infer a refund, or infer forfeiture. Preserve the payment and leave the invoice for explicit admin resolution because each paid case may have a different refund outcome.
-- The payment-dashboard path with a submitted proof uses the admin settlement-rejection command. When the admin explicitly chooses `cancel_reservation`, that command is itself the resolution: reject the submitted proof, cancel the selected invoice, retain the payment/submission history, and cancel/reject the reservation atomically.
-- Admin rejection/termination remains `rejected`. The future participant-requested cancellation command must write `cancelled` plus provenance; it must not reuse an admin-rejection event and thereby make rejected history self-releasable.
-- The later `cancelled -> released` action never changes the original invoice, payment, settlement submission, or refund decision.
+Release is refused in every other live state, and the reason in each case is
+money:
 
-### 9.2 Availability
+- `verification_payment` — a voucher is in flight. Releasing would mean
+  deciding what happens to a payment under review, which is a refund question.
+- `accepted` — they paid and the stand is theirs. Releasing would be a refund.
+- `rejected` — terminal; see §9.1.
+- `released` — already released.
+
+Confining release to `pending` keeps it a decision about a stand rather than a
+decision about money, which is the whole reason it can be self-service.
+
+### 9.3 Availability
 
 Show `Liberar reserva` only when:
 
-- Current user is the canonical owner.
-- Reservation status is `cancelled` with participant-request provenance.
-- Release feature is enabled/configured for the festival.
-- The reservation has not already been released.
+- The current user is the canonical reservation owner.
+- Reservation status is `pending`.
+- The release feature is enabled and priced for the festival.
 
-One release price applies to the reservation and releases every registered participant on it. A partner can view the result but cannot pay or initiate release.
+One release price covers the reservation and frees every registered
+participant on it — a full table's two stands and an illustration pair's two
+people alike. A partner sees the result but cannot pay for or start a release;
+it is the owner's reservation to give up.
 
-### 9.3 Execution
+There is **no limit** on how many times a participant may reserve and release
+within a festival. Each pass costs credits, and buying credits is the only way
+to fund one, so the loop pays for itself.
 
-The owner must buy any missing credits before starting. Credit purchase does not reserve or start the release.
+Releasing a stand and immediately re-booking the same one is allowed. It costs
+the fee and changes nothing, which is the participant's business — the flow is
+identical to releasing and picking a different stand, and special-casing it
+would only add a rule to explain.
 
-In one transaction, use the §14 canonical total lock order for the owner and every registered participant, skipping unused classes without reordering the remaining classes:
+### 9.4 Execution
 
-1. Acquire the applicable participant advisory, festival, terms, user/enrollment, credit-account, feature-configuration, stand, reservation, invoice/payment, and credit-domain locks in canonical order.
-2. Revalidate owner, participant-request provenance, `cancelled` status, configuration, no prior release, linked invoice/payment state, and sufficient balance.
+The owner must buy any missing credits before starting. Buying credits does not
+start or reserve a release.
+
+In one transaction, using the §14 canonical total lock order for the owner and
+every registered participant, skipping unused classes without reordering the
+rest:
+
+1. Acquire the applicable participant advisory, festival, user/enrollment,
+   credit-account, feature-configuration, stand, reservation, invoice/payment,
+   and credit-domain locks in canonical order.
+2. Revalidate ownership, `pending` status, configuration, and sufficient
+   balance with no debt. The status recheck under lock is what makes the race
+   safe: a participant who submits a payment proof while the confirmation
+   dialog is open must find the release refused, not applied to a reservation
+   that is now awaiting verification.
 3. Debit the snapshotted release price.
 4. Record a credit-paid release action.
-5. Transition `cancelled -> released` exactly once without mutating invoice or payment state.
-6. Append an `eligibility_released` event and notifications.
+5. Transition `pending -> released` exactly once.
+6. Release every member stand back to the map, atomically with the transition.
+7. Cancel the reservation's invoice. A `pending` reservation has no approved
+   payment against it by definition, so the shared invoice rule in §9.5 cancels
+   it outright; if a payment row somehow exists, the release is refused rather
+   than guessing at a refund.
+8. Append a `reservation_released` event and notify the owner and every
+   registered participant.
 
-Release does not restore the old stand, refund the original invoice, or guarantee a new reservation. The released participants must still pass normal profile, enrollment, terms, category, sanction, deadline, and availability rules.
+Release is a soft delete: the reservation, its participants, stands, invoice
+and events all stay queryable. Participant flows never hard-delete reservation
+history.
 
-If provisional source credits are later reversed, keep the reservation released and let admin resolve the resulting debt. Never automatically reactivate its participation block.
+After release the owner and any partner are free to reserve again in that
+festival — that is the point of the feature. They must still pass every normal
+rule: profile completeness, enrollment, current terms, category eligibility,
+sanctions, the reservation window, and whatever is actually still available.
+Release buys a clean slate, not a stand.
+
+If the credits that funded a release are later reversed, the reservation stays
+released and the owner goes into debt for an admin to resolve. Never
+re-block a participant automatically, and never restore a released stand.
+
+### 9.5 Invoice handling across every closing path
+
+Independent of which status a reservation ends in, and shared by every path
+that closes one:
+
+- The admin reservation delete/cancel action, the admin rejection action, and
+  the payment-dashboard fallback cancellation all use the same shared
+  transition.
+- Lock the linked invoices and payments before the reservation transition.
+- If an invoice has no payment row, cancel that invoice with the reservation.
+- If any payment row exists, do not automatically change the invoice status,
+  delete evidence, infer a refund, or infer forfeiture. Preserve the payment
+  and leave the invoice for explicit admin resolution, because each paid case
+  may have a different refund outcome.
+- The payment-dashboard path with a submitted proof uses the admin
+  settlement-rejection command. When the admin explicitly chooses
+  `cancel_reservation`, that command is itself the resolution: reject the
+  submitted proof, cancel the selected invoice, retain the payment and
+  submission history, and close the reservation atomically.
+- Self-service release is not one of these paths. It reaches only `pending`
+  reservations, which carry no approved payment, and it never touches a
+  payment, a settlement submission, or a refund decision.
 
 ---
 
@@ -680,7 +770,7 @@ Rules:
 - DTOs expose `stands[]`; a temporary `primaryStand` adapter may support migration.
 - Participants, invoices, activities, and feature actions attach to the one reservation aggregate.
 
-The reservation-status occupancy predicate and participation-blocking predicate must be separate. `cancelled` and `rejected` release capacity while still blocking their registered participants.
+The reservation-status occupancy predicate and participation-blocking predicate must be separate. `rejected` releases capacity while still blocking its registered participants; `released` releases both.
 
 Required changes to the hardened single-stand baseline:
 
@@ -690,12 +780,12 @@ Required changes to the hardened single-stand baseline:
 - Replace canonical `stand_reservations.stand_id` with `stand_reservation_stands`.
 - Phase 0B's physical `stand_reservation_members` table is a single-member adapter. Before Phase 3, create `stand_reservation_stands`, backfill every adapter row with `position = 0` and `released_at = NULL`, validate the copied membership, then switch readers and writers. Remove the adapter's sync trigger and exactly-one-member constraint only after the switch.
 - Establish member-level occupancy protection using `released_at IS NULL` plus the parent live-status predicate before dropping `stand_reservations_capacity_stand_unique` or the legacy adapter. Migrate availability and audit queries in the same release; keep the parent protection until the member protection is verified.
-- Update the planned owner uniqueness predicate to the same live statuses. `rejected`, `cancelled`, and `released` are historical rows; policy determines whether the person remains blocked.
+- Update the planned owner uniqueness predicate to the same live statuses. `rejected` and `released` are historical rows; policy determines whether the person remains blocked.
 - Update effective-status reads, expiration reconciliation, health checks, DTOs, and admin commands to operate on every member.
-- Add `cancelled` and `released` reservation enum states before replacing the old cancellation-via-`rejected` behavior.
+- Add the `released` reservation enum state. (`cancelled` was added by the same migration and is unused; see §9.1.)
 - Backfill every existing hold/reservation with exactly one member before dropping singular constraints/reads.
 
-The existing hardening rule remains: any reservation history blocks participant self-service, including `rejected` and `cancelled`. Eligibility adds exactly one exception: a `released` reservation no longer blocks its registered participants. Admin-created reservations remain governed by their separate audited policy.
+The existing hardening rule remains: any reservation history blocks participant self-service. Eligibility adds exactly one exception: a `released` reservation no longer blocks its registered participants, because it was given up before it was ever paid for. Admin-created reservations remain governed by their separate audited policy.
 
 ---
 
@@ -722,14 +812,14 @@ The existing hardening rule remains: any reservation history blocks participant 
 Use `Acciones disponibles`, without suggesting the reservation is generally editable:
 
 - `Agregar compañero`: illustration owner, live one-person reservation, before deadline only.
-- `Liberar reserva`: owner of a participant-cancelled reservation only.
+- `Liberar reserva`: owner of a `pending` reservation only, to give up the stand before paying for it.
 - Show credit requirement and link to purchase missing credits before the action can start.
 - Show completed feature actions and credit-funded adjustments.
 
 Suggested copy:
 
 > Tu reserva no se puede editar. Si olvidaste agregar a tu compañero, podés hacerlo hasta el {fecha} usando créditos.
-> Liberar esta reserva no devuelve pagos anteriores. Solo elimina el bloqueo generado por tu cancelación.
+> Liberar tu reserva te permite elegir otro espacio o sumarte como compañero de otra persona. El espacio vuelve al mapa y no se te cobra la reserva, pero los créditos de la liberación no se devuelven.
 
 ---
 
@@ -811,7 +901,6 @@ full_table_reserved
 full_table_fallback_confirmed
 full_table_manually_downgraded
 late_partner_added
-reservation_cancelled
 reservation_released
 ```
 
@@ -886,7 +975,7 @@ Phase 0A is a short preflight, not a parallel feature track. It adds no credits,
 
 - Multi-stand hold/reservation member tables with cardinality one initially.
 - Separate capacity and participation-blocking predicates.
-- Add `released`; keep `rejected`/`cancelled` blocking participation.
+- Add `released`; every terminal status keeps blocking participation.
 - Persist both illustration price snapshots.
 
 Phase 0 is complete only when Phase 0A remains green after the Phase 0B migration and every existing hold/reservation has exactly one member row.
@@ -948,16 +1037,15 @@ What is missing: the `addLatePartner` command itself, its Server Action, and som
 
 ### Phase 5 — Reservation release
 
-- `cancelled -> released` owner action.
-- Add the dedicated participant-requested cancellation command and provenance. Apply the shared invoice rule: cancel only invoices without payment rows; preserve payment-bearing invoices for explicit admin resolution.
-- Keep admin rejection/termination on `rejected`; it must never become self-releasable.
-- Release must preserve every original invoice, payment, settlement submission, and refund decision.
-- Eligibility-query migration and retained history.
-- Credit-funded immediate fulfillment.
+- `pending -> released` owner action, self-service and credit-funded.
+- Refuse every other status, and recheck it under lock so a payment submitted mid-flow cannot be released out from under review.
+- Free every member stand and cancel the reservation's invoice atomically with the transition.
+- Retained history: the released reservation, its participants, stands and events stay queryable.
+- Released participants become free to book again; every other eligibility rule still applies.
 
-**Not started, and it has a prerequisite the other phases do not.** No reservation is ever written as `cancelled`: `applyReservationCancellation` hard-codes `rejected`, so every terminal reservation in the database today is an administrative one and none of them is self-releasable under §9.1. Phase 5 therefore begins by splitting that transition — a participant-requested cancellation writing `cancelled` plus provenance, admin rejection staying on `rejected` — and deciding what to do about existing `rejected` rows that were really participant cancellations.
+**Not started.** It needs no schema work and no change to how reservations are closed: `released` is already in the enum, `policy.ts` already treats it as non-blocking and separates that from stand occupancy, and the shared invoice rule is already implemented at all three admin closing paths.
 
-The shared invoice rule from §9.1 is already implemented at all three entry points: cancellation cancels an invoice only when it has no payment row, and the settlement-rejection path resolves its own proof explicitly. The status predicates in `policy.ts` already treat `released` as non-blocking, so no eligibility-query migration is needed.
+What is left is the command itself and its participant surface. The surface is the gap worth planning for — there is no participant reservation-detail page today, only `reservations/[reservationId]/payments`, so §12's `Acciones disponibles` has nowhere to live yet. That page is shared with Phase 4.
 
 ### Phase 6 — Rollout
 
@@ -1023,19 +1111,21 @@ The shared invoice rule from §9.1 is already implemented at all three entry poi
 
 ### Release
 
-1. Cancelled/rejected reservations release capacity but block participants.
-2. Only owner can release a participant-cancelled reservation.
-3. Admin-rejected reservation cannot self-release.
-4. Release debits once and transitions to `released` once.
-5. One release frees every registered participant on the reservation.
-6. Released history remains queryable.
-7. Release does not alter the old stand or a newer occupant.
-8. Rejected source credits do not restore the block.
-9. Released participant still fails unrelated eligibility rules where applicable.
-10. Admin rejection, dashboard cancellation, settlement-rejection cancellation, and participant-requested cancellation all apply their documented invoice/payment outcome.
-11. Cancellation cancels an invoice only when it has no payment, unless an admin settlement-rejection command explicitly resolves that proof and invoice as cancelled.
-12. Payment-bearing cancellation preserves invoice/payment evidence for admin resolution.
-13. `cancelled -> released` does not change invoice, payment, submission, or refund state.
+1. Only the owner can release; a partner on the same reservation cannot.
+2. Release is offered and accepted only from `pending`.
+3. `verification_payment`, `accepted`, `rejected`, and `released` all refuse the action, and refuse a direct server call.
+4. A payment proof submitted between opening the dialog and confirming makes the release fail under lock, with no debit and no transition.
+5. Release debits once and transitions to `released` once, even on a retried submission.
+6. Release frees every member stand, including both halves of a full table, and the stands become reservable again.
+7. Release cancels the reservation's invoice and never touches a payment, settlement submission, or refund decision.
+8. One release frees every registered participant on the reservation.
+9. A released owner can immediately reserve again in the same festival; a `rejected` one still cannot.
+10. Releasing and re-booking the same stand is allowed and charges the fee again.
+11. There is no cap: a participant may reserve and release repeatedly as long as they fund each one.
+12. Released history remains queryable, and a later occupant of the freed stand is unaffected.
+13. Rejected source credits leave the reservation released and the owner in debt; the block is never restored.
+14. A released participant still fails unrelated eligibility rules — sanctions, terms, enrollment, the reservation window — where applicable.
+15. Admin rejection, dashboard cancellation, and settlement-rejection cancellation each apply their documented invoice/payment outcome; a payment-bearing closure preserves the evidence for admin resolution.
 
 ### UX/accessibility
 
@@ -1056,7 +1146,9 @@ The shared invoice rule from §9.1 is already implemented at all three entry poi
 - Full-table upgrades after a half-table reservation is created.
 - Self-service partner replacement/removal.
 - Partners outside illustration or more than one partner.
-- Self-service release of an admin-rejected reservation.
+- Any self-service path out of a terminal reservation. Whatever ended it, only an admin lifts the block, by hand.
+- Release of a reservation that has been paid for or has a payment under review; both are refund questions.
+- Release as a way to undo a stand swap for free — the credits are the point.
 - Automatic downgrade/cancellation/removal after credit voucher rejection.
 - Geometry-based table pairing.
 - Two unrelated reservations representing one full table.
@@ -1077,8 +1169,8 @@ The shared invoice rule from §9.1 is already implemented at all three entry poi
 - [ ] Full-table variants pass a formal accessibility review (keyboard, screen reader, 200% zoom). Covered by unit tests, not yet reviewed end to end.
 - [ ] Late partner is illustration-only, deadline-safe, immediately credit-funded, and owner-paid. _(Phase 4, not started.)_
 - [ ] Original individual invoices/payments/discounts remain unchanged after late partner addition. _(Phase 4, not started.)_
-- [ ] Participant-cancelled reservations can transition to retained, non-blocking `released` records. _(Phase 5, not started; nothing writes `cancelled` yet.)_
-- [x] `rejected` and `cancelled` remain participation blockers; only `released` is non-blocking. Predicates are in place and separated from stand occupancy.
+- [ ] The owner of a `pending` reservation can pay credits to release it, freeing the stand and themselves to book again. _(Phase 5, not started.)_
+- [x] Every terminal reservation blocks participation; only `released` is non-blocking. Predicates are in place and separated from stand occupancy.
 - [x] Rejected provisional credits never trigger automatic domain reversals.
 - [x] Admin can resolve debt and full-table exceptions manually with an audit trail — approve, mark paid, waive, downgrade a table to its original half, release an abandoned activation.
 - [x] Owners are notified when a voucher is rejected, with the debt and the fact that what it paid for still stands. Submission and approval deliberately send nothing.
