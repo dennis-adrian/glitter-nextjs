@@ -28,6 +28,7 @@ import {
   festivals,
   invoices,
   reservationFeatureActions,
+  reservationNotificationJobs,
   reservationParticipants,
   reservationRequestRegistry,
   scheduledTasks,
@@ -826,6 +827,85 @@ describeDatabase("feature credit top-up", () => {
     expect(debtRows).toEqual([
       { intendedUseType: "debt", intendedUseId: null, amount: ACCESS_PRICE },
     ]);
+
+    // The one credit email there is. Buying is synchronous and the wallet
+    // reports it on the spot, so only the rejection is worth telling somebody
+    // about — and it is the only one that can leave them owing money.
+    const queued = await integrationDb!
+      .select({
+        kind: reservationNotificationJobs.notificationKind,
+        recipientEmail: reservationNotificationJobs.recipientEmail,
+        payload: reservationNotificationJobs.payload,
+        deduplicationKey: reservationNotificationJobs.deduplicationKey,
+      })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(queued).toEqual([
+      {
+        kind: "credit_top_up_rejected",
+        recipientEmail: user.email,
+        // The debt as of the rejection, so a later waiver cannot rewrite what
+        // the participant was told.
+        payload: { topUpId, debtAmount: ACCESS_PRICE },
+        // Keyed on the top-up: credit jobs carry no reservation, so the
+        // outbox's default key would collide across every purchase this
+        // person ever has rejected.
+        deduplicationKey: `credit_top_up_rejected:${topUpId}`,
+      },
+    ]);
+
+    // Reviewing again replays the same answer without reversing twice or
+    // telling them twice.
+    const replayed = await reviewCreditTopUp({
+      topUpId,
+      reviewerUserId: user.id,
+      decision: "rejected",
+      rejectionReason: "El comprobante no corresponde.",
+    });
+    expect(replayed).toMatchObject({ ok: true, data: { jobIds: [] } });
+    expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+      -ACCESS_PRICE,
+    );
+
+    const afterReplay = await integrationDb!
+      .select({ id: reservationNotificationJobs.id })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(afterReplay).toHaveLength(1);
+  });
+
+  /**
+   * Approval grants no new spending power — the credits were already
+   * spendable — so there is nothing to announce.
+   */
+  it("says nothing to the participant when a voucher is approved", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `v-${topUpId}`,
+    });
+
+    const approved = await reviewCreditTopUp({
+      topUpId,
+      reviewerUserId: user.id,
+      decision: "approved",
+    });
+    expect(approved).toMatchObject({ ok: true, data: { jobIds: [] } });
+
+    const queued = await integrationDb!
+      .select({ id: reservationNotificationJobs.id })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(queued).toEqual([]);
   });
 
   /**

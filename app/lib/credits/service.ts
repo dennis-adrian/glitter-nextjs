@@ -10,6 +10,7 @@ import {
   roundCredits,
 } from "@/app/lib/credits/balances";
 import { lockUserRows } from "@/app/lib/reservations/locks";
+import { enqueueReservationNotification } from "@/app/lib/reservations/notification-queue";
 import { db } from "@/db";
 import {
   creditAccounts,
@@ -18,6 +19,7 @@ import {
   creditTopUps,
   pendingUserDeletions,
   reservationFeatureActions,
+  users,
 } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -399,7 +401,19 @@ export async function reviewCreditTopUp(input: {
   decision: "approved" | "rejected";
   rejectionReason?: string;
   now?: Date;
-}): Promise<CreditResult<{ topUpId: number; balances: CreditBalances }>> {
+}): Promise<
+  CreditResult<{
+    topUpId: number;
+    balances: CreditBalances;
+    /**
+     * Notification jobs the caller must hand to
+     * `scheduleReservationNotificationJobs` after the transaction commits.
+     * Empty for an approval and for a replayed rejection — nobody is told
+     * twice that the same voucher failed.
+     */
+    jobIds: number[];
+  }>
+> {
   if (input.decision === "rejected" && !input.rejectionReason?.trim()) {
     return failure("INVALID_AMOUNT");
   }
@@ -441,15 +455,20 @@ export async function reviewCreditTopUp(input: {
         data: {
           topUpId: topUp.id,
           balances: await lockedCreditBalances(tx, topUp.userId),
+          jobIds: [],
         },
       };
     }
     if (input.decision === "rejected" && topUp.status === "rejected") {
+      // A replay of a rejection that already happened. The reversal and the
+      // email both belong to the first call; repeating either would double the
+      // debt and tell the participant twice.
       return {
         ok: true,
         data: {
           topUpId: topUp.id,
           balances: await lockedCreditBalances(tx, topUp.userId),
+          jobIds: [],
         },
       };
     }
@@ -481,12 +500,45 @@ export async function reviewCreditTopUp(input: {
         updatedAt: now,
       })
       .where(eq(creditTopUps.id, topUp.id));
+
+    const balances = await lockedCreditBalances(tx, topUp.userId);
+
+    // Only a rejection is worth an email. Buying credits is synchronous and
+    // the wallet reports it on the spot; an approval grants nothing new,
+    // because the credits were already spendable. A rejection is the one
+    // outcome the participant cannot see coming and the only one that can
+    // leave them owing money.
+    const jobIds: number[] = [];
+    if (input.decision === "rejected") {
+      const [recipient] = await tx
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, topUp.userId))
+        .limit(1);
+      if (recipient?.email) {
+        const jobId = await enqueueReservationNotification(tx, {
+          kind: "credit_top_up_rejected",
+          userId: topUp.userId,
+          recipientEmail: recipient.email,
+          // Keyed on the top-up, not the reservation the outbox usually
+          // dedupes by: credit jobs carry no reservation, so the default key
+          // would collide across every rejected purchase this person ever has.
+          deduplicationKey: `credit_top_up_rejected:${topUp.id}`,
+          payload: {
+            topUpId: topUp.id,
+            // The debt as of this rejection. Recomputing it at send time would
+            // report later spending, or an admin waiver, as though it were
+            // caused by this voucher.
+            debtAmount: Math.max(0, -balances.ledgerBalance),
+          },
+        });
+        if (jobId) jobIds.push(jobId);
+      }
+    }
+
     return {
       ok: true,
-      data: {
-        topUpId: topUp.id,
-        balances: await lockedCreditBalances(tx, topUp.userId),
-      },
+      data: { topUpId: topUp.id, balances, jobIds },
     };
   });
 }
