@@ -134,6 +134,51 @@ export async function fetchReservationForAdmin(
   }
 }
 
+/**
+ * One reservation, for somebody who is on it.
+ *
+ * Reservation detail is the participant's own view of what they booked, so
+ * membership is the authorization: an owner and a partner both see it, and
+ * nobody else does. Admins keep their read access for support, which is the
+ * same rule `fetchReservationForAdmin` applies from the other direction.
+ *
+ * Deliberately not filtered by status. A participant whose reservation was
+ * closed still has a right to see what happened to it, and hiding the page
+ * once the reservation ends would strand anyone following a link from an
+ * email.
+ */
+export async function fetchReservationForParticipant(reservationId: number) {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+
+  try {
+    const reservation = await db.query.standReservations.findFirst({
+      where: eq(standReservations.id, reservationId),
+      with: {
+        // `stand` is the half that was picked first; `members` is everything
+        // the reservation actually occupies, which is two stands for a full
+        // table and keeps a half a downgrade retired.
+        stand: { with: { festivalSector: true } },
+        members: { with: { stand: true } },
+        festival: true,
+        participants: { with: { user: true } },
+        invoices: true,
+      },
+    });
+    if (!reservation) return null;
+
+    const isParticipant = reservation.participants.some(
+      (participant) => participant.userId === actor.id,
+    );
+    if (!isParticipant && !canViewAdminReservationData(actor)) return null;
+
+    return reservation;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
 export async function fetchActorReservationsByFestival(
   festivalId: number,
 ): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {

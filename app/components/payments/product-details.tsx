@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import FullTableGraphic from "@/app/components/festivals/reservations/full-table-graphic";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
@@ -44,16 +42,15 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
         <div className="flex gap-4">
           {!isGastronomy && (
             <div className="w-24 shrink-0">
+              {/* Both halves of this come from the same drawing, so the card
+                  depicts what was actually booked. The single stand uses the
+                  muted-neighbour variant rather than a lone half: at this size
+                  a half on its own reads as a whole table, which is the exact
+                  confusion the heading beside it ("1 espacio") has to fight. */}
               {summary.isFullTable ? (
                 <FullTableGraphic variant="full-selected" />
               ) : (
-                <Image
-                  src="/img/stand-table-half-60x120.svg"
-                  alt="Mesa de stand"
-                  width={96}
-                  height={96}
-                  className="h-24 w-full object-contain"
-                />
+                <FullTableGraphic variant="half-highlighted" />
               )}
             </div>
           )}

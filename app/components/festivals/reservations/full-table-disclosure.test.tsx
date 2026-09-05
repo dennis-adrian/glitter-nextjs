@@ -61,6 +61,26 @@ describe("full-table disclosure", () => {
     expect(screen.getByText(/240 × 60 cm/)).toBeTruthy();
   });
 
+  /**
+   * The activation offer once rendered the fallback markup, because the notice
+   * ended in a bare `return` that assumed only `fallback` was left. It told
+   * people the neighbouring stand was occupied while the button beside it
+   * offered to reserve both. Every kind gets its own branch now, and this
+   * guards the sentence that gave it away.
+   */
+  it("does not call a free companion occupied when offering activation", () => {
+    render(
+      <FullTableSelectionNotice
+        selection={{ kind: "offer", companion: stand(2, "B"), creditPrice: 20 }}
+      />,
+    );
+
+    expect(screen.getByText(/podés tomar la mesa completa/i)).toBeTruthy();
+    expect(screen.getByText(/20 créditos/)).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/ocupado/i);
+    expect(document.body.textContent).not.toMatch(/ya no está disponible/i);
+  });
+
   it("says one stand, not half a stand, when the companion is gone", () => {
     render(
       <FullTableSelectionNotice
@@ -69,7 +89,7 @@ describe("full-table disclosure", () => {
     );
 
     expect(
-      screen.getByText(/esta mesa ya no está disponible completa/i),
+      screen.getByText(/la mesa completa ya no está disponible/i),
     ).toBeTruthy();
     expect(
       screen.getByText(/un solo stand \(media mesa, 120 × 60 cm\)/i),

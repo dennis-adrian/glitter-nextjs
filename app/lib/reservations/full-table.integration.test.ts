@@ -33,6 +33,7 @@ import {
   reservationRequestRegistry,
   scheduledTasks,
   standGroups,
+  standHoldMembers,
   standHolds,
   standReservationEvents,
   standReservationStands,
@@ -774,6 +775,61 @@ describeDatabase("full table", () => {
       price: STAND_PRICE,
       sharedPrice: SHARED_PRICE,
     });
+  });
+
+  /**
+   * Access means a participant *may* take the pair, not that they must. §7.3
+   * lists "confirm only one stand" as a normal outcome, so the map has to be
+   * able to say which one they meant — and the companion must stay free for
+   * somebody else.
+   */
+  it("takes only the chosen half when the participant asks for one", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+      singleStandOnly: true,
+    });
+    expect(held.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const members = await integrationDb!
+      .select({ standId: standHoldMembers.standId })
+      .from(standHoldMembers)
+      .where(eq(standHoldMembers.holdId, hold.id));
+    expect(members.map((row) => row.standId)).toEqual([standIds[0]]);
+
+    // The companion was never claimed, so it is still on the map.
+    const [companion] = await integrationDb!
+      .select({ status: stands.status })
+      .from(stands)
+      .where(eq(stands.id, standIds[1]));
+    expect(companion.status).toBe("available");
+
+    // Confirming one stand releases the earmark rather than capturing it: the
+    // participant did not get the table they activated for.
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(confirmed.success).toBe(true);
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "released" },
+    ]);
   });
 
   it("falls back to the selected half and frees the credits when the companion is gone", async () => {

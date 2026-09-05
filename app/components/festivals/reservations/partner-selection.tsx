@@ -136,7 +136,7 @@ export default function PartnerSelection({
       {!addPartner && !selectedPartner && (
         <div className="w-fit mx-auto">
           <Button
-            variant="link"
+            variant="outline"
             onClick={() => {
               if (isMobile) {
                 setIsPartnerSearchOpen(true);

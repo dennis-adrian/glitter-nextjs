@@ -18,6 +18,13 @@ vi.mock("@/app/lib/credits/service", () => ({
   CREDIT_DEBT_RESOLUTIONS: ["mark_paid", "waive"] as const,
 }));
 
+// Sending is the outbox's job and reaches Resend and the server env; these
+// tests only care that the action hands it the ids the service returned.
+const scheduleJobsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app/lib/reservations/notification-outbox", () => ({
+  scheduleReservationNotificationJobs: scheduleJobsMock,
+}));
+
 import {
   resolveCreditDebtAction,
   reviewCreditTopUpAction,
@@ -26,7 +33,7 @@ import {
 describe("reviewCreditTopUpAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    reviewCreditTopUpMock.mockResolvedValue({ ok: true, data: {} });
+    reviewCreditTopUpMock.mockResolvedValue({ ok: true, data: { jobIds: [] } });
   });
 
   it.each([
@@ -76,6 +83,53 @@ describe("reviewCreditTopUpAction", () => {
       }),
     );
     expect(result).toMatchObject({ success: true });
+  });
+
+  /**
+   * The rejection mail is the only credit notification there is, and the
+   * service decides whether it is owed — a replayed rejection returns no jobs.
+   * The action's whole job is to hand over what it was given, after the
+   * transaction committed.
+   */
+  it("sends the rejection mail the service queued", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    reviewCreditTopUpMock.mockResolvedValue({
+      ok: true,
+      data: { jobIds: [7] },
+    });
+
+    const result = await reviewCreditTopUpAction({
+      topUpId: 55,
+      decision: "rejected",
+      rejectionReason: "El comprobante no coincide",
+    });
+
+    expect(result).toMatchObject({ success: true });
+    expect(scheduleJobsMock).toHaveBeenCalledWith([7]);
+  });
+
+  it("sends nothing when the service queued nothing", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+
+    await reviewCreditTopUpAction({ topUpId: 55, decision: "approved" });
+
+    expect(scheduleJobsMock).toHaveBeenCalledWith([]);
+  });
+
+  it("stays silent when the review itself failed", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    reviewCreditTopUpMock.mockResolvedValue({
+      ok: false,
+      code: "TOP_UP_NOT_REVIEWABLE",
+    });
+
+    await reviewCreditTopUpAction({
+      topUpId: 55,
+      decision: "rejected",
+      rejectionReason: "El comprobante no coincide",
+    });
+
+    expect(scheduleJobsMock).not.toHaveBeenCalled();
   });
 
   it("reports a service failure instead of claiming success", async () => {

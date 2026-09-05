@@ -136,6 +136,15 @@ export type FullTableGraphicVariant =
   | "full"
   /** The selected half is available; its companion is not. */
   | "companion-unavailable"
+  /**
+   * One stand highlighted beside a muted neighbour that is not part of it.
+   *
+   * The same drawing as `companion-unavailable` and a different fact: there is
+   * no companion here, so nothing is occupied. It exists because a lone half
+   * at thumbnail size reads as a whole table — the muted neighbour is what
+   * makes "only this one" obvious.
+   */
+  | "half-highlighted"
   /** Both halves, shown as the current selection. */
   | "full-selected";
 
@@ -144,6 +153,8 @@ const DESCRIPTIONS: Record<FullTableGraphicVariant, string> = {
   full: "Mesa completa: dos stands unidos, 240 por 60 centímetros.",
   "companion-unavailable":
     "Mesa con un solo stand disponible: el stand contiguo está ocupado.",
+  "half-highlighted":
+    "Un solo stand resaltado; el espacio contiguo no forma parte de él.",
   "full-selected":
     "Mesa completa seleccionada: dos stands unidos, con la división visible al medio.",
 };
@@ -159,7 +170,9 @@ export default function FullTableGraphic({
   // Widened deliberately: which half is muted is a property of the variant, and
   // the legs ask about both ends rather than assuming only the far one can be.
   const mutedIndex: number | null =
-    variant === "companion-unavailable" ? 1 : null;
+    variant === "companion-unavailable" || variant === "half-highlighted"
+      ? 1
+      : null;
   const seam = variant === "full" || variant === "full-selected";
 
   // The viewBox grows with the number of halves so a full table is drawn twice
@@ -215,7 +228,9 @@ export default function FullTableGraphic({
           // highlighted; its companion is the muted one.
           selected={
             variant === "full-selected" ||
-            (variant === "companion-unavailable" && index === 0)
+            ((variant === "companion-unavailable" ||
+              variant === "half-highlighted") &&
+              index === 0)
           }
         />
       ))}

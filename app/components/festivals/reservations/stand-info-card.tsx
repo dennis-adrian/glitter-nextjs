@@ -12,6 +12,8 @@ import type {
 } from "@/app/lib/reservations/dto";
 import CategoryBadge from "@/app/components/category-badge";
 import FullTableSelectionNotice from "@/app/components/festivals/reservations/full-table-selection-notice";
+import { formatCreditCount } from "@/app/components/credits/credit-amount";
+import { activateFullTableAccessAction } from "@/app/lib/reservations/full-table-actions";
 import HalfTableFallbackDialog from "@/app/components/festivals/reservations/half-table-fallback-dialog";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
@@ -57,6 +59,8 @@ type StandInfoCardProps = {
   sectorStands?: ReservationMapStandDto[];
   /** Whether the viewer activated full-table access for this festival. */
   fullTableAccessActive?: boolean;
+  /** Set when the viewer could activate full-table access without buying. */
+  fullTableActivationPrice?: number | null;
   onHoldChange?: (hold: ActiveHold) => void;
   onClose: () => void;
   isPending: boolean;
@@ -91,7 +95,10 @@ function getEligibilityMessage(
   activeHold?: ActiveHold,
 ): string | null {
   if (stand.effectiveStatus === "disabled") return "Espacio deshabilitado";
-  if (stand.effectiveStatus === "held" && !heldByViewer(stand.id, activeHold ?? null))
+  if (
+    stand.effectiveStatus === "held" &&
+    !heldByViewer(stand.id, activeHold ?? null)
+  )
     return "Espacio en espera por otro participante";
   if (
     profile.category !== stand.standCategory &&
@@ -124,6 +131,7 @@ export function StandInfoCard({
   activeHold,
   sectorStands,
   fullTableAccessActive = false,
+  fullTableActivationPrice = null,
   onHoldChange,
   onClose,
   isPending,
@@ -133,7 +141,8 @@ export function StandInfoCard({
   const [fallbackOpen, setFallbackOpen] = useState(false);
 
   const isOwnHold =
-    stand.effectiveStatus === "held" && heldByViewer(stand.id, activeHold ?? null);
+    stand.effectiveStatus === "held" &&
+    heldByViewer(stand.id, activeHold ?? null);
 
   const isStandTaken =
     stand.effectiveStatus === "reserved" ||
@@ -168,6 +177,7 @@ export function StandInfoCard({
     stand,
     sectorStands: sectorStands ?? groupStands ?? [stand],
     accessActive: fullTableAccessActive,
+    activationPrice: fullTableActivationPrice,
   });
   const holdMinutes = festival.holdMinutes;
   const holdIntentKeyRef = useRef<HoldIntentCache | null>(null);
@@ -208,10 +218,50 @@ export function StandInfoCard({
       setFallbackOpen(true);
       return;
     }
+    // With access active the pair is the default, so an unqualified selection
+    // is the whole table. The half is reachable through its own button.
     takeStand();
   };
 
-  const takeStand = () => {
+  /** The single half, for somebody who could have taken the pair. */
+  const handleSelectHalf = () => takeStand({ singleStandOnly: true });
+
+  /**
+   * Activate, then take the pair.
+   *
+   * Two server calls rather than one because activation is its own audited,
+   * idempotent command and stays that way; the hold that follows sees the
+   * access it just created. If activation fails nothing is taken, so a
+   * participant cannot end up holding a table they never paid the fee for.
+   */
+  const handleActivateAndSelect = () => {
+    if (!canReserve || isPending) return;
+    startTransition(async () => {
+      try {
+        const activated = await activateFullTableAccessAction({
+          festivalId: festival.id,
+          idempotencyKey: crypto.randomUUID(),
+        });
+        if (!activated.success) {
+          toast.error(activated.message);
+          return;
+        }
+      } catch (error) {
+        console.error("Error activating full table", error);
+        toast.error("No se pudo activar la mesa completa.");
+        return;
+      }
+      takeStand();
+    });
+  };
+
+  /**
+   * Takes the stand. `singleStandOnly` is how a participant who holds — or is
+   * about to hold — full-table access says they want this half on its own;
+   * without it the server hands them the pair, which is the default the
+   * feature was bought for.
+   */
+  const takeStand = (options?: { singleStandOnly?: boolean }) => {
     if (!canReserve || isPending) return;
     setFallbackOpen(false);
     startTransition(async () => {
@@ -220,6 +270,7 @@ export function StandInfoCard({
         const res = await createStandHold({
           standId: stand.id,
           idempotencyKey,
+          ...(options?.singleStandOnly ? { singleStandOnly: true } : {}),
         });
         if (res.success && res.data.holdId) {
           const cached = holdIntentKeyRef.current;
@@ -408,7 +459,9 @@ export function StandInfoCard({
             </div>
           )}
 
-          {canReserve && <FullTableSelectionNotice selection={fullTableSelection} />}
+          {canReserve && (
+            <FullTableSelectionNotice selection={fullTableSelection} />
+          )}
 
           {isOwnHold ? (
             <Button
@@ -419,6 +472,44 @@ export function StandInfoCard({
               <span>Continuar con tu reserva</span>
               <ArrowRight className="h-4 w-4" />
             </Button>
+          ) : canReserve &&
+            (fullTableSelection.kind === "full" ||
+              fullTableSelection.kind === "offer") ? (
+            /* Two ways to take a whole table's half, so neither is a guess.
+               Always stacked, never side by side: the card is a fixed width at
+               every breakpoint and "Activar y seleccionar mesa completa" alone
+               overflows it on one line. Column-reverse puts the table — what
+               the fee buys — on top, with the plain stand under it. */
+            <div className="flex flex-col-reverse gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleSelectHalf}
+                disabled={isPending}
+              >
+                <span>Seleccionar stand</span>
+              </Button>
+              <Button
+                type="button"
+                className="w-full"
+                onClick={
+                  fullTableSelection.kind === "offer"
+                    ? handleActivateAndSelect
+                    : handleSelectStand
+                }
+                disabled={isPending}
+              >
+                <span>
+                  {fullTableSelection.kind === "offer"
+                    ? `Activar y seleccionar mesa completa (${formatCreditCount(
+                        fullTableSelection.creditPrice,
+                      )})`
+                    : "Seleccionar mesa completa"}
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           ) : canReserve ? (
             <Button
               type="button"

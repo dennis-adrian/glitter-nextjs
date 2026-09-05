@@ -31,6 +31,134 @@ function stand(
 }
 
 describe("resolveFullTableSelection", () => {
+  /**
+   * Silence on an ordinary stand reads as the feature being broken. Somebody
+   * holding access reasonably expects every stand to be half of something, so
+   * the one that is not says so.
+   */
+  it("says a plain stand is a plain stand, to somebody holding access", () => {
+    const a = stand({ id: 1, isFullTableHalf: false, standGroupId: null });
+
+    expect(
+      resolveFullTableSelection({
+        stand: a,
+        sectorStands: [a],
+        accessActive: true,
+      }),
+    ).toEqual({ kind: "single" });
+  });
+
+  it("stays silent on a plain stand for somebody without access", () => {
+    const a = stand({ id: 1, isFullTableHalf: false, standGroupId: null });
+
+    expect(
+      resolveFullTableSelection({
+        stand: a,
+        sectorStands: [a],
+        accessActive: false,
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  /**
+   * Somebody already funded should not have to leave the map, press one
+   * button on the panel, and come back. It is not a purchase — the fee comes
+   * out of credits they already hold — so §7.2's ban on checkout in the map
+   * does not reach it.
+   */
+  describe("activation offer", () => {
+    it("offers activation to a funded participant on a whole pair", () => {
+      const a = stand({ id: 1 });
+      const b = stand({ id: 2 });
+
+      expect(
+        resolveFullTableSelection({
+          stand: a,
+          sectorStands: [a, b],
+          accessActive: false,
+          activationPrice: 90,
+        }),
+      ).toEqual({ kind: "offer", companion: b, creditPrice: 90 });
+    });
+
+    /**
+     * Anyone who would have to top up first goes back to the panel, where the
+     * purchase lives. Quoting a price they cannot meet, inside a timed map, is
+     * the financial setup §7.2 keeps out.
+     */
+    it("says nothing to somebody who would have to buy first", () => {
+      const a = stand({ id: 1 });
+      const b = stand({ id: 2 });
+
+      expect(
+        resolveFullTableSelection({
+          stand: a,
+          sectorStands: [a, b],
+          accessActive: false,
+          activationPrice: null,
+        }),
+      ).toEqual({ kind: "none" });
+    });
+
+    /** No whole table left, so there is nothing to activate for. */
+    it("withholds the offer when the companion is taken", () => {
+      const a = stand({ id: 1 });
+      const b = stand({ id: 2, effectiveStatus: "reserved" });
+
+      expect(
+        resolveFullTableSelection({
+          stand: a,
+          sectorStands: [a, b],
+          accessActive: false,
+          activationPrice: 90,
+        }),
+      ).toEqual({ kind: "none" });
+    });
+
+    it("withholds the offer on a malformed group", () => {
+      const a = stand({ id: 1 });
+      const b = stand({ id: 2 });
+      const c = stand({ id: 3 });
+
+      expect(
+        resolveFullTableSelection({
+          stand: a,
+          sectorStands: [a, b, c],
+          accessActive: false,
+          activationPrice: 90,
+        }),
+      ).toEqual({ kind: "none" });
+    });
+
+    /** Holding access wins: there is nothing left to activate. */
+    it("prefers the active state over the offer", () => {
+      const a = stand({ id: 1 });
+      const b = stand({ id: 2 });
+
+      expect(
+        resolveFullTableSelection({
+          stand: a,
+          sectorStands: [a, b],
+          accessActive: true,
+          activationPrice: 90,
+        }),
+      ).toEqual({ kind: "full", companion: b });
+    });
+
+    it("stays silent on a stand that is not half of a table", () => {
+      const a = stand({ id: 1, isFullTableHalf: false, standGroupId: null });
+
+      expect(
+        resolveFullTableSelection({
+          stand: a,
+          sectorStands: [a],
+          accessActive: false,
+          activationPrice: 90,
+        }),
+      ).toEqual({ kind: "none" });
+    });
+  });
+
   it("says nothing when the participant has no access", () => {
     const a = stand({ id: 1 });
     const b = stand({ id: 2 });
@@ -40,18 +168,6 @@ describe("resolveFullTableSelection", () => {
         stand: a,
         sectorStands: [a, b],
         accessActive: false,
-      }),
-    ).toEqual({ kind: "none" });
-  });
-
-  it("says nothing for a stand that is not half of a declared table", () => {
-    const a = stand({ id: 1, isFullTableHalf: false, standGroupId: null });
-
-    expect(
-      resolveFullTableSelection({
-        stand: a,
-        sectorStands: [a],
-        accessActive: true,
       }),
     ).toEqual({ kind: "none" });
   });

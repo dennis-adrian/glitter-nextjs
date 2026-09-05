@@ -209,6 +209,7 @@ export async function createStandHold(standIdInput: unknown): Promise<
 
   const standId = parsed.data.standId;
   const idempotencyKey = parsed.data.idempotencyKey;
+  const singleStandOnly = parsed.data.singleStandOnly ?? false;
   const now = new Date();
 
   try {
@@ -313,9 +314,14 @@ export async function createStandHold(standIdInput: unknown): Promise<
             festivalId: stand.festivalId,
           })
         : null;
-      const pair = access
-        ? await resolveFullTableCompanion(tx, stand.id)
-        : null;
+      // `singleStandOnly` is the participant saying they want this half on
+      // its own. Skipping the pair lookup entirely is what makes that true all
+      // the way down: with no pair there is no companion to lock, hold, or
+      // bill for.
+      const pair =
+        access && !singleStandOnly
+          ? await resolveFullTableCompanion(tx, stand.id)
+          : null;
 
       // Every stand the existing hold occupies, not just its adapter column:
       // replacing a full-table hold has to lock and release both halves.

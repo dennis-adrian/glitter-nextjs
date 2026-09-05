@@ -1,0 +1,1 @@
+ALTER TABLE "credit_top_ups" ADD COLUMN "intended_feature_type" "festival_reservation_feature_type";

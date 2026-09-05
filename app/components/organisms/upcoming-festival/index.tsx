@@ -84,6 +84,7 @@ export function UpcomingFestivalCard({
         <TabsContent value="info" className="p-4">
           <InfoTabContent
             festival={festival}
+            profileId={profile.id}
             reservation={reservation}
             festivalStartDate={festivalStartDate}
             festivalEndDate={festivalEndDate}
