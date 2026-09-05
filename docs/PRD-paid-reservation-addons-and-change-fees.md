@@ -819,12 +819,27 @@ Two of these are emitted as `stand_reservation_events` rows today: `full_table_m
 
 Notifications:
 
-- Owner: top-up submission, approval/rejection, debt, feature completion, manual correction.
-- Added partner: only after successful addition.
-- All released participants: release completion.
-- Admin: new top-up review and unresolved negative balance.
+- Owner: **top-up rejection only.** _(Built.)_
+- Added partner: only after successful addition. _(Phase 4.)_
+- All released participants: release completion. _(Phase 5.)_
 
-**None of these notifications is built** (see Phase 1 in §16). The outbox is the intended path and already carries the reservation kinds; the credit kinds and their templates have still to be added.
+Buying credits notifies nobody, and neither does approving a voucher. The
+purchase is synchronous — the participant watches the balance change and the
+wallet shows the top-up as under review — so a receipt would restate what they
+just saw. Approval grants no new spending power either, because the credits
+were already spendable (§4.1); mailing about it would imply they had been
+frozen. A rejection is the one outcome that arrives later, out of sight, and
+the only one that can leave somebody owing money, so it is the one that gets an
+email. It has to carry both halves of the news: the debt, and the fact that
+whatever the credits already paid for still stands.
+
+Admins are not mailed about the review queue either. They work from the queue
+itself, which is the screen the decision is made on.
+
+The rejection mail is deduplicated on the top-up rather than on a reservation:
+credit jobs carry no `reservation_id`, so the outbox's default key would
+collide across every purchase one person ever had rejected. A replayed
+rejection reverses nothing and sends nothing.
 
 Use canonical IDs and reason codes in audit metadata. Do not copy full profiles, voucher URLs, or sensitive payment data into event JSON.
 
@@ -897,7 +912,7 @@ Phase 0 is complete only when Phase 0A remains green after the Phase 0B migratio
 
 Phase 1 is complete only when both the accounting foundation and mixed-tender settlement integration are green. Phase 1A persistence alone must not change invoice fulfillment behavior.
 
-**Delivered**, with one open item: none of §15's credit notifications exist. `RESERVATION_NOTIFICATION_KINDS` has no credit kinds and there is no credit email template, so an owner is never told that their top-up was received, approved, rejected, or that they owe a balance, and admins get no new-top-up alert. The admin review queue is the only place either side finds out.
+**Delivered.** Credit notification is deliberately one email — a rejected voucher — for the reasons in §15. It rides the existing outbox, whose write half now lives in `notification-queue.ts` so a service can enqueue a job without importing every email template and the server env schema.
 
 ### Phase 2 — Pricing and feature administration
 
@@ -1066,5 +1081,6 @@ The shared invoice rule from §9.1 is already implemented at all three entry poi
 - [x] `rejected` and `cancelled` remain participation blockers; only `released` is non-blocking. Predicates are in place and separated from stand occupancy.
 - [x] Rejected provisional credits never trigger automatic domain reversals.
 - [x] Admin can resolve debt and full-table exceptions manually with an audit trail — approve, mark paid, waive, downgrade a table to its original half, release an abandoned activation.
-- [ ] Owners and admins are notified of top-up submission, approval, rejection, debt, and feature completion. _(No credit notifications exist.)_
+- [x] Owners are notified when a voucher is rejected, with the debt and the fact that what it paid for still stands. Submission and approval deliberately send nothing.
+- [ ] Partner-added and release-completed notifications. _(Phases 4 and 5.)_
 - [x] Authorization, idempotency, concurrency, and migration tests pass for everything delivered.
