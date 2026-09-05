@@ -11,9 +11,22 @@ import {
 } from "@/app/lib/credits/purchase-service";
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 
+/**
+ * The features this action can price on its own.
+ *
+ * `late_partner` is deliberately absent. Its cost is the configured fee *plus*
+ * the shared-price difference of one specific reservation, which only
+ * `createLatePartnerCreditTopUpAction` can work out — routed through here it
+ * would open an undersized top-up, and that top-up then blocks the correct one
+ * as the open purchase for the feature.
+ */
+const GENERICALLY_PRICED_FEATURES = PURCHASABLE_FEATURE_TYPES.filter(
+  (type) => type !== "late_partner",
+) as Exclude<(typeof PURCHASABLE_FEATURE_TYPES)[number], "late_partner">[];
+
 const featureSchema = z.object({
   festivalId: z.coerce.number().int().positive(),
-  featureType: z.enum(PURCHASABLE_FEATURE_TYPES),
+  featureType: z.enum(GENERICALLY_PRICED_FEATURES),
   idempotencyKey: z.uuid(),
 });
 

@@ -336,14 +336,19 @@ async function main() {
     });
   }
 
+  // Resolved through membership, not the parent's `stand_id`. A full table's
+  // companion half is occupied by the aggregate but is nobody's parent stand,
+  // so reading the singular column reported every full table as a stand
+  // reserved without a reservation.
   const reservedWithoutLive = await db.execute<{ id: number }>(sql`
     SELECT stands.id
     FROM stands
     WHERE stands.status IN ('reserved', 'confirmed')
       AND NOT EXISTS (
-        SELECT 1 FROM stand_reservations
-        WHERE stand_reservations.stand_id = stands.id
-          AND stand_reservations.status IN ('pending', 'verification_payment', 'accepted')
+        SELECT 1 FROM stand_reservation_stands srs
+        WHERE srs.stand_id = stands.id
+          AND srs.released_at IS NULL
+          AND srs.reservation_status IN ('pending', 'verification_payment', 'accepted')
       )
   `);
   if (reservedWithoutLive.rows.length > 0) {
@@ -354,14 +359,17 @@ async function main() {
     });
   }
 
+  // Same correction, and the more dangerous direction: read through the parent
+  // column and a companion half left wrongly available would never be reported.
   const availableWithLive = await db.execute<{ id: number }>(sql`
     SELECT stands.id
     FROM stands
     WHERE stands.status = 'available'
       AND EXISTS (
-        SELECT 1 FROM stand_reservations
-        WHERE stand_reservations.stand_id = stands.id
-          AND stand_reservations.status IN ('pending', 'verification_payment', 'accepted')
+        SELECT 1 FROM stand_reservation_stands srs
+        WHERE srs.stand_id = stands.id
+          AND srs.released_at IS NULL
+          AND srs.reservation_status IN ('pending', 'verification_payment', 'accepted')
       )
   `);
   if (availableWithLive.rows.length > 0) {
@@ -372,13 +380,16 @@ async function main() {
     });
   }
 
+  // Membership again: a full-table hold covers two stands and names only one
+  // in `stand_holds.stand_id`.
   const heldWithoutHold = await db.execute<{ id: number }>(sql`
     SELECT stands.id
     FROM stands
     WHERE stands.status = 'held'
       AND NOT EXISTS (
-        SELECT 1 FROM stand_holds
-        WHERE stand_holds.stand_id = stands.id
+        SELECT 1 FROM stand_hold_members shm
+        JOIN stand_holds ON stand_holds.id = shm.hold_id
+        WHERE shm.stand_id = stands.id
           AND stand_holds.expires_at > now()
       )
   `);

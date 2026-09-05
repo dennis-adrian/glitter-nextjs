@@ -205,9 +205,16 @@ export const ourFileRouter = {
       // transaction: activation takes festival and credit-account locks in its
       // own order, and a refusal here must not undo a paid-for top-up. The
       // participant simply activates from the panel instead.
+      // Only a full-table purchase activates anything on issuance. A release
+      // is funded the same way but activates nothing: the participant chooses
+      // when to give the reservation up, and earmarking their credits here
+      // would spend them on a table they never asked for. Rows predating
+      // `intended_feature_type` are null and were all full table.
       if (
         result.data.intendedUse.type === "feature" &&
-        result.data.intendedUse.id != null
+        result.data.intendedUse.id != null &&
+        (result.data.intendedUse.featureType === "full_table" ||
+          result.data.intendedUse.featureType == null)
       ) {
         try {
           const activation = await activateFullTableAccessAfterPurchase({

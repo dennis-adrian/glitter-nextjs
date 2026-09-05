@@ -13,95 +13,55 @@ import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-conf
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
 import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-participation-approved";
 import FestivalParticipationRejectedEmailTemplate from "@/app/emails/festival-participation-rejected";
+import CreditTopUpRejectedTemplate from "@/app/emails/credit-top-up-rejected";
+import ReservationReleasedTemplate from "@/app/emails/reservation-released";
+import LatePartnerAddedTemplate from "@/app/emails/late-partner-added";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { festivals, reservationNotificationJobs, standReservations, users } from "@/db/schema";
+import {
+  enqueueReservationNotification,
+  type ReservationNotificationKind,
+} from "@/app/lib/reservations/notification-queue";
+import {
+  creditTopUps,
+  festivals,
+  reservationNotificationJobs,
+  standReservations,
+  users,
+} from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const FROM = "Reservas Glitter <reservas@productoraglitter.com>";
 const ENROLLMENT_FROM =
   "Inscripciones Glitter <inscripciones@productoraglitter.com>";
+const CREDITS_FROM = "Créditos Glitter <creditos@productoraglitter.com>";
 const MAX_ATTEMPTS = 5;
 const LEASE_DURATION_MS = 5 * 60 * 1000;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 
-export const RESERVATION_NOTIFICATION_KINDS = [
-  "reservation_created",
-  "proof_submitted",
-  "zero_value_review_requested",
-  "settlement_approved",
-  "settlement_rejected",
-  "reservation_rejected",
-  "deadline_extended",
-  "festival_participation_approved",
-  "festival_participation_rejected",
-] as const;
-
-export type ReservationNotificationKind =
-  (typeof RESERVATION_NOTIFICATION_KINDS)[number];
+// Re-exported so existing importers keep one entry point; the definitions now
+// live in `notification-queue` so a writer can enqueue without importing every
+// email template.
+export { RESERVATION_NOTIFICATION_KINDS } from "@/app/lib/reservations/notification-queue";
+export { enqueueReservationNotification };
+export type { ReservationNotificationKind };
 
 function computeNextAttemptAt(attemptCount: number, now = new Date()) {
-  const delay = Math.min(MAX_BACKOFF_MS, 30_000 * 2 ** Math.max(0, attemptCount - 1));
+  const delay = Math.min(
+    MAX_BACKOFF_MS,
+    30_000 * 2 ** Math.max(0, attemptCount - 1),
+  );
   return new Date(now.getTime() + delay);
 }
 
-export async function enqueueReservationNotification(
-  tx: DbTx,
-  input: {
-    kind: ReservationNotificationKind;
-    reservationId?: number | null;
-    userId?: number | null;
-    recipientEmail: string;
-    payload?: Record<string, unknown>;
-    deduplicationKey?: string;
-  },
-): Promise<number | null> {
-  const email = input.recipientEmail.trim();
-  if (!email) return null;
-  const now = new Date();
-  const reservationId = input.reservationId ?? null;
-  const deduplicationKey =
-    input.deduplicationKey ??
-    `${input.kind}:${reservationId ?? "none"}:${email.toLowerCase()}`;
-
-  const [inserted] = await tx
-    .insert(reservationNotificationJobs)
-    .values({
-      deduplicationKey,
-      userId: input.userId ?? null,
-      reservationId,
-      notificationKind: input.kind,
-      recipientEmail: email,
-      payload: {
-        ...(reservationId != null ? { reservationId } : {}),
-        ...input.payload,
-      },
-      status: "pending",
-      attempts: 0,
-      nextAttemptAt: now,
-      updatedAt: now,
-      createdAt: now,
-    })
-    .onConflictDoNothing({
-      target: reservationNotificationJobs.deduplicationKey,
-    })
-    .returning({ id: reservationNotificationJobs.id });
-
-  if (inserted) return inserted.id;
-
-  const existing = await tx.query.reservationNotificationJobs.findFirst({
-    where: eq(reservationNotificationJobs.deduplicationKey, deduplicationKey),
-    columns: { id: true },
-  });
-  return existing?.id ?? null;
-}
-
 export function scheduleReservationNotificationJobs(jobIds: readonly number[]) {
-  const unique = [...new Set(jobIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const unique = [
+    ...new Set(jobIds.filter((id) => Number.isInteger(id) && id > 0)),
+  ];
   if (unique.length === 0) return;
   after(() => {
     void Promise.all(
@@ -188,9 +148,12 @@ async function deliverJob(
         reservationId: reservation.id,
         creatorName: owner?.displayName || "Usuario",
         standName: standLabel,
-        standCategory: getCategoryOccupationLabel(reservation.stand.standCategory, {
-          singular: false,
-        }),
+        standCategory: getCategoryOccupationLabel(
+          reservation.stand.standCategory,
+          {
+            singular: false,
+          },
+        ),
       }),
     });
     return;
@@ -204,7 +167,8 @@ async function deliverJob(
       ...invoice,
       reservation,
     } as InvoiceWithPaymentsAndStandAndProfile;
-    const isOwner = owner?.email?.toLowerCase() === recipientEmail.toLowerCase();
+    const isOwner =
+      owner?.email?.toLowerCase() === recipientEmail.toLowerCase();
     if (isOwner) {
       await sendEmail({
         to: [recipientEmail],
@@ -284,6 +248,90 @@ async function deliverJob(
     return;
   }
 
+  if (kind === "late_partner_added") {
+    const partnerUserId = payloadNumber(payload, "partnerUserId");
+    const ownerUser =
+      reservation.participants.find(
+        (participant) => participant.userId === reservation.ownerUserId,
+      )?.user ?? owner;
+    const partnerUser = reservation.participants.find(
+      (participant) => participant.userId === partnerUserId,
+    )?.user;
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    // Thrown, not returned. Returning here reaches the caller's success path,
+    // which stamps the job `completed` with a null `lastError` — an email
+    // nobody received and no record that anything went wrong. Every other
+    // delivery path (`enrollment_context_missing`, `credit_profile_missing`)
+    // throws so the job retries and, once out of attempts, fails visibly.
+    // Named one at a time because the message is what lands in `lastError`.
+    if (!recipient) throw new Error("late_partner_recipient_missing");
+    if (!ownerUser) throw new Error("late_partner_owner_missing");
+    if (!partnerUser) throw new Error("late_partner_partner_missing");
+
+    const isOwner = recipient.id === ownerUser.id;
+    await sendEmail({
+      to: [recipientEmail],
+      from: FROM,
+      subject: isOwner
+        ? "Agregaste un compañero a tu reserva"
+        : `Vas a compartir un espacio en ${festival.name}`,
+      react: LatePartnerAddedTemplate({
+        recipient,
+        owner: ownerUser,
+        partner: partnerUser,
+        isOwner,
+        festivalId: reservation.festivalId,
+        festivalName: festival.name,
+        standLabel: reservationStandLabel(reservation),
+        reservationId: reservation.id,
+        totalCredits: payloadAmount(payload, "totalCredits") ?? 0,
+      }),
+    });
+    return;
+  }
+
+  if (kind === "reservation_released") {
+    // The canonical owner, not the invoice's user: a released reservation's
+    // invoice is cancelled, and identifying who did this from payment records
+    // would be guessing at it.
+    const releasedBy =
+      reservation.participants.find(
+        (participant) => participant.userId === reservation.ownerUserId,
+      )?.user ?? owner;
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    // Same reasoning as the late-partner branch above: a silent return would
+    // mark the job completed and lose the reason.
+    if (!recipient) throw new Error("release_recipient_missing");
+    if (!releasedBy) throw new Error("release_owner_missing");
+
+    const standCount = Math.max(1, reservation.members.length);
+    await sendEmail({
+      to: [recipientEmail],
+      from: FROM,
+      subject:
+        recipient.id === releasedBy.id
+          ? "Liberaste tu reserva"
+          : "Se liberó la reserva que compartías",
+      react: ReservationReleasedTemplate({
+        recipient,
+        owner: releasedBy,
+        isOwner: recipient.id === releasedBy.id,
+        festivalId: reservation.festivalId,
+        festivalName: festival.name,
+        standLabel: reservationStandLabel(reservation),
+        standCount,
+        creditPrice: payloadAmount(payload, "creditPrice") ?? 0,
+      }),
+    });
+    return;
+  }
+
   if (kind === "deadline_extended" && owner) {
     await sendEmail({
       to: [recipientEmail],
@@ -323,6 +371,13 @@ function payloadNumber(payload: unknown, key: string): number | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0
     ? value
     : null;
+}
+
+/** Money, so unlike `payloadNumber` it accepts zero and two-decimal amounts. */
+function payloadAmount(payload: unknown, key: string): number | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 async function deliverEnrollmentJob(
@@ -391,6 +446,65 @@ function isEnrollmentNotificationKind(kind: string) {
   );
 }
 
+function isCreditNotificationKind(kind: string) {
+  return kind === "credit_top_up_rejected";
+}
+
+/**
+ * Credit mail, which hangs off a top-up rather than a reservation.
+ *
+ * The amount and reason are read back from the row instead of the payload:
+ * the job may be retried days later, and the record of what was rejected and
+ * why belongs to `credit_top_ups`, not to a queued message. Only the debt is
+ * taken from the payload, because it is a fact about the moment of rejection —
+ * later spending or an admin waiver would otherwise rewrite history in an
+ * email about something that already happened.
+ */
+async function deliverCreditJob(
+  kind: string,
+  recipientEmail: string,
+  payload: unknown,
+) {
+  const topUpId = payloadNumber(payload, "topUpId");
+  if (topUpId == null) throw new Error("credit_payload_missing");
+
+  const [topUp] = await db
+    .select({
+      amount: creditTopUps.amount,
+      rejectionReason: creditTopUps.rejectionReason,
+      userId: creditTopUps.userId,
+    })
+    .from(creditTopUps)
+    .where(eq(creditTopUps.id, topUpId))
+    .limit(1);
+  if (!topUp) throw new Error("credit_top_up_missing");
+
+  const [profile] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, topUp.userId))
+    .limit(1);
+  if (!profile) throw new Error("credit_profile_missing");
+
+  if (kind === "credit_top_up_rejected") {
+    const debtAmount = Math.max(0, payloadAmount(payload, "debtAmount") ?? 0);
+    await sendEmail({
+      to: [recipientEmail],
+      from: CREDITS_FROM,
+      subject: "No pudimos confirmar tu compra de créditos",
+      react: CreditTopUpRejectedTemplate({
+        profile,
+        amount: Number(topUp.amount),
+        reason: topUp.rejectionReason?.trim() || "No se indicó un motivo.",
+        debtAmount,
+      }),
+    });
+    return;
+  }
+
+  throw new Error(`unsupported_kind:${kind}`);
+}
+
 export async function attemptReservationNotificationJob(jobId: number) {
   const owner = `reservation-notify:${randomUUID()}`;
   const job = await claimJob(jobId, owner);
@@ -401,6 +515,12 @@ export async function attemptReservationNotificationJob(jobId: number) {
     if (isEnrollmentNotificationKind(job.notificationKind)) {
       await deliverEnrollmentJob(
         job.notificationKind as ReservationNotificationKind,
+        job.recipientEmail,
+        job.payload,
+      );
+    } else if (isCreditNotificationKind(job.notificationKind)) {
+      await deliverCreditJob(
+        job.notificationKind,
         job.recipientEmail,
         job.payload,
       );

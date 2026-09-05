@@ -9,7 +9,9 @@ import {
   exactCreditShortfall,
   roundCredits,
 } from "@/app/lib/credits/balances";
+import type { FeatureType } from "@/app/lib/festivals/feature-config";
 import { lockUserRows } from "@/app/lib/reservations/locks";
+import { enqueueReservationNotification } from "@/app/lib/reservations/notification-queue";
 import { db } from "@/db";
 import {
   creditAccounts,
@@ -18,6 +20,7 @@ import {
   creditTopUps,
   pendingUserDeletions,
   reservationFeatureActions,
+  users,
 } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -182,6 +185,8 @@ export type CreditTopUpRequirement = {
   amount: number;
   intendedUseType: CreditTopUpIntendedUse;
   intendedUseId?: number;
+  /** Which feature a `feature` top-up funds; see the column's own comment. */
+  intendedFeatureType?: FeatureType;
   idempotencyKey: string;
   now?: Date;
 };
@@ -229,6 +234,7 @@ export async function createCreditTopUpForRequirementInTx(
         amount,
         intendedUseType: input.intendedUseType,
         intendedUseId: input.intendedUseId ?? null,
+        intendedFeatureType: input.intendedFeatureType ?? null,
         uploadDeadlineAt,
         idempotencyKey: input.idempotencyKey,
       })
@@ -311,7 +317,12 @@ export async function submitCreditTopUpVoucher(input: {
      * purchase. Returned so the caller can honour that intent — buying from a
      * feature's own screen is the participant asking for the feature.
      */
-    intendedUse: { type: CreditTopUpIntendedUse; id: number | null };
+    intendedUse: {
+      type: CreditTopUpIntendedUse;
+      id: number | null;
+      /** Which feature, for a `feature` top-up. Null on pre-column rows. */
+      featureType: FeatureType | null;
+    };
   }>
 > {
   if (!input.voucherUrl || !input.fileKey) return failure("INVALID_AMOUNT");
@@ -348,6 +359,7 @@ export async function submitCreditTopUpVoucher(input: {
           intendedUse: {
             type: topUp.intendedUseType,
             id: topUp.intendedUseId,
+            featureType: topUp.intendedFeatureType,
           },
         },
       };
@@ -387,7 +399,11 @@ export async function submitCreditTopUpVoucher(input: {
       data: {
         topUpId: topUp.id,
         balances: await lockedCreditBalances(tx, input.userId),
-        intendedUse: { type: topUp.intendedUseType, id: topUp.intendedUseId },
+        intendedUse: {
+          type: topUp.intendedUseType,
+          id: topUp.intendedUseId,
+          featureType: topUp.intendedFeatureType,
+        },
       },
     };
   });
@@ -399,7 +415,19 @@ export async function reviewCreditTopUp(input: {
   decision: "approved" | "rejected";
   rejectionReason?: string;
   now?: Date;
-}): Promise<CreditResult<{ topUpId: number; balances: CreditBalances }>> {
+}): Promise<
+  CreditResult<{
+    topUpId: number;
+    balances: CreditBalances;
+    /**
+     * Notification jobs the caller must hand to
+     * `scheduleReservationNotificationJobs` after the transaction commits.
+     * Empty for an approval and for a replayed rejection — nobody is told
+     * twice that the same voucher failed.
+     */
+    jobIds: number[];
+  }>
+> {
   if (input.decision === "rejected" && !input.rejectionReason?.trim()) {
     return failure("INVALID_AMOUNT");
   }
@@ -441,15 +469,20 @@ export async function reviewCreditTopUp(input: {
         data: {
           topUpId: topUp.id,
           balances: await lockedCreditBalances(tx, topUp.userId),
+          jobIds: [],
         },
       };
     }
     if (input.decision === "rejected" && topUp.status === "rejected") {
+      // A replay of a rejection that already happened. The reversal and the
+      // email both belong to the first call; repeating either would double the
+      // debt and tell the participant twice.
       return {
         ok: true,
         data: {
           topUpId: topUp.id,
           balances: await lockedCreditBalances(tx, topUp.userId),
+          jobIds: [],
         },
       };
     }
@@ -481,12 +514,45 @@ export async function reviewCreditTopUp(input: {
         updatedAt: now,
       })
       .where(eq(creditTopUps.id, topUp.id));
+
+    const balances = await lockedCreditBalances(tx, topUp.userId);
+
+    // Only a rejection is worth an email. Buying credits is synchronous and
+    // the wallet reports it on the spot; an approval grants nothing new,
+    // because the credits were already spendable. A rejection is the one
+    // outcome the participant cannot see coming and the only one that can
+    // leave them owing money.
+    const jobIds: number[] = [];
+    if (input.decision === "rejected") {
+      const [recipient] = await tx
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, topUp.userId))
+        .limit(1);
+      if (recipient?.email) {
+        const jobId = await enqueueReservationNotification(tx, {
+          kind: "credit_top_up_rejected",
+          userId: topUp.userId,
+          recipientEmail: recipient.email,
+          // Keyed on the top-up, not the reservation the outbox usually
+          // dedupes by: credit jobs carry no reservation, so the default key
+          // would collide across every rejected purchase this person ever has.
+          deduplicationKey: `credit_top_up_rejected:${topUp.id}`,
+          payload: {
+            topUpId: topUp.id,
+            // The debt as of this rejection. Recomputing it at send time would
+            // report later spending, or an admin waiver, as though it were
+            // caused by this voucher.
+            debtAmount: Math.max(0, -balances.ledgerBalance),
+          },
+        });
+        if (jobId) jobIds.push(jobId);
+      }
+    }
+
     return {
       ok: true,
-      data: {
-        topUpId: topUp.id,
-        balances: await lockedCreditBalances(tx, topUp.userId),
-      },
+      data: { topUpId: topUp.id, balances, jobIds },
     };
   });
 }
@@ -699,18 +765,28 @@ export async function createCreditHoldForFeature(input: {
   return db.transaction((tx) => createCreditHoldForFeatureInTx(tx, input));
 }
 
-/** Internal primitive for late partner/release and full-table capture. */
-export async function spendCreditsForFeature(input: {
-  userId: number;
-  featureActionId: number;
-  amount: number;
-  idempotencyKey: string;
-}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+/**
+ * Spend inside a caller's transaction.
+ *
+ * Release and late-partner both debit in the same transaction that mutates the
+ * reservation, because a spend that commits without its domain effect is money
+ * taken for nothing. The §14 lock order puts credit classes after stands and
+ * reservations, so the caller owns the transaction and calls this last.
+ */
+export async function spendCreditsForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    featureActionId: number;
+    amount: number;
+    idempotencyKey: string;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
   const amount = positiveCreditAmount(input.amount);
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
   }
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -763,7 +839,17 @@ export async function spendCreditsForFeature(input: {
         balances: await lockedCreditBalances(tx, input.userId),
       },
     };
-  });
+  }
+}
+
+/** Internal primitive for late partner/release and full-table capture. */
+export async function spendCreditsForFeature(input: {
+  userId: number;
+  featureActionId: number;
+  amount: number;
+  idempotencyKey: string;
+}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  return db.transaction((tx) => spendCreditsForFeatureInTx(tx, input));
 }
 
 /**

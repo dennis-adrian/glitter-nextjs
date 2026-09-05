@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 import { render, cleanup, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("next/image", () => ({
-  default: (p: Record<string, unknown>) => (
-    <img {...(p as { src: string; alt: string })} />
-  ),
-}));
+import { afterEach, describe, expect, it } from "vitest";
 
 import { ProductDetails } from "@/app/components/payments/product-details";
 
@@ -69,5 +63,43 @@ describe("reservation entitlements", () => {
     );
     expect(screen.getByText(/2 sillas/)).toBeTruthy();
     expect(screen.getByText(/2 credenciales/)).toBeTruthy();
+  });
+});
+
+/**
+ * The picture has to agree with the heading beside it. This card showed a
+ * static half-table drawing for every reservation, so someone who paid for a
+ * full table saw one stand on their own payment page.
+ */
+describe("what the card draws", () => {
+  afterEach(cleanup);
+
+  it("draws a full table when two stands are held", () => {
+    render(
+      <ProductDetails
+        festival={festival}
+        invoice={invoice([member(1, 0), member(2, 1)])}
+      />,
+    );
+    expect(screen.getByRole("img", { name: /mesa completa seleccionada/i })).toBeTruthy();
+  });
+
+  it("draws one stand with its neighbour muted for a single stand", () => {
+    render(
+      <ProductDetails festival={festival} invoice={invoice([member(1, 0)])} />,
+    );
+    // Not a lone half: at 96px that reads as a whole table, which is the
+    // confusion "1 espacio" in the heading has to fight.
+    expect(screen.getByRole("img", { name: /un solo stand resaltado/i })).toBeTruthy();
+  });
+
+  it("goes back to one stand after a downgrade releases the companion", () => {
+    render(
+      <ProductDetails
+        festival={festival}
+        invoice={invoice([member(1, 0), member(2, 1, new Date())])}
+      />,
+    );
+    expect(screen.getByRole("img", { name: /un solo stand resaltado/i })).toBeTruthy();
   });
 });

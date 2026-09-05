@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   allFeatureScopes,
   type FeatureConfigRow,
+  FEATURE_TYPES,
+  type FeatureType,
+  isFeatureTypeImplemented,
   LATE_PARTNER_DEFAULT_LEAD_DAYS,
   resolveFeatureConfig,
   resolveLatePartnerDeadline,
@@ -31,7 +34,9 @@ describe("resolveLatePartnerDeadline", () => {
       earliestStartDate: festivalStart,
     });
     expect(deadline).toEqual(
-      new Date(festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS),
+      new Date(
+        festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS,
+      ),
     );
   });
 
@@ -75,28 +80,35 @@ describe("resolveFeatureConfig", () => {
     expect(result.unavailableReason).toContain("desactivada");
   });
 
-  it("computes the late partner deadline but withholds the unimplemented feature", () => {
+  it("computes the late partner deadline from the festival start", () => {
     const result = resolveFeatureConfig(row(), {
       earliestStartDate: festivalStart,
       now,
     });
-    // The deadline rules still hold — phase 4 switches the feature back on
-    // without touching them — but nothing may be offered until it ships.
+
     expect(result.effectiveDeadlineAt).toEqual(
-      new Date(festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS),
+      new Date(
+        festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS,
+      ),
     );
-    expect(result.available).toBe(false);
-    expect(result.unavailableReason).toContain("no está implementada");
+    // `now` is well before that deadline, and the feature ships, so it is
+    // offered.
+    expect(result.available).toBe(true);
+    expect(result.unavailableReason).toBeNull();
   });
 
-  it("withholds every feature type without an implementation behind it", () => {
-    for (const type of ["late_partner", "reservation_release"] as const) {
-      const result = resolveFeatureConfig(row({ type, category: null }), {
-        earliestStartDate: festivalStart,
-        now,
-      });
-      expect(result.available).toBe(false);
-      expect(result.unavailableReason).toContain("no está implementada");
+  /**
+   * Every feature type ships today, so the guard has nothing to withhold. It
+   * stays because the next feature configured before it is built needs it, and
+   * a guard nobody exercises is a guard that quietly stops working — so this
+   * pins the mechanism rather than any particular feature.
+   */
+  it("withholds a feature type with no implementation behind it", () => {
+    expect(isFeatureTypeImplemented("not_a_feature" as FeatureType)).toBe(
+      false,
+    );
+    for (const type of FEATURE_TYPES) {
+      expect(isFeatureTypeImplemented(type), type).toBe(true);
     }
 
     const fullTable = resolveFeatureConfig(
@@ -145,8 +157,9 @@ describe("resolveFeatureConfig", () => {
         { earliestStartDate: null, now },
       );
       expect(result.effectiveDeadlineAt).toBeNull();
-      // Only full table has an implementation, so only it can be offered.
-      expect(result.available).toBe(type === "full_table");
+      // Late partner has no implementation, so it stays unavailable however it
+      // is configured; the other two ship.
+      expect(result.available).toBe(type !== "late_partner");
     }
   });
 });

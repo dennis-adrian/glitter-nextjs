@@ -54,6 +54,7 @@ export default async function SectorReservationPage(
   const map = await fetchFestivalReservationMapDto({
     festivalId: festival.id,
     profileId: forProfile.id,
+    actorProfileId: currentProfile?.id ?? null,
     revealHiddenIdentities: canViewAdminReservationData(
       currentProfile
         ? { id: currentProfile.id, role: currentProfile.role }
@@ -88,6 +89,7 @@ export default async function SectorReservationPage(
               alreadyReserved={map.alreadyReserved}
               subcategoryIds={map.subcategoryIds}
               fullTableAccessActive={map.fullTableAccessActive}
+              fullTableActivationPrice={map.fullTableActivationPrice}
               mapBounds={sector.mapBounds ?? undefined}
             />
           </div>

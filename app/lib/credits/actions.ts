@@ -8,6 +8,7 @@ import {
   resolveCreditDebt,
   reviewCreditTopUp,
 } from "@/app/lib/credits/service";
+import { scheduleReservationNotificationJobs } from "@/app/lib/reservations/notification-outbox";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -64,6 +65,9 @@ export async function reviewCreditTopUpAction(input: unknown) {
       message: "No se pudo revisar la carga de créditos.",
     };
   }
+  // Post-commit, like every other outbox caller: the job row is already
+  // durable, so a failure to send here is retried rather than lost.
+  scheduleReservationNotificationJobs(result.data.jobIds);
   return {
     success: true,
     message:

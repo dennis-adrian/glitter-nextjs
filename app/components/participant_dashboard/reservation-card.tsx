@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { Participation, ProfileType } from "@/app/api/users/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
-import Image from "next/image";
+import FestivalPosterThumb from "@/app/components/participant_dashboard/festival-poster-thumb";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { Banner, BannerVariant } from "@/app/components/ui/banner";
@@ -304,44 +304,48 @@ export default function ReservationCard({
   );
 
   const invoicesHref = `/profiles/${profile.id}/festivals/${activeFestival.id}/invoices`;
-  const actionHref =
+
+  // Derived from the participations rather than `reservationCount`, so the link
+  // can only ever be built when there is exactly one reservation to point at.
+  // Several reservations have no single detail page, and those keep going
+  // through the list.
+  const reservationIds = Array.from(
+    new Set(activeParticipations.map((p) => p.reservation.id)),
+  );
+  const reservationDetailHref =
+    reservationIds.length === 1
+      ? `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/${reservationIds[0]}`
+      : null;
+  const owesPayment =
     cardStatus === "pending_payment" ||
-    cardStatus === "pending_payment_approval"
-      ? invoicesHref
-      : hasReservationCardStatuses.includes(cardStatus)
-        ? `/my_participations`
-        : `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`;
+    cardStatus === "pending_payment_approval";
+
+  const actionHref = owesPayment
+    ? invoicesHref
+    : hasReservationCardStatuses.includes(cardStatus)
+      ? (reservationDetailHref ?? `/my_participations`)
+      : `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`;
 
   return (
     <Card className="overflow-hidden">
-      <div className="aspect-3/1 relative overflow-hidden bg-muted">
-        {activeFestival.thumbnailUrl ? (
-          <Image
-            src={activeFestival.thumbnailUrl}
-            alt="thumbnail del festival"
-            fill
-            className="object-center object-cover"
-          />
-        ) : (
-          <div
-            className={`w-full h-full bg-linear-to-r from-amber-600 to-amber-400`}
-          />
-        )}
-      </div>
       <CardContent className="p-4 md:p-5 flex flex-col gap-2 md:gap-3">
-        <div className="flex flex-col gap-1">
-          <Heading level={3} className="leading-none">
-            {activeFestival.name}
-          </Heading>
-          <p className="text-sm text-muted-foreground">
-            {getFestivalDateLabel(activeFestival, true)}
-          </p>
+        <div className="flex items-start gap-3 md:gap-4">
+          <FestivalPosterThumb festival={activeFestival} />
+          <div className="flex min-w-0 flex-col items-start gap-1">
+            <Heading level={3} className="leading-none">
+              {activeFestival.name}
+            </Heading>
+            <p className="text-sm text-muted-foreground">
+              {getFestivalDateLabel(activeFestival, true)}
+            </p>
+            <Badge
+              className={cn("flex items-center gap-1", cardConfig.badgeStyle)}
+            >
+              <cardConfig.icon className="w-3.5 h-3.5 shrink-0" />
+              {cardConfig.label}
+            </Badge>
+          </div>
         </div>
-
-        <Badge className={cn("flex items-center gap-1", cardConfig.badgeStyle)}>
-          <cardConfig.icon className="w-3.5 h-3.5 shrink-0" />
-          {cardConfig.label}
-        </Badge>
 
         {cardConfig.banner && (
           <Banner
@@ -367,6 +371,16 @@ export default function ReservationCard({
                 <ArrowRightIcon className="w-3.5 h-3.5 shrink-0 ml-1" />
               </Link>
             </Button>
+            {/* Paying keeps the primary button, so the detail page gets its
+                own. Someone who owes money still wants to check what they
+                booked before sending it. */}
+            {owesPayment && reservationDetailHref && (
+              <Button asChild variant="outline" size="sm" className="w-full">
+                <Link href={reservationDetailHref}>
+                  Ver el detalle de mi reserva
+                </Link>
+              </Button>
+            )}
             <Button
               asChild
               variant="link"

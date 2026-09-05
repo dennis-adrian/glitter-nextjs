@@ -35,7 +35,6 @@ import {
   adminConfirmReservationSchema,
   applyInvoiceCreditsSchema,
   correctSettlementProofSchema,
-  createInvoiceCreditTopUpSchema,
   parseUnknown,
   rejectSettlementSchema,
   submissionIdSchema,
@@ -235,14 +234,14 @@ async function loadInvoiceAggregate(
   return { kind: "ok", invoice, reservation, participants };
 }
 
-type InvoiceTenderTotals = {
+export type InvoiceTenderTotals = {
   approvedCashAmount: number;
   confirmedCreditAmount: number;
   coveredAmount: number;
   outstandingAmount: number;
 };
 
-async function getInvoiceTenderTotalsInTx(
+export async function getInvoiceTenderTotalsInTx(
   tx: DbTx,
   invoice: Pick<typeof invoices.$inferSelect, "id" | "amount">,
 ): Promise<InvoiceTenderTotals> {
@@ -726,153 +725,6 @@ export async function submitZeroValueInvoiceForReview(
     );
   } catch (error) {
     console.error("Error submitting zero-value invoice", error);
-    return reservationFailure("CONFLICT_RETRY");
-  }
-}
-
-/**
- * Server-authoritative credit purchase for a reservation invoice. The browser
- * never supplies an amount: the shortfall is derived from canonical tender
- * totals and the payer's locked balances, and any existing debt is added so a
- * single top-up both settles the debt and covers the invoice.
- *
- * Creating a top-up reserves nothing. The stand, the invoice, and its payment
- * deadline are untouched, and the allocation amount is recalculated under lock
- * when the owner later applies the credits.
- */
-export async function createInvoiceCreditTopUp(input: unknown): Promise<
-  ReservationActionResult<{
-    topUpId: number;
-    amount: number;
-    uploadDeadlineAt: string;
-  }>
-> {
-  const actor = await getCurrentUserProfile();
-  if (!actor) return reservationFailure("UNAUTHENTICATED");
-  const parsed = parseUnknown(createInvoiceCreditTopUpSchema, input);
-  if (!parsed.success) return reservationFailure("VALIDATION");
-
-  try {
-    const outcome = await db.transaction(async (tx) => {
-      await lockInvoiceClaimKeys(tx, parsed.data.invoiceId, [actor.id]);
-      const claim = await claimRequest(tx, {
-        requestKey: parsed.data.idempotencyKey,
-        operation: "createInvoiceCreditTopUp",
-        actorUserId: actor.id,
-        scope: { invoiceId: parsed.data.invoiceId },
-      });
-      if (claim.kind === "conflict")
-        return reservationFailure("CONFLICT_RETRY");
-      if (claim.kind === "replayed") {
-        const topUpId = claim.resultIds.topUpId;
-        if (typeof topUpId !== "number")
-          return reservationFailure("CONFLICT_RETRY");
-        const [existing] = await tx
-          .select({
-            id: creditTopUps.id,
-            amount: creditTopUps.amount,
-            uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
-          })
-          .from(creditTopUps)
-          .where(eq(creditTopUps.id, topUpId))
-          .limit(1);
-        if (!existing) return reservationFailure("CONFLICT_RETRY");
-        return { topUp: existing };
-      }
-
-      const fail = async (result: ReturnType<typeof reservationFailure>) => {
-        await abandonRequest(tx, parsed.data.idempotencyKey);
-        return result;
-      };
-      const aggregate = await loadInvoiceAggregate(tx, parsed.data.invoiceId);
-      if (aggregate.kind !== "ok") return fail(aggregateUnavailable(aggregate));
-      const { invoice, reservation } = aggregate;
-      if (invoice.userId !== actor.id) {
-        return fail(reservationFailure("INVOICE_NOT_OWNED"));
-      }
-      if (invoice.status !== "pending" || reservation.status !== "pending") {
-        return fail(reservationFailure("INVOICE_NOT_PENDING"));
-      }
-
-      // One open purchase per invoice. Resuming the pending one keeps the
-      // participant on a single upload deadline instead of stacking sessions.
-      const open = await tx
-        .select({
-          id: creditTopUps.id,
-          amount: creditTopUps.amount,
-          status: creditTopUps.status,
-          uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
-        })
-        .from(creditTopUps)
-        .where(
-          and(
-            eq(creditTopUps.userId, invoice.userId),
-            eq(creditTopUps.intendedUseType, "invoice"),
-            eq(creditTopUps.intendedUseId, invoice.id),
-            sql`${creditTopUps.status} IN ('awaiting_voucher', 'under_review')`,
-          ),
-        )
-        .for("update");
-      const underReview = open.find((row) => row.status === "under_review");
-      if (underReview) {
-        return fail(reservationFailure("CREDIT_TOP_UP_UNDER_REVIEW"));
-      }
-      const resumable = open.find(
-        (row) => row.uploadDeadlineAt.getTime() > Date.now(),
-      );
-      if (resumable) {
-        await completeRequest(tx, parsed.data.idempotencyKey, {
-          topUpId: resumable.id,
-        });
-        return { topUp: resumable };
-      }
-
-      const tender = await getInvoiceTenderTotalsInTx(tx, invoice);
-      if (tender.outstandingAmount <= 0) {
-        return fail(reservationFailure("INVOICE_NOT_PENDING"));
-      }
-      const balances = await getCreditBalancesInTx(tx, invoice.userId);
-      const { shortfallAmount: required } = invoiceCreditPlan(
-        balances,
-        tender.outstandingAmount,
-      );
-      if (required <= 0) {
-        return fail(reservationFailure("CREDIT_TOP_UP_NOT_NEEDED"));
-      }
-
-      const created = await createCreditTopUpForRequirementInTx(tx, {
-        userId: invoice.userId,
-        amount: required,
-        intendedUseType: "invoice",
-        intendedUseId: invoice.id,
-        idempotencyKey: parsed.data.idempotencyKey,
-      });
-      if (!created.ok) return fail(reservationFailure("CONFLICT_RETRY"));
-
-      await completeRequest(tx, parsed.data.idempotencyKey, {
-        topUpId: created.data.id,
-      });
-      return {
-        topUp: {
-          id: created.data.id,
-          amount: created.data.amount,
-          uploadDeadlineAt: created.data.uploadDeadlineAt,
-        },
-      };
-    });
-
-    if ("success" in outcome) return outcome;
-    revalidatePath("/my_credits");
-    return reservationSuccess(
-      {
-        topUpId: outcome.topUp.id,
-        amount: outcome.topUp.amount,
-        uploadDeadlineAt: outcome.topUp.uploadDeadlineAt.toISOString(),
-      },
-      "Subí el comprobante antes de que venza el plazo para recibir tus créditos.",
-    );
-  } catch (error) {
-    console.error("Error creating invoice credit top-up", error);
     return reservationFailure("CONFLICT_RETRY");
   }
 }

@@ -89,6 +89,7 @@ export type MapDtoBuildInput = {
   /** Stand-group ids the admin declared as full tables. */
   fullTableGroupIds: ReadonlySet<number>;
   fullTableAccessActive: boolean;
+  fullTableActivationPrice: number | null;
   reservationsByStandId: Map<number, MapDtoReservationRow[]>;
   revealHiddenIdentities: boolean;
   now: Date;
@@ -249,5 +250,9 @@ export function buildFestivalReservationMapDto(
         }
       : null,
     fullTableAccessActive: input.fullTableAccessActive,
+    // Coerced rather than passed through: the DTO promises `number | null`,
+    // and an absent `undefined` does not survive serialisation to the client —
+    // the key would simply vanish instead of arriving null.
+    fullTableActivationPrice: input.fullTableActivationPrice ?? null,
   };
 }

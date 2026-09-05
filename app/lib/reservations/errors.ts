@@ -33,6 +33,15 @@ export const RESERVATION_ERROR_CODES = [
   "FULL_TABLE_ACCESS_INACTIVE",
   "FULL_TABLE_NOT_DOWNGRADABLE",
   "FULL_TABLE_HOLD_ACTIVE",
+  "RELEASE_UNAVAILABLE",
+  "RELEASE_NOT_PENDING",
+  "RELEASE_INSUFFICIENT_CREDITS",
+  "RELEASE_INVOICE_SETTLED",
+  "LATE_PARTNER_UNAVAILABLE",
+  "LATE_PARTNER_DEADLINE_PASSED",
+  "LATE_PARTNER_ALREADY_SHARED",
+  "LATE_PARTNER_NOT_PRICEABLE",
+  "LATE_PARTNER_INSUFFICIENT_CREDITS",
   "VALIDATION",
 ] as const;
 
@@ -94,10 +103,35 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "No te alcanzan los créditos para activar la mesa completa. Comprá la diferencia y volvé.",
     FULL_TABLE_ACCESS_INACTIVE:
       "No tenés la mesa completa activada en este festival.",
+    // Two causes, one code: the reservation is not a full table, or its
+    // invoice already has money against it. Both mean the same thing to an
+    // admin — there is nothing safe to reduce here — and naming only the first
+    // sent them looking for a second space that was never the problem.
     FULL_TABLE_NOT_DOWNGRADABLE:
-      "Esta reserva no ocupa dos espacios, así que no hay nada que liberar.",
+      "Esta reserva no se puede reducir: o no ocupa dos espacios, o su factura ya tiene pagos o créditos aplicados.",
     FULL_TABLE_HOLD_ACTIVE:
       "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
+    RELEASE_UNAVAILABLE:
+      "Liberar reservas no está habilitado en este festival.",
+    // Named for what the participant can see rather than for the status: they
+    // know whether they have paid, not what the row says.
+    RELEASE_NOT_PENDING:
+      "Solo podés liberar una reserva que todavía no pagaste.",
+    RELEASE_INSUFFICIENT_CREDITS:
+      "No te alcanzan los créditos para liberar la reserva. Comprá la diferencia y volvé.",
+    RELEASE_INVOICE_SETTLED:
+      "Esta reserva ya tiene un pago registrado. Escribinos y lo resolvemos.",
+    LATE_PARTNER_UNAVAILABLE:
+      "Agregar un compañero no está disponible para esta reserva.",
+    LATE_PARTNER_DEADLINE_PASSED:
+      "Ya pasó la fecha límite para agregar un compañero a tu reserva.",
+    LATE_PARTNER_ALREADY_SHARED: "Tu reserva ya tiene un compañero.",
+    // The reservation was booked without a shared price on record, so there is
+    // no agreed figure for what two people cost.
+    LATE_PARTNER_NOT_PRICEABLE:
+      "No podemos calcular el precio compartido de esta reserva. Escribinos y lo resolvemos.",
+    LATE_PARTNER_INSUFFICIENT_CREDITS:
+      "No te alcanzan los créditos para agregar un compañero. Comprá la diferencia y volvé.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
 

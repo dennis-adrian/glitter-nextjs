@@ -179,9 +179,9 @@ describeDatabase("festival reservation feature constraints", () => {
     // would allow unlimited festival-wide rows. The partial pair prevents it.
     await client.query("SAVEPOINT dup_wide");
     await insertFeature({ type: "reservation_release" });
-    await expect(insertFeature({ type: "reservation_release" })).rejects.toThrow(
-      "festival_reservation_features_festival_wide_unique",
-    );
+    await expect(
+      insertFeature({ type: "reservation_release" }),
+    ).rejects.toThrow("festival_reservation_features_festival_wide_unique");
     await client.query("ROLLBACK TO SAVEPOINT dup_wide");
   });
 });
@@ -209,11 +209,19 @@ describeDatabase("illustration stand pricing constraints", () => {
     standClient?.release();
   });
 
-  async function insertStand(individualPrice: number, sharedPrice: number | null) {
+  async function insertStand(
+    individualPrice: number,
+    sharedPrice: number | null,
+  ) {
     return standClient.query(
       `INSERT INTO stands (stand_number, festival_sector_id, individual_price, shared_price)
        VALUES ($1, $2, $3, $4)`,
-      [Math.floor(Math.random() * 1_000_000), sectorId, individualPrice, sharedPrice],
+      [
+        Math.floor(Math.random() * 1_000_000),
+        sectorId,
+        individualPrice,
+        sharedPrice,
+      ],
     );
   }
 
@@ -263,10 +271,14 @@ describeDatabase("reservation request registry operations", () => {
 
   /**
    * The allowed-operation list lives in two places: the TypeScript union and a
-   * database CHECK. They drifted once already — `applyInvoiceCredits` and
-   * `createInvoiceCreditTopUp` were added to the union but not the constraint,
-   * so every credit claim threw and surfaced as a permanent CONFLICT_RETRY.
-   * Unit tests mock the registry, so only this can catch it.
+   * database CHECK. They drifted once already — two credit operations were
+   * added to the union but not the constraint, so every credit claim threw and
+   * surfaced as a permanent CONFLICT_RETRY. Unit tests mock the registry, so
+   * only this can catch it.
+   *
+   * One-directional on purpose. The constraint may accept more than the union
+   * declares, because it has to keep accepting operations earlier versions
+   * wrote and this one no longer issues.
    */
   it("accepts every operation the application declares", async () => {
     for (const operation of RESERVATION_REQUEST_OPERATIONS) {

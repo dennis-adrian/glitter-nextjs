@@ -12,7 +12,6 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "confirmStandHold",
   "submitPaymentProof",
   "applyInvoiceCredits",
-  "createInvoiceCreditTopUp",
   "submitZeroValueInvoice",
   "createAdminReservation",
   "adminConfirmReservation",
@@ -24,6 +23,8 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "downgradeFullTableReservation",
   "createFeatureCreditTopUp",
   "createDebtCreditTopUp",
+  "releaseReservation",
+  "addLatePartner",
 ] as const;
 
 export type ReservationRequestOperation =

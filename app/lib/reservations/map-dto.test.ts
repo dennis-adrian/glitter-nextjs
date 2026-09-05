@@ -140,6 +140,7 @@ describe("buildFestivalReservationMapDto", () => {
           "name": "Glitter",
         },
         "fullTableAccessActive": false,
+        "fullTableActivationPrice": null,
         "profile": {
           "category": "illustration",
           "displayName": "Ada",

@@ -123,6 +123,7 @@ export default async function MapReservationPage(
   const map = await fetchFestivalReservationMapDto({
     festivalId: festival.id,
     profileId: forProfile.id,
+    actorProfileId: currentProfile?.id ?? null,
     revealHiddenIdentities: canViewAdminReservationData(
       currentProfile
         ? { id: currentProfile.id, role: currentProfile.role }

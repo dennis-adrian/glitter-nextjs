@@ -1032,7 +1032,10 @@ export const stands = pgTable(
     index("stand_label_idx").on(stands.label),
     index("stands_festival_sector_id_idx").on(stands.festivalSectorId),
     index("stands_stand_group_id_idx").on(stands.standGroupId),
-    check("stands_individual_price_nonnegative", sql`${stands.individualPrice} >= 0`),
+    check(
+      "stands_individual_price_nonnegative",
+      sql`${stands.individualPrice} >= 0`,
+    ),
     check(
       "stands_shared_price_not_below_individual",
       sql`${stands.sharedPrice} IS NULL OR ${stands.sharedPrice} >= ${stands.individualPrice}`,
@@ -1313,7 +1316,10 @@ export const standReservationStands = pgTable(
         sql`${t.releasedAt} IS NULL AND ${t.reservationStatus} IN ('pending', 'verification_payment', 'accepted')`,
       ),
     index("stand_reservation_stands_stand_id_idx").on(t.standId),
-    check("stand_reservation_stands_position_nonnegative", sql`${t.position} >= 0`),
+    check(
+      "stand_reservation_stands_position_nonnegative",
+      sql`${t.position} >= 0`,
+    ),
   ],
 );
 export const standReservationStandsRelations = relations(
@@ -1855,9 +1861,7 @@ export const reservationFeatureActions = pgTable(
       t.ownerUserId,
       t.festivalId,
     ),
-    index("reservation_feature_actions_reservation_id_idx").on(
-      t.reservationId,
-    ),
+    index("reservation_feature_actions_reservation_id_idx").on(t.reservationId),
     uniqueIndex("reservation_feature_actions_idempotency_key_unique")
       .on(t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
@@ -1920,9 +1924,7 @@ export const creditAccounts = pgTable(
     version: integer("version").default(0).notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [
-    check("credit_accounts_version_nonnegative", sql`${t.version} >= 0`),
-  ],
+  (t) => [check("credit_accounts_version_nonnegative", sql`${t.version} >= 0`)],
 );
 
 export const creditTopUps = pgTable(
@@ -1936,10 +1938,24 @@ export const creditTopUps = pgTable(
     status: creditTopUpStatusEnum("status")
       .default("awaiting_voucher")
       .notNull(),
-    intendedUseType: creditTopUpIntendedUseTypeEnum(
-      "intended_use_type",
-    ).notNull(),
+    intendedUseType:
+      creditTopUpIntendedUseTypeEnum("intended_use_type").notNull(),
     intendedUseId: integer("intended_use_id"),
+    /**
+     * Which feature a `feature` top-up was opened for.
+     *
+     * `intended_use_id` holds the festival, which was enough while full table
+     * was the only purchasable feature. It is not enough now: the upload
+     * callback activates full-table access off the back of a feature purchase,
+     * and without this a participant buying credits to release a reservation
+     * would have them earmarked for a table they never asked for.
+     *
+     * Null for invoice and debt top-ups, and for feature rows created before
+     * this column existed — all of which were full table.
+     */
+    intendedFeatureType: festivalReservationFeatureTypeEnum(
+      "intended_feature_type",
+    ),
     uploadDeadlineAt: timestamp("upload_deadline_at").notNull(),
     voucherUrl: text("voucher_url"),
     fileKey: text("file_key"),
@@ -1955,9 +1971,7 @@ export const creditTopUps = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("credit_top_ups_idempotency_key_unique").on(
-      t.idempotencyKey,
-    ),
+    uniqueIndex("credit_top_ups_idempotency_key_unique").on(t.idempotencyKey),
     uniqueIndex("credit_top_ups_file_key_unique")
       .on(t.fileKey)
       .where(sql`${t.fileKey} IS NOT NULL`),
@@ -2120,19 +2134,22 @@ export const creditAccountsRelations = relations(creditAccounts, ({ one }) => ({
     references: [users.id],
   }),
 }));
-export const creditTopUpsRelations = relations(creditTopUps, ({ one, many }) => ({
-  user: one(users, {
-    fields: [creditTopUps.userId],
-    references: [users.id],
-    relationName: "creditTopUpUser",
+export const creditTopUpsRelations = relations(
+  creditTopUps,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [creditTopUps.userId],
+      references: [users.id],
+      relationName: "creditTopUpUser",
+    }),
+    reviewedBy: one(users, {
+      fields: [creditTopUps.reviewedByUserId],
+      references: [users.id],
+      relationName: "creditTopUpReviewedBy",
+    }),
+    ledgerEntries: many(creditLedgerEntries),
   }),
-  reviewedBy: one(users, {
-    fields: [creditTopUps.reviewedByUserId],
-    references: [users.id],
-    relationName: "creditTopUpReviewedBy",
-  }),
-  ledgerEntries: many(creditLedgerEntries),
-}));
+);
 export const creditLedgerEntriesRelations = relations(
   creditLedgerEntries,
   ({ one }) => ({
@@ -2209,6 +2226,11 @@ export const reservationRequestRegistry = pgTable(
       table.actorUserId,
       table.operation,
     ),
+    // Deliberately broader than `RESERVATION_REQUEST_OPERATIONS`: the check has
+    // to keep accepting operations the application no longer issues, because
+    // rows written by earlier versions are still here.
+    // `createInvoiceCreditTopUp` is one such — invoice credit purchase was
+    // removed, and narrowing the list would invalidate its history.
     check(
       "reservation_request_registry_operation_check",
       sql`${table.operation} IN (
@@ -2227,7 +2249,9 @@ export const reservationRequestRegistry = pgTable(
         'deactivateFullTableAccess',
         'downgradeFullTableReservation',
         'createFeatureCreditTopUp',
-        'createDebtCreditTopUp'
+        'createDebtCreditTopUp',
+        'releaseReservation',
+        'addLatePartner'
       )`,
     ),
   ],
