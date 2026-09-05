@@ -34,8 +34,9 @@ export default function FullTableSelectionNotice({
           <p className="text-sm font-semibold">Este espacio es un solo stand</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Este espacio no forma parte de una mesa completa. Si lo seleccionás
-            vas a reservar solo un stand (media mesa, 120 × 60 cm). Tus créditos no se usarán y podrás aplicarlos
-            al pago de tu reserva, o podés elegir otra mesa.
+            vas a reservar solo un stand (media mesa, 120 × 60 cm). Tus créditos
+            no se usarán y podrás aplicarlos al pago de tu reserva, o podés
+            elegir otra mesa.
           </p>
         </div>
       </div>
@@ -106,9 +107,9 @@ export default function FullTableSelectionNotice({
           {companionLabel
             ? `El espacio ${companionLabel} ya está ocupado. `
             : "La otra mitad no está disponible. "}
-          Podés seleccionarlo y reservar un solo stand (media mesa, 120 × 60 cm),
-          Tus créditos no se usarán y podrás aplicarlos
-          al pago de tu reserva, o podés elegir otra mesa.
+          Podés seleccionarlo y reservar un solo stand (media mesa, 120 × 60
+          cm), Tus créditos no se usarán y podrás aplicarlos al pago de tu
+          reserva, o podés elegir otra mesa.
         </p>
       </div>
     </div>
