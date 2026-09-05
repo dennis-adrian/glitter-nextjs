@@ -74,7 +74,7 @@ vi.mock("next/cache", () => ({
 
 import { createAdminReservation } from "@/app/lib/reservations/admin-actions";
 
-function availableStandTx() {
+function standTx(status: string) {
   return {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -84,7 +84,7 @@ function availableStandTx() {
               {
                 id: 7,
                 festivalId: 10,
-                status: "available",
+                status,
                 price: 100,
                 standCategory: "illustration",
               },
@@ -95,6 +95,10 @@ function availableStandTx() {
     })),
     insert: vi.fn(),
   };
+}
+
+function availableStandTx() {
+  return standTx("available");
 }
 
 describe("createAdminReservation sanction enforcement", () => {
@@ -206,6 +210,89 @@ describe("createAdminReservation sanction enforcement", () => {
         standIds: [7],
       }),
     );
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Admins disable a stand precisely to keep participants off it while they
+ * allocate it by hand, so `disabled` must not stop the admin who disabled it.
+ * It used to share the occupancy branch, which failed the assignment and blamed
+ * a reservation that did not exist.
+ */
+describe("createAdminReservation on a disabled stand", () => {
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    fetchStandMock.mockReset();
+    fetchFestivalMock.mockReset();
+    fetchProfileMock.mockReset();
+    eligibilityMock.mockReset();
+    transactionMock.mockReset();
+    lockReservationAggregateMock.mockReset();
+    assertPartnerMock.mockReset();
+    occupancyMock.mockReset();
+    occupancyMock.mockResolvedValue(false);
+    lockReservationAggregateMock.mockResolvedValue({ ok: true, locked: {} });
+    assertPartnerMock.mockResolvedValue(null);
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    fetchStandMock.mockResolvedValue({ id: 7, festivalId: 10 });
+    fetchFestivalMock.mockResolvedValue({
+      id: 10,
+      reservationsStartDate: new Date("2026-08-01T10:00:00.000Z"),
+    });
+    fetchProfileMock.mockResolvedValue({ status: "verified" });
+  });
+
+  it("gets past the occupancy guard when nothing occupies the stand", async () => {
+    // Bailing at the next check is what proves the guard let it through: the
+    // denial that comes back is the sanction, not the stand.
+    eligibilityMock.mockResolvedValue({
+      eligible: false,
+      reason: "ban",
+      sanctionIds: [22],
+      message: "Bloqueado por sanción",
+    });
+
+    const tx = standTx("disabled");
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await createAdminReservation({
+      festivalId: 10,
+      standId: 7,
+      ownerUserId: 3,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "Bloqueado por sanción",
+    });
+    expect(eligibilityMock).toHaveBeenCalled();
+  });
+
+  it("still refuses one that something occupies", async () => {
+    eligibilityMock.mockResolvedValue({ eligible: true, message: "" });
+    occupancyMock.mockResolvedValue(true);
+
+    const tx = standTx("disabled");
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await createAdminReservation({
+      festivalId: 10,
+      standId: 7,
+      ownerUserId: 3,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "El espacio ya está reservado",
+    });
+    expect(eligibilityMock).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
   });
 });

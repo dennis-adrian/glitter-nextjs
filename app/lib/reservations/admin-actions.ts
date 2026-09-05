@@ -207,10 +207,12 @@ export async function createAdminReservation(
           message: "El espacio no pertenece a este festival",
         });
       }
-      if (
-        lockedStand.status === "disabled" ||
-        (await standHasLiveOccupancy(tx, standId))
-      ) {
+      // `disabled` is deliberately not a rejection here. Admins disable a stand
+      // precisely to keep participants off it while they allocate it by hand —
+      // the participant path still refuses one (it requires `available`), and
+      // the success path below flips this stand to `reserved`, so the owner can
+      // see it on the map afterwards. Only live occupancy blocks an admin.
+      if (await standHasLiveOccupancy(tx, standId)) {
         return finish({
           success: false,
           message: "El espacio ya está reservado",
