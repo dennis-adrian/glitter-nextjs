@@ -4,9 +4,9 @@
 
 **Feature area:** Credits, stand reservations, full tables, illustration partners, reservation release
 
-**Status:** Product decisions complete; implementation follows reservation hardening
+**Status:** Phases 0–3 delivered (credits, pricing, feature configuration, full table). Phases 4–5 not started; see §16 for per-phase status and open items.
 
-**Last updated:** 2026-09-03
+**Last updated:** 2026-09-04
 
 **Depends on:** [PLAN-stand-reservation-hardening.md](./PLAN-stand-reservation-hardening.md)
 
@@ -18,9 +18,9 @@
 
 After reservation hardening, Glitter will introduce a credit wallet and three optional reservation features:
 
-1. **Full table:** an illustration or entrepreneurship participant can attempt to reserve the two half-stands that form one physical table.
-2. **Late partner addition:** the owner of a live illustration reservation can add one illustration partner after booking and before a configurable deadline.
-3. **Reservation release:** the owner of a participant-cancelled reservation can soft-delete it, removing its participation block while retaining its history.
+1. **Full table:** an illustration or entrepreneurship participant can attempt to reserve the two half-stands that form one physical table. _(Delivered.)_
+2. **Late partner addition:** the owner of a live illustration reservation can add one illustration partner after booking and before a configurable deadline. _(Not started.)_
+3. **Reservation release:** the owner of a participant-cancelled reservation can soft-delete it, removing its participation block while retaining its history. _(Not started.)_
 
 These are optional features, not penalties or sanctions. Each feature is paid only with Glitter credits. Participants buy credits before starting an action; purchasing credits does not start, reserve, or complete the action.
 
@@ -37,8 +37,8 @@ Participant-facing copy is Spanish and uses voseo.
 | Initial spending scope      | Reservation invoices and the three features in this PRD. Other Glitter purchases are future scope.                                                              |
 | Credit purchase             | Separate prerequisite. MVP sells only the exact shortfall for the selected invoice or feature.                                                                  |
 | Purchase window             | User has 10 minutes to upload a voucher. No credits if the window expires without upload.                                                                       |
-| Availability after upload   | Uploaded voucher immediately creates provisional credits spendable on feature actions. Positive reservation invoices may use only confirmed credits.            |
-| Rejected voucher            | Append a credit reversal. Provisional credits spent on features can produce a negative balance. Never reverse a completed feature action automatically.         |
+| Availability after upload   | Uploaded voucher immediately creates provisional credits, spendable on everything credits can buy — feature actions and positive reservation invoices alike.    |
+| Rejected voucher            | Append a credit reversal. Provisional credits already spent can produce a negative balance. Never reverse a completed feature action automatically.             |
 | Feature payment             | Feature actions debit credits. No direct voucher or payment-review wait exists inside a feature action.                                                         |
 | Reservation invoice credits | User chooses whether to apply credits. MVP applies the maximum usable amount, not a custom amount.                                                              |
 | Discounts                   | Credits are payment tender, not discounts. Apply discounts first, then credits.                                                                                 |
@@ -49,6 +49,7 @@ Participant-facing copy is Spanish and uses voseo.
 | Full-table purchase timing  | Activated before entering the reservation map, never during stand selection.                                                                                    |
 | Full-table fallback         | If the companion half is unavailable, the selected half remains reservable. Repeated confirmation must state that only one half will be booked.                 |
 | Full-table charge           | Earmark credits at activation; debit only when a two-stand reservation is confirmed. Release the earmark when the user confirms one half or deactivates access. |
+| Full-table stand price      | A declared pair carries its own `stand_groups.full_table_price`. It replaces both halves' prices on the reservation invoice; the access fee is separate.        |
 | Full-table payment failure  | No automatic downgrade or second-stand release if the source credit voucher is later rejected. Admin resolves manually.                                         |
 | Illustration pricing        | Every illustration stand has an individual price and a shared price. Shared price is the total for both participants and remains owner-paid.                    |
 | Late partner price          | `shared price snapshot - individual price snapshot + feature access price`, all paid in credits.                                                                |
@@ -60,15 +61,15 @@ Participant-facing copy is Spanish and uses voseo.
 | Blocking statuses           | `rejected` and `cancelled` remain blocking. Only `released` is non-blocking.                                                                                    |
 | Fulfillment                 | Partner addition and release execute immediately with credits. A later credit reversal creates debt but does not undo the action.                               |
 
-There are no remaining product questions blocking implementation.
+There are no remaining product questions blocking implementation. Two decisions above were revised during implementation and are recorded here as they now stand: provisional credits are spendable on reservation invoices as well as features, and a declared pair carries its own table price.
 
 ---
 
 ## 3. Domain language
 
 - **Credit top-up:** purchase of credits by voucher.
-- **Provisional credits:** credits created immediately after voucher upload and spendable on feature actions, but ineligible for positive reservation invoices until admin approval.
-- **Confirmed credits:** credits whose voucher was approved, or credits granted through another final admin operation.
+- **Provisional credits:** credits created immediately after voucher upload, spendable on anything credits buy while their voucher waits for review.
+- **Confirmed credits:** credits whose voucher was approved, or credits granted through another final admin operation. Approval changes what the wallet reports, not what the participant may spend.
 - **Credit hold:** an earmark. It reduces spendable balance without removing credits from the ledger.
 - **Credit spend:** an immutable debit assigned to an invoice or feature action.
 - **Credit reversal:** an immutable debit created after a top-up rejection.
@@ -90,7 +91,7 @@ The ledger is canonical and append-only.
 ```text
 ledger balance = sum(posted ledger entry amounts)
 spendable balance = ledger balance - sum(active holds)
-invoice-eligible balance = max(0, spendable balance - sum(under-review top-up issuance amounts))
+under-review issuance = sum(under-review top-up issuance amounts)   # reported, not withheld
 ```
 
 Rules:
@@ -101,7 +102,8 @@ Rules:
 - Negative ledger balance is allowed only as the result of a reversal/admin correction.
 - A user with negative balance cannot apply credits, activate a feature, or start a credit-funded action.
 - Top-ups first settle negative balance. Only the remainder becomes spendable.
-- Positive reservation invoices may allocate only the confirmed, invoice-eligible balance. Provisional credits remain available only to feature actions until their top-up is approved.
+- There is no confirmed-only tier. The spendable balance funds feature actions and positive reservation invoices alike, whether or not its top-up has been reviewed. `under-review issuance` is shown to the participant and the admin so both know how much of the balance is still unverified; it is not deducted.
+- The reason is that both paths already share one recovery: a bad voucher is reversed, the wallet goes into debt, and an admin resolves it. Withholding credits from invoices only added a second waiting state — a participant with money in the wallet and an unpaid reservation — without removing that machinery.
 - Server transactions calculate all balances and amounts; the browser never supplies an authoritative price.
 
 ### 4.2 Credit top-up flow
@@ -113,21 +115,22 @@ Credit purchase is a separate operation performed before the user starts a featu
 3. Do not reserve a stand, partner, feature deadline, or other domain resource.
 4. User uploads the voucher before the deadline.
 5. In the authoritative UploadThing `onUploadComplete` callback, persist the voucher submission and append a provisional credit issuance in one transaction, using `fileKey` as an idempotency key.
-6. Make the credits immediately spendable for feature actions. For a positive reservation invoice, show the top-up as under review and wait for approval before allowing allocation or fulfillment.
-7. Admin reviews the top-up asynchronously through an explicit credit-top-up review command.
+6. Make the credits immediately spendable, on features and on positive reservation invoices alike. Show the top-up as under review wherever the balance is reported, so nobody mistakes an unverified voucher for a settled one.
+7. A top-up opened from a full-table screen activates that feature on issuance rather than asking the participant to press `Activar` afterwards. Best-effort: a refusal there leaves the credits spendable and the panel offering activation the ordinary way.
+8. Admin reviews the top-up asynchronously through an explicit credit-top-up review command.
 
 If the upload deadline expires, the top-up session expires and issues no credits. Creating a top-up before a feature deadline does not extend that feature deadline.
 
 MVP top-up amounts:
 
 - Feature: exact difference between required credits and current spendable balance.
-- Reservation invoice: exact unpaid amount after the user chooses to use their existing confirmed credits.
+- Reservation invoice: exact unpaid amount after the user chooses to use their existing spendable credits.
 - Negative balance: exact amount required to restore the balance needed for the intended operation.
 - No arbitrary wallet top-up amount.
 
 ### 4.3 Admin review
 
-Approval changes the top-up from provisional to confirmed, makes its remaining balance invoice-eligible, and does not change the ledger balance a second time.
+Approval settles the top-up's own status and does not change the ledger balance a second time. It grants no new spending power, because provisional credits were already spendable.
 
 Rejection:
 
@@ -135,7 +138,7 @@ Rejection:
 2. Append one idempotent reversal equal to the issued amount.
 3. If credits remain unused, the reversal simply removes them.
 4. If credits were spent, allow the wallet to become negative.
-5. Keep every completed credit-funded feature action unchanged. A positive reservation invoice cannot have been fulfilled by the rejected provisional credits.
+5. Keep every completed credit-funded action unchanged — a feature action, and equally a reservation invoice those credits already fulfilled. The debt is the only consequence; the domain does not move.
 6. Block future credit use until the debt is resolved.
 
 Admin resolution options are explicit and audited:
@@ -151,18 +154,18 @@ There are no automatic downgrades, partner removals, reservation cancellations, 
 
 - Only the invoice owner can apply credits.
 - The participant explicitly chooses `Usar mis créditos`.
-- MVP applies `min(invoice-eligible balance, invoice outstanding amount)`.
-- The allocation transaction locks and rechecks the account, rejects provisional funding, debits confirmed credits, and records the exact invoice allocation.
-- Outstanding amount is derived canonically as `invoice amount - approved cash payments - posted confirmed-credit allocations`.
+- MVP applies `min(spendable balance, invoice outstanding amount)`.
+- The allocation transaction locks and rechecks the account, refuses a negative balance, debits the spendable balance, and records the exact invoice allocation.
+- Outstanding amount is derived canonically as `invoice amount - approved cash payments - posted credit allocations`.
 - A partial allocation reduces the outstanding amount; normal voucher payment remains available for the remainder. Admin approval of that voucher fulfills the invoice only when the full canonical amount is covered.
-- A full confirmed-credit allocation of a positive-value invoice marks it credit-paid and immediately runs its normal fulfillment effect. Under-review credit top-ups cannot allocate to or fulfill the invoice.
+- A full credit allocation of a positive-value invoice marks it credit-paid and immediately runs its normal fulfillment effect.
 - A genuine zero-value invoice created by a discount/free entitlement still follows the hardening plan's `zero_value_entitlement` admin-review flow. Credits do not bypass it.
 - The invoice, discounts, payments, and credit allocations remain separate immutable records.
-- Rejection still appends the full top-up reversal. Provisional credits already spent on feature actions can therefore create wallet debt, but they never require reopening or reversing a positive invoice.
+- Rejection still appends the full top-up reversal. Credits already spent — on a feature or on an invoice — become wallet debt. Neither the feature action nor the invoice is reopened or reversed.
 
-The current invoice model assumes one settlement path. Phase 1B extends the hardened settlement service after the Phase 1A credit foundation exists, supporting mixed tender and calculating fulfillment from canonical approved payments plus posted confirmed-credit allocations.
+The current invoice model assumes one settlement path. Phase 1B extends the hardened settlement service after the Phase 1A credit foundation exists, supporting mixed tender and calculating fulfillment from canonical approved payments plus posted credit allocations.
 
-### 4.5 Recommended persistence
+### 4.5 Persistence
 
 ```text
 credit_accounts
@@ -179,8 +182,7 @@ credit_ledger_entries
   status: posted
   top_up_id nullable
   feature_action_id nullable
-  invoice_allocation_id nullable
-  reverses_entry_id nullable
+  reverses_entry_id nullable (self FK)
   idempotency_key unique
   metadata jsonb
   created_at
@@ -212,8 +214,6 @@ credit_top_ups
   reviewed_by_user_id nullable
   reviewed_at nullable
   rejection_reason nullable
-  provisional_issue_entry_id unique nullable
-  reversal_entry_id unique nullable
   idempotency_key unique
   created_at
   updated_at
@@ -231,6 +231,8 @@ invoice_credit_allocations
 `cached_balance` is a locked projection for efficient writes, not a replacement for the ledger. Add reconciliation that compares it with posted entries and active holds.
 
 `credit_holds.feature_action_id` is the unique foreign key to `reservation_feature_actions`. It enforces the one-to-one full-table access relationship: one action owns at most one hold. Capture and release always resolve the hold through that action identifier.
+
+Every link between a ledger entry and what it paid for is owned by the entry or by the allocation, never duplicated on both sides: `credit_ledger_entries.top_up_id` and `reverses_entry_id` carry the top-up lifecycle, and `invoice_credit_allocations.ledger_entry_id` carries the invoice side. Partial unique indexes on the entry side enforce one issuance and one reversal per top-up, and one spend per feature action, so a duplicate is a constraint violation rather than a reconciliation finding.
 
 ---
 
@@ -295,10 +297,10 @@ Rules:
   - Entrepreneurship: both halves must have the same individual price. Ignore `shared_price`, or explicitly disallow it.
 - Entrepreneurship and other categories continue using one price unless expanded later.
 - Hold/reservation creation snapshots both applicable illustration prices, even if booking individually.
-- Initial invoice uses the price matching the number of participants confirmed during booking.
+- Initial invoice uses the price matching the number of participants confirmed during booking — **unless the reservation is a full table**, which is priced as its own product. See §7.1.
 - The server derives all prices from stand/festival data.
 
-Recommended stand additions:
+Stand additions:
 
 ```text
 stands
@@ -308,10 +310,11 @@ stands
 stand_holds / stand_reservations
   individual_price_snapshot numeric(12,2)
   shared_price_snapshot numeric(12,2) nullable
+  full_table_price_snapshot numeric(12,2) nullable   # set only for a two-stand aggregate
   booked_participant_count
 ```
 
-Backfill existing `stands.price` into `individual_price`. Before enabling late partner addition, admins must configure valid illustration shared prices. Keep `price` only as a migration adapter, then remove it after consumers migrate.
+`individual_price` is the single source of truth, backfilled from `stands.price`. `price` survives as a migration adapter that every writer keeps equal to `individual_price`; removing it is still outstanding. Before enabling late partner addition, admins must configure valid illustration shared prices.
 
 ### 6.2 Adding a partner to an already-paid individual reservation
 
@@ -342,17 +345,23 @@ Extend the existing `stand_groups` model with `type: visual_group | full_table`,
 - Same festival, sector, category, participation type, and subcategory eligibility.
 - Category is illustration or entrepreneurship.
 - Matching prices by category: illustration pairs share identical individual and shared prices; entrepreneurship pairs share identical individual prices only (`shared_price` ignored or disallowed).
-- Valid group membership and map placement.
+- Valid group membership and map placement, including alignment on the map.
+- A `full_table_price`. A pair without one is not reservable as a table: the companion cannot be billed, so either half books on its own as if it were never paired.
 - No conflicting live occupancy when changing the pair configuration.
 
 Admin UI creates/edits the group and identifies malformed pairs and their exact mismatch. The server transaction locks the group and both stands, validates exactly two members, then changes the type. Direct writes cannot make an invalid group reservable.
 
-Recommended addition:
+Addition:
 
 ```text
 stand_groups
   type: visual_group | full_table
+  full_table_price numeric(12,2) nullable   # required to declare a full_table
 ```
+
+**A full table is a priced product, not the sum of its halves.** `full_table_price` replaces both halves' individual/shared prices on the reservation invoice — the aggregate occupies two stands and is billed once, for the table. Only a half-table booking falls through to §6.1's participant-count rule. This is separate from, and additional to, the credit access fee in §7.3: the fee buys permission to try, the table price is what the reservation costs. Turning a group back into a `visual_group` clears the price.
+
+Two consequences worth stating: a two-person full table is billed the table price, not the shared price; and an admin downgrade (§7.7) has to reprice the invoice down to a single half, because the reservation is no longer the product it was billed for.
 
 Exactly-two membership is a cross-row invariant enforced by the canonical admin service and checked by the reservation health report. Each stand can belong to only one group through its existing `stand_group_id`, so resolving either half's companion is unambiguous.
 
@@ -451,11 +460,11 @@ Full-table capacity must be one aggregate, not two unrelated reservations.
 5. Create one capacity hold with two member stands.
 6. At reservation confirmation, create one reservation with two stand members.
 7. Capture the full-table credit hold for the linked `feature_action_id` in the same transaction.
-8. Create one normal reservation invoice using the selected individual/shared price snapshot.
+8. Create one normal reservation invoice at the pair's `full_table_price` snapshot (§7.1), not at the halves' individual/shared price. A hold that reaches confirmation with no full-table price snapshot is a conflict, not a table sold at half price.
 
 Extend `confirmStandHold` rather than creating a parallel confirmation path. It must keep the hardening plan's owner, festival, enrollment, current terms, sanctions, price snapshot, idempotency, outbox, and post-commit behavior for every member stand.
 
-The second half does not create a second reservation or second base stand invoice. The full-table feature cost is the compensation for allocating the companion half.
+The second half does not create a second reservation or second invoice. One aggregate, one invoice, priced for the table.
 
 If either stand loses availability before the two-stand hold is created, return a normal availability conflict and offer the selected half if it remains free. Never persist a partial two-stand hold.
 
@@ -467,7 +476,16 @@ If the voucher that funded consumed full-table credits is later rejected:
 - Keep the two-stand reservation unchanged.
 - Do not automatically downgrade, release the companion half, or cancel the reservation.
 - Admin may request replacement payment, mark paid, waive debt, or manually downgrade when safe.
-- A manual downgrade retains the originally selected half and releases only the companion half; it must lock/revalidate occupancy and record an audit event.
+- A manual downgrade retains the originally selected half — member position 0 — and releases only the companion half; it must lock/revalidate occupancy and record an audit event.
+
+The downgrade also reprices, because the reservation was billed for a table it no longer is (§7.1):
+
+- The invoice drops to the price of what remains — the shared price when the reservation was booked for two, otherwise the individual price — and keeps honouring any discount already agreed, clamped to the new total so `amount = original_amount - discount_amount` still holds.
+- It refuses outright when the invoice already has a payment row or a posted credit allocation. Money against the table's price would have to be refunded or re-applied, and that decision is not this command's to make.
+- The released half's membership row is retained with `released_at` stamped, so the reservation's original shape stays queryable.
+- The access fee is not returned. The participant had the permission to try and used it.
+
+There is a matching correction for access that was never spent: an admin can release somebody else's abandoned full-table activation, dropping the earmark. An activation only the participant can undo is unreachable once they stop coming back — and the one whose voucher was rejected has the least reason to. Releasing posts no ledger entry; it frees only credit that is still there.
 
 ---
 
@@ -686,14 +704,15 @@ The existing hardening rule remains: any reservation history blocks participant 
 ### Credit wallet
 
 - Display total, held, spendable, and debt clearly.
-- Label provisional credits as available for feature actions while verification is pending, and separately show the confirmed balance available for positive reservation invoices.
+- Report how much of the balance is still under review, as information rather than a restriction: those credits are spendable, and the participant should know which of them a rejection could take back.
+- Distinguish an earmark that still has credits behind it from one whose credits were reversed. Releasing the first hands credits back; releasing the second hands back nothing, and offering both under the same words misreads as a refund.
 - Explain that rejection may create an amount owed if credits are used.
 - Show immutable history: purchase, use, hold/release, reversal, adjustment.
 - Do not expose arbitrary top-up in MVP.
 
 ### Full-table preparation
 
-- Offer after terms and from a persistent pre-booking portal action.
+- Offer on a dedicated screen right after terms acceptance, and from a persistent dismissible banner above the map and the pre-open countdown.
 - Show half/full SVG comparison, dimensions, credit price, current balance, and availability disclaimer.
 - State that buying/holding credits does not guarantee a full table.
 - Map contains only space selection and confirmation—no financial setup.
@@ -740,11 +759,11 @@ Suggested copy:
 
 ### Reservation detail
 
-- All member stands and original selected half.
-- Original invoice plus credit allocations/adjustments.
-- Full-table, partner, and release action history.
-- Manual full-table downgrade retaining the original half and releasing the companion.
-- Explicit warnings before any manual domain correction.
+- All member stands and original selected half, including any half a downgrade retired. _(Built.)_
+- Manual full-table downgrade retaining the original half and releasing the companion, restricted to global admins and behind a confirmation that states what moves and what does not. _(Built.)_
+- Explicit warnings before any manual domain correction. _(Built.)_
+- Original invoice plus credit allocations/adjustments. _(Not built: allocations are visible in the wallet and the payments dashboard, not on reservation detail.)_
+- Full-table, partner, and release action history. _(Not built.)_
 
 ---
 
@@ -796,6 +815,8 @@ reservation_cancelled
 reservation_released
 ```
 
+Two of these are emitted as `stand_reservation_events` rows today: `full_table_manually_downgraded` and `invoice_credits_applied`. The rest of the credit and full-table lifecycle leaves no reservation event, because the append-only ledger, `credit_top_ups`, `credit_holds`, and `reservation_feature_actions` already record it with stronger guarantees than an event row would. Treat the list above as the vocabulary for anything that does need a reservation-scoped event, not as a second copy of the ledger.
+
 Notifications:
 
 - Owner: top-up submission, approval/rejection, debt, feature completion, manual correction.
@@ -803,13 +824,17 @@ Notifications:
 - All released participants: release completion.
 - Admin: new top-up review and unresolved negative balance.
 
+**None of these notifications is built** (see Phase 1 in §16). The outbox is the intended path and already carries the reservation kinds; the credit kinds and their templates have still to be added.
+
 Use canonical IDs and reason codes in audit metadata. Do not copy full profiles, voucher URLs, or sensitive payment data into event JSON.
 
 ---
 
 ## 16. Migration and delivery sequence
 
-The hardening plan is the baseline, not parallel work. Its implementation is substantially complete. Phase 0 begins by closing and verifying the two remaining hardening gates below, then extends those services while preserving their authorization/idempotency contracts. Do not begin reservation-extension schema writes until Phase 0A passes.
+The hardening plan is the baseline, not parallel work. Phase 0 closed and verified the two remaining hardening gates below, then extended those services while preserving their authorization/idempotency contracts.
+
+**Status as of 2026-09-04: phases 0 through 3 are delivered. Phases 4 and 5 have their schema and configuration in place and no behaviour behind them** — `IMPLEMENTED_FEATURE_TYPES` in `app/lib/festivals/feature-config.ts` names only `full_table`, so an admin cannot enable and price a feature no code implements. Each phase below carries its own status; open items are listed under the phase that owns them rather than removed from the spec.
 
 ### Prerequisite — Implemented reservation-hardening baseline
 
@@ -851,6 +876,8 @@ Phase 0A is a short preflight, not a parallel feature track. It adds no credits,
 
 Phase 0 is complete only when Phase 0A remains green after the Phase 0B migration and every existing hold/reservation has exactly one member row.
 
+**Delivered.** The public proof-submission bypass is gone, `POST /api/payments` returns `410`, and the member tables, the separated capacity/participation predicates, and both illustration price snapshots are in place. The Phase 0B `stand_reservation_members` adapter has been dropped.
+
 ### Phase 1 — Credit foundation
 
 #### Phase 1A — Credit accounting foundation
@@ -862,19 +889,23 @@ Phase 0 is complete only when Phase 0A remains green after the Phase 0B migratio
 
 #### Phase 1B — Mixed-tender settlement integration
 
-- Extend the hardened settlement service to derive outstanding amount from invoice amount minus approved cash payments and posted confirmed-credit allocations.
-- A full confirmed-credit allocation fulfills immediately through the normal reservation fulfillment effect; a partial allocation leaves the voucher path open for the remainder. Provisional credits cannot be allocated to a positive invoice.
-- Never mark an invoice paid or its reservation accepted until canonical approved tender covers the invoice amount.
+- Extend the hardened settlement service to derive outstanding amount from invoice amount minus approved cash payments and posted credit allocations.
+- A full credit allocation fulfills immediately through the normal reservation fulfillment effect; a partial allocation leaves the voucher path open for the remainder.
+- Never mark an invoice paid or its reservation accepted until canonical tender covers the invoice amount.
 - Reject over-allocation and make credit application plus fulfillment idempotent under concurrent credit/voucher settlement.
 - Add full-credit, partial-credit-plus-voucher, insufficient-tender, double-fulfillment, concurrency, reconciliation, and invariant-audit coverage.
 
 Phase 1 is complete only when both the accounting foundation and mixed-tender settlement integration are green. Phase 1A persistence alone must not change invoice fulfillment behavior.
 
+**Delivered**, with one open item: none of §15's credit notifications exist. `RESERVATION_NOTIFICATION_KINDS` has no credit kinds and there is no credit email template, so an owner is never told that their top-up was received, approved, rejected, or that they owe a balance, and admins get no new-top-up alert. The admin review queue is the only place either side finds out.
+
 ### Phase 2 — Pricing and feature administration
 
 - Individual/shared stand prices and bulk editor.
 - Festival feature configuration and late-partner deadline.
-- Full-table pair configuration/validation.
+- Full-table pair configuration/validation, including the pair's own `full_table_price`.
+
+**Delivered.** The stands admin table declares and dissolves pairs, validates them by category, and reports malformed ones; the festival panel configures every feature scope and refuses to enable one no code implements.
 
 ### Phase 3 — Full table
 
@@ -882,13 +913,23 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 - SVG variants and accessible fallback states.
 - Credit hold/capture/release.
 - Atomic two-stand capacity and reservation.
-- Admin manual correction.
+- Admin manual correction: downgrade to the original half, and release of an abandoned activation.
+
+**Delivered.** Open items, none of them blocking:
+
+- No automatic expiry of a full-table credit hold when the reservation window or festival access ends (§7.3, last outcome). The earmark persists until the participant deactivates or an admin releases it on their behalf. There is no cron for it alongside `standHoldExpiration`.
+- The full-table integration suite has no case for §17's "capacity-hold expiry preserves access".
+- The `stand_holds.stand_id` and `stand_reservations.stand_id` adapters, and `stand_reservations_capacity_stand_unique`, are still in place beside the verified member-level protection. §11 allows dropping them once membership is proven; that has not been done. `stands.price` is the same kind of leftover (§6.1).
 
 ### Phase 4 — Late partner
 
 - Deadline-aware visibility.
 - Credit-paid shared-price adjustment and partner insertion.
 - Transactional eligibility/race handling.
+
+**Not started.** What already exists to build on: `reservation_feature_actions` carries `target_partner_user_id` and both price snapshots, `reservation_feature_action_items` holds the two-component breakdown, `resolveLatePartnerDeadline` computes the effective cutoff, `assertReservationPartner` and `searchPotentialPartnersForActor` are the canonical eligibility and search rules, and `spendCreditsForFeature` is the direct-debit path — written, tested, and so far called only by tests.
+
+What is missing: the `addLatePartner` command itself, its Server Action, and somewhere to put it. There is no participant reservation-detail page today — only `reservations/[reservationId]/payments` — so §12's `Acciones disponibles` has no home yet. Add `late_partner` to `IMPLEMENTED_FEATURE_TYPES` last, once the command exists.
 
 ### Phase 5 — Reservation release
 
@@ -898,6 +939,10 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 - Release must preserve every original invoice, payment, settlement submission, and refund decision.
 - Eligibility-query migration and retained history.
 - Credit-funded immediate fulfillment.
+
+**Not started, and it has a prerequisite the other phases do not.** No reservation is ever written as `cancelled`: `applyReservationCancellation` hard-codes `rejected`, so every terminal reservation in the database today is an administrative one and none of them is self-releasable under §9.1. Phase 5 therefore begins by splitting that transition — a participant-requested cancellation writing `cancelled` plus provenance, admin rejection staying on `rejected` — and deciding what to do about existing `rejected` rows that were really participant cancellations.
+
+The shared invoice rule from §9.1 is already implemented at all three entry points: cancellation cancels an invoice only when it has no payment row, and the settlement-rejection path resolves its own proof explicitly. The status predicates in `policy.ts` already treat `released` as non-blocking, so no eligibility-query migration is needed.
 
 ### Phase 6 — Rollout
 
@@ -923,11 +968,11 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 2. Expired top-up issues nothing.
 3. Approval does not double-credit.
 4. Rejection reverses once; unused balance decreases correctly.
-5. Rejection after provisional feature spend creates debt without reversing the feature action.
+5. Rejection after a provisional spend creates debt without reversing the feature action or the invoice it settled.
 6. Negative balance blocks credit use and feature actions.
 7. Concurrent spends cannot exceed spendable balance.
 8. Hold affects spendable, not ledger, balance.
-9. A full confirmed-credit invoice allocation fulfills immediately; a partial allocation preserves the remainder; provisional credits cannot allocate to or fulfill a positive invoice.
+9. A full credit invoice allocation fulfills immediately; a partial allocation preserves the remainder; an under-review top-up can fund either, and is reported as under review while it does.
 10. Credits apply after discounts and never modify discount history.
 
 ### Full table
@@ -943,7 +988,10 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 9. Full confirmation captures feature credits exactly once.
 10. Capacity-hold expiry preserves access; deactivation releases credit hold.
 11. Rejected source credits do not auto-downgrade.
-12. Manual downgrade retains original half and safely releases companion.
+12. Manual downgrade retains the original half, safely releases the companion, and reprices the invoice to one half while honouring any discount.
+13. Manual downgrade refuses a reservation whose invoice already has a payment or a credit allocation, and leaves both halves attached.
+14. An admin can release somebody else's abandoned activation; a non-admin cannot.
+15. The reservation invoice for a confirmed full table is the pair's `full_table_price`, not the sum or either half's price.
 
 ### Illustration pricing and late partner
 
@@ -1002,19 +1050,21 @@ Phase 1 is complete only when both the accounting foundation and mixed-tender se
 
 ## 19. Definition of done
 
-- [ ] Phase 0A removes the public proof-submission bypass and passes every PostgreSQL unblocker race and invariant audit.
-- [ ] Credit ledger, provisional issuance, holds, reversals, debt, and reconciliation are transactional and audited.
-- [ ] Credit purchase is separate from every feature action and limited to exact MVP shortfalls.
-- [ ] Credits can optionally pay reservation invoices after discounts.
-- [ ] Mixed-tender settlement fulfills only when approved cash plus posted confirmed-credit allocations cover the invoice; provisional credit cannot fulfill a positive invoice, and partial/concurrent settlement remains safe and idempotent.
-- [ ] Illustration stands support validated individual/shared prices and immutable snapshots.
-- [ ] Full-table access occurs before the map and never guarantees inventory.
-- [ ] Two halves reserve atomically as one reservation; half fallback remains available and explicit.
-- [ ] Full-table SVG variants derive from the existing half-table asset and pass accessibility review.
-- [ ] Late partner is illustration-only, deadline-safe, immediately credit-funded, and owner-paid.
-- [ ] Original individual invoices/payments/discounts remain unchanged after late partner addition.
-- [ ] Participant-cancelled reservations can transition to retained, non-blocking `released` records.
-- [ ] `rejected` and `cancelled` remain participation blockers; only `released` is non-blocking.
-- [ ] Rejected provisional credits never trigger automatic domain reversals.
-- [ ] Admin can resolve debt and full-table exceptions manually with an audit trail.
-- [ ] Authorization, idempotency, concurrency, migration, and accessibility tests pass.
+- [x] Phase 0A removes the public proof-submission bypass and passes every PostgreSQL unblocker race and invariant audit.
+- [x] Credit ledger, provisional issuance, holds, reversals, debt, and reconciliation are transactional and audited.
+- [x] Credit purchase is separate from every feature action and limited to exact MVP shortfalls.
+- [x] Credits can optionally pay reservation invoices after discounts.
+- [x] Mixed-tender settlement fulfills only when cash plus posted credit allocations cover the invoice, and partial/concurrent settlement remains safe and idempotent.
+- [x] Illustration stands support validated individual/shared prices and immutable snapshots.
+- [x] Full-table access occurs before the map and never guarantees inventory.
+- [x] Two halves reserve atomically as one reservation, priced at the pair's own rate; half fallback remains available and explicit.
+- [x] Full-table SVG variants derive from the existing half-table asset and carry text and non-colour cues for every state.
+- [ ] Full-table variants pass a formal accessibility review (keyboard, screen reader, 200% zoom). Covered by unit tests, not yet reviewed end to end.
+- [ ] Late partner is illustration-only, deadline-safe, immediately credit-funded, and owner-paid. _(Phase 4, not started.)_
+- [ ] Original individual invoices/payments/discounts remain unchanged after late partner addition. _(Phase 4, not started.)_
+- [ ] Participant-cancelled reservations can transition to retained, non-blocking `released` records. _(Phase 5, not started; nothing writes `cancelled` yet.)_
+- [x] `rejected` and `cancelled` remain participation blockers; only `released` is non-blocking. Predicates are in place and separated from stand occupancy.
+- [x] Rejected provisional credits never trigger automatic domain reversals.
+- [x] Admin can resolve debt and full-table exceptions manually with an audit trail — approve, mark paid, waive, downgrade a table to its original half, release an abandoned activation.
+- [ ] Owners and admins are notified of top-up submission, approval, rejection, debt, and feature completion. _(No credit notifications exist.)_
+- [x] Authorization, idempotency, concurrency, and migration tests pass for everything delivered.
