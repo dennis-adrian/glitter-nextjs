@@ -36,16 +36,44 @@ import { creditTopUps } from "@/db/schema";
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * The only feature a participant can buy credits for today.
+ * The features a participant can buy credits for.
  *
- * Late partner and reservation release have configuration rows but no
- * implementation, so there is nothing to fund; the admin panel disables them
- * for the same reason. Widening this list means teaching `intendedUseId` to
- * distinguish features — it stores the festival id, which is enough only while
- * one feature per festival is purchasable.
+ * Late partner is absent because it has configuration rows and no
+ * implementation; the admin panel refuses to enable it for the same reason.
+ *
+ * Which feature a purchase was for is recorded on the top-up itself rather
+ * than inferred from `intended_use_id`, which holds only the festival. The
+ * upload callback activates full-table access off the back of a feature
+ * purchase, so without that column a participant funding a release would have
+ * their credits earmarked for a table.
  */
-export const PURCHASABLE_FEATURE_TYPES = ["full_table"] as const;
+export const PURCHASABLE_FEATURE_TYPES = [
+  "full_table",
+  "reservation_release",
+] as const;
 export type PurchasableFeatureType = (typeof PURCHASABLE_FEATURE_TYPES)[number];
+
+/**
+ * Per-feature wording for the two refusals a participant can actually hit.
+ * Everything else about the purchase is identical between features.
+ */
+const FEATURE_COPY: Record<
+  PurchasableFeatureType,
+  { underReview: string; notNeeded: string }
+> = {
+  full_table: {
+    underReview:
+      "Ya tenés una compra de créditos en revisión. Esperá la confirmación para activar la mesa completa.",
+    notNeeded:
+      "Ya tenés los créditos que cuesta la mesa completa. Activala desde el panel.",
+  },
+  reservation_release: {
+    underReview:
+      "Ya tenés una compra de créditos en revisión. Esperá la confirmación para liberar tu reserva.",
+    notNeeded:
+      "Ya tenés los créditos que cuesta liberar tu reserva. Liberala desde el detalle de la reserva.",
+  },
+};
 
 export type CreditPurchase = {
   topUpId: number;
@@ -83,6 +111,12 @@ async function lockOpenTopUps(
     userId: number;
     intendedUseType: "feature" | "debt";
     intendedUseId: number | null;
+    /**
+     * Narrows a feature purchase to its own feature. Rows written before
+     * `intended_feature_type` existed are null and were all full table, so
+     * that is what a null matches.
+     */
+    featureType?: PurchasableFeatureType;
   },
 ): Promise<OpenTopUp[]> {
   return tx
@@ -101,6 +135,11 @@ async function lockOpenTopUps(
           ? sql`${creditTopUps.intendedUseId} IS NULL`
           : eq(creditTopUps.intendedUseId, input.intendedUseId),
         sql`${creditTopUps.status} IN ('awaiting_voucher', 'under_review')`,
+        input.featureType == null
+          ? sql`true`
+          : input.featureType === "full_table"
+            ? sql`(${creditTopUps.intendedFeatureType} = 'full_table' OR ${creditTopUps.intendedFeatureType} IS NULL)`
+            : eq(creditTopUps.intendedFeatureType, input.featureType),
       ),
     )
     .for("update");
@@ -201,8 +240,14 @@ export async function createFeatureCreditTopUp(input: {
         return result;
       };
 
-      const category = eligibleCategory(actor.category);
-      if (!category) {
+      // Only full table is category-scoped: it exists for illustration and
+      // entrepreneurship because only they sit at tables. Releasing a
+      // reservation is something anyone holding one can do.
+      const category =
+        input.featureType === "full_table"
+          ? eligibleCategory(actor.category)
+          : null;
+      if (input.featureType === "full_table" && !category) {
         return fail(reservationFailure("FULL_TABLE_CATEGORY_INELIGIBLE"));
       }
 
@@ -214,7 +259,15 @@ export async function createFeatureCreditTopUp(input: {
         userId: actor.id,
         festivalId: input.festivalId,
       });
-      if (denial) return fail(denial);
+      // `ALREADY_RESERVED` stops somebody booking a second stand, which is
+      // right for full table and backwards for release: you can only release a
+      // reservation you already hold, so holding one is the precondition
+      // rather than the disqualification. Every other reason the gate gives —
+      // enrolment, terms, verification, sanctions — still applies.
+      const ignorable =
+        input.featureType === "reservation_release" &&
+        denial?.code === "ALREADY_RESERVED";
+      if (denial && !ignorable) return fail(denial);
 
       // Read on this transaction's connection: reaching for the pool while
       // holding user locks checks out a second connection that only a
@@ -227,7 +280,13 @@ export async function createFeatureCreditTopUp(input: {
         tx,
       );
       if (!config || !config.enabled || !config.available) {
-        return fail(reservationFailure("FULL_TABLE_UNAVAILABLE"));
+        return fail(
+          reservationFailure(
+            input.featureType === "full_table"
+              ? "FULL_TABLE_UNAVAILABLE"
+              : "RELEASE_UNAVAILABLE",
+          ),
+        );
       }
 
       await lockFestivalRow(tx, input.festivalId);
@@ -240,12 +299,13 @@ export async function createFeatureCreditTopUp(input: {
         userId: actor.id,
         intendedUseType: "feature",
         intendedUseId: input.festivalId,
+        featureType: input.featureType,
       });
       if (open.some((row) => row.status === "under_review")) {
         return fail(
           reservationFailure(
             "CREDIT_TOP_UP_UNDER_REVIEW",
-            "Ya tenés una compra de créditos en revisión. Esperá la confirmación para activar la mesa completa.",
+            FEATURE_COPY[input.featureType].underReview,
           ),
         );
       }
@@ -268,7 +328,7 @@ export async function createFeatureCreditTopUp(input: {
         return fail(
           reservationFailure(
             "CREDIT_TOP_UP_NOT_NEEDED",
-            "Ya tenés los créditos que cuesta la mesa completa. Activala desde el panel.",
+            FEATURE_COPY[input.featureType].notNeeded,
           ),
         );
       }
@@ -278,6 +338,7 @@ export async function createFeatureCreditTopUp(input: {
         amount: required,
         intendedUseType: "feature",
         intendedUseId: input.festivalId,
+        intendedFeatureType: input.featureType,
         idempotencyKey: input.idempotencyKey,
       });
       if (!created.ok) return fail(reservationFailure("CONFLICT_RETRY"));

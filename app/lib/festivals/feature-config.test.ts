@@ -31,7 +31,9 @@ describe("resolveLatePartnerDeadline", () => {
       earliestStartDate: festivalStart,
     });
     expect(deadline).toEqual(
-      new Date(festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS),
+      new Date(
+        festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS,
+      ),
     );
   });
 
@@ -83,14 +85,17 @@ describe("resolveFeatureConfig", () => {
     // The deadline rules still hold — phase 4 switches the feature back on
     // without touching them — but nothing may be offered until it ships.
     expect(result.effectiveDeadlineAt).toEqual(
-      new Date(festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS),
+      new Date(
+        festivalStart.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS,
+      ),
     );
     expect(result.available).toBe(false);
     expect(result.unavailableReason).toContain("no está implementada");
   });
 
   it("withholds every feature type without an implementation behind it", () => {
-    for (const type of ["late_partner", "reservation_release"] as const) {
+    // Late partner is the only one left: full table and release both ship.
+    for (const type of ["late_partner"] as const) {
       const result = resolveFeatureConfig(row({ type, category: null }), {
         earliestStartDate: festivalStart,
         now,
@@ -145,8 +150,9 @@ describe("resolveFeatureConfig", () => {
         { earliestStartDate: null, now },
       );
       expect(result.effectiveDeadlineAt).toBeNull();
-      // Only full table has an implementation, so only it can be offered.
-      expect(result.available).toBe(type === "full_table");
+      // Late partner has no implementation, so it stays unavailable however it
+      // is configured; the other two ship.
+      expect(result.available).toBe(type !== "late_partner");
     }
   });
 });

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import Title from "@/app/components/atoms/heading";
 import ReservationAvailableActions from "@/app/components/festivals/reservations/reservation-available-actions";
+import ReleaseReservationButton from "@/app/components/festivals/reservations/release-reservation-button";
 import ReservationStatusPanel from "@/app/components/festivals/reservations/reservation-status-panel";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -10,6 +11,8 @@ import { formatDate } from "@/app/lib/formatters";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { participantStatusCopy } from "@/app/lib/reservations/participant-status";
 import { fetchReservationForParticipant } from "@/app/lib/reservations/queries";
+import { fetchReleaseOffer } from "@/app/lib/reservations/release-queries";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { getUserName } from "@/app/lib/users/utils";
 
@@ -60,6 +63,20 @@ export default async function ReservationDetailPage({
   );
 
   const isOwner = reservation.ownerUserId === currentProfile?.id;
+
+  // Release is paid for in credits and finished in the wallet, so with credits
+  // still behind their flag there is no route from the button to a released
+  // reservation. The offer goes rather than quoting a price nobody can pay.
+  const [creditsEnabled, releaseOffer] = await Promise.all([
+    isFeatureEnabled("credits"),
+    fetchReleaseOffer({
+      userId: currentProfile?.id ?? 0,
+      festivalId,
+      reservationStatus: reservation.status,
+      isOwner,
+    }),
+  ]);
+
   const invoice =
     reservation.invoices.find((row) => row.status !== "cancelled") ??
     reservation.invoices[0];
@@ -156,7 +173,17 @@ export default async function ReservationDetailPage({
           {/* Shown to both, actionable only for the owner. A partner who saw
               nothing here would be left wondering whether the section was
               broken or whether they had missed a deadline. */}
-          <ReservationAvailableActions canAct={isOwner} />
+          <ReservationAvailableActions canAct={isOwner}>
+            {creditsEnabled && releaseOffer.offered ? (
+              <ReleaseReservationButton
+                reservationId={reservationId}
+                festivalId={festivalId}
+                creditPrice={releaseOffer.creditPrice}
+                shortfall={releaseOffer.shortfall}
+                standLabel={stands.label}
+              />
+            ) : undefined}
+          </ReservationAvailableActions>
         </CardContent>
       </Card>
     </div>

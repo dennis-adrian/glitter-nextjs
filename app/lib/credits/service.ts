@@ -9,6 +9,7 @@ import {
   exactCreditShortfall,
   roundCredits,
 } from "@/app/lib/credits/balances";
+import type { FeatureType } from "@/app/lib/festivals/feature-config";
 import { lockUserRows } from "@/app/lib/reservations/locks";
 import { enqueueReservationNotification } from "@/app/lib/reservations/notification-queue";
 import { db } from "@/db";
@@ -184,6 +185,8 @@ export type CreditTopUpRequirement = {
   amount: number;
   intendedUseType: CreditTopUpIntendedUse;
   intendedUseId?: number;
+  /** Which feature a `feature` top-up funds; see the column's own comment. */
+  intendedFeatureType?: FeatureType;
   idempotencyKey: string;
   now?: Date;
 };
@@ -231,6 +234,7 @@ export async function createCreditTopUpForRequirementInTx(
         amount,
         intendedUseType: input.intendedUseType,
         intendedUseId: input.intendedUseId ?? null,
+        intendedFeatureType: input.intendedFeatureType ?? null,
         uploadDeadlineAt,
         idempotencyKey: input.idempotencyKey,
       })
@@ -313,7 +317,12 @@ export async function submitCreditTopUpVoucher(input: {
      * purchase. Returned so the caller can honour that intent — buying from a
      * feature's own screen is the participant asking for the feature.
      */
-    intendedUse: { type: CreditTopUpIntendedUse; id: number | null };
+    intendedUse: {
+      type: CreditTopUpIntendedUse;
+      id: number | null;
+      /** Which feature, for a `feature` top-up. Null on pre-column rows. */
+      featureType: FeatureType | null;
+    };
   }>
 > {
   if (!input.voucherUrl || !input.fileKey) return failure("INVALID_AMOUNT");
@@ -350,6 +359,7 @@ export async function submitCreditTopUpVoucher(input: {
           intendedUse: {
             type: topUp.intendedUseType,
             id: topUp.intendedUseId,
+            featureType: topUp.intendedFeatureType,
           },
         },
       };
@@ -389,7 +399,11 @@ export async function submitCreditTopUpVoucher(input: {
       data: {
         topUpId: topUp.id,
         balances: await lockedCreditBalances(tx, input.userId),
-        intendedUse: { type: topUp.intendedUseType, id: topUp.intendedUseId },
+        intendedUse: {
+          type: topUp.intendedUseType,
+          id: topUp.intendedUseId,
+          featureType: topUp.intendedFeatureType,
+        },
       },
     };
   });
@@ -751,18 +765,28 @@ export async function createCreditHoldForFeature(input: {
   return db.transaction((tx) => createCreditHoldForFeatureInTx(tx, input));
 }
 
-/** Internal primitive for late partner/release and full-table capture. */
-export async function spendCreditsForFeature(input: {
-  userId: number;
-  featureActionId: number;
-  amount: number;
-  idempotencyKey: string;
-}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+/**
+ * Spend inside a caller's transaction.
+ *
+ * Release and late-partner both debit in the same transaction that mutates the
+ * reservation, because a spend that commits without its domain effect is money
+ * taken for nothing. The §14 lock order puts credit classes after stands and
+ * reservations, so the caller owns the transaction and calls this last.
+ */
+export async function spendCreditsForFeatureInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    featureActionId: number;
+    amount: number;
+    idempotencyKey: string;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
   const amount = positiveCreditAmount(input.amount);
   if (amount == null || !input.idempotencyKey.trim()) {
     return failure("INVALID_AMOUNT");
   }
-  return db.transaction(async (tx) => {
+  {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
     }
@@ -815,7 +839,17 @@ export async function spendCreditsForFeature(input: {
         balances: await lockedCreditBalances(tx, input.userId),
       },
     };
-  });
+  }
+}
+
+/** Internal primitive for late partner/release and full-table capture. */
+export async function spendCreditsForFeature(input: {
+  userId: number;
+  featureActionId: number;
+  amount: number;
+  idempotencyKey: string;
+}): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  return db.transaction((tx) => spendCreditsForFeatureInTx(tx, input));
 }
 
 /**

@@ -98,6 +98,7 @@ let activateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-s
 let activateFullTableAccessAfterPurchase: (typeof import("@/app/lib/reservations/full-table-service"))["activateFullTableAccessAfterPurchase"];
 let createStandHold: (typeof import("@/app/lib/reservations/hold-service"))["createStandHold"];
 let confirmStandHold: (typeof import("@/app/lib/reservations/hold-service"))["confirmStandHold"];
+let releaseReservation: (typeof import("@/app/lib/reservations/release-service"))["releaseReservation"];
 let publishedTermsVersionId: number;
 
 const ACCESS_PRICE = 50;
@@ -105,6 +106,7 @@ const STAND_PRICE = 200;
 const SHARED_PRICE = 320;
 /** A table is priced in its own right and is not inventory without one. */
 const FULL_TABLE_PRICE = 380;
+const RELEASE_PRICE = 40;
 const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
 
 /**
@@ -131,6 +133,8 @@ describeDatabase("feature credit top-up", () => {
       await import("@/app/lib/reservations/full-table-service"));
     ({ createStandHold, confirmStandHold } =
       await import("@/app/lib/reservations/hold-service"));
+    ({ releaseReservation } =
+      await import("@/app/lib/reservations/release-service"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -329,13 +333,22 @@ describeDatabase("feature credit top-up", () => {
       )
       .returning();
 
-    await db.insert(festivalReservationFeatures).values({
-      festivalId: festival.id,
-      type: "full_table" as const,
-      category: "illustration" as const,
-      enabled: true,
-      creditPrice: ACCESS_PRICE,
-    });
+    await db.insert(festivalReservationFeatures).values([
+      {
+        festivalId: festival.id,
+        type: "full_table" as const,
+        category: "illustration" as const,
+        enabled: true,
+        creditPrice: ACCESS_PRICE,
+      },
+      {
+        festivalId: festival.id,
+        type: "reservation_release" as const,
+        category: null,
+        enabled: true,
+        creditPrice: RELEASE_PRICE,
+      },
+    ]);
 
     const credits = options?.credits ?? 0;
     if (credits !== 0) {
@@ -943,6 +956,198 @@ describeDatabase("feature credit top-up", () => {
     // deducted.
     expect(balances.spendableBalance).toBe(ACCESS_PRICE);
     expect(canFundInvoiceCreditAllocation(balances, ACCESS_PRICE)).toBe(true);
+  });
+
+  /**
+   * Release is a change fee on an unpaid reservation (PRD §9): the participant
+   * gives the stand back so they can pick another one, or join somebody else
+   * as their partner. Never a refund, and never a way out of a closed
+   * reservation.
+   */
+  describe("reservation release", () => {
+    async function seedPendingReservation(credits: number) {
+      const seeded = await seed({ credits });
+      await createStandHold({
+        standId: seeded.standIds[0],
+        idempotencyKey: randomUUID(),
+      });
+      const [hold] = await integrationDb!
+        .select({ id: standHolds.id })
+        .from(standHolds)
+        .where(eq(standHolds.festivalId, seeded.festival.id));
+      const confirmed = await confirmStandHold({
+        holdId: hold.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(confirmed.success).toBe(true);
+      return {
+        ...seeded,
+        reservationId: (confirmed as { data: { reservationId: number } }).data
+          .reservationId,
+      };
+    }
+
+    it("frees the stand, cancels the invoice, and debits once", async () => {
+      const { user, reservationId, standIds } =
+        await seedPendingReservation(RELEASE_PRICE);
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+      expect(result.success).toBe(true);
+
+      const [reservation] = await integrationDb!
+        .select({ status: standReservations.status })
+        .from(standReservations)
+        .where(eq(standReservations.id, reservationId));
+      expect(reservation.status).toBe("released");
+
+      // The stand is back on the map, which is the entire point.
+      const [stand] = await integrationDb!
+        .select({ status: stands.status })
+        .from(stands)
+        .where(eq(stands.id, standIds[0]));
+      expect(stand.status).toBe("available");
+
+      const members = await integrationDb!
+        .select({ releasedAt: standReservationStands.releasedAt })
+        .from(standReservationStands)
+        .where(eq(standReservationStands.reservationId, reservationId));
+      expect(members.every((member) => member.releasedAt != null)).toBe(true);
+
+      // Nothing is owed on a reservation that no longer exists.
+      const invoiceRows = await integrationDb!
+        .select({ status: invoices.status })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservationId));
+      expect(invoiceRows.map((row) => row.status)).toEqual(["cancelled"]);
+
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+    });
+
+    it("replays a retry without debiting twice", async () => {
+      const { user, reservationId } =
+        await seedPendingReservation(RELEASE_PRICE);
+      const key = randomUUID();
+
+      const first = await releaseReservation({
+        reservationId,
+        idempotencyKey: key,
+      });
+      const second = await releaseReservation({
+        reservationId,
+        idempotencyKey: key,
+      });
+
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+    });
+
+    /**
+     * The status guard, which is what keeps this a change fee rather than a
+     * refund policy. A paid reservation is somebody's money, not their stand
+     * choice.
+     */
+    it("refuses a reservation that is no longer pending", async () => {
+      const { user, reservationId } =
+        await seedPendingReservation(RELEASE_PRICE);
+      await integrationDb!
+        .update(standReservations)
+        .set({ status: "accepted" })
+        .where(eq(standReservations.id, reservationId));
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "RELEASE_NOT_PENDING",
+      });
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        RELEASE_PRICE,
+      );
+    });
+
+    it("refuses somebody who does not own the reservation", async () => {
+      const { reservationId } = await seedPendingReservation(RELEASE_PRICE);
+      currentProfileMock.mockResolvedValue({
+        id: 999_999,
+        role: "user",
+        status: "verified",
+        category: "illustration",
+      });
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+    });
+
+    it("refuses when the credits do not cover the price", async () => {
+      const { user, reservationId } = await seedPendingReservation(
+        RELEASE_PRICE - 1,
+      );
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "RELEASE_INSUFFICIENT_CREDITS",
+      });
+      const [reservation] = await integrationDb!
+        .select({ status: standReservations.status })
+        .from(standReservations)
+        .where(eq(standReservations.id, reservationId));
+      expect(reservation.status).toBe("pending");
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        RELEASE_PRICE - 1,
+      );
+    });
+
+    it("sells the exact shortfall for a release, and activates no table", async () => {
+      const { festival, user } = await seedPendingReservation(10);
+
+      const purchase = await createFeatureCreditTopUp({
+        festivalId: festival.id,
+        featureType: "reservation_release",
+        idempotencyKey: randomUUID(),
+      });
+      expect(purchase).toMatchObject({
+        success: true,
+        data: { amount: RELEASE_PRICE - 10 },
+      });
+
+      const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+      const [row] = await integrationDb!
+        .select({ featureType: creditTopUps.intendedFeatureType })
+        .from(creditTopUps)
+        .where(eq(creditTopUps.id, topUpId));
+      // Recorded on the top-up so the upload callback does not mistake this
+      // for a full-table purchase and earmark the credits for a table.
+      expect(row.featureType).toBe("reservation_release");
+
+      await submitCreditTopUpVoucher({
+        topUpId,
+        userId: user.id,
+        voucherUrl: "https://example.test/v.png",
+        fileKey: `v-${topUpId}`,
+      });
+
+      const holds = await integrationDb!
+        .select({ id: creditHolds.id })
+        .from(creditHolds)
+        .where(eq(creditHolds.userId, user.id));
+      expect(holds).toEqual([]);
+    });
   });
 
   it("refuses a debt purchase when nothing is owed", async () => {

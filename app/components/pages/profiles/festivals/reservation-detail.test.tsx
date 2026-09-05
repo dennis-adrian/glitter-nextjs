@@ -5,9 +5,24 @@ vi.mock("server-only", () => ({}));
 
 const fetchReservationMock = vi.hoisted(() => vi.fn());
 const currentProfileMock = vi.hoisted(() => vi.fn());
+const releaseOfferMock = vi.hoisted(() => vi.fn());
+const featureFlagMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/reservations/queries", () => ({
   fetchReservationForParticipant: fetchReservationMock,
+}));
+vi.mock("@/app/lib/reservations/release-queries", () => ({
+  fetchReleaseOffer: releaseOfferMock,
+}));
+vi.mock("@/app/lib/feature_flags/helpers", () => ({
+  isFeatureEnabled: featureFlagMock,
+}));
+// The button is a client component reaching a "use server" module.
+vi.mock("@/app/lib/reservations/release-actions", () => ({
+  releaseReservationAction: vi.fn(),
+}));
+vi.mock("@/app/lib/credits/purchase-actions", () => ({
+  createFeatureCreditTopUpAction: vi.fn(),
 }));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
@@ -17,6 +32,8 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  // The release button is a client component rendered inside this tree.
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 import ReservationDetailPage from "@/app/components/pages/profiles/festivals/reservation-detail";
@@ -58,12 +75,22 @@ function reservation(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const NO_RELEASE = {
+  offered: false,
+  creditPrice: 0,
+  spendableBalance: 0,
+  shortfall: 0,
+};
+
 async function render(
   data: ReturnType<typeof reservation> | null,
   viewer: { id: number; displayName: string } = OWNER,
+  options: { release?: typeof NO_RELEASE; creditsEnabled?: boolean } = {},
 ) {
   fetchReservationMock.mockResolvedValue(data);
   currentProfileMock.mockResolvedValue(viewer);
+  releaseOfferMock.mockResolvedValue(options.release ?? NO_RELEASE);
+  featureFlagMock.mockResolvedValue(options.creditsEnabled ?? true);
   const element = await ReservationDetailPage({
     profileId: viewer.id,
     festivalId: 7,
@@ -168,6 +195,56 @@ describe("ReservationDetailPage", () => {
 
     expect(html).toContain("Cerrada");
     expect(html).toContain("No vas a poder hacer otra reserva");
+  });
+
+  describe("release", () => {
+    const OFFERED = {
+      offered: true,
+      creditPrice: 40,
+      spendableBalance: 40,
+      shortfall: 0,
+    };
+
+    it("offers the release when the owner can afford it", async () => {
+      const html = await render(reservation(), OWNER, { release: OFFERED });
+
+      expect(html).toContain("Liberar reserva");
+      expect(html).toContain("40 créditos");
+    });
+
+    /**
+     * Credits are the only way to fund a release, so an inert button beside a
+     * price would leave someone hunting for the way forward. The purchase
+     * takes its place.
+     */
+    it("sells the shortfall instead when the balance is short", async () => {
+      const html = await render(reservation(), OWNER, {
+        release: { ...OFFERED, spendableBalance: 10, shortfall: 30 },
+      });
+
+      expect(html).toContain("Te faltan");
+      expect(html).toContain("30 créditos");
+    });
+
+    /**
+     * The offer is already withheld for a non-pending reservation by
+     * `fetchReleaseOffer`; this is the page holding up its end.
+     */
+    it("shows nothing when the offer is withheld", async () => {
+      const html = await render(reservation({ status: "accepted" }));
+
+      expect(html).not.toContain("Liberar reserva");
+      expect(html).toContain("Por ahora no hay acciones disponibles");
+    });
+
+    it("withholds the release while credits are hidden from participants", async () => {
+      const html = await render(reservation(), OWNER, {
+        release: OFFERED,
+        creditsEnabled: false,
+      });
+
+      expect(html).not.toContain("Liberar reserva");
+    });
   });
 
   /**

@@ -33,6 +33,10 @@ export const RESERVATION_ERROR_CODES = [
   "FULL_TABLE_ACCESS_INACTIVE",
   "FULL_TABLE_NOT_DOWNGRADABLE",
   "FULL_TABLE_HOLD_ACTIVE",
+  "RELEASE_UNAVAILABLE",
+  "RELEASE_NOT_PENDING",
+  "RELEASE_INSUFFICIENT_CREDITS",
+  "RELEASE_INVOICE_SETTLED",
   "VALIDATION",
 ] as const;
 
@@ -102,6 +106,16 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "Esta reserva no se puede reducir: o no ocupa dos espacios, o su factura ya tiene pagos o créditos aplicados.",
     FULL_TABLE_HOLD_ACTIVE:
       "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
+    RELEASE_UNAVAILABLE:
+      "Liberar reservas no está habilitado en este festival.",
+    // Named for what the participant can see rather than for the status: they
+    // know whether they have paid, not what the row says.
+    RELEASE_NOT_PENDING:
+      "Solo podés liberar una reserva que todavía no pagaste.",
+    RELEASE_INSUFFICIENT_CREDITS:
+      "No te alcanzan los créditos para liberar la reserva. Comprá la diferencia y volvé.",
+    RELEASE_INVOICE_SETTLED:
+      "Esta reserva ya tiene un pago registrado. Escribinos y lo resolvemos.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
 

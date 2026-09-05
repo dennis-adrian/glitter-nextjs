@@ -26,13 +26,13 @@ export { FULL_TABLE_CATEGORIES, type FullTableCategory };
 /**
  * The feature types that actually have an implementation behind them.
  *
- * `late_partner` (PRD phase 4) and `reservation_release` (phase 5) have
- * configuration rows and nothing else. Without this an admin can enable and
- * price a feature no code implements, and participants would be charged for
- * something that never happens.
+ * `late_partner` (PRD phase 4) has configuration rows and nothing else.
+ * Without this an admin can enable and price a feature no code implements, and
+ * participants would be charged for something that never happens.
  */
 export const IMPLEMENTED_FEATURE_TYPES: readonly FeatureType[] = [
   "full_table",
+  "reservation_release",
 ];
 
 /**
@@ -90,8 +90,7 @@ export function resolveLatePartnerDeadline(input: {
   if (input.deadlineOverrideAt) return input.deadlineOverrideAt;
   if (!input.earliestStartDate) return null;
   return new Date(
-    input.earliestStartDate.getTime() -
-      LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS,
+    input.earliestStartDate.getTime() - LATE_PARTNER_DEFAULT_LEAD_DAYS * DAY_MS,
   );
 }
 
