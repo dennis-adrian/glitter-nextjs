@@ -94,8 +94,12 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "No te alcanzan los créditos para activar la mesa completa. Comprá la diferencia y volvé.",
     FULL_TABLE_ACCESS_INACTIVE:
       "No tenés la mesa completa activada en este festival.",
+    // Two causes, one code: the reservation is not a full table, or its
+    // invoice already has money against it. Both mean the same thing to an
+    // admin — there is nothing safe to reduce here — and naming only the first
+    // sent them looking for a second space that was never the problem.
     FULL_TABLE_NOT_DOWNGRADABLE:
-      "Esta reserva no ocupa dos espacios, así que no hay nada que liberar.",
+      "Esta reserva no se puede reducir: o no ocupa dos espacios, o su factura ya tiene pagos o créditos aplicados.",
     FULL_TABLE_HOLD_ACTIVE:
       "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",

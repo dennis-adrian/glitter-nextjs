@@ -1,6 +1,10 @@
 import { fetchReservationForAdmin } from "@/app/lib/reservations/queries";
 import EditReservationForm from "@/app/components/reservations/edit-form";
+import FullTableDowngradeButton from "@/app/components/reservations/full-table-downgrade-button";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -54,6 +58,13 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     })),
   );
 
+  // The downgrade is the sanctioned resolution for a full table whose credits
+  // were reversed (PRD §7.7), so it belongs on the reservation it corrects.
+  // Only a global admin may run it; a festival admin sees it inert rather than
+  // missing, so the action reads as restricted instead of unimplemented.
+  const actor = await getCurrentUserProfile();
+  const [keptStand, releasedStand] = standSummary.active;
+
   return (
     <div className="max-w-3xl px-4 md:px-6 m-auto">
       <Breadcrumb>
@@ -89,7 +100,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
             . Puedes agregar o eliminar al acompañante de la reserva.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <EditReservationForm
             artists={
               uniqueParticipants as ProfileWithParticipationsAndRequests[]
@@ -97,6 +108,26 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
             artistsOptions={options}
             reservation={reservation}
           />
+          {standSummary.isFullTable && keptStand && releasedStand ? (
+            <div className="border-t pt-4">
+              <h2 className="text-sm font-medium">Mesa completa</h2>
+              <p className="mt-1 mb-3 text-sm text-muted-foreground">
+                Esta reserva ocupa los dos espacios de una mesa. Si los créditos
+                que la pagaron fueron revertidos, puedes dejarla con el espacio
+                que el participante eligió primero y devolver el otro al mapa.
+              </p>
+              <FullTableDowngradeButton
+                reservationId={reservation.id}
+                keptStandLabel={formatStandLabel(keptStand)}
+                releasedStandLabel={formatStandLabel(releasedStand)}
+                disabledReason={
+                  canMutateAdminReservations(actor)
+                    ? undefined
+                    : "Solo un administrador general puede reducirla."
+                }
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
