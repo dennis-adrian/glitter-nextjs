@@ -1,14 +1,8 @@
-import Link from "next/link";
-
 import { formatCredits } from "@/app/components/credits/credit-amount";
 import ApplyInvoiceCreditsButton from "@/app/components/payments/apply-invoice-credits-button";
-import BuyInvoiceCreditsButton from "@/app/components/payments/buy-invoice-credits-button";
 import { invoiceCreditPlan } from "@/app/lib/credits/balances";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
-import {
-  fetchCurrentUserCreditBalances,
-  fetchOpenInvoiceCreditTopUp,
-} from "@/app/lib/credits/queries";
+import { fetchCurrentUserCreditBalances } from "@/app/lib/credits/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 type InvoiceCreditPanelProps = {
@@ -18,31 +12,24 @@ type InvoiceCreditPanelProps = {
   outstandingAmount: number;
 };
 
-function applyDenialReason(plan: {
-  applicableAmount: number;
-  debtAmount: number;
-}) {
-  if (plan.debtAmount > 0) {
-    return `Tenés ${formatCredits(plan.debtAmount)} pendientes por un comprobante rechazado. Regularizá ese saldo para volver a usar créditos.`;
-  }
-  if (plan.applicableAmount <= 0) {
-    return "Todavía no tenés créditos para este pago.";
-  }
-  return undefined;
-}
-
 /**
- * Credit tender for a reservation invoice: what can be applied now, and the
- * exact shortfall to buy. Buying and applying stay separate operations — a
- * purchase never starts, reserves, or completes the payment.
+ * Credit tender for a reservation invoice: what the owner can put towards it
+ * out of credits they already hold.
+ *
+ * Deliberately does not sell credits. This screen already has a QR code on it
+ * — somebody who is short does not need a second thing to buy before they can
+ * pay, they need to pay. Credits are bought for the optional features, from
+ * the screens those features live on.
+ *
+ * So the panel appears only when it has something to offer: a usable balance,
+ * or a debt explaining why an existing balance cannot be used. Anyone with
+ * neither sees nothing rather than an empty "you have Bs0" and a dead button.
  */
 export default async function InvoiceCreditPanel({
   invoiceId,
   ownerUserId,
   outstandingAmount,
 }: InvoiceCreditPanelProps) {
-  // Every control here either leads to the wallet or creates a purchase the
-  // wallet is the only place to finish, so the panel goes when credits do.
   const [creditsEnabled, actor, balances] = await Promise.all([
     isFeatureEnabled("credits"),
     getCurrentUserProfile(),
@@ -55,41 +42,30 @@ export default async function InvoiceCreditPanel({
   if (actor.id !== ownerUserId) return null;
 
   const plan = invoiceCreditPlan(balances, outstandingAmount);
-  const openTopUp = await fetchOpenInvoiceCreditTopUp(invoiceId, actor.id);
+  // Nothing to apply and nothing owed: there is no credit story to tell on
+  // this page, so it stays out of the way of the payment.
+  if (plan.applicableAmount <= 0 && plan.debtAmount <= 0) return null;
 
   return (
     <div className="mt-4 space-y-3 border-t pt-4">
-      <p className="text-center text-sm text-muted-foreground">
-        Tenés {formatCredits(balances.spendableBalance)} en créditos para usar
-        en este pago.
-      </p>
+      {plan.debtAmount > 0 ? (
+        <p className="text-center text-sm text-muted-foreground">
+          Tenés {formatCredits(plan.debtAmount)} pendientes por un comprobante
+          rechazado. Regularizá ese saldo para volver a usar créditos.
+        </p>
+      ) : (
+        <p className="text-center text-sm text-muted-foreground">
+          Tenés {formatCredits(balances.spendableBalance)} en créditos para usar
+          en este pago.
+        </p>
+      )}
 
-      <ApplyInvoiceCreditsButton
-        invoiceId={invoiceId}
-        applicableAmount={plan.applicableAmount}
-        disabledReason={applyDenialReason(plan)}
-      />
-
-      {plan.shortfallAmount > 0 &&
-        plan.debtAmount === 0 &&
-        (openTopUp ? (
-          <p className="text-center text-sm text-muted-foreground">
-            {openTopUp.status === "under_review"
-              ? "Ya tenés una compra de créditos en revisión para este pago."
-              : "Tenés una compra de créditos abierta."}{" "}
-            <Link
-              href="/my_credits"
-              className="text-primary underline underline-offset-2"
-            >
-              Ver mis créditos
-            </Link>
-          </p>
-        ) : (
-          <BuyInvoiceCreditsButton
-            invoiceId={invoiceId}
-            shortfallAmount={plan.shortfallAmount}
-          />
-        ))}
+      {plan.applicableAmount > 0 && (
+        <ApplyInvoiceCreditsButton
+          invoiceId={invoiceId}
+          applicableAmount={plan.applicableAmount}
+        />
+      )}
     </div>
   );
 }

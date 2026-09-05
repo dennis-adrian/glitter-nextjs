@@ -2226,6 +2226,11 @@ export const reservationRequestRegistry = pgTable(
       table.actorUserId,
       table.operation,
     ),
+    // Deliberately broader than `RESERVATION_REQUEST_OPERATIONS`: the check has
+    // to keep accepting operations the application no longer issues, because
+    // rows written by earlier versions are still here.
+    // `createInvoiceCreditTopUp` is one such — invoice credit purchase was
+    // removed, and narrowing the list would invalidate its history.
     check(
       "reservation_request_registry_operation_check",
       sql`${table.operation} IN (

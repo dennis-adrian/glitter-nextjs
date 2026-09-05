@@ -333,53 +333,6 @@ export async function fetchCurrentUserCreditBalances(): Promise<CreditBalances |
   return readCreditBalances(actor.id);
 }
 
-/**
- * Whether a pending invoice already has a credit purchase in flight, so the
- * payment page can point at the wallet instead of offering a second one.
- */
-export async function fetchOpenInvoiceCreditTopUp(
-  invoiceId: number,
-  userId: number,
-  now = new Date(),
-): Promise<{
-  id: number;
-  amount: number;
-  status: CreditTopUpDisplayStatus;
-} | null> {
-  const rows = await db
-    .select({
-      id: creditTopUps.id,
-      amount: creditTopUps.amount,
-      status: creditTopUps.status,
-      uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
-    })
-    .from(creditTopUps)
-    .where(
-      and(
-        eq(creditTopUps.userId, userId),
-        eq(creditTopUps.intendedUseType, "invoice"),
-        eq(creditTopUps.intendedUseId, invoiceId),
-        sql`${creditTopUps.status} IN ('awaiting_voucher', 'under_review')`,
-      ),
-    )
-    // Under-review rows first: only `awaiting_voucher` ever expires, so a run
-    // of abandoned uploads could otherwise push the one row that actually
-    // blocks a new purchase outside the window, leaving the caller to render a
-    // buy button that the server then refuses.
-    .orderBy(
-      sql`CASE WHEN ${creditTopUps.status} = 'under_review' THEN 0 ELSE 1 END`,
-      desc(creditTopUps.createdAt),
-    )
-    .limit(5);
-
-  for (const row of rows) {
-    const status = displayTopUpStatus(row.status, row.uploadDeadlineAt, now);
-    if (status === "expired") continue;
-    return { id: row.id, amount: Number(row.amount), status };
-  }
-  return null;
-}
-
 export type CreditTopUpReviewSpend = {
   id: number;
   amount: number;

@@ -35,7 +35,7 @@ Participant-facing copy is Spanish and uses voseo.
 | Credit value                | `1 credit = Bs 1`, represented with two decimal places.                                                                                                         |
 | Credit ownership            | Global user balance; owner-only, non-transferable, non-cashable, non-expiring.                                                                                  |
 | Initial spending scope      | Reservation invoices and the three features in this PRD. Other Glitter purchases are future scope.                                                              |
-| Credit purchase             | Separate prerequisite. MVP sells only the exact shortfall for the selected invoice or feature.                                                                  |
+| Credit purchase             | Separate prerequisite. Credits are sold only for the optional features and for settling debt — never for a reservation invoice.                                 |
 | Purchase window             | User has 10 minutes to upload a voucher. No credits if the window expires without upload.                                                                       |
 | Availability after upload   | Uploaded voucher immediately creates provisional credits, spendable on everything credits can buy — feature actions and positive reservation invoices alike.    |
 | Rejected voucher            | Append a credit reversal. Provisional credits already spent can produce a negative balance. Never reverse a completed feature action automatically.             |
@@ -124,10 +124,10 @@ If the upload deadline expires, the top-up session expires and issues no credits
 
 MVP top-up amounts:
 
-- Feature: exact difference between required credits and current spendable balance.
-- Reservation invoice: exact unpaid amount after the user chooses to use their existing spendable credits.
+- Feature: exact difference between required credits and the current spendable balance. For a late partner that difference is the whole action — the shared-price difference plus the fee — not the festival's configured price alone.
 - Negative balance: exact amount required to restore the balance needed for the intended operation.
 - No arbitrary wallet top-up amount.
+- **Not a reservation invoice.** A participant short of the invoice total pays it the ordinary way, by QR. Offering to sell them credits on the payment screen puts a second purchase in front of the one they came to make, and it buys nothing the QR does not. Credits pay an invoice only when the participant already has them.
 
 ### 4.3 Admin review
 
@@ -154,7 +154,7 @@ There are no automatic downgrades, partner removals, reservation cancellations, 
 ### 4.4 Applying credits to reservation invoices
 
 - Only the invoice owner can apply credits.
-- The participant explicitly chooses `Usar mis créditos`.
+- The participant explicitly chooses `Usar mis créditos`. The option appears only when they hold a usable balance; the payment screen never offers to sell them one.
 - MVP applies `min(spendable balance, invoice outstanding amount)`.
 - The allocation transaction locks and rechecks the account, refuses a negative balance, debits the spendable balance, and records the exact invoice allocation.
 - Outstanding amount is derived canonically as `invoice amount - approved cash payments - posted credit allocations`.
@@ -206,8 +206,9 @@ credit_top_ups
   user_id
   amount numeric(12,2)
   status: awaiting_voucher | under_review | approved | rejected | expired
-  intended_use_type
+  intended_use_type: feature | debt   # `invoice` is historical; nothing writes it
   intended_use_id nullable
+  intended_feature_type nullable      # which feature a `feature` top-up funds
   upload_deadline_at
   voucher_url nullable
   file_key nullable
@@ -1164,7 +1165,7 @@ The command refuses anything but `pending` and rechecks that under lock, so a pa
 
 - [x] Phase 0A removes the public proof-submission bypass and passes every PostgreSQL unblocker race and invariant audit.
 - [x] Credit ledger, provisional issuance, holds, reversals, debt, and reconciliation are transactional and audited.
-- [x] Credit purchase is separate from every feature action and limited to exact MVP shortfalls.
+- [x] Credit purchase is separate from every feature action, limited to exact shortfalls, and offered only for features and debt.
 - [x] Credits can optionally pay reservation invoices after discounts.
 - [x] Mixed-tender settlement fulfills only when cash plus posted credit allocations cover the invoice, and partial/concurrent settlement remains safe and idempotent.
 - [x] Illustration stands support validated individual/shared prices and immutable snapshots.
