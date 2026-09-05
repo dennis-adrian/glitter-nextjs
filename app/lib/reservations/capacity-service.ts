@@ -180,10 +180,10 @@ export async function createExternalParticipantReservation(
       if (!lockedStand || lockedStand.festivalId !== festivalId) {
         return finish({ success: false, message: "El espacio no existe" });
       }
-      if (
-        lockedStand.status === "disabled" ||
-        (await standHasLiveOccupancy(tx, standId))
-      ) {
+      // Same rule as `createAdminReservation`: this is an admin allocating a
+      // stand by hand, and `disabled` is how they reserved it for exactly that.
+      // Only live occupancy blocks them.
+      if (await standHasLiveOccupancy(tx, standId)) {
         return finish({
           success: false,
           message: "El espacio no está disponible",

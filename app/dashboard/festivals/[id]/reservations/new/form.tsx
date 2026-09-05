@@ -131,12 +131,18 @@ export default function CreateReservationForm({
     })),
   );
 
+  // `disabled` is offered too: an admin disables a stand to keep participants
+  // off it while they allocate it by hand, so hiding it here would withhold the
+  // one stand they meant to assign. The status stays in the label so the choice
+  // is deliberate.
   const externalStandOptions = sectors.flatMap((sector) =>
     sector.stands
-      .filter((stand) => stand.status === "available")
+      .filter(
+        (stand) => stand.status === "available" || stand.status === "disabled",
+      )
       .map((stand) => ({
         value: String(stand.id),
-        label: `${formatStandLabel(stand)} — ${sector.name}`,
+        label: `${formatStandLabel(stand)} — ${sector.name} (${stand.status})`,
       })),
   );
 
