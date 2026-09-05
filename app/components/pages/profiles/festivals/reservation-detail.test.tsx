@@ -311,6 +311,11 @@ describe("ReservationDetailPage", () => {
       });
 
       expect(html).not.toContain("Agregar compañero");
+      // The deadline went out with the button. It once outlived it, leaving a
+      // date telling people to add a partner "usando créditos" on a page with
+      // no way to buy or spend any.
+      expect(html).not.toContain("15/10/2026");
+      expect(html).not.toContain("usando créditos");
     });
 
     it("offers both actions when both apply", async () => {

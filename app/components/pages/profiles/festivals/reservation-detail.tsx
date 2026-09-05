@@ -86,9 +86,11 @@ export default async function ReservationDetailPage({
   ]);
 
   // Always shown while the feature is on, because a deadline nobody mentions
-  // is a deadline somebody misses (§5).
+  // is a deadline somebody misses (§5). Gated on the flag for the same reason
+  // the buttons below are: with credits hidden there is no way to act on this
+  // date, and naming it would promise a door that is not there.
   const partnerDeadline =
-    latePartnerOffer?.offered && latePartnerOffer.deadlineAt
+    creditsEnabled && latePartnerOffer?.offered && latePartnerOffer.deadlineAt
       ? formatDate(latePartnerOffer.deadlineAt).toFormat("dd/MM/yyyy")
       : null;
 

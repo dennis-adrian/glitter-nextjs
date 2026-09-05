@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
@@ -62,7 +62,17 @@ export default function AddLatePartnerButton({
   const [searching, setSearching] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  /**
+   * Debouncing collapses keystrokes; it does not order the requests it does
+   * send. A slow search for `ana` can land after `anabel` and repaint the list
+   * with people nobody is looking for any more — including, after deleting
+   * back to one character, into a box that is supposed to be empty. Only the
+   * newest request may write.
+   */
+  const latestSearch = useRef(0);
+
   const search = useDebouncedCallback(async (value: string) => {
+    const requestId = ++latestSearch.current;
     if (value.trim().length < 2) {
       setOptions([]);
       return;
@@ -70,12 +80,16 @@ export default function AddLatePartnerButton({
     setSearching(true);
     try {
       const found = await searchPotentialPartners(festivalId, value);
+      if (requestId !== latestSearch.current) return;
       setOptions(found as PartnerOption[]);
     } catch (error) {
       console.error("Error searching partners", error);
+      if (requestId !== latestSearch.current) return;
       setOptions([]);
     } finally {
-      setSearching(false);
+      // A superseded request must not clear the spinner the live one is using,
+      // or the empty state flashes over results that are still coming.
+      if (requestId === latestSearch.current) setSearching(false);
     }
   }, 300);
 

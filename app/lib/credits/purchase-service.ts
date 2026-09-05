@@ -38,8 +38,8 @@ type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * The features a participant can buy credits for.
  *
- * Late partner is absent because it has configuration rows and no
- * implementation; the admin panel refuses to enable it for the same reason.
+ * All three optional features are here: each one is implemented, and credits
+ * are the only way to pay for any of them.
  *
  * Which feature a purchase was for is recorded on the top-up itself rather
  * than inferred from `intended_use_id`, which holds only the festival. The

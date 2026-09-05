@@ -100,7 +100,14 @@ export async function createLatePartnerCreditTopUpAction(input: unknown) {
     return { success: false as const, message: result.message };
   }
 
-  revalidatePath("/my_credits");
+  // The top-up is already committed. A revalidation failure must not be
+  // reported as a purchase that did not happen — the same reason
+  // `addLatePartnerAction` above guards its own calls.
+  try {
+    revalidatePath("/my_credits");
+  } catch (error) {
+    console.error("[late-partner] revalidatePath failed", error);
+  }
   return {
     success: true as const,
     message: result.message,
