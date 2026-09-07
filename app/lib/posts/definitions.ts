@@ -74,6 +74,22 @@ export type PostFormValues = {
   tagInputs: string[];
 };
 
+/**
+ * The editor's view of a post's unlisted share link. Lives here rather than in
+ * `posts/share-links.ts` because the panel that renders it is a client
+ * component, and that module is `server-only`.
+ *
+ * Deliberately carries nothing derived from the token: only the digest is
+ * stored, so there is nothing to derive.
+ */
+export type ShareLinkSummary = {
+  id: number;
+  expiresAt: Date | null;
+  createdAt: Date;
+  /** Past its expiry but not revoked: the row still holds the live slot. */
+  isExpired: boolean;
+};
+
 export const COMMENT_MAX_LENGTH = 1000;
 export const COMMENT_RATE_LIMIT = 5;
 export const COMMENT_RATE_WINDOW_MS = 60_000;

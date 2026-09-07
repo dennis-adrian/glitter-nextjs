@@ -202,6 +202,49 @@ Behaviour, chosen as **listed but gated**:
 - The audience is part of the working copy, so changing it on a published post goes through review like any other edit.
 - Phase 2: comments follow the gate (§7.6).
 
+### 7.8b Unlisted share links **[new]**
+
+Audience (§7.8) decides who may read a **published** post. It has nothing to
+say about the other case: an article that is not ready, or is deliberately
+private, that the author still wants two or three specific people to read.
+
+A share link covers that, the way an unlisted video does.
+
+- Anyone who can edit a post (`canEditPost` — its author, or staff) can mint
+  one link for it from the editor's settings sheet.
+- The link reads `/blog/compartido/<token>` and opens the post **regardless of
+  its status or audience**. A draft, a submitted article, a participants-only
+  one — all readable by whoever holds the link, signed in or not.
+- It changes nothing else. The post still does not appear in `/blog`, in
+  category, tag or search results, and `/blog/<slug>` still refuses it until it
+  is published.
+- The page is `noindex, nofollow` and carries a banner naming the post's status,
+  so a recipient cannot mistake a draft for a finished article.
+- Comments are absent on a shared view. A recipient may not have an account,
+  and a shared draft is a document to read; discussion belongs on the published
+  article.
+- **Expiry is optional.** A link may carry an expiry date, or none at all, in
+  which case it never dies. Either way it can be revoked at any moment.
+- One live link per post. Generating another revokes the previous one, which is
+  forced by the storage rule below and stated plainly in the UI.
+- `archived` is the one status a link will not open: retiring an article must
+  not leave a back door to it.
+
+Only the SHA-256 digest of the token is stored, following
+`sessionPurchases.accessTokenHash`. A database dump therefore yields nothing
+that opens a draft. The cost is that the raw link exists only in the response
+that created it — so the editor shows it once, with a warning, and "generate a
+new one" is the only way to recover a link that was not saved.
+
+The route deliberately does **not** carry the slug. A draft's slug changes the
+first time it leaves `draft` (the `borrador` placeholder is replaced with a
+title-derived one), and a link already sent to someone must not break when that
+happens.
+
+The `blog` feature flag (§7.11) does not gate this route: sharing unpublished
+work is most useful precisely while the public blog is still dark. Access is
+the token, and only someone who can edit the post can issue one.
+
 ### 7.9 Publishable content **[new]**
 
 A document counts as having real content if any block anywhere in it carries non-whitespace text, **or** if it contains an image or a table. The original check only looked at each top-level block's own inline content, which meant a table-only or image-only article — and any article whose text lived in a nested block — was treated as empty and could not be published.
@@ -253,6 +296,9 @@ than only hiding links.
 - `postCategories`, `postCategoriesToPosts`.
 - `postTags`, `postTagsToPosts`.
 - `postComments` (Phase 2).
+- `postShareLinks` (§7.8b) — digest, optional `expiresAt`, `revokedAt`, issuer;
+  a partial unique index on `postId where revoked_at is null` is what makes
+  "one live link per post" an invariant rather than a convention.
 
 Relations registered for posts ↔ author, posts ↔ reviewer, posts ↔ categories, posts ↔ tags, posts ↔ comments, comments ↔ replies.
 
@@ -271,6 +317,8 @@ Relations registered for posts ↔ author, posts ↔ reviewer, posts ↔ categor
   - `archivePost`, `restorePost` (admin only)
   - `createPostCategory`, `updatePostCategory`, `deletePostCategory` (admin only)
   - `addComment`, `hideComment`, `deleteOwnComment` (Phase 2)
+- `share-actions.ts`: `createShareLink(postId, expiresAt?)`, `revokeShareLink(postId)` — both authorized with `canEditPost`, the same predicate the editor screen uses. `createShareLink` rotates: it revokes the post's live link before inserting the new one, which is what keeps the partial unique index satisfied when the previous link had merely expired.
+- `share-links.ts`: `resolveSharedPost(token)` — the single place that decides whether a token opens a post, so the page and its `generateMetadata` cannot drift apart. Also `fetchLiveShareLink(postId)` for the editor panel, and the token generator and digest.
 - `eligibility.ts`: `canAuthorPosts(user)`.
 - `audience.ts`: `canReadPost(viewer, post)` — the single gate every read path gets its answer from.
 - `anonymization.ts`: `detachPostsForDeletedUser(tx, userId)` (§7.10).
@@ -305,8 +353,11 @@ Eligible non-admin contributors work under `app/(routes)/portal/blog/`:
 - `page.tsx` — list with pagination and category/tag/search query params.
 - `[slug]/page.tsx` — article detail, generates `metadata` from post fields.
 - `category/[slug]/page.tsx`, `tag/[slug]/page.tsx`.
+- `compartido/[token]/page.tsx` — unlisted share view (§7.8b). Keyed on the
+  token alone so it survives a slug change, `noindex`, and not gated by the
+  `blog` flag.
 
-All four read `searchParams` and are therefore dynamically rendered, which is what makes a per-viewer audience gate safe: there is no shared static cache that could serve a gated body to the wrong reader.
+All four listing and detail routes read `searchParams` and are therefore dynamically rendered, which is what makes a per-viewer audience gate safe: there is no shared static cache that could serve a gated body to the wrong reader.
 
 ### 8.5 Components (`app/components/blog/`)
 

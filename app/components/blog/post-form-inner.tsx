@@ -62,6 +62,7 @@ import type {
   PostCategoryRow,
   PostStatus,
   PostWithRelations,
+  ShareLinkSummary,
 } from "@/app/lib/posts/definitions";
 import { hasMeaningfulContent, usesWorkingCopy } from "@/app/lib/posts/helpers";
 import { slugifyName } from "@/app/lib/posts/slug";
@@ -75,6 +76,8 @@ export type PostFormProps = {
   post: PostWithRelations;
   categoryOptions: PostCategoryRow[];
   canPublish: boolean;
+  /** The post's live unlisted link, or null when it has never been shared. */
+  shareLink: ShareLinkSummary | null;
 };
 
 const EMPTY_DOC = [{ type: "paragraph", content: [] }];
@@ -84,6 +87,7 @@ export default function PostFormInner({
   post,
   categoryOptions,
   canPublish,
+  shareLink,
 }: PostFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -750,6 +754,7 @@ export default function PostFormInner({
           onAudienceChange={setAudience}
           slugPreview={post.slug}
           postId={post.id}
+          shareLink={shareLink}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
         />

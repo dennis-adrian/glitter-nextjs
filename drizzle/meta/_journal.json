@@ -1933,6 +1933,13 @@
       "when": 1788760353071,
       "tag": "0276_slow_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1788807455438,
+      "tag": "0277_curious_mikhail_rasputin",
+      "breakpoints": true
     }
   ]
 }

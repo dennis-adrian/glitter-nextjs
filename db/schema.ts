@@ -6435,3 +6435,63 @@ export const postCommentsRelations = relations(
     replies: many(postComments, { relationName: "commentReplies" }),
   }),
 );
+
+/**
+ * An unlisted read link for a single post — the "share it with a couple of
+ * people before it is ready" case, the way an unlisted video works.
+ *
+ * A live row lets anyone holding the raw token read the post regardless of its
+ * status or audience, which is the whole point: the article is not published
+ * and must not be listed, yet a handful of people need to see it. Nothing else
+ * about the blog changes — the post still never enters a listing, a feed, or
+ * the search index because of this row.
+ *
+ * `tokenHash` follows the rule already set by `sessionPurchases` and
+ * `sessionWaitlistInvitations`: the digest is stored, never the token. A
+ * database dump therefore yields nothing that opens a draft, at the documented
+ * cost that the raw link exists only in the response that created it.
+ *
+ * `expiresAt` is nullable on purpose — null means the link does not expire,
+ * which is the sane default for "here, read my draft". Revocation is separate
+ * and always available.
+ */
+export const postShareLinks = pgTable(
+  "post_share_links",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    /** SHA-256 digest, never the raw token — same rule as purchase access. */
+    tokenHash: text("token_hash").notNull().unique(),
+    /** Null means the link never expires. */
+    expiresAt: timestamp("expires_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    /**
+     * One live link per post, so the editor has a single thing to show, copy
+     * and revoke. Revoked links accumulate as history without blocking a new
+     * one — the same shape as `session_waitlist_invitations_live_idx`.
+     */
+    uniqueIndex("post_share_links_live_idx")
+      .on(t.postId)
+      .where(sql`${t.revokedAt} is null`),
+    index("post_share_links_post_idx").on(t.postId),
+  ],
+);
+
+export const postShareLinksRelations = relations(postShareLinks, ({ one }) => ({
+  post: one(posts, {
+    fields: [postShareLinks.postId],
+    references: [posts.id],
+  }),
+  createdBy: one(users, {
+    fields: [postShareLinks.createdByUserId],
+    references: [users.id],
+  }),
+}));

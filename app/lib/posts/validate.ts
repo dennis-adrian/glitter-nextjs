@@ -106,6 +106,27 @@ export const scheduleSchema = z.object({
     }),
 });
 
+/**
+ * Expiry for a share link. Absent or empty means the link never expires,
+ * which is the default the editor offers — a draft shared with two people
+ * usually wants to stay readable until it is published or revoked.
+ *
+ * The same one minute of slack as `scheduleSchema`, for the same reason: a
+ * date that has already passed by the time the form submits is a confusing
+ * way to spell "expired on arrival".
+ */
+export const shareLinkSchema = z.object({
+  expiresAt: z
+    .union([z.literal(""), z.null(), z.undefined(), z.coerce.date()])
+    .transform((value) =>
+      value === "" || value === null || value === undefined ? null : value,
+    )
+    .refine(
+      (value) => value === null || value.getTime() > Date.now() - 60_000,
+      { message: "La fecha de expiración debe estar en el futuro" },
+    ),
+});
+
 export const commentSchema = z.object({
   body: z
     .string()

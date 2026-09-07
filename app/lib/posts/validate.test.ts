@@ -6,6 +6,7 @@ import {
   postCategoryFormSchema,
   postFormSchema,
   reviewNotesSchema,
+  shareLinkSchema,
 } from "@/app/lib/posts/validate";
 
 const VALID = {
@@ -177,6 +178,51 @@ describe("postCategoryFormSchema", () => {
         name: "Tips",
         description: "x".repeat(281),
       }).success,
+    ).toBe(false);
+  });
+});
+
+describe("shareLinkSchema", () => {
+  /**
+   * "No expiry" is the default the editor offers, and the field arrives from
+   * an empty `datetime-local` input as `""` — so all three spellings of absent
+   * have to land on the same null rather than on a parse error.
+   */
+  it("treats every spelling of blank as never expires", () => {
+    for (const value of ["", null, undefined]) {
+      const parsed = shareLinkSchema.safeParse({ expiresAt: value });
+      expect(parsed.success).toBe(true);
+      expect(parsed.success && parsed.data.expiresAt).toBeNull();
+    }
+
+    expect(shareLinkSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("accepts a future date", () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    const parsed = shareLinkSchema.safeParse({ expiresAt: future });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.expiresAt).toEqual(future);
+  });
+
+  it("accepts the string a datetime-local input produces", () => {
+    const parsed = shareLinkSchema.safeParse({ expiresAt: "2099-01-01T10:30" });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("rejects a past date rather than minting a dead link", () => {
+    expect(
+      shareLinkSchema.safeParse({ expiresAt: new Date(Date.now() - 600_000) })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects a date that is not one", () => {
+    expect(
+      shareLinkSchema.safeParse({ expiresAt: "no soy una fecha" }).success,
     ).toBe(false);
   });
 });

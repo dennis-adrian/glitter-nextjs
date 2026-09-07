@@ -6,6 +6,7 @@ import {
   fetchPostCategories,
 } from "@/app/lib/posts/data";
 import { canEditPost } from "@/app/lib/posts/helpers";
+import { fetchLiveShareLink } from "@/app/lib/posts/share-links";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function PortalBlogEditPage({
@@ -20,9 +21,10 @@ export default async function PortalBlogEditPage({
   const postId = Number(id);
   if (Number.isNaN(postId)) notFound();
 
-  const [post, categories] = await Promise.all([
+  const [post, categories, shareLink] = await Promise.all([
     fetchPostByIdForEditor(postId),
     fetchPostCategories(),
+    fetchLiveShareLink(postId),
   ]);
   if (!post) notFound();
   if (!canEditPost(profile, post)) redirect("/portal/blog");
@@ -34,6 +36,7 @@ export default async function PortalBlogEditPage({
         post={post}
         categoryOptions={categories}
         canPublish={false}
+        shareLink={shareLink}
       />
     </div>
   );
