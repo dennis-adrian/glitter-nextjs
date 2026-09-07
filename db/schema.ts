@@ -6446,10 +6446,17 @@ export const postCommentsRelations = relations(
  * about the blog changes — the post still never enters a listing, a feed, or
  * the search index because of this row.
  *
- * `tokenHash` follows the rule already set by `sessionPurchases` and
- * `sessionWaitlistInvitations`: the digest is stored, never the token. A
- * database dump therefore yields nothing that opens a draft, at the documented
- * cost that the raw link exists only in the response that created it.
+ * The token is stored as issued, not as a digest — deliberately unlike
+ * `sessionPurchases.accessTokenHash`, which guards payment and identity. What
+ * this opens is an unpublished blog post, and the cost of a one-way digest is
+ * that the author can never see their own link again: re-sending it to someone
+ * who lost the email would mean rotating, which breaks it for everyone else
+ * already holding it. Google Docs, Notion and Figma all keep one retrievable,
+ * revocable link per document for exactly this reason.
+ *
+ * The one place a stored token could leak on its own is the query logger in
+ * `db/index.ts`, which prints params for every statement; `redactQueryParams`
+ * masks this table's, the way it already masks participant contact details.
  *
  * `expiresAt` is nullable on purpose — null means the link does not expire,
  * which is the sane default for "here, read my draft". Revocation is separate
@@ -6462,8 +6469,8 @@ export const postShareLinks = pgTable(
     postId: integer("post_id")
       .notNull()
       .references(() => posts.id, { onDelete: "cascade" }),
-    /** SHA-256 digest, never the raw token — same rule as purchase access. */
-    tokenHash: text("token_hash").notNull().unique(),
+    /** The link's secret, as issued. Masked in query logs, never hashed. */
+    token: text("token").notNull().unique(),
     /** Null means the link never expires. */
     expiresAt: timestamp("expires_at"),
     revokedAt: timestamp("revoked_at"),

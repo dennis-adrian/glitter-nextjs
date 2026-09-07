@@ -98,7 +98,6 @@ async function makePost(
   return row.id;
 }
 
-/** The raw token out of a create call, which is the only place it exists. */
 function tokenFrom(url: string): string {
   return url.split("/").pop()!;
 }
@@ -106,7 +105,7 @@ function tokenFrom(url: string): string {
 async function createOk(postId: number, expiresAt?: unknown) {
   const result = await actions.createShareLink(postId, expiresAt);
   if (!result.success) throw new Error(`create failed: ${result.message}`);
-  return result;
+  return result.link;
 }
 
 describeDatabase("blog share links", () => {
@@ -174,13 +173,13 @@ describeDatabase("blog share links", () => {
 
   /**
    * The whole point of the feature: a post nobody can reach through the blog
-   * is readable by whoever holds the token.
+   * is readable by whoever holds the link.
    */
   it("opens an unpublished draft that the public routes would refuse", async () => {
     const postId = await makePost("draft");
-    const { url } = await createOk(postId);
+    const link = await createOk(postId);
 
-    const post = await shareLinks.resolveSharedPost(tokenFrom(url));
+    const post = await shareLinks.resolveSharedPost(tokenFrom(link.url));
 
     expect(post?.id).toBe(postId);
     expect(post?.status).toBe("draft");
@@ -193,10 +192,10 @@ describeDatabase("blog share links", () => {
    */
   it("opens a participants-only post without a session", async () => {
     const postId = await makePost("published", "participants");
-    const { url } = await createOk(postId);
+    const link = await createOk(postId);
 
     currentProfile.value = null;
-    const post = await shareLinks.resolveSharedPost(tokenFrom(url));
+    const post = await shareLinks.resolveSharedPost(tokenFrom(link.url));
 
     expect(post?.id).toBe(postId);
     expect(post?.audience).toBe("participants");
@@ -214,24 +213,50 @@ describeDatabase("blog share links", () => {
     }
   });
 
-  it("stores only the digest, never the token", async () => {
-    const postId = await makePost();
-    const { url } = await createOk(postId);
-    const token = tokenFrom(url);
+  describe("re-sharing", () => {
+    /**
+     * The reason the token is stored as issued rather than hashed: an author
+     * who wants to send the link to one more person a month later must get
+     * the same URL back, not a new one that breaks the first recipients.
+     */
+    it("hands back the same link on a later visit", async () => {
+      const postId = await makePost();
+      const first = await createOk(postId);
 
-    const [row] = await integrationDb!
-      .select({ tokenHash: postShareLinks.tokenHash })
-      .from(postShareLinks)
-      .where(eq(postShareLinks.postId, postId));
+      const reloaded = await shareLinks.fetchLiveShareLink(postId);
 
-    expect(row.tokenHash).not.toBe(token);
-    expect(row.tokenHash).toBe(shareLinks.hashShareToken(token));
+      expect(reloaded?.url).toBe(first.url);
+      expect(reloaded?.id).toBe(first.id);
+    });
+
+    it("asking to create twice does not mint a second link", async () => {
+      const postId = await makePost();
+      const first = await createOk(postId);
+      const second = await createOk(postId);
+
+      expect(second.url).toBe(first.url);
+      await expect(
+        shareLinks.resolveSharedPost(tokenFrom(first.url)),
+      ).resolves.not.toBeNull();
+    });
+
+    it("stores the token as issued, so the URL is reconstructible", async () => {
+      const postId = await makePost();
+      const link = await createOk(postId);
+
+      const [row] = await integrationDb!
+        .select({ token: postShareLinks.token })
+        .from(postShareLinks)
+        .where(eq(postShareLinks.postId, postId));
+
+      expect(row.token).toBe(tokenFrom(link.url));
+    });
   });
 
   it("stops working once revoked", async () => {
     const postId = await makePost();
-    const { url } = await createOk(postId);
-    const token = tokenFrom(url);
+    const link = await createOk(postId);
+    const token = tokenFrom(link.url);
 
     await expect(shareLinks.resolveSharedPost(token)).resolves.not.toBeNull();
 
@@ -254,22 +279,38 @@ describeDatabase("blog share links", () => {
     });
   });
 
+  it("generates a fresh link after a revocation", async () => {
+    const postId = await makePost();
+    const first = await createOk(postId);
+    await actions.revokeShareLink(postId);
+
+    const second = await createOk(postId);
+
+    expect(second.url).not.toBe(first.url);
+    await expect(
+      shareLinks.resolveSharedPost(tokenFrom(first.url)),
+    ).resolves.toBeNull();
+    await expect(
+      shareLinks.resolveSharedPost(tokenFrom(second.url)),
+    ).resolves.not.toBeNull();
+  });
+
   describe("expiry", () => {
     it("keeps working when no expiry was set", async () => {
       const postId = await makePost();
-      const { url, expiresAt } = await createOk(postId, null);
+      const link = await createOk(postId, null);
 
-      expect(expiresAt).toBeNull();
+      expect(link.expiresAt).toBeNull();
       await expect(
-        shareLinks.resolveSharedPost(tokenFrom(url)),
+        shareLinks.resolveSharedPost(tokenFrom(link.url)),
       ).resolves.not.toBeNull();
     });
 
     it("works before the expiry and not after it", async () => {
       const postId = await makePost();
       const future = new Date(Date.now() + 60 * 60 * 1000);
-      const { url } = await createOk(postId, future);
-      const token = tokenFrom(url);
+      const link = await createOk(postId, future);
+      const token = tokenFrom(link.url);
 
       await expect(shareLinks.resolveSharedPost(token)).resolves.not.toBeNull();
 
@@ -292,22 +333,53 @@ describeDatabase("blog share links", () => {
     });
 
     /**
-     * An expired row still occupies the one-live-link slot, so generating a
-     * replacement has to clear it or the unique index rejects the insert.
+     * Changing when a link dies must not change the link — that is the whole
+     * difference between an expiry edit and a regeneration.
      */
-    it("replaces an expired link", async () => {
+    it("updates the expiry without changing the URL", async () => {
       const postId = await makePost();
-      await createOk(postId);
+      const link = await createOk(postId);
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      const result = await actions.updateShareLinkExpiry(postId, future);
+
+      expect(result.success && result.link.url).toBe(link.url);
+      expect(result.success && result.link.expiresAt).not.toBeNull();
+    });
+
+    it("clears an expiry so the link becomes permanent again", async () => {
+      const postId = await makePost();
+      await createOk(postId, new Date(Date.now() + 60 * 60 * 1000));
+
+      const result = await actions.updateShareLinkExpiry(postId, null);
+
+      expect(result.success && result.link.expiresAt).toBeNull();
+    });
+
+    it("revives an expired link when the date is pushed out", async () => {
+      const postId = await makePost();
+      const link = await createOk(postId);
+      const token = tokenFrom(link.url);
       await integrationDb!
         .update(postShareLinks)
         .set({ expiresAt: new Date(Date.now() - 1000) })
         .where(eq(postShareLinks.postId, postId));
+      await expect(shareLinks.resolveSharedPost(token)).resolves.toBeNull();
 
-      const { url } = await createOk(postId);
+      await actions.updateShareLinkExpiry(
+        postId,
+        new Date(Date.now() + 60 * 60 * 1000),
+      );
+
+      await expect(shareLinks.resolveSharedPost(token)).resolves.not.toBeNull();
+    });
+
+    it("refuses an expiry edit when there is no link", async () => {
+      const postId = await makePost();
 
       await expect(
-        shareLinks.resolveSharedPost(tokenFrom(url)),
-      ).resolves.not.toBeNull();
+        actions.updateShareLinkExpiry(postId, null),
+      ).resolves.toMatchObject({ success: false });
     });
 
     it("reports an expired link as expired to the editor", async () => {
@@ -324,17 +396,17 @@ describeDatabase("blog share links", () => {
     });
   });
 
-  describe("rotation", () => {
+  describe("regeneration", () => {
     it("kills the previous link and leaves exactly one live row", async () => {
       const postId = await makePost();
       const first = tokenFrom((await createOk(postId)).url);
-      const second = tokenFrom((await createOk(postId)).url);
+
+      const result = await actions.regenerateShareLink(postId);
+      const second = result.success ? tokenFrom(result.link.url) : "";
 
       expect(second).not.toBe(first);
       await expect(shareLinks.resolveSharedPost(first)).resolves.toBeNull();
-      await expect(
-        shareLinks.resolveSharedPost(second),
-      ).resolves.not.toBeNull();
+      await expect(shareLinks.resolveSharedPost(second)).resolves.not.toBeNull();
 
       const live = await integrationDb!
         .select({ id: postShareLinks.id })
@@ -347,6 +419,20 @@ describeDatabase("blog share links", () => {
         );
       expect(live).toHaveLength(1);
     });
+
+    /**
+     * Regenerating replaces a leaked address; it is not a place to restate the
+     * terms, so the expiry the author already chose carries over.
+     */
+    it("carries the expiry over to the new link", async () => {
+      const postId = await makePost();
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await createOk(postId, future);
+
+      const result = await actions.regenerateShareLink(postId);
+
+      expect(result.success && result.link.expiresAt).not.toBeNull();
+    });
   });
 
   describe("authorization", () => {
@@ -354,37 +440,43 @@ describeDatabase("blog share links", () => {
       const postId = await makePost();
       currentProfile.value = STRANGER;
 
+      await expect(actions.createShareLink(postId)).resolves.toMatchObject({
+        success: false,
+      });
+      await expect(actions.revokeShareLink(postId)).resolves.toMatchObject({
+        success: false,
+      });
       await expect(
-        actions.createShareLink(postId),
+        actions.updateShareLinkExpiry(postId, null),
       ).resolves.toMatchObject({ success: false });
-      await expect(
-        actions.revokeShareLink(postId),
-      ).resolves.toMatchObject({ success: false });
+      await expect(actions.regenerateShareLink(postId)).resolves.toMatchObject({
+        success: false,
+      });
     });
 
     it("refuses an anonymous caller", async () => {
       const postId = await makePost();
       currentProfile.value = null;
 
-      await expect(
-        actions.createShareLink(postId),
-      ).resolves.toMatchObject({ success: false });
+      await expect(actions.createShareLink(postId)).resolves.toMatchObject({
+        success: false,
+      });
     });
 
     it("lets staff share someone else's post, like the editor does", async () => {
       const postId = await makePost();
       currentProfile.value = ADMIN;
 
-      const { url } = await createOk(postId);
+      const link = await createOk(postId);
       await expect(
-        shareLinks.resolveSharedPost(tokenFrom(url)),
+        shareLinks.resolveSharedPost(tokenFrom(link.url)),
       ).resolves.not.toBeNull();
     });
 
     it("refuses a post that does not exist", async () => {
-      await expect(
-        actions.createShareLink(-1),
-      ).resolves.toMatchObject({ success: false });
+      await expect(actions.createShareLink(-1)).resolves.toMatchObject({
+        success: false,
+      });
     });
   });
 
@@ -394,8 +486,8 @@ describeDatabase("blog share links", () => {
    */
   it("stops resolving once the post is archived", async () => {
     const postId = await makePost("published");
-    const { url } = await createOk(postId);
-    const token = tokenFrom(url);
+    const link = await createOk(postId);
+    const token = tokenFrom(link.url);
 
     await integrationDb!
       .update(posts)
@@ -407,12 +499,12 @@ describeDatabase("blog share links", () => {
 
   it("goes away with the post", async () => {
     const postId = await makePost();
-    const { url } = await createOk(postId);
+    const link = await createOk(postId);
 
     await integrationDb!.delete(posts).where(eq(posts.id, postId));
 
     await expect(
-      shareLinks.resolveSharedPost(tokenFrom(url)),
+      shareLinks.resolveSharedPost(tokenFrom(link.url)),
     ).resolves.toBeNull();
     const rows = await integrationDb!
       .select({ id: postShareLinks.id })

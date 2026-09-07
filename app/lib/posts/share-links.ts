@@ -1,5 +1,5 @@
 /**
- * Unlisted share links: read access to one post for anyone holding the token.
+ * Unlisted share links: read access to one post for anyone holding the link.
  *
  * Server-only, never a server action — same reasoning as `posts/data.ts`. The
  * resolver below is the single place that decides whether a token opens a
@@ -7,10 +7,14 @@
  * each re-deriving the rule. That seam has already produced one leak in this
  * feature (the working preview, fixed by self-gating the fetch), and metadata
  * runs first.
+ *
+ * One live link per post, stored as issued so the author can open the editor a
+ * month later and re-send the same URL. See `postShareLinks` in db/schema.ts
+ * for why this one is not hashed.
  */
 import "server-only";
 
-import { createHash, randomBytes } from "crypto";
+import { randomBytes } from "crypto";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -28,22 +32,9 @@ export function generateShareToken(): string {
 }
 
 /**
- * Digest stored in `post_share_links.tokenHash`. Plain SHA-256 rather than a
- * password hash: the input is 32 bytes of CSPRNG output, so there is nothing
- * to brute-force and no secret to manage, and being deterministic is what
- * keeps the lookup a single indexed equality.
- *
- * The consequence, identical to `programs/tokens.ts`: the raw token exists
- * only in the response that created it. Showing the link again means issuing
- * a fresh one, which is why `createShareLink` rotates.
- */
-export function hashShareToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-/**
- * Shape of a token as it arrives from the URL. Checked before hashing so a
- * junk path segment costs a regex rather than a query.
+ * Shape of a token as it arrives from the URL. Checked before the query so a
+ * junk path segment costs a regex rather than a round-trip, and so the value
+ * that reaches the log redactor always has the shape it looks for.
  */
 const SHARE_TOKEN_RE = /^[0-9a-f]{64}$/;
 
@@ -51,13 +42,20 @@ export function isWellFormedShareToken(value: string): boolean {
   return SHARE_TOKEN_RE.test(value);
 }
 
+export function shareUrlFor(token: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  return `${baseUrl}/blog/compartido/${token}`;
+}
+
 function summarize(row: {
   id: number;
+  token: string;
   expiresAt: Date | null;
   createdAt: Date;
 }): ShareLinkSummary {
   return {
     id: row.id,
+    url: shareUrlFor(row.token),
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
     isExpired: row.expiresAt !== null && row.expiresAt.getTime() <= Date.now(),
@@ -65,9 +63,11 @@ function summarize(row: {
 }
 
 /**
- * The post's current unrevoked link, expired or not, for the editor panel.
- * Never returns anything derived from the token — there is nothing stored to
- * derive it from.
+ * The post's current unrevoked link, expired or not, for the editor panel —
+ * URL included, which is the whole point of storing the token as issued.
+ *
+ * Only ever called from a page that has already authorized the viewer to edit
+ * the post; it does not authorize on its own.
  */
 export async function fetchLiveShareLink(
   postId: number,
@@ -76,15 +76,13 @@ export async function fetchLiveShareLink(
     const [row] = await db
       .select({
         id: postShareLinks.id,
+        token: postShareLinks.token,
         expiresAt: postShareLinks.expiresAt,
         createdAt: postShareLinks.createdAt,
       })
       .from(postShareLinks)
       .where(
-        and(
-          eq(postShareLinks.postId, postId),
-          isNull(postShareLinks.revokedAt),
-        ),
+        and(eq(postShareLinks.postId, postId), isNull(postShareLinks.revokedAt)),
       )
       .limit(1);
     return row ? summarize(row) : null;
@@ -95,11 +93,11 @@ export async function fetchLiveShareLink(
 }
 
 /**
- * Resolve a raw token to the post it opens, or null.
+ * Resolve a token to the post it opens, or null.
  *
  * Deliberately ignores `status` and `audience`: an editor generated this link
- * precisely so that someone could read a post the blog would otherwise refuse
- * to serve. `archived` is the one exception — retiring an article should not
+ * precisely so someone could read a post the blog would otherwise refuse to
+ * serve. `archived` is the one exception — retiring an article should not
  * leave a back door open to it.
  *
  * Expiry is evaluated here rather than in SQL so the boundary is the request's
@@ -118,7 +116,7 @@ export async function resolveSharedPost(
     .from(postShareLinks)
     .where(
       and(
-        eq(postShareLinks.tokenHash, hashShareToken(token)),
+        eq(postShareLinks.token, token),
         isNull(postShareLinks.revokedAt),
       ),
     )

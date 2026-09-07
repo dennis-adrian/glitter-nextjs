@@ -224,17 +224,32 @@ A share link covers that, the way an unlisted video does.
   and a shared draft is a document to read; discussion belongs on the published
   article.
 - **Expiry is optional.** A link may carry an expiry date, or none at all, in
-  which case it never dies. Either way it can be revoked at any moment.
-- One live link per post. Generating another revokes the previous one, which is
-  forced by the storage rule below and stated plainly in the UI.
+  which case it never dies. The date can be changed, or cleared, at any time
+  **without changing the link**. Revocation is separate and always available.
+- **One live link per post, and it is re-shareable.** Opening the settings
+  sheet a month later shows the same URL, ready to copy and send to one more
+  person. Asking to create again returns what is already there rather than
+  quietly invalidating what people are holding.
+- Regenerating is a separate, explicitly labelled action for the case the link
+  reached someone it should not have: it issues a new URL, kills the old one,
+  and carries the expiry over.
 - `archived` is the one status a link will not open: retiring an article must
   not leave a back door to it.
 
-Only the SHA-256 digest of the token is stored, following
-`sessionPurchases.accessTokenHash`. A database dump therefore yields nothing
-that opens a draft. The cost is that the raw link exists only in the response
-that created it — so the editor shows it once, with a warning, and "generate a
-new one" is the only way to recover a link that was not saved.
+The token is stored **as issued, not hashed** — deliberately unlike
+`sessionPurchases.accessTokenHash`. What that one guards is payment and
+identity; this one opens an unpublished blog post. A one-way digest would mean
+the author can never see their own link again, so re-sending it to someone who
+lost the email would require rotating, which breaks it for everyone else
+already holding it. Google Docs, Notion and Figma all keep one retrievable,
+revocable link per document for the same reason.
+
+The trade is stated plainly: anyone with database read access can open any
+shared draft. That population already reads the `posts` table directly, so it
+grants nothing new. The one place a stored token could leak on its own is the
+query logger in `db/index.ts`, which prints params for every statement;
+`redactQueryParams` masks this table's, the way it already masks participant
+contact details.
 
 The route deliberately does **not** carry the slug. A draft's slug changes the
 first time it leaves `draft` (the `borrador` placeholder is replaced with a
@@ -296,7 +311,7 @@ than only hiding links.
 - `postCategories`, `postCategoriesToPosts`.
 - `postTags`, `postTagsToPosts`.
 - `postComments` (Phase 2).
-- `postShareLinks` (§7.8b) — digest, optional `expiresAt`, `revokedAt`, issuer;
+- `postShareLinks` (§7.8b) — token, optional `expiresAt`, `revokedAt`, issuer;
   a partial unique index on `postId where revoked_at is null` is what makes
   "one live link per post" an invariant rather than a convention.
 
@@ -317,8 +332,8 @@ Relations registered for posts ↔ author, posts ↔ reviewer, posts ↔ categor
   - `archivePost`, `restorePost` (admin only)
   - `createPostCategory`, `updatePostCategory`, `deletePostCategory` (admin only)
   - `addComment`, `hideComment`, `deleteOwnComment` (Phase 2)
-- `share-actions.ts`: `createShareLink(postId, expiresAt?)`, `revokeShareLink(postId)` — both authorized with `canEditPost`, the same predicate the editor screen uses. `createShareLink` rotates: it revokes the post's live link before inserting the new one, which is what keeps the partial unique index satisfied when the previous link had merely expired.
-- `share-links.ts`: `resolveSharedPost(token)` — the single place that decides whether a token opens a post, so the page and its `generateMetadata` cannot drift apart. Also `fetchLiveShareLink(postId)` for the editor panel, and the token generator and digest.
+- `share-actions.ts`: `createShareLink(postId, expiresAt?)`, `updateShareLinkExpiry(postId, expiresAt)`, `regenerateShareLink(postId)`, `revokeShareLink(postId)` — all authorized with `canEditPost`, the same predicate the editor screen uses. `createShareLink` is idempotent: a post that already has a live link gets that link back, because the URL is meant to be re-sent. Only `regenerateShareLink` rotates, revoking inside the same transaction as the insert so the partial unique index stays satisfied.
+- `share-links.ts`: `resolveSharedPost(token)` — the single place that decides whether a token opens a post, so the page and its `generateMetadata` cannot drift apart. Also `fetchLiveShareLink(postId)`, which returns the full URL for the editor panel, and the token generator.
 - `eligibility.ts`: `canAuthorPosts(user)`.
 - `audience.ts`: `canReadPost(viewer, post)` — the single gate every read path gets its answer from.
 - `anonymization.ts`: `detachPostsForDeletedUser(tx, userId)` (§7.10).

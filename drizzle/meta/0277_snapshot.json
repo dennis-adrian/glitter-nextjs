@@ -1,5 +1,5 @@
 {
-  "id": "8baa4c55-fee1-4396-ba81-27dd7eb7afad",
+  "id": "95e963dc-5cf4-4ced-8af2-5dcda2986cb1",
   "prevId": "8fb4d132-87a5-4239-a540-5af50adb5c0f",
   "version": "7",
   "dialect": "postgresql",
@@ -7972,8 +7972,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "token_hash": {
-          "name": "token_hash",
+        "token": {
+          "name": "token",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -8067,11 +8067,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "post_share_links_token_hash_unique": {
-          "name": "post_share_links_token_hash_unique",
+        "post_share_links_token_unique": {
+          "name": "post_share_links_token_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "token_hash"
+            "token"
           ]
         }
       },

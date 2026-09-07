@@ -1,17 +1,24 @@
 "use client";
 
-import { CheckIcon, CopyIcon, LinkIcon, LoaderIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CopyIcon,
+  LinkIcon,
+  LoaderIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
-import { formatFullDate } from "@/app/lib/formatters";
 import type { ShareLinkSummary } from "@/app/lib/posts/definitions";
 import {
   createShareLink,
+  regenerateShareLink,
   revokeShareLink,
+  updateShareLinkExpiry,
 } from "@/app/lib/posts/share-actions";
 
 type Props = {
@@ -20,61 +27,75 @@ type Props = {
 };
 
 /**
- * Generate, copy and revoke the post's unlisted share link.
+ * Generate, copy, re-share and revoke the post's unlisted link.
  *
- * The raw URL is only ever in this component's state, and only right after the
- * action that minted it: the server keeps a digest, so there is nothing to
- * show on a later visit. That is why the copy field appears once, with a
- * warning, and why "generar uno nuevo" says plainly that the old link dies.
+ * The URL is shown every time the sheet is opened, not once at creation: the
+ * token is stored as issued precisely so the author can come back a month
+ * later and send the same link to one more person, without breaking it for
+ * everyone who already has it.
  */
 export default function ShareLinkPanel({ postId, initialLink }: Props) {
   const [link, setLink] = useState<ShareLinkSummary | null>(initialLink);
-  const [freshUrl, setFreshUrl] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [expiresAt, setExpiresAt] = useState(toInputValue(initialLink));
+  const [busy, setBusy] = useState<null | "create" | "expiry" | "cycle">(null);
   const [copied, setCopied] = useState(false);
 
-  const generate = async () => {
-    setBusy(true);
-    const result = await createShareLink(postId, expiresAt || null);
-    setBusy(false);
-
-    if (!result.success) {
-      toast.error(result.message);
-      return;
+  const run = async <T,>(
+    kind: "create" | "expiry" | "cycle",
+    action: () => Promise<T>,
+  ): Promise<T> => {
+    setBusy(kind);
+    try {
+      return await action();
+    } finally {
+      setBusy(null);
     }
+  };
 
-    setFreshUrl(result.url);
-    setLink({
-      id: -1,
-      createdAt: new Date(),
-      expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
-      isExpired: false,
+  const generate = () =>
+    run("create", async () => {
+      const result = await createShareLink(postId, expiresAt || null);
+      if (!result.success) return toast.error(result.message);
+      setLink(result.link);
+      setExpiresAt(toInputValue(result.link));
+      toast.success("Enlace generado");
     });
-    setCopied(false);
-    toast.success("Enlace generado");
-  };
 
-  const revoke = async () => {
-    setBusy(true);
-    const result = await revokeShareLink(postId);
-    setBusy(false);
+  const saveExpiry = () =>
+    run("expiry", async () => {
+      const result = await updateShareLinkExpiry(postId, expiresAt || null);
+      if (!result.success) return toast.error(result.message);
+      setLink(result.link);
+      toast.success(
+        result.link.expiresAt
+          ? "Vencimiento actualizado"
+          : "El enlace ya no vence",
+      );
+    });
 
-    if (!result.success) {
-      toast.error(result.message);
-      return;
-    }
+  const regenerate = () =>
+    run("cycle", async () => {
+      const result = await regenerateShareLink(postId);
+      if (!result.success) return toast.error(result.message);
+      setLink(result.link);
+      setCopied(false);
+      toast.success("Enlace regenerado. El anterior dejó de funcionar.");
+    });
 
-    setLink(null);
-    setFreshUrl(null);
-    setExpiresAt("");
-    toast.success("Enlace revocado");
-  };
+  const revoke = () =>
+    run("cycle", async () => {
+      const result = await revokeShareLink(postId);
+      if (!result.success) return toast.error(result.message);
+      setLink(null);
+      setExpiresAt("");
+      setCopied(false);
+      toast.success("Enlace revocado");
+    });
 
   const copy = async () => {
-    if (!freshUrl) return;
+    if (!link) return;
     try {
-      await navigator.clipboard.writeText(freshUrl);
+      await navigator.clipboard.writeText(link.url);
       setCopied(true);
       toast.success("Enlace copiado");
     } catch {
@@ -82,107 +103,157 @@ export default function ShareLinkPanel({ postId, initialLink }: Props) {
     }
   };
 
+  const expiryChanged = expiresAt !== toInputValue(link);
+
   return (
     <div className="grid gap-3">
       <div className="grid gap-1">
         <Label className="text-base">Compartir en privado</Label>
         <p className="text-xs text-muted-foreground">
-          Un enlace para mostrar el artículo a quien vos quieras, sin
-          publicarlo ni listarlo en el blog. Cualquiera que tenga el enlace
-          puede leerlo.
+          Un enlace para mostrar el artículo a quien vos quieras, sin publicarlo
+          ni listarlo en el blog. Cualquiera que tenga el enlace puede leerlo.
         </p>
       </div>
 
-      {freshUrl && (
-        <div className="grid gap-2 rounded-md border border-sky-300 bg-sky-50 p-3">
-          <Label htmlFor="share-url" className="text-xs text-sky-900">
-            Copialo ahora — por seguridad no vamos a poder volver a mostrarlo.
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              id="share-url"
-              readOnly
-              value={freshUrl}
-              className="bg-white text-xs"
-              onFocus={(event) => event.currentTarget.select()}
-            />
+      {link ? (
+        <>
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={link.url}
+                className="text-xs"
+                aria-label="Enlace para compartir"
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={copy}
+                aria-label="Copiar enlace"
+              >
+                {copied ? (
+                  <CheckIcon className="h-4 w-4" />
+                ) : (
+                  <CopyIcon className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p
+              className={`flex items-center gap-1.5 text-xs ${
+                link.isExpired ? "text-amber-600" : "text-muted-foreground"
+              }`}
+            >
+              <LinkIcon className="h-3 w-3 shrink-0" />
+              {link.isExpired
+                ? "Este enlace venció. Cambiá el vencimiento para reactivarlo."
+                : "Activo. Podés volver acá y reenviarlo cuando quieras."}
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="share-expires" className="text-xs">
+              Vencimiento (opcional)
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="share-expires"
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(event) => setExpiresAt(event.target.value)}
+              />
+              {expiryChanged && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={saveExpiry}
+                >
+                  {busy === "expiry" && (
+                    <LoaderIcon className="mr-2 h-3 w-3 animate-spin" />
+                  )}
+                  Guardar
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Dejalo en blanco para que el enlace no venza.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
-              variant="outline"
-              size="icon"
-              onClick={copy}
-              aria-label="Copiar enlace"
+              variant="ghost"
+              size="sm"
+              disabled={busy !== null}
+              onClick={regenerate}
             >
-              {copied ? (
-                <CheckIcon className="h-4 w-4" />
+              {busy === "cycle" ? (
+                <LoaderIcon className="mr-2 h-3 w-3 animate-spin" />
               ) : (
-                <CopyIcon className="h-4 w-4" />
+                <RefreshCwIcon className="mr-2 h-3 w-3" />
               )}
+              Regenerar
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy !== null}
+              onClick={revoke}
+            >
+              Revocar
             </Button>
           </div>
-        </div>
-      )}
-
-      {link && (
-        <div className="grid gap-2 rounded-md border p-3">
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            <LinkIcon className="h-4 w-4" />
-            {link.isExpired ? "Enlace vencido" : "Enlace activo"}
-          </p>
           <p className="text-xs text-muted-foreground">
-            {link.expiresAt
-              ? `${link.isExpired ? "Venció" : "Vence"} el ${formatFullDate(link.expiresAt)}.`
-              : "No vence. Podés revocarlo cuando quieras."}
+            Regenerar da una dirección nueva y desactiva la anterior — usalo si
+            el enlace llegó a quien no debía.
+          </p>
+        </>
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="share-expires" className="text-xs">
+            Vencimiento (opcional)
+          </Label>
+          <Input
+            id="share-expires"
+            type="datetime-local"
+            value={expiresAt}
+            onChange={(event) => setExpiresAt(event.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Dejalo en blanco para que el enlace no venza.
           </p>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            disabled={busy}
-            onClick={revoke}
+            disabled={busy !== null}
+            onClick={generate}
             className="justify-self-start"
           >
-            Revocar
+            {busy === "create" && (
+              <LoaderIcon className="mr-2 h-3 w-3 animate-spin" />
+            )}
+            Generar enlace
           </Button>
         </div>
       )}
-
-      {/*
-        The expiry field stays available while a link is active, so that
-        "generar uno nuevo" can also be "generar uno que venza el viernes".
-        Hiding it once a link existed quietly forced every replacement to be a
-        link that never expires.
-      */}
-      <div className="grid gap-2">
-        <Label htmlFor="share-expires" className="text-xs">
-          Vencimiento (opcional)
-        </Label>
-        <Input
-          id="share-expires"
-          type="datetime-local"
-          value={expiresAt}
-          onChange={(event) => setExpiresAt(event.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Dejalo en blanco para que el enlace no venza.
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={generate}
-          className="justify-self-start"
-        >
-          {busy && <LoaderIcon className="mr-2 h-3 w-3 animate-spin" />}
-          {link ? "Generar uno nuevo" : "Generar enlace"}
-        </Button>
-        {link && (
-          <p className="text-xs text-muted-foreground">
-            Generar uno nuevo desactiva el anterior.
-          </p>
-        )}
-      </div>
     </div>
   );
+}
+
+/**
+ * `datetime-local` wants local wall-clock time with no zone, so the stored
+ * instant has to be shifted out of UTC before slicing. Formatting it any other
+ * way shows the author a time that is not the one the link expires at.
+ */
+function toInputValue(link: ShareLinkSummary | null): string {
+  if (!link?.expiresAt) return "";
+  const date = new Date(link.expiresAt);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }

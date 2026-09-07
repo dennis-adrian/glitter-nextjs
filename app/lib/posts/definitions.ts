@@ -79,11 +79,12 @@ export type PostFormValues = {
  * `posts/share-links.ts` because the panel that renders it is a client
  * component, and that module is `server-only`.
  *
- * Deliberately carries nothing derived from the token: only the digest is
- * stored, so there is nothing to derive.
+ * Carries the full URL: the token is stored as issued precisely so the author
+ * can come back later and re-send the same link.
  */
 export type ShareLinkSummary = {
   id: number;
+  url: string;
   expiresAt: Date | null;
   createdAt: Date;
   /** Past its expiry but not revoked: the row still holds the live slot. */
