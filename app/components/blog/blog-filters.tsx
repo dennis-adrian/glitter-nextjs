@@ -1,11 +1,12 @@
 "use client";
 
-import { XIcon } from "lucide-react";
+import { SearchIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { Badge } from "@/app/components/ui/badge";
+import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import type { PostCategoryRow } from "@/app/lib/posts/definitions";
 import { cn } from "@/app/lib/utils";
@@ -58,14 +59,22 @@ export default function BlogFilters({
 
   return (
     <div className="mb-8 grid gap-4">
-      <form onSubmit={submitSearch}>
+      {/*
+        The button is not decoration: a form whose only control is a text input
+        relies on implicit submission, which does not fire reliably here, so
+        Enter alone silently did nothing. An explicit submit also gives the
+        search a touch target on mobile.
+      */}
+      <form onSubmit={submitSearch} className="flex max-w-md gap-2">
         <Input
           name="q"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Buscar artículos…"
-          className="max-w-md"
         />
+        <Button type="submit" variant="outline" aria-label="Buscar">
+          <SearchIcon className="size-4" />
+        </Button>
       </form>
 
       {categories.length > 0 && (

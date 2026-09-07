@@ -34,7 +34,7 @@ export default function PostCard({ post }: { post: PublicPostListItem }) {
           <div className="flex flex-wrap items-center gap-1">
             <AudienceBadge audience={post.audience} />
             {post.categories.slice(0, 2).map((c) => (
-              <CategoryPill key={c.id} category={c} />
+              <CategoryPill key={c.id} category={c} asLink={false} />
             ))}
           </div>
         )}

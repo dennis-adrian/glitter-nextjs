@@ -28,9 +28,12 @@ export async function generateMetadata({
   const post = await (isPreview
     ? fetchPostBySlugForWorkingPreview(slug)
     : fetchPostBySlug(slug));
-  if (!post) {
-    return { title: "Artículo no encontrado | Productora Glitter" };
-  }
+  // Hand the miss to the not-found boundary rather than titling the 404 page
+  // as if it were an article. Note this does not change the status code: every
+  // dynamic route in this app currently answers a `notFound()` with 200 and
+  // 404 content — `/programs/<missing>` and `/festivals/<missing>` do the same
+  // — so the soft 404 is a platform-level issue, not one this page can fix.
+  if (!post) notFound();
 
   const effectiveTitle = isPreview
     ? (post.workingTitle ?? post.title)
