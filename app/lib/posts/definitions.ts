@@ -97,3 +97,10 @@ export type CommentReply = {
 export type CommentNode = CommentReply & {
   replies: CommentReply[];
 };
+
+/**
+ * Slug a fresh draft is created with, before the author has titled it.
+ * Replaced with a title-derived slug the first time the post leaves `draft`,
+ * so anything matching this is a placeholder rather than a chosen slug.
+ */
+export const PLACEHOLDER_SLUG_RE = /^borrador(-\d+)?$/;

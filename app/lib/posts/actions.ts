@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createBlankDraft } from "@/app/lib/posts/create-draft";
-import { type PostStatus } from "@/app/lib/posts/definitions";
+import {
+  PLACEHOLDER_SLUG_RE,
+  type PostStatus,
+} from "@/app/lib/posts/definitions";
 import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import {
   canArchivePost,
@@ -42,8 +45,6 @@ import {
 type ActionResult<T = void> =
   | ({ success: true } & (T extends void ? unknown : T))
   | { success: false; message: string };
-
-const PLACEHOLDER_SLUG_RE = /^borrador(-\d+)?$/;
 
 export async function startNewPortalDraft(): Promise<never> {
   const profile = await getCurrentUserProfile();

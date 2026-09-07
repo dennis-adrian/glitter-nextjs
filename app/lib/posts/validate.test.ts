@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { PLACEHOLDER_SLUG_RE } from "@/app/lib/posts/definitions";
 import {
   postAutosaveSchema,
   postCategoryFormSchema,
@@ -162,5 +163,29 @@ describe("postCategoryFormSchema", () => {
         description: "x".repeat(281),
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("PLACEHOLDER_SLUG_RE", () => {
+  it("matches the slugs a fresh draft is created with", () => {
+    expect(PLACEHOLDER_SLUG_RE.test("borrador")).toBe(true);
+    expect(PLACEHOLDER_SLUG_RE.test("borrador-2")).toBe(true);
+    expect(PLACEHOLDER_SLUG_RE.test("borrador-17")).toBe(true);
+  });
+
+  /**
+   * Both the server, which swaps a placeholder for a title-derived slug, and
+   * the editor's URL preview key off this, so a real slug that merely starts
+   * with the word must not be mistaken for one.
+   */
+  it("does not match a slug the author actually chose", () => {
+    for (const slug of [
+      "borrador-de-viaje",
+      "mi-borrador",
+      "borradores",
+      "guia-de-precios",
+    ]) {
+      expect(PLACEHOLDER_SLUG_RE.test(slug)).toBe(false);
+    }
   });
 });

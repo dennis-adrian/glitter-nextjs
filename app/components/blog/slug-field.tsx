@@ -7,6 +7,7 @@ import { useFormContext } from "react-hook-form";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { checkSlugAvailability } from "@/app/lib/posts/actions";
+import { PLACEHOLDER_SLUG_RE } from "@/app/lib/posts/definitions";
 import { slugifyName } from "@/app/lib/posts/slug";
 
 type Status =
@@ -37,8 +38,18 @@ export default function SlugField({
   const value: string = form.watch("slug") ?? "";
   const title: string = form.watch("title") ?? "";
 
-  // What the reader will see: the typed slug, or what the title will become.
-  const effective = value.trim() || slugifyName(title || "") || slugPreview;
+  /**
+   * What the reader will actually see.
+   *
+   * A fresh draft carries the `borrador` placeholder, which the server swaps
+   * for a title-derived slug the first time the post leaves `draft`. Treating
+   * it as a chosen slug made the preview promise `/blog/borrador` for an
+   * article that would publish at `/blog/guia-de-...`, which is exactly the
+   * lie this field exists to prevent.
+   */
+  const typed = value.trim();
+  const chosen = typed && !PLACEHOLDER_SLUG_RE.test(typed) ? typed : "";
+  const effective = chosen || slugifyName(title || "") || slugPreview;
 
   const check = useCallback(
     async (candidate: string) => {
