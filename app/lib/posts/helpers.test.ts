@@ -178,19 +178,11 @@ describe("hasMeaningfulContent", () => {
   });
 
   /**
-   * Documented, not endorsed. The walk only reads each top-level block's own
-   * `content` array, so three shapes an author can legitimately produce all
-   * read as empty and block publishing:
-   *
-   *  - a table, whose `content` is a `{ type, rows }` object, not an array
-   *  - an image, which carries its payload in `props` and has no `content`
-   *  - text that lives only in a nested child block
-   *
-   * A table-only or image-only post is a plausible article. Whether these
-   * should count is a product call, so these tests pin today's behaviour
-   * rather than assume a fix.
+   * A table or an image is an article on its own — the walk treats them as
+   * content without looking for text, and descends into nested children so a
+   * document whose only words live one level down still counts.
    */
-  it("treats table-only, image-only, and nested-only documents as empty", () => {
+  it("accepts table-only, image-only, and nested-only documents", () => {
     const table = {
       type: "table",
       content: {
@@ -203,13 +195,34 @@ describe("hasMeaningfulContent", () => {
       props: { url: "https://cdn.example.com/a.png", caption: "Pie" },
     };
     const nestedOnly = {
-      type: "paragraph",
+      type: "bulletListItem",
       content: [],
       children: [textBlock("Texto anidado")],
     };
 
-    expect(hasMeaningfulContent([table])).toBe(false);
-    expect(hasMeaningfulContent([image])).toBe(false);
-    expect(hasMeaningfulContent([nestedOnly])).toBe(false);
+    expect(hasMeaningfulContent([table])).toBe(true);
+    expect(hasMeaningfulContent([image])).toBe(true);
+    expect(hasMeaningfulContent([nestedOnly])).toBe(true);
+  });
+
+  it("still rejects a divider on its own", () => {
+    expect(hasMeaningfulContent([{ type: "divider" }])).toBe(false);
+  });
+
+  it("counts the text inside a link", () => {
+    expect(
+      hasMeaningfulContent([
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "link",
+              href: "https://glitter.com.bo",
+              content: [{ type: "text", text: "acá", styles: {} }],
+            },
+          ],
+        },
+      ]),
+    ).toBe(true);
   });
 });

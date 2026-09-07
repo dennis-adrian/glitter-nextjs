@@ -81,6 +81,37 @@ async function postIdsForTag(slug: string): Promise<number[]> {
   return rows.map((r) => r.postId);
 }
 
+/**
+ * The `where` for a public listing, or `null` when a filter matched nothing
+ * and the caller should short-circuit to an empty page.
+ *
+ * Audience is deliberately absent: a restricted post is still *listed*
+ * (PRD §7.8), so the filters here are the same for every viewer and only the
+ * body is gated. Keeping this in one place is what stops the list and its
+ * count from drifting apart and paginating over different sets.
+ */
+async function buildPublicConditions(filters: ListFilters) {
+  const conditions = [eq(posts.status, "published" as PostStatus)];
+
+  if (filters.categorySlug) {
+    const ids = await postIdsForCategory(filters.categorySlug);
+    if (ids.length === 0) return null;
+    conditions.push(inArray(posts.id, ids));
+  }
+  if (filters.tagSlug) {
+    const ids = await postIdsForTag(filters.tagSlug);
+    if (ids.length === 0) return null;
+    conditions.push(inArray(posts.id, ids));
+  }
+  if (filters.q && filters.q.trim()) {
+    const needle = `%${filters.q.trim()}%`;
+    const search = or(ilike(posts.title, needle), ilike(posts.excerpt, needle));
+    if (search) conditions.push(search);
+  }
+
+  return conditions;
+}
+
 export async function fetchPublishedPosts(
   filters: ListFilters = {},
 ): Promise<PublicPostListItem[]> {
@@ -88,26 +119,8 @@ export async function fetchPublishedPosts(
     const perPage = Math.min(100, Math.max(1, filters.perPage ?? PAGE_SIZE));
     const offset = offsetFor(filters.page, perPage);
 
-    const conditions = [eq(posts.status, "published" as PostStatus)];
-
-    if (filters.categorySlug) {
-      const ids = await postIdsForCategory(filters.categorySlug);
-      if (ids.length === 0) return [];
-      conditions.push(inArray(posts.id, ids));
-    }
-    if (filters.tagSlug) {
-      const ids = await postIdsForTag(filters.tagSlug);
-      if (ids.length === 0) return [];
-      conditions.push(inArray(posts.id, ids));
-    }
-    if (filters.q && filters.q.trim()) {
-      const needle = `%${filters.q.trim()}%`;
-      const search = or(
-        ilike(posts.title, needle),
-        ilike(posts.excerpt, needle),
-      );
-      if (search) conditions.push(search);
-    }
+    const conditions = await buildPublicConditions(filters);
+    if (conditions === null) return [];
 
     const rows = await db.query.posts.findMany({
       where: and(...conditions),
@@ -128,6 +141,7 @@ export async function fetchPublishedPosts(
       excerpt: r.excerpt,
       coverImageUrl: r.coverImageUrl,
       publishedAt: r.publishedAt,
+      audience: r.audience,
       author: r.author,
       categories: r.postCategories.map((pc) => pc.category),
       tags: r.postTags.map((pt) => pt.tag),
@@ -142,26 +156,8 @@ export async function countPublishedPosts(
   filters: Omit<ListFilters, "page" | "perPage"> = {},
 ): Promise<number> {
   try {
-    const conditions = [eq(posts.status, "published" as PostStatus)];
-
-    if (filters.categorySlug) {
-      const ids = await postIdsForCategory(filters.categorySlug);
-      if (ids.length === 0) return 0;
-      conditions.push(inArray(posts.id, ids));
-    }
-    if (filters.tagSlug) {
-      const ids = await postIdsForTag(filters.tagSlug);
-      if (ids.length === 0) return 0;
-      conditions.push(inArray(posts.id, ids));
-    }
-    if (filters.q && filters.q.trim()) {
-      const needle = `%${filters.q.trim()}%`;
-      const search = or(
-        ilike(posts.title, needle),
-        ilike(posts.excerpt, needle),
-      );
-      if (search) conditions.push(search);
-    }
+    const conditions = await buildPublicConditions(filters);
+    if (conditions === null) return 0;
 
     const [row] = await db
       .select({ count: sql<number>`count(*)::int` })

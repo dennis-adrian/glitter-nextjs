@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Eye,
   MessageSquareWarning,
+  CalendarClock,
   MoreVertical,
   Settings,
   Trash2,
@@ -24,6 +25,7 @@ import PostSettingsSheet from "@/app/components/blog/post-settings-sheet";
 import PostStatusBadge from "@/app/components/blog/post-status-badge";
 import RequestChangesDialog from "@/app/components/blog/request-changes-dialog";
 import ReviewerNotesBanner from "@/app/components/blog/reviewer-notes-banner";
+import ScheduleDialog from "@/app/components/blog/schedule-dialog";
 import SaveIndicator, {
   type SaveStatus,
 } from "@/app/components/blog/save-indicator";
@@ -47,13 +49,16 @@ import {
 } from "@/app/components/ui/dropdown-menu";
 import { Form } from "@/app/components/ui/form";
 import {
-  approveAndPublish,
+  approvePost,
   autosaveDraft,
+  cancelSchedule,
   directPublish,
   discardWorkingCopy,
+  publishApproved,
   submitForReview,
 } from "@/app/lib/posts/actions";
 import type {
+  PostAudience,
   PostCategoryRow,
   PostStatus,
   PostWithRelations,
@@ -84,6 +89,7 @@ export default function PostFormInner({
   const [discardOpen, setDiscardOpen] = useState(false);
   const [requestChangesOpen, setRequestChangesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const propHasWork = post.workingUpdatedAt !== null;
   const [localHasWork, setLocalHasWork] = useState(propHasWork);
@@ -113,6 +119,9 @@ export default function PostFormInner({
   const effectiveSeoDescription = propHasWork
     ? (post.workingSeoDescription ?? "")
     : (post.seoDescription ?? "");
+  const effectiveAudience: PostAudience = propHasWork
+    ? (post.workingAudience ?? post.audience)
+    : post.audience;
   const effectiveCategoryIds =
     propHasWork && post.workingCategoryIds
       ? post.workingCategoryIds
@@ -131,6 +140,7 @@ export default function PostFormInner({
   const [categoryIds, setCategoryIds] =
     useState<number[]>(effectiveCategoryIds);
   const [tagInputs, setTagInputs] = useState<string[]>(effectiveTagInputs);
+  const [audience, setAudience] = useState<PostAudience>(effectiveAudience);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | undefined>();
 
@@ -193,10 +203,11 @@ export default function PostFormInner({
       seoTitle: v.seoTitle,
       seoDescription: v.seoDescription,
       content,
+      audience,
       categoryIds,
       tagInputs,
     };
-  }, [form, coverUrl, content, categoryIds, tagInputs]);
+  }, [form, coverUrl, content, audience, categoryIds, tagInputs]);
 
   const lastSavedRef = useRef<string>("");
   const versionRef = useRef(0);
@@ -232,6 +243,7 @@ export default function PostFormInner({
       seoTitle: effectiveSeoTitle,
       seoDescription: effectiveSeoDescription,
       content: effectiveContent ?? EMPTY_DOC,
+      audience: effectiveAudience,
       categoryIds: effectiveCategoryIds,
       tagInputs: effectiveTagInputs,
     });
@@ -243,6 +255,7 @@ export default function PostFormInner({
     effectiveSeoTitle,
     effectiveSeoDescription,
     effectiveContent,
+    effectiveAudience,
     effectiveCategoryIds,
     effectiveTagInputs,
   ]);
@@ -286,6 +299,7 @@ export default function PostFormInner({
     buildPayload,
     watchedValues,
     content,
+    audience,
     coverUrl,
     categoryIds,
     tagInputs,
@@ -328,12 +342,33 @@ export default function PostFormInner({
     setSubmitting(true);
     try {
       if (!(await persistLatest())) return;
-      const res =
-        post.status === "submitted" || workingInReview
-          ? await approveAndPublish(post.id)
+      const approving = post.status === "submitted" || workingInReview;
+      const res = approving
+        ? await approvePost(post.id)
+        : post.status === "approved"
+          ? await publishApproved(post.id)
           : await directPublish(post.id);
       if (res.success) {
-        toast.success("Artículo publicado");
+        toast.success(
+          approving && !workingInReview
+            ? "Artículo aprobado. Ya podés publicarlo o programarlo."
+            : "Artículo publicado",
+        );
+        window.location.reload();
+      } else {
+        toast.error(res.message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCancelSchedule() {
+    setSubmitting(true);
+    try {
+      const res = await cancelSchedule(post.id);
+      if (res.success) {
+        toast.success("Programación cancelada");
         window.location.reload();
       } else {
         toast.error(res.message);
@@ -383,6 +418,7 @@ export default function PostFormInner({
           seoTitle: v.seoTitle,
           seoDescription: v.seoDescription,
           content: blocks,
+          audience,
           categoryIds,
           tagInputs,
         });
@@ -405,16 +441,22 @@ export default function PostFormInner({
     !workingInReview &&
     ((status === "draft" && !hasWork) || hasWork);
 
-  const showApproveAndPublish =
+  // Approving no longer publishes. A submitted draft becomes `approved` and
+  // waits for a publish or a schedule; a staged edit to a live post merges,
+  // because there is nothing left to time.
+  const showApprove =
     canPublish && ((status === "submitted" && !hasWork) || workingInReview);
 
   const showDirectPublish =
     canPublish &&
-    !showApproveAndPublish &&
+    !showApprove &&
     (status === "draft" ||
       status === "approved" ||
       status === "archived" ||
       (hasWork && !workingInReview));
+
+  const showSchedule = canPublish && status === "approved" && !hasWork;
+  const showCancelSchedule = canPublish && status === "scheduled";
 
   const showRequestChanges =
     canPublish && (workingInReview || (status === "submitted" && !hasWork));
@@ -428,11 +470,15 @@ export default function PostFormInner({
       : "Enviar cambios a revisión"
     : "Enviar a revisión";
 
-  const publishLabel = showApproveAndPublish
-    ? "Aprobar y publicar"
+  const publishLabel = showApprove
+    ? workingInReview
+      ? "Aprobar cambios"
+      : "Aprobar"
     : hasWork
       ? "Publicar cambios"
-      : "Publicar";
+      : status === "approved"
+        ? "Publicar ahora"
+        : "Publicar";
 
   const workingBadgeLabel = workingInReview
     ? "Cambios en revisión"
@@ -527,7 +573,29 @@ export default function PostFormInner({
                     {submitLabel}
                   </Button>
                 )}
-                {(showApproveAndPublish || showDirectPublish) && (
+                {showSchedule && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setScheduleOpen(true)}
+                    disabled={submitting || !canTransition}
+                    title={transitionDisabledTitle}
+                  >
+                    <CalendarClock className="mr-1 size-4" />
+                    Programar
+                  </Button>
+                )}
+                {showCancelSchedule && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCancelSchedule}
+                    disabled={submitting}
+                  >
+                    Cancelar programación
+                  </Button>
+                )}
+                {(showApprove || showDirectPublish) && (
                   <Button
                     type="button"
                     className="bg-primary hover:bg-primary/90"
@@ -554,7 +622,7 @@ export default function PostFormInner({
                     {submitLabel}
                   </Button>
                 )}
-                {(showApproveAndPublish || showDirectPublish) && (
+                {(showApprove || showDirectPublish) && (
                   <Button
                     type="button"
                     size="sm"
@@ -659,8 +727,19 @@ export default function PostFormInner({
           onCategoryIdsChange={setCategoryIds}
           tagInputs={tagInputs}
           onTagInputsChange={setTagInputs}
+          audience={audience}
+          onAudienceChange={setAudience}
+          slugPreview={post.slug}
+          postId={post.id}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
+        />
+
+        <ScheduleDialog
+          postId={post.id}
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          currentScheduledAt={post.scheduledAt}
         />
 
         <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>

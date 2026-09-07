@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 
+import BlogFilters from "@/app/components/blog/blog-filters";
 import PostList from "@/app/components/blog/post-list";
 import PostPagination from "@/app/components/blog/post-pagination";
-import { Input } from "@/app/components/ui/input";
-import { countPublishedPosts, fetchPublishedPosts } from "@/app/lib/posts/data";
+import {
+  countPublishedPosts,
+  fetchPostCategories,
+  fetchPublishedPosts,
+} from "@/app/lib/posts/data";
 
 const PER_PAGE = 12;
 
@@ -16,15 +20,25 @@ export const metadata: Metadata = {
 export default async function BlogIndexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    q?: string;
+    category?: string;
+    tag?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
   const q = (sp.q ?? "").trim();
+  const categorySlug = (sp.category ?? "").trim() || undefined;
+  const tagSlug = (sp.tag ?? "").trim() || undefined;
 
-  const [posts, total] = await Promise.all([
-    fetchPublishedPosts({ page, perPage: PER_PAGE, q: q || undefined }),
-    countPublishedPosts({ q: q || undefined }),
+  const filters = { q: q || undefined, categorySlug, tagSlug };
+
+  const [posts, total, categories] = await Promise.all([
+    fetchPublishedPosts({ ...filters, page, perPage: PER_PAGE }),
+    countPublishedPosts(filters),
+    fetchPostCategories(),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
@@ -37,16 +51,20 @@ export default async function BlogIndexPage({
         </p>
       </header>
 
-      <form className="mb-6" action="/blog" method="get">
-        <Input
-          name="q"
-          defaultValue={q}
-          placeholder="Buscar artículos…"
-          className="max-w-md"
-        />
-      </form>
+      <BlogFilters
+        categories={categories}
+        activeCategory={categorySlug}
+        activeTag={tagSlug}
+        q={q}
+      />
 
-      <PostList posts={posts} />
+      {posts.length === 0 ? (
+        <p className="py-12 text-center text-muted-foreground">
+          No encontramos artículos con esos filtros.
+        </p>
+      ) : (
+        <PostList posts={posts} />
+      )}
 
       <PostPagination
         currentPage={page}
@@ -55,6 +73,8 @@ export default async function BlogIndexPage({
           const params = new URLSearchParams();
           if (p > 1) params.set("page", String(p));
           if (q) params.set("q", q);
+          if (categorySlug) params.set("category", categorySlug);
+          if (tagSlug) params.set("tag", tagSlug);
           const qs = params.toString();
           return qs ? `/blog?${qs}` : "/blog";
         }}

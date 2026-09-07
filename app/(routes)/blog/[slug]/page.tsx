@@ -9,6 +9,10 @@ import {
 import { canEditPost } from "@/app/lib/posts/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { postAuthorName } from "@/app/lib/posts/helpers";
+import { isPostGatedFor } from "@/app/lib/posts/audience";
+import { isStaff } from "@/app/lib/posts/helpers";
+import { fetchCommentThread } from "@/app/lib/posts/comments";
+import CommentThread from "@/app/components/blog/comment-thread";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -42,7 +46,12 @@ export async function generateMetadata({
   return {
     title,
     description,
-    robots: isPreview ? { index: false, follow: false } : undefined,
+    // A restricted article is listed for people browsing the site, not for
+    // search engines: indexing it would publish a gate as a thin result.
+    robots:
+      isPreview || post.audience === "participants"
+        ? { index: false, follow: false }
+        : undefined,
     openGraph: {
       title,
       description,
@@ -91,5 +100,34 @@ export default async function BlogPostPage({
 
   const post = await fetchPostBySlug(slug);
   if (!post) notFound();
-  return <PostDetail post={post} />;
+
+  // Resolved only for a restricted article: a public one must not pay for an
+  // auth round-trip, and reading the profile is what makes the page personal.
+  const viewer =
+    post.audience === "participants" ? await getCurrentUserProfile() : null;
+  const gated = isPostGatedFor(viewer, post);
+
+  // Comments follow the gate: someone who cannot read the article cannot
+  // write under it either. The action re-checks this independently.
+  const commenter =
+    post.audience === "participants" ? viewer : await getCurrentUserProfile();
+  const comments = await fetchCommentThread(post.id);
+
+  return (
+    <>
+      <PostDetail
+        post={gated ? { ...post, contentHtml: "" } : post}
+        gateReason={gated ? (viewer ? "unverified" : "anonymous") : null}
+      />
+      <div className="mx-auto max-w-3xl px-4 pb-12">
+        <CommentThread
+          postId={post.id}
+          comments={comments}
+          viewerId={commenter?.id ?? null}
+          viewerIsStaff={isStaff(commenter?.role)}
+          canComment={Boolean(commenter) && !gated}
+        />
+      </div>
+    </>
+  );
 }

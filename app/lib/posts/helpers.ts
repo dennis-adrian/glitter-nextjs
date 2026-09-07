@@ -70,16 +70,57 @@ export function canArchivePost(
   return isStaff(profile.role) || post.authorId === profile.id;
 }
 
+/**
+ * Blocks that are content in their own right, with nothing to say about text.
+ * An article that is one table, or one diagram, is a real article.
+ */
+const STANDALONE_BLOCK_TYPES = new Set(["image", "table"]);
+
+/**
+ * Whether a document has anything a reader would see.
+ *
+ * Walks nested children as well as top-level blocks: the earlier version read
+ * only each top-level block's own inline array, so text inside a nested block
+ * — and every table, whose `content` is a `{ type, rows }` object rather than
+ * an array — counted as empty and could not be published.
+ */
 export function hasMeaningfulContent(content: unknown): boolean {
   if (!Array.isArray(content) || content.length === 0) return false;
-  for (const block of content) {
-    const inline = (block as { content?: unknown }).content;
-    if (!Array.isArray(inline)) continue;
-    for (const node of inline) {
-      const text = (node as { text?: unknown }).text;
-      if (typeof text === "string" && text.trim().length > 0) return true;
+
+  for (const raw of content) {
+    const block = raw as {
+      type?: unknown;
+      content?: unknown;
+      children?: unknown;
+    };
+
+    if (
+      typeof block.type === "string" &&
+      STANDALONE_BLOCK_TYPES.has(block.type)
+    ) {
+      return true;
+    }
+
+    if (Array.isArray(block.content)) {
+      for (const node of block.content) {
+        const text = (node as { text?: unknown }).text;
+        if (typeof text === "string" && text.trim().length > 0) return true;
+        // Links carry their text one level down.
+        const nested = (node as { content?: unknown }).content;
+        if (
+          Array.isArray(nested) &&
+          hasMeaningfulContent([{ content: nested }])
+        ) {
+          return true;
+        }
+      }
+    }
+
+    if (Array.isArray(block.children) && hasMeaningfulContent(block.children)) {
+      return true;
     }
   }
+
   return false;
 }
 

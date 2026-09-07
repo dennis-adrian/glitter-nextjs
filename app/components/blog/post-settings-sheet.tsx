@@ -4,7 +4,9 @@ import { Settings } from "lucide-react";
 import { useState } from "react";
 import type { Control } from "react-hook-form";
 
+import AudienceSelect from "@/app/components/blog/audience-select";
 import CategoryMultiselect from "@/app/components/blog/category-multiselect";
+import SlugField from "@/app/components/blog/slug-field";
 import TagInput from "@/app/components/blog/tag-input";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
@@ -18,7 +20,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/app/components/ui/sheet";
-import type { PostCategoryRow } from "@/app/lib/posts/definitions";
+import type {
+  PostAudience,
+  PostCategoryRow,
+} from "@/app/lib/posts/definitions";
 
 type Props = {
   formControl: Control<any>;
@@ -27,6 +32,10 @@ type Props = {
   onCategoryIdsChange: (ids: number[]) => void;
   tagInputs: string[];
   onTagInputsChange: (tags: string[]) => void;
+  audience: PostAudience;
+  onAudienceChange: (audience: PostAudience) => void;
+  slugPreview: string;
+  postId: number;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
@@ -38,6 +47,10 @@ export default function PostSettingsSheet({
   onCategoryIdsChange,
   tagInputs,
   onTagInputsChange,
+  audience,
+  onAudienceChange,
+  slugPreview,
+  postId,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: Props) {
@@ -78,12 +91,11 @@ export default function PostSettingsSheet({
           </SheetHeader>
 
           <div className="mt-6 flex flex-col gap-6">
-            <TextInput
-              name="slug"
-              label="Slug (URL)"
-              placeholder="se-genera-automaticamente"
-              description="Deja en blanco para generarlo desde el título"
-            />
+            <AudienceSelect value={audience} onChange={onAudienceChange} />
+
+            <Separator />
+
+            <SlugField postId={postId} slugPreview={slugPreview} />
 
             <TextareaInput
               formControl={formControl}

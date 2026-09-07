@@ -1,3 +1,4 @@
+CREATE TYPE "public"."post_audience" AS ENUM('public', 'participants');--> statement-breakpoint
 CREATE TYPE "public"."post_status" AS ENUM('draft', 'submitted', 'approved', 'scheduled', 'published', 'rejected', 'archived');--> statement-breakpoint
 CREATE TABLE "post_categories" (
 	"id" serial PRIMARY KEY NOT NULL,
@@ -16,6 +17,19 @@ CREATE TABLE "post_categories_to_posts" (
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "post_categories_to_posts_post_id_category_id_unique" UNIQUE("post_id","category_id")
+);
+--> statement-breakpoint
+CREATE TABLE "post_comments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"post_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"body" text NOT NULL,
+	"parent_id" integer,
+	"is_hidden" boolean DEFAULT false NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "post_comments_body_length_check" CHECK (length(btrim("post_comments"."body")) between 1 and 1000),
+	CONSTRAINT "post_comments_not_own_parent_check" CHECK ("post_comments"."parent_id" is null or "post_comments"."parent_id" <> "post_comments"."id")
 );
 --> statement-breakpoint
 CREATE TABLE "post_tags" (
@@ -46,10 +60,12 @@ CREATE TABLE "posts" (
 	"content_html" text NOT NULL,
 	"seo_title" text,
 	"seo_description" text,
-	"author_id" integer NOT NULL,
+	"author_id" integer,
 	"status" "post_status" DEFAULT 'draft' NOT NULL,
+	"audience" "post_audience" DEFAULT 'public' NOT NULL,
 	"submitted_at" timestamp,
 	"published_at" timestamp,
+	"scheduled_at" timestamp,
 	"reviewer_id" integer,
 	"reviewer_notes" text,
 	"working_title" text,
@@ -60,6 +76,7 @@ CREATE TABLE "posts" (
 	"working_content_html" text,
 	"working_seo_title" text,
 	"working_seo_description" text,
+	"working_audience" "post_audience",
 	"working_category_ids" jsonb,
 	"working_tag_inputs" jsonb,
 	"working_updated_at" timestamp,
@@ -74,12 +91,19 @@ CREATE TABLE "posts" (
 --> statement-breakpoint
 ALTER TABLE "post_categories_to_posts" ADD CONSTRAINT "post_categories_to_posts_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "post_categories_to_posts" ADD CONSTRAINT "post_categories_to_posts_category_id_post_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."post_categories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "post_comments" ADD CONSTRAINT "post_comments_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "post_comments" ADD CONSTRAINT "post_comments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "post_comments" ADD CONSTRAINT "post_comments_parent_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."post_comments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "post_tags_to_posts" ADD CONSTRAINT "post_tags_to_posts_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "post_tags_to_posts" ADD CONSTRAINT "post_tags_to_posts_tag_id_post_tags_id_fk" FOREIGN KEY ("tag_id") REFERENCES "public"."post_tags"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "posts" ADD CONSTRAINT "posts_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "posts" ADD CONSTRAINT "posts_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "posts" ADD CONSTRAINT "posts_reviewer_id_users_id_fk" FOREIGN KEY ("reviewer_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "posts" ADD CONSTRAINT "posts_working_reviewer_id_users_id_fk" FOREIGN KEY ("working_reviewer_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_post_categories_to_posts_category_id" ON "post_categories_to_posts" USING btree ("category_id");--> statement-breakpoint
+CREATE INDEX "post_comments_post_created_idx" ON "post_comments" USING btree ("post_id","created_at");--> statement-breakpoint
+CREATE INDEX "post_comments_parent_idx" ON "post_comments" USING btree ("parent_id");--> statement-breakpoint
+CREATE INDEX "post_comments_user_post_created_idx" ON "post_comments" USING btree ("user_id","post_id","created_at");--> statement-breakpoint
 CREATE INDEX "idx_post_tags_to_posts_tag_id" ON "post_tags_to_posts" USING btree ("tag_id");--> statement-breakpoint
 CREATE INDEX "posts_status_published_at_idx" ON "posts" USING btree ("status","published_at");--> statement-breakpoint
-CREATE INDEX "posts_author_idx" ON "posts" USING btree ("author_id");
+CREATE INDEX "posts_author_idx" ON "posts" USING btree ("author_id");--> statement-breakpoint
+CREATE INDEX "posts_scheduled_idx" ON "posts" USING btree ("status","scheduled_at");

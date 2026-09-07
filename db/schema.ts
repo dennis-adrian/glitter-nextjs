@@ -6182,6 +6182,11 @@ export const postStatusEnum = pgEnum("post_status", [
   "archived",
 ]);
 
+export const postAudienceEnum = pgEnum("post_audience", [
+  "public",
+  "participants",
+]);
+
 export const posts = pgTable(
   "posts",
   {
@@ -6205,8 +6210,16 @@ export const posts = pgTable(
       onDelete: "set null",
     }),
     status: postStatusEnum("status").default("draft").notNull(),
+    /**
+     * Who may read the body. Orthogonal to `status`: a post can be published
+     * and still restricted. Defaults to `public` so an author has to opt in
+     * to restricting an article, never the reverse.
+     */
+    audience: postAudienceEnum("audience").default("public").notNull(),
     submittedAt: timestamp("submitted_at"),
     publishedAt: timestamp("published_at"),
+    /** Absolute instant; the admin picks it in America/La_Paz. */
+    scheduledAt: timestamp("scheduled_at"),
     reviewerId: integer("reviewer_id").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -6219,6 +6232,7 @@ export const posts = pgTable(
     workingContentHtml: text("working_content_html"),
     workingSeoTitle: text("working_seo_title"),
     workingSeoDescription: text("working_seo_description"),
+    workingAudience: postAudienceEnum("working_audience"),
     workingCategoryIds: jsonb("working_category_ids").$type<number[]>(),
     workingTagInputs: jsonb("working_tag_inputs").$type<string[]>(),
     workingUpdatedAt: timestamp("working_updated_at"),
@@ -6234,6 +6248,7 @@ export const posts = pgTable(
   (t) => [
     index("posts_status_published_at_idx").on(t.status, t.publishedAt),
     index("posts_author_idx").on(t.authorId),
+    index("posts_scheduled_idx").on(t.status, t.scheduledAt),
     check(
       "posts_non_draft_requires_title_check",
       sql`${t.status} = 'draft' OR length(btrim(${t.title})) >= 3`,
@@ -6242,6 +6257,7 @@ export const posts = pgTable(
 );
 
 export const postsRelations = relations(posts, ({ one, many }) => ({
+  comments: many(postComments),
   author: one(users, {
     fields: [posts.authorId],
     references: [users.id],
@@ -6347,5 +6363,75 @@ export const postTagsToPostsRelations = relations(
       fields: [postTagsToPosts.tagId],
       references: [postTags.id],
     }),
+  }),
+);
+
+export const postComments = pgTable(
+  "post_comments",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    /**
+     * Cascades: a departing participant's comments go with them, the way
+     * `detachPostsForDeletedUser` settles their articles.
+     */
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    /**
+     * One level only. `addComment` refuses a parent that is itself a reply;
+     * the check below stops the degenerate self-parent a bad write could
+     * otherwise produce.
+     */
+    parentId: integer("parent_id"),
+    isHidden: boolean("is_hidden").default(false).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "post_comments_parent_id_fk",
+      columns: [t.parentId],
+      foreignColumns: [t.id],
+    }).onDelete("cascade"),
+    index("post_comments_post_created_idx").on(t.postId, t.createdAt),
+    index("post_comments_parent_idx").on(t.parentId),
+    // Backs the per-post rate limit, which counts one user's recent rows.
+    index("post_comments_user_post_created_idx").on(
+      t.userId,
+      t.postId,
+      t.createdAt,
+    ),
+    check(
+      "post_comments_body_length_check",
+      sql`length(btrim(${t.body})) between 1 and 1000`,
+    ),
+    check(
+      "post_comments_not_own_parent_check",
+      sql`${t.parentId} is null or ${t.parentId} <> ${t.id}`,
+    ),
+  ],
+);
+
+export const postCommentsRelations = relations(
+  postComments,
+  ({ one, many }) => ({
+    post: one(posts, {
+      fields: [postComments.postId],
+      references: [posts.id],
+    }),
+    user: one(users, {
+      fields: [postComments.userId],
+      references: [users.id],
+    }),
+    parent: one(postComments, {
+      fields: [postComments.parentId],
+      references: [postComments.id],
+      relationName: "commentReplies",
+    }),
+    replies: many(postComments, { relationName: "commentReplies" }),
   }),
 );

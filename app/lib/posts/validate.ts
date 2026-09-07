@@ -34,6 +34,7 @@ export const postFormSchema = z.object({
     .array(z.string().trim().min(1).max(40))
     .max(20, "Máximo 20 etiquetas por artículo")
     .default([]),
+  audience: z.enum(["public", "participants"]).default("public"),
   content: z.unknown().refine((v) => Array.isArray(v) && v.length > 0, {
     message: "El contenido del artículo no puede estar vacío",
   }),
@@ -50,6 +51,7 @@ export const postAutosaveSchema = z.object({
   seoDescription: z.string().trim().max(200).optional().or(z.literal("")),
   categoryIds: z.array(z.number().int().positive()).default([]),
   tagInputs: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  audience: z.enum(["public", "participants"]).default("public"),
   content: z.unknown(),
 });
 
@@ -73,3 +75,24 @@ export const postCategoryFormSchema = z.object({
 });
 
 export type PostCategoryFormInput = z.infer<typeof postCategoryFormSchema>;
+
+/**
+ * A schedule must land in the future — a past instant would be published by
+ * the very next cron sweep, which is a confusing way to spell "publish now".
+ * One minute of slack absorbs the gap between picking a time and submitting.
+ */
+export const scheduleSchema = z.object({
+  scheduledAt: z.coerce
+    .date({ message: "Elegí una fecha y hora válidas" })
+    .refine((value) => value.getTime() > Date.now() - 60_000, {
+      message: "La fecha de publicación debe estar en el futuro",
+    }),
+});
+
+export const commentSchema = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, "El comentario no puede estar vacío")
+    .max(1000, "El comentario no puede superar los 1000 caracteres"),
+});

@@ -6,13 +6,17 @@ import TagPill from "@/app/components/blog/tag-pill";
 import type { PostWithRelations } from "@/app/lib/posts/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { postAuthorName } from "@/app/lib/posts/helpers";
+import AudienceBadge from "@/app/components/blog/audience-badge";
+import PostGate from "@/app/components/blog/post-gate";
 
 type Props = {
   post: PostWithRelations;
   previewBanner?: boolean;
+  /** Set when the viewer may not read the body; renders the gate instead. */
+  gateReason?: "anonymous" | "unverified" | null;
 };
 
-export default function PostDetail({ post, previewBanner }: Props) {
+export default function PostDetail({ post, previewBanner, gateReason }: Props) {
   return (
     <article className="mx-auto max-w-3xl px-4 py-8">
       {previewBanner && (
@@ -22,6 +26,9 @@ export default function PostDetail({ post, previewBanner }: Props) {
         </div>
       )}
       <header className="space-y-4 mb-8">
+        <div className="flex flex-wrap items-center gap-2">
+          <AudienceBadge audience={post.audience} />
+        </div>
         {post.categories.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {post.categories.map((c) => (
@@ -62,11 +69,15 @@ export default function PostDetail({ post, previewBanner }: Props) {
         </div>
       )}
 
-      <div
-        className="blog-article"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered from the stored blocks and sanitized server-side in app/lib/posts/render.ts — never accepted from the client
-        dangerouslySetInnerHTML={{ __html: post.contentHtml }}
-      />
+      {gateReason ? (
+        <PostGate reason={gateReason} />
+      ) : (
+        <div
+          className="blog-article"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered from the stored blocks and sanitized server-side in app/lib/posts/render.ts — never accepted from the client
+          dangerouslySetInnerHTML={{ __html: post.contentHtml }}
+        />
+      )}
 
       {post.tags.length > 0 && (
         <footer className="mt-12 pt-6 border-t flex flex-wrap gap-2">

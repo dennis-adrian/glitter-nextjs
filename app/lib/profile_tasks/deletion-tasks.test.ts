@@ -7,6 +7,7 @@ const updateMock = vi.hoisted(() => vi.fn());
 const selectMock = vi.hoisted(() => vi.fn());
 const deleteClerkUserMock = vi.hoisted(() => vi.fn());
 const anonymizeMock = vi.hoisted(() => vi.fn());
+const detachPostsMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db", () => ({
@@ -23,6 +24,10 @@ vi.mock("@/app/lib/users/clerk", () => ({
 
 vi.mock("@/app/lib/programs/anonymization", () => ({
   anonymizeProgramPurchasesForUser: anonymizeMock,
+}));
+
+vi.mock("@/app/lib/posts/anonymization", () => ({
+  detachPostsForDeletedUser: detachPostsMock,
 }));
 
 vi.mock("@/app/vendors/resend", () => ({
@@ -213,9 +218,11 @@ describe("handleDeletionEmails", () => {
     updateMock.mockReset();
     deleteClerkUserMock.mockReset();
     anonymizeMock.mockReset();
+    detachPostsMock.mockReset();
     sendEmailMock.mockReset();
 
     anonymizeMock.mockResolvedValue(undefined);
+    detachPostsMock.mockResolvedValue({ deleted: 0, detached: 0 });
     sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
     updateMock.mockImplementation(recordingUpdate());
     // db.select(...)...limit() drives the deletion-email drain.
@@ -247,6 +254,8 @@ describe("handleDeletionEmails", () => {
 
     expect(deleteClerkUserMock).toHaveBeenCalledWith("user_abc");
     expect(anonymizeMock).toHaveBeenCalledTimes(1);
+    // Posts are settled on the same path, before the user row goes.
+    expect(detachPostsMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual([task]);
     // The task row itself is removed by the ON DELETE CASCADE on profile_id;
     // closing the outbox entry is what marks the work done. The address is

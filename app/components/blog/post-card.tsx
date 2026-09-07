@@ -6,6 +6,7 @@ import CategoryPill from "@/app/components/blog/category-pill";
 import type { PublicPostListItem } from "@/app/lib/posts/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { postAuthorName } from "@/app/lib/posts/helpers";
+import AudienceBadge from "@/app/components/blog/audience-badge";
 
 export default function PostCard({ post }: { post: PublicPostListItem }) {
   return (
@@ -29,8 +30,9 @@ export default function PostCard({ post }: { post: PublicPostListItem }) {
         )}
       </div>
       <div className="flex flex-col gap-2 p-4">
-        {post.categories.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+        {(post.categories.length > 0 || post.audience !== "public") && (
+          <div className="flex flex-wrap items-center gap-1">
+            <AudienceBadge audience={post.audience} />
             {post.categories.slice(0, 2).map((c) => (
               <CategoryPill key={c.id} category={c} />
             ))}

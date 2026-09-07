@@ -1,5 +1,5 @@
 {
-  "id": "dd183cd1-3ffd-4628-8047-df429ab2411f",
+  "id": "8fb4d132-87a5-4239-a540-5af50adb5c0f",
   "prevId": "fee3e5c0-e088-426e-9928-4e0fea8ceb4b",
   "version": "7",
   "dialect": "postgresql",
@@ -7779,6 +7779,183 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.post_comments": {
+      "name": "post_comments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_hidden": {
+          "name": "is_hidden",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "post_comments_post_created_idx": {
+          "name": "post_comments_post_created_idx",
+          "columns": [
+            {
+              "expression": "post_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "post_comments_parent_idx": {
+          "name": "post_comments_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "post_comments_user_post_created_idx": {
+          "name": "post_comments_user_post_created_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "post_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "post_comments_post_id_posts_id_fk": {
+          "name": "post_comments_post_id_posts_id_fk",
+          "tableFrom": "post_comments",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "post_comments_user_id_users_id_fk": {
+          "name": "post_comments_user_id_users_id_fk",
+          "tableFrom": "post_comments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "post_comments_parent_id_fk": {
+          "name": "post_comments_parent_id_fk",
+          "tableFrom": "post_comments",
+          "tableTo": "post_comments",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "post_comments_body_length_check": {
+          "name": "post_comments_body_length_check",
+          "value": "length(btrim(\"post_comments\".\"body\")) between 1 and 1000"
+        },
+        "post_comments_not_own_parent_check": {
+          "name": "post_comments_not_own_parent_check",
+          "value": "\"post_comments\".\"parent_id\" is null or \"post_comments\".\"parent_id\" <> \"post_comments\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.post_tags": {
       "name": "post_tags",
       "schema": "",
@@ -7991,7 +8168,7 @@
           "name": "author_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "status": {
           "name": "status",
@@ -8001,6 +8178,14 @@
           "notNull": true,
           "default": "'draft'"
         },
+        "audience": {
+          "name": "audience",
+          "type": "post_audience",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
         "submitted_at": {
           "name": "submitted_at",
           "type": "timestamp",
@@ -8009,6 +8194,12 @@
         },
         "published_at": {
           "name": "published_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -8070,6 +8261,13 @@
         "working_seo_description": {
           "name": "working_seo_description",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "working_audience": {
+          "name": "working_audience",
+          "type": "post_audience",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
         },
@@ -8160,6 +8358,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "posts_scheduled_idx": {
+          "name": "posts_scheduled_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scheduled_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -8173,7 +8392,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "posts_reviewer_id_users_id_fk": {
@@ -17281,6 +17500,14 @@
       "values": [
         "standard",
         "live_activity"
+      ]
+    },
+    "public.post_audience": {
+      "name": "post_audience",
+      "schema": "public",
+      "values": [
+        "public",
+        "participants"
       ]
     },
     "public.post_status": {

@@ -246,7 +246,7 @@ describeDatabase("blog editorial actions", () => {
       const post = await makePost({ status: "submitted" });
       currentProfile.value = AUTHOR;
 
-      await expect(actions.approveAndPublish(post.id)).resolves.toMatchObject({
+      await expect(actions.approvePost(post.id)).resolves.toMatchObject({
         success: false,
       });
       await expect(
@@ -259,17 +259,17 @@ describeDatabase("blog editorial actions", () => {
       expect((await read(post.id)).status).toBe("submitted");
     });
 
-    it("publishes a submitted post and records the reviewer", async () => {
+    it("approves a submitted post and records the reviewer, without publishing", async () => {
       const post = await makePost({ status: "submitted" });
       currentProfile.value = ADMIN;
 
-      await expect(actions.approveAndPublish(post.id)).resolves.toMatchObject({
+      await expect(actions.approvePost(post.id)).resolves.toMatchObject({
         success: true,
       });
 
       const after = await read(post.id);
-      expect(after.status).toBe("published");
-      expect(after.publishedAt).toBeInstanceOf(Date);
+      expect(after.status).toBe("approved");
+      expect(after.publishedAt).toBeNull();
       expect(after.reviewerId).toBe(ADMIN.id);
     });
 
@@ -277,7 +277,7 @@ describeDatabase("blog editorial actions", () => {
       const post = await makePost({ status: "draft" });
       currentProfile.value = ADMIN;
 
-      await expect(actions.approveAndPublish(post.id)).resolves.toMatchObject({
+      await expect(actions.approvePost(post.id)).resolves.toMatchObject({
         success: false,
       });
       expect((await read(post.id)).status).toBe("draft");
@@ -423,7 +423,7 @@ describeDatabase("blog editorial actions", () => {
       await actions.submitForReview(post.id);
 
       currentProfile.value = ADMIN;
-      await expect(actions.approveAndPublish(post.id)).resolves.toMatchObject({
+      await expect(actions.approvePost(post.id)).resolves.toMatchObject({
         success: true,
       });
 

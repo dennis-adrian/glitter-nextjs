@@ -27,6 +27,7 @@ import {
   postCategoryFormSchema,
   postFormSchema,
   reviewNotesSchema,
+  scheduleSchema,
 } from "@/app/lib/posts/validate";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -82,6 +83,7 @@ const CLEAR_WORKING = {
   workingContentHtml: null,
   workingSeoTitle: null,
   workingSeoDescription: null,
+  workingAudience: null,
   workingCategoryIds: null,
   workingTagInputs: null,
   workingUpdatedAt: null,
@@ -117,6 +119,7 @@ async function applyWorkingToMain(
       contentHtml: existing.workingContentHtml ?? existing.contentHtml,
       seoTitle: existing.workingSeoTitle,
       seoDescription: existing.workingSeoDescription,
+      audience: existing.workingAudience ?? existing.audience,
       updatedAt: new Date(),
       ...CLEAR_WORKING,
     })
@@ -242,6 +245,28 @@ async function syncPostTags(tx: Tx, postId: number, tagInputs: string[]) {
   }
 }
 
+/**
+ * Availability of a slug, for the editor's on-blur check.
+ *
+ * Advisory only. It reports what `ensureUniquePostSlug` would do right now,
+ * and every save runs that same helper again inside its transaction, so a slug
+ * claimed between the check and the save still resolves to a free one rather
+ * than failing on the unique index.
+ */
+export async function checkSlugAvailability(
+  postId: number,
+  candidate: string,
+): Promise<{ available: boolean; suggestion: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!profile) return { available: false, suggestion: "" };
+
+  const base = slugifyName(candidate);
+  if (!base) return { available: false, suggestion: "" };
+
+  const suggestion = await ensureUniquePostSlug(db, base, postId);
+  return { available: suggestion === base, suggestion };
+}
+
 export async function updatePost(
   postId: number,
   input: unknown,
@@ -295,6 +320,7 @@ export async function updatePost(
           contentHtml,
           seoTitle: data.seoTitle || null,
           seoDescription: data.seoDescription || null,
+          audience: data.audience,
           ...(willResetReview
             ? { status: "draft" as PostStatus, reviewerNotes: null }
             : {}),
@@ -365,6 +391,7 @@ export async function autosaveDraft(
             workingContentHtml: contentHtml,
             workingSeoTitle: data.seoTitle || null,
             workingSeoDescription: data.seoDescription || null,
+            workingAudience: data.audience,
             workingCategoryIds: data.categoryIds,
             workingTagInputs: data.tagInputs,
             workingUpdatedAt: now,
@@ -394,6 +421,7 @@ export async function autosaveDraft(
           contentHtml,
           seoTitle: data.seoTitle || null,
           seoDescription: data.seoDescription || null,
+          audience: data.audience,
           updatedAt: new Date(),
         })
         .where(eq(posts.id, postId))
@@ -495,7 +523,16 @@ export async function submitForReview(postId: number): Promise<ActionResult> {
   }
 }
 
-export async function approveAndPublish(postId: number): Promise<ActionResult> {
+/**
+ * Blesses the content without deciding when it goes out.
+ *
+ * Two shapes reach here. A `submitted` draft moves to `approved` and waits for
+ * `publishApproved` or `schedulePost`. A staged edit to a post that is already
+ * live is merged straight into the live row instead — there is nothing to
+ * schedule, the article is already published and the reader should simply see
+ * the approved version.
+ */
+export async function approvePost(postId: number): Promise<ActionResult> {
   const profile = await getCurrentUserProfile();
   if (!profile || !canPublishPosts(profile.role)) {
     return { success: false, message: "No tienes permisos" };
@@ -514,11 +551,9 @@ export async function approveAndPublish(postId: number): Promise<ActionResult> {
     };
   }
 
-  const effectiveTitle = existing.workingTitle ?? existing.title;
-  const effectiveContent = existing.workingContent ?? existing.content;
   const precheck = transitionPrecondition({
-    title: effectiveTitle,
-    content: effectiveContent,
+    title: existing.workingTitle ?? existing.title,
+    content: existing.workingContent ?? existing.content,
   });
   if (!precheck.ok) return { success: false, message: precheck.message };
 
@@ -528,12 +563,7 @@ export async function approveAndPublish(postId: number): Promise<ActionResult> {
         const { slug } = await applyWorkingToMain(tx, existing);
         await tx
           .update(posts)
-          .set({
-            status: "published",
-            publishedAt: existing.publishedAt ?? new Date(),
-            reviewerId: profile.id,
-            updatedAt: new Date(),
-          })
+          .set({ reviewerId: profile.id, updatedAt: new Date() })
           .where(eq(posts.id, postId));
         return slug;
       }
@@ -544,10 +574,10 @@ export async function approveAndPublish(postId: number): Promise<ActionResult> {
       await tx
         .update(posts)
         .set({
-          status: "published",
+          status: "approved",
           slug,
-          publishedAt: existing.publishedAt ?? new Date(),
           reviewerId: profile.id,
+          reviewerNotes: null,
           updatedAt: new Date(),
         })
         .where(eq(posts.id, postId));
@@ -556,8 +586,131 @@ export async function approveAndPublish(postId: number): Promise<ActionResult> {
     invalidatePosts({ slugs: [existing.slug, finalSlug] });
     return { success: true };
   } catch (error) {
-    console.error("approveAndPublish", error);
-    return { success: false, message: "Error al aprobar y publicar" };
+    console.error("approvePost", error);
+    return { success: false, message: "Error al aprobar" };
+  }
+}
+
+/** `approved` → `published`. The timing half of the split above. */
+export async function publishApproved(postId: number): Promise<ActionResult> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || !canPublishPosts(profile.role)) {
+    return { success: false, message: "No tienes permisos" };
+  }
+
+  const existing = await db.query.posts.findFirst({
+    where: eq(posts.id, postId),
+  });
+  if (!existing) return { success: false, message: "Artículo no encontrado" };
+  if (existing.status !== "approved") {
+    return {
+      success: false,
+      message: "Solo se pueden publicar artículos aprobados",
+    };
+  }
+
+  const precheck = transitionPrecondition(existing);
+  if (!precheck.ok) return { success: false, message: precheck.message };
+
+  try {
+    await db
+      .update(posts)
+      .set({
+        status: "published",
+        publishedAt: existing.publishedAt ?? new Date(),
+        scheduledAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(posts.id, postId));
+    invalidatePosts({ slugs: [existing.slug] });
+    return { success: true };
+  } catch (error) {
+    console.error("publishApproved", error);
+    return { success: false, message: "Error al publicar" };
+  }
+}
+
+/**
+ * `approved` → `scheduled`. The instant is absolute; the picker that produced
+ * it works in America/La_Paz (PRD §7.7).
+ */
+export async function schedulePost(
+  postId: number,
+  scheduledAtInput: unknown,
+): Promise<ActionResult> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || !canPublishPosts(profile.role)) {
+    return { success: false, message: "No tienes permisos" };
+  }
+
+  const parsed = scheduleSchema.safeParse({ scheduledAt: scheduledAtInput });
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: parsed.error.issues[0]?.message ?? "Fecha inválida",
+    };
+  }
+
+  const existing = await db.query.posts.findFirst({
+    where: eq(posts.id, postId),
+  });
+  if (!existing) return { success: false, message: "Artículo no encontrado" };
+  if (existing.status !== "approved" && existing.status !== "scheduled") {
+    return {
+      success: false,
+      message: "Solo se pueden programar artículos aprobados",
+    };
+  }
+
+  const precheck = transitionPrecondition(existing);
+  if (!precheck.ok) return { success: false, message: precheck.message };
+
+  try {
+    await db
+      .update(posts)
+      .set({
+        status: "scheduled",
+        scheduledAt: parsed.data.scheduledAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(posts.id, postId));
+    invalidatePosts({ slugs: [existing.slug] });
+    return { success: true };
+  } catch (error) {
+    console.error("schedulePost", error);
+    return { success: false, message: "Error al programar" };
+  }
+}
+
+/**
+ * Returns a scheduled post to `approved` — the content is still approved, only
+ * the timing was cancelled, so sending it back to `draft` would make an admin
+ * re-run a review that already happened.
+ */
+export async function cancelSchedule(postId: number): Promise<ActionResult> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || !canPublishPosts(profile.role)) {
+    return { success: false, message: "No tienes permisos" };
+  }
+
+  const existing = await db.query.posts.findFirst({
+    where: eq(posts.id, postId),
+  });
+  if (!existing) return { success: false, message: "Artículo no encontrado" };
+  if (existing.status !== "scheduled") {
+    return { success: false, message: "El artículo no está programado" };
+  }
+
+  try {
+    await db
+      .update(posts)
+      .set({ status: "approved", scheduledAt: null, updatedAt: new Date() })
+      .where(eq(posts.id, postId));
+    invalidatePosts({ slugs: [existing.slug] });
+    return { success: true };
+  } catch (error) {
+    console.error("cancelSchedule", error);
+    return { success: false, message: "Error al cancelar la programación" };
   }
 }
 

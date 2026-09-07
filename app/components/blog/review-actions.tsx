@@ -17,7 +17,7 @@ import {
 } from "@/app/components/ui/dialog";
 import { Textarea } from "@/app/components/ui/textarea";
 import {
-  approveAndPublish,
+  approvePost,
   rejectPost,
   requestChanges,
 } from "@/app/lib/posts/actions";
@@ -37,7 +37,7 @@ export default function ReviewActions({ postId }: Props) {
   async function handleApprove() {
     setBusy(true);
     try {
-      const res = await approveAndPublish(postId);
+      const res = await approvePost(postId);
       if (res.success) {
         toast.success("Artículo publicado");
         router.refresh();

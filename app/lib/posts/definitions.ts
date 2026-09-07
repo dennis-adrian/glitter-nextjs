@@ -21,6 +21,13 @@ export const POST_STATUS_LABELS: Record<PostStatus, string> = {
   archived: "Archivado",
 };
 
+export type PostAudience = "public" | "participants";
+
+export const POST_AUDIENCE_LABELS: Record<PostAudience, string> = {
+  public: "Todo el mundo",
+  participants: "Solo participantes",
+};
+
 export type PostRow = InferSelectModel<typeof posts>;
 export type PostInsert = typeof posts.$inferInsert;
 export type PostCategoryRow = InferSelectModel<typeof postCategories>;
@@ -41,7 +48,13 @@ export type PostWithRelations = PostRow & {
 
 export type PublicPostListItem = Pick<
   PostRow,
-  "id" | "title" | "slug" | "excerpt" | "coverImageUrl" | "publishedAt"
+  | "id"
+  | "title"
+  | "slug"
+  | "excerpt"
+  | "coverImageUrl"
+  | "publishedAt"
+  | "audience"
 > & {
   /** Null once the author deletes their account; see posts/anonymization.ts. */
   author: PostAuthor | null;
@@ -59,4 +72,28 @@ export type PostFormValues = {
   seoDescription?: string;
   categoryIds: number[];
   tagInputs: string[];
+};
+
+export const COMMENT_MAX_LENGTH = 1000;
+export const COMMENT_RATE_LIMIT = 5;
+export const COMMENT_RATE_WINDOW_MS = 60_000;
+
+export type CommentAuthor = {
+  id: number;
+  displayName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string | null;
+};
+
+export type CommentReply = {
+  id: number;
+  body: string;
+  createdAt: Date;
+  userId: number;
+  user: CommentAuthor;
+};
+
+export type CommentNode = CommentReply & {
+  replies: CommentReply[];
 };

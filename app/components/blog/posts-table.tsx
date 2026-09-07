@@ -23,6 +23,7 @@ import {
 } from "@/app/lib/posts/definitions";
 import { canEditPost } from "@/app/lib/posts/helpers";
 import { formatFullDate } from "@/app/lib/formatters";
+import AudienceBadge from "@/app/components/blog/audience-badge";
 
 type Props = {
   posts: PostWithRelations[];
@@ -114,6 +115,7 @@ export default function PostsTable({ posts, surface, viewer }: Props) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <PostStatusBadge status={p.status} />
+                    <AudienceBadge audience={p.audience} />
                     <span className="text-xs text-muted-foreground">
                       Actualizado {formatFullDate(p.updatedAt)}
                     </span>
