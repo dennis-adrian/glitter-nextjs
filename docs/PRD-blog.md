@@ -211,6 +211,36 @@ Deleting a participant's account must not be blocked by anything they wrote.
 - Posts in every other status — draft, submitted, approved, scheduled, rejected — are deleted with the account. None of them was ever visible to a reader. A scheduled post is deliberately included: it should not publish itself after its author asked to be forgotten.
 - Phase 2: their comments are deleted.
 
+### 7.11 Rollout **[new]**
+
+Two feature flags stage the launch. Both default to `hidden`, so merging the
+code ships nothing.
+
+- **`blog`** gates the reading surface: the public routes and the menu and
+  footer links. `hidden` hides it from everyone including staff; `admin_only`
+  lets staff walk the real blog in production before it is announced; `public`
+  opens it.
+- **`blog_contributors`** gates participant authoring: the portal CTA, the
+  `/portal/blog` routes, draft creation, and the `blogImage` upload. Admins are
+  checked before this flag and are never affected by it.
+
+The phases:
+
+| Phase                        | `blog`       | `blog_contributors` | Result                                                                                    |
+| ---------------------------- | ------------ | ------------------- | ----------------------------------------------------------------------------------------- |
+| Merged, not launched         | `hidden`     | `hidden`            | Nothing visible; admins can still write in `/dashboard/blog`.                             |
+| Staff preview                | `admin_only` | `hidden`            | Staff read the real blog in production; participants see nothing.                         |
+| **Phase one — read-only**    | `public`     | `hidden`            | Everyone reads. Only admins write, with the audience gate (§7.8) deciding who reads what. |
+| **Phase two — contributors** | `public`     | `public`            | Eligible participants (§5) may write and submit for review.                               |
+
+Phase two is a flag flip, not a deploy: the contributor flow ships complete and
+dormant. `blog_contributors` also accepts per-user targeting, so a handful of
+participants can be let in before everyone.
+
+Both flags are enforced server-side — a hidden blog answers 404 on its routes,
+and a participant navigating straight to `/portal/blog` is redirected — rather
+than only hiding links.
+
 ## 8) Technical Design Summary
 
 ### 8.1 Schema (`db/schema.ts`)

@@ -13,9 +13,15 @@ type Props = {
   programsHref: string | null;
   /** Hides the wallet entry in the user menu until credits are revealed. */
   creditsEnabled: boolean;
+  /** Hides the blog entry until the blog is public. */
+  blogEnabled: boolean;
 };
 
-export default function NavbarClient({ programsHref, creditsEnabled }: Props) {
+export default function NavbarClient({
+  programsHref,
+  creditsEnabled,
+  blogEnabled,
+}: Props) {
   const { profile } = useNavbarProfile();
 
   return (
@@ -24,7 +30,11 @@ export default function NavbarClient({ programsHref, creditsEnabled }: Props) {
         <ul className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 xl:grid-cols-[auto_minmax(0,1fr)_auto]">
           <li className="flex min-w-0 items-center gap-2">
             <div className="xl:hidden">
-              <MobileSidebar profile={profile} programsHref={programsHref}>
+              <MobileSidebar
+                profile={profile}
+                programsHref={programsHref}
+                blogEnabled={blogEnabled}
+              >
                 <MenuIcon className="h-5 w-5" />
               </MobileSidebar>
             </div>
@@ -48,6 +58,7 @@ export default function NavbarClient({ programsHref, creditsEnabled }: Props) {
             <NavbarNavigationMenu
               profile={profile}
               programsHref={programsHref}
+              blogEnabled={blogEnabled}
             />
           </li>
           <li className="flex shrink-0 justify-self-end">

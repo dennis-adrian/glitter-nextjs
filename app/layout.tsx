@@ -11,7 +11,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { figtree, gabarito, inter, spaceGrotesk } from "@/ui/fonts";
 
 import Navbar from "@/app/components/navbar/navbar";
-import Footer from "@/app/components/footer";
+import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
@@ -51,7 +51,7 @@ export default function RootLayout({
               {children}
             </main>
             <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
-              <Footer />
+              <FooterServer />
             </Suspense>
             <PostHogAuthIdentify />
             <Toaster richColors />

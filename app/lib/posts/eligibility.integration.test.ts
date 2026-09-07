@@ -3,7 +3,15 @@
 import { inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
 import {
@@ -15,6 +23,16 @@ import {
 } from "@/db/schema";
 
 vi.mock("server-only", () => ({}));
+
+/**
+ * `blog_contributors` gates participant authoring. Defaulting it on here keeps
+ * these cases about the eligibility rule itself; the flag has its own cases at
+ * the bottom of the file.
+ */
+const contributorsEnabled = vi.hoisted(() => ({ value: true }));
+vi.mock("@/app/lib/feature_flags/helpers", () => ({
+  isFeatureEnabled: vi.fn(async () => contributorsEnabled.value),
+}));
 
 const dbMock = vi.hoisted(() => ({ select: vi.fn() }));
 vi.mock("@/db", () => ({ db: dbMock }));
@@ -238,5 +256,47 @@ describeDatabase("canAuthorPosts", () => {
     const bystander = await seedParticipant([]);
 
     await expect(canAuthorPosts(bystander as never)).resolves.toBe(false);
+  });
+
+  /**
+   * Phase one of the rollout is a blog written by admins and only read by
+   * participants, so the flag has to stop an otherwise-eligible participant
+   * while leaving staff alone. This is the single choke point every entry to
+   * participant authoring runs through — the portal CTA, the `/portal/blog`
+   * routes, `startNewPortalDraft`, and the `blogImage` upload.
+   */
+  describe("blog_contributors flag", () => {
+    afterEach(() => {
+      contributorsEnabled.value = true;
+    });
+
+    it("refuses an eligible participant while the flag is off", async () => {
+      const eligible = await seedParticipant([
+        { festivalId: festivalIds[0], status: "accepted" },
+        { festivalId: festivalIds[1], status: "accepted" },
+        { festivalId: festivalIds[2], status: "accepted" },
+      ]);
+      await expect(canAuthorPosts(eligible as never)).resolves.toBe(true);
+
+      contributorsEnabled.value = false;
+      const sameHistory = await seedParticipant([
+        { festivalId: festivalIds[0], status: "accepted" },
+        { festivalId: festivalIds[1], status: "accepted" },
+        { festivalId: festivalIds[2], status: "accepted" },
+      ]);
+
+      await expect(canAuthorPosts(sameHistory as never)).resolves.toBe(false);
+    });
+
+    it("leaves staff unaffected — admins write during phase one", async () => {
+      contributorsEnabled.value = false;
+
+      await expect(
+        canAuthorPosts({ id: -10, role: "admin" } as never),
+      ).resolves.toBe(true);
+      await expect(
+        canAuthorPosts({ id: -11, role: "festival_admin" } as never),
+      ).resolves.toBe(true);
+    });
   });
 });

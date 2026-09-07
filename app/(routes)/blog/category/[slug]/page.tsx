@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import PostList from "@/app/components/blog/post-list";
 import PostPagination from "@/app/components/blog/post-pagination";
 import {
@@ -33,6 +34,11 @@ export default async function BlogCategoryPage({
   params,
   searchParams,
 }: PageProps) {
+  // Phase one ships the blog dark: the routes exist but answer 404 until the
+  // flag is public. `admin_only` lets staff walk the real thing in production
+  // before it is announced.
+  if (!(await isFeatureEnabled("blog"))) notFound();
+
   const { slug } = await params;
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);

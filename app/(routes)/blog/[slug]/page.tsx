@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import PostDetail from "@/app/components/blog/post-detail";
 import {
   fetchPostBySlug,
@@ -79,6 +80,11 @@ export default async function BlogPostPage({
   params,
   searchParams,
 }: PageProps) {
+  // Phase one ships the blog dark: the routes exist but answer 404 until the
+  // flag is public. `admin_only` lets staff walk the real thing in production
+  // before it is announced.
+  if (!(await isFeatureEnabled("blog"))) notFound();
+
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const isPreview = sp.preview === "working";
 

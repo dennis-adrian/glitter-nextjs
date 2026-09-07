@@ -33,10 +33,13 @@ import { isNoNavigationPage } from "@/app/lib/utils";
 const NavbarNavigationMenu = ({
   profile,
   programsHref,
+  blogEnabled,
 }: {
   profile?: NavbarProfile | null;
   /** Null when the entry is switched off, gated, or nothing is published. */
   programsHref?: string | null;
+  /** False until the `blog` flag is visible to this viewer. */
+  blogEnabled?: boolean;
 }) => {
   const pathname = usePathname();
   const canViewSupplies = profile?.status === "verified";
@@ -68,16 +71,21 @@ const NavbarNavigationMenu = ({
             </Link>
           </NavigationMenuLink>
         </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-            <Link href="/blog">
-              <div className="flex items-center">
-                <BookOpenIcon className="w-4 h-4 mr-1" />
-                Blog
-              </div>
-            </Link>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
+        {blogEnabled ? (
+          <NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+              <Link href="/blog">
+                <div className="flex items-center">
+                  <BookOpenIcon className="w-4 h-4 mr-1" />
+                  Blog
+                </div>
+              </Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+        ) : null}
         {canViewSupplies ? (
           <NavigationMenuItem>
             <NavigationMenuTrigger>

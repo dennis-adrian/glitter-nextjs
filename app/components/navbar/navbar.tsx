@@ -29,11 +29,13 @@ async function resolveProgramsHref(): Promise<string | null> {
 }
 
 export default async function Navbar() {
-  const [programsHref, creditsEnabled, landingContent] = await Promise.all([
-    resolveProgramsHref(),
-    isFeatureEnabled("credits"),
-    getPublishedLandingContent(),
-  ]);
+  const [programsHref, creditsEnabled, blogEnabled, landingContent] =
+    await Promise.all([
+      resolveProgramsHref(),
+      isFeatureEnabled("credits"),
+      isFeatureEnabled("blog"),
+      getPublishedLandingContent(),
+    ]);
 
   return (
     <div data-site-navbar className="sticky top-0 z-50">
@@ -41,6 +43,7 @@ export default async function Navbar() {
       <NavbarClient
         programsHref={programsHref}
         creditsEnabled={creditsEnabled}
+        blogEnabled={blogEnabled}
       />
     </div>
   );
