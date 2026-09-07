@@ -73,6 +73,7 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 
 let actions: typeof import("@/app/lib/posts/actions");
 let ensureUniquePostSlug: (typeof import("@/app/lib/posts/slug"))["ensureUniquePostSlug"];
+let fetchSubmittedPostsForReview: (typeof import("@/app/lib/posts/data"))["fetchSubmittedPostsForReview"];
 
 let AUTHOR: { id: number; role: string };
 let ADMIN: { id: number; role: string };
@@ -160,6 +161,7 @@ describeDatabase("blog editorial actions", () => {
 
     actions = await import("@/app/lib/posts/actions");
     ({ ensureUniquePostSlug } = await import("@/app/lib/posts/slug"));
+    ({ fetchSubmittedPostsForReview } = await import("@/app/lib/posts/data"));
   }, 60_000);
 
   beforeEach(() => {
@@ -538,6 +540,76 @@ describeDatabase("blog editorial actions", () => {
         ).resolves.toMatchObject({ success: false });
         expect((await read(post.id)).status).toBe(status);
       }
+    });
+  });
+
+  /**
+   * Regression. The queue matched only `status = 'submitted'`, so an edit
+   * staged on an already-published article and sent for review never appeared
+   * anywhere an admin looks — the author submitted into silence. Every action
+   * involved worked; only the screen that surfaces the work was blind, which
+   * is why nothing below the UI caught it.
+   */
+  describe("review queue contents", () => {
+    it("lists a submitted draft", async () => {
+      const post = await makePost({ status: "submitted" });
+
+      const queue = await fetchSubmittedPostsForReview();
+
+      expect(queue.map((p) => p.id)).toContain(post.id);
+    });
+
+    it("lists a published post whose staged edit is awaiting review", async () => {
+      const post = await makePost({
+        status: "published",
+        publishedAt: new Date(),
+        workingTitle: "Título editado",
+        workingUpdatedAt: new Date(),
+        workingSubmittedAt: new Date(),
+      });
+
+      const queue = await fetchSubmittedPostsForReview();
+
+      expect(queue.map((p) => p.id)).toContain(post.id);
+    });
+
+    it("drops a staged edit once the reviewer has answered it", async () => {
+      const post = await makePost({
+        status: "published",
+        publishedAt: new Date(),
+        workingTitle: "Título editado",
+        workingUpdatedAt: new Date(),
+        workingSubmittedAt: new Date(),
+        workingReviewerNotes: "Cambiá el cierre",
+      });
+
+      const queue = await fetchSubmittedPostsForReview();
+
+      expect(queue.map((p) => p.id)).not.toContain(post.id);
+    });
+
+    it("ignores a staged edit the author has not submitted yet", async () => {
+      const post = await makePost({
+        status: "published",
+        publishedAt: new Date(),
+        workingTitle: "Borrador de cambios",
+        workingUpdatedAt: new Date(),
+      });
+
+      const queue = await fetchSubmittedPostsForReview();
+
+      expect(queue.map((p) => p.id)).not.toContain(post.id);
+    });
+
+    it("ignores a plain published post", async () => {
+      const post = await makePost({
+        status: "published",
+        publishedAt: new Date(),
+      });
+
+      const queue = await fetchSubmittedPostsForReview();
+
+      expect(queue.map((p) => p.id)).not.toContain(post.id);
     });
   });
 });

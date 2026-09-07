@@ -1,6 +1,17 @@
 "use server";
 
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { canEditPost } from "@/app/lib/posts/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -305,7 +316,21 @@ export async function fetchSubmittedPostsForReview(): Promise<
 > {
   try {
     const rows = await db.query.posts.findMany({
-      where: eq(posts.status, "submitted" as PostStatus),
+      /**
+       * Two things await a decision, not one. A `submitted` draft is the
+       * obvious case; the other is a post that is already live with an edit
+       * staged and sent for review — `workingSubmittedAt` set and no reviewer
+       * notes yet. Matching only on status left those invisible, so an author
+       * could submit changes to a published article and no admin would ever
+       * be shown them.
+       */
+      where: or(
+        eq(posts.status, "submitted" as PostStatus),
+        and(
+          isNotNull(posts.workingSubmittedAt),
+          isNull(posts.workingReviewerNotes),
+        ),
+      ),
       with: {
         author: { columns: PUBLIC_AUTHOR_COLUMNS },
         reviewer: { columns: PUBLIC_AUTHOR_COLUMNS },
