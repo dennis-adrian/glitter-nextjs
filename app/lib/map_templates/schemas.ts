@@ -22,7 +22,15 @@ export const standTemplateSchema = z.object({
 
 // Map element template schema
 export const mapElementTemplateSchema = z.object({
-  type: z.enum(["entrance", "stage", "door", "bathroom", "label", "custom", "stairs"]),
+  type: z.enum([
+    "entrance",
+    "stage",
+    "door",
+    "bathroom",
+    "label",
+    "custom",
+    "stairs",
+  ]),
   label: z.string().nullable(),
   labelPosition: z.enum(["left", "right", "top", "bottom"]).optional(),
   labelFontSize: z.number().positive().optional(),

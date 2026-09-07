@@ -8,93 +8,93 @@ import CoverImageUploader from "@/app/components/blog/cover-image-uploader";
 import { Button } from "@/app/components/ui/button";
 
 type Props = {
-	value: string | null | undefined;
-	onChange: (url: string | null) => void;
-	disabled?: boolean;
+  value: string | null | undefined;
+  onChange: (url: string | null) => void;
+  disabled?: boolean;
 };
 
 export default function CoverImageToggle({ value, onChange, disabled }: Props) {
-	const [expanded, setExpanded] = useState(false);
-	const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
 
-	const handleEditClick = () => {
-		setOriginalUrl(value ?? null);
-		setExpanded(true);
-	};
+  const handleEditClick = () => {
+    setOriginalUrl(value ?? null);
+    setExpanded(true);
+  };
 
-	const handleUploadChange = (newUrl: string | null) => {
-		if (!newUrl) return;
-		onChange(newUrl);
-		setOriginalUrl(null);
-		setExpanded(false);
-	};
+  const handleUploadChange = (newUrl: string | null) => {
+    if (!newUrl) return;
+    onChange(newUrl);
+    setOriginalUrl(null);
+    setExpanded(false);
+  };
 
-	const handleCancel = () => {
-		if (originalUrl !== null) {
-			onChange(originalUrl);
-		}
-		setExpanded(false);
-	};
+  const handleCancel = () => {
+    if (originalUrl !== null) {
+      onChange(originalUrl);
+    }
+    setExpanded(false);
+  };
 
-	if (value && !expanded) {
-		return (
-			<div className="group relative w-full overflow-hidden rounded-md border bg-muted aspect-video">
-				<Image
-					src={value}
-					alt="Portada del artículo"
-					fill
-					className="object-cover"
-					sizes="(max-width: 768px) 100vw, 768px"
-				/>
-				{!disabled && (
-					<div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-						<Button
-							type="button"
-							variant="secondary"
-							size="sm"
-							onClick={handleEditClick}
-						>
-							<Pencil className="mr-1 h-3.5 w-3.5" />
-							Cambiar
-						</Button>
-						<Button
-							type="button"
-							variant="secondary"
-							size="sm"
-							onClick={() => onChange(null)}
-						>
-							<Trash2 className="h-3.5 w-3.5" />
-						</Button>
-					</div>
-				)}
-			</div>
-		);
-	}
+  if (value && !expanded) {
+    return (
+      <div className="group relative w-full overflow-hidden rounded-md border bg-muted aspect-video">
+        <Image
+          src={value}
+          alt="Portada del artículo"
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 768px"
+        />
+        {!disabled && (
+          <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleEditClick}
+            >
+              <Pencil className="mr-1 h-3.5 w-3.5" />
+              Cambiar
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => onChange(null)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
-	if (expanded) {
-		return (
-			<div className="space-y-2">
-				<CoverImageUploader value={null} onChange={handleUploadChange} />
-				<Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
-					Cancelar
-				</Button>
-			</div>
-		);
-	}
+  if (expanded) {
+    return (
+      <div className="space-y-2">
+        <CoverImageUploader value={null} onChange={handleUploadChange} />
+        <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
+          Cancelar
+        </Button>
+      </div>
+    );
+  }
 
-	return (
-		<div className="flex justify-center">
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				className="text-muted-foreground"
-				onClick={() => setExpanded(true)}
-				disabled={disabled}
-			>
-				<ImagePlus className="mr-2 h-4 w-4" />
-				Portada
-			</Button>
-		</div>
-	);
+  return (
+    <div className="flex justify-center">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="text-muted-foreground"
+        onClick={() => setExpanded(true)}
+        disabled={disabled}
+      >
+        <ImagePlus className="mr-2 h-4 w-4" />
+        Portada
+      </Button>
+    </div>
+  );
 }

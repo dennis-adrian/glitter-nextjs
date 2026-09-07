@@ -24,11 +24,13 @@ type UsersTablePaginationProps = {
   pageSize: string;
   rowCount: number;
   total: number;
+  pageSizes?: readonly number[];
 };
 
 export default function UsersTablePagination(props: UsersTablePaginationProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pageSizes = props.pageSizes ?? [10, 25, 50, 100, 200];
 
   const handlePageSizeChange = (pageSize: string) => {
     const currentSearchParams = new URLSearchParams(searchParams.toString());
@@ -62,7 +64,7 @@ export default function UsersTablePagination(props: UsersTablePaginationProps) {
               <SelectValue placeholder="10" />
             </SelectTrigger>
             <SelectContent>
-              {[10, 25, 50, 100, 200].map((pageSize) => (
+              {pageSizes.map((pageSize) => (
                 <SelectItem key={pageSize} value={`${pageSize}`}>
                   {pageSize}
                 </SelectItem>

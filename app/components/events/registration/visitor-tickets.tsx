@@ -17,7 +17,7 @@ export default function VisitorTickets({
 }: {
   visitor: VisitorWithTickets;
   festival: FestivalWithDates;
-  currentUser?: BaseProfile  | null;
+  currentUser?: BaseProfile | null;
 }) {
   const [showForm, setShowForm] = useState(false);
 

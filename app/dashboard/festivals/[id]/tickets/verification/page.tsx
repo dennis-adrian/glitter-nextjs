@@ -1,5 +1,5 @@
-import VerifyTicketForm from "@/app/dashboard/festivals/[id]/tickets/verification/form";
-import VerifiedTickets from "@/app/dashboard/festivals/[id]/tickets/verification/verified-tickets";
+import VerifiedTickets from "@/app/components/tickets/verification/verified-tickets";
+import VerifyTicketForm from "@/app/components/tickets/verification/verify-ticket-form";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 

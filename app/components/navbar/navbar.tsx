@@ -1,47 +1,47 @@
-import GlitterLogo from "@/app/components/landing/glitter-logo";
-import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
-import SessionButtons from "@/app/components/navbar/session-buttons";
-import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
-import { getCurrentNavbarProfile } from "@/app/lib/users/helpers";
-import { MenuIcon } from "lucide-react";
-import Link from "next/link";
+import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
+import NavbarClient from "@/app/components/navbar/navbar-client";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
+import { fetchProgramsNavTarget } from "@/app/lib/programs/data";
+
+/**
+ * Resolves the one piece of per-request data the menu needs on the server.
+ *
+ * The root layout already wraps this in its own `<Suspense>` with a
+ * reserved-height fallback, so fetching here streams the navbar in rather than
+ * holding up the page.
+ *
+ * Both flags are required: `programs_nav_entry` is what an admin toggles to
+ * show or hide the entry, and `paid_programs` is what makes the destination
+ * exist at all — linking to a route that 404s would be worse than no link.
+ */
+async function resolveProgramsHref(): Promise<string | null> {
+  const [navEnabled, programsEnabled] = await Promise.all([
+    isFeatureEnabled("programs_nav_entry"),
+    isFeatureEnabled("paid_programs"),
+  ]);
+
+  if (!navEnabled || !programsEnabled) return null;
+
+  // Null when nothing is published yet — an entry leading to an empty
+  // catalogue is worse than no entry.
+  return fetchProgramsNavTarget();
+}
 
 export default async function Navbar() {
-	const profile = await getCurrentNavbarProfile();
+  const [programsHref, creditsEnabled, landingContent] = await Promise.all([
+    resolveProgramsHref(),
+    isFeatureEnabled("credits"),
+    getPublishedLandingContent(),
+  ]);
 
-	return (
-		<header className="sticky top-0 z-50 bg-background border-b">
-			<nav className="w-full h-16 md:h-20 container m-auto py-3 md:py-4 px-4 md:px-6 flex items-center">
-				<ul className="grid grid-cols-2 md:grid-cols-3 items-center w-full">
-					<li className="flex items-center gap-2">
-						<div className="md:hidden">
-							<MobileSidebar profile={profile}>
-								<MenuIcon className="h-5 w-5" />
-							</MobileSidebar>
-						</div>
-						<Link href="/">
-							<GlitterLogo
-								className="md:hidden"
-								variant="dark"
-								height={40}
-								width={40}
-							/>
-							<GlitterLogo
-								className="hidden md:block"
-								variant="dark"
-								height={48}
-								width={48}
-							/>
-						</Link>
-					</li>
-					<li className="hidden justify-self-center md:block">
-						<NavbarNavigationMenu profile={profile} />
-					</li>
-					<li className="flex justify-self-end">
-						<SessionButtons profile={profile} />
-					</li>
-				</ul>
-			</nav>
-		</header>
-	);
+  return (
+    <div data-site-navbar className="sticky top-0 z-50">
+      <AnnouncementStrip announcement={landingContent.announcement} />
+      <NavbarClient
+        programsHref={programsHref}
+        creditsEnabled={creditsEnabled}
+      />
+    </div>
+  );
 }

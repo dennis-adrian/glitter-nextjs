@@ -1,0 +1,3 @@
+ALTER TABLE "session_waitlist_invitations" DROP CONSTRAINT "session_waitlist_invitations_terminal_timestamps";--> statement-breakpoint
+ALTER TABLE "session_waitlist_invitations" ADD CONSTRAINT "session_waitlist_invitations_terminal_timestamps" CHECK (("session_waitlist_invitations"."status" <> 'converted' OR "session_waitlist_invitations"."converted_at" IS NOT NULL)
+        AND ("session_waitlist_invitations"."status" <> 'revoked' OR "session_waitlist_invitations"."revoked_at" IS NOT NULL));

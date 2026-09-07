@@ -1,0 +1,17 @@
+-- Intentionally empty.
+--
+-- 0263-0265 were hand-written (data backfills, triggers, and a table drop that
+-- drizzle-kit cannot express) and were added to the journal without writing
+-- matching snapshots. drizzle-kit diffs `db/schema.ts` against the newest
+-- snapshot, so it still believed `stand_reservation_members` existed and
+-- `stand_reservation_stands` did not — and asked, on every `pnpm generate`,
+-- whether the latter was a rename of the former. It is not: it is a new table
+-- with `position`, `released_at` and a denormalised status, which 0264 creates
+-- and backfills before dropping the old one.
+--
+-- Since `pnpm build` runs `pnpm generate`, that prompt would hang CI.
+--
+-- This migration exists only to carry `meta/0266_snapshot.json`, which records
+-- the schema as 0264 already left it. Every statement drizzle generated here
+-- was verified to be one 0264 performs, so applying it must do nothing.
+SELECT 1;

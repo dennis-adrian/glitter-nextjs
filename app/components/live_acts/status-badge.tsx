@@ -16,7 +16,5 @@ const statusLabels: Record<LiveActStatus, string> = {
 };
 
 export function LiveActStatusBadge({ status }: { status: LiveActStatus }) {
-  return (
-    <Badge className={statusColors[status]}>{statusLabels[status]}</Badge>
-  );
+  return <Badge className={statusColors[status]}>{statusLabels[status]}</Badge>;
 }

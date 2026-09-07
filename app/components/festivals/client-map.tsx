@@ -1,147 +1,175 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Loader2Icon } from "lucide-react";
 
-import { ProfileType } from "@/app/api/users/definitions";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
-import { MapElementBase } from "@/app/lib/map_elements/definitions";
+import type {
+  ReservationActiveHoldDto,
+  ReservationMapFestivalDto,
+  ReservationMapProfileDto,
+  ReservationMapStandDto,
+} from "@/app/lib/reservations/dto";
+import type { ReservationMapElementDto } from "@/app/lib/reservations/dto";
 import UserMap from "@/app/components/maps/user/user-map";
 import { StandInfoCard } from "@/app/components/festivals/reservations/stand-info-card";
 import { useStandPolling } from "@/app/hooks/use-stand-polling";
 import { getActiveHold } from "@/app/lib/stands/hold-actions";
+import { findJointGroup } from "@/app/lib/stands/groups";
+import { mergePolledStandStatuses } from "@/app/lib/stands/status-poll";
 
-type ActiveHold = { id: number; standId: number } | null;
+type ActiveHold =
+  | ReservationActiveHoldDto
+  | { id: number; standId: number }
+  | null;
 
 export default function ClientMap({
-	festival,
-	profile,
-	sectorId,
-	sectorName,
-	stands: initialStands,
-	mapElements,
-	mapBounds,
-	activeHold: initialActiveHold,
-	subcategoryIds = [],
-	onStandsChange,
+  festival,
+  profile,
+  sectorId,
+  sectorName,
+  stands: initialStands,
+  mapElements,
+  mapBounds,
+  activeHold: initialActiveHold,
+  alreadyReserved,
+  subcategoryIds = [],
+  fullTableAccessActive = false,
+  fullTableActivationPrice = null,
+  onAvailableCountChange,
 }: {
-	festival: FestivalBase;
-	profile: ProfileType | null;
-	sectorId?: number;
-	sectorName?: string;
-	stands: StandWithReservationsWithParticipants[];
-	mapElements?: MapElementBase[];
-	mapBounds?: { minX: number; minY: number; width: number; height: number };
-	activeHold?: ActiveHold;
-	subcategoryIds?: number[];
-	onStandsChange?: (stands: StandWithReservationsWithParticipants[]) => void;
+  festival: ReservationMapFestivalDto;
+  profile: ReservationMapProfileDto;
+  sectorId?: number;
+  sectorName?: string;
+  stands: ReservationMapStandDto[];
+  mapElements?: ReservationMapElementDto[];
+  mapBounds?: { minX: number; minY: number; width: number; height: number };
+  activeHold?: ActiveHold;
+  alreadyReserved: boolean;
+  subcategoryIds?: number[];
+  fullTableAccessActive?: boolean;
+  fullTableActivationPrice?: number | null;
+  onAvailableCountChange?: (count: number) => void;
 }) {
-	const [stands, setStands] = useState(initialStands);
-	const onStandsChangeRef = useRef(onStandsChange);
+  const [stands, setStands] = useState(initialStands);
+  const onAvailableCountChangeRef = useRef(onAvailableCountChange);
 
-	useEffect(() => {
-		onStandsChangeRef.current = onStandsChange;
-	}, [onStandsChange]);
+  useEffect(() => {
+    onAvailableCountChangeRef.current = onAvailableCountChange;
+  }, [onAvailableCountChange]);
 
-	useEffect(() => {
-		onStandsChangeRef.current?.(stands);
-	}, [stands]);
-	const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
-	const selectedStand =
-		selectedStandId != null
-			? (stands.find((s) => s.id === selectedStandId) ?? null)
-			: null;
-	const [activeHold, setActiveHold] = useState<ActiveHold>(
-		initialActiveHold ?? null,
-	);
-	const [isPending, startTransition] = useTransition();
+  useEffect(() => {
+    onAvailableCountChangeRef.current?.(
+      stands.filter((stand) => stand.effectiveStatus === "available").length,
+    );
+  }, [stands]);
 
-	const handleHoldChange = useCallback((hold: ActiveHold) => {
-		setActiveHold(hold);
-	}, []);
+  const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
+  const selectedStand =
+    selectedStandId != null
+      ? (stands.find((s) => s.id === selectedStandId) ?? null)
+      : null;
+  const selectedGroupStands = useMemo(
+    () => findJointGroup(stands, selectedStandId)?.stands,
+    [stands, selectedStandId],
+  );
+  const [activeHold, setActiveHold] = useState<ActiveHold>(
+    initialActiveHold ?? null,
+  );
+  const [isPending, startTransition] = useTransition();
 
-	// Fetch latest active hold on mount to handle stale server cache
-	useEffect(() => {
-		if (!profile) return;
-		let cancelled = false;
-		getActiveHold(profile.id, festival.id)
-			.then((hold) => {
-				if (!cancelled) setActiveHold(hold);
-			})
-			.catch((error) => {
-				console.error("Error fetching active hold", error);
-			});
+  const handleHoldChange = useCallback((hold: ActiveHold) => {
+    setActiveHold(hold);
+  }, []);
 
-		return () => {
-			cancelled = true;
-		};
-	}, [profile, festival.id]);
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    getActiveHold(festival.id)
+      .then((hold) => {
+        if (!cancelled) setActiveHold(hold);
+      })
+      .catch((error) => {
+        console.error("Error fetching active hold", error);
+      });
 
-	// Poll for stand status changes every 4 seconds
-	useStandPolling(sectorId ?? null, 4000, (polledStands) => {
-		setStands((prev) => {
-			let changed = false;
-			const updated = prev.map((s) => {
-				const polled = polledStands.find((p) => p.id === s.id);
-				if (polled && polled.status !== s.status) {
-					changed = true;
-					return {
-						...s,
-						status:
-							polled.status as StandWithReservationsWithParticipants["status"],
-					};
-				}
-				return s;
-			});
-			return changed ? updated : prev;
-		});
-	});
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, festival.id]);
 
-	const handleStandSelect = useCallback(
-		(stand: StandWithReservationsWithParticipants) => {
-			if (isPending) return;
-			setSelectedStandId(stand.id);
-		},
-		[isPending],
-	);
+  const { stale } = useStandPolling(sectorId ?? null, 4000, (result) => {
+    setStands((prev) => mergePolledStandStatuses(prev, result.stands));
+  });
 
-	return (
-		<>
-			<div className="relative">
-				<UserMap
-					stands={stands}
-					mapElements={mapElements}
-					mapBounds={mapBounds}
-					profile={profile}
-					selectedStandId={selectedStandId}
-					subcategoryIds={subcategoryIds}
-					onStandClick={handleStandSelect}
-					onStandTouchTap={handleStandSelect}
-				/>
-				{isPending && (
-					<div
-						className="absolute inset-0 z-10 flex cursor-wait items-center justify-center bg-background/50 backdrop-blur-[1px]"
-						aria-busy="true"
-					>
-						<Loader2Icon className="h-8 w-8 animate-spin text-primary" />
-					</div>
-				)}
-			</div>
-			{selectedStand != null && profile != null && sectorName != null && (
-				<StandInfoCard
-					key={selectedStand.id}
-					stand={selectedStand}
-					sectorName={sectorName}
-					profile={profile}
-					festival={festival}
-					activeHold={activeHold}
-					onHoldChange={handleHoldChange}
-					onClose={() => setSelectedStandId(null)}
-					isPending={isPending}
-					startTransition={startTransition}
-				/>
-			)}
-		</>
-	);
+  const handleStandSelect = useCallback(
+    (stand: ReservationMapStandDto) => {
+      if (isPending) return;
+      setSelectedStandId(stand.id);
+    },
+    [isPending],
+  );
+
+  return (
+    <>
+      <div className="relative">
+        <UserMap
+          stands={stands}
+          mapElements={mapElements}
+          mapBounds={mapBounds}
+          profile={profile}
+          selectedStandId={selectedStandId}
+          subcategoryIds={subcategoryIds}
+          onStandClick={handleStandSelect}
+          onStandTouchTap={handleStandSelect}
+        />
+        {stale && (
+          <p
+            className="pointer-events-none absolute inset-x-0 top-2 z-10 mx-auto w-fit rounded-md bg-background/90 px-3 py-1 text-center text-xs text-muted-foreground shadow-sm"
+            role="status"
+          >
+            La disponibilidad puede estar desactualizada. Reintentamos
+            automáticamente.
+          </p>
+        )}
+        {isPending && (
+          <div
+            className="absolute inset-0 z-10 flex cursor-wait items-center justify-center bg-background/50 backdrop-blur-[1px]"
+            aria-busy="true"
+          >
+            <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
+      </div>
+      {selectedStand != null && profile != null && sectorName != null && (
+        <StandInfoCard
+          key={selectedStand.id}
+          stand={selectedStand}
+          sectorName={sectorName}
+          groupStands={selectedGroupStands}
+          profile={profile}
+          festival={festival}
+          alreadyReserved={alreadyReserved}
+          subcategoryIds={subcategoryIds}
+          activeHold={activeHold}
+          // The live, polled list — so the companion's availability reflects
+          // what the participant is looking at right now.
+          sectorStands={stands}
+          fullTableAccessActive={fullTableAccessActive}
+          fullTableActivationPrice={fullTableActivationPrice}
+          onHoldChange={handleHoldChange}
+          onClose={() => setSelectedStandId(null)}
+          isPending={isPending}
+          startTransition={startTransition}
+        />
+      )}
+    </>
+  );
 }

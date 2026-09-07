@@ -4,8 +4,8 @@ import Heading from "@/app/components/atoms/heading";
 import StoreItemCard from "@/app/components/molecules/store-item-card";
 import CartSheet from "@/app/components/organisms/cart/cart-sheet";
 import {
-	CartProvider,
-	useCartContext,
+  CartProvider,
+  useCartContext,
 } from "@/app/components/providers/cart-provider";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
@@ -15,104 +15,104 @@ import { ShoppingCartIcon, UserIcon } from "lucide-react";
 import { use, useEffect, useRef, useState } from "react";
 
 type InvoicePaymentSuccessProps = {
-	invoicePromise: Promise<InvoiceWithPaymentsAndStand | null | undefined>;
-	productsPromise: Promise<BaseProductWithImages[]>;
-	initialItemCount: number;
-	isAuthenticated?: boolean;
+  invoicePromise: Promise<InvoiceWithPaymentsAndStand | null | undefined>;
+  productsPromise: Promise<BaseProductWithImages[]>;
+  initialItemCount: number;
+  isAuthenticated?: boolean;
 };
 
 function CartButton() {
-	const { itemCount, openCart } = useCartContext();
-	if (itemCount === 0) return null;
-	return (
-		<Button
-			variant="outline"
-			className="relative gap-2"
-			onClick={openCart}
-			aria-label="Ver carrito"
-		>
-			<ShoppingCartIcon className="w-4 h-4" />
-			<span className="hidden sm:inline">Ver carrito</span>
-			<span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[10px] font-bold text-white">
-				{itemCount > 9 ? "9+" : itemCount}
-			</span>
-		</Button>
-	);
+  const { itemCount, openCart } = useCartContext();
+  if (itemCount === 0) return null;
+  return (
+    <Button
+      variant="outline"
+      className="relative gap-2"
+      onClick={openCart}
+      aria-label="Ver carrito"
+    >
+      <ShoppingCartIcon className="w-4 h-4" />
+      <span className="hidden sm:inline">Ver carrito</span>
+      <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[10px] font-bold text-white">
+        {itemCount > 9 ? "9+" : itemCount}
+      </span>
+    </Button>
+  );
 }
 
 export default function InvoicePaymentSuccess(
-	props: InvoicePaymentSuccessProps,
+  props: InvoicePaymentSuccessProps,
 ) {
-	const {
-		invoicePromise,
-		productsPromise,
-		initialItemCount,
-		isAuthenticated = true,
-	} = props;
-	const invoice = use(invoicePromise);
-	const products = use(productsPromise);
-	const sentinelRef = useRef<HTMLDivElement>(null);
-	const [isSticky, setIsSticky] = useState(false);
+  const {
+    invoicePromise,
+    productsPromise,
+    initialItemCount,
+    isAuthenticated = true,
+  } = props;
+  const invoice = use(invoicePromise);
+  const products = use(productsPromise);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [isSticky, setIsSticky] = useState(false);
 
-	useEffect(() => {
-		const sentinel = sentinelRef.current;
-		if (!sentinel) return;
-		const observer = new IntersectionObserver(
-			([entry]) => setIsSticky(!entry.isIntersecting),
-			{ rootMargin: "-64px 0px 0px 0px" },
-		);
-		observer.observe(sentinel);
-		return () => observer.disconnect();
-	}, []);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsSticky(!entry.isIntersecting),
+      { rootMargin: "-64px 0px 0px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
-	if (!invoice) {
-		return null;
-	}
+  if (!invoice) {
+    return null;
+  }
 
-	return (
-		<CartProvider
-			initialItemCount={initialItemCount}
-			isAuthenticated={isAuthenticated}
-		>
-			<CartSheet />
-			{products.length > 0 && (
-				<div className="flex flex-col gap-4">
-					<div ref={sentinelRef} />
-					<div className="sticky top-16 md:top-20 z-40 bg-background border-b py-3 flex items-center justify-between">
-						<div
-							key={isSticky ? 1 : 0}
-							className="animate-in fade-in-0 slide-in-from-top-1 duration-200"
-						>
-							{isSticky ? (
-								<Heading level={3} className="text-primary-500">
-									Tiendita Glitter
-								</Heading>
-							) : (
-								<>
-									<Heading level={3} className="text-primary-500">
-										También podría interesarte
-									</Heading>
-									<p className="text-sm text-muted-foreground">
-										Productos del festival disponibles
-									</p>
-								</>
-							)}
-						</div>
-						<CartButton />
-					</div>
-					<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-						{products.map((product) => (
-							<StoreItemCard key={product.id} product={product} />
-						))}
-					</div>
-				</div>
-			)}
-			<div className="flex justify-center">
-				<RedirectButton href="/my_profile" className="gap-2" variant="outline">
-					<UserIcon className="h-4 w-4" />
-					Ir a mi perfil
-				</RedirectButton>
-			</div>
-		</CartProvider>
-	);
+  return (
+    <CartProvider
+      initialItemCount={initialItemCount}
+      isAuthenticated={isAuthenticated}
+    >
+      <CartSheet />
+      {products.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div ref={sentinelRef} />
+          <div className="sticky top-16 md:top-20 z-40 bg-background border-b py-3 flex items-center justify-between">
+            <div
+              key={isSticky ? 1 : 0}
+              className="animate-in fade-in-0 slide-in-from-top-1 duration-200"
+            >
+              {isSticky ? (
+                <Heading level={3} className="text-primary-500">
+                  Tiendita Glitter
+                </Heading>
+              ) : (
+                <>
+                  <Heading level={3} className="text-primary-500">
+                    También podría interesarte
+                  </Heading>
+                  <p className="text-sm text-muted-foreground">
+                    Productos del festival disponibles
+                  </p>
+                </>
+              )}
+            </div>
+            <CartButton />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {products.map((product) => (
+              <StoreItemCard key={product.id} product={product} />
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex justify-center">
+        <RedirectButton href="/my_profile" className="gap-2" variant="outline">
+          <UserIcon className="h-4 w-4" />
+          Ir a mi perfil
+        </RedirectButton>
+      </div>
+    </CartProvider>
+  );
 }

@@ -1,29 +1,49 @@
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { BaseProfile } from "@/app/api/users/definitions";
+import { StandBase } from "@/app/api/stands/definitions";
+import { standMatchesParticipant } from "@/app/lib/reservations/policy";
+
+export type StandLabelParts = Pick<StandBase, "label" | "standNumber">;
+
+export function formatStandLabel(stand: StandLabelParts): string {
+  return `${stand.label ?? ""}${stand.standNumber}`;
+}
+
+type ReservableStand = {
+  status?: string;
+  effectiveStatus?: string;
+  standCategory: string;
+  participationType: string;
+  eligibleSubcategoryIds?: readonly number[];
+  standSubcategories?: Array<{ subcategoryId: number }>;
+};
+
+type ReservableProfile = {
+  category: string | null | undefined;
+  participationType: string | null | undefined;
+};
 
 export function canStandBeReserved(
-	stand: StandWithReservationsWithParticipants,
-	profile?: BaseProfile | null,
-	subcategoryIds: number[] = [],
+  stand: ReservableStand,
+  profile?: ReservableProfile | null,
+  subcategoryIds: number[] = [],
 ) {
-	if (!profile) return false;
+  if (!profile) return false;
 
-	const profileCategory =
-		profile.category === "new_artist" ? "illustration" : profile.category;
+  const status = stand.effectiveStatus ?? stand.status;
+  if (status !== "available") {
+    return false;
+  }
 
-	if (stand.standCategory !== profileCategory || stand.status !== "available") {
-		return false;
-	}
+  const eligibleSubcategoryIds =
+    stand.eligibleSubcategoryIds ??
+    stand.standSubcategories?.map((sc) => sc.subcategoryId) ??
+    [];
 
-	if (stand.participationType !== profile.participationType) {
-		return false;
-	}
-
-	if (stand.standSubcategories.length > 0) {
-		return subcategoryIds.some((id) =>
-			stand.standSubcategories.some((sc) => sc.subcategoryId === id),
-		);
-	}
-
-	return true;
+  return standMatchesParticipant({
+    standCategory: stand.standCategory,
+    participationType: stand.participationType,
+    eligibleSubcategoryIds,
+    profileCategory: profile.category,
+    profileParticipationType: profile.participationType,
+    profileSubcategoryIds: subcategoryIds,
+  });
 }

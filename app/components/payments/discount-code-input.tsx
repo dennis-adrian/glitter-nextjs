@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -12,11 +12,13 @@ import { toast } from "sonner";
 type DiscountCodeInputProps = {
   invoiceId: number;
   festivalId: number;
+  onApplied?: () => void;
 };
 
 export default function DiscountCodeInput({
   invoiceId,
   festivalId,
+  onApplied,
 }: DiscountCodeInputProps) {
   const [code, setCode] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -29,16 +31,16 @@ export default function DiscountCodeInput({
       const result = await validateAndApplyDiscountCode({
         code: code.trim(),
         invoiceId,
-        festivalId,
       });
 
       if (result.success) {
-        posthog.capture(POSTHOG_EVENTS.DISCOUNT_CODE_APPLIED, {
+        captureClientEvent(POSTHOG_EVENTS.DISCOUNT_CODE_APPLIED, {
           invoice_id: invoiceId,
           festival_id: festivalId,
           code: code.trim().toUpperCase(),
         });
         toast.success(result.message);
+        onApplied?.();
         router.refresh();
       } else {
         toast.error(result.message);

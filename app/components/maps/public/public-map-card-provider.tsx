@@ -16,6 +16,7 @@ type PublicMapCardContextValue = {
 	openCard: (
 		stand: StandWithReservationsWithParticipants,
 		sectorName?: string,
+		groupStands?: StandWithReservationsWithParticipants[],
 	) => void;
 	closeCard: () => void;
 	selectedStandId: number | null;
@@ -41,6 +42,9 @@ export function PublicMapCardProvider({
 	const [cardSectorName, setCardSectorName] = useState<string | undefined>(
 		undefined,
 	);
+	const [cardGroupStands, setCardGroupStands] = useState<
+		StandWithReservationsWithParticipants[] | undefined
+	>(undefined);
 	const [cardOpen, setCardOpen] = useState(false);
 
 	// Tracks whether openCard was just called during the current pointer event,
@@ -50,10 +54,15 @@ export function PublicMapCardProvider({
 	const cardRef = useRef<HTMLDivElement | null>(null);
 
 	const openCard = useCallback(
-		(stand: StandWithReservationsWithParticipants, sectorName?: string) => {
+		(
+			stand: StandWithReservationsWithParticipants,
+			sectorName?: string,
+			groupStands?: StandWithReservationsWithParticipants[],
+		) => {
 			justOpenedRef.current = true;
 			setSelectedStand(stand);
 			setCardSectorName(sectorName);
+			setCardGroupStands(groupStands);
 			setCardOpen(true);
 			// Reset flag after current event loop so the pointerup listener can close
 			// on future outside taps.
@@ -105,6 +114,7 @@ export function PublicMapCardProvider({
 				stand={selectedStand}
 				open={cardOpen}
 				sectorName={cardSectorName}
+				groupStands={cardGroupStands}
 				cardRef={cardRef}
 			/>
 		</PublicMapCardContext.Provider>

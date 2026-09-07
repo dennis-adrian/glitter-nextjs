@@ -1,0 +1,3 @@
+ALTER TABLE "order_items" ADD CONSTRAINT "order_items_rental_context_required" CHECK ("order_items"."transaction_type" != 'rental' OR ("order_items"."rental_festival_id" IS NOT NULL AND "order_items"."rental_reservation_id" IS NOT NULL));--> statement-breakpoint
+ALTER TABLE "order_items" ADD CONSTRAINT "order_items_rental_returned_quantity_valid" CHECK ("order_items"."rental_returned_quantity" <= "order_items"."quantity");--> statement-breakpoint
+ALTER TABLE "rental_return_logs" ADD CONSTRAINT "rental_return_logs_stock_restored_lte_quantity" CHECK ("rental_return_logs"."stock_restored" <= "rental_return_logs"."quantity_returned");

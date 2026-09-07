@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -10,56 +10,75 @@ import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import { checkoutCart } from "@/app/lib/cart/actions";
 
-export default function CheckoutConfirmButton() {
-	const [loading, setLoading] = useState(false);
-	const isSubmittingRef = useRef(false);
-	const router = useRouter();
-	const { setItemCount } = useCartContext();
+type CheckoutConfirmButtonProps = {
+  hasRentalItems?: boolean;
+  rentalFestivalId?: number | null;
+  rentalReservationId?: number | null;
+};
 
-	async function handleConfirm() {
-		if (isSubmittingRef.current) return;
-		isSubmittingRef.current = true;
-		setLoading(true);
-		try {
-			const result = await checkoutCart();
-			if (result.success && result.orderId && result.profileId) {
-				posthog.capture(POSTHOG_EVENTS.ORDER_PLACED, {
-					order_id: result.orderId,
-				});
-				setItemCount(0);
-				router.push(`/orders/${result.orderId}/payment`);
-				setLoading(false);
-				isSubmittingRef.current = false;
-			} else {
-				toast.error(result.message);
-				setLoading(false);
-				isSubmittingRef.current = false;
-			}
-		} catch (error) {
-			toast.error("Error al procesar el pedido. Intenta de nuevo.");
-			setLoading(false);
-			isSubmittingRef.current = false;
-		}
-	}
+export default function CheckoutConfirmButton({
+  hasRentalItems = false,
+  rentalFestivalId = null,
+  rentalReservationId = null,
+}: CheckoutConfirmButtonProps) {
+  const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const router = useRouter();
+  const { setItemCount } = useCartContext();
 
-	return (
-		<Button
-			onClick={handleConfirm}
-			disabled={loading}
-			className="w-full bg-primary hover:bg-primary/90"
-			size="lg"
-		>
-			{loading ? (
-				<span className="flex items-center gap-2">
-					<Loader2Icon className="w-4 h-4 animate-spin" />
-					Procesando...
-				</span>
-			) : (
-				<span className="flex items-center gap-2">
-					<CircleCheckIcon className="w-4 h-4" />
-					Confirmar pedido
-				</span>
-			)}
-		</Button>
-	);
+  async function handleConfirm() {
+    if (isSubmittingRef.current) return;
+    if (
+      hasRentalItems &&
+      (rentalFestivalId == null || rentalReservationId == null)
+    ) {
+      toast.error("Selecciona el festival para los productos de alquiler.");
+      return;
+    }
+    isSubmittingRef.current = true;
+    setLoading(true);
+    try {
+      const result = await checkoutCart(
+        hasRentalItems ? { rentalFestivalId, rentalReservationId } : undefined,
+      );
+      if (result.success && result.orderId && result.profileId) {
+        captureClientEvent(POSTHOG_EVENTS.ORDER_PLACED, {
+          order_id: result.orderId,
+        });
+        setItemCount(0);
+        router.push(`/orders/${result.orderId}/payment`);
+        setLoading(false);
+        isSubmittingRef.current = false;
+      } else {
+        toast.error(result.message);
+        setLoading(false);
+        isSubmittingRef.current = false;
+      }
+    } catch (error) {
+      toast.error("Error al procesar el pedido. Intenta de nuevo.");
+      setLoading(false);
+      isSubmittingRef.current = false;
+    }
+  }
+
+  return (
+    <Button
+      onClick={handleConfirm}
+      disabled={loading}
+      className="w-full bg-primary hover:bg-primary/90"
+      size="lg"
+    >
+      {loading ? (
+        <span className="flex items-center gap-2">
+          <Loader2Icon className="w-4 h-4 animate-spin" />
+          Procesando...
+        </span>
+      ) : (
+        <span className="flex items-center gap-2">
+          <CircleCheckIcon className="w-4 h-4" />
+          Confirmar pedido
+        </span>
+      )}
+    </Button>
+  );
 }

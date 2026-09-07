@@ -29,9 +29,9 @@ export const text = {
 };
 
 export const textSmall = {
-	margin: "0 0 10px 0",
-	textAlign: "left" as const,
-	fontSize: "12px",
+  margin: "0 0 10px 0",
+  textAlign: "left" as const,
+  fontSize: "12px",
 };
 
 export const button = {
@@ -73,6 +73,30 @@ export const titleWithBanner = {
 export const buttonWithBanner = {
   ...button,
   marginTop: "6px",
+};
+
+/** Explicit colours: mail clients strip stylesheets. */
+export const primaryButton = {
+  backgroundColor: "#7c3aed",
+  color: "#FFFFFF",
+  padding: "12px 24px",
+  borderRadius: "8px",
+  fontWeight: 600,
+  fontSize: "14px",
+  textDecoration: "none",
+  display: "inline-block",
+};
+
+export const detailBox = {
+  border: "1px solid #dedede",
+  borderRadius: "8px",
+  padding: "12px 16px",
+  margin: "16px 0",
+};
+
+export const detailLine = {
+  ...text,
+  margin: "4px 0",
 };
 
 export const footerText = {

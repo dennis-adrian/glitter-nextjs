@@ -1,0 +1,15 @@
+.next
+node_modules
+package-lock.json
+tsconfig.tsbuildinfo
+.claude
+supabase/migrations/*
+public
+
+# Drizzle
+drizzle/
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local

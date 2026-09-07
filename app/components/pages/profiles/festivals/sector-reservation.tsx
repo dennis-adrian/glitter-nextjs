@@ -1,123 +1,105 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
 import ClientMap from "@/app/components/festivals/client-map";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
-import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
-import { formatDate } from "@/app/lib/formatters";
+import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
+import { getSelfServicePageDenial } from "@/app/lib/reservations/entry";
+import {
+  fetchFestivalReservationMapDto,
+  fetchSelfServiceFestivalSnapshot,
+  fetchSelfServiceTargetProfile,
+} from "@/app/lib/reservations/map-queries";
+import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { db } from "@/db";
-import { standHolds } from "@/db/schema";
-import { and, eq, gt } from "drizzle-orm";
-import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 
 type SectorReservationPageProps = {
-	profileId: number;
-	festivalId: number;
-	sectorId: number;
+  profileId: number;
+  festivalId: number;
+  sectorId: number;
 };
 
 export default async function SectorReservationPage(
-	props: SectorReservationPageProps,
+  props: SectorReservationPageProps,
 ) {
-	const currentProfile = await getCurrentUserProfile();
-	await protectRoute(currentProfile || undefined, props.profileId);
+  const currentProfile = await getCurrentUserProfile();
+  await protectRoute(currentProfile || undefined, props.profileId);
 
-	const festival = await fetchBaseFestival(props.festivalId);
-	if (!festival) notFound();
+  const [festival, forProfile] = await Promise.all([
+    fetchSelfServiceFestivalSnapshot(props.festivalId),
+    fetchSelfServiceTargetProfile(props.profileId, props.festivalId),
+  ]);
+  if (!festival || !forProfile) notFound();
 
-	const reservationStartDate = formatDate(
-		festival.reservationsStartDate,
-	).toJSDate();
-	const currentTime = DateTime.now().toJSDate();
-	if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
-		return <ReservationNotAllowed festival={festival} />;
-	}
+  const denial = await getSelfServicePageDenial({
+    actor: currentProfile
+      ? { id: currentProfile.id, role: currentProfile.role }
+      : null,
+    targetProfile: forProfile,
+    festival,
+  });
+  if (denial?.code === "TERMS_STALE") {
+    return <TermsReacceptanceRequired festivalId={festival.id} />;
+  }
+  if (denial) {
+    return (
+      <ReservationNotAllowed
+        festival={festival}
+        policyCode={denial.code}
+        sanctionBlock={denial.sanctionBlock}
+      />
+    );
+  }
 
-	const forProfile = await fetchUserProfileById(props.profileId);
-	if (!forProfile) notFound();
+  const map = await fetchFestivalReservationMapDto({
+    festivalId: festival.id,
+    profileId: forProfile.id,
+    actorProfileId: currentProfile?.id ?? null,
+    revealHiddenIdentities: canViewAdminReservationData(
+      currentProfile
+        ? { id: currentProfile.id, role: currentProfile.role }
+        : null,
+    ),
+  });
+  if (!map) notFound();
 
-	const inFestival = isProfileInFestival(festival.id, forProfile);
-	if (!inFestival) {
-		return (
-			<div className="text-muted-foreground flex pt-8 justify-center">
-				No estás habilitado para participar en este evento
-			</div>
-		);
-	}
+  const sector = map.sectors.find((s) => s.id === props.sectorId);
+  if (!sector) notFound();
 
-	const subcategoryIds = forProfile.profileSubcategories.map(
-		(ps) => ps.subcategoryId,
-	);
-	const sectors = await fetchFestivalSectorsByUserCategory(
-		festival.id,
-		forProfile.category,
-		subcategoryIds,
-		forProfile.participationType,
-	);
-
-	const sector = sectors.find((s) => s.id === props.sectorId);
-	if (!sector) notFound();
-
-	// Fetch user's active hold for this festival (if any)
-	const activeHoldRow = await db.query.standHolds.findFirst({
-		where: and(
-			eq(standHolds.userId, forProfile.id),
-			eq(standHolds.festivalId, festival.id),
-			gt(standHolds.expiresAt, new Date()),
-		),
-		columns: { id: true, standId: true },
-	});
-	const activeHold = activeHoldRow
-		? { id: activeHoldRow.id, standId: activeHoldRow.standId }
-		: null;
-
-	return (
-		<>
-			<StepIndicator
-				step={2}
-				totalSteps={4}
-				backLabel="Cambiar sector"
-				backHref={`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`}
-			/>
-			<div className="max-w-3xl mx-auto px-4 py-4 md:py-6">
-				<div className="flex flex-col items-center gap-2">
-					<FestivalSectorTitle sector={sector} />
-					<div className="w-full md:max-w-2xl mx-auto">
-						<ClientMap
-							festival={festival}
-							profile={forProfile}
-							sectorId={sector.id}
-							sectorName={sector.name}
-							stands={sector.stands}
-							mapElements={sector.mapElements ?? []}
-							activeHold={activeHold}
-							subcategoryIds={subcategoryIds}
-							mapBounds={
-								sector.mapOriginX != null &&
-								sector.mapOriginY != null &&
-								sector.mapWidth != null &&
-								sector.mapHeight != null
-									? {
-											minX: sector.mapOriginX,
-											minY: sector.mapOriginY,
-											width: sector.mapWidth,
-											height: sector.mapHeight,
-										}
-									: undefined
-							}
-						/>
-					</div>
-					<p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4 max-w-[400px]">
-						El plano muestra las ubicaciones y la distribución confirmada de los
-						stands. Las medidas y proporciones de todos los elementos son
-						estimadas y se utilizan de manera orientativa.
-					</p>
-				</div>
-			</div>
-		</>
-	);
+  return (
+    <>
+      <StepIndicator
+        step={2}
+        totalSteps={4}
+        backLabel="Cambiar sector"
+        backHref={`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`}
+      />
+      <div className="max-w-3xl mx-auto px-4 py-4 md:py-6">
+        <div className="flex flex-col items-center gap-2">
+          <FestivalSectorTitle sector={sector} />
+          <div className="w-full md:max-w-2xl mx-auto">
+            <ClientMap
+              festival={map.festival}
+              profile={map.profile}
+              sectorId={sector.id}
+              sectorName={sector.name}
+              stands={sector.stands}
+              mapElements={sector.mapElements}
+              activeHold={map.activeHold}
+              alreadyReserved={map.alreadyReserved}
+              subcategoryIds={map.subcategoryIds}
+              fullTableAccessActive={map.fullTableAccessActive}
+              fullTableActivationPrice={map.fullTableActivationPrice}
+              mapBounds={sector.mapBounds ?? undefined}
+            />
+          </div>
+          <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4 max-w-[400px]">
+            El plano muestra las ubicaciones y la distribución confirmada de los
+            stands. Las medidas y proporciones de todos los elementos son
+            estimadas y se utilizan de manera orientativa.
+          </p>
+        </div>
+      </div>
+    </>
+  );
 }

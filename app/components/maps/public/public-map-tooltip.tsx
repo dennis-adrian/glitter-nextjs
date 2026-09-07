@@ -10,8 +10,10 @@ import {
 import { createPortal } from "react-dom";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import CategoryBadge from "@/app/components/category-badge";
 
 type PublicMapTooltipProps = {
@@ -20,14 +22,6 @@ type PublicMapTooltipProps = {
 };
 
 const GAP = 8;
-
-function getParticipants(stand: StandWithReservationsWithParticipants) {
-	return (
-		stand.reservations
-			?.filter((r) => r.status !== "rejected")
-			.flatMap((r) => r.participants) ?? []
-	);
-}
 
 export default function PublicMapTooltip({
 	stand,
@@ -39,8 +33,8 @@ export default function PublicMapTooltip({
 		left: 0,
 	});
 
-	const participants = getParticipants(stand);
-	const standLabel = `${stand.label}${stand.standNumber}`;
+	const participants = getStandMapParticipants(stand);
+	const standLabel = formatStandLabel(stand);
 	const countLabel =
 		participants.length === 1
 			? "1 participante"
@@ -87,7 +81,7 @@ export default function PublicMapTooltip({
 	const tooltip = (
 		<div
 			ref={tooltipRef}
-			className="fixed z-50 rounded-xl border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 min-w-[180px]"
+			className="fixed z-50 rounded-xl border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 min-w-45"
 			style={{
 				top: pos.top,
 				left: pos.left,
@@ -99,7 +93,9 @@ export default function PublicMapTooltip({
 					<Badge className="font-bold rounded-full text-xs px-2 py-0.5">
 						{standLabel}
 					</Badge>
-					<span className="text-xs text-muted-foreground">{countLabel}</span>
+					{participants.length > 0 && (
+						<span className="text-xs text-muted-foreground">{countLabel}</span>
+					)}
 				</div>
 				{participants.length > 0 && (
 					<div className="space-y-2">
@@ -107,18 +103,27 @@ export default function PublicMapTooltip({
 							<div key={i} className="flex items-center gap-2">
 								<Avatar className="w-8 h-8 shrink-0">
 									<AvatarImage
-										src={p.user.imageUrl ?? undefined}
-										alt={p.user.displayName ?? "Participante"}
+										src={p.imageUrl ?? undefined}
+										alt={p.displayName}
 									/>
 								</Avatar>
 								<div>
 									<p className="text-sm font-semibold leading-tight">
-										{p.user.displayName ?? "Participante"}
+										{p.displayName}
 									</p>
-									<CategoryBadge
-										category={p.user.category}
-										className="text-[10px]"
-									/>
+									{p.kind === "user" ? (
+										<CategoryBadge
+											category={p.categoryLabel}
+											className="text-[10px]"
+										/>
+									) : (
+										<Badge
+											variant="outline"
+											className="mt-1 rounded-full border-teal-600 text-[10px] text-teal-700"
+										>
+											{p.categoryLabel}
+										</Badge>
+									)}
 								</div>
 							</div>
 						))}

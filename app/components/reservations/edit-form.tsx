@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 
 import { Loader2Icon, PlusCircleIcon, Trash2Icon } from "lucide-react";
 
+import { rejectReservation } from "@/app/api/reservations/actions";
 import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import {
@@ -24,9 +25,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { updateReservationSimple } from "@/app/api/user_requests/actions";
+import { adminConfirmReservationByReservationIdAction } from "@/app/lib/reservations/payment-actions";
+import { updateReservationPartner } from "@/app/lib/reservations/admin-actions";
+import { planReservationEditSubmit } from "@/app/components/reservations/edit-form-submit";
 import { toast } from "sonner";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { BaseProfile } from "@/app/api/users/definitions";
 import {
   Card,
@@ -48,6 +51,8 @@ export default function EditReservationForm({
   artistsOptions: SearchOption[];
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
+  const router = useRouter();
+  const [confirmIntentKey] = useState(() => crypto.randomUUID());
   const [partner, setPartner] = useState<Artist | undefined>(
     reservation.participants[1]?.user,
   );
@@ -64,10 +69,63 @@ export default function EditReservationForm({
       participationId: reservation.participants[1]?.id,
       userId: partner?.id,
     };
-    const res = await updateReservationSimple(reservation.id, {
-      ...reservation,
-      ...data,
-      partner: updatedPartner,
+    const originalPartnerUserId = reservation.participants[1]?.user.id;
+    const partnerChanged = updatedPartner.userId !== originalPartnerUserId;
+    const statusChanged = data.status !== reservation.status;
+    const plan = planReservationEditSubmit({
+      statusChanged,
+      partnerChanged,
+      nextStatus: data.status,
+    });
+
+    if (
+      plan.kind === "unsupported_combination" ||
+      plan.kind === "unsupported_status"
+    ) {
+      toast.error(plan.message);
+      return;
+    }
+
+    if (plan.kind === "noop") {
+      toast.success("No hay cambios para guardar.");
+      return;
+    }
+
+    if (plan.kind === "reject") {
+      const res = await rejectReservation({
+        reservationId: reservation.id,
+        reason: "Actualización administrativa",
+      });
+      if (res.success) {
+        toast.success(res.message);
+        router.replace(
+          `/dashboard/festivals/${reservation.festivalId}/reservations`,
+        );
+      } else {
+        toast.error(res.message);
+      }
+      return;
+    }
+
+    if (plan.kind === "confirm") {
+      const res = await adminConfirmReservationByReservationIdAction({
+        reservationId: reservation.id,
+        idempotencyKey: confirmIntentKey,
+      });
+      if (res.success) {
+        toast.success(res.message);
+        router.replace(
+          `/dashboard/festivals/${reservation.festivalId}/reservations`,
+        );
+      } else {
+        toast.error(res.message);
+      }
+      return;
+    }
+
+    const res = await updateReservationPartner({
+      reservationId: reservation.id,
+      partnerUserId: updatedPartner.userId ?? null,
     });
     if (res.success) {
       toast.success(res.message, {
@@ -79,7 +137,9 @@ export default function EditReservationForm({
           },
         },
       });
-      redirect("/dashboard/reservations");
+      router.replace(
+        `/dashboard/festivals/${reservation.festivalId}/reservations`,
+      );
     } else {
       toast.error(res.message, {
         duration: 3000,
@@ -138,7 +198,7 @@ export default function EditReservationForm({
         {showInput && !partner && (
           <>
             <Label htmlFor="first-participant">
-              Busca el compañero de espacio
+              Buscá el compañero de espacio
             </Label>
             <SearchInput
               id="first-participant"
@@ -169,21 +229,29 @@ export default function EditReservationForm({
                 name="status"
                 render={({ field }) => (
                   <FormItem className="grid gap-2">
-                    <FormLabel>Elige una opción</FormLabel>
+                    <FormLabel>Elegí una opción</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Elige una opción" />
+                          <SelectValue placeholder="Elegí una opción" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="pending">Pendiente</SelectItem>
-                        <SelectItem value="verification_payment">Verificación de Pago</SelectItem>
+                        <SelectItem value="verification_payment">
+                          Verificación de Pago
+                        </SelectItem>
                         <SelectItem value="accepted">Aceptada</SelectItem>
                         <SelectItem value="rejected">Rechazada</SelectItem>
+                        <SelectItem value="cancelled" disabled>
+                          Cancelada
+                        </SelectItem>
+                        <SelectItem value="released" disabled>
+                          Liberada
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

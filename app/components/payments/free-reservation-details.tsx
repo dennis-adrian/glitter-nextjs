@@ -14,10 +14,12 @@ export default function FreeReservationDetails({
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col items-center">
-            <h2 className="text-xl font-semibold mb-2">Reserva sin costo</h2>
+            <h2 className="text-xl font-semibold mb-2">
+              Solicitá la revisión de tu reserva
+            </h2>
             <p className="text-center text-muted-foreground mb-4">
-              Tu código de descuento cubre el costo total. Confirma tu reserva
-              para continuar.
+              No tenés que realizar un pago. Un administrador va a revisar que
+              el beneficio corresponda antes de confirmar tu reserva.
             </p>
             <ConfirmFreeReservationButton invoice={invoice} />
           </div>

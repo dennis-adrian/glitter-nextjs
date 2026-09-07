@@ -1,79 +1,173 @@
 "use client";
 
 import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
 } from "@/app/components/ui/card";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
+import {
+  RESERVATION_ERROR_MESSAGES,
+  type ReservationErrorCode,
+} from "@/app/lib/reservations/errors";
+import type { ReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility-logic";
 import { DateTime } from "luxon";
 import dynamic from "next/dynamic";
 
 const CopyLinkButtonComponent = dynamic(
-	() => import("@/components/pages/profiles/festivals/copy-link-button"),
-	{ ssr: false },
+  () => import("@/components/pages/profiles/festivals/copy-link-button"),
+  { ssr: false },
 );
 
+type ReservationFestivalSummary = {
+  id: number;
+  name: string;
+  reservationsStartDate: Date;
+};
+
 type ReservationNotAllowedProps = {
-	festival: FestivalBase;
+  festival: ReservationFestivalSummary;
+  policyCode?: ReservationErrorCode;
+  sanctionBlock?: Extract<ReservationEligibility, { eligible: false }>;
 };
 
 export default function ReservationNotAllowed(
-	props: ReservationNotAllowedProps,
+  props: ReservationNotAllowedProps,
 ) {
-	const today = formatDate(DateTime.now().toISO());
-	const formattedStartDate = formatDate(
-		props.festival.reservationsStartDate.toISOString(),
-	);
+  if (props.sanctionBlock) {
+    return (
+      <SanctionReservationBlocked
+        festival={props.festival}
+        block={props.sanctionBlock}
+      />
+    );
+  }
 
-	return (
-		<div className="container flex flex-col items-center justify-center p-4 md:p-6">
-			<Card className="max-w-[600px]">
-				<CardHeader>
-					<CardTitle className="text-center text-xl">
-						{props.festival.name}
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="flex flex-col items-center justify-center text-center gap-4">
-						<div className="flex flex-col">
-							<span className="text-muted-foreground text-sm">
-								Habilitación de reservas
-							</span>
-							<span className="font-semibold text-3xl">
-								{formatDate(
-									props.festival.reservationsStartDate,
-								).toLocaleString(DateTime.DATE_SHORT)}
-							</span>
-						</div>
-						{formattedStartDate.startOf("day").toMillis() !==
-						today.startOf("day").toMillis() ? (
-							<div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
-								<span>
-									Copia y guarda el enlace de esta página para volver el día en
-									que se habiliten las reservas.
-								</span>
-								<CopyLinkButtonComponent />
-							</div>
-						) : (
-							<div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
-								<span className="mb-2">
-									Las reservas se habilitarán a las{" "}
-									{formattedStartDate.toLocaleString(DateTime.TIME_SIMPLE)}.
-									Puedes copiar el enlace de esta página para regresar luego.
-								</span>
-								<CopyLinkButtonComponent />
-								<div className="text-xs text-muted-foreground italic mt-1">
-									Si te quedaste en la página, te aconsejamos recargarla cuando
-									las reservas ya estén habilitadas.
-								</div>
-							</div>
-						)}
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	);
+  if (props.policyCode && props.policyCode !== "RESERVATIONS_NOT_OPEN") {
+    return (
+      <div className="container flex flex-col items-center justify-center p-4 md:p-6">
+        <Card className="max-w-[600px] w-full">
+          <CardHeader>
+            <CardTitle className="text-center text-xl">
+              {props.festival.name}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-center text-sm text-muted-foreground">
+              {RESERVATION_ERROR_MESSAGES[props.policyCode]}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const today = formatDate(DateTime.now().toISO());
+  const formattedStartDate = formatDate(
+    props.festival.reservationsStartDate.toISOString(),
+  );
+
+  return (
+    <div className="container flex flex-col items-center justify-center p-4 md:p-6">
+      <Card className="max-w-[600px]">
+        <CardHeader>
+          <CardTitle className="text-center text-xl">
+            {props.festival.name}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center text-center gap-4">
+            <div className="flex flex-col">
+              <span className="text-muted-foreground text-sm">
+                Habilitación de reservas
+              </span>
+              <span className="font-semibold text-3xl">
+                {formatDate(
+                  props.festival.reservationsStartDate,
+                ).toLocaleString(DateTime.DATE_SHORT)}
+              </span>
+              {/* The date alone left people guessing whether to be here at
+                  midnight; reservations open at an hour, not on a day. */}
+              <span className="font-semibold text-lg">
+                {formattedStartDate.toLocaleString(DateTime.TIME_SIMPLE)}
+              </span>
+            </div>
+            {formattedStartDate.startOf("day").toMillis() !==
+            today.startOf("day").toMillis() ? (
+              <div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
+                <span>
+                  Copiá y guardá el enlace de esta página para volver el día en
+                  que se habiliten las reservas.
+                </span>
+                <CopyLinkButtonComponent />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
+                <span className="mb-2">
+                  Es hoy. Podés copiar el enlace de esta página para regresar a
+                  esa hora.
+                </span>
+                <CopyLinkButtonComponent />
+                <div className="text-xs text-muted-foreground italic mt-1">
+                  Si te quedaste en la página, recargala cuando las reservas ya
+                  estén habilitadas.
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SanctionReservationBlocked({
+  festival,
+  block,
+}: {
+  festival: ReservationFestivalSummary;
+  block: Extract<ReservationEligibility, { eligible: false }>;
+}) {
+  const title =
+    block.reason === "ban"
+      ? "Reserva no disponible por sanción"
+      : "Reserva temporalmente restringida";
+
+  return (
+    <div className="container flex flex-col items-center justify-center p-4 md:p-6">
+      <Card className="max-w-[600px] w-full">
+        <CardHeader>
+          <CardTitle className="text-center text-xl">{festival.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center text-center gap-4">
+            <p className="font-semibold text-lg">{title}</p>
+            <p className="text-sm text-muted-foreground">{block.message}</p>
+            {block.reason === "reservation_delay" && block.eligibleAt && (
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-sm">
+                  Podrás reservar desde
+                </span>
+                <span className="font-semibold text-2xl">
+                  {formatDate(block.eligibleAt).toLocaleString(
+                    DateTime.DATETIME_MED,
+                  )}
+                </span>
+              </div>
+            )}
+            {block.reason === "reservation_delay" && (
+              <div className="flex flex-col items-center gap-2 text-sm">
+                <span>
+                  Copiá el enlace de esta página para volver cuando puedas
+                  reservar.
+                </span>
+                <CopyLinkButtonComponent />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

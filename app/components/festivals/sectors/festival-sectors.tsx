@@ -7,13 +7,19 @@ import {
   fetchFestivalSectors,
 } from "@/app/lib/festival_sectors/actions";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 
 type FestivalSectorsProps = {
   festival: FestivalBase;
 };
 
 export default async function FestivalSectors(props: FestivalSectorsProps) {
-  const sectors = await fetchFestivalSectors(props.festival.id);
+  // The public map must never reveal a still-hidden reservation: mask them so
+  // the stand stays visible as an anonymous occupied space (no identity, no
+  // card) until the reveal time passes.
+  const sectors = stripHiddenReservationsFromSectors(
+    await fetchFestivalSectors(props.festival.id),
+  );
   const confirmedProfiles = await fetchConfirmedProfilesByFestivalId(
     props.festival.id,
   );

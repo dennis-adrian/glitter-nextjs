@@ -7,29 +7,29 @@ import { sendUserEmailsTemp } from "@/app/lib/festivals/actions";
 import { useForm } from "react-hook-form";
 
 type SendEmailsFormProps = {
-	users: BaseProfile[];
-	festivalId: number;
+  users: BaseProfile[];
+  festivalId: number;
 };
 
 export default function SendEmailsForm({
-	users,
-	festivalId,
+  users,
+  festivalId,
 }: SendEmailsFormProps) {
-	const form = useForm();
+  const form = useForm();
 
-	const action = form.handleSubmit(async () => {
-		await sendUserEmailsTemp(users, festivalId);
-	});
+  const action = form.handleSubmit(async () => {
+    await sendUserEmailsTemp(users, festivalId);
+  });
 
-	return (
-		<Form {...form}>
-			<form onSubmit={action}>
-				<SubmitButton
-					disabled={form.formState.isSubmitting}
-					loading={form.formState.isSubmitting}
-					label="Enviar correos"
-				/>
-			</form>
-		</Form>
-	);
+  return (
+    <Form {...form}>
+      <form onSubmit={action}>
+        <SubmitButton
+          disabled={form.formState.isSubmitting}
+          loading={form.formState.isSubmitting}
+          label="Enviar correos"
+        />
+      </form>
+    </Form>
+  );
 }

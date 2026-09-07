@@ -1,17 +1,20 @@
 "use client";
 
-import SubcategoriesDescription from "@/app/components/festivals/subcategories/sucategories-description";
+import PublicCategories from "@/app/components/categories/public-categories";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { PublicCategory } from "@/app/lib/categories/definitions";
 
 type SubcategoriesModalProps = {
   open: boolean;
   setOpen: (open: boolean) => void;
+  categories: PublicCategory[];
 };
+
 export default function SubcategoriesModal(props: SubcategoriesModalProps) {
   return (
     <Dialog open={props.open} onOpenChange={props.setOpen}>
@@ -19,7 +22,7 @@ export default function SubcategoriesModal(props: SubcategoriesModalProps) {
         <DialogHeader>
           <DialogTitle>Categorías Glitter</DialogTitle>
         </DialogHeader>
-        <SubcategoriesDescription className="flex flex-col gap-2" />
+        <PublicCategories categories={props.categories} />
       </DialogContent>
     </Dialog>
   );

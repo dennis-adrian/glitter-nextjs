@@ -11,46 +11,46 @@ import clsx from "clsx";
 import { useRouter } from "next/navigation";
 
 export function RedirectButton({
-	children,
-	href,
-	variant,
-	disabled = false,
-	loadingText = "Cargando",
-	...props
+  children,
+  href,
+  variant,
+  disabled = false,
+  loadingText = "Cargando",
+  ...props
 }: {
-	children: React.ReactNode;
-	href: string;
-	disabled?: boolean;
-	loadingText?: string;
+  children: React.ReactNode;
+  href: string;
+  disabled?: boolean;
+  loadingText?: string;
 } & VariantProps<typeof buttonVariants> &
-	HTMLAttributes<HTMLButtonElement>) {
-	const [isPending, startTransition] = useTransition();
-	const router = useRouter();
+  HTMLAttributes<HTMLButtonElement>) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
-	const handleClick = useCallback(() => {
-		startTransition(() => {
-			router.push(href);
-		});
-	}, [href, router]);
+  const handleClick = useCallback(() => {
+    startTransition(() => {
+      router.push(href);
+    });
+  }, [href, router]);
 
-	if (disabled) {
-		return (
-			<Button disabled variant={variant} {...props}>
-				{children}
-			</Button>
-		);
-	}
+  if (disabled) {
+    return (
+      <Button disabled variant={variant} {...props}>
+        {children}
+      </Button>
+    );
+  }
 
-	return isPending ? (
-		<Button disabled variant={variant} {...props}>
-			<Loader2Icon
-				className={clsx("h-4 w-4 animate-spin", loadingText && "mr-1")}
-			/>
-			{loadingText && loadingText}
-		</Button>
-	) : (
-		<Button variant={variant} onClick={handleClick} {...props}>
-			{children}
-		</Button>
-	);
+  return isPending ? (
+    <Button disabled variant={variant} {...props}>
+      <Loader2Icon
+        className={clsx("h-4 w-4 animate-spin", loadingText && "mr-1")}
+      />
+      {loadingText && loadingText}
+    </Button>
+  ) : (
+    <Button variant={variant} onClick={handleClick} {...props}>
+      {children}
+    </Button>
+  );
 }

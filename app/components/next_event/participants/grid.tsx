@@ -1,21 +1,15 @@
-import { fetchConfirmedReservationsByFestival } from "@/app/api/reservations/actions";
 import { ParticipantCard } from "@/app/components/next_event/participants/card";
+import { compareParticipantDisplayNames } from "@/app/components/next_event/participants/compare-display-names";
+import { fetchPublicFestivalParticipantSummaries } from "@/app/lib/reservations/queries";
 
 export async function Participants({ festivalId }: { festivalId: number }) {
-  const reservations = await fetchConfirmedReservationsByFestival(festivalId);
-
-  const participants = reservations.flatMap(
-    (reservation) => reservation.participants,
-  );
+  const participants = await fetchPublicFestivalParticipantSummaries(festivalId);
 
   return (
     <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6 xl:grid-cols-4">
       {participants
-        .sort(
-          (a, b) =>
-            a.user.displayName?.localeCompare(b.user.displayName || "") || 0,
-        )
-        .map(({ user }) => (
+        .sort(compareParticipantDisplayNames)
+        .map((user) => (
           <ParticipantCard key={user.id} profile={user} />
         ))}
     </div>

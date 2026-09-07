@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, max, sql } from "drizzle-orm";
+import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { db } from "@/db";
@@ -13,255 +13,285 @@ import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
+
+/**
+ * First key of the advisory lock that serializes ticket numbering, so a
+ * festival id here cannot collide with the same number used as a lock key
+ * elsewhere. Arbitrary, and only has to stay stable.
+ */
+const TICKET_NUMBER_LOCK_NAMESPACE = 4711;
+
 export async function createTicket(data: {
-	date: Date;
-	visitor: VisitorBase;
-	festival: FestivalBase;
-	numberOfVisitors?: number;
+  date: Date;
+  visitor: VisitorBase;
+  festival: FestivalBase;
+  numberOfVisitors?: number;
 }) {
-	const { date, visitor, festival } = data;
+  const { date, visitor, festival } = data;
 
-	let createdTicket: TicketBase;
-	try {
-		const rows = await db.transaction(async (tx) => {
-			const existingTickets = await tx
-				.select()
-				.from(tickets)
-				.where(
-					and(
-						eq(tickets.visitorId, visitor.id),
-						eq(tickets.festivalId, festival.id),
-						eq(tickets.date, date),
-					),
-				);
+  let createdTicket: TicketBase;
+  try {
+    const rows = await db.transaction(async (tx) => {
+      /**
+       * Serializes registration for this festival, and is taken before
+       * anything is read so that both reads below see every committed ticket.
+       *
+       * Row locks cannot do this job: `SELECT ... FOR UPDATE` only locks rows
+       * that already exist, so two registrations arriving together read the
+       * same highest number, and each inserts a row the other never saw —
+       * duplicate numbers, and a second ticket for a visitor who already had
+       * one. Nothing in the schema catches either afterwards.
+       */
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(${TICKET_NUMBER_LOCK_NAMESPACE}, ${festival.id})`,
+      );
 
-			if (existingTickets.length > 0) {
-				throw new Error("Ya existe una entrada para este día", {
-					cause: "ticket_exists",
-				});
-			}
+      const existingTickets = await tx
+        .select()
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.visitorId, visitor.id),
+            eq(tickets.festivalId, festival.id),
+            eq(tickets.date, date),
+          ),
+        );
 
-			const rowsToLock = await tx
-				.select()
-				.from(tickets)
-				.where(eq(tickets.festivalId, festival.id))
-				.for("update");
+      if (existingTickets.length > 0) {
+        throw new Error("Ya existe una entrada para este día", {
+          cause: "ticket_exists",
+        });
+      }
 
-			const maxTicketNumber =
-				rowsToLock.length > 0
-					? Math.max(...rowsToLock.map((row) => row.ticketNumber ?? 0))
-					: 0;
-			const ticketNumber = maxTicketNumber + 1;
+      const [{ highest }] = await tx
+        .select({ highest: max(tickets.ticketNumber) })
+        .from(tickets)
+        .where(eq(tickets.festivalId, festival.id));
 
-			return await tx
-				.insert(tickets)
-				.values({
-					date,
-					visitorId: visitor.id,
-					festivalId: festival.id,
-					ticketNumber: ticketNumber,
-					numberOfVisitors: data.numberOfVisitors || 1,
-				})
-				.returning();
-		});
+      const ticketNumber = (highest ?? 0) + 1;
 
-		createdTicket = rows[0];
-	} catch (error) {
-		console.error(error);
-		let message = "No se pudo crear la entrada";
+      return await tx
+        .insert(tickets)
+        .values({
+          date,
+          visitorId: visitor.id,
+          festivalId: festival.id,
+          ticketNumber: ticketNumber,
+          numberOfVisitors: data.numberOfVisitors || 1,
+        })
+        .returning();
+    });
 
-		if (error instanceof Error) {
-			if (error.cause === "ticket_exists") {
-				message = error.message;
-			}
-		}
+    createdTicket = rows[0];
+  } catch (error) {
+    console.error(error);
+    let message = "No se pudo crear la entrada";
 
-		return {
-			success: false,
-			message,
-			ticket: null,
-		};
-	}
+    if (error instanceof Error) {
+      if (error.cause === "ticket_exists") {
+        message = error.message;
+      }
+    }
 
-	const qrBuffer = await generateQrBuffer(
-		getTicketCode(festival.festivalCode || "", createdTicket.ticketNumber || 0),
-	);
-	const qrAttachment = {
-		filename: "qrcode.png",
-		content: qrBuffer,
-		content_id: "ticket-qrcode",
-	};
+    return {
+      success: false,
+      message,
+      ticket: null,
+    };
+  }
 
-	sendEmail({
-		from: "Equipo Glitter <entradas@productoraglitter.com>",
-		to: [visitor.email],
-		subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
-		react: TicketEmailTemplate({
-			visitor,
-			festival,
-			ticket: createdTicket,
-		}) as React.ReactElement,
-		attachments: [qrAttachment],
-	});
+  const qrBuffer = await generateQrBuffer(
+    getTicketCode(festival.festivalCode || "", createdTicket.ticketNumber || 0),
+  );
+  const qrAttachment = {
+    filename: "qrcode.png",
+    content: qrBuffer,
+    content_id: "ticket-qrcode",
+  };
 
-	revalidatePath(`/festivals/${festival.id}/registration`);
-	return {
-		success: true,
-		message: "Entrada creada correctamente",
-		ticket: createdTicket,
-	};
+  sendEmail({
+    from: "Equipo Glitter <entradas@productoraglitter.com>",
+    to: [visitor.email],
+    subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
+    react: TicketEmailTemplate({
+      visitor,
+      festival,
+      ticket: createdTicket,
+    }) as React.ReactElement,
+    attachments: [qrAttachment],
+  });
+
+  revalidatePath(`/festivals/${festival.id}/registration`);
+  return {
+    success: true,
+    message: "Entrada creada correctamente",
+    ticket: createdTicket,
+  };
 }
 
 export async function fetchTicket(
-	id: number,
+  id: number,
 ): Promise<TicketBase | undefined | null> {
-	try {
-		return await db.query.tickets.findFirst({
-			where: eq(tickets.id, id),
-		});
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+  try {
+    return await db.query.tickets.findFirst({
+      where: eq(tickets.id, id),
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export async function updateTicket(id: number, status: TicketBase["status"]) {
-	try {
-		await db.update(tickets).set({ status }).where(eq(tickets.id, id));
-	} catch (error) {
-		console.error(error);
-		return {
-			success: false,
-			error: "No se pudo actualizar el estado de la entrada",
-		};
-	}
+  try {
+    await db.update(tickets).set({ status }).where(eq(tickets.id, id));
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      error: "No se pudo actualizar el estado de la entrada",
+    };
+  }
 
-	revalidatePath("/dashboard/festivals");
-	revalidatePath("/visitors");
-	return {
-		success: true,
-		error: null,
-	};
+  revalidatePath("/dashboard/festivals");
+  revalidatePath("/visitors");
+  return {
+    success: true,
+    error: null,
+  };
 }
 
 export async function verifyTicket(ticketNumber: number, festivalId: number) {
-	try {
-		const [ticket] = await db
-			.select()
-			.from(tickets)
-			.where(
-				and(
-					eq(tickets.festivalId, festivalId),
-					eq(tickets.ticketNumber, ticketNumber),
-				),
-			);
+  try {
+    const [ticket] = await db
+      .select()
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.ticketNumber, ticketNumber),
+        ),
+      );
 
-		if (!ticket) throw new Error("La entrada no existe");
-		if (ticket.status === "checked_in") {
-			throw new Error("Esta entrada ya ha sido verificada");
-		}
+    if (!ticket) throw new Error("La entrada no existe");
+    if (ticket.status === "checked_in") {
+      throw new Error("Esta entrada ya ha sido verificada");
+    }
 
-		await db
-			.update(tickets)
-			.set({
-				status: "checked_in",
-				checkedInAt: sql`NOW()`,
-				updatedAt: sql`NOW()`,
-			})
-			.where(
-				and(
-					eq(tickets.festivalId, festivalId),
-					eq(tickets.ticketNumber, ticketNumber),
-				),
-			);
-	} catch (error) {
-		console.error(error);
-		if (error instanceof Error) {
-			return {
-				success: false,
-				message: error.message,
-			};
-		}
+    // Predicate on status closes the race where two concurrent verifies both
+    // pass the read above; a zero-row update means the other won.
+    //
+    // The id pins the update to the row that was read. Nothing in the database
+    // stops two tickets from sharing a festival and number, and without the id
+    // one scan would check in every one of them at once.
+    const updated = await db
+      .update(tickets)
+      .set({
+        status: "checked_in",
+        checkedInAt: sql`NOW()`,
+        updatedAt: sql`NOW()`,
+      })
+      .where(
+        and(
+          eq(tickets.id, ticket.id),
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.ticketNumber, ticketNumber),
+          ne(tickets.status, "checked_in"),
+        ),
+      )
+      .returning({ id: tickets.id });
 
-		return {
-			success: false,
-			message: "No se pudo verificar la entrada",
-		};
-	}
+    if (updated.length !== 1) {
+      throw new Error("Esta entrada ya ha sido verificada");
+    }
+  } catch (error) {
+    console.error(error);
+    if (error instanceof Error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
 
-	revalidatePath("/dashboard/festivals");
-	return {
-		success: true,
-		message: "Entrada verificada correctamente",
-	};
+    return {
+      success: false,
+      message: "No se pudo verificar la entrada",
+    };
+  }
+
+  revalidatePath("/dashboard/festivals");
+  return {
+    success: true,
+    message: "Entrada verificada correctamente",
+  };
 }
 
 export async function sendTicketEmail(
-	visitor: VisitorWithTickets,
-	festival: FestivalBase,
+  visitor: VisitorWithTickets,
+  festival: FestivalBase,
 ) {
-	try {
-		// const { error, data } = await sendEmail({
-		//   from: "Equipo Glitter <entradas@productoraglitter.com>",
-		//   to: [visitor.email],
-		//   subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
-		//   react: TicketEmailTemplate({
-		//     visitor,
-		//     festival,
-		//   }) as React.ReactElement,
-		// });
+  try {
+    // const { error, data } = await sendEmail({
+    //   from: "Equipo Glitter <entradas@productoraglitter.com>",
+    //   to: [visitor.email],
+    //   subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
+    //   react: TicketEmailTemplate({
+    //     visitor,
+    //     festival,
+    //   }) as React.ReactElement,
+    // });
 
-		// if (error) throw new Error(error.message);
+    // if (error) throw new Error(error.message);
 
-		return {
-			success: true,
-			message: `Se envió el correo a ${visitor.email}`,
-		};
-	} catch (error) {
-		console.error("Error sending pending emails", error);
-		return {
-			success: false,
-			message: "No se pudo enviar el correo con la entrada",
-		};
-	}
+    return {
+      success: true,
+      message: `Se envió el correo a ${visitor.email}`,
+    };
+  } catch (error) {
+    console.error("Error sending pending emails", error);
+    return {
+      success: false,
+      message: "No se pudo enviar el correo con la entrada",
+    };
+  }
 }
 
 export async function fetchTicketsByFestival(festivalId: number) {
-	try {
-		return await db.query.tickets.findMany({
-			with: {
-				visitor: true,
-				festival: true,
-			},
-			where: and(
-				eq(tickets.festivalId, festivalId),
-				eq(tickets.status, "checked_in"),
-			),
-			orderBy: desc(tickets.updatedAt),
-			limit: 50,
-		});
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
+  try {
+    return await db.query.tickets.findMany({
+      with: {
+        visitor: true,
+        festival: true,
+      },
+      where: and(
+        eq(tickets.festivalId, festivalId),
+        eq(tickets.status, "checked_in"),
+      ),
+      orderBy: desc(tickets.updatedAt),
+      limit: 50,
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 export async function fetchVerifiedTicketsByFestivalTotal(festivalId: number) {
-	try {
-		const result = await db
-			.select({
-				total: count(tickets.id),
-			})
-			.from(tickets)
-			.where(
-				and(
-					eq(tickets.festivalId, festivalId),
-					eq(tickets.status, "checked_in"),
-				),
-			);
-		return result[0].total;
-	} catch (error) {
-		console.error(error);
-		return 0;
-	}
+  try {
+    const result = await db
+      .select({
+        total: count(tickets.id),
+      })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.status, "checked_in"),
+        ),
+      );
+    return result[0].total;
+  } catch (error) {
+    console.error(error);
+    return 0;
+  }
 }

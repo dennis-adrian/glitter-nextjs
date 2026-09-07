@@ -1,0 +1,1 @@
+CREATE INDEX "reservation_external_participants_reservation_id_idx" ON "reservation_external_participants" USING btree ("reservation_id");

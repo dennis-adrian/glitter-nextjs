@@ -39,8 +39,13 @@ export function DeleteReservationModal({
             <div className="flex flex-col gap-2">
               <p>¿Estás seguro que deseas eliminar esta reserva?</p>
               <p>
-                El espacio cambiará a <strong>Disponible</strong> y los artistas
-                quedarán libres para hacer otra reserva
+                El espacio cambiará a <strong>Disponible</strong>, pero la
+                reserva no se borra: queda registrada como{" "}
+                <strong>Rechazada</strong>.
+              </p>
+              <p>
+                Los participantes <strong>no</strong> van a poder hacer otra
+                reserva en este festival.
               </p>
             </div>
           </div>

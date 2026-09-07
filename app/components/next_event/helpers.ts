@@ -11,6 +11,8 @@ export function isProfileInFestival(
 
   return profile?.userRequests?.some(
     (request) =>
-      request.festivalId === festivalId && request.status === "accepted",
+      request.festivalId === festivalId &&
+      request.type === "festival_participation" &&
+      request.status === "accepted",
   );
 }

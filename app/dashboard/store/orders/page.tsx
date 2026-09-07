@@ -1,47 +1,44 @@
 import OrdersCardList from "@/app/components/organisms/orders/orders-card-list";
 import OrdersTable from "@/app/components/organisms/orders/table";
 import TableSkeleton from "@/app/components/users/skeletons/table";
-import { fetchOrdersByStatus } from "@/app/lib/orders/actions";
-import { orderStatusEnum } from "@/db/schema";
+import {
+  fetchOrderStatusCounts,
+  fetchOrdersForAdmin,
+} from "@/app/lib/orders/actions";
+import { parseStoreOrdersQuery } from "@/app/lib/orders/query-schema";
 import { Suspense } from "react";
-import { z } from "zod";
-
-const STATUS_VALUES = [
-	...orderStatusEnum.enumValues,
-	"all",
-	"needs_attention",
-] as const;
-
-const SearchParamsSchema = z.object({
-	status: z.enum(STATUS_VALUES).catch("pending"),
-});
 
 export default async function StoreOrdersPage(props: {
-	searchParams: Promise<Record<string, string>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-	const raw = await props.searchParams;
-	const { status } = SearchParamsSchema.parse(raw);
-	const statusFilter =
-		status === "all"
-			? undefined
-			: status === "needs_attention"
-				? (["pending", "payment_verification"] as const)
-				: status;
-	const ordersPromise = fetchOrdersByStatus(statusFilter);
+  const raw = await props.searchParams;
+  const query = parseStoreOrdersQuery(raw);
+  const ordersPromise = fetchOrdersForAdmin(query);
+  // Counts ignore the status filter so each facet can show what it would
+  // return under the filters that are actually active.
+  const countsPromise = fetchOrderStatusCounts(query);
 
-	return (
-		<div className="space-y-4">
-			<div className="block md:hidden">
-				<Suspense fallback={<TableSkeleton />}>
-					<OrdersCardList ordersPromise={ordersPromise} activeStatus={status} />
-				</Suspense>
-			</div>
+  return (
+    <div className="space-y-4">
+      <div className="block lg:hidden" data-testid="orders-card-view">
+        <Suspense fallback={<TableSkeleton />}>
+          <OrdersCardList
+            ordersPromise={ordersPromise}
+            countsPromise={countsPromise}
+            query={query}
+          />
+        </Suspense>
+      </div>
 
-			<div className="hidden md:block">
-				<Suspense fallback={<TableSkeleton />}>
-					<OrdersTable ordersPromise={ordersPromise} activeStatus={status} />
-				</Suspense>
-			</div>
-		</div>
-	);
+      <div className="hidden lg:block" data-testid="orders-table-view">
+        <Suspense fallback={<TableSkeleton />}>
+          <OrdersTable
+            ordersPromise={ordersPromise}
+            countsPromise={countsPromise}
+            query={query}
+          />
+        </Suspense>
+      </div>
+    </div>
+  );
 }

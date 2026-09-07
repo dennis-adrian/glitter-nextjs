@@ -8,38 +8,47 @@ import BaseCard from "@/components/user_profile/announcements_cards/base-card";
 import { ArrowRightIcon } from "lucide-react";
 
 type TermsCardProps = {
-	festival: Festival;
-	profile: ProfileType;
+  festival: Festival;
+  profile: ProfileType;
 };
 
-export function TermsCard(props: TermsCardProps) {
-	const festivalCategories = getFestivalCategories(props.festival);
-	if (
-		props.profile.category &&
-		!festivalCategories.includes(props.profile.category)
-	) {
-		return null;
-	}
+export function TermsCard(props: TermsCardProps & { isReacceptance?: boolean }) {
+  const festivalCategories = getFestivalCategories(props.festival);
+  if (
+    props.profile.category &&
+    !festivalCategories.includes(props.profile.category)
+  ) {
+    return null;
+  }
 
-	return (
-		<BaseCard
-			content={
-				<p>
-					Se acerca <b>{props.festival.name}</b>. Leé y aceptá los términos y
-					condiciones para participar.
-				</p>
-			}
-			footer={
-				<RedirectButton
-					className="text-amber-900 underline"
-					variant="link"
-					size="sm"
-					href={`/festivals/${props.festival.id}/terms`}
-				>
-					Leer términos y condiciones
-					<ArrowRightIcon className="ml-1 w-4 h-4" />
-				</RedirectButton>
-			}
-		/>
-	);
+  return (
+    <BaseCard
+      content={
+        props.isReacceptance ? (
+          <p>
+            Actualizamos los términos y condiciones de{" "}
+            <b>{props.festival.name}</b>. Volvé a aceptarlos para continuar.
+          </p>
+        ) : (
+          <p>
+            Se acerca <b>{props.festival.name}</b>. Leé y aceptá los términos y
+            condiciones para participar.
+          </p>
+        )
+      }
+      footer={
+        <RedirectButton
+          className="text-amber-900 underline"
+          variant="link"
+          size="sm"
+          href={`/festivals/${props.festival.id}/terms`}
+        >
+          {props.isReacceptance
+            ? "Aceptar nueva versión"
+            : "Leer términos y condiciones"}
+          <ArrowRightIcon className="ml-1 w-4 h-4" />
+        </RedirectButton>
+      }
+    />
+  );
 }

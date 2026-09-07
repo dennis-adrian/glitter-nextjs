@@ -1,3 +1,4 @@
+import InvoiceCreditPanel from "@/app/components/payments/invoice-credit-panel";
 import CompletePaymentButton from "@/app/components/payments/complete-payment-button";
 import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
 
@@ -5,35 +6,54 @@ import { CardContent } from "@/app/components/ui/card";
 
 import { Card } from "@/app/components/ui/card";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
-import { getQRCode } from "@/app/lib/qr_codes/actions";
+import { getQrCodeForAmount } from "@/app/lib/qr_codes/actions";
 
 type QRCodeDetailsProps = {
   invoice: InvoiceWithPaymentsAndStand;
+  outstandingAmount?: number;
 };
 
-export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
-	const qrCode = await getQRCode(invoice.amount);
+export default async function QRCodeDetails({
+  invoice,
+  outstandingAmount = invoice.amount,
+}: QRCodeDetailsProps) {
+  // Exact amount when one exists, otherwise the zero-amount code the payer
+  // fills in. Matching alone left this showing "no QR found" for any amount
+  // nobody had pre-generated.
+  const qrCode = await getQrCodeForAmount(outstandingAmount);
 
-	return (
-		<div>
-			<Card>
-				<CardContent className="pt-6">
-					<div className="flex flex-col items-center">
-						<h2 className="text-xl font-semibold mb-2">Código QR para Pagar</h2>
-						<p className="text-center text-muted-foreground mb-4">
-							Usa tu app de banco o app de pago para escanear este código
-						</p>
+  return (
+    <div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center">
+            <h2 className="text-xl font-semibold mb-2">Código QR para Pagar</h2>
+            <p className="text-center text-muted-foreground mb-4">
+              Usa tu app de banco o app de pago para escanear este código
+            </p>
 
-						<PaymentQRCode invoice={invoice} qrCodeUrl={qrCode?.qrCodeUrl} />
-					</div>
-				</CardContent>
-			</Card>
+            <PaymentQRCode
+              invoice={invoice}
+              amount={outstandingAmount}
+              qrCodeUrl={qrCode?.qrCodeUrl}
+              qrCoversAmount={
+                qrCode ? qrCode.amount === outstandingAmount : false
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-			<div className="mt-4">
-				<CompletePaymentButton invoice={invoice} />
-			</div>
+      <div className="mt-4">
+        <CompletePaymentButton invoice={invoice} />
+        <InvoiceCreditPanel
+          invoiceId={invoice.id}
+          ownerUserId={invoice.userId}
+          outstandingAmount={outstandingAmount}
+        />
+      </div>
 
-			{/* <div className="mt-4 text-center">
+      {/* <div className="mt-4 text-center">
         <p className="text-sm text-muted-foreground">
           ¿Tienes problemas?{" "}
           <Link href="#" className="text-primary hover:underline">
@@ -41,6 +61,6 @@ export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
           </Link>
         </p>
       </div> */}
-		</div>
-	);
+    </div>
+  );
 }

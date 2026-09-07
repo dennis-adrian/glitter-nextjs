@@ -4,10 +4,27 @@ import { DateTime } from "luxon";
 export const STORE_TIMEZONE = "America/La_Paz";
 
 export function formatDate(date: Date | string): DateTime {
-  const isoDate = date instanceof Date ? date.toISOString() : date;
-  return DateTime.fromISO(isoDate, {
-    zone: STORE_TIMEZONE,
-  }).setLocale("es");
+  if (date instanceof Date) {
+    return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).setLocale("es");
+  }
+
+  const isoDate = DateTime.fromISO(date, { zone: STORE_TIMEZONE });
+  if (isoDate.isValid) {
+    return isoDate.setLocale("es");
+  }
+
+  const sqlDate = DateTime.fromSQL(date, { zone: STORE_TIMEZONE });
+  if (sqlDate.isValid) {
+    return sqlDate.setLocale("es");
+  }
+
+  return DateTime.invalid("unparsable");
+}
+
+/** Like `formatDate`, but returns null for invalid Luxon DateTimes (which are still truthy objects). */
+export function formatDateOrNull(date: Date | string): DateTime | null {
+  const formatted = formatDate(date);
+  return formatted.isValid ? formatted : null;
 }
 
 export function formatFullDate(
@@ -36,28 +53,28 @@ export function getWeekdayFromDate(
 
 export function slugify(input: string): string {
   return input
-    .normalize("NFKD")             // strip accents
+    .normalize("NFKD") // strip accents
     .replace(/[\u0300-\u036f]/g, "") // remove diacritics
-    .replace(/[^a-z0-9]+/gi, "_")   // replace non-alphanumeric with underscores
-    .toLowerCase()                  // convert to lowercase
-    .replace(/^_+|_+$/g, "");       // trim leading/trailing underscores
+    .replace(/[^a-z0-9]+/gi, "_") // replace non-alphanumeric with underscores
+    .toLowerCase() // convert to lowercase
+    .replace(/^_+|_+$/g, ""); // trim leading/trailing underscores
 }
 
 export const getFestivalDateString = (
-	startDate: string | null,
-	endDate: string | null,
+  startDate: string | null,
+  endDate: string | null,
 ) => {
-	if (startDate && !endDate) {
-		return startDate;
-	}
+  if (startDate && !endDate) {
+    return startDate;
+  }
 
-	if (!startDate && endDate) {
-		return endDate;
-	}
+  if (!startDate && endDate) {
+    return endDate;
+  }
 
-	if (startDate === endDate) {
-		return startDate;
-	}
+  if (startDate === endDate) {
+    return startDate;
+  }
 
-	return `${startDate} - ${endDate}`;
+  return `${startDate} - ${endDate}`;
 };

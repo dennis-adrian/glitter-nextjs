@@ -1,0 +1,1 @@
+CREATE INDEX "stands_festival_sector_id_idx" ON "stands" USING btree ("festival_sector_id");

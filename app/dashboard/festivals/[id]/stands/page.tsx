@@ -29,7 +29,7 @@ export default async function StandPositionsPage({
   }
 
   return (
-    <div className="container">
+    <div className="container p-3 md:p-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">
         Editor del mapa - {festival.name}
       </h1>

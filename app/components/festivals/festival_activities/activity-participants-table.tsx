@@ -5,357 +5,357 @@ import { Badge } from "@/app/components/ui/badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import {
-	ActivityDetailsWithParticipants,
-	ParticipantWithUserAndProofs,
+  ActivityDetailsWithParticipants,
+  ParticipantWithUserAndProofs,
 } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import ProofImageModal from "./proof-image-modal";
 import TextProofModal from "./text-proof-modal";
 
 type ParticipantWithDetail = ParticipantWithUserAndProofs & {
-	detail: ActivityDetailsWithParticipants;
+  detail: ActivityDetailsWithParticipants;
 };
 
 type ParticipantProof = ParticipantWithUserAndProofs["proofs"][number];
 
 function getPrimaryProof(
-	proofs: ParticipantWithUserAndProofs["proofs"],
+  proofs: ParticipantWithUserAndProofs["proofs"],
 ): ParticipantProof | undefined {
-	const imageProof = proofs.find((proof) => Boolean(proof.imageUrl));
-	if (imageProof) return imageProof;
+  const imageProof = proofs.find((proof) => Boolean(proof.imageUrl));
+  if (imageProof) return imageProof;
 
-	const textProof = proofs.find(
-		(proof) =>
-			Boolean(proof.promoDescription && proof.promoDescription.trim()) ||
-			Boolean(proof.promoConditions && proof.promoConditions.trim()),
-	);
-	return textProof;
+  const textProof = proofs.find(
+    (proof) =>
+      Boolean(proof.promoDescription && proof.promoDescription.trim()) ||
+      Boolean(proof.promoConditions && proof.promoConditions.trim()),
+  );
+  return textProof;
 }
 
 function capitalize(s: string): string {
-	return s.charAt(0).toUpperCase() + s.slice(1);
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function ParticipantProofViewer({
-	proof,
-	participantName,
-	materialLabel,
+  proof,
+  participantName,
+  materialLabel,
 }: {
-	proof: ParticipantProof;
-	participantName: string;
-	materialLabel: string;
+  proof: ParticipantProof;
+  participantName: string;
+  materialLabel: string;
 }) {
-	const hasImage = Boolean(proof.imageUrl);
-	const hasText =
-		Boolean(proof.promoDescription && proof.promoDescription.trim()) ||
-		Boolean(proof.promoConditions && proof.promoConditions.trim());
+  const hasImage = Boolean(proof.imageUrl);
+  const hasText =
+    Boolean(proof.promoDescription && proof.promoDescription.trim()) ||
+    Boolean(proof.promoConditions && proof.promoConditions.trim());
 
-	if (hasImage && hasText) {
-		return (
-			<>
-				<ProofImageModal
-					imageUrl={proof.imageUrl}
-					participantName={participantName}
-					materialLabel={materialLabel}
-				/>
-				<TextProofModal
-					participantName={participantName}
-					promoHighlight={proof.promoHighlight}
-					promoDescription={proof.promoDescription}
-					promoConditions={proof.promoConditions}
-					materialLabel={materialLabel}
-				/>
-			</>
-		);
-	}
+  if (hasImage && hasText) {
+    return (
+      <>
+        <ProofImageModal
+          imageUrl={proof.imageUrl}
+          participantName={participantName}
+          materialLabel={materialLabel}
+        />
+        <TextProofModal
+          participantName={participantName}
+          promoHighlight={proof.promoHighlight}
+          promoDescription={proof.promoDescription}
+          promoConditions={proof.promoConditions}
+          materialLabel={materialLabel}
+        />
+      </>
+    );
+  }
 
-	if (hasImage) {
-		return (
-			<ProofImageModal
-				imageUrl={proof.imageUrl}
-				participantName={participantName}
-				materialLabel={materialLabel}
-			/>
-		);
-	}
+  if (hasImage) {
+    return (
+      <ProofImageModal
+        imageUrl={proof.imageUrl}
+        participantName={participantName}
+        materialLabel={materialLabel}
+      />
+    );
+  }
 
-	if (!hasText) return null;
+  if (!hasText) return null;
 
-	return (
-		<TextProofModal
-			participantName={participantName}
-			promoHighlight={proof.promoHighlight}
-			promoDescription={proof.promoDescription}
-			promoConditions={proof.promoConditions}
-			materialLabel={materialLabel}
-		/>
-	);
+  return (
+    <TextProofModal
+      participantName={participantName}
+      promoHighlight={proof.promoHighlight}
+      promoDescription={proof.promoDescription}
+      promoConditions={proof.promoConditions}
+      materialLabel={materialLabel}
+    />
+  );
 }
 
 /** Synthetic key when the participant has not submitted a proof row yet. */
 const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
-	{
-		sin_prueba: {
-			label: "Sin material",
-			className: "text-amber-700 border-amber-300 bg-amber-50",
-		},
-		pending_review: {
-			label: "En revisión",
-			className: "bg-amber-50 text-amber-800 border-amber-300",
-		},
-		approved: {
-			label: "Aprobada",
-			className: "bg-emerald-100 text-emerald-800 border-emerald-200",
-		},
-		rejected_resubmit: {
-			label: "Corrección solicitada",
-			className: "bg-orange-100 text-orange-800 border-orange-300",
-		},
-		rejected_removed: {
-			label: "Removido",
-			className: "bg-red-100 text-red-800 border-red-300",
-		},
-	};
+  {
+    sin_prueba: {
+      label: "Sin material",
+      className: "text-amber-700 border-amber-300 bg-amber-50",
+    },
+    pending_review: {
+      label: "En revisión",
+      className: "bg-amber-50 text-amber-800 border-amber-300",
+    },
+    approved: {
+      label: "Aprobada",
+      className: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    },
+    rejected_resubmit: {
+      label: "Corrección solicitada",
+      className: "bg-orange-100 text-orange-800 border-orange-300",
+    },
+    rejected_removed: {
+      label: "Removido",
+      className: "bg-red-100 text-red-800 border-red-300",
+    },
+  };
 
 function proofStatusKey(proof: ParticipantProof | undefined) {
-	return proof?.proofStatus ?? "sin_prueba";
+  return proof?.proofStatus ?? "sin_prueba";
 }
 
 function buildColumns(
-	materialLabel: string,
+  materialLabel: string,
 ): ColumnDef<ParticipantWithDetail>[] {
-	const columnTitleLabel = capitalize(materialLabel);
+  const columnTitleLabel = capitalize(materialLabel);
 
-	return [
-		{
-			id: "index",
-			header: "#",
-			cell: ({ row }) => (
-				<span className="text-muted-foreground text-sm">{row.index + 1}</span>
-			),
-			size: 40,
-		},
-		{
-			id: "participant",
-			header: "Participante",
-			accessorFn: (row) => row.user.displayName ?? "",
-			cell: ({ row }) => {
-				const user = row.original.user;
-				return (
-					<div className="flex items-center gap-2">
-						<Avatar className="w-7 h-7 shrink-0">
-							<AvatarImage
-								src={
-									user.imageUrl || "/img/placeholders/avatar-placeholder.png"
-								}
-								alt={user.displayName ?? "Avatar"}
-							/>
-						</Avatar>
-						<span className="font-medium text-sm truncate max-w-[160px]">
-							{user.displayName ?? "—"}
-						</span>
-					</div>
-				);
-			},
-		},
-		{
-			id: "category",
-			header: "Categoría",
-			accessorFn: (row) => {
-				const cat = row.detail.category;
-				return cat ? getCategoryLabel(cat) : "Todas";
-			},
-			cell: ({ getValue }) => (
-				<span className="text-sm text-muted-foreground">
-					{getValue() as string}
-				</span>
-			),
-			filterFn: "equalsString",
-		},
-		{
-			id: "enrolledAt",
-			header: "Inscrito el",
-			accessorFn: (row) => row.createdAt,
-			cell: ({ row }) =>
-				new Date(row.original.createdAt).toLocaleDateString("es-ES", {
-					day: "numeric",
-					month: "short",
-					year: "numeric",
-				}),
-			sortingFn: "datetime",
-		},
-		{
-			id: "proof",
-			header: columnTitleLabel,
-			accessorFn: (row) => proofStatusKey(getPrimaryProof(row.proofs)),
-			cell: ({ row }) => {
-				const proof = getPrimaryProof(row.original.proofs);
-				const key = proofStatusKey(proof);
-				const config = PROOF_STATUS_BADGE[key] ?? PROOF_STATUS_BADGE.sin_prueba;
-				const label =
-					key === "sin_prueba" ? `Sin ${materialLabel}` : config.label;
-				return (
-					<div>
-						<Badge variant="outline" className={`text-xs ${config.className}`}>
-							{label}
-						</Badge>
-						{row.original.removedAt != null && row.original.removalReason && (
-							<p className="text-xs text-muted-foreground mt-0.5 italic">
-								{row.original.removalReason}
-							</p>
-						)}
-					</div>
-				);
-			},
-			filterFn: (row, _, filterValue) => {
-				const selected = filterValue as string[] | undefined;
-				if (!selected?.length) return true;
-				const key = proofStatusKey(getPrimaryProof(row.original.proofs));
-				return selected.includes(key);
-			},
-		},
-		{
-			id: "actions",
-			header: "",
-			cell: ({ row }) => {
-				const proof = getPrimaryProof(row.original.proofs);
-				if (!proof) return null;
-				return (
-					<ParticipantProofViewer
-						proof={proof}
-						participantName={row.original.user.displayName ?? "Participante"}
-						materialLabel={materialLabel}
-					/>
-				);
-			},
-		},
-	];
+  return [
+    {
+      id: "index",
+      header: "#",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-sm">{row.index + 1}</span>
+      ),
+      size: 40,
+    },
+    {
+      id: "participant",
+      header: "Participante",
+      accessorFn: (row) => row.user.displayName ?? "",
+      cell: ({ row }) => {
+        const user = row.original.user;
+        return (
+          <div className="flex items-center gap-2">
+            <Avatar className="w-7 h-7 shrink-0">
+              <AvatarImage
+                src={
+                  user.imageUrl || "/img/placeholders/avatar-placeholder.png"
+                }
+                alt={user.displayName ?? "Avatar"}
+              />
+            </Avatar>
+            <span className="font-medium text-sm truncate max-w-[160px]">
+              {user.displayName ?? "—"}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "category",
+      header: "Categoría",
+      accessorFn: (row) => {
+        const cat = row.detail.category;
+        return cat ? getCategoryLabel(cat) : "Todas";
+      },
+      cell: ({ getValue }) => (
+        <span className="text-sm text-muted-foreground">
+          {getValue() as string}
+        </span>
+      ),
+      filterFn: "equalsString",
+    },
+    {
+      id: "enrolledAt",
+      header: "Inscrito el",
+      accessorFn: (row) => row.createdAt,
+      cell: ({ row }) =>
+        new Date(row.original.createdAt).toLocaleDateString("es-ES", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }),
+      sortingFn: "datetime",
+    },
+    {
+      id: "proof",
+      header: columnTitleLabel,
+      accessorFn: (row) => proofStatusKey(getPrimaryProof(row.proofs)),
+      cell: ({ row }) => {
+        const proof = getPrimaryProof(row.original.proofs);
+        const key = proofStatusKey(proof);
+        const config = PROOF_STATUS_BADGE[key] ?? PROOF_STATUS_BADGE.sin_prueba;
+        const label =
+          key === "sin_prueba" ? `Sin ${materialLabel}` : config.label;
+        return (
+          <div>
+            <Badge variant="outline" className={`text-xs ${config.className}`}>
+              {label}
+            </Badge>
+            {row.original.removedAt != null && row.original.removalReason && (
+              <p className="text-xs text-muted-foreground mt-0.5 italic">
+                {row.original.removalReason}
+              </p>
+            )}
+          </div>
+        );
+      },
+      filterFn: (row, _, filterValue) => {
+        const selected = filterValue as string[] | undefined;
+        if (!selected?.length) return true;
+        const key = proofStatusKey(getPrimaryProof(row.original.proofs));
+        return selected.includes(key);
+      },
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => {
+        const proof = getPrimaryProof(row.original.proofs);
+        if (!proof) return null;
+        return (
+          <ParticipantProofViewer
+            proof={proof}
+            participantName={row.original.user.displayName ?? "Participante"}
+            materialLabel={materialLabel}
+          />
+        );
+      },
+    },
+  ];
 }
 
 type ActivityParticipantsTableProps = {
-	participants: ParticipantWithDetail[];
-	materialLabel: string;
+  participants: ParticipantWithDetail[];
+  materialLabel: string;
 };
 
 export default function ActivityParticipantsTable({
-	participants,
-	materialLabel,
+  participants,
+  materialLabel,
 }: ActivityParticipantsTableProps) {
-	const columns = buildColumns(materialLabel);
-	const columnTitleLabel = capitalize(materialLabel);
+  const columns = buildColumns(materialLabel);
+  const columnTitleLabel = capitalize(materialLabel);
 
-	if (participants.length === 0) {
-		return (
-			<p className="text-sm text-muted-foreground py-2">
-				No hay participantes inscriptos aún.
-			</p>
-		);
-	}
+  if (participants.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-2">
+        No hay participantes inscriptos aún.
+      </p>
+    );
+  }
 
-	return (
-		<>
-			{/* Desktop: DataTable */}
-			<div className="hidden md:block">
-				<DataTable
-					columns={columns}
-					data={participants}
-					columnTitles={{
-						"#": "#",
-						participant: "Participante",
-						category: "Categoría",
-						enrolledAt: "Inscrito el",
-						proof: columnTitleLabel,
-						actions: "Acciones",
-					}}
-					filters={[
-						{
-							columnId: "proof",
-							label: columnTitleLabel,
-							options: [
-								{ value: "sin_prueba", label: `Sin ${materialLabel}` },
-								{ value: "pending_review", label: "En revisión" },
-								{ value: "approved", label: "Aprobada" },
-								{
-									value: "rejected_resubmit",
-									label: "Corrección solicitada",
-								},
-								{ value: "rejected_removed", label: "Removido" },
-							],
-						},
-					]}
-				/>
-			</div>
+  return (
+    <>
+      {/* Desktop: DataTable */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={participants}
+          columnTitles={{
+            "#": "#",
+            participant: "Participante",
+            category: "Categoría",
+            enrolledAt: "Inscrito el",
+            proof: columnTitleLabel,
+            actions: "Acciones",
+          }}
+          filters={[
+            {
+              columnId: "proof",
+              label: columnTitleLabel,
+              options: [
+                { value: "sin_prueba", label: `Sin ${materialLabel}` },
+                { value: "pending_review", label: "En revisión" },
+                { value: "approved", label: "Aprobada" },
+                {
+                  value: "rejected_resubmit",
+                  label: "Corrección solicitada",
+                },
+                { value: "rejected_removed", label: "Removido" },
+              ],
+            },
+          ]}
+        />
+      </div>
 
-			{/* Mobile: stacked cards */}
-			<div className="md:hidden space-y-2">
-				{participants.map((participant, index) => {
-					const proof = getPrimaryProof(participant.proofs);
-					const statusKey = proofStatusKey(proof);
-					const statusConfig =
-						PROOF_STATUS_BADGE[statusKey] ?? PROOF_STATUS_BADGE.sin_prueba;
-					const statusLabel =
-						statusKey === "sin_prueba"
-							? `Sin ${materialLabel}`
-							: statusConfig.label;
-					const category = participant.detail.category;
+      {/* Mobile: stacked cards */}
+      <div className="md:hidden space-y-2">
+        {participants.map((participant, index) => {
+          const proof = getPrimaryProof(participant.proofs);
+          const statusKey = proofStatusKey(proof);
+          const statusConfig =
+            PROOF_STATUS_BADGE[statusKey] ?? PROOF_STATUS_BADGE.sin_prueba;
+          const statusLabel =
+            statusKey === "sin_prueba"
+              ? `Sin ${materialLabel}`
+              : statusConfig.label;
+          const category = participant.detail.category;
 
-					return (
-						<div
-							key={participant.id}
-							className="flex items-center justify-between rounded-md border p-3 gap-3"
-						>
-							<div className="flex items-center gap-3 min-w-0">
-								<span className="text-xs text-muted-foreground shrink-0">
-									{index + 1}
-								</span>
-								<Avatar className="w-8 h-8 shrink-0">
-									<AvatarImage
-										src={
-											participant.user.imageUrl ||
-											"/img/placeholders/avatar-placeholder.png"
-										}
-										alt={participant.user.displayName ?? "Avatar"}
-									/>
-								</Avatar>
-								<div className="min-w-0">
-									<p className="text-sm font-medium truncate">
-										{participant.user.displayName ?? "—"}
-									</p>
-									{category && (
-										<p className="text-xs text-muted-foreground">
-											{getCategoryLabel(category)}
-										</p>
-									)}
-								</div>
-							</div>
-							<div className="flex flex-col items-end gap-1 shrink-0">
-								<div className="flex items-center gap-2">
-									<Badge
-										variant="outline"
-										className={`text-xs shrink-0 ${statusConfig.className}`}
-									>
-										{statusLabel}
-									</Badge>
-									{proof && (
-										<ParticipantProofViewer
-											proof={proof}
-											participantName={
-												participant.user.displayName ?? "Participante"
-											}
-											materialLabel={materialLabel}
-										/>
-									)}
-								</div>
-								{participant.removedAt != null && participant.removalReason && (
-									<p className="text-xs text-muted-foreground italic text-right max-w-[160px]">
-										{participant.removalReason}
-									</p>
-								)}
-							</div>
-						</div>
-					);
-				})}
-			</div>
-		</>
-	);
+          return (
+            <div
+              key={participant.id}
+              className="flex items-center justify-between rounded-md border p-3 gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {index + 1}
+                </span>
+                <Avatar className="w-8 h-8 shrink-0">
+                  <AvatarImage
+                    src={
+                      participant.user.imageUrl ||
+                      "/img/placeholders/avatar-placeholder.png"
+                    }
+                    alt={participant.user.displayName ?? "Avatar"}
+                  />
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {participant.user.displayName ?? "—"}
+                  </p>
+                  {category && (
+                    <p className="text-xs text-muted-foreground">
+                      {getCategoryLabel(category)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={`text-xs shrink-0 ${statusConfig.className}`}
+                  >
+                    {statusLabel}
+                  </Badge>
+                  {proof && (
+                    <ParticipantProofViewer
+                      proof={proof}
+                      participantName={
+                        participant.user.displayName ?? "Participante"
+                      }
+                      materialLabel={materialLabel}
+                    />
+                  )}
+                </div>
+                {participant.removedAt != null && participant.removalReason && (
+                  <p className="text-xs text-muted-foreground italic text-right max-w-[160px]">
+                    {participant.removalReason}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
 }

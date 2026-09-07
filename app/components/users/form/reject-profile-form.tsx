@@ -15,8 +15,8 @@ type RejectProfileFormProps = {
 
 const FormSchema = z.object({
   reason: z.string().min(10, {
-      error: "La razón es requerida"
-}),
+    error: "La razón es requerida",
+  }),
 });
 
 export default function RejectProfileForm(props: RejectProfileFormProps) {
@@ -35,23 +35,23 @@ export default function RejectProfileForm(props: RejectProfileFormProps) {
   });
 
   return (
-		<Form {...form}>
-			<form onSubmit={action} className="w-full text-left">
-				<div className="flex flex-col gap-4">
-					<TextareaInput
-						formControl={form.control}
-						label="Razón de rechazo"
-						name="reason"
-						placeholder="Ingresa una razón para rechazar el perfil"
-						maxLength={1000}
-					/>
-					<SubmitButton
-						disabled={form.formState.isSubmitting}
-						label="Rechazar perfil"
-						loading={form.formState.isSubmitting}
-					/>
-				</div>
-			</form>
-		</Form>
-	);
+    <Form {...form}>
+      <form onSubmit={action} className="w-full text-left">
+        <div className="flex flex-col gap-4">
+          <TextareaInput
+            formControl={form.control}
+            label="Razón de rechazo"
+            name="reason"
+            placeholder="Ingresa una razón para rechazar el perfil"
+            maxLength={1000}
+          />
+          <SubmitButton
+            disabled={form.formState.isSubmitting}
+            label="Rechazar perfil"
+            loading={form.formState.isSubmitting}
+          />
+        </div>
+      </form>
+    </Form>
+  );
 }

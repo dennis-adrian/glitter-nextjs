@@ -1,4 +1,6 @@
 import FestivalCard from "@/app/components/festivals/festival-card";
+import FestivalFeatureConfigPanel from "@/app/components/festivals/festival-feature-config-panel";
+import FestivalParticipantTermsSummary from "@/app/components/festivals/festival-participant-terms-summary";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -20,11 +22,16 @@ export default async function Page({
   }
 
   return (
-    <div className="container">
+    <div className="container p-3 md:p-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">
         Detalles del festival
       </h1>
       <FestivalCard festival={festival} />
+      <FestivalFeatureConfigPanel festivalId={id} />
+      <FestivalParticipantTermsSummary
+        festivalStatus={festival.status}
+        participantTermsEnabled={festival.participantTermsEnabled}
+      />
     </div>
   );
 }

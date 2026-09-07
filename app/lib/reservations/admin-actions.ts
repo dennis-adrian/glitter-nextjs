@@ -1,316 +1,370 @@
 "use server";
 
 import { fetchStandById } from "@/app/api/stands/actions";
-import { fetchBaseProfileById } from "@/app/api/users/actions";
-import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
+import {
+  cancelReservation,
+  extendReservationPaymentDeadline,
+  updateReservationPartner,
+} from "@/app/lib/reservations/admin-service";
+import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import {
+  lockParticipantsBeforeRegistryClaim,
+  lockReservationAggregate,
+} from "@/app/lib/reservations/locks";
+import { insertReservationMembers } from "@/app/lib/reservations/members";
+import { roundMoney } from "@/app/lib/reservations/money";
+import {
+  enqueueAdminAndOwnerNotifications,
+  scheduleReservationNotificationJobs,
+} from "@/app/lib/reservations/notification-outbox";
+import { standHasLiveOccupancy } from "@/app/lib/reservations/occupancy";
+import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
+import {
+  abandonRequest,
+  claimRequest,
+  completeRequest,
+} from "@/app/lib/reservations/request-registry";
+import {
+  createAdminReservationSchema,
+  parseUnknown,
+} from "@/app/lib/reservations/schemas";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
-	invoices,
-	reservationParticipants,
-	scheduledTasks,
-	standReservations,
-	stands,
+  invoices,
+  reservationParticipants,
+  scheduledTasks,
+  standReservations,
+  stands,
 } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export async function createAdminReservation(params: {
-	festivalId: number;
-	standId: number;
-	userId: number;
-	partnerId?: number;
-}): Promise<{ success: boolean; message: string; reservationId?: number }> {
-	const { festivalId, standId, userId, partnerId } = params;
+export {
+  cancelReservation,
+  extendReservationPaymentDeadline,
+  updateReservationPartner,
+};
 
-	const currentProfile = await getCurrentUserProfile();
-	if (!currentProfile || currentProfile.role !== "admin") {
-		return {
-			success: false,
-			message: "No tienes permisos para realizar esta acción",
-		};
-	}
+export async function createAdminReservation(
+  params: unknown,
+): Promise<{ success: boolean; message: string; reservationId?: number }> {
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") {
+    return {
+      success: false,
+      message: "No tenés permisos para realizar esta acción",
+    };
+  }
 
-	const stand = await fetchStandById(standId);
-	if (!stand) {
-		return { success: false, message: "El espacio no existe" };
-	}
-	if (stand.festivalId !== festivalId) {
-		return {
-			success: false,
-			message: "El espacio no pertenece a este festival",
-		};
-	}
+  const parsed = parseUnknown(createAdminReservationSchema, params);
+  if (!parsed.success) {
+    return { success: false, message: "Datos inválidos." };
+  }
 
-	const forUser = await fetchBaseProfileById(userId);
-	if (!forUser) {
-		return { success: false, message: "El usuario no existe" };
-	}
-	if (forUser.status !== "verified") {
-		return { success: false, message: "El usuario no está verificado" };
-	}
+  const {
+    festivalId,
+    standId,
+    ownerUserId: userId,
+    partnerId,
+    idempotencyKey,
+  } = parsed.data;
 
-	if (partnerId != null) {
-		if (partnerId === userId) {
-			return {
-				success: false,
-				message: "El compañero no puede ser el mismo que el usuario principal",
-			};
-		}
-		const partner = await fetchBaseProfileById(partnerId);
-		if (!partner) {
-			return { success: false, message: "El usuario compañero no existe" };
-		}
-		if (partner.status !== "verified") {
-			return {
-				success: false,
-				message: "El usuario compañero no está verificado",
-			};
-		}
-	}
+  const stand = await fetchStandById(standId);
+  if (!stand) {
+    return { success: false, message: "El espacio no existe" };
+  }
+  if (stand.festivalId !== festivalId) {
+    return {
+      success: false,
+      message: "El espacio no pertenece a este festival",
+    };
+  }
 
-	try {
-		const result = await db.transaction(async (tx) => {
-			// Lock stand row and re-check status inside transaction to avoid race
-			const [lockedStand] = await tx
-				.select()
-				.from(stands)
-				.where(eq(stands.id, standId))
-				.limit(1)
-				.for("update");
+  const festival = await fetchBaseFestival(festivalId);
+  if (!festival) {
+    return { success: false, message: "El festival no existe" };
+  }
+  const revealAt =
+    parsed.data.revealAt === undefined
+      ? festival.reservationsStartDate
+      : parsed.data.revealAt;
+  const normalizedRevealAt =
+    revealAt instanceof Date ? revealAt.toISOString() : null;
 
-			if (!lockedStand) {
-				return { success: false, message: "El espacio no existe" };
-			}
-			if (lockedStand.festivalId !== festivalId) {
-				return {
-					success: false,
-					message: "El espacio no pertenece a este festival",
-				};
-			}
-			if (lockedStand.status === "reserved") {
-				return {
-					success: false,
-					message: "El espacio ya está reservado",
-				};
-			}
+  const forUser = await fetchBaseProfileById(userId);
+  if (!forUser) {
+    return { success: false, message: "El usuario no existe" };
+  }
+  if (forUser.status !== "verified") {
+    return { success: false, message: "El usuario no está verificado" };
+  }
 
-			const [reservation] = await tx
-				.insert(standReservations)
-				.values({ festivalId, standId })
-				.returning();
+  if (partnerId != null) {
+    if (partnerId === userId) {
+      return {
+        success: false,
+        message: "El compañero no puede ser el mismo que el usuario principal",
+      };
+    }
+    const partner = await fetchBaseProfileById(partnerId);
+    if (!partner) {
+      return { success: false, message: "El usuario compañero no existe" };
+    }
+    if (partner.status !== "verified") {
+      return {
+        success: false,
+        message: "El usuario compañero no está verificado",
+      };
+    }
+  }
 
-			const participantIds = [userId];
-			if (partnerId && partnerId !== userId) participantIds.push(partnerId);
+  const participantIds = [userId];
+  if (partnerId && partnerId !== userId) participantIds.push(partnerId);
 
-			await tx.insert(reservationParticipants).values(
-				participantIds.map((uid) => ({
-					userId: uid,
-					reservationId: reservation.id,
-				})),
-			);
+  try {
+    const admins = await fetchAdminUsers();
+    const result = await db.transaction(async (tx) => {
+      await lockParticipantsBeforeRegistryClaim(tx, festivalId, participantIds);
 
-			await tx
-				.update(stands)
-				.set({ status: "reserved", updatedAt: new Date() })
-				.where(eq(stands.id, standId));
+      const claim = await claimRequest(tx, {
+        requestKey: idempotencyKey,
+        operation: "createAdminReservation",
+        actorUserId: currentProfile.id,
+        scope: {
+          festivalId,
+          standId,
+          ownerUserId: userId,
+          partnerId: partnerId ?? null,
+          revealAt: normalizedRevealAt,
+        },
+      });
+      if (claim.kind === "conflict") {
+        return {
+          success: false as const,
+          message:
+            "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
+        };
+      }
+      if (claim.kind === "replayed") {
+        const reservationId = claim.resultIds.reservationId;
+        if (typeof reservationId !== "number") {
+          return {
+            success: false as const,
+            message:
+              "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
+          };
+        }
+        return { reservationId, jobIds: [] as number[] };
+      }
 
-			await tx.insert(invoices).values({
-				date: new Date(),
-				userId,
-				reservationId: reservation.id,
-				originalAmount: lockedStand.price ?? 0,
-				amount: lockedStand.price ?? 0,
-			});
+      const finish = async (
+        outcome:
+          | { success: false; message: string }
+          | { reservationId: number; jobIds: number[] },
+      ) => {
+        if ("success" in outcome && outcome.success === false) {
+          await abandonRequest(tx, idempotencyKey);
+          return outcome;
+        }
+        if ("reservationId" in outcome) {
+          await completeRequest(tx, idempotencyKey, {
+            reservationId: outcome.reservationId,
+          });
+        }
+        return outcome;
+      };
 
-			await tx.insert(scheduledTasks).values({
-				dueDate: sql`now() + interval '5 days'`,
-				reminderTime: sql`now() + interval '4 days'`,
-				profileId: userId,
-				reservationId: reservation.id,
-				taskType: "stand_reservation",
-			});
+      const locked = await lockReservationAggregate(tx, {
+        festivalId,
+        userIds: participantIds,
+        standIds: [standId],
+      });
+      if (!locked.ok) {
+        return finish({
+          success: false,
+          message:
+            "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
+        });
+      }
 
-			return reservation.id;
-		});
+      const [lockedStand] = await tx
+        .select()
+        .from(stands)
+        .where(eq(stands.id, standId))
+        .limit(1)
+        .for("update");
 
-		if (typeof result === "object" && result && result.success === false) {
-			return result;
-		}
+      if (!lockedStand) {
+        return finish({ success: false, message: "El espacio no existe" });
+      }
+      if (lockedStand.festivalId !== festivalId) {
+        return finish({
+          success: false,
+          message: "El espacio no pertenece a este festival",
+        });
+      }
+      // `disabled` is deliberately not a rejection here. Admins disable a stand
+      // precisely to keep participants off it while they allocate it by hand —
+      // the participant path still refuses one (it requires `available`), and
+      // the success path below flips this stand to `reserved`, so the owner can
+      // see it on the map afterwards. Only live occupancy blocks an admin.
+      if (await standHasLiveOccupancy(tx, standId)) {
+        return finish({
+          success: false,
+          message: "El espacio ya está reservado",
+        });
+      }
 
-		const reservationId = result as number;
-		revalidatePath("/dashboard/festivals");
-		revalidatePath("/dashboard/reservations");
+      const ownerEligibility = await getReservationEligibility(
+        { userId, festivalId: lockedStand.festivalId },
+        tx,
+      );
+      if (!ownerEligibility.eligible) {
+        return finish({
+          success: false,
+          message: ownerEligibility.message,
+        });
+      }
 
-		return { success: true, message: "Reserva creada", reservationId };
-	} catch (error: unknown) {
-		console.error("Error creating admin reservation", error);
-		// Concurrent reservation or unique constraint: treat as already reserved
-		const code =
-			error &&
-			typeof error === "object" &&
-			"code" in error &&
-			typeof (error as { code: string }).code === "string"
-				? (error as { code: string }).code
-				: "";
-		if (code === "23505" || code === "40001") {
-			return {
-				success: false,
-				message: "El espacio ya está reservado",
-			};
-		}
-		return { success: false, message: "Ups! No pudimos crear la reserva" };
-	}
-}
+      if (partnerId != null) {
+        const partnerBlocked = await assertReservationPartner(tx, {
+          festivalId: lockedStand.festivalId,
+          ownerUserId: userId,
+          partnerUserId: partnerId,
+          standCategory: lockedStand.standCategory,
+          existingParticipantUserIds: [userId],
+          mode: "admin",
+          actor: { id: currentProfile.id, role: currentProfile.role },
+        });
+        if (partnerBlocked) {
+          return finish({
+            success: false,
+            message: partnerBlocked.message,
+          });
+        }
+      }
 
-export async function extendReservationPaymentDeadline(params: {
-	reservationId: number;
-	newDueDate: Date;
-}): Promise<{ success: boolean; message: string }> {
-	const { reservationId, newDueDate } = params;
+      // Same participant-count rule as self-service booking (PRD §6.1).
+      const adminStandPrice =
+        participantIds.length > 1 && lockedStand.sharedPrice != null
+          ? lockedStand.sharedPrice
+          : (lockedStand.individualPrice ?? 0);
 
-	const currentProfile = await getCurrentUserProfile();
-	if (!currentProfile || currentProfile.role !== "admin") {
-		return {
-			success: false,
-			message: "No tienes permisos para realizar esta acción",
-		};
-	}
+      const [reservation] = await tx
+        .insert(standReservations)
+        .values({
+          festivalId,
+          standId,
+          source: "admin_assignment",
+          ownerUserId: userId,
+          priceAmountSnapshot: roundMoney(adminStandPrice),
+          individualPriceSnapshot: roundMoney(
+            lockedStand.individualPrice ?? 0,
+          ),
+          sharedPriceSnapshot:
+            lockedStand.sharedPrice == null
+              ? null
+              : roundMoney(lockedStand.sharedPrice),
+          bookedParticipantCount: participantIds.length,
+          revealAt,
+        })
+        .returning();
 
-	if (!(newDueDate instanceof Date) || Number.isNaN(newDueDate.getTime())) {
-		return { success: false, message: "Fecha inválida" };
-	}
-	if (newDueDate.getTime() <= Date.now()) {
-		return { success: false, message: "La nueva fecha debe ser futura" };
-	}
+      await insertReservationMembers(tx, reservation.id, [standId]);
 
-	try {
-		const outcome = await db.transaction(async (tx) => {
-			const [locked] = await tx
-				.select()
-				.from(standReservations)
-				.where(eq(standReservations.id, reservationId))
-				.limit(1)
-				.for("update");
+      await tx.insert(reservationParticipants).values(
+        participantIds.map((uid) => ({
+          userId: uid,
+          reservationId: reservation.id,
+        })),
+      );
 
-			if (!locked) {
-				return { ok: false as const, message: "La reserva no existe" };
-			}
-			if (locked.status !== "pending") {
-				return {
-					ok: false as const,
-					message: "Solo puedes extender reservas pendientes de pago",
-				};
-			}
+      await insertStandReservationEvent(tx, {
+        reservationId: reservation.id,
+        actorUserId: currentProfile.id,
+        eventType: "created",
+        toStatus: "pending",
+        payload: {
+          source: "admin_assignment",
+          standId,
+          partnerId: partnerId ?? null,
+        },
+      });
 
-			const reservationRow = await tx.query.standReservations.findFirst({
-				where: eq(standReservations.id, reservationId),
-				with: {
-					stand: true,
-					festival: { with: { festivalDates: true } },
-					participants: { with: { user: true } },
-					scheduledTasks: true,
-				},
-			});
+      await tx
+        .update(stands)
+        .set({ status: "reserved", updatedAt: new Date() })
+        .where(eq(stands.id, standId));
 
-			if (!reservationRow) {
-				return { ok: false as const, message: "La reserva no existe" };
-			}
+      await tx.insert(invoices).values({
+        date: new Date(),
+        dueAt: sql`now() + interval '5 days'`,
+        userId,
+        reservationId: reservation.id,
+        originalAmount: roundMoney(adminStandPrice),
+        amount: roundMoney(adminStandPrice),
+      });
 
-			const activeTask = reservationRow.scheduledTasks.find(
-				(t) => t.taskType === "stand_reservation" && t.completedAt === null,
-			);
+      await tx.insert(scheduledTasks).values({
+        dueDate: sql`now() + interval '5 days'`,
+        reminderTime: sql`now() + interval '4 days'`,
+        profileId: userId,
+        reservationId: reservation.id,
+        taskType: "stand_reservation",
+      });
 
-			if (activeTask && newDueDate.getTime() <= activeTask.dueDate.getTime()) {
-				return {
-					ok: false as const,
-					message: "La nueva fecha debe ser posterior a la fecha límite actual",
-				};
-			}
+      const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
+        kind: "reservation_created",
+        reservationId: reservation.id,
+        ownerUserId: userId,
+        ownerEmail: null,
+        adminEmails: admins.map((admin) => ({
+          id: admin.id,
+          email: admin.email,
+        })),
+      });
 
-			const creator = reservationRow.participants[0]?.user;
-			if (!creator) {
-				return {
-					ok: false as const,
-					message: "La reserva no tiene un participante asociado",
-				};
-			}
+      return finish({ reservationId: reservation.id, jobIds });
+    });
 
-			if (activeTask) {
-				await tx
-					.update(scheduledTasks)
-					.set({
-						dueDate: newDueDate,
-						reminderSentAt: sql`now()`,
-						ranAfterDueDate: false,
-						updatedAt: sql`now()`,
-					})
-					.where(eq(scheduledTasks.id, activeTask.id));
-			} else {
-				// When the payment deadline is extended, we send an email to the user
-				// we don't need to send another reminder email
-				await tx.insert(scheduledTasks).values({
-					dueDate: newDueDate,
-					reminderTime: sql`now()`,
-					reminderSentAt: sql`now()`,
-					profileId: creator.id,
-					reservationId: reservationRow.id,
-					taskType: "stand_reservation",
-				});
-			}
+    if (
+      typeof result === "object" &&
+      result &&
+      "success" in result &&
+      result.success === false
+    ) {
+      return result;
+    }
 
-			return { ok: true as const, reservation: reservationRow };
-		});
+    const created = result as { reservationId: number; jobIds: number[] };
+    scheduleReservationNotificationJobs(created.jobIds);
+    revalidatePath("/dashboard/festivals");
+    revalidatePath(`/dashboard/festivals/${festivalId}/reservations`);
 
-		if (!outcome.ok) {
-			return { success: false, message: outcome.message };
-		}
-
-		const reservation = outcome.reservation;
-
-		const targets: {
-			to: string;
-			profile: NonNullable<(typeof reservation.participants)[number]["user"]>;
-		}[] = [];
-		for (const p of reservation.participants) {
-			const email = p.user?.email?.trim();
-			if (!email) continue;
-			if (!p.user) continue;
-			targets.push({ to: email, profile: p.user });
-		}
-		const seen = new Set<string>();
-		const uniqueTargets = targets.filter(({ to }) => {
-			const key = to.toLowerCase();
-			if (seen.has(key)) return false;
-			seen.add(key);
-			return true;
-		});
-
-		await Promise.allSettled(
-			uniqueTargets.map(({ to, profile }) =>
-				sendEmail({
-					to: [to],
-					from: "Reservas Glitter <reservas@productoraglitter.com>",
-					subject: "Nueva fecha límite de pago para tu reserva",
-					react: ReservationPaymentExtensionTemplate({
-						profile,
-						reservation,
-						newDueDate,
-					}) as React.ReactElement,
-				}),
-			),
-		);
-
-		revalidatePath("/dashboard/reservations");
-		revalidatePath("/dashboard/payments");
-
-		return { success: true, message: "Plazo de pago extendido" };
-	} catch (error) {
-		console.error("Error extending reservation payment deadline", error);
-		return {
-			success: false,
-			message: "No se pudo extender el plazo de pago",
-		};
-	}
+    return {
+      success: true,
+      message: "Reserva creada",
+      reservationId: created.reservationId,
+    };
+  } catch (error: unknown) {
+    console.error("Error creating admin reservation", error);
+    const code =
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof (error as { code: string }).code === "string"
+        ? (error as { code: string }).code
+        : "";
+    if (code === "23505" || code === "40001") {
+      return {
+        success: false,
+        message: "El espacio ya está reservado",
+      };
+    }
+    return { success: false, message: "Ups! No pudimos crear la reserva" };
+  }
 }

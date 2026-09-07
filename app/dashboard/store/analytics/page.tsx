@@ -2,86 +2,146 @@ import LowStockAlert from "@/app/components/organisms/orders/low-stock-alert";
 import OrdersTotals from "@/app/components/organisms/orders/order_totals_card/totals";
 import OrdersSalesChart from "@/app/components/organisms/orders/sales-chart";
 import OrdersStatsCards from "@/app/components/organisms/orders/stats-cards";
+import ProfitabilityReport from "@/app/components/organisms/orders/profitability-report";
+import StorePeriodFilter from "@/app/components/organisms/store/store-period-filter";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import {
-	fetchOrders,
-	fetchOrdersStats,
-	fetchOrdersTotalsByProduct,
+  fetchOrders,
+  fetchHistoricalCostBackfillPreview,
+  fetchOrdersStatsComparison,
+  fetchOrdersTotalsByProduct,
+  fetchOrdersProfitability,
 } from "@/app/lib/orders/actions";
+import {
+  getProfitabilityDateRange,
+  parseProfitabilityQuery,
+} from "@/app/lib/orders/profitability-query-schema";
 import { fetchLowStockProducts } from "@/app/lib/products/actions";
+import {
+  LOW_STOCK_FILTER_PARAM,
+  LOW_STOCK_FILTER_VALUE,
+} from "@/app/lib/products/low-stock";
+import {
+  STORE_CATEGORY_SCOPE_PARAM,
+  toConcreteStoreCategory,
+} from "@/app/lib/store/category";
 import { Suspense } from "react";
 
 function StatsCardsSkeleton() {
-	return (
-		<div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-			{Array.from({ length: 6 }).map((_, i) => (
-				<Skeleton key={i} className="h-24 w-full" />
-			))}
-		</div>
-	);
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-24 w-full" />
+      ))}
+    </div>
+  );
 }
 
 function LowStockSkeleton() {
-	return (
-		<div className="rounded-lg border border-amber-200/50 bg-card p-4">
-			<div className="flex items-center gap-2 pb-2">
-				<Skeleton className="h-5 w-5 shrink-0" />
-				<Skeleton className="h-5 w-24" />
-			</div>
-			<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-				{Array.from({ length: 4 }).map((_, i) => (
-					<Skeleton key={i} className="h-10 w-full" />
-				))}
-			</div>
-		</div>
-	);
+  return (
+    <div className="rounded-lg border border-amber-200/50 bg-card p-4">
+      <div className="flex items-center gap-2 pb-2">
+        <Skeleton className="h-5 w-5 shrink-0" />
+        <Skeleton className="h-5 w-24" />
+      </div>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function OrdersTotalsSkeleton() {
-	return (
-		<div className="space-y-3">
-			<Skeleton className="h-7 w-48" />
-			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-				{Array.from({ length: 6 }).map((_, i) => (
-					<Skeleton key={i} className="h-28 w-full" />
-				))}
-			</div>
-		</div>
-	);
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-7 w-48" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 w-full" />
+        ))}
+      </div>
+    </div>
+  );
 }
 
-export default function StoreAnalyticsPage() {
-	const ordersPromise = fetchOrders();
-	const ordersTotalsPromise = fetchOrdersTotalsByProduct();
-	const statsPromise = fetchOrdersStats();
-	const lowStockPromise = fetchLowStockProducts();
+export default async function StoreAnalyticsPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const profitabilityQuery = parseProfitabilityQuery(await props.searchParams);
+  const scope = profitabilityQuery.category;
+  // Every historical section shares one date range. Current inventory remains
+  // intentionally unbounded because stock is a point-in-time measure.
+  const statsRange = getProfitabilityDateRange(profitabilityQuery);
+  const ordersPromise = fetchOrders(scope, statsRange);
+  const ordersTotalsPromise = fetchOrdersTotalsByProduct(scope, statsRange);
+  const statsPromise = fetchOrdersStatsComparison(scope, statsRange);
+  const lowStockPromise = fetchLowStockProducts({
+    storeCategory: toConcreteStoreCategory(scope) ?? undefined,
+  });
+  const lowStockParams = new URLSearchParams();
+  lowStockParams.set(LOW_STOCK_FILTER_PARAM, LOW_STOCK_FILTER_VALUE);
+  if (scope !== "all") {
+    lowStockParams.set(STORE_CATEGORY_SCOPE_PARAM, scope);
+  }
+  const lowStockHref = `/dashboard/store/products?${lowStockParams.toString()}`;
+  const profitabilityPromise = fetchOrdersProfitability({
+    ...statsRange,
+    category: scope,
+  });
+  // Historical cost completion stays global, so its preview query only runs
+  // when the whole store is in scope.
+  const historicalCostPreviewPromise =
+    scope === "all" ? fetchHistoricalCostBackfillPreview() : null;
 
-	return (
-		<div className="space-y-6">
-			<div className="space-y-1">
-				<h3 className="text-xl font-semibold">Insights de tienda</h3>
-				<p className="text-sm text-muted-foreground md:text-base">
-					Métricas y tendencias para seguimiento de rendimiento.
-				</p>
-			</div>
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-xl font-semibold">Insights de tienda</h3>
+        <p className="text-sm text-muted-foreground md:text-base">
+          Métricas y tendencias para seguimiento de rendimiento.
+        </p>
+      </div>
 
-			<Suspense fallback={<StatsCardsSkeleton />}>
-				<OrdersStatsCards statsPromise={statsPromise} />
-			</Suspense>
+      <StorePeriodFilter query={profitabilityQuery} />
 
-			<div className="hidden md:block">
-				<Suspense fallback={<Skeleton className="h-72 w-full" />}>
-					<OrdersSalesChart ordersPromise={ordersPromise} />
-				</Suspense>
-			</div>
+      <Suspense fallback={<StatsCardsSkeleton />}>
+        <OrdersStatsCards
+          statsPromise={statsPromise}
+          category={scope}
+          period={profitabilityQuery.period}
+          from={profitabilityQuery.from}
+          to={profitabilityQuery.to}
+        />
+      </Suspense>
 
-			<Suspense fallback={<LowStockSkeleton />}>
-				<LowStockAlert lowStockPromise={lowStockPromise} />
-			</Suspense>
+      <Suspense fallback={<Skeleton className="h-72 w-full" />}>
+        <OrdersSalesChart
+          ordersPromise={ordersPromise}
+          category={scope}
+          range={statsRange}
+        />
+      </Suspense>
 
-			<Suspense fallback={<OrdersTotalsSkeleton />}>
-				<OrdersTotals ordersTotalsPromise={ordersTotalsPromise} />
-			</Suspense>
-		</div>
-	);
+      <Suspense fallback={<LowStockSkeleton />}>
+        <LowStockAlert
+          lowStockPromise={lowStockPromise}
+          allProductsHref={lowStockHref}
+        />
+      </Suspense>
+
+      <Suspense fallback={<OrdersTotalsSkeleton />}>
+        <OrdersTotals ordersTotalsPromise={ordersTotalsPromise} />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+        <ProfitabilityReport
+          reportPromise={profitabilityPromise}
+          historicalCostPreviewPromise={historicalCostPreviewPromise}
+          query={profitabilityQuery}
+        />
+      </Suspense>
+    </div>
+  );
 }

@@ -1,7 +1,7 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { Card, CardContent } from "@/app/components/ui/card";
 import UpdateCategoriesForm from "@/app/components/users/form/update-categories-form";
-import { fetchSubcategories } from "@/app/lib/subcategories/actions";
+import { fetchAdminAssignableCategories } from "@/app/lib/categories/queries";
 import { notFound } from "next/navigation";
 
 type EditUserCategoriesPageProps = {
@@ -13,7 +13,7 @@ export default async function EditUserCategoriesPage(
   const forProfile = await fetchUserProfileById(props.forProfileId);
   if (!forProfile) return notFound();
 
-  const allSubcategories = await fetchSubcategories();
+  const allSubcategories = await fetchAdminAssignableCategories();
   const mainCategory = forProfile.profileSubcategories[0]?.subcategory;
   const profileSubcategories = forProfile.profileSubcategories
     .slice(1)

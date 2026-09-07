@@ -6,22 +6,22 @@ import { z } from "zod";
 const ParamsSchema = z.object({ id: z.coerce.number().int().positive() });
 
 export default async function EditQrCodePage(props: {
-	params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>;
 }) {
-	const params = await props.params;
-	const validated = ParamsSchema.safeParse(params);
-	if (!validated.success) notFound();
+  const params = await props.params;
+  const validated = ParamsSchema.safeParse(params);
+  if (!validated.success) notFound();
 
-	const qrCodeResult = await fetchQrCode(validated.data.id);
-	if ("error" in qrCodeResult) throw qrCodeResult.error;
-	if (!qrCodeResult.found) notFound();
+  const qrCodeResult = await fetchQrCode(validated.data.id);
+  if ("error" in qrCodeResult) throw qrCodeResult.error;
+  if (!qrCodeResult.found) notFound();
 
-	return (
-		<div className="container p-4 md:p-6">
-			<h1 className="text-2xl font-bold mb-4">Editar código QR</h1>
-			<div className="max-w-lg">
-				<QrCodeForm qrCode={qrCodeResult.qr} />
-			</div>
-		</div>
-	);
+  return (
+    <div className="container p-4 md:p-6">
+      <h1 className="text-2xl font-bold mb-4">Editar código QR</h1>
+      <div className="max-w-lg">
+        <QrCodeForm qrCode={qrCodeResult.qr} />
+      </div>
+    </div>
+  );
 }

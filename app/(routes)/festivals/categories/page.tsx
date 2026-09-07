@@ -1,7 +1,11 @@
-import SubcategoriesDescription from "@/app/components/festivals/subcategories/sucategories-description";
 import Image from "next/image";
 
+import PublicCategories from "@/app/components/categories/public-categories";
+import { fetchPublicCategories } from "@/app/lib/categories/queries";
+
 export default async function Page() {
+  const categories = await fetchPublicCategories();
+
   return (
     <div className="container p-4 md:p-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">Categorías</h1>
@@ -12,7 +16,7 @@ export default async function Page() {
         height={320}
         width={198}
       />
-      <SubcategoriesDescription />
+      <PublicCategories categories={categories} />
     </div>
   );
 }

@@ -1,0 +1,1607 @@
+// @vitest-environment node
+
+import { randomUUID } from "crypto";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+import { canFundInvoiceCreditAllocation } from "@/app/lib/credits/balances";
+import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
+import * as schema from "@/db/schema";
+import {
+  creditHolds,
+  creditLedgerEntries,
+  creditTopUps,
+  featureFlags,
+  festivalReservationFeatures,
+  festivalSectors,
+  festivalTermsDocuments,
+  festivalTermsVersions,
+  festivals,
+  invoices,
+  reservationFeatureActionItems,
+  reservationFeatureActions,
+  reservationNotificationJobs,
+  reservationParticipants,
+  reservationRequestRegistry,
+  scheduledTasks,
+  standGroups,
+  standHolds,
+  standReservationEvents,
+  standReservationStands,
+  standReservations,
+  stands,
+  userRequests,
+  users,
+} from "@/db/schema";
+
+const currentProfileMock = vi.hoisted(() => vi.fn());
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/app/lib/users/helpers", () => ({
+  getCurrentUserProfile: currentProfileMock,
+}));
+vi.mock("@/app/lib/reservations/notification-outbox", () => ({
+  enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
+  enqueueReservationNotification: vi.fn(),
+  scheduleReservationNotificationJobs: vi.fn(),
+}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
+const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+
+function isSafeTestDatabase(url: string): boolean {
+  try {
+    return /(^|[_-])(test|ci)([_-]|$)/i.test(
+      decodeURIComponent(new URL(url).pathname.slice(1)),
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
+  throw new Error(
+    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
+  );
+}
+
+const pool = testDatabaseUrl
+  ? new Pool({ connectionString: testDatabaseUrl, max: 5 })
+  : null;
+const integrationDb = pool ? drizzle(pool, { schema }) : null;
+const describeDatabase = integrationDb ? describe : describe.skip;
+
+type Fixture = {
+  festivalId: number;
+  sectorId: number;
+  groupIds: number[];
+  standIds: number[];
+  userIds: number[];
+  requestIds: number[];
+};
+
+const fixtures: Fixture[] = [];
+let createFeatureCreditTopUp: (typeof import("@/app/lib/credits/purchase-service"))["createFeatureCreditTopUp"];
+let createDebtCreditTopUp: (typeof import("@/app/lib/credits/purchase-service"))["createDebtCreditTopUp"];
+let submitCreditTopUpVoucher: (typeof import("@/app/lib/credits/service"))["submitCreditTopUpVoucher"];
+let reviewCreditTopUp: (typeof import("@/app/lib/credits/service"))["reviewCreditTopUp"];
+let readCreditBalances: (typeof import("@/app/lib/credits/service"))["readCreditBalances"];
+let activateFullTableAccess: (typeof import("@/app/lib/reservations/full-table-service"))["activateFullTableAccess"];
+let activateFullTableAccessAfterPurchase: (typeof import("@/app/lib/reservations/full-table-service"))["activateFullTableAccessAfterPurchase"];
+let createStandHold: (typeof import("@/app/lib/reservations/hold-service"))["createStandHold"];
+let confirmStandHold: (typeof import("@/app/lib/reservations/hold-service"))["confirmStandHold"];
+let releaseReservation: (typeof import("@/app/lib/reservations/release-service"))["releaseReservation"];
+let addLatePartner: (typeof import("@/app/lib/reservations/late-partner-service"))["addLatePartner"];
+let publishedTermsVersionId: number;
+
+const ACCESS_PRICE = 50;
+const STAND_PRICE = 200;
+const SHARED_PRICE = 320;
+/** A table is priced in its own right and is not inventory without one. */
+const FULL_TABLE_PRICE = 380;
+const RELEASE_PRICE = 40;
+const LATE_PARTNER_PRICE = 25;
+/** `SHARED_PRICE - STAND_PRICE`, the difference a second person costs. */
+const SHARED_DIFFERENCE = SHARED_PRICE - STAND_PRICE;
+const LATE_PARTNER_TOTAL = SHARED_DIFFERENCE + LATE_PARTNER_PRICE;
+const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Buying credits for an optional feature (PRD §17, §18).
+ *
+ * Every purchase is the exact shortfall for one named use, sized on the server
+ * from the festival's configured price and the ledger — never from an amount
+ * the browser sends. The cases here are the ones where getting it wrong costs
+ * someone money: a second stacked session, a purchase that outlives its upload
+ * window, and a rejection landing after the credits were already spent.
+ */
+describeDatabase("feature credit top-up", () => {
+  beforeAll(async () => {
+    process.env.POSTGRES_URL = testDatabaseUrl!;
+    process.env.CLERK_SECRET_KEY ??= "integration-test";
+    process.env.RESEND_API_KEY ??= "integration-test";
+    process.env.UPLOADTHING_TOKEN ??= "integration-test";
+
+    ({ createFeatureCreditTopUp, createDebtCreditTopUp } =
+      await import("@/app/lib/credits/purchase-service"));
+    ({ submitCreditTopUpVoucher, reviewCreditTopUp, readCreditBalances } =
+      await import("@/app/lib/credits/service"));
+    ({ activateFullTableAccess, activateFullTableAccessAfterPurchase } =
+      await import("@/app/lib/reservations/full-table-service"));
+    ({ createStandHold, confirmStandHold } =
+      await import("@/app/lib/reservations/hold-service"));
+    ({ releaseReservation } =
+      await import("@/app/lib/reservations/release-service"));
+    ({ addLatePartner } =
+      await import("@/app/lib/reservations/late-partner-service"));
+
+    const db = integrationDb!;
+    const document = await db.query.festivalTermsDocuments.findFirst({
+      where: eq(festivalTermsDocuments.slug, FESTIVAL_TERMS_DOCUMENT_SLUG),
+    });
+    if (!document) {
+      throw new Error(
+        "TEST_DATABASE_URL is safe but unmigrated; apply Drizzle migrations first.",
+      );
+    }
+    const published = await db.query.festivalTermsVersions.findFirst({
+      where: eq(festivalTermsVersions.status, "published"),
+      orderBy: [desc(festivalTermsVersions.versionNumber)],
+    });
+    if (!published) {
+      throw new Error("Missing published festival terms version in test DB.");
+    }
+    publishedTermsVersionId = published.id;
+  }, 60_000);
+
+  afterEach(async () => {
+    currentProfileMock.mockReset();
+    const db = integrationDb!;
+    for (const fixture of fixtures.splice(0)) {
+      const reservationRows = await db
+        .select({ id: standReservations.id })
+        .from(standReservations)
+        .where(eq(standReservations.festivalId, fixture.festivalId));
+      const reservationIds = reservationRows.map((row) => row.id);
+      if (reservationIds.length > 0) {
+        await db
+          .delete(invoices)
+          .where(inArray(invoices.reservationId, reservationIds));
+        await db
+          .delete(scheduledTasks)
+          .where(inArray(scheduledTasks.reservationId, reservationIds));
+        await db
+          .delete(standReservationEvents)
+          .where(inArray(standReservationEvents.reservationId, reservationIds));
+        await db
+          .delete(reservationParticipants)
+          .where(
+            inArray(reservationParticipants.reservationId, reservationIds),
+          );
+      }
+      if (fixture.userIds.length > 0) {
+        await db
+          .delete(creditHolds)
+          .where(inArray(creditHolds.userId, fixture.userIds));
+        // The ledger is append-only in production, enforced by a trigger. It is
+        // dropped only for this delete and restored immediately, so no test can
+        // run against a database that is missing it.
+        const client = await pool!.connect();
+        try {
+          await client.query(
+            "ALTER TABLE credit_ledger_entries DISABLE TRIGGER credit_ledger_entries_append_only",
+          );
+          await client.query(
+            `DELETE FROM credit_ledger_entries WHERE user_id = ANY($1::int[])`,
+            [fixture.userIds],
+          );
+        } finally {
+          await client.query(
+            "ALTER TABLE credit_ledger_entries ENABLE TRIGGER credit_ledger_entries_append_only",
+          );
+          client.release();
+        }
+        await db
+          .delete(creditTopUps)
+          .where(inArray(creditTopUps.userId, fixture.userIds));
+        await db
+          .delete(reservationRequestRegistry)
+          .where(
+            inArray(reservationRequestRegistry.actorUserId, fixture.userIds),
+          );
+      }
+      await db
+        .delete(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.festivalId, fixture.festivalId));
+      if (reservationIds.length > 0) {
+        await db
+          .delete(standReservations)
+          .where(inArray(standReservations.id, reservationIds));
+      }
+      await db
+        .delete(standHolds)
+        .where(eq(standHolds.festivalId, fixture.festivalId));
+      await db
+        .delete(festivalReservationFeatures)
+        .where(eq(festivalReservationFeatures.festivalId, fixture.festivalId));
+      if (fixture.standIds.length > 0) {
+        await db.delete(stands).where(inArray(stands.id, fixture.standIds));
+      }
+      if (fixture.groupIds.length > 0) {
+        await db
+          .delete(standGroups)
+          .where(inArray(standGroups.id, fixture.groupIds));
+      }
+      await db
+        .delete(festivalSectors)
+        .where(eq(festivalSectors.id, fixture.sectorId));
+      if (fixture.requestIds.length > 0) {
+        await db
+          .delete(userRequests)
+          .where(inArray(userRequests.id, fixture.requestIds));
+      }
+      if (fixture.userIds.length > 0) {
+        await db.delete(users).where(inArray(users.id, fixture.userIds));
+      }
+      await db.delete(festivals).where(eq(festivals.id, fixture.festivalId));
+    }
+  });
+
+  afterAll(async () => {
+    await pool?.end();
+  });
+
+  async function seed(options?: {
+    credits?: number;
+    /** Days from now the map opens; negative means reservations are open. */
+    opensInDays?: number;
+  }) {
+    const db = integrationDb!;
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const opensInDays = options?.opensInDays ?? -1;
+
+    const [festival] = await db
+      .insert(festivals)
+      .values({
+        name: `Feature TopUp ${suffix}`,
+        status: "active",
+        festivalType: "glitter",
+        participantTermsEnabled: true,
+        reservationsStartDate: new Date(
+          Date.now() + opensInDays * 24 * 60 * 60 * 1000,
+        ),
+      })
+      .returning();
+
+    const [sector] = await db
+      .insert(festivalSectors)
+      .values({
+        festivalId: festival.id,
+        name: `S ${suffix}`,
+        orderInFestival: 1,
+      })
+      .returning();
+
+    const [user] = await db
+      .insert(users)
+      .values({
+        clerkId: `ctu-${suffix}`,
+        email: `ctu-${suffix}@example.test`,
+        displayName: `CTU ${suffix}`,
+        status: "verified" as const,
+        category: "illustration" as const,
+      })
+      .returning();
+
+    const enrollments = await db
+      .insert(userRequests)
+      .values({
+        userId: user.id,
+        festivalId: festival.id,
+        type: "festival_participation" as const,
+        status: "accepted" as const,
+        termsVersionId: publishedTermsVersionId,
+      })
+      .returning();
+
+    const [group] = await db
+      .insert(standGroups)
+      .values({
+        festivalSectorId: sector.id,
+        type: "full_table" as const,
+        fullTablePrice: FULL_TABLE_PRICE,
+      })
+      .returning();
+
+    const pairStands = await db
+      .insert(stands)
+      .values(
+        Array.from({ length: 2 }, (_, index) => ({
+          festivalId: festival.id,
+          festivalSectorId: sector.id,
+          standNumber: index + 1,
+          standCategory: "illustration" as const,
+          status: "available" as const,
+          price: STAND_PRICE,
+          individualPrice: STAND_PRICE,
+          sharedPrice: SHARED_PRICE,
+          standGroupId: group.id,
+          positionLeft: 0,
+          positionTop: 0,
+        })),
+      )
+      .returning();
+
+    await db.insert(festivalReservationFeatures).values([
+      {
+        festivalId: festival.id,
+        type: "full_table" as const,
+        category: "illustration" as const,
+        enabled: true,
+        creditPrice: ACCESS_PRICE,
+      },
+      {
+        festivalId: festival.id,
+        type: "reservation_release" as const,
+        category: null,
+        enabled: true,
+        creditPrice: RELEASE_PRICE,
+      },
+      {
+        festivalId: festival.id,
+        type: "late_partner" as const,
+        category: null,
+        enabled: true,
+        creditPrice: LATE_PARTNER_PRICE,
+        // Well clear of `now`, so the deadline is never what a test trips on
+        // unless it means to.
+        deadlineOverrideAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    ]);
+
+    const credits = options?.credits ?? 0;
+    if (credits !== 0) {
+      await db.insert(creditLedgerEntries).values({
+        userId: user.id,
+        amount: credits,
+        type: "admin_grant" as const,
+        idempotencyKey: `grant-${suffix}-${user.id}`,
+      });
+    }
+
+    fixtures.push({
+      festivalId: festival.id,
+      sectorId: sector.id,
+      groupIds: [group.id],
+      standIds: pairStands.map((stand) => stand.id),
+      userIds: [user.id],
+      requestIds: enrollments.map((row) => row.id),
+    });
+
+    currentProfileMock.mockResolvedValue({
+      id: user.id,
+      role: "user",
+      status: "verified",
+      category: "illustration",
+    });
+
+    return {
+      festival,
+      user,
+      standIds: pairStands.map((stand) => stand.id),
+    };
+  }
+
+  async function topUpsFor(userId: number) {
+    return integrationDb!
+      .select({
+        id: creditTopUps.id,
+        amount: creditTopUps.amount,
+        status: creditTopUps.status,
+        intendedUseType: creditTopUps.intendedUseType,
+        intendedUseId: creditTopUps.intendedUseId,
+        uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
+      })
+      .from(creditTopUps)
+      .where(eq(creditTopUps.userId, userId));
+  }
+
+  it("issues exactly the shortfall, once, inside the upload window", async () => {
+    const { festival, user } = await seed({ credits: 20 });
+    const before = Date.now();
+
+    const result = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      // 50 to activate, 20 already spendable: the participant is asked for the
+      // difference and never for a round number of their own choosing.
+      data: { amount: ACCESS_PRICE - 20 },
+    });
+
+    const rows = await topUpsFor(user.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      amount: ACCESS_PRICE - 20,
+      status: "awaiting_voucher",
+      intendedUseType: "feature",
+      intendedUseId: festival.id,
+    });
+
+    const deadline = rows[0].uploadDeadlineAt.getTime();
+    expect(deadline).toBeGreaterThan(before);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + UPLOAD_WINDOW_MS);
+
+    // Opening a purchase issues nothing: credits appear only once a voucher is
+    // uploaded.
+    const balances = await readCreditBalances(user.id);
+    expect(balances.ledgerBalance).toBe(20);
+  });
+
+  it("resumes the open purchase instead of stacking a second one", async () => {
+    const { festival, user } = await seed({ credits: 20 });
+
+    const first = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    expect(first.success).toBe(true);
+    const firstId = (first as { data: { topUpId: number } }).data.topUpId;
+
+    // A fresh key, as a second tab or a second click would send.
+    const second = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(second).toMatchObject({ success: true, data: { topUpId: firstId } });
+    expect(await topUpsFor(user.id)).toHaveLength(1);
+  });
+
+  it("replays the same purchase for a retry of the same request", async () => {
+    const { festival, user } = await seed({ credits: 20 });
+    const key = randomUUID();
+
+    const first = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: key,
+    });
+    const replay = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: key,
+    });
+
+    expect(first.success).toBe(true);
+    expect(replay).toMatchObject({
+      success: true,
+      data: { topUpId: (first as { data: { topUpId: number } }).data.topUpId },
+    });
+    expect(await topUpsFor(user.id)).toHaveLength(1);
+  });
+
+  it("issues nothing for a purchase whose window ran out, and lets a new one start", async () => {
+    const { festival, user } = await seed({ credits: 20 });
+
+    const first = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const expiredId = (first as { data: { topUpId: number } }).data.topUpId;
+
+    // Age the session rather than waiting ten minutes. Both timestamps move:
+    // a column check keeps the deadline after creation, which is the same
+    // invariant that stops a purchase being born already expired.
+    await integrationDb!
+      .update(creditTopUps)
+      .set({
+        createdAt: new Date(Date.now() - 2 * UPLOAD_WINDOW_MS),
+        uploadDeadlineAt: new Date(Date.now() - UPLOAD_WINDOW_MS),
+      })
+      .where(eq(creditTopUps.id, expiredId));
+
+    const late = await submitCreditTopUpVoucher({
+      topUpId: expiredId,
+      userId: user.id,
+      voucherUrl: "https://example.test/late.png",
+      fileKey: `late-${expiredId}`,
+    });
+    expect(late).toMatchObject({ ok: false, code: "TOP_UP_EXPIRED" });
+
+    // Nothing was credited, and the dead session is marked rather than left
+    // to block the next attempt.
+    const balances = await readCreditBalances(user.id);
+    expect(balances.ledgerBalance).toBe(20);
+
+    const second = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    expect(second.success).toBe(true);
+    const secondId = (second as { data: { topUpId: number } }).data.topUpId;
+    expect(secondId).not.toBe(expiredId);
+    expect(await topUpsFor(user.id)).toHaveLength(2);
+  });
+
+  /**
+   * Buying from a full-table screen already says what the credits are for, so
+   * the purchase stands in for pressing "Activar". The intent is recorded on
+   * the top-up itself, which is what makes it safe to act on after the fact.
+   */
+  it("activates the feature off the purchase that funded it", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+
+    const activation = await activateFullTableAccessAfterPurchase({
+      userId: user.id,
+      festivalId: festival.id,
+      topUpId,
+    });
+
+    expect(activation).toMatchObject({
+      success: true,
+      data: { alreadyActive: false },
+    });
+    // The credits the purchase issued are held against the access now, not
+    // left free to spend on something else.
+    const balances = await readCreditBalances(user.id);
+    expect(balances).toMatchObject({
+      ledgerBalance: ACCESS_PRICE,
+      spendableBalance: 0,
+      activeHolds: ACCESS_PRICE,
+    });
+  });
+
+  /**
+   * The upload callback is retried by UploadThing, and the request registry is
+   * the only thing between a retry and a second hold on the same credits.
+   */
+  it("does not activate twice when the upload callback is retried", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+
+    const first = await activateFullTableAccessAfterPurchase({
+      userId: user.id,
+      festivalId: festival.id,
+      topUpId,
+    });
+    const second = await activateFullTableAccessAfterPurchase({
+      userId: user.id,
+      festivalId: festival.id,
+      topUpId,
+    });
+
+    expect(first.success).toBe(true);
+    expect(second).toMatchObject({
+      success: true,
+      data: { alreadyActive: true },
+    });
+
+    const balances = await readCreditBalances(user.id);
+    expect(balances.activeHolds).toBe(ACCESS_PRICE);
+  });
+
+  /**
+   * The intent is what the caller branches on: only a `feature` purchase is
+   * consent to activate. An invoice or debt top-up funds something else and
+   * has to leave the credits alone.
+   */
+  it("reports what the completed purchase was for", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+
+    const submitted = await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+
+    expect(submitted).toMatchObject({
+      ok: true,
+      data: { intendedUse: { type: "feature", id: festival.id } },
+    });
+
+    // A replayed submission has to report the same intent, or a retried
+    // callback would skip the activation the first one earned.
+    const replay = await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `voucher-${topUpId}`,
+    });
+    expect(replay).toMatchObject({
+      ok: true,
+      data: { intendedUse: { type: "feature", id: festival.id } },
+    });
+  });
+
+  it("refuses a purchase the participant does not need", async () => {
+    const { festival } = await seed({ credits: ACCESS_PRICE });
+
+    const result = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "CREDIT_TOP_UP_NOT_NEEDED",
+    });
+  });
+
+  it("sells credits during the days before the map opens", async () => {
+    // The whole point of the two-day window: the money question is settled
+    // before the high-friction flow, so the reservation clock must not block it.
+    const { festival, user } = await seed({ credits: 0, opensInDays: 2 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    expect(purchase).toMatchObject({
+      success: true,
+      data: { amount: ACCESS_PRICE },
+    });
+
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `v-${topUpId}`,
+    });
+
+    // Provisional credits are spendable on an optional feature straight away.
+    const activated = await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(activated.success).toBe(true);
+  });
+
+  it("refuses to sell credits to someone who never enrolled", async () => {
+    const { festival, user } = await seed({ credits: 0, opensInDays: 2 });
+    // Reservations are not open, so the page-level policy would answer
+    // RESERVATIONS_NOT_OPEN and mask this. The command has to check for itself.
+    await integrationDb!
+      .delete(userRequests)
+      .where(eq(userRequests.userId, user.id));
+
+    const result = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({ success: false, code: "NOT_ENROLLED" });
+    expect(await topUpsFor(user.id)).toHaveLength(0);
+  });
+
+  it("refuses activation while the balance is negative", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+    // A reversal left this account owing more than it holds.
+    await integrationDb!.insert(creditLedgerEntries).values({
+      userId: user.id,
+      amount: -30,
+      type: "admin_adjustment" as const,
+      idempotencyKey: `debt-${user.id}-${randomUUID()}`,
+    });
+    // Even with enough gross credit granted afterwards, a negative ledger
+    // blocks every credit operation until it is cleared.
+    await integrationDb!.insert(creditLedgerEntries).values({
+      userId: user.id,
+      amount: 20,
+      type: "admin_grant" as const,
+      idempotencyKey: `grant-${user.id}-${randomUUID()}`,
+    });
+
+    const result = await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "FULL_TABLE_INSUFFICIENT_CREDITS",
+    });
+    expect(
+      await integrationDb!
+        .select({ id: creditHolds.id })
+        .from(creditHolds)
+        .where(eq(creditHolds.userId, user.id)),
+    ).toHaveLength(0);
+  });
+
+  it("leaves the reservation standing when a voucher is rejected after the spend", async () => {
+    const { festival, user, standIds } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `v-${topUpId}`,
+    });
+
+    const activated = await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(activated.success).toBe(true);
+
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(confirmed.success).toBe(true);
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+
+    // The hold was captured, so the credits are spent and the balance is zero.
+    expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+
+    const rejected = await reviewCreditTopUp({
+      topUpId,
+      reviewerUserId: user.id,
+      decision: "rejected",
+      rejectionReason: "El comprobante no corresponde.",
+    });
+    expect(rejected.ok).toBe(true);
+
+    // The reversal takes back credits that were already spent, so the account
+    // goes into debt. What the credits bought is deliberately untouched: PRD
+    // §17 rewinds the money, never the reservation.
+    expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+      -ACCESS_PRICE,
+    );
+
+    const [reservation] = await integrationDb!
+      .select({ id: standReservations.id, status: standReservations.status })
+      .from(standReservations)
+      .where(eq(standReservations.id, reservationId));
+    expect(reservation).toMatchObject({ status: "pending" });
+
+    const members = await integrationDb!
+      .select({ standId: standReservationStands.standId })
+      .from(standReservationStands)
+      .where(eq(standReservationStands.reservationId, reservationId));
+    expect(members).toHaveLength(2);
+
+    // And the way back out is self-service: a debt purchase for exactly what
+    // is owed, and nothing more.
+    const debtPurchase = await createDebtCreditTopUp({
+      idempotencyKey: randomUUID(),
+    });
+    expect(debtPurchase).toMatchObject({
+      success: true,
+      data: { amount: ACCESS_PRICE },
+    });
+
+    const debtRows = await integrationDb!
+      .select({
+        intendedUseType: creditTopUps.intendedUseType,
+        intendedUseId: creditTopUps.intendedUseId,
+        amount: creditTopUps.amount,
+      })
+      .from(creditTopUps)
+      .where(
+        and(
+          eq(creditTopUps.userId, user.id),
+          eq(creditTopUps.intendedUseType, "debt"),
+        ),
+      );
+    expect(debtRows).toEqual([
+      { intendedUseType: "debt", intendedUseId: null, amount: ACCESS_PRICE },
+    ]);
+
+    // The one credit email there is. Buying is synchronous and the wallet
+    // reports it on the spot, so only the rejection is worth telling somebody
+    // about — and it is the only one that can leave them owing money.
+    const queued = await integrationDb!
+      .select({
+        kind: reservationNotificationJobs.notificationKind,
+        recipientEmail: reservationNotificationJobs.recipientEmail,
+        payload: reservationNotificationJobs.payload,
+        deduplicationKey: reservationNotificationJobs.deduplicationKey,
+      })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(queued).toEqual([
+      {
+        kind: "credit_top_up_rejected",
+        recipientEmail: user.email,
+        // The debt as of the rejection, so a later waiver cannot rewrite what
+        // the participant was told.
+        payload: { topUpId, debtAmount: ACCESS_PRICE },
+        // Keyed on the top-up: credit jobs carry no reservation, so the
+        // outbox's default key would collide across every purchase this
+        // person ever has rejected.
+        deduplicationKey: `credit_top_up_rejected:${topUpId}`,
+      },
+    ]);
+
+    // Reviewing again replays the same answer without reversing twice or
+    // telling them twice.
+    const replayed = await reviewCreditTopUp({
+      topUpId,
+      reviewerUserId: user.id,
+      decision: "rejected",
+      rejectionReason: "El comprobante no corresponde.",
+    });
+    expect(replayed).toMatchObject({ ok: true, data: { jobIds: [] } });
+    expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+      -ACCESS_PRICE,
+    );
+
+    const afterReplay = await integrationDb!
+      .select({ id: reservationNotificationJobs.id })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(afterReplay).toHaveLength(1);
+  });
+
+  /**
+   * Approval grants no new spending power — the credits were already
+   * spendable — so there is nothing to announce.
+   */
+  it("says nothing to the participant when a voucher is approved", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `v-${topUpId}`,
+    });
+
+    const approved = await reviewCreditTopUp({
+      topUpId,
+      reviewerUserId: user.id,
+      decision: "approved",
+    });
+    expect(approved).toMatchObject({ ok: true, data: { jobIds: [] } });
+
+    const queued = await integrationDb!
+      .select({ id: reservationNotificationJobs.id })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(queued).toEqual([]);
+  });
+
+  /**
+   * Credits are usable the moment their voucher is submitted, on anything.
+   * There used to be a confirmed-only tier that let provisional credit activate
+   * a feature but not pay a reservation; a bad voucher is now recovered
+   * afterwards through debt rather than withheld beforehand.
+   */
+  it("lets a purchase under review pay a reservation invoice", async () => {
+    const { festival, user } = await seed({ credits: 0 });
+
+    const purchase = await createFeatureCreditTopUp({
+      festivalId: festival.id,
+      featureType: "full_table",
+      idempotencyKey: randomUUID(),
+    });
+    const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+    await submitCreditTopUpVoucher({
+      topUpId,
+      userId: user.id,
+      voucherUrl: "https://example.test/v.png",
+      fileKey: `v-${topUpId}`,
+    });
+
+    // Submitted, not yet reviewed.
+    const [row] = await integrationDb!
+      .select({ status: creditTopUps.status })
+      .from(creditTopUps)
+      .where(eq(creditTopUps.id, topUpId));
+    expect(row.status).toBe("under_review");
+
+    const balances = await readCreditBalances(user.id);
+    expect(balances.underReviewIssuance).toBe(ACCESS_PRICE);
+    // Spendable in full, with the under-review portion reported rather than
+    // deducted.
+    expect(balances.spendableBalance).toBe(ACCESS_PRICE);
+    expect(canFundInvoiceCreditAllocation(balances, ACCESS_PRICE)).toBe(true);
+  });
+
+  /**
+   * Release is a change fee on an unpaid reservation (PRD §9): the participant
+   * gives the stand back so they can pick another one, or join somebody else
+   * as their partner. Never a refund, and never a way out of a closed
+   * reservation.
+   */
+  describe("reservation release", () => {
+    async function seedPendingReservation(credits: number) {
+      const seeded = await seed({ credits });
+      await createStandHold({
+        standId: seeded.standIds[0],
+        idempotencyKey: randomUUID(),
+      });
+      const [hold] = await integrationDb!
+        .select({ id: standHolds.id })
+        .from(standHolds)
+        .where(eq(standHolds.festivalId, seeded.festival.id));
+      const confirmed = await confirmStandHold({
+        holdId: hold.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(confirmed.success).toBe(true);
+      return {
+        ...seeded,
+        reservationId: (confirmed as { data: { reservationId: number } }).data
+          .reservationId,
+      };
+    }
+
+    it("frees the stand, cancels the invoice, and debits once", async () => {
+      const { user, reservationId, standIds } =
+        await seedPendingReservation(RELEASE_PRICE);
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+      expect(result.success).toBe(true);
+
+      const [reservation] = await integrationDb!
+        .select({ status: standReservations.status })
+        .from(standReservations)
+        .where(eq(standReservations.id, reservationId));
+      expect(reservation.status).toBe("released");
+
+      // The stand is back on the map, which is the entire point.
+      const [stand] = await integrationDb!
+        .select({ status: stands.status })
+        .from(stands)
+        .where(eq(stands.id, standIds[0]));
+      expect(stand.status).toBe("available");
+
+      const members = await integrationDb!
+        .select({ releasedAt: standReservationStands.releasedAt })
+        .from(standReservationStands)
+        .where(eq(standReservationStands.reservationId, reservationId));
+      expect(members.every((member) => member.releasedAt != null)).toBe(true);
+
+      // Nothing is owed on a reservation that no longer exists.
+      const invoiceRows = await integrationDb!
+        .select({ status: invoices.status })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservationId));
+      expect(invoiceRows.map((row) => row.status)).toEqual(["cancelled"]);
+
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+    });
+
+    /**
+     * A partner loses their space too. Finding that out by opening the map is
+     * worse than being told, so everyone registered on the reservation is
+     * notified — not only whoever pressed the button.
+     */
+    it("tells every participant, not just the owner", async () => {
+      const { user, reservationId } =
+        await seedPendingReservation(RELEASE_PRICE);
+
+      const [partner] = await integrationDb!
+        .insert(users)
+        .values({
+          clerkId: `rel-partner-${reservationId}`,
+          email: `rel-partner-${reservationId}@example.test`,
+          displayName: "Partner",
+          status: "verified" as const,
+          category: "illustration" as const,
+        })
+        .returning();
+      await integrationDb!
+        .insert(reservationParticipants)
+        .values({ reservationId, userId: partner.id });
+      fixtures[fixtures.length - 1]?.userIds.push(partner.id);
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+      expect(result.success).toBe(true);
+
+      const queued = await integrationDb!
+        .select({
+          kind: reservationNotificationJobs.notificationKind,
+          recipientEmail: reservationNotificationJobs.recipientEmail,
+          userId: reservationNotificationJobs.userId,
+          payload: reservationNotificationJobs.payload,
+        })
+        .from(reservationNotificationJobs)
+        .where(eq(reservationNotificationJobs.reservationId, reservationId));
+
+      expect(queued).toHaveLength(2);
+      expect(new Set(queued.map((row) => row.userId))).toEqual(
+        new Set([user.id, partner.id]),
+      );
+      for (const row of queued) {
+        expect(row.kind).toBe("reservation_released");
+        // The price is carried so the owner's copy can state what it cost;
+        // recomputing it at send time would report a later config change.
+        expect(row.payload).toMatchObject({ creditPrice: RELEASE_PRICE });
+      }
+
+      // One release frees every participant on it (PRD §9.3).
+      const remaining = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(remaining).toHaveLength(2);
+    });
+
+    it("replays a retry without debiting twice", async () => {
+      const { user, reservationId } =
+        await seedPendingReservation(RELEASE_PRICE);
+      const key = randomUUID();
+
+      const first = await releaseReservation({
+        reservationId,
+        idempotencyKey: key,
+      });
+      const second = await releaseReservation({
+        reservationId,
+        idempotencyKey: key,
+      });
+
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+    });
+
+    /**
+     * The status guard, which is what keeps this a change fee rather than a
+     * refund policy. A paid reservation is somebody's money, not their stand
+     * choice.
+     */
+    it("refuses a reservation that is no longer pending", async () => {
+      const { user, reservationId } =
+        await seedPendingReservation(RELEASE_PRICE);
+      await integrationDb!
+        .update(standReservations)
+        .set({ status: "accepted" })
+        .where(eq(standReservations.id, reservationId));
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "RELEASE_NOT_PENDING",
+      });
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        RELEASE_PRICE,
+      );
+    });
+
+    it("refuses somebody who does not own the reservation", async () => {
+      const { reservationId } = await seedPendingReservation(RELEASE_PRICE);
+      currentProfileMock.mockResolvedValue({
+        id: 999_999,
+        role: "user",
+        status: "verified",
+        category: "illustration",
+      });
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+    });
+
+    it("refuses when the credits do not cover the price", async () => {
+      const { user, reservationId } = await seedPendingReservation(
+        RELEASE_PRICE - 1,
+      );
+
+      const result = await releaseReservation({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "RELEASE_INSUFFICIENT_CREDITS",
+      });
+      const [reservation] = await integrationDb!
+        .select({ status: standReservations.status })
+        .from(standReservations)
+        .where(eq(standReservations.id, reservationId));
+      expect(reservation.status).toBe("pending");
+
+      // Nothing released and nothing charged, so no `fulfilled` action may
+      // survive the refusal.
+      const actions = await integrationDb!
+        .select({ id: reservationFeatureActions.id })
+        .from(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.reservationId, reservationId));
+      expect(actions).toEqual([]);
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        RELEASE_PRICE - 1,
+      );
+    });
+
+    it("sells the exact shortfall for a release, and activates no table", async () => {
+      const { festival, user } = await seedPendingReservation(10);
+
+      const purchase = await createFeatureCreditTopUp({
+        festivalId: festival.id,
+        featureType: "reservation_release",
+        idempotencyKey: randomUUID(),
+      });
+      expect(purchase).toMatchObject({
+        success: true,
+        data: { amount: RELEASE_PRICE - 10 },
+      });
+
+      const topUpId = (purchase as { data: { topUpId: number } }).data.topUpId;
+      const [row] = await integrationDb!
+        .select({ featureType: creditTopUps.intendedFeatureType })
+        .from(creditTopUps)
+        .where(eq(creditTopUps.id, topUpId));
+      // Recorded on the top-up so the upload callback does not mistake this
+      // for a full-table purchase and earmark the credits for a table.
+      expect(row.featureType).toBe("reservation_release");
+
+      await submitCreditTopUpVoucher({
+        topUpId,
+        userId: user.id,
+        voucherUrl: "https://example.test/v.png",
+        fileKey: `v-${topUpId}`,
+      });
+
+      const holds = await integrationDb!
+        .select({ id: creditHolds.id })
+        .from(creditHolds)
+        .where(eq(creditHolds.userId, user.id));
+      expect(holds).toEqual([]);
+    });
+  });
+
+  /**
+   * Adding a partner after booking (PRD §8). The owner pays the difference
+   * between one person and two, plus a fee for doing it late — in credits, and
+   * without the original invoice ever moving.
+   */
+  describe("late partner", () => {
+    async function seedEligiblePartner(festivalId: number, suffix: string) {
+      const [partner] = await integrationDb!
+        .insert(users)
+        .values({
+          clerkId: `lp-${suffix}`,
+          email: `lp-${suffix}@example.test`,
+          displayName: `LP ${suffix}`,
+          status: "verified" as const,
+          category: "illustration" as const,
+        })
+        .returning();
+      await integrationDb!.insert(userRequests).values({
+        userId: partner.id,
+        festivalId,
+        type: "festival_participation" as const,
+        status: "accepted" as const,
+        termsVersionId: publishedTermsVersionId,
+      });
+      fixtures[fixtures.length - 1]?.userIds.push(partner.id);
+      return partner;
+    }
+
+    async function seedReservationWithPartner(credits: number) {
+      const seeded = await seed({ credits });
+      await createStandHold({
+        standId: seeded.standIds[0],
+        idempotencyKey: randomUUID(),
+      });
+      const [hold] = await integrationDb!
+        .select({ id: standHolds.id })
+        .from(standHolds)
+        .where(eq(standHolds.festivalId, seeded.festival.id));
+      const confirmed = await confirmStandHold({
+        holdId: hold.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(confirmed.success).toBe(true);
+      const reservationId = (confirmed as { data: { reservationId: number } })
+        .data.reservationId;
+      const partner = await seedEligiblePartner(
+        seeded.festival.id,
+        `${reservationId}-${Math.random().toString(36).slice(2, 7)}`,
+      );
+      return { ...seeded, reservationId, partner };
+    }
+
+    it("charges the difference plus the fee, and adds the partner once", async () => {
+      const { user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(result.success).toBe(true);
+
+      const participants = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(new Set(participants.map((row) => row.userId))).toEqual(
+        new Set([user.id, partner.id]),
+      );
+
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+
+      // Both components recorded separately, so reporting can tell a price
+      // adjustment from a fee (PRD §6.2).
+      const [action] = await integrationDb!
+        .select({ id: reservationFeatureActions.id })
+        .from(reservationFeatureActions)
+        .where(
+          and(
+            eq(reservationFeatureActions.reservationId, reservationId),
+            eq(reservationFeatureActions.type, "late_partner"),
+          ),
+        );
+      const items = await integrationDb!
+        .select({
+          kind: reservationFeatureActionItems.kind,
+          amount: reservationFeatureActionItems.amount,
+        })
+        .from(reservationFeatureActionItems)
+        .where(eq(reservationFeatureActionItems.featureActionId, action.id));
+      expect(
+        Object.fromEntries(items.map((row) => [row.kind, row.amount])),
+      ).toEqual({
+        shared_price_difference: SHARED_DIFFERENCE,
+        feature_access: LATE_PARTNER_PRICE,
+      });
+    });
+
+    /**
+     * §8.4, and the reason the difference is charged in credits at all: the
+     * original invoice may already be paid, and a participant action must not
+     * rewrite settled money.
+     */
+    it("leaves the original invoice exactly as it was", async () => {
+      const { reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      const before = await integrationDb!
+        .select({
+          amount: invoices.amount,
+          originalAmount: invoices.originalAmount,
+          status: invoices.status,
+        })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservationId));
+
+      await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      const after = await integrationDb!
+        .select({
+          amount: invoices.amount,
+          originalAmount: invoices.originalAmount,
+          status: invoices.status,
+        })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservationId));
+      expect(after).toEqual(before);
+      expect(after[0].amount).toBe(STAND_PRICE);
+    });
+
+    it("replays a retry without charging or adding twice", async () => {
+      const { user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      const key = randomUUID();
+
+      const first = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: key,
+      });
+      const second = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: key,
+      });
+
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      const participants = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(participants).toHaveLength(2);
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+    });
+
+    it("refuses a reservation that already has a partner", async () => {
+      const { festival, user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL * 2);
+      await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+      const second = await seedEligiblePartner(festival.id, `again-${user.id}`);
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: second.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "LATE_PARTNER_ALREADY_SHARED",
+      });
+    });
+
+    it("refuses once the deadline has passed", async () => {
+      const { festival, user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      await integrationDb!
+        .update(festivalReservationFeatures)
+        .set({ deadlineOverrideAt: new Date(Date.now() - 1000) })
+        .where(
+          and(
+            eq(festivalReservationFeatures.festivalId, festival.id),
+            eq(festivalReservationFeatures.type, "late_partner"),
+          ),
+        );
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "LATE_PARTNER_DEADLINE_PASSED",
+      });
+      // Credits bought earlier do not extend the deadline, and nothing is
+      // taken for an action that cannot finish (§8.1).
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        LATE_PARTNER_TOTAL,
+      );
+    });
+
+    it("refuses when the credits do not cover the total", async () => {
+      const { user, reservationId, partner } = await seedReservationWithPartner(
+        LATE_PARTNER_TOTAL - 1,
+      );
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "LATE_PARTNER_INSUFFICIENT_CREDITS",
+      });
+      const participants = await integrationDb!
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+      expect(participants).toHaveLength(1);
+      expect((await readCreditBalances(user.id)).ledgerBalance).toBe(
+        LATE_PARTNER_TOTAL - 1,
+      );
+
+      // A refusal still commits — `fail` has a registry release to write — so
+      // the action inserted before the debit has to be gone. Left behind it is
+      // a `fulfilled` action with no partner and nothing charged, and its
+      // unique key would poison a retry of the same request.
+      const actions = await integrationDb!
+        .select({ id: reservationFeatureActions.id })
+        .from(reservationFeatureActions)
+        .where(eq(reservationFeatureActions.reservationId, reservationId));
+      expect(actions).toEqual([]);
+      const items = await integrationDb!
+        .select({ id: reservationFeatureActionItems.id })
+        .from(reservationFeatureActionItems);
+      expect(items).toEqual([]);
+
+      // And the same request may be retried once they have the credits.
+      await integrationDb!.insert(creditLedgerEntries).values({
+        userId: user.id,
+        amount: 1,
+        type: "admin_grant" as const,
+        idempotencyKey: `retry-grant-${reservationId}`,
+      });
+      const retried = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(retried.success).toBe(true);
+    });
+
+    it("refuses somebody who does not own the reservation", async () => {
+      const { reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+      currentProfileMock.mockResolvedValue({
+        id: partner.id,
+        role: "user",
+        status: "verified",
+        category: "illustration",
+      });
+
+      const result = await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(result).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+    });
+
+    /**
+     * The one feature whose price is not the festival's configured figure: it
+     * also carries this reservation's own shared-price difference. The
+     * shortfall has to be sized against the real total, and the top-up has to
+     * record which feature it funds so the upload callback does not mistake it
+     * for a full-table purchase.
+     */
+    it("sells the shortfall for the whole total, not just the fee", async () => {
+      const { festival, user, reservationId } =
+        await seedReservationWithPartner(10);
+
+      // The action goes through the participant-facing credits flag, which
+      // defaults to hidden. Everything else in this file calls services
+      // directly and never meets it.
+      await integrationDb!
+        .insert(featureFlags)
+        .values({ key: "credits", visibility: "public" as const })
+        .onConflictDoUpdate({
+          target: featureFlags.key,
+          set: { visibility: "public" as const },
+        });
+
+      const { createLatePartnerCreditTopUpAction } =
+        await import("@/app/lib/reservations/late-partner-actions");
+      const purchase = await createLatePartnerCreditTopUpAction({
+        reservationId,
+        idempotencyKey: randomUUID(),
+      });
+
+      expect(purchase).toMatchObject({
+        success: true,
+        amount: LATE_PARTNER_TOTAL - 10,
+      });
+
+      const [row] = await integrationDb!
+        .select({
+          featureType: creditTopUps.intendedFeatureType,
+          intendedUseId: creditTopUps.intendedUseId,
+        })
+        .from(creditTopUps)
+        .where(eq(creditTopUps.userId, user.id));
+      expect(row.featureType).toBe("late_partner");
+      expect(row.intendedUseId).toBe(festival.id);
+    });
+
+    it("tells the owner and the new partner", async () => {
+      const { user, reservationId, partner } =
+        await seedReservationWithPartner(LATE_PARTNER_TOTAL);
+
+      await addLatePartner({
+        reservationId,
+        partnerUserId: partner.id,
+        idempotencyKey: randomUUID(),
+      });
+
+      const queued = await integrationDb!
+        .select({
+          kind: reservationNotificationJobs.notificationKind,
+          userId: reservationNotificationJobs.userId,
+        })
+        .from(reservationNotificationJobs)
+        .where(eq(reservationNotificationJobs.reservationId, reservationId));
+      expect(queued).toHaveLength(2);
+      expect(new Set(queued.map((row) => row.userId))).toEqual(
+        new Set([user.id, partner.id]),
+      );
+      expect(queued.every((row) => row.kind === "late_partner_added")).toBe(
+        true,
+      );
+    });
+  });
+
+  it("refuses a debt purchase when nothing is owed", async () => {
+    await seed({ credits: 10 });
+
+    const result = await createDebtCreditTopUp({
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "CREDIT_TOP_UP_NOT_NEEDED",
+    });
+  });
+});

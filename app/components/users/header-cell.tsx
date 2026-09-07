@@ -27,21 +27,29 @@ export function HeaderCell(props: HeaderCellProps) {
     replace(`?${currentSearchParams.toString()}`);
   };
 
+  if (!props.canSort) {
+    return (
+      <TableHead>
+        <span className="inline-flex h-9 items-center px-4 py-2 text-sm font-medium">
+          {props.label}
+        </span>
+      </TableHead>
+    );
+  }
+
   return (
     <TableHead>
       <Button variant="ghost" onClick={handleSort}>
         <span>{props.label}</span>
-        {props.canSort ? (
-          isSorted ? (
-            isDesc ? (
-              <ArrowDownIcon className="ml-2 h-4 w-4" />
-            ) : (
-              <ArrowUpIcon className="ml-2 h-4 w-4" />
-            )
+        {isSorted ? (
+          isDesc ? (
+            <ArrowDownIcon className="ml-2 h-4 w-4" />
           ) : (
-            <ArrowUpDownIcon className="ml-2 h-4 w-4" />
+            <ArrowUpIcon className="ml-2 h-4 w-4" />
           )
-        ) : null}
+        ) : (
+          <ArrowUpDownIcon className="ml-2 h-4 w-4" />
+        )}
       </Button>
     </TableHead>
   );

@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: glitter
+      POSTGRES_PASSWORD: glitter
+      POSTGRES_DB: glitter_test
+    ports:
+      - "${GLITTER_TEST_DB_PORT:-55432}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  postgres_test_data:

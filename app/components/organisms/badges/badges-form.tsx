@@ -13,57 +13,57 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-	name: z.string().trim().min(1, "El nombre es requerido"),
-	description: z.string().trim().optional(),
-	imageUrl: z.url(),
-	festivalId: z.coerce.number().int().positive(),
+  name: z.string().trim().min(1, "El nombre es requerido"),
+  description: z.string().trim().optional(),
+  imageUrl: z.url(),
+  festivalId: z.coerce.number().int().positive(),
 });
 
 type BadgesFormProps = {
-	festivalsOptions: { label: string; value: string }[];
+  festivalsOptions: { label: string; value: string }[];
 };
 
 export default function BadgesForm({ festivalsOptions }: BadgesFormProps) {
-	const router = useRouter();
-	const form = useForm({
-		resolver: zodResolver(FormSchema),
-		defaultValues: {
-			name: "",
-			description: "",
-		},
-	});
+  const router = useRouter();
+  const form = useForm({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
 
-	const action = form.handleSubmit(async (data) => {
-		const res = await createBadge(data);
+  const action = form.handleSubmit(async (data) => {
+    const res = await createBadge(data);
 
-		if (res.success) {
-			toast.success(res.message);
-			form.reset();
-			router.push("/dashboard/badges");
-		} else {
-			toast.error(res.message);
-		}
-	});
+    if (res.success) {
+      toast.success(res.message);
+      form.reset();
+      router.push("/dashboard/badges");
+    } else {
+      toast.error(res.message);
+    }
+  });
 
-	return (
-		<Form {...form}>
-			<form className="grid gap-4" onSubmit={action}>
-				<TextInput label="Nombre" name="name" />
-				<TextInput label="Descripción" name="description" />
-				<SelectInput
-					formControl={form.control}
-					label="Festival"
-					name="festivalId"
-					options={festivalsOptions}
-				/>
-				<FileInput formControl={form.control} label="Imagen" name="imageUrl" />
-				<SubmitButton
-					disabled={form.formState.isSubmitting || !form.formState.isDirty}
-					loading={form.formState.isSubmitting}
-				>
-					Guardar
-				</SubmitButton>
-			</form>
-		</Form>
-	);
+  return (
+    <Form {...form}>
+      <form className="grid gap-4" onSubmit={action}>
+        <TextInput label="Nombre" name="name" />
+        <TextInput label="Descripción" name="description" />
+        <SelectInput
+          formControl={form.control}
+          label="Festival"
+          name="festivalId"
+          options={festivalsOptions}
+        />
+        <FileInput formControl={form.control} label="Imagen" name="imageUrl" />
+        <SubmitButton
+          disabled={form.formState.isSubmitting || !form.formState.isDirty}
+          loading={form.formState.isSubmitting}
+        >
+          Guardar
+        </SubmitButton>
+      </form>
+    </Form>
+  );
 }

@@ -2,19 +2,19 @@
 
 import { useState } from "react";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-	ArchiveIcon,
-	DownloadIcon,
-	MoreVerticalIcon,
-	PencilIcon,
-	TrashIcon,
-	UploadIcon,
-	UsersIcon,
+  ArchiveIcon,
+  DownloadIcon,
+  MoreVerticalIcon,
+  PencilIcon,
+  TrashIcon,
+  UploadIcon,
+  UsersIcon,
 } from "lucide-react";
 import DeleteFestival from "./delete-festival";
 import { Button } from "@/components/ui/button";
@@ -25,83 +25,83 @@ import FestivalImportDialog from "@/app/components/festivals/festival-import-dia
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export default function FestivalCardDropdown({
-	festival,
+  festival,
 }: {
-	festival: FestivalBase;
+  festival: FestivalBase;
 }) {
-	const [openArchiveModal, setOpenArchiveModal] = useState(false);
-	const [openExportDialog, setOpenExportDialog] = useState(false);
-	const [openImportDialog, setOpenImportDialog] = useState(false);
+  const [openArchiveModal, setOpenArchiveModal] = useState(false);
+  const [openExportDialog, setOpenExportDialog] = useState(false);
+  const [openImportDialog, setOpenImportDialog] = useState(false);
 
-	return (
-		<>
-			<DropdownMenu modal={false}>
-				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" size="icon">
-						<MoreVerticalIcon className="h-5 w-5" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuItem asChild>
-						<Link
-							href={`/dashboard/festivals/${festival.id}/allowed_participants`}
-							className="flex items-center gap-2 w-full"
-						>
-							<UsersIcon className="w-4 h-4" />
-							Participantes habilitados
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link
-							href={`/dashboard/festivals/${festival.id}/edit`}
-							className="flex items-center gap-2 w-full"
-						>
-							<PencilIcon className="w-4 h-4" />
-							Editar
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => setOpenExportDialog(true)}>
-						<DownloadIcon className="w-4 h-4 mr-2" />
-						Exportar datos
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => setOpenImportDialog(true)}>
-						<UploadIcon className="w-4 h-4 mr-2" />
-						Importar datos
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => setOpenArchiveModal(true)}>
-						<ArchiveIcon className="w-4 h-4 mr-2" />
-						Archivar
-					</DropdownMenuItem>
-					<DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-						<DeleteFestival festivalId={festival.id}>
-							<span className="flex items-center gap-2 text-red-600 w-full">
-								<TrashIcon className="w-4 h-4" />
-								Eliminar
-							</span>
-						</DeleteFestival>
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+  return (
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <MoreVerticalIcon className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link
+              href={`/dashboard/festivals/${festival.id}/allowed_participants`}
+              className="flex items-center gap-2 w-full"
+            >
+              <UsersIcon className="w-4 h-4" />
+              Participantes habilitados
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              href={`/dashboard/festivals/${festival.id}/edit`}
+              className="flex items-center gap-2 w-full"
+            >
+              <PencilIcon className="w-4 h-4" />
+              Editar
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setOpenExportDialog(true)}>
+            <DownloadIcon className="w-4 h-4 mr-2" />
+            Exportar datos
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setOpenImportDialog(true)}>
+            <UploadIcon className="w-4 h-4 mr-2" />
+            Importar datos
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setOpenArchiveModal(true)}>
+            <ArchiveIcon className="w-4 h-4 mr-2" />
+            Archivar
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <DeleteFestival festivalId={festival.id}>
+              <span className="flex items-center gap-2 text-red-600 w-full">
+                <TrashIcon className="w-4 h-4" />
+                Eliminar
+              </span>
+            </DeleteFestival>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-			<ArchiveFestivalModal
-				open={openArchiveModal}
-				setOpen={setOpenArchiveModal}
-				festival={festival}
-			/>
+      <ArchiveFestivalModal
+        open={openArchiveModal}
+        setOpen={setOpenArchiveModal}
+        festival={festival}
+      />
 
-			<FestivalExportDialog
-				open={openExportDialog}
-				onOpenChange={setOpenExportDialog}
-				festivalId={festival.id}
-			/>
+      <FestivalExportDialog
+        open={openExportDialog}
+        onOpenChange={setOpenExportDialog}
+        festivalId={festival.id}
+      />
 
-			<FestivalImportDialog
-				open={openImportDialog}
-				onOpenChange={setOpenImportDialog}
-				mode="existing"
-				festivalId={festival.id}
-				festivalName={festival.name}
-			/>
-		</>
-	);
+      <FestivalImportDialog
+        open={openImportDialog}
+        onOpenChange={setOpenImportDialog}
+        mode="existing"
+        festivalId={festival.id}
+        festivalName={festival.name}
+      />
+    </>
+  );
 }

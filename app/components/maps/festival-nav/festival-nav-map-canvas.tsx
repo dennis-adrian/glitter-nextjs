@@ -1,238 +1,184 @@
 "use client";
 
-import { useCallback } from "react";
-import { TransformComponent } from "react-zoom-pan-pinch";
-import { MapPin } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  TransformComponent,
+  type ReactZoomPanPinchRef,
+} from "react-zoom-pan-pinch";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
+import { MapBounds } from "@/app/components/maps/map-types";
 import {
-	STAND_SIZE,
-	StandColors,
-	computeCanvasBounds,
-	getPublicStandColors,
-	getStandPosition,
+  StandColors,
+  getExternalParticipantStandColors,
+  getPublicStandColors,
 } from "@/app/components/maps/map-utils";
-import MapCanvas from "@/app/components/maps/map-canvas";
-import MapStand from "@/app/components/maps/map-stand";
-import MapElement from "@/app/components/maps/map-element";
+import MapPinchHint from "@/app/components/maps/map-pinch-hint";
+import MapSurface from "@/app/components/maps/map-surface";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
+import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
+import { hasExternalParticipants } from "@/app/components/maps/map-participants";
+import {
+  isStandOccupied,
+  type StandActivityUserIds,
+} from "@/app/lib/maps/stand-filters";
+import {
+  dedupeJointGroupMembers,
+  resolveJointGroups,
+} from "@/app/lib/stands/groups";
 
 type FestivalNavMapCanvasProps = {
-	stands: StandWithReservationsWithParticipants[];
-	mapElements: MapElementBase[];
-	mapBounds?: { minX: number; minY: number; width: number; height: number };
-	selectedStandId: number | null;
-	couponBookUserIdSet: Set<number>;
-	passportUserIdSet: Set<number>;
-	sectorName: string;
-	onStandSelect: (
-		stand: StandWithReservationsWithParticipants,
-		sectorName: string,
-	) => void;
+  stands: StandWithReservationsWithParticipants[];
+  mapElements: MapElementBase[];
+  mapBounds?: MapBounds;
+  selectedStandId: number | null;
+  locateRequest?: { standId: number; requestId: number } | null;
+  matchingStandIds?: number[] | null;
+  activityUserIds: StandActivityUserIds;
+  sectorName: string;
+  onStandSelect: (
+    stand: StandWithReservationsWithParticipants,
+    sectorName: string,
+  ) => void;
 };
 
-function isOccupied(stand: StandWithReservationsWithParticipants): boolean {
-	return stand.status === "reserved" || stand.status === "confirmed";
-}
-
-function getStandParticipantUserIds(
-	stand: StandWithReservationsWithParticipants,
-): number[] {
-	return stand.reservations
-		.filter((r) => r.status !== "rejected")
-		.flatMap((r) => r.participants)
-		.map((p) => p.user.id);
-}
-
-function hasActivityParticipant(
-	stand: StandWithReservationsWithParticipants,
-	userIdSet: Set<number>,
-): boolean {
-	return getStandParticipantUserIds(stand).some((id) => userIdSet.has(id));
-}
-
-function getNavStandColors(
-	stand: StandWithReservationsWithParticipants,
-	couponBookUserIdSet: Set<number>,
-	passportUserIdSet: Set<number>,
+export function getNavStandColors(
+  stand: StandWithReservationsWithParticipants,
 ): StandColors {
-	if (!isOccupied(stand)) return getPublicStandColors(stand.status);
-
-	const hasCoupon = hasActivityParticipant(stand, couponBookUserIdSet);
-	const hasPassport = hasActivityParticipant(stand, passportUserIdSet);
-
-	if (hasCoupon) {
-		return {
-			fill: "rgba(217, 119, 6, 0.85)",
-			hoverFill: "rgba(180, 83, 9, 0.95)",
-			stroke: "rgba(146, 64, 14, 0.9)",
-			text: "#ffffff",
-		};
-	}
-
-	if (hasPassport) {
-		return {
-			fill: "rgba(5, 150, 105, 0.85)",
-			hoverFill: "rgba(4, 120, 87, 0.95)",
-			stroke: "rgba(6, 95, 70, 0.9)",
-			text: "#ffffff",
-		};
-	}
-
-	return getPublicStandColors(stand.status);
+  if (!isStandOccupied(stand)) return getPublicStandColors(stand.status);
+  if (hasExternalParticipants(stand))
+    return getExternalParticipantStandColors();
+  return getPublicStandColors(stand.status);
 }
 
 export default function FestivalNavMapCanvas({
-	stands,
-	mapElements,
-	mapBounds,
-	selectedStandId,
-	couponBookUserIdSet,
-	passportUserIdSet,
-	sectorName,
-	onStandSelect,
+  stands,
+  mapElements,
+  mapBounds,
+  selectedStandId,
+  locateRequest,
+  matchingStandIds,
+  activityUserIds,
+  sectorName,
+  onStandSelect,
 }: FestivalNavMapCanvasProps) {
-	const visibleStands = stands.filter((s) => s.status !== "disabled");
-	const canvasBounds =
-		mapBounds ?? computeCanvasBounds(visibleStands, mapElements);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<ReactZoomPanPinchRef>(null);
+  const visibleStands = useMemo(
+    () => stands.filter((s) => s.status !== "disabled"),
+    [stands],
+  );
+  const jointGroups = useMemo(
+    () => resolveJointGroups(visibleStands),
+    [visibleStands],
+  );
+  const dimmedStandIdSet = useMemo(() => {
+    if (matchingStandIds == null) return undefined;
 
-	const handleStandSelect = useCallback(
-		(stand: StandWithReservationsWithParticipants) => {
-			if (!isOccupied(stand)) return;
-			onStandSelect(stand, sectorName);
-		},
-		[onStandSelect, sectorName],
-	);
+    const matchingStandIdSet = new Set(matchingStandIds);
+    for (const group of jointGroups) {
+      if (group.stands.some((stand) => matchingStandIdSet.has(stand.id))) {
+        group.stands.forEach((stand) => matchingStandIdSet.add(stand.id));
+      }
+    }
 
-	const occupiedStands = visibleStands.filter(isOccupied);
-	const couponStands = occupiedStands.filter((s) =>
-		hasActivityParticipant(s, couponBookUserIdSet),
-	);
-	const passportStands = occupiedStands.filter((s) =>
-		hasActivityParticipant(s, passportUserIdSet),
-	);
+    return new Set(
+      visibleStands
+        .filter((stand) => !matchingStandIdSet.has(stand.id))
+        .map((stand) => stand.id),
+    );
+  }, [jointGroups, matchingStandIds, visibleStands]);
+  // Resolved from the same list MapSurface draws, so a group that renders as
+  // one outline carries exactly one set of activity badges.
+  const occupiedStands = useMemo(
+    () =>
+      dedupeJointGroupMembers(
+        visibleStands.filter(isStandOccupied),
+        jointGroups,
+      ),
+    [jointGroups, visibleStands],
+  );
 
-	const canvasConfig = {
-		minX: canvasBounds.minX,
-		minY: canvasBounds.minY,
-		width: canvasBounds.width,
-		height: canvasBounds.height,
-	};
+  const handleStandSelect = useCallback(
+    (stand: StandWithReservationsWithParticipants) => {
+      if (!isStandOccupied(stand)) return;
+      onStandSelect(stand, sectorName);
+    },
+    [onStandSelect, sectorName],
+  );
 
-	return (
-		<div className="relative w-full border rounded-lg overflow-hidden">
-			<MapTransformWrapper
-				initialScale={1}
-				minScale={1}
-				maxScale={4}
-				centerOnInit
-			>
-				<TransformComponent
-					wrapperStyle={{ width: "100%" }}
-					contentStyle={{ width: "100%" }}
-				>
-					<MapCanvas config={canvasConfig}>
-						{mapElements.map((element) => (
-							<MapElement key={`el-${element.id}`} element={element} />
-						))}
-						{visibleStands.map((stand) => (
-							<MapStand
-								key={stand.id}
-								stand={stand}
-								canBeReserved={false}
-								selected={stand.id === selectedStandId}
-								colors={getNavStandColors(
-									stand,
-									couponBookUserIdSet,
-									passportUserIdSet,
-								)}
-								onTouchTap={handleStandSelect}
-								onClick={handleStandSelect}
-							/>
-						))}
-						{/* Activity badge overlay — painted after stands */}
-						<g aria-hidden="true">
-							{couponStands.map((stand) => {
-								const { left, top } = getStandPosition(stand);
-								return (
-									<g
-										key={`coupon-${stand.id}`}
-										transform={`translate(${left}, ${top})`}
-										style={{ pointerEvents: "none" }}
-									>
-										<circle
-											cx={STAND_SIZE - 0.8}
-											cy={0.8}
-											r={1.3}
-											fill="#F59E0B"
-											stroke="#fff"
-											strokeWidth={0.3}
-										/>
-										<text
-											x={STAND_SIZE - 0.8}
-											y={0.8}
-											textAnchor="middle"
-											dominantBaseline="central"
-											fontSize={1.4}
-											fontWeight={700}
-											fill="#fff"
-											style={{ userSelect: "none" }}
-										>
-											%
-										</text>
-									</g>
-								);
-							})}
-							{passportStands.map((stand) => {
-								const { left, top } = getStandPosition(stand);
-								// If stand also has a coupon badge, shift the passport badge left
-								const hasCoupon = hasActivityParticipant(
-									stand,
-									couponBookUserIdSet,
-								);
-								const cx = hasCoupon ? STAND_SIZE - 2.8 : STAND_SIZE - 0.8;
-								return (
-									<g
-										key={`passport-${stand.id}`}
-										transform={`translate(${left}, ${top})`}
-										style={{ pointerEvents: "none" }}
-									>
-										<circle
-											cx={cx}
-											cy={0.8}
-											r={1.3}
-											fill="#059669"
-											stroke="#fff"
-											strokeWidth={0.3}
-										/>
-										<text
-											x={cx}
-											y={0.8}
-											textAnchor="middle"
-											dominantBaseline="central"
-											fontSize={1.4}
-											fontWeight={700}
-											fill="#fff"
-											style={{ userSelect: "none" }}
-										>
-											★
-										</text>
-									</g>
-								);
-							})}
-						</g>
-					</MapCanvas>
-				</TransformComponent>
+  useEffect(() => {
+    if (!locateRequest) return;
+    if (!visibleStands.some((stand) => stand.id === locateRequest.standId)) {
+      return;
+    }
 
-				{/* Zoom hint (mobile only) */}
-				<div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-10 md:hidden pointer-events-none">
-					<div className="flex items-center gap-1.5 rounded-full bg-gray-900/80 px-3 py-1.5 text-white backdrop-blur-sm">
-						<MapPin className="h-3 w-3" />
-						<span className="text-xs font-medium">Pellizca para ampliar</span>
-					</div>
-				</div>
-			</MapTransformWrapper>
-		</div>
-	);
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const duration = reduceMotion ? 0 : 300;
+    const timer = window.setTimeout(() => {
+      // Aligned to the top rather than centred: the controls above the map are
+      // sticky, and centring the container slides its upper rows underneath
+      // them. scroll-margin-top carries the height they occupy.
+      containerRef.current?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+
+      // Back to the resting view rather than zoomed in on the hit: the whole
+      // sector fits at this scale, so the stand is legible where it stands and
+      // the visitor keeps the surroundings they need to walk to it.
+      transformRef.current?.resetTransform(duration, "easeOut");
+    }, 50);
+
+    return () => window.clearTimeout(timer);
+  }, [locateRequest, visibleStands]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden rounded-lg border"
+      style={{
+        // Set from the real height of sticky controls (explorer or standalone
+        // map). The fallback is for callers that have none.
+        scrollMarginTop: "var(--festival-map-scroll-offset, 6rem)",
+      }}
+    >
+      <MapTransformWrapper
+        ref={transformRef}
+        initialScale={1}
+        minScale={1}
+        maxScale={4}
+        centerOnInit
+      >
+        <TransformComponent
+          wrapperStyle={{ width: "100%" }}
+          contentStyle={{ width: "100%" }}
+        >
+          <MapSurface
+            stands={visibleStands}
+            mapElements={mapElements}
+            mapBounds={mapBounds}
+            selectedStandId={selectedStandId}
+            highlightedStandId={locateRequest?.standId}
+            highlightRequestId={locateRequest?.requestId}
+            dimmedStandIds={dimmedStandIdSet}
+            getColors={getNavStandColors}
+            onStandClick={handleStandSelect}
+            onStandTouchTap={handleStandSelect}
+          >
+            <FestivalNavStandBadges
+              stands={occupiedStands}
+              activityUserIds={activityUserIds}
+              dimmedStandIds={dimmedStandIdSet}
+            />
+          </MapSurface>
+        </TransformComponent>
+
+        <MapPinchHint className="bottom-12 pointer-events-none" />
+      </MapTransformWrapper>
+    </div>
+  );
 }

@@ -1,0 +1,56 @@
+"use client";
+
+import { Button } from "@/app/components/ui/button";
+import { Form } from "@/app/components/ui/form";
+import { updateFestivalParticipantTerms } from "@/app/lib/festivals/actions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { Loader2Icon } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+export default function UpdateFestivalParticipantTermsForm({
+  festival,
+  onSuccess,
+}: {
+  festival: FestivalBase;
+  onSuccess: () => void;
+}) {
+  const form = useForm();
+
+  const updateParticipantTermsForFestival = updateFestivalParticipantTerms.bind(
+    null,
+    festival.id,
+  );
+
+  const action: () => void = form.handleSubmit(async () => {
+    const res = await updateParticipantTermsForFestival(
+      !festival.participantTermsEnabled,
+    );
+
+    if (res.success) {
+      toast.success(res.message);
+      onSuccess();
+    } else toast.error(res.message);
+  });
+
+  const buttonLabel = festival.participantTermsEnabled
+    ? "Deshabilitar términos para participantes"
+    : "Habilitar términos para participantes";
+
+  return (
+    <Form {...form}>
+      <form onSubmit={action} className="flex flex-col gap-4 mt-4">
+        <Button disabled={form.formState.isSubmitting} className="w-full">
+          {form.formState.isSubmitting ? (
+            <span className="flex items-center gap-2">
+              <Loader2Icon className="w-4 h-4 animate-spin" />
+              Actualizando festival
+            </span>
+          ) : (
+            <span>{buttonLabel}</span>
+          )}
+        </Button>
+      </form>
+    </Form>
+  );
+}

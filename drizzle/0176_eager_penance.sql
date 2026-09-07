@@ -1,0 +1,1 @@
+ALTER TYPE "public"."festival_activity_type" ADD VALUE 'sticker_hunt';

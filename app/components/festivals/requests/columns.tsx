@@ -61,7 +61,10 @@ export const columns: ColumnDef<UserRequest>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.email} />
     ),
     cell: ({ row }) => (
-      <EmailCell email={row.original.user.email} key={row.original.user.email} />
+      <EmailCell
+        email={row.original.user.email}
+        key={row.original.user.email}
+      />
     ),
   },
   {

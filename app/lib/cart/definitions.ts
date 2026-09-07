@@ -1,20 +1,28 @@
 import { cartItems, carts } from "@/db/schema";
 import { InferSelectModel } from "drizzle-orm";
-import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import {
+  BaseProductWithImages,
+  ProductVariantWithSelections,
+} from "@/app/lib/products/definitions";
 
 export type BaseCart = InferSelectModel<typeof carts>;
 export type BaseCartItem = InferSelectModel<typeof cartItems>;
 
 export type CartItemWithProduct = BaseCartItem & {
-	product: BaseProductWithImages;
+  product: BaseProductWithImages;
+  variant: ProductVariantWithSelections | null;
 };
 
 export type CartWithItems = BaseCart & {
-	items: CartItemWithProduct[];
+  items: CartItemWithProduct[];
 };
 
 export type GuestCartItem = {
-	productId: number;
-	quantity: number;
-	product: BaseProductWithImages;
+  lineKey: string;
+  productId: number;
+  productVariantId: number | null;
+  productVariantLabel: string | null;
+  quantity: number;
+  product: BaseProductWithImages;
+  variant: ProductVariantWithSelections | null;
 };

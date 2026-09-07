@@ -1,6 +1,9 @@
 import { fetchFestivalParticipationRequests } from "@/app/api/user_requests/actions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { columns, columnTitles } from "@/app/components/festivals/requests/columns";
+import {
+  columns,
+  columnTitles,
+} from "@/app/components/festivals/requests/columns";
 
 export default async function FestivalRequestsTable({
   festivalId,

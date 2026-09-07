@@ -2,12 +2,12 @@
 
 import { ProfileType, UsersAggregates } from "@/app/api/users/definitions";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/app/components/ui/table";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 import { ActionsCell } from "@/app/components/users/cells/actions";
@@ -23,115 +23,115 @@ import MobileUsersList from "./mobile-users-list";
 import ParticipationsCell from "./cells/participations-cell";
 
 type Props = {
-	fetchUsersPromise: Promise<ProfileType[]>;
-	fetchUsersAggregatesPromise: Promise<UsersAggregates>;
+  fetchUsersPromise: Promise<ProfileType[]>;
+  fetchUsersAggregatesPromise: Promise<UsersAggregates>;
 };
 export default function UsersTable({
-	fetchUsersPromise,
-	fetchUsersAggregatesPromise,
+  fetchUsersPromise,
+  fetchUsersAggregatesPromise,
 }: Props) {
-	const searchParams = useSearchParams();
-	const limit = Number(searchParams.get("limit")) || 10;
-	const offset = Number(searchParams.get("offset")) || 0;
-	const users = use(fetchUsersPromise);
-	const aggregates = use(fetchUsersAggregatesPromise);
-	const canNextPage = offset + limit < aggregates.total;
-	const canPreviousPage = offset > 0;
-	const pageCount = Math.ceil(aggregates.total / limit);
+  const searchParams = useSearchParams();
+  const limit = Number(searchParams.get("limit")) || 10;
+  const offset = Number(searchParams.get("offset")) || 0;
+  const users = use(fetchUsersPromise);
+  const aggregates = use(fetchUsersAggregatesPromise);
+  const canNextPage = offset + limit < aggregates.total;
+  const canPreviousPage = offset > 0;
+  const pageCount = Math.ceil(aggregates.total / limit);
 
-	return (
-		<div className="group-has-data-pending:animate-pulse">
-			<div className="md:hidden flex flex-col gap-3">
-				<MobileUsersList users={users || []} />
-			</div>
+  return (
+    <div className="group-has-data-pending:animate-pulse">
+      <div className="md:hidden flex flex-col gap-3">
+        <MobileUsersList users={users || []} />
+      </div>
 
-			<div className="hidden md:block">
-				<Table className="border">
-					<TableHeader>
-						<TableRow>
-							<HeaderCell canSort value="displayName" label="Perfil" />
-							<HeaderCell canSort value="category" label="Categoría" />
-							<HeaderCell canSort value="status" label="Estado del perfil" />
-							<HeaderCell
-								canSort={false}
-								value="participationsCount"
-								label="Participaciones"
-							/>
-							<HeaderCell
-								canSort
-								value="verifiedAt"
-								label="Fecha de verificación"
-							/>
-							<HeaderCell canSort value="createdAt" label="Fecha de creación" />
-							<HeaderCell
-								canSort
-								value="updatedAt"
-								label="Última actualización"
-							/>
-							<TableHead className="sticky right-0 z-20 bg-white shadow-inner">
-								<span className="sr-only">Acciones</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{users?.length ? (
-							users.map((user) => (
-								<TableRow key={user.id}>
-									<TableCell>
-										<UserInfoCell profile={user} />
-									</TableCell>
-									<TableCell>
-										<ProfileCategoryBadge profile={user} />
-									</TableCell>
-									<TableCell>
-										<ProfileStatusCell status={user.status} />
-									</TableCell>
-									<TableCell>
-										<ParticipationsCell
-											participations={user.participations || []}
-										/>
-									</TableCell>
-									<TableCell>
-										{user.verifiedAt
-											? formatDate(user.verifiedAt).toLocaleString(
-													DateTime.DATETIME_MED_WITH_SECONDS,
-												)
-											: "--"}
-									</TableCell>
-									<TableCell>
-										{formatDate(user.createdAt).toLocaleString(
-											DateTime.DATETIME_MED_WITH_SECONDS,
-										)}
-									</TableCell>
-									<TableCell>
-										{formatDate(user.updatedAt).toLocaleString(
-											DateTime.DATETIME_MED_WITH_SECONDS,
-										)}
-									</TableCell>
-									<TableCell className="sticky right-0 z-20 bg-white shadow-inner">
-										<ActionsCell user={user} />
-									</TableCell>
-								</TableRow>
-							))
-						) : (
-							<TableRow>
-								<TableCell colSpan={8} className="h-24 text-center">
-									Sin resultados
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
-			</div>
-			<UsersTablePagination
-				canNextPage={canNextPage}
-				canPreviousPage={canPreviousPage}
-				pageIndex={Math.floor(offset / limit) + 1}
-				pageCount={pageCount}
-				pageSize={limit.toString()}
-				rowCount={users.length || 0}
-				total={aggregates.total || 0}
-			/>
-		</div>
-	);
+      <div className="hidden md:block">
+        <Table className="border">
+          <TableHeader>
+            <TableRow>
+              <HeaderCell canSort value="displayName" label="Perfil" />
+              <HeaderCell canSort value="category" label="Categoría" />
+              <HeaderCell canSort value="status" label="Estado del perfil" />
+              <HeaderCell
+                canSort={false}
+                value="participationsCount"
+                label="Participaciones"
+              />
+              <HeaderCell
+                canSort
+                value="verifiedAt"
+                label="Fecha de verificación"
+              />
+              <HeaderCell canSort value="createdAt" label="Fecha de creación" />
+              <HeaderCell
+                canSort
+                value="updatedAt"
+                label="Última actualización"
+              />
+              <TableHead className="sticky right-0 z-20 bg-white shadow-inner">
+                <span className="sr-only">Acciones</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users?.length ? (
+              users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <UserInfoCell profile={user} />
+                  </TableCell>
+                  <TableCell>
+                    <ProfileCategoryBadge profile={user} />
+                  </TableCell>
+                  <TableCell>
+                    <ProfileStatusCell status={user.status} />
+                  </TableCell>
+                  <TableCell>
+                    <ParticipationsCell
+                      participations={user.participations || []}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {user.verifiedAt
+                      ? formatDate(user.verifiedAt).toLocaleString(
+                          DateTime.DATETIME_MED_WITH_SECONDS,
+                        )
+                      : "--"}
+                  </TableCell>
+                  <TableCell>
+                    {formatDate(user.createdAt).toLocaleString(
+                      DateTime.DATETIME_MED_WITH_SECONDS,
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {formatDate(user.updatedAt).toLocaleString(
+                      DateTime.DATETIME_MED_WITH_SECONDS,
+                    )}
+                  </TableCell>
+                  <TableCell className="sticky right-0 z-20 bg-white shadow-inner">
+                    <ActionsCell user={user} />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={8} className="h-24 text-center">
+                  Sin resultados
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <UsersTablePagination
+        canNextPage={canNextPage}
+        canPreviousPage={canPreviousPage}
+        pageIndex={Math.floor(offset / limit) + 1}
+        pageCount={pageCount}
+        pageSize={limit.toString()}
+        rowCount={users.length || 0}
+        total={aggregates.total || 0}
+      />
+    </div>
+  );
 }

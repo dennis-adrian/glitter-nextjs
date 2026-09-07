@@ -1,0 +1,13 @@
+packages:
+  - '.'
+
+allowBuilds:
+  '@clerk/shared': true
+  '@fortawesome/fontawesome-common-types': true
+  '@fortawesome/fontawesome-svg-core': true
+  '@fortawesome/free-brands-svg-icons': true
+  core-js: true
+  esbuild: true
+  msgpackr-extract: true
+  protobufjs: true
+  sharp: true

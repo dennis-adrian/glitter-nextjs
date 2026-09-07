@@ -7,6 +7,7 @@ import UpdateFestivalRegistrationModal from "@/app/components/festivals/modals/u
 import clsx from "clsx";
 import FestivalSwitch from "@/app/components/festivals/switches/switch";
 import UpdateEventRegistrationModal from "@/app/components/festivals/modals/update-event-day-registration";
+import UpdateFestivalParticipantTermsModal from "@/app/components/festivals/modals/update-festival-participant-terms";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type FestivalSwitchesProps = {
@@ -17,6 +18,8 @@ export default function FestivalSwitches(props: FestivalSwitchesProps) {
   const [showFestivalUpdateModal, setShowFestivalUpdateModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [showEventDayRegistrationModal, setShowEventDayRegistrationModal] =
+    useState(false);
+  const [showParticipantTermsModal, setShowParticipantTermsModal] =
     useState(false);
 
   return (
@@ -43,6 +46,14 @@ export default function FestivalSwitches(props: FestivalSwitchesProps) {
           onChange={() => setShowRegistrationModal(true)}
         />
         <FestivalSwitch
+          checked={props.festival.participantTermsEnabled}
+          disabled={props.festival.status === "archived"}
+          festival={props.festival}
+          label="Términos para participantes"
+          tooltipContent="No se puede cambiar en un festival archivado"
+          onChange={() => setShowParticipantTermsModal(true)}
+        />
+        <FestivalSwitch
           checked={props.festival.eventDayRegistration}
           disabled={!props.festival.publicRegistration}
           festival={props.festival}
@@ -60,6 +71,11 @@ export default function FestivalSwitches(props: FestivalSwitchesProps) {
         open={showRegistrationModal}
         festival={props.festival}
         setOpen={setShowRegistrationModal}
+      />
+      <UpdateFestivalParticipantTermsModal
+        open={showParticipantTermsModal}
+        festival={props.festival}
+        setOpen={setShowParticipantTermsModal}
       />
       <UpdateEventRegistrationModal
         open={showEventDayRegistrationModal}

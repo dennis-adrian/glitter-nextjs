@@ -1,0 +1,1 @@
+ALTER TABLE "stand_reservations" ADD COLUMN "reveal_at" timestamp;

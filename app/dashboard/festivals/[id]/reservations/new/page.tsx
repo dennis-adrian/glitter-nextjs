@@ -1,6 +1,11 @@
-import { fetchAllFestivalEnrolledUsers } from "@/app/lib/festivals/actions";
+import {
+  fetchAllFestivalEnrolledUsers,
+  fetchBaseFestival,
+} from "@/app/lib/festivals/actions";
 import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchExternalParticipants } from "@/app/lib/external_participants/actions";
 import CreateReservationForm from "./form";
+import { notFound } from "next/navigation";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
@@ -13,18 +18,27 @@ export default async function NewReservationPage({
   params: Promise<z.infer<typeof ParamsSchema>>;
 }) {
   const { id } = ParamsSchema.parse(await params);
-  const [enrolledUsers, sectors] = await Promise.all([
-    fetchAllFestivalEnrolledUsers(id),
-    fetchFestivalSectors(id),
-  ]);
+  const [festival, enrolledUsers, sectors, externalParticipants] =
+    await Promise.all([
+      fetchBaseFestival(id),
+      fetchAllFestivalEnrolledUsers(id),
+      fetchFestivalSectors(id),
+      fetchExternalParticipants(),
+    ]);
+
+  if (!festival) notFound();
 
   return (
-    <div className="container max-w-lg py-8">
-      <h1 className="text-2xl font-bold mb-6">Agregar reserva</h1>
+    <div className="container p-4 md:p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Agregar reserva</h1>
+      </div>
       <CreateReservationForm
         festivalId={id}
         users={enrolledUsers}
         sectors={sectors}
+        externalParticipants={externalParticipants}
+        reservationsStartDate={festival.reservationsStartDate}
       />
     </div>
   );

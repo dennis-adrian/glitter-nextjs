@@ -1,107 +1,163 @@
 import { PaymentSummary } from "@/app/components/payments/payment-summary";
 import { ProductDetails } from "@/app/components/payments/product-details";
-import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
+import {
+  fetchInvoiceTenderSummary,
+  fetchInvoicesByReservation,
+} from "@/app/data/invoices/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
 import FreeReservationDetails from "@/app/components/payments/free-reservation-details";
+import InvoiceUnderReviewPanel from "@/app/components/payments/invoice-under-review-panel";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 
 const ParamsSchema = z.object({
-	festivalId: z.coerce.number(),
-	profileId: z.coerce.number(),
-	reservationId: z.coerce.number(),
+  festivalId: z.coerce.number(),
+  profileId: z.coerce.number(),
+  reservationId: z.coerce.number(),
 });
 
 export default async function Page(props: {
-	params: Promise<{
-		festivalId: string;
-		profileId: string;
-		reservationId: string;
-	}>;
+  params: Promise<{
+    festivalId: string;
+    profileId: string;
+    reservationId: string;
+  }>;
 }) {
-	const params = await props.params;
-	const validatedParams = ParamsSchema.safeParse(params);
-	if (!validatedParams.success) redirect("/");
+  const params = await props.params;
+  const validatedParams = ParamsSchema.safeParse(params);
+  if (!validatedParams.success) redirect("/");
 
-	const profile = await getCurrentUserProfile();
-	const festival = await fetchBaseFestival(validatedParams.data.festivalId);
-	if (!festival || !profile) notFound();
-	await protectRoute(profile, validatedParams.data.profileId);
+  const profile = await getCurrentUserProfile();
+  const festival = await fetchBaseFestival(validatedParams.data.festivalId);
+  if (!festival || !profile) notFound();
+  await protectRoute(profile, validatedParams.data.profileId);
 
-	const invoices = await fetchInvoicesByReservation(
-		validatedParams.data.reservationId,
-	);
-	const ownerInvoices = invoices.filter(
-		(invoice) => invoice.userId === profile.id,
-	);
+  const invoices = await fetchInvoicesByReservation(
+    validatedParams.data.reservationId,
+  );
+  if (invoices.length === 0) notFound();
 
-	if (ownerInvoices.length === 0) {
-		redirect(
-			`/profiles/${validatedParams.data.profileId}/festivals/${validatedParams.data.festivalId}/invoices`,
-		);
-	}
+  const ownerInvoices = invoices.filter(
+    (invoice) => invoice.userId === profile.id,
+  );
+  const isOwner = ownerInvoices.length > 0;
+  const visibleInvoices = isOwner ? ownerInvoices : invoices;
 
-	const pendingInvoices = ownerInvoices.filter(
-		(invoice) => invoice.status === "pending",
-	);
+  if (!isOwner) {
+    return (
+      <>
+        <StepIndicator
+          step={3}
+          totalSteps={3}
+          backLabel="Ver mi reserva"
+          backHref="/my_profile"
+        />
+        <div className="container p-4 md:p-6">
+          <h1 className="text-3xl font-bold mb-4">Factura de la reserva</h1>
+          <p className="text-muted-foreground mb-8">
+            Podés ver el estado del pago, pero solo quien figura en la factura
+            puede enviar el comprobante.
+          </p>
+          {visibleInvoices.map((invoice) => (
+            <div
+              key={invoice.id}
+              className="grid grid-cols-1 md:grid-cols-2 gap-8"
+            >
+              <ProductDetails festival={festival} invoice={invoice} />
+              {invoice.status === "verification_payment" ? (
+                <InvoiceUnderReviewPanel
+                  invoice={invoice}
+                  allowReplace={false}
+                  showVoucher={false}
+                />
+              ) : (
+                <PaymentSummary
+                  invoice={invoice}
+                  festivalId={validatedParams.data.festivalId}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  }
 
-	if (pendingInvoices.length === 0) {
-		return (
-			<>
-				<StepIndicator
-					step={3}
-					totalSteps={3}
-					backLabel="Ver mi reserva"
-					backHref="/my_profile"
-				/>
-				<div className="p-20">
-					<p className="text-center text-2xl font-bold text-gray-500">
-						No tienes pagos pendientes
-					</p>
-				</div>
-			</>
-		);
-	}
+  const actionableInvoices = ownerInvoices.filter(
+    (invoice) =>
+      invoice.status === "pending" || invoice.status === "verification_payment",
+  );
 
-	return (
-		<>
-			<StepIndicator
-				step={3}
-				totalSteps={3}
-				backLabel="Ver mi reserva"
-				backHref="/my_profile"
-			/>
-			{ownerInvoices.map((invoice) => {
-				if (invoice && invoice.status === "pending") {
-					return (
-						<div key={invoice.id} className="container p-4 md:p-6">
-							<h1 className="text-3xl font-bold mb-8">
-								{invoice.amount === 0
-									? "Confirma tu Reserva"
-									: "Completa tu Pago"}
-							</h1>
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-								<div className="flex flex-col gap-6">
-									<ProductDetails festival={festival} invoice={invoice} />
-									<PaymentSummary
-										invoice={invoice}
-										festivalId={validatedParams.data.festivalId}
-									/>
-								</div>
+  if (actionableInvoices.length === 0) {
+    return (
+      <>
+        <StepIndicator
+          step={3}
+          totalSteps={3}
+          backLabel="Ver mi reserva"
+          backHref="/my_profile"
+        />
+        <div className="p-20">
+          <p className="text-center text-2xl font-bold text-gray-500">
+            No tenés pagos pendientes
+          </p>
+        </div>
+      </>
+    );
+  }
 
-								{invoice.amount === 0 ? (
-									<FreeReservationDetails invoice={invoice} />
-								) : (
-									<QRCodeDetails invoice={invoice} />
-								)}
-							</div>
-						</div>
-					);
-				}
-			})}
-		</>
-	);
+  return (
+    <>
+      <StepIndicator
+        step={3}
+        totalSteps={3}
+        backLabel="Ver mi reserva"
+        backHref="/my_profile"
+      />
+      {await Promise.all(
+        actionableInvoices.map(async (invoice) => {
+          const underReview = invoice.status === "verification_payment";
+          const tender = await fetchInvoiceTenderSummary(invoice.id);
+          const outstandingAmount = tender?.outstandingAmount ?? invoice.amount;
+          return (
+            <div key={invoice.id} className="container p-4 md:p-6">
+              <h1 className="text-3xl font-bold mb-8">
+                {underReview
+                  ? "Tu pago está en revisión"
+                  : invoice.amount === 0
+                    ? "Solicitá la revisión de tu reserva"
+                    : "Completá el pago"}
+              </h1>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="flex flex-col gap-6">
+                  <ProductDetails festival={festival} invoice={invoice} />
+                  <PaymentSummary
+                    invoice={invoice}
+                    festivalId={validatedParams.data.festivalId}
+                    approvedCashAmount={tender?.approvedCashAmount}
+                    creditAppliedAmount={tender?.confirmedCreditAmount}
+                    outstandingAmount={outstandingAmount}
+                  />
+                </div>
+
+                {underReview ? (
+                  <InvoiceUnderReviewPanel invoice={invoice} />
+                ) : invoice.amount === 0 ? (
+                  <FreeReservationDetails invoice={invoice} />
+                ) : (
+                  <QRCodeDetails
+                    invoice={invoice}
+                    outstandingAmount={outstandingAmount}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        }),
+      )}
+    </>
+  );
 }

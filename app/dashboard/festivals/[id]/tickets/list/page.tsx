@@ -26,7 +26,11 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         <TicketsTable tickets={tickets} festival={festival} />
       </TabsContent>
       <TabsContent value="confirmed">
-        <TicketsTable tickets={tickets} status="checked_in" festival={festival} />
+        <TicketsTable
+          tickets={tickets}
+          status="checked_in"
+          festival={festival}
+        />
       </TabsContent>
       <TabsContent value="pending">
         <TicketsTable tickets={tickets} status="pending" festival={festival} />

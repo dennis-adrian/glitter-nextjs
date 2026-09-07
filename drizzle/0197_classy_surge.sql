@@ -1,0 +1,1 @@
+ALTER TABLE "external_participants" ADD COLUMN "contact_phone" text;

@@ -1,0 +1,1 @@
+ALTER TABLE "session_purchase_lines" ADD CONSTRAINT "session_purchase_lines_occurrence_session_fk" FOREIGN KEY ("occurrence_id","session_id") REFERENCES "public"."session_occurrences"("id","session_id") ON DELETE restrict ON UPDATE no action;

@@ -19,7 +19,14 @@ export interface StandTemplate {
 
 // Map element template - represents a signaling element in a template
 export interface MapElementTemplate {
-  type: "entrance" | "stage" | "door" | "bathroom" | "label" | "custom" | "stairs";
+  type:
+    | "entrance"
+    | "stage"
+    | "door"
+    | "bathroom"
+    | "label"
+    | "custom"
+    | "stairs";
   label: string | null;
   labelPosition?: "left" | "right" | "top" | "bottom";
   labelFontSize?: number;

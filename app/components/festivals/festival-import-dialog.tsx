@@ -57,8 +57,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isLegacy = parsedFile?.type === "legacy";
-  const hasBasicInfo =
-    parsedFile?.type === "v2" && !!parsedFile.data.festival;
+  const hasBasicInfo = parsedFile?.type === "v2" && !!parsedFile.data.festival;
   const hasSectors =
     parsedFile?.type === "v2"
       ? !!parsedFile.data.sectors
@@ -170,18 +169,12 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
         const festivalId = props.festivalId;
 
         if (parsedFile.type === "v2") {
-          const result = await importFestivalData(
-            festivalId,
-            parsedFile.data,
-            {
-              importBasicInfo,
-              importSectors,
-              sectorImportMode,
-              nameOverride: importBasicInfo
-                ? festivalName.trim()
-                : undefined,
-            },
-          );
+          const result = await importFestivalData(festivalId, parsedFile.data, {
+            importBasicInfo,
+            importSectors,
+            sectorImportMode,
+            nameOverride: importBasicInfo ? festivalName.trim() : undefined,
+          });
 
           if (result.success) {
             const details = result.details;
@@ -192,7 +185,9 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                 `${details.sectorsCreated} sector${details.sectorsCreated !== 1 ? "es" : ""}`,
               );
             if (details?.standsCreated)
-              parts.push(`${details.standsCreated} espacio${details.standsCreated !== 1 ? "s" : ""}`);
+              parts.push(
+                `${details.standsCreated} espacio${details.standsCreated !== 1 ? "s" : ""}`,
+              );
 
             toast.success(
               parts.length > 0
@@ -264,8 +259,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
         festivalType: festival?.festivalType,
         datesCount: festival?.dates.length ?? 0,
         sectorsCount: sectors?.length ?? 0,
-        standsCount:
-          sectors?.reduce((acc, s) => acc + s.stands.length, 0) ?? 0,
+        standsCount: sectors?.reduce((acc, s) => acc + s.stands.length, 0) ?? 0,
         hasBasicInfo: !!festival,
         hasSectors: !!sectors,
       };
@@ -360,9 +354,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
               {preview.hasBasicInfo && (
                 <p className="text-xs text-muted-foreground">
                   Festival: {preview.festivalName}
-                  {preview.festivalType
-                    ? ` (${preview.festivalType})`
-                    : ""}
+                  {preview.festivalType ? ` (${preview.festivalType})` : ""}
                   {preview.datesCount > 0
                     ? ` - ${preview.datesCount} fecha${preview.datesCount !== 1 ? "s" : ""}`
                     : ""}
@@ -391,9 +383,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                 >
                   <Checkbox
                     checked={importBasicInfo}
-                    onCheckedChange={(checked) =>
-                      setImportBasicInfo(!!checked)
-                    }
+                    onCheckedChange={(checked) => setImportBasicInfo(!!checked)}
                     disabled={!hasBasicInfo}
                   />
                   <span className="text-sm">
@@ -408,14 +398,10 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                 >
                   <Checkbox
                     checked={importSectors}
-                    onCheckedChange={(checked) =>
-                      setImportSectors(!!checked)
-                    }
+                    onCheckedChange={(checked) => setImportSectors(!!checked)}
                     disabled={!hasSectors}
                   />
-                  <span className="text-sm">
-                    Sectores y espacios
-                  </span>
+                  <span className="text-sm">Sectores y espacios</span>
                 </label>
               </div>
             </div>
@@ -425,8 +411,8 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                 <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm">
                   <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>
-                    Esto sobrescribira la informacion basica del festival
-                    actual (nombre, fechas, descripcion, etc.)
+                    Esto sobrescribira la informacion basica del festival actual
+                    (nombre, fechas, descripcion, etc.)
                   </span>
                 </div>
                 <div className="grid gap-2">
@@ -495,8 +481,8 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
               )}
               {preview?.hasSectors && (
                 <>
-                  {preview.hasBasicInfo ? " y" : " con"}{" "}
-                  {preview.sectorsCount} sector
+                  {preview.hasBasicInfo ? " y" : " con"} {preview.sectorsCount}{" "}
+                  sector
                   {preview.sectorsCount !== 1 ? "es" : ""} (
                   {preview.standsCount} espacio
                   {preview.standsCount !== 1 ? "s" : ""})

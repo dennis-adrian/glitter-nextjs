@@ -1,79 +1,166 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import FullTablePanel from "@/app/components/festivals/reservations/full-table-panel";
 import MapTabsClient from "@/app/components/festivals/reservations/map-tabs-client";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
-import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
+import {
+  getSelfServiceDenialAtOpen,
+  getSelfServicePageDenial,
+} from "@/app/lib/reservations/entry";
+import {
+  fetchFestivalReservationMapDto,
+  fetchSelfServiceFestivalSnapshot,
+  fetchSelfServiceTargetProfile,
+} from "@/app/lib/reservations/map-queries";
+import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { db } from "@/db";
-import { standHolds } from "@/db/schema";
-import { and, eq, gt } from "drizzle-orm";
-import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 
 type MapReservationPageProps = {
-	profileId: number;
-	festivalId: number;
+  profileId: number;
+  festivalId: number;
 };
 
+/**
+ * The full-table offer for someone the clock alone is holding back, or null
+ * when a second rule blocks them too.
+ */
+async function preOpenFullTableOffer(input: {
+  actor: { id: number; role: string } | null;
+  profile: { id: number; category: string };
+  festivalId: number;
+}) {
+  // Same rule as the open map below: the panel's actions resolve the actor from
+  // the session, so showing it to an admin viewing someone else's countdown
+  // would put that participant's balance over a button spending the admin's own
+  // credits.
+  if (input.actor?.id !== input.profile.id) return null;
+
+  const remaining = await getSelfServiceDenialAtOpen({
+    actor: input.actor,
+    profileId: input.profile.id,
+    festivalId: input.festivalId,
+  });
+  if (remaining) return null;
+
+  const [fullTableOffer, creditsEnabled] = await Promise.all([
+    fetchFullTableOffer({
+      userId: input.profile.id,
+      festivalId: input.festivalId,
+      category: input.profile.category,
+    }),
+    isFeatureEnabled("credits"),
+  ]);
+  return { fullTableOffer, creditsEnabled };
+}
+
 export default async function MapReservationPage(
-	props: MapReservationPageProps,
+  props: MapReservationPageProps,
 ) {
-	const currentProfile = await getCurrentUserProfile();
-	await protectRoute(currentProfile || undefined, props.profileId);
+  const currentProfile = await getCurrentUserProfile();
+  await protectRoute(currentProfile || undefined, props.profileId);
 
-	const festival = await fetchBaseFestival(props.festivalId);
-	if (!festival) notFound();
+  const [festival, forProfile] = await Promise.all([
+    fetchSelfServiceFestivalSnapshot(props.festivalId),
+    fetchSelfServiceTargetProfile(props.profileId, props.festivalId),
+  ]);
+  if (!festival || !forProfile) notFound();
 
-	const reservationStartDate = DateTime.fromJSDate(
-		festival.reservationsStartDate,
-	);
-	const currentTime = DateTime.now();
-	if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
-		return <ReservationNotAllowed festival={festival} />;
-	}
+  const denial = await getSelfServicePageDenial({
+    actor: currentProfile
+      ? { id: currentProfile.id, role: currentProfile.role }
+      : null,
+    targetProfile: forProfile,
+    festival,
+  });
+  if (denial?.code === "TERMS_STALE") {
+    return <TermsReacceptanceRequired festivalId={festival.id} />;
+  }
+  // The days between the terms shipping and the map opening are exactly when
+  // participants are meant to settle the money question, and this countdown is
+  // the page they land on. The offer rides along beneath it (PRD §7.2) —
+  // `activateFullTableAccess` has no window of its own, so nothing else has to
+  // move. Only the clock may be lifted: `getSelfServiceDenialAtOpen` re-runs
+  // every other rule at the opening instant, because RESERVATIONS_NOT_OPEN is
+  // evaluated first and would otherwise hide an unenrolled participant.
+  if (denial?.code === "RESERVATIONS_NOT_OPEN") {
+    const offer = await preOpenFullTableOffer({
+      actor: currentProfile
+        ? { id: currentProfile.id, role: currentProfile.role }
+        : null,
+      profile: forProfile,
+      festivalId: festival.id,
+    });
 
-	const forProfile = await fetchUserProfileById(props.profileId);
-	if (!forProfile) notFound();
+    return (
+      <>
+        {offer ? (
+          <div className="container px-4 pt-4 md:px-6 md:pt-6">
+            <div className="mx-auto max-w-[600px]">
+              <FullTablePanel
+                offer={offer.fullTableOffer}
+                festivalId={festival.id}
+                creditsEnabled={offer.creditsEnabled}
+              />
+            </div>
+          </div>
+        ) : null}
+        <ReservationNotAllowed festival={festival} policyCode={denial.code} />
+      </>
+    );
+  }
+  if (denial) {
+    return (
+      <ReservationNotAllowed
+        festival={festival}
+        policyCode={denial.code}
+        sanctionBlock={denial.sanctionBlock}
+      />
+    );
+  }
 
-	const inFestival = isProfileInFestival(festival.id, forProfile);
-	if (!inFestival) {
-		return (
-			<div className="text-muted-foreground flex pt-8 justify-center">
-				No estás habilitado para participar en este evento
-			</div>
-		);
-	}
+  const map = await fetchFestivalReservationMapDto({
+    festivalId: festival.id,
+    profileId: forProfile.id,
+    actorProfileId: currentProfile?.id ?? null,
+    revealHiddenIdentities: canViewAdminReservationData(
+      currentProfile
+        ? { id: currentProfile.id, role: currentProfile.role }
+        : null,
+    ),
+  });
+  if (!map) notFound();
 
-	const subcategoryIds = forProfile.profileSubcategories.map(
-		(ps) => ps.subcategoryId,
-	);
-	const sectors = await fetchFestivalSectorsByUserCategory(
-		festival.id,
-		forProfile.category,
-		subcategoryIds,
-		forProfile.participationType,
-	);
+  // The full-table decision happens here, before the map: the map is for
+  // choosing a space, never for financial setup (PRD §7.2).
+  // Only for the participant themselves. Its actions resolve the actor from
+  // the session, so an admin viewing someone else's map would be shown that
+  // participant's balance while spending their own credits.
+  const viewingOwnMap = currentProfile?.id === forProfile.id;
+  const [fullTableOffer, creditsEnabled] = await Promise.all([
+    viewingOwnMap
+      ? fetchFullTableOffer({
+          userId: forProfile.id,
+          festivalId: festival.id,
+          category: forProfile.category,
+        })
+      : null,
+    isFeatureEnabled("credits"),
+  ]);
 
-	const activeHoldRow = await db.query.standHolds.findFirst({
-		where: and(
-			eq(standHolds.userId, forProfile.id),
-			eq(standHolds.festivalId, festival.id),
-			gt(standHolds.expiresAt, new Date()),
-		),
-		columns: { id: true, standId: true },
-	});
-	const activeHold = activeHoldRow
-		? { id: activeHoldRow.id, standId: activeHoldRow.standId }
-		: null;
-
-	return (
-		<MapTabsClient
-			festival={festival}
-			profile={forProfile}
-			sectors={sectors}
-			activeHold={activeHold}
-			subcategoryIds={subcategoryIds}
-		/>
-	);
+  return (
+    <>
+      {/* A banner here, not the full pitch: this page is where the participant
+          picks a space, and the offer has already had a screen of its own. */}
+      {fullTableOffer && (
+        <FullTablePanel
+          offer={fullTableOffer}
+          festivalId={festival.id}
+          creditsEnabled={creditsEnabled}
+        />
+      )}
+      <MapTabsClient map={map} />
+    </>
+  );
 }

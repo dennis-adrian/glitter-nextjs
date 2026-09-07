@@ -10,7 +10,7 @@ export default function ProfileCell({ profile }: { profile: BaseProfile }) {
         <AvatarImage
           src={profile.imageUrl || "/img/placeholders/avatar-placeholder.png"}
           alt={
-            profile.displayName 
+            profile.displayName
               ? `Imagen de perfil de ${profile.displayName}`
               : "Imagen de perfil"
           }

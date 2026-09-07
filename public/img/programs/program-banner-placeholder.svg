@@ -1,0 +1,85 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1600 1200"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">Imagen de programa pendiente</title>
+  <desc id="description">
+    Composición abstracta con formas coloridas de la identidad de Glitter.
+  </desc>
+  <defs>
+    <linearGradient id="background" x1="100" y1="80" x2="1510" y2="1130">
+      <stop offset="0" stop-color="#72E5E7" />
+      <stop offset="0.52" stop-color="#FFC1FD" />
+      <stop offset="1" stop-color="#FFF4D7" />
+    </linearGradient>
+    <linearGradient id="ribbon" x1="380" y1="200" x2="1300" y2="1000">
+      <stop offset="0" stop-color="#B374FF" />
+      <stop offset="1" stop-color="#7333D4" />
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow
+        dx="0"
+        dy="22"
+        stdDeviation="24"
+        flood-color="#4B255F"
+        flood-opacity=".18"
+      />
+    </filter>
+  </defs>
+
+  <rect width="1600" height="1200" fill="url(#background)" />
+  <circle cx="1365" cy="155" r="280" fill="#FFBE57" opacity=".8" />
+  <circle cx="170" cy="1080" r="360" fill="#9347F5" opacity=".28" />
+  <path
+    d="M-85 358C213 175 409 237 592 373c186 138 322 114 492-30 190-162 390-152 601 5v352c-218-152-420-164-616-8-176 140-321 169-508 42C358 596 169 530-85 696Z"
+    fill="url(#ribbon)"
+    opacity=".92"
+  />
+  <path
+    d="M131 151c106 4 183 62 211 171-103 30-196 2-253-88 8-37 22-64 42-83Z"
+    fill="#FFFDF7"
+    opacity=".76"
+  />
+  <path
+    d="M1418 846c98 20 159 87 169 189-105 9-192-35-231-126 15-31 35-52 62-63Z"
+    fill="#6FE7E9"
+  />
+
+  <g filter="url(#shadow)">
+    <rect
+      x="480"
+      y="330"
+      width="640"
+      height="540"
+      rx="72"
+      fill="#FFFAF3"
+      transform="rotate(-3 800 600)"
+    />
+    <g
+      fill="none"
+      stroke="#4B255F"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="30"
+    >
+      <path d="m601 711 128-137 105 96 119-129 142 170" />
+      <circle cx="694" cy="492" r="47" fill="#FFBE57" />
+    </g>
+    <path
+      d="M642 813h331"
+      fill="none"
+      stroke="#9347F5"
+      stroke-linecap="round"
+      stroke-width="30"
+    />
+  </g>
+
+  <g fill="#4B255F">
+    <path d="m262 806 18 55 55 18-55 18-18 55-18-55-55-18 55-18Z" />
+    <path d="m1282 381 14 42 42 14-42 14-14 42-14-42-42-14 42-14Z" />
+    <circle cx="1274" cy="733" r="18" />
+    <circle cx="372" cy="374" r="13" />
+  </g>
+</svg>

@@ -1,369 +1,603 @@
 "use client";
 
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
+import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-actions";
+import OrdersFilterSheet from "@/app/components/organisms/orders/orders-filter-sheet";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import SocialMediaBadge from "@/app/components/social-media-badge";
+import { Badge } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderStatusLabel } from "@/app/lib/orders/utils";
-import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
-import { Input } from "@/app/components/ui/input";
-import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
+import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
+import type { OrderStatusCounts } from "@/app/lib/orders/actions";
+import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
+import {
+  storeOrdersQueryToSearchParams,
+  type StoreOrdersQuery,
+} from "@/app/lib/orders/query-schema";
+import {
+  getOrderItemDisplayName,
+  getOrderStatusLabel,
+} from "@/app/lib/orders/utils";
+import {
+  getStoreCategoryBadgeLabel,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
+import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
+import { getRentalOrderFilterLabel } from "@/app/lib/rentals/order-filters";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
-	AlertTriangleIcon,
-	ChevronRightIcon,
-	DownloadIcon,
-	ReceiptIcon,
-	SearchIcon,
-	SlidersHorizontalIcon,
+  AlertTriangleIcon,
+  ChevronRightIcon,
+  DownloadIcon,
+  ListChecksIcon,
+  ReceiptIcon,
 } from "lucide-react";
 import { DateTime } from "luxon";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useOptimistic, useState, useTransition } from "react";
+import { use, useOptimistic, useState, useTransition } from "react";
+import { toast } from "sonner";
+import { useDebouncedCallback } from "use-debounce";
 
 type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersCardListProps = {
-	ordersPromise: Promise<OrderWithRelations[]>;
-	activeStatus: ActiveStatus;
+  ordersPromise: Promise<AdminOrderListRow[]>;
+  countsPromise: Promise<OrderStatusCounts>;
+  query: StoreOrdersQuery;
 };
 
-const STATUS_OPTIONS: { value: "" | OrderStatus | "needs_attention"; label: string }[] = [
-	{ value: "", label: "Todos" },
-	{ value: "needs_attention", label: "Requieren atención" },
-	{ value: "pending", label: getOrderStatusLabel("pending") },
-	{
-		value: "payment_verification",
-		label: getOrderStatusLabel("payment_verification"),
-	},
-	{ value: "processing", label: getOrderStatusLabel("processing") },
-	{ value: "paid", label: getOrderStatusLabel("paid") },
-	{ value: "delivered", label: getOrderStatusLabel("delivered") },
-	{ value: "cancelled", label: getOrderStatusLabel("cancelled") },
+const RENTAL_FILTER_OPTIONS: { value: RentalOrderFilter; label: string }[] = [
+  { value: "all", label: getRentalOrderFilterLabel("all") },
+  { value: "has_rental", label: getRentalOrderFilterLabel("has_rental") },
+  { value: "out", label: getRentalOrderFilterLabel("out") },
+  {
+    value: "partially_returned",
+    label: getRentalOrderFilterLabel("partially_returned"),
+  },
+  { value: "returned", label: getRentalOrderFilterLabel("returned") },
 ];
 
-function chipToActive(value: "" | OrderStatus | "needs_attention"): ActiveStatus {
-	return value === "" ? "all" : value;
-}
-
-function sanitizeCsvCell(value: string) {
-	const normalized = String(value).trim();
-	if (!normalized) return normalized;
-
-	const firstChar = normalized[0];
-	if (firstChar === "=" || firstChar === "+" || firstChar === "-" || firstChar === "@") {
-		return `'${normalized}`;
-	}
-
-	return normalized;
-}
-
-function exportOrdersToCsv(orders: OrderWithRelations[]) {
-	const headers = [
-		"ID",
-		"Tipo",
-		"Cliente",
-		"Teléfono",
-		"Productos",
-		"Total (Bs)",
-		"Estado",
-		"Fecha",
-	];
-	const rows = orders.map((o) => [
-		sanitizeCsvCell(String(o.id)),
-		sanitizeCsvCell(o.customer ? "Participante" : "Invitado"),
-		sanitizeCsvCell(o.customer?.displayName ?? o.guestName ?? "Invitado"),
-		sanitizeCsvCell(o.customer?.phoneNumber ?? o.guestPhone ?? ""),
-		sanitizeCsvCell(
-			o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
-		),
-		sanitizeCsvCell(o.totalAmount.toFixed(2)),
-		sanitizeCsvCell(getOrderStatusLabel(o.status)),
-		sanitizeCsvCell(
-			formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
-		),
-	]);
-
-	const csv = [headers, ...rows]
-		.map((row) =>
-			row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-		)
-		.join("\n");
-
-	const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-	const url = URL.createObjectURL(blob);
-	const link = document.createElement("a");
-	link.href = url;
-	link.download = `pedidos-${DateTime.now().toISODate()}.csv`;
-	link.click();
-	URL.revokeObjectURL(url);
-}
+const STATUS_OPTIONS: {
+  value: "" | OrderStatus | "needs_attention";
+  label: string;
+}[] = [
+  { value: "", label: "Todos" },
+  { value: "needs_attention", label: "Requieren atención" },
+  { value: "pending", label: getOrderStatusLabel("pending") },
+  {
+    value: "payment_verification",
+    label: getOrderStatusLabel("payment_verification"),
+  },
+  { value: "processing", label: getOrderStatusLabel("processing") },
+  { value: "paid", label: getOrderStatusLabel("paid") },
+  { value: "delivered", label: getOrderStatusLabel("delivered") },
+  { value: "cancelled", label: getOrderStatusLabel("cancelled") },
+];
 
 function OrderCard({
-	order,
-	activeStatus,
+  order,
+  selectedStatuses,
+  categoryScope,
+  selectionMode,
+  isSelected,
+  canSelect,
+  onToggleSelect,
 }: {
-	order: OrderWithRelations;
-	activeStatus: ActiveStatus;
+  order: AdminOrderListRow;
+  selectedStatuses: string[];
+  categoryScope: StoreCategoryScope;
+  selectionMode: boolean;
+  isSelected: boolean;
+  canSelect: boolean;
+  onToggleSelect: () => void;
 }) {
-	const router = useRouter();
-	const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
-	const goToOrder = () => router.push(`/dashboard/store/orders/${order.id}`);
+  const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
 
-	const isOverdue =
-		!!order.paymentDueDate &&
-		formatDate(order.paymentDueDate) < nowInStore &&
-		(order.status === "pending" || order.status === "payment_verification");
+  const isOverdue =
+    !!order.paymentDueDate &&
+    formatDate(order.paymentDueDate) < nowInStore &&
+    (order.status === "pending" || order.status === "payment_verification");
 
-	const hasPendingVoucher =
-		!!order.paymentVoucherUrl && order.status === "payment_verification";
+  const hasPendingVoucher =
+    !!order.paymentVoucherUrl && order.status === "payment_verification";
 
-	const showStatusBadge = activeStatus === "all" || activeStatus === "needs_attention";
-	const showOverdueBadge =
-		isOverdue &&
-		(activeStatus === "all" ||
-			activeStatus === "needs_attention" ||
-			activeStatus === "pending");
+  const isSingleConcreteStatus =
+    selectedStatuses.length === 1 && selectedStatuses[0] !== "needs_attention";
+  const showStatusBadge = !isSingleConcreteStatus;
+  const showOverdueBadge =
+    isOverdue &&
+    (!isSingleConcreteStatus ||
+      selectedStatuses[0] === "pending" ||
+      selectedStatuses[0] === "payment_verification");
 
-	const itemsPreview = order.orderItems
-		.slice(0, 2)
-		.map((item) => `${item.quantity}× ${item.product.name}`)
-		.join(", ");
-	const extraItems =
-		order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";
+  const itemsPreview = order.orderItems
+    .slice(0, 2)
+    .map((item) => `${item.quantity}× ${getOrderItemDisplayName(item)}`)
+    .join(", ");
+  const extraItems =
+    order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";
 
-	return (
-		<Card
-			className={cn(
-				"cursor-pointer transition-colors hover:bg-accent/40",
-				isOverdue && "border-red-200 bg-red-50/30",
-			)}
-			role="button"
-			tabIndex={0}
-			onClick={goToOrder}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					goToOrder();
-				}
-			}}
-		>
-			<CardContent className="p-4">
-				<div className="flex items-start justify-between gap-2">
-					<div className="flex flex-col gap-1.5 min-w-0">
-						<div className="flex flex-wrap items-center gap-1.5">
-							<span className="text-sm font-semibold">#{order.id}</span>
-							{showStatusBadge && <OrderStatusBadge status={order.status} />}
-							{showOverdueBadge && (
-								<span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
-									<AlertTriangleIcon className="h-3 w-3" />
-									Vencido
-								</span>
-							)}
-							{hasPendingVoucher && (
-								<span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
-									<ReceiptIcon className="h-3 w-3" />
-									Comprobante
-								</span>
-							)}
-						</div>
+  // Category only earns a slot when the list isn't already scoped to one.
+  const categoryLabel = order.isMixedCategory
+    ? "Pedido mixto"
+    : order.storeCategories.map(getStoreCategoryBadgeLabel).join(", ");
+  const metaPrefix = [
+    categoryScope === "all" && categoryLabel ? categoryLabel : null,
+    order.orderItems.length > 0 ? `${itemsPreview}${extraItems}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const createdLabel = formatDate(order.createdAt).toLocaleString(
+    DateTime.DATE_MED,
+  );
 
-						<p className="text-sm text-muted-foreground truncate">
-							{order.customer?.displayName ?? order.guestName ?? "Invitado"}
-						</p>
-						{!order.customer && order.guestPhone && (
-							<div onClick={(e) => e.stopPropagation()}>
-								<SocialMediaBadge
-									socialMediaType="whatsapp"
-									username={order.guestPhone}
-								/>
-							</div>
-						)}
+  return (
+    <Card
+      className={cn(
+        "relative transition-colors hover:bg-accent/40",
+        selectionMode && "cursor-pointer",
+        // A soft tint, not an edge stripe: the "Vencido" pill already labels
+        // the state, so the card only needs to be findable in a scan.
+        isOverdue && "border-red-200 bg-red-50/30",
+        selectionMode && isSelected && "border-primary bg-primary/5",
+      )}
+      role={selectionMode ? "checkbox" : undefined}
+      aria-checked={selectionMode ? isSelected : undefined}
+      tabIndex={selectionMode ? 0 : undefined}
+      onClick={selectionMode ? onToggleSelect : undefined}
+      onKeyDown={
+        selectionMode
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onToggleSelect();
+              }
+            }
+          : undefined
+      }
+    >
+      <CardContent className="p-3">
+        <div className="flex items-start gap-2">
+          {selectionMode && (
+            /* Purely visual: the card itself carries the checkbox semantics. */
+            <Checkbox
+              checked={isSelected}
+              disabled={!canSelect}
+              onCheckedChange={onToggleSelect}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1 shrink-0"
+              tabIndex={-1}
+              aria-hidden="true"
+            />
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            {/* The two things scanned first: which order, and how much. */}
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                #{order.id}
+              </span>
+              <span className="flex shrink-0 items-center gap-0.5">
+                <span className="text-base font-semibold tabular-nums">
+                  Bs {order.totalAmount.toFixed(2)}
+                </span>
+                {!selectionMode && (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </span>
+            </div>
 
-						{order.orderItems.length > 0 && (
-							<p className="text-xs text-muted-foreground truncate">
-								{itemsPreview}
-								{extraItems}
-							</p>
-						)}
+            {/* Routine state is a dot; pills are reserved for exceptions. */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                {showStatusBadge && (
+                  <OrderStatusBadge status={order.status} appearance="dot" />
+                )}
+                {showOverdueBadge && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-red-300 bg-red-50 text-red-600"
+                  >
+                    <AlertTriangleIcon className="h-3 w-3" />
+                    Vencido
+                  </Badge>
+                )}
+                {hasPendingVoucher && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-blue-300 bg-blue-50 text-blue-600"
+                  >
+                    <ReceiptIcon className="h-3 w-3" />
+                    Comprobante
+                  </Badge>
+                )}
+              </div>
+              {!selectionMode && (
+                <span className="relative z-10 shrink-0">
+                  <OrdersActionsCell order={order} />
+                </span>
+              )}
+            </div>
 
-						<p className="text-xs text-muted-foreground capitalize">
-							{formatDate(order.createdAt).toLocaleString(DateTime.DATE_MED)}
-						</p>
-					</div>
+            <p className="truncate text-sm font-medium">
+              {order.customer?.displayName ?? order.guestName ?? "Invitado"}
+            </p>
+            {!order.customer && order.guestPhone && (
+              <div className="relative z-10">
+                <SocialMediaBadge
+                  socialMediaType="whatsapp"
+                  username={order.guestPhone}
+                />
+              </div>
+            )}
 
-					<div className="flex flex-col items-end gap-2 shrink-0">
-						<div className="flex items-center gap-1">
-							<span className="font-semibold text-sm">
-								Bs {order.totalAmount.toFixed(2)}
-							</span>
-							<ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-						</div>
-						<div onClick={(e) => e.stopPropagation()}>
-							<OrdersActionsCell order={order} />
-						</div>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
-	);
+            {/* Category, items and date collapse into one muted line. */}
+            <p className="truncate text-xs text-muted-foreground">
+              {metaPrefix && `${metaPrefix} · `}
+              <span className="capitalize">{createdLabel}</span>
+            </p>
+
+            {order.isMixedCategory &&
+              order.scopedSubtotal !== order.totalAmount && (
+                <span className="text-xs text-muted-foreground">
+                  Subtotal en este filtro{" "}
+                  <span className="tabular-nums">
+                    Bs {order.scopedSubtotal.toFixed(2)}
+                  </span>
+                </span>
+              )}
+          </div>
+        </div>
+      </CardContent>
+      {!selectionMode && (
+        <Link
+          href={`/dashboard/store/orders/${order.id}`}
+          className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={`Pedido #${order.id}, ${
+            order.customer?.displayName ?? order.guestName ?? "Invitado"
+          }, ${getOrderStatusLabel(order.status)}`}
+        />
+      )}
+    </Card>
+  );
 }
 
 export default function OrdersCardList({
-	ordersPromise,
-	activeStatus,
+  ordersPromise,
+  countsPromise,
+  query,
 }: OrdersCardListProps) {
-	const orders = use(ordersPromise);
-	const router = useRouter();
-	const [isPending, startTransition] = useTransition();
-	const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
-	const [search, setSearch] = useState("");
-	const [filtersOpen, setFiltersOpen] = useState(false);
-	const {
-		period,
-		dateFrom,
-		dateTo,
-		hasCustomRange,
-		filteredByDate,
-		selectPeriod,
-		handleFromChange,
-		handleToChange,
-	} = useOrdersDateFilter(orders);
+  const orders = use(ordersPromise);
+  const counts = use(countsPromise);
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const selectedStatuses = (
+    query.statuses || (query.status === "all" ? "" : query.status)
+  )
+    .split(",")
+    .filter(Boolean);
+  const [optimisticStatuses, setOptimisticStatuses] =
+    useOptimistic(selectedStatuses);
+  const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
+    query.rental,
+  );
+  const [search, setSearch] = useState(query.q);
+  const [previousQuerySearch, setPreviousQuerySearch] = useState(query.q);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
-	function handleStatusChange(value: "" | OrderStatus | "needs_attention") {
-		const param = value === "" ? "all" : value;
-		startTransition(() => {
-			setOptimisticStatus(chipToActive(value));
-			setSearch("");
-			router.push(`/dashboard/store/orders?status=${param}`);
-		});
-	}
+  const queryScopeKey = [
+    optimisticStatuses.join(",") || "all",
+    optimisticRentalFilter,
+    query.period,
+    query.from ?? "",
+    query.to ?? "",
+    query.q,
+    query.category,
+  ].join("|");
+  const [selectionScopeKey, setSelectionScopeKey] = useState(queryScopeKey);
+  const scopeChanged = queryScopeKey !== selectionScopeKey;
+  if (scopeChanged) {
+    setSelectionScopeKey(queryScopeKey);
+  }
 
-	const visibleOrders = useMemo(() => {
-		const q = search.trim().toLowerCase();
-		if (!q) return filteredByDate;
-		return filteredByDate.filter((o) => {
-			const customer = (
-				o.customer?.displayName ??
-				o.guestName ??
-				""
-			).toLowerCase();
-			const id = String(o.id);
-			const items = o.orderItems
-				.map((i) => i.product.name.toLowerCase())
-				.join(" ");
-			return customer.includes(q) || id.includes(q) || items.includes(q);
-		});
-	}, [filteredByDate, search]);
+  // Drop IDs that left the visible list so they stay unselected if they return.
+  // Clear all selection when the active query scope changes.
+  const visibleIds = new Set(orders.map((order) => order.id));
+  const prunedSelectedIds = scopeChanged
+    ? []
+    : selectedIds.filter((id) => visibleIds.has(id));
+  if (prunedSelectedIds.length !== selectedIds.length) {
+    setSelectedIds(prunedSelectedIds);
+  }
 
-	return (
-		<div className="flex flex-col gap-4">
-			{/* Status filter */}
-			<div className="flex flex-col gap-1.5">
-				<div className="flex items-center justify-between">
-					<span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-						Estado
-					</span>
-					<div className="flex items-center gap-1.5">
-						<button
-							onClick={() => exportOrdersToCsv(visibleOrders)}
-							className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
-						>
-							<DownloadIcon className="h-3.5 w-3.5" />
-							CSV
-						</button>
-						<button
-							onClick={() => setFiltersOpen((v) => !v)}
-							className={cn(
-								"relative inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-								filtersOpen
-									? "border-primary bg-primary/10 text-primary"
-									: "border-border text-muted-foreground hover:bg-accent",
-							)}
-						>
-							<SlidersHorizontalIcon className="h-3.5 w-3.5" />
-							Filtros
-							{(search !== "" || hasCustomRange || period !== "all") && (
-								<span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
-							)}
-						</button>
-					</div>
-				</div>
-				<div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
-					{STATUS_OPTIONS.map((opt) => {
-						const isActive = optimisticStatus === chipToActive(opt.value);
-						return (
-							<button
-								key={opt.value}
-								onClick={() => handleStatusChange(opt.value)}
-								className={cn(
-									"shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-									isActive
-										? "bg-primary text-primary-foreground border-primary"
-										: "border-border text-muted-foreground hover:bg-accent",
-								)}
-							>
-								{opt.label}
-							</button>
-						);
-					})}
-				</div>
-			</div>
+  const selectedOrders = orders.filter((order) =>
+    prunedSelectedIds.includes(order.id),
+  );
+  const selectionCap = Math.min(orders.length, BULK_ORDER_STATUS_LIMIT);
+  const allSelected =
+    orders.length > 0 && selectedOrders.length === selectionCap;
+  const atSelectionLimit = prunedSelectedIds.length >= BULK_ORDER_STATUS_LIMIT;
 
-			{filtersOpen && (
-				<>
-					{/* Search */}
-					<div className="relative">
-						<SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							placeholder="Buscar por cliente, ID o producto..."
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="pl-9"
-						/>
-					</div>
+  function toggleSelected(orderId: number) {
+    if (prunedSelectedIds.includes(orderId)) {
+      setSelectedIds((current) => current.filter((id) => id !== orderId));
+      return;
+    }
+    if (prunedSelectedIds.length >= BULK_ORDER_STATUS_LIMIT) {
+      toast.warning(
+        `Solo puedes seleccionar hasta ${BULK_ORDER_STATUS_LIMIT} pedidos a la vez.`,
+      );
+      return;
+    }
+    setSelectedIds((current) =>
+      current.includes(orderId) ? current : [...current, orderId],
+    );
+  }
 
-					{/* Date filter */}
-					<div className="flex flex-col gap-1.5">
-						<span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-							Fecha
-						</span>
-						<OrdersDateFilter
-							period={period}
-							dateFrom={dateFrom}
-							dateTo={dateTo}
-							hasCustomRange={hasCustomRange}
-							onPeriodChange={selectPeriod}
-							onFromChange={handleFromChange}
-							onToChange={handleToChange}
-						/>
-					</div>
-				</>
-			)}
+  function exitSelectionMode() {
+    setSelectedIds([]);
+    setSelectionMode(false);
+  }
 
-			{/* Cards */}
-			<div
-				className={cn(
-					"flex flex-col gap-3 transition-opacity",
-					isPending && "opacity-60 pointer-events-none",
-				)}
-			>
-				{visibleOrders.length === 0 ? (
-					<p className="text-sm text-muted-foreground text-center py-8">
-						No hay pedidos para mostrar.
-					</p>
-				) : (
-					visibleOrders.map((order) => (
-						<OrderCard
-							key={order.id}
-							order={order}
-							activeStatus={optimisticStatus}
-						/>
-					))
-				)}
-			</div>
-		</div>
-	);
+  if (query.q !== previousQuerySearch) {
+    setPreviousQuerySearch(query.q);
+    setSearch(query.q);
+  }
+
+  function navigate(next: StoreOrdersQuery) {
+    router.push(
+      `/dashboard/store/orders?${storeOrdersQueryToSearchParams(next)}`,
+    );
+  }
+
+  const updateSearch = useDebouncedCallback((q: string) => {
+    startTransition(() => navigate({ ...query, q }));
+  }, 300);
+
+  function handleStatusChange(value: "" | OrderStatus | "needs_attention") {
+    if (value === "") {
+      startTransition(() => {
+        setOptimisticStatuses([]);
+        navigate({ ...query, status: "all", statuses: "" });
+      });
+      return;
+    }
+    const currentStatuses = optimisticStatuses.filter(
+      (status) => status !== "all",
+    );
+    const next = currentStatuses.includes(value)
+      ? currentStatuses.filter((status) => status !== value)
+      : [...currentStatuses, value];
+    const statuses = next.join(",");
+    startTransition(() => {
+      setOptimisticStatuses(next);
+      navigate({
+        ...query,
+        status: (next[0] as ActiveStatus | undefined) ?? "all",
+        statuses,
+        rental: optimisticRentalFilter,
+      });
+    });
+  }
+
+  function handleRentalFilterChange(value: RentalOrderFilter) {
+    startTransition(() => {
+      setOptimisticRentalFilter(value);
+      navigate({
+        ...query,
+        status: (optimisticStatuses[0] as ActiveStatus | undefined) ?? "all",
+        statuses: optimisticStatuses.join(","),
+        rental: value,
+      });
+    });
+  }
+
+  function handleClearFilters() {
+    updateSearch.cancel();
+    startTransition(() => {
+      setOptimisticStatuses([]);
+      setOptimisticRentalFilter("all");
+      setSearch("");
+      navigate({
+        ...query,
+        status: "all",
+        statuses: "",
+        rental: "all",
+        period: "all",
+        from: undefined,
+        to: undefined,
+        q: "",
+      });
+    });
+  }
+
+  const exportParams = storeOrdersQueryToSearchParams(query);
+  exportParams.set("format", "summary");
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Status filter */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Estado
+          </span>
+          {/* Three controls plus the label overflow a 320px viewport, so let
+              them wrap instead of squeezing the chips row off screen. */}
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <a
+              href={`/api/store/orders/export?${exportParams}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+            >
+              <DownloadIcon className="h-3.5 w-3.5" />
+              CSV
+            </a>
+            <button
+              onClick={() =>
+                selectionMode ? exitSelectionMode() : setSelectionMode(true)
+              }
+              aria-pressed={selectionMode}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                selectionMode
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent",
+              )}
+            >
+              <ListChecksIcon className="h-3.5 w-3.5" />
+              {selectionMode ? "Cancelar" : "Seleccionar"}
+            </button>
+            <OrdersFilterSheet
+              query={query}
+              statusOptions={STATUS_OPTIONS}
+              rentalOptions={RENTAL_FILTER_OPTIONS}
+              counts={counts}
+              selectedStatuses={optimisticStatuses}
+              rentalFilter={optimisticRentalFilter}
+              resultCount={orders.length}
+              search={search}
+              onSearchChange={(value) => {
+                setSearch(value);
+                updateSearch(value.trim());
+              }}
+              onStatusToggle={handleStatusChange}
+              onRentalChange={handleRentalFilterChange}
+              onPeriodChange={(period) =>
+                navigate({ ...query, period, from: undefined, to: undefined })
+              }
+              onFromChange={(from) =>
+                navigate({
+                  ...query,
+                  period: "custom",
+                  from: from || undefined,
+                })
+              }
+              onToChange={(to) =>
+                navigate({ ...query, period: "custom", to: to || undefined })
+              }
+              onClear={handleClearFilters}
+            />
+          </div>
+        </div>
+        {/* Status stays on the surface rather than moving into the sheet:
+            it is the most common switch, and burying it would turn a one-tap
+            action into three. The sheet still carries it, plus the rest. */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
+          {STATUS_OPTIONS.map((opt) => {
+            const isActive =
+              opt.value === ""
+                ? optimisticStatuses.length === 0
+                : optimisticStatuses.includes(opt.value);
+            const count =
+              opt.value === ""
+                ? counts.all
+                : counts[opt.value as keyof OrderStatusCounts];
+            return (
+              <button
+                key={opt.value}
+                aria-pressed={isActive}
+                disabled={count === 0 && !isActive}
+                onClick={() => handleStatusChange(opt.value)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                  count === 0 && !isActive && "opacity-50",
+                )}
+              >
+                {opt.label}
+                <span
+                  className={cn(
+                    "tabular-nums",
+                    isActive
+                      ? "text-primary-foreground/70"
+                      : "text-foreground/50",
+                  )}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Cards */}
+      <div
+        className={cn(
+          "flex flex-col gap-3 transition-opacity",
+          isPending && "opacity-60 pointer-events-none",
+        )}
+      >
+        {orders.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            No hay pedidos para mostrar.
+          </p>
+        ) : (
+          orders.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              selectedStatuses={optimisticStatuses}
+              categoryScope={query.category}
+              selectionMode={selectionMode}
+              isSelected={prunedSelectedIds.includes(order.id)}
+              canSelect={
+                prunedSelectedIds.includes(order.id) || !atSelectionLimit
+              }
+              onToggleSelect={() => toggleSelected(order.id)}
+            />
+          ))
+        )}
+      </div>
+
+      {selectionMode && (
+        <div
+          // Bleeds to the edges of the store layout, which is px-3 / md:px-6.
+          className="sticky bottom-0 z-30 -mx-3 flex flex-col gap-2 border-t bg-background px-3 pt-3 sm:flex-row sm:items-center sm:justify-between md:-mx-6 md:px-6"
+          // Keeps the actions clear of the iOS home indicator.
+          style={{
+            paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+          }}
+        >
+          <button
+            onClick={() => {
+              if (allSelected) {
+                setSelectedIds([]);
+                return;
+              }
+              if (orders.length > BULK_ORDER_STATUS_LIMIT) {
+                toast.warning(
+                  `Solo puedes seleccionar hasta ${BULK_ORDER_STATUS_LIMIT} pedidos a la vez.`,
+                );
+              }
+              setSelectedIds(
+                orders
+                  .slice(0, BULK_ORDER_STATUS_LIMIT)
+                  .map((order) => order.id),
+              );
+            }}
+            disabled={orders.length === 0}
+            className="self-start text-xs font-medium text-primary disabled:text-muted-foreground"
+          >
+            {allSelected ? "Quitar todos" : "Seleccionar todos"}
+          </button>
+          {selectedOrders.length > 0 ? (
+            <OrdersBulkActions
+              orders={selectedOrders}
+              onDone={exitSelectionMode}
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Elige pedidos para aplicar una acción.
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

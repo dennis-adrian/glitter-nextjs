@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "credit_ledger_entries_feature_spend_unique" ON "credit_ledger_entries" USING btree ("feature_action_id") WHERE "credit_ledger_entries"."type" = 'spend';
