@@ -107,7 +107,6 @@ Allowed transitions:
 | ----------- | ----------- | ------------------------------------ |
 | `draft`     | `submitted` | author (eligible user or admin)      |
 | `draft`     | `published` | admin (direct publish)               |
-| `draft`     | `archived`  | admin                                |
 | `submitted` | `approved`  | admin                                |
 | `submitted` | `rejected`  | admin                                |
 | `submitted` | `draft`     | admin (request changes, with notes)  |
@@ -121,6 +120,10 @@ Allowed transitions:
 | `archived`  | `published` | admin (restore)                      |
 
 Any transition into a non-`draft` status requires a title of at least 3 characters and a document with real content (§7.9).
+
+Archiving applies only to a `published` article — it is how live content is
+retired without deleting it. A draft nobody wants is deleted instead, which
+`deletePost` allows for anything that never went public (§7.10).
 
 > The original draft listed `submitted → approved` and `approved → published |
 scheduled` but supplied only an `approveAndPublish` action, so `approved` was
@@ -151,11 +154,11 @@ This is what makes it safe to edit a published article: readers keep seeing the 
 
 ### 7.4 Taxonomy
 
-- **Categories**: admin-curated, finite set, each with `slug`, `name`, and optional `description`. Posts can have zero or more categories. Deleting a category detaches it from its posts (the join rows go, the posts stay).
+- **Categories**: admin-curated, finite set, each with `slug`, `name`, and optional `description`. Posts can have zero or more categories. A category that still has posts **cannot be deleted** — the delete is refused rather than silently unlinking it from articles, and it is expressed as one conditional statement so a post attached mid-delete cannot slip through.
 - **Tags**: free-form, created on the fly while authoring, each with `slug` and `name`. Many-to-many with posts.
   - Tags are matched by slug, so `Stands`, `stands`, and `STANDS` resolve to one tag; the first spelling used wins as the display name.
   - Maximum 20 tags per post, 40 characters each.
-  - Any author may create tags. Tags with no remaining posts are not surfaced anywhere and are left in place rather than garbage-collected.
+  - Any author may create tags. A tag whose posts are all gone is never linked from anywhere, though its own `/blog/tag/<slug>` page still resolves and renders an empty list. Orphans are left in place rather than garbage-collected.
 - Public browse pages exist for both: `/blog/category/[slug]`, `/blog/tag/[slug]`.
 
 ### 7.5 Public Blog (Phase 1)
@@ -275,6 +278,7 @@ Relations registered for posts ↔ author, posts ↔ reviewer, posts ↔ categor
 - `definitions.ts`: shared types.
 - `render.ts`: `renderPostHtml(content)` — server-side BlockNote → sanitized HTML.
 - `validate.ts`: zod schemas; slug helpers live in `slug.ts`.
+- `checkSlugAvailability(postId, candidate)` in `actions.ts` backs the editor's on-blur slug check. Advisory only — the save path re-runs `ensureUniquePostSlug` inside its transaction, so a slug claimed between the check and the save still resolves safely.
 
 ### 8.3 Dashboard and portal routes
 
@@ -306,7 +310,7 @@ All four read `searchParams` and are therefore dynamically rendered, which is wh
 
 ### 8.5 Components (`app/components/blog/`)
 
-`post-editor.tsx`, `post-form.tsx`, `post-form-inner.tsx`, `post-settings-sheet.tsx`, `editor-top-toolbar.tsx`, `title-textarea.tsx`, `slug-field.tsx`, `cover-image-uploader.tsx`, `cover-image-toggle.tsx`, `category-multiselect.tsx`, `tag-input.tsx`, `audience-select.tsx`, `post-card.tsx`, `post-list.tsx`, `post-detail.tsx`, `post-gate.tsx`, `blog-filters.tsx`, `category-pill.tsx`, `tag-pill.tsx`, `post-pagination.tsx`, `posts-table.tsx`, `post-row-actions.tsx`, `review-actions.tsx`, `request-changes-dialog.tsx`, `reviewer-notes-banner.tsx`, `post-status-badge.tsx`, `save-indicator.tsx`, `schedule-dialog.tsx`, `comment-thread.tsx`, `comment-form.tsx`.
+`post-editor.tsx`, `post-editor-skeleton.tsx`, `post-form.tsx`, `post-form-inner.tsx`, `post-settings-sheet.tsx`, `editor-top-toolbar.tsx`, `title-textarea.tsx`, `slug-field.tsx`, `cover-image-uploader.tsx`, `cover-image-toggle.tsx`, `category-multiselect.tsx`, `tag-input.tsx`, `audience-select.tsx`, `audience-badge.tsx`, `post-card.tsx`, `post-list.tsx`, `post-detail.tsx`, `post-gate.tsx`, `blog-filters.tsx`, `category-pill.tsx`, `tag-pill.tsx`, `post-pagination.tsx`, `posts-table.tsx`, `post-row-actions.tsx`, `review-actions.tsx`, `request-changes-dialog.tsx`, `reviewer-notes-banner.tsx`, `post-status-badge.tsx`, `save-indicator.tsx`, `new-draft-submit-button.tsx`, `categories-table.tsx`, `category-form.tsx`, `schedule-dialog.tsx`, `comment-thread.tsx`, `comment-item.tsx`, `comment-form.tsx`.
 
 Per repo convention, all components live in `app/components/`, not under route folders.
 

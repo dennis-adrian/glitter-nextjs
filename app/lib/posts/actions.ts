@@ -806,7 +806,15 @@ export async function requestChanges(
     existing.workingSubmittedAt !== null &&
     existing.workingReviewerNotes === null;
 
-  if (!stagedPendingReview && existing.status !== "submitted") {
+  /**
+   * `approved` is accepted alongside `submitted` so approving is reversible.
+   * Approval no longer publishes, so there is a window where an admin has
+   * blessed a post that has not gone out yet — and without this, that window
+   * was a one-way street: `rejectPost` takes only `submitted`, so an article
+   * approved by mistake could only be pushed forward to published.
+   */
+  const reviewable: PostStatus[] = ["submitted", "approved"];
+  if (!stagedPendingReview && !reviewable.includes(existing.status)) {
     return {
       success: false,
       message: "Solo se pueden solicitar cambios sobre artículos en revisión",

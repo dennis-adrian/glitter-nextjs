@@ -299,6 +299,26 @@ describeDatabase("blog editorial actions", () => {
       expect(after.reviewerId).toBe(ADMIN.id);
     });
 
+    /**
+     * Approving no longer publishes, so there is a window where a post is
+     * blessed but not out yet. Without this the window was one-way: an article
+     * approved by mistake could only be pushed forward.
+     */
+    it("returns an approved post to draft with notes", async () => {
+      const post = await makePost({ status: "approved" });
+      currentProfile.value = ADMIN;
+
+      await expect(
+        actions.requestChanges(post.id, {
+          notes: "Mejor esperemos al festival",
+        }),
+      ).resolves.toMatchObject({ success: true });
+
+      const after = await read(post.id);
+      expect(after.status).toBe("draft");
+      expect(after.reviewerNotes).toBe("Mejor esperemos al festival");
+    });
+
     it("will not request changes without usable notes", async () => {
       const post = await makePost({ status: "submitted" });
       currentProfile.value = ADMIN;
