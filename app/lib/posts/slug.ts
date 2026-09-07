@@ -9,6 +9,18 @@ const MAX_SLUG_LENGTH = 120;
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/**
+ * `base-2`, `base-3`, … kept inside `MAX_SLUG_LENGTH`.
+ *
+ * Trimming the base to the limit and *then* appending the suffix pushed a
+ * maximum-length slug over it, past what `postFormSchema` accepts. The room
+ * for the suffix has to come out of the base.
+ */
+function suffixed(base: string, n: number): string {
+  const suffix = `-${n}`;
+  return `${base.slice(0, MAX_SLUG_LENGTH - suffix.length)}${suffix}`;
+}
+
 export async function ensureUniquePostSlug(
   tx: DbOrTx,
   baseSlug: string,
@@ -19,7 +31,7 @@ export async function ensureUniquePostSlug(
   let n = 2;
 
   while (await isPostSlugTaken(tx, candidate, excludePostId)) {
-    candidate = `${base}-${n}`;
+    candidate = suffixed(base, n);
     n++;
   }
   return candidate;
@@ -52,7 +64,7 @@ export async function ensureUniquePostCategorySlug(
   let n = 2;
 
   while (await isCategorySlugTaken(tx, candidate, excludeId)) {
-    candidate = `${base}-${n}`;
+    candidate = suffixed(base, n);
     n++;
   }
   return candidate;
@@ -85,7 +97,7 @@ export async function ensureUniquePostTagSlug(
   let n = 2;
 
   while (await isTagSlugTaken(tx, candidate, excludeId)) {
-    candidate = `${base}-${n}`;
+    candidate = suffixed(base, n);
     n++;
   }
   return candidate;

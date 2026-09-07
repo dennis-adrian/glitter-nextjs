@@ -39,7 +39,14 @@ export async function generateMetadata({
   const effectiveTitle = isPreview
     ? (post.workingTitle ?? post.title)
     : post.title;
-  const title = post.seoTitle ?? `${effectiveTitle} | Productora Glitter`;
+  // A preview should show the staged SEO title, the way the description
+  // already prefers `workingSeoDescription`. Falling straight through to the
+  // live `seoTitle` made the preview show the published title while showing
+  // the staged body.
+  const effectiveSeoTitle = isPreview
+    ? (post.workingSeoTitle ?? post.seoTitle)
+    : post.seoTitle;
+  const title = effectiveSeoTitle ?? `${effectiveTitle} | Productora Glitter`;
   const description =
     (isPreview ? (post.workingSeoDescription ?? post.workingExcerpt) : null) ??
     post.seoDescription ??

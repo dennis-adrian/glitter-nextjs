@@ -1,4 +1,18 @@
-"use server";
+/**
+ * Read helpers for the blog. Server-only, never a server action.
+ *
+ * This file used to open with `"use server"`, which turns every export into an
+ * endpoint the client can invoke by action id. Several of these return
+ * editorial data with no authorization of their own —
+ * `fetchAllPostsForAdmin` hands back every draft, `fetchPostByIdForEditor` any
+ * post by id, `fetchSubmittedPostsForReview` the queue, each with reviewer
+ * notes and working copies attached — so the directive published them.
+ *
+ * `server-only` is the correct marker: it keeps the module out of client
+ * bundles without exposing anything. Authorization stays where it belongs, in
+ * the pages and actions that call these.
+ */
+import "server-only";
 
 import {
   and,

@@ -28,7 +28,6 @@ import {
 import {
   postAutosaveSchema,
   postCategoryFormSchema,
-  postFormSchema,
   reviewNotesSchema,
   scheduleSchema,
 } from "@/app/lib/posts/validate";
@@ -268,84 +267,6 @@ export async function checkSlugAvailability(
   return { available: suggestion === base, suggestion };
 }
 
-export async function updatePost(
-  postId: number,
-  input: unknown,
-): Promise<ActionResult<{ id: number; slug: string }>> {
-  const profile = await getCurrentUserProfile();
-  if (!profile) return { success: false, message: "Debes iniciar sesión" };
-
-  const existing = await db.query.posts.findFirst({
-    where: eq(posts.id, postId),
-  });
-  if (!existing) return { success: false, message: "Artículo no encontrado" };
-
-  if (!canEditPost(profile, existing)) {
-    return {
-      success: false,
-      message: "No puedes editar este artículo en su estado actual",
-    };
-  }
-
-  const parsed = postFormSchema.safeParse(input);
-  if (!parsed.success) {
-    return {
-      success: false,
-      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
-    };
-  }
-  const data = parsed.data;
-
-  try {
-    const contentHtml = await renderPostHtml(data.content);
-
-    const result = await db.transaction(async (tx) => {
-      const requestedSlug = (data.slug && data.slug.trim()) || data.title;
-      const slug = await ensureUniquePostSlug(
-        tx,
-        slugifyName(requestedSlug),
-        postId,
-      );
-
-      const willResetReview =
-        existing.status === "rejected" && !canPublishPosts(profile.role);
-
-      const [row] = await tx
-        .update(posts)
-        .set({
-          title: data.title,
-          slug,
-          excerpt: data.excerpt || null,
-          coverImageUrl: data.coverImageUrl || null,
-          content: data.content,
-          contentHtml,
-          seoTitle: data.seoTitle || null,
-          seoDescription: data.seoDescription || null,
-          audience: data.audience,
-          ...(willResetReview
-            ? { status: "draft" as PostStatus, reviewerNotes: null }
-            : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(posts.id, postId))
-        .returning({ id: posts.id, slug: posts.slug });
-
-      if (!row) throw new Error("No se pudo actualizar el artículo");
-
-      await syncPostCategories(tx, row.id, data.categoryIds);
-      await syncPostTags(tx, row.id, data.tagInputs);
-      return row;
-    });
-
-    invalidatePosts({ slugs: [existing.slug, result.slug] });
-    invalidateTags();
-    return { success: true, id: result.id, slug: result.slug };
-  } catch (error) {
-    console.error("updatePost", error);
-    return { success: false, message: "Error al actualizar el artículo" };
-  }
-}
-
 export async function autosaveDraft(
   postId: number,
   input: unknown,
@@ -544,8 +465,21 @@ export async function approvePost(postId: number): Promise<ActionResult> {
   });
   if (!existing) return { success: false, message: "Artículo no encontrado" };
 
-  const hasStaged = existing.workingUpdatedAt !== null;
-  if (!hasStaged && existing.status !== "submitted") {
+  /**
+   * A staged copy counts here only once its author has submitted it. Merely
+   * having autosaved edits is not a request for review — approving those would
+   * publish work in progress the author never offered, and on a `submitted`
+   * post it would publish later tinkering instead of what was reviewed.
+   *
+   * `directPublish` deliberately does not carry this guard: an admin editing
+   * their own published article stages through the same columns, and requiring
+   * a submission there would make them send an article to themselves for
+   * review before they could publish their own change.
+   */
+  const stagedForReview =
+    existing.workingUpdatedAt !== null && existing.workingSubmittedAt !== null;
+
+  if (!stagedForReview && existing.status !== "submitted") {
     return {
       success: false,
       message: "Solo se pueden aprobar artículos en revisión",
@@ -553,14 +487,18 @@ export async function approvePost(postId: number): Promise<ActionResult> {
   }
 
   const precheck = transitionPrecondition({
-    title: existing.workingTitle ?? existing.title,
-    content: existing.workingContent ?? existing.content,
+    title: stagedForReview
+      ? (existing.workingTitle ?? existing.title)
+      : existing.title,
+    content: stagedForReview
+      ? (existing.workingContent ?? existing.content)
+      : existing.content,
   });
   if (!precheck.ok) return { success: false, message: precheck.message };
 
   try {
     const finalSlug = await db.transaction(async (tx) => {
-      if (hasStaged) {
+      if (stagedForReview) {
         const { slug } = await applyWorkingToMain(tx, existing);
         await tx
           .update(posts)

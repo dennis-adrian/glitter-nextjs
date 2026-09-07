@@ -1,6 +1,20 @@
 import { z } from "zod";
 
-const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+import { slugifyName } from "@/app/lib/products/slug";
+
+/**
+ * A slug is well-formed exactly when slugifying it is a no-op.
+ *
+ * The previous ASCII regex disagreed with the generator: `slugifyName` keeps
+ * any Unicode letter, so a title with no ASCII letters — Greek, Cyrillic, CJK —
+ * produced a slug its own validator rejected, and the client sends a
+ * slugified title whenever the slug field is left blank. Spanish accents strip
+ * to ASCII so this never bit day to day, but the two could not disagree if one
+ * is defined in terms of the other.
+ */
+function isWellFormedSlug(value: string): boolean {
+  return value === slugifyName(value);
+}
 
 export const postFormSchema = z.object({
   title: z
@@ -11,7 +25,10 @@ export const postFormSchema = z.object({
   slug: z
     .string()
     .trim()
-    .regex(slugRegex, "El slug debe ser solo minúsculas, números y guiones")
+    .refine(
+      isWellFormedSlug,
+      "El slug debe ser solo minúsculas, números y guiones",
+    )
     .max(120)
     .optional()
     .or(z.literal("")),

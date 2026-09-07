@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -234,31 +234,50 @@ export default function PostFormInner({
     };
   }, []);
 
+  /**
+   * The saved-state baseline, as a string.
+   *
+   * `effectiveCategoryIds` and `effectiveTagInputs` are freshly mapped arrays
+   * on every render, so listing them as effect dependencies re-ran the effect
+   * every render and reset `lastSavedRef` — including right after a save had
+   * just set it, and after the editor's initial-emit re-baseline. Nothing
+   * currently reads it at that moment, because the autosave effect's own
+   * dependencies happen to be stable across a save-status render, so the bug
+   * is latent rather than live. Comparing a serialized string makes that
+   * correctness deliberate instead of accidental: the baseline is rewritten
+   * only when the server-provided post actually changes.
+   */
+  const serverBaseline = useMemo(
+    () =>
+      JSON.stringify({
+        title: effectiveTitle,
+        slug: effectiveSlug,
+        excerpt: effectiveExcerpt,
+        coverImageUrl: effectiveCoverImageUrl ?? "",
+        seoTitle: effectiveSeoTitle,
+        seoDescription: effectiveSeoDescription,
+        content: effectiveContent ?? EMPTY_DOC,
+        audience: effectiveAudience,
+        categoryIds: effectiveCategoryIds,
+        tagInputs: effectiveTagInputs,
+      }),
+    [
+      effectiveTitle,
+      effectiveSlug,
+      effectiveExcerpt,
+      effectiveCoverImageUrl,
+      effectiveSeoTitle,
+      effectiveSeoDescription,
+      effectiveContent,
+      effectiveAudience,
+      effectiveCategoryIds,
+      effectiveTagInputs,
+    ],
+  );
+
   useEffect(() => {
-    lastSavedRef.current = JSON.stringify({
-      title: effectiveTitle,
-      slug: effectiveSlug,
-      excerpt: effectiveExcerpt,
-      coverImageUrl: effectiveCoverImageUrl ?? "",
-      seoTitle: effectiveSeoTitle,
-      seoDescription: effectiveSeoDescription,
-      content: effectiveContent ?? EMPTY_DOC,
-      audience: effectiveAudience,
-      categoryIds: effectiveCategoryIds,
-      tagInputs: effectiveTagInputs,
-    });
-  }, [
-    effectiveTitle,
-    effectiveSlug,
-    effectiveExcerpt,
-    effectiveCoverImageUrl,
-    effectiveSeoTitle,
-    effectiveSeoDescription,
-    effectiveContent,
-    effectiveAudience,
-    effectiveCategoryIds,
-    effectiveTagInputs,
-  ]);
+    lastSavedRef.current = serverBaseline;
+  }, [serverBaseline]);
 
   useEffect(() => {
     if (!autosaveEligible) return;

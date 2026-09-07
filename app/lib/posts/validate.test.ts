@@ -60,6 +60,21 @@ describe("postFormSchema", () => {
     }
   });
 
+  /**
+   * The client sends a slugified title whenever the slug field is left blank,
+   * so the validator has to accept everything `slugifyName` can produce — the
+   * old ASCII-only regex rejected its own generator's output for any title
+   * with no ASCII letters.
+   */
+  it("accepts a generated slug in a non-Latin script", () => {
+    expect(
+      postFormSchema.safeParse({ ...VALID, slug: "καλημερα" }).success,
+    ).toBe(true);
+    expect(postFormSchema.safeParse({ ...VALID, slug: "日本語" }).success).toBe(
+      true,
+    );
+  });
+
   it("rejects a cover image that is not a URL", () => {
     expect(
       postFormSchema.safeParse({ ...VALID, coverImageUrl: "no-soy-url" })

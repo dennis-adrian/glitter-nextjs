@@ -260,7 +260,7 @@ Relations registered for posts ↔ author, posts ↔ reviewer, posts ↔ categor
 
 - `actions.ts`:
   - `startNewDashboardDraft`, `startNewPortalDraft` — create a blank draft and redirect into the editor.
-  - `updatePost`, `autosaveDraft`, `deletePost`, `discardWorkingCopy`
+  - `autosaveDraft`, `deletePost`, `discardWorkingCopy`
   - `submitForReview` (author; stages or submits depending on status)
   - `requestChanges` (admin — returns to `draft`, persists `reviewerNotes`)
   - `approvePost` (admin — `submitted` → `approved`, or merges a staged copy)
@@ -337,7 +337,7 @@ Write paths call `revalidatePath("/blog", "layout")` and `revalidatePath("/blog/
 Phase 1:
 
 - `startNewDashboardDraft()` / `startNewPortalDraft()` — requires `canAuthorPosts`; inserts a blank draft, redirects to its editor.
-- `updatePost(id, input)` / `autosaveDraft(id, input)` — author or admin. Writes to the live row while `draft`, to the working copy otherwise.
+- `autosaveDraft(id, input)` — author or admin. Writes to the live row while `draft`, to the working copy otherwise. This is the only write path the editor uses; there is deliberately no second "save" action that could bypass the working copy.
 - `submitForReview(id)` — author. `draft` → `submitted`, or marks a working copy as submitted.
 - `approvePost(id)` — admin. `submitted` → `approved`, or merges a submitted working copy into the live row.
 - `publishApproved(id)` — admin. `approved` → `published`, sets `publishedAt`.
