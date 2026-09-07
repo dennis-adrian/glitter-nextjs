@@ -37,7 +37,6 @@ export const postFormSchema = z.object({
   content: z.unknown().refine((v) => Array.isArray(v) && v.length > 0, {
     message: "El contenido del artículo no puede estar vacío",
   }),
-  contentHtml: z.string().default(""),
 });
 
 export type PostFormInput = z.infer<typeof postFormSchema>;
@@ -52,7 +51,6 @@ export const postAutosaveSchema = z.object({
   categoryIds: z.array(z.number().int().positive()).default([]),
   tagInputs: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
   content: z.unknown(),
-  contentHtml: z.string().default(""),
 });
 
 export type PostAutosaveInput = z.infer<typeof postAutosaveSchema>;

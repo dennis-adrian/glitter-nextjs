@@ -1,7 +1,3 @@
-import "@blocknote/core/fonts/inter.css";
-import "@blocknote/core/style.css";
-import "@blocknote/shadcn/style.css";
-
 import { CalendarIcon, EyeIcon, UserIcon } from "lucide-react";
 import Image from "next/image";
 
@@ -73,14 +69,11 @@ export default function PostDetail({ post, previewBanner }: Props) {
         </div>
       )}
 
-      <div className="bn-shadcn">
-        <div
-          className="bn-editor bn-default-styles ProseMirror"
-          style={{ paddingInline: 0 }}
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is sanitized server-side via DOMPurify in app/lib/posts/render.ts
-          dangerouslySetInnerHTML={{ __html: post.contentHtml }}
-        />
-      </div>
+      <div
+        className="blog-article"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered from the stored blocks and sanitized server-side in app/lib/posts/render.ts — never accepted from the client
+        dangerouslySetInnerHTML={{ __html: post.contentHtml }}
+      />
 
       {post.tags.length > 0 && (
         <footer className="mt-12 pt-6 border-t flex flex-wrap gap-2">

@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  BlockNoteSchema,
-  createHeadingBlockSpec,
-  defaultBlockSpecs,
-} from "@blocknote/core";
 import { es as esDictionary } from "@blocknote/core/locales";
 import { useCreateBlockNote } from "@blocknote/react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import { blogEditorSchema } from "@/app/lib/rich-text/schemas";
 import CoverImageToggle from "@/app/components/blog/cover-image-toggle";
 import EditorTopToolbar from "@/app/components/blog/editor-top-toolbar";
 import PostEditor from "@/app/components/blog/post-editor";
@@ -78,24 +74,6 @@ export type PostFormProps = {
 
 const EMPTY_DOC = [{ type: "paragraph", content: [] }];
 
-// Hide upload-only blocks we don't yet support (no UploadThing endpoints for
-// video/audio/generic files) and restrict heading levels to 1–4 — we don't
-// want H5/H6 in the slash menu, side menu, keyboard shortcuts, or markdown
-// input rules. All four channels derive from the schema's heading propSchema.
-const {
-  audio: _bnAudio,
-  video: _bnVideo,
-  file: _bnFile,
-  heading: _bnHeading,
-  ...nonUploadBlockSpecs
-} = defaultBlockSpecs;
-const blogEditorSchema = BlockNoteSchema.create({
-  blockSpecs: {
-    ...nonUploadBlockSpecs,
-    heading: createHeadingBlockSpec({ levels: [1, 2, 3, 4] }),
-  },
-});
-
 export default function PostFormInner({
   surface,
   post,
@@ -129,9 +107,6 @@ export default function PostFormInner({
   const effectiveContent = propHasWork
     ? ((post.workingContent ?? post.content) as unknown)
     : (post.content as unknown);
-  const effectiveContentHtml = propHasWork
-    ? (post.workingContentHtml ?? post.contentHtml ?? "")
-    : (post.contentHtml ?? "");
   const effectiveSeoTitle = propHasWork
     ? (post.workingSeoTitle ?? "")
     : (post.seoTitle ?? "");
@@ -153,7 +128,6 @@ export default function PostFormInner({
   const [content, setContent] = useState<unknown>(
     effectiveContent ?? EMPTY_DOC,
   );
-  const [contentHtml, setContentHtml] = useState<string>(effectiveContentHtml);
   const [categoryIds, setCategoryIds] =
     useState<number[]>(effectiveCategoryIds);
   const [tagInputs, setTagInputs] = useState<string[]>(effectiveTagInputs);
@@ -172,7 +146,7 @@ export default function PostFormInner({
   );
 
   const editor = useCreateBlockNote({
-    schema: blogEditorSchema,
+    schema: blogEditorSchema as never,
     // biome-ignore lint/suspicious/noExplicitAny: BlockNote initial content is loosely typed
     initialContent: (effectiveContent as any) ?? undefined,
     dictionary: esDictionary,
@@ -219,11 +193,10 @@ export default function PostFormInner({
       seoTitle: v.seoTitle,
       seoDescription: v.seoDescription,
       content,
-      contentHtml,
       categoryIds,
       tagInputs,
     };
-  }, [form, coverUrl, content, contentHtml, categoryIds, tagInputs]);
+  }, [form, coverUrl, content, categoryIds, tagInputs]);
 
   const lastSavedRef = useRef<string>("");
   const versionRef = useRef(0);
@@ -259,7 +232,6 @@ export default function PostFormInner({
       seoTitle: effectiveSeoTitle,
       seoDescription: effectiveSeoDescription,
       content: effectiveContent ?? EMPTY_DOC,
-      contentHtml: effectiveContentHtml,
       categoryIds: effectiveCategoryIds,
       tagInputs: effectiveTagInputs,
     });
@@ -271,7 +243,6 @@ export default function PostFormInner({
     effectiveSeoTitle,
     effectiveSeoDescription,
     effectiveContent,
-    effectiveContentHtml,
     effectiveCategoryIds,
     effectiveTagInputs,
   ]);
@@ -315,7 +286,6 @@ export default function PostFormInner({
     buildPayload,
     watchedValues,
     content,
-    contentHtml,
     coverUrl,
     categoryIds,
     tagInputs,
@@ -396,16 +366,14 @@ export default function PostFormInner({
       const serialized = JSON.stringify(blocks);
       if (serialized === lastSerializedRef.current) return;
       lastSerializedRef.current = serialized;
-      const html = await editor.blocksToFullHTML(blocks);
       setContent(blocks);
-      setContentHtml(html);
 
       if (!initialEmitSyncedRef.current) {
         initialEmitSyncedRef.current = true;
-        // BlockNote may regenerate contentHtml/blocks slightly differently
-        // from what was persisted. Re-baseline lastSavedRef so the autosave
-        // effect doesn't treat this regen as a user edit (which would
-        // spuriously flip the working-copy badge on every page load).
+        // BlockNote may regenerate blocks slightly differently from what was
+        // persisted. Re-baseline lastSavedRef so the autosave effect doesn't
+        // treat this regen as a user edit (which would spuriously flip the
+        // working-copy badge on every page load).
         const v = form.getValues();
         lastSavedRef.current = JSON.stringify({
           title: v.title,
@@ -415,7 +383,6 @@ export default function PostFormInner({
           seoTitle: v.seoTitle,
           seoDescription: v.seoDescription,
           content: blocks,
-          contentHtml: html,
           categoryIds,
           tagInputs,
         });

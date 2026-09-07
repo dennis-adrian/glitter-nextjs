@@ -15,7 +15,7 @@ import {
   hasMeaningfulContent,
   usesWorkingCopy,
 } from "@/app/lib/posts/helpers";
-import { sanitizePostHtml } from "@/app/lib/posts/render";
+import { renderPostHtml } from "@/app/lib/posts/render";
 import {
   ensureUniquePostCategorySlug,
   ensureUniquePostSlug,
@@ -271,7 +271,7 @@ export async function updatePost(
   const data = parsed.data;
 
   try {
-    const contentHtml = sanitizePostHtml(data.contentHtml);
+    const contentHtml = await renderPostHtml(data.content);
 
     const result = await db.transaction(async (tx) => {
       const requestedSlug = (data.slug && data.slug.trim()) || data.title;
@@ -348,7 +348,7 @@ export async function autosaveDraft(
   const data = parsed.data;
 
   try {
-    const contentHtml = sanitizePostHtml(data.contentHtml);
+    const contentHtml = await renderPostHtml(data.content);
     const stage = usesWorkingCopy(existing);
 
     const result = await db.transaction(async (tx) => {
