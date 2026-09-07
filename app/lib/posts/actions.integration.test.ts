@@ -73,6 +73,7 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 
 let actions: typeof import("@/app/lib/posts/actions");
 let ensureUniquePostSlug: (typeof import("@/app/lib/posts/slug"))["ensureUniquePostSlug"];
+let slugifyName: (typeof import("@/app/lib/posts/slug"))["slugifyName"];
 let fetchSubmittedPostsForReview: (typeof import("@/app/lib/posts/data"))["fetchSubmittedPostsForReview"];
 
 let AUTHOR: { id: number; role: string };
@@ -160,7 +161,9 @@ describeDatabase("blog editorial actions", () => {
     OTHER = { id: rows[2].id, role: "artist" };
 
     actions = await import("@/app/lib/posts/actions");
-    ({ ensureUniquePostSlug } = await import("@/app/lib/posts/slug"));
+    ({ ensureUniquePostSlug, slugifyName } = await import(
+      "@/app/lib/posts/slug"
+    ));
     ({ fetchSubmittedPostsForReview } = await import("@/app/lib/posts/data"));
   }, 60_000);
 
@@ -222,15 +225,19 @@ describeDatabase("blog editorial actions", () => {
       });
     });
 
+    /**
+     * The title is made unique per run on purpose. Asserting a fixed
+     * `guia-de-luz` meant any leftover row holding that slug — a crashed run,
+     * a fixture — sent `ensureUniquePostSlug` down the suffix path and failed
+     * a test that has nothing to do with collisions.
+     */
     it("replaces a placeholder slug on the way out of draft", async () => {
-      const post = await makePost({
-        slug: "borrador-99",
-        title: "Guía de luz",
-      });
+      const title = `Guía de luz ${Date.now()}`;
+      const post = await makePost({ slug: "borrador-99", title });
 
       await actions.submitForReview(post.id);
 
-      expect((await read(post.id)).slug).toBe("guia-de-luz");
+      expect((await read(post.id)).slug).toBe(slugifyName(title));
     });
 
     it("keeps a slug the author already chose", async () => {
@@ -478,6 +485,38 @@ describeDatabase("blog editorial actions", () => {
       expect(after.status).toBe("published");
       expect(after.title).toBe("Título publicado");
       expect(after.workingReviewerNotes).toBe("Cambiá el cierre");
+      expect(after.workingTitle).toBe("Título editado");
+    });
+
+    /**
+     * The reviewer has to be able to correct their own note. While
+     * `stagedPendingReview` also required no notes yet, a second call fell
+     * through to the status check and was refused as "not in review" — on a
+     * post that is published, with the author yet to touch it.
+     */
+    it("lets a reviewer amend notes on the same staged copy", async () => {
+      const post = await publishedPost();
+      await actions.autosaveDraft(post.id, {
+        title: "Título editado",
+        content: DOC("Cuerpo editado."),
+        categoryIds: [],
+        tagInputs: [],
+      });
+      await actions.submitForReview(post.id);
+
+      currentProfile.value = ADMIN;
+      await actions.requestChanges(post.id, { notes: "Cambiá el cierre" });
+
+      await expect(
+        actions.requestChanges(post.id, {
+          notes: "Cambiá el cierre y la portada",
+        }),
+      ).resolves.toMatchObject({ success: true });
+
+      const after = await read(post.id);
+      expect(after.workingReviewerNotes).toBe("Cambiá el cierre y la portada");
+      // Still staged, still live: amending a note is not a status change.
+      expect(after.status).toBe("published");
       expect(after.workingTitle).toBe("Título editado");
     });
 

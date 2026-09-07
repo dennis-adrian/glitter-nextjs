@@ -739,10 +739,20 @@ export async function requestChanges(
   });
   if (!existing) return { success: false, message: "Artículo no encontrado" };
 
+  /**
+   * A staged copy that was sent for review, whether or not notes already sit
+   * on it. Requiring `workingReviewerNotes === null` meant a reviewer got one
+   * shot: correcting a typo or adding a second thought fell through to the
+   * status check below, which — on a published article with a staged edit —
+   * refused with "solo se pueden solicitar cambios sobre artículos en
+   * revisión". The author had not acted, and the reviewer was locked out of
+   * their own note.
+   *
+   * Autosave clears `workingSubmittedAt` the moment the author touches the
+   * draft again, so this stays false once the ball is back in their court.
+   */
   const stagedPendingReview =
-    existing.workingUpdatedAt !== null &&
-    existing.workingSubmittedAt !== null &&
-    existing.workingReviewerNotes === null;
+    existing.workingUpdatedAt !== null && existing.workingSubmittedAt !== null;
 
   /**
    * `approved` is accepted alongside `submitted` so approving is reversible.

@@ -46,6 +46,11 @@ export async function generateMetadata({
   const effectiveSeoTitle = isPreview
     ? (post.workingSeoTitle ?? post.seoTitle)
     : post.seoTitle;
+  // The cover has to follow the same rule as the title and the description,
+  // or a preview of a staged cover swap unfurls with the published image.
+  const effectiveCoverImageUrl = isPreview
+    ? (post.workingCoverImageUrl ?? post.coverImageUrl)
+    : post.coverImageUrl;
   const title = effectiveSeoTitle ?? `${effectiveTitle} | Productora Glitter`;
   const description =
     (isPreview ? (post.workingSeoDescription ?? post.workingExcerpt) : null) ??
@@ -68,7 +73,9 @@ export async function generateMetadata({
       description,
       type: "article",
       url: `/blog/${post.slug}`,
-      images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : undefined,
+      images: effectiveCoverImageUrl
+        ? [{ url: effectiveCoverImageUrl }]
+        : undefined,
       publishedTime: post.publishedAt
         ? new Date(post.publishedAt).toISOString()
         : undefined,
@@ -78,7 +85,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title,
       description,
-      images: post.coverImageUrl ? [post.coverImageUrl] : undefined,
+      images: effectiveCoverImageUrl ? [effectiveCoverImageUrl] : undefined,
     },
   };
 }

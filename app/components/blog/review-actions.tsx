@@ -26,6 +26,8 @@ type Props = {
   postId: number;
 };
 
+const FAILED = "No se pudo completar la acción. Intentá de nuevo.";
+
 export default function ReviewActions({ postId }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -46,6 +48,15 @@ export default function ReviewActions({ postId }: Props) {
       } else {
         toast.error(res.message);
       }
+    } catch {
+      /**
+       * The action returns `{ success: false }` for anything it can foresee,
+       * so a rejection here is the transport failing — the request never
+       * landed, or the server errored outside the action's own try. Without
+       * this branch `finally` reset the button and the reviewer saw nothing
+       * at all, which reads as a dead control rather than a failure.
+       */
+      toast.error(FAILED);
     } finally {
       setBusy(false);
     }
@@ -63,6 +74,8 @@ export default function ReviewActions({ postId }: Props) {
       } else {
         toast.error(res.message);
       }
+    } catch {
+      toast.error(FAILED);
     } finally {
       setBusy(false);
     }
@@ -80,6 +93,8 @@ export default function ReviewActions({ postId }: Props) {
       } else {
         toast.error(res.message);
       }
+    } catch {
+      toast.error(FAILED);
     } finally {
       setBusy(false);
     }
