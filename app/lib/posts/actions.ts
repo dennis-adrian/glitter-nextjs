@@ -22,7 +22,7 @@ import { renderPostHtml } from "@/app/lib/posts/render";
 import {
   ensureUniquePostCategorySlug,
   ensureUniquePostSlug,
-  ensureUniquePostTagSlug,
+  retryingSlugConflict,
   slugifyName,
 } from "@/app/lib/posts/slug";
 import {
@@ -155,6 +155,15 @@ function invalidateTags() {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/**
+ * `db.transaction` with `retryingSlugConflict` around it. Safe to use for a
+ * transaction that writes no slug at all — anything other than a slug conflict
+ * is rethrown untouched on the first attempt.
+ */
+function slugSafeTransaction<T>(body: (tx: Tx) => Promise<T>): Promise<T> {
+  return retryingSlugConflict(() => db.transaction(body));
+}
+
 async function syncPostCategories(
   tx: Tx,
   postId: number,
@@ -201,21 +210,36 @@ async function syncPostTags(tx: Tx, postId: number, tagInputs: string[]) {
 
   const desiredIds: number[] = [];
   for (const input of cleaned) {
+    /**
+     * Get-or-create in one statement, rather than SELECT-then-INSERT.
+     *
+     * Tags are shared vocabulary and autosave fires constantly, so two authors
+     * introducing "stands" within the same instant is an ordinary event, not a
+     * thought experiment. Both used to miss the SELECT, both inserted, and the
+     * loser took a unique violation that failed the whole save — the check had
+     * been treated as a reservation it never was.
+     *
+     * `ON CONFLICT DO NOTHING` returns no row when someone else won, which is
+     * the signal to read theirs. Suffixing never applied here anyway: a tag is
+     * identified by its slug, so a colliding slug *is* the same tag.
+     */
+    const [inserted] = await tx
+      .insert(postTags)
+      .values({ name: input.name, slug: input.slug })
+      .onConflictDoNothing({ target: postTags.slug })
+      .returning({ id: postTags.id });
+
+    if (inserted) {
+      desiredIds.push(inserted.id);
+      continue;
+    }
+
     const [existing] = await tx
       .select({ id: postTags.id })
       .from(postTags)
       .where(eq(postTags.slug, input.slug))
       .limit(1);
-    if (existing) {
-      desiredIds.push(existing.id);
-      continue;
-    }
-    const uniqueSlug = await ensureUniquePostTagSlug(tx, input.slug);
-    const [inserted] = await tx
-      .insert(postTags)
-      .values({ name: input.name, slug: uniqueSlug })
-      .returning({ id: postTags.id });
-    if (inserted) desiredIds.push(inserted.id);
+    if (existing) desiredIds.push(existing.id);
   }
 
   const existingLinks = await tx
@@ -299,7 +323,7 @@ export async function autosaveDraft(
     const contentHtml = await renderPostHtml(data.content);
     const stage = usesWorkingCopy(existing);
 
-    const result = await db.transaction(async (tx) => {
+    const result = await slugSafeTransaction(async (tx) => {
       if (stage) {
         const now = new Date();
         const [row] = await tx
@@ -384,7 +408,7 @@ export async function submitForReview(postId: number): Promise<ActionResult> {
     if (!precheck.ok) return { success: false, message: precheck.message };
 
     try {
-      await db.transaction(async (tx) => {
+      await slugSafeTransaction(async (tx) => {
         const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
           ? await ensureUniquePostSlug(tx, slugifyName(existing.title), postId)
           : existing.slug;
@@ -497,7 +521,7 @@ export async function approvePost(postId: number): Promise<ActionResult> {
   if (!precheck.ok) return { success: false, message: precheck.message };
 
   try {
-    const finalSlug = await db.transaction(async (tx) => {
+    const finalSlug = await slugSafeTransaction(async (tx) => {
       if (stagedForReview) {
         const { slug } = await applyWorkingToMain(tx, existing);
         await tx
@@ -682,7 +706,7 @@ export async function directPublish(postId: number): Promise<ActionResult> {
   if (!precheck.ok) return { success: false, message: precheck.message };
 
   try {
-    const finalSlug = await db.transaction(async (tx) => {
+    const finalSlug = await slugSafeTransaction(async (tx) => {
       if (hasStaged) {
         const { slug } = await applyWorkingToMain(tx, existing);
         await tx
@@ -970,7 +994,7 @@ export async function createPostCategory(
     };
   }
   try {
-    const result = await db.transaction(async (tx) => {
+    const result = await slugSafeTransaction(async (tx) => {
       const slug = await ensureUniquePostCategorySlug(
         tx,
         slugifyName(parsed.data.name),
@@ -1010,7 +1034,7 @@ export async function updatePostCategory(
     };
   }
   try {
-    await db.transaction(async (tx) => {
+    await slugSafeTransaction(async (tx) => {
       const slug = await ensureUniquePostCategorySlug(
         tx,
         slugifyName(parsed.data.name),

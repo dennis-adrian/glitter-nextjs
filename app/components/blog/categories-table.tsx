@@ -37,6 +37,11 @@ export default function CategoriesTable({
       } else {
         toast.error(res.message);
       }
+    } catch {
+      // The action returns `{ success: false }` for anything it can foresee,
+      // so a rejection is the transport failing. Without this the row simply
+      // stopped being busy and nothing was said.
+      toast.error("No se pudo eliminar la categoría. Intentá de nuevo.");
     } finally {
       setBusyId(null);
     }

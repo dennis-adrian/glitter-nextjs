@@ -50,6 +50,15 @@ export default function CategoryForm({ category, onDone }: Props) {
       } else {
         toast.error(res.message);
       }
+    } catch {
+      // A rejection is the transport failing, not a validation result. Without
+      // this the submit button re-enabled and the form said nothing, which
+      // reads as a dead button.
+      toast.error(
+        category
+          ? "No se pudo guardar la categoría. Intentá de nuevo."
+          : "No se pudo crear la categoría. Intentá de nuevo.",
+      );
     } finally {
       setBusy(false);
     }

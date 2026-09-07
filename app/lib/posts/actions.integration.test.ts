@@ -580,6 +580,223 @@ describeDatabase("blog editorial actions", () => {
 
       expect(slug === "articulo" || /^articulo-\d+$/.test(slug)).toBe(true);
     });
+
+    it("keeps the suffixed slug inside the column limit", async () => {
+      const base = "a".repeat(120);
+      await makePost({ slug: base });
+
+      const slug = await ensureUniquePostSlug(integrationDb! as never, base);
+
+      expect(slug).toBe(`${"a".repeat(118)}-2`);
+      expect(slug).toHaveLength(120);
+    });
+  });
+
+  describe("retryingSlugConflict", () => {
+    const conflict = () =>
+      Object.assign(new Error("duplicate key"), {
+        code: "23505",
+        constraint: "posts_slug_unique",
+      });
+
+    it("re-runs the body after a slug conflict and returns the retry's value", async () => {
+      const { retryingSlugConflict } = await import("@/app/lib/posts/slug");
+      let calls = 0;
+
+      const result = await retryingSlugConflict(async () => {
+        calls++;
+        if (calls === 1) throw conflict();
+        return "segundo intento";
+      });
+
+      expect(calls).toBe(2);
+      expect(result).toBe("segundo intento");
+    });
+
+    it("gives up rather than looping forever", async () => {
+      const { retryingSlugConflict } = await import("@/app/lib/posts/slug");
+      let calls = 0;
+
+      await expect(
+        retryingSlugConflict(async () => {
+          calls++;
+          throw conflict();
+        }),
+      ).rejects.toMatchObject({ code: "23505" });
+      expect(calls).toBe(3);
+    });
+
+    /** A unique violation on something else is a real failure, not a race. */
+    it("rethrows a non-slug unique violation immediately", async () => {
+      const { retryingSlugConflict } = await import("@/app/lib/posts/slug");
+      let calls = 0;
+
+      await expect(
+        retryingSlugConflict(async () => {
+          calls++;
+          throw Object.assign(new Error("duplicate key"), {
+            code: "23505",
+            constraint: "post_share_links_token_unique",
+          });
+        }),
+      ).rejects.toMatchObject({ constraint: "post_share_links_token_unique" });
+      expect(calls).toBe(1);
+    });
+
+    it("rethrows an unrelated error immediately", async () => {
+      const { retryingSlugConflict } = await import("@/app/lib/posts/slug");
+      let calls = 0;
+
+      await expect(
+        retryingSlugConflict(async () => {
+          calls++;
+          throw new Error("algo más");
+        }),
+      ).rejects.toThrow("algo más");
+      expect(calls).toBe(1);
+    });
+  });
+
+  /**
+   * The `ensureUnique*` helpers ask what is free; a SELECT reserves nothing, so
+   * two writers can resolve the same candidate and one loses to the unique
+   * index. These cover the two places that actually collide in practice.
+   */
+  describe("concurrent slug allocation", () => {
+    it("creates two blank drafts at once without either failing", async () => {
+      const createBlankDraft = (await import("@/app/lib/posts/create-draft"))
+        .createBlankDraft;
+
+      const [first, second] = await Promise.all([
+        createBlankDraft({ id: AUTHOR.id }),
+        createBlankDraft({ id: AUTHOR.id }),
+      ]);
+      createdPostIds.push(first.id, second.id);
+
+      expect(first.slug).not.toBe(second.slug);
+      for (const slug of [first.slug, second.slug]) {
+        expect(slug === "borrador" || /^borrador-\d+$/.test(slug)).toBe(true);
+      }
+    });
+
+    /**
+     * The interleaving that used to break a save, forced rather than hoped
+     * for: two connections both look and both miss, then the winner commits
+     * and the loser inserts into a slug that now exists.
+     *
+     * `Promise.all` over two `autosaveDraft` calls does *not* reproduce this —
+     * verified by running such a test against the old SELECT-then-INSERT code,
+     * where it passed. Only explicit transactions pin the ordering.
+     */
+    it("survives the exact interleaving that used to raise 23505", async () => {
+      const slug = `carrera-${Date.now()}`;
+      const winner = await pool!.connect();
+      const loser = await pool!.connect();
+
+      try {
+        await winner.query("begin");
+        await loser.query("begin");
+
+        // Both look before either writes; neither sees the tag.
+        for (const client of [winner, loser]) {
+          const seen = await client.query(
+            "select id from post_tags where slug = $1",
+            [slug],
+          );
+          expect(seen.rowCount).toBe(0);
+        }
+
+        const won = await winner.query(
+          "insert into post_tags (name, slug) values ($1, $2) on conflict (slug) do nothing returning id",
+          [slug, slug],
+        );
+        expect(won.rowCount).toBe(1);
+        await winner.query("commit");
+
+        // The loser's insert now collides. `DO NOTHING` yields no row instead
+        // of raising, which is the signal to read the winner's.
+        const lost = await loser.query(
+          "insert into post_tags (name, slug) values ($1, $2) on conflict (slug) do nothing returning id",
+          [slug, slug],
+        );
+        expect(lost.rowCount).toBe(0);
+
+        const found = await loser.query(
+          "select id from post_tags where slug = $1",
+          [slug],
+        );
+        expect(found.rowCount).toBe(1);
+        expect(found.rows[0].id).toBe(won.rows[0].id);
+        await loser.query("commit");
+      } finally {
+        winner.release();
+        loser.release();
+      }
+    });
+
+    /** The same interleaving without `ON CONFLICT` — this is what used to happen. */
+    it("a bare insert in that position raises a unique violation", async () => {
+      const slug = `carrera-cruda-${Date.now()}`;
+      const winner = await pool!.connect();
+      const loser = await pool!.connect();
+
+      try {
+        await winner.query(
+          "insert into post_tags (name, slug) values ($1, $2)",
+          [slug, slug],
+        );
+
+        await expect(
+          loser.query("insert into post_tags (name, slug) values ($1, $2)", [
+            slug,
+            slug,
+          ]),
+        ).rejects.toMatchObject({ code: "23505" });
+      } finally {
+        winner.release();
+        loser.release();
+      }
+    });
+
+    it("lets two posts introduce the same new tag simultaneously", async () => {
+      const tag = `etiqueta-${Date.now()}`;
+      const first = await makePost();
+      const second = await makePost();
+
+      const results = await Promise.all([
+        actions.autosaveDraft(first.id, {
+          title: "Primero",
+          content: DOC("Uno."),
+          categoryIds: [],
+          tagInputs: [tag],
+        }),
+        actions.autosaveDraft(second.id, {
+          title: "Segundo",
+          content: DOC("Dos."),
+          categoryIds: [],
+          tagInputs: [tag],
+        }),
+      ]);
+
+      for (const result of results) {
+        expect(result).toMatchObject({ success: true });
+      }
+
+      // One tag, shared — not two rows and not a suffixed duplicate.
+      const rows = await integrationDb!
+        .select({ id: schema.postTags.id, slug: schema.postTags.slug })
+        .from(schema.postTags)
+        .where(eq(schema.postTags.slug, tag));
+      expect(rows).toHaveLength(1);
+
+      const links = await integrationDb!
+        .select({ postId: schema.postTagsToPosts.postId })
+        .from(schema.postTagsToPosts)
+        .where(eq(schema.postTagsToPosts.tagId, rows[0].id));
+      expect(links.map((l) => l.postId).sort()).toEqual(
+        [first.id, second.id].sort(),
+      );
+    });
   });
 
   describe("status invariants", () => {
