@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/posts/data";
 import { canEditPost } from "@/app/lib/posts/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { postAuthorName } from "@/app/lib/posts/helpers";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -36,12 +37,7 @@ export async function generateMetadata({
     post.seoDescription ??
     post.excerpt ??
     "Artículo del blog de Glitter";
-  const authorName =
-    (post.author.displayName ??
-      [post.author.firstName, post.author.lastName]
-        .filter(Boolean)
-        .join(" ")) ||
-    "Productora Glitter";
+  const authorName = postAuthorName(post.author);
 
   return {
     title,

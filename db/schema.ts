@@ -6194,9 +6194,16 @@ export const posts = pgTable(
     contentHtml: text("content_html").notNull(),
     seoTitle: text("seo_title"),
     seoDescription: text("seo_description"),
-    authorId: integer("author_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+    /**
+     * Nullable so a departing author does not block their own account
+     * deletion. `detachPostsForDeletedUser` deletes everything they wrote
+     * that never went public and nulls this column on the rest, leaving the
+     * published record intact under "Equipo Glitter". The `set null` here is
+     * the backstop that keeps `DELETE FROM users` from ever aborting.
+     */
+    authorId: integer("author_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     status: postStatusEnum("status").default("draft").notNull(),
     submittedAt: timestamp("submitted_at"),
     publishedAt: timestamp("published_at"),

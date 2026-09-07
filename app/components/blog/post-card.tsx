@@ -5,14 +5,7 @@ import Link from "next/link";
 import CategoryPill from "@/app/components/blog/category-pill";
 import type { PublicPostListItem } from "@/app/lib/posts/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
-
-function authorName(author: PublicPostListItem["author"]): string {
-  return (
-    (author.displayName ??
-      [author.firstName, author.lastName].filter(Boolean).join(" ")) ||
-    "Equipo Glitter"
-  );
-}
+import { postAuthorName } from "@/app/lib/posts/helpers";
 
 export default function PostCard({ post }: { post: PublicPostListItem }) {
   return (
@@ -52,7 +45,7 @@ export default function PostCard({ post }: { post: PublicPostListItem }) {
           </p>
         )}
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
-          <span>{authorName(post.author)}</span>
+          <span>{postAuthorName(post.author)}</span>
           {post.publishedAt && (
             <span className="inline-flex items-center gap-1">
               <CalendarIcon className="h-3 w-3" />

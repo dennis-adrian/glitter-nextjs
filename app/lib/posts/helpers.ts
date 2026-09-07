@@ -82,3 +82,24 @@ export function hasMeaningfulContent(content: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * Display name for a post's byline.
+ *
+ * Falls back to the house name both when the author row is gone — deleting an
+ * account nulls `authorId` and leaves the article standing — and when the
+ * profile simply carries no name.
+ */
+export function postAuthorName(
+  author:
+    | Pick<BaseProfile, "displayName" | "firstName" | "lastName">
+    | null
+    | undefined,
+): string {
+  if (!author) return "Equipo Glitter";
+  return (
+    (author.displayName ??
+      [author.firstName, author.lastName].filter(Boolean).join(" ")) ||
+    "Equipo Glitter"
+  );
+}

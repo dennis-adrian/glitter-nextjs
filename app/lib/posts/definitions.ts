@@ -32,7 +32,8 @@ export type PostAuthor = Pick<
 >;
 
 export type PostWithRelations = PostRow & {
-  author: PostAuthor;
+  /** Null once the author deletes their account; see posts/anonymization.ts. */
+  author: PostAuthor | null;
   reviewer: PostAuthor | null;
   categories: PostCategoryRow[];
   tags: PostTagRow[];
@@ -42,7 +43,8 @@ export type PublicPostListItem = Pick<
   PostRow,
   "id" | "title" | "slug" | "excerpt" | "coverImageUrl" | "publishedAt"
 > & {
-  author: PostAuthor;
+  /** Null once the author deletes their account; see posts/anonymization.ts. */
+  author: PostAuthor | null;
   categories: PostCategoryRow[];
   tags: PostTagRow[];
 };

@@ -5,6 +5,7 @@ import ReviewActions from "@/app/components/blog/review-actions";
 import { Button } from "@/app/components/ui/button";
 import { fetchSubmittedPostsForReview } from "@/app/lib/posts/data";
 import { formatFullDate } from "@/app/lib/formatters";
+import { postAuthorName } from "@/app/lib/posts/helpers";
 
 export default async function DashboardBlogReviewPage() {
   const posts = await fetchSubmittedPostsForReview();
@@ -41,7 +42,7 @@ export default async function DashboardBlogReviewPage() {
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground mt-2">
-                    Autor: {p.author.displayName ?? "—"}
+                    Autor: {postAuthorName(p.author)}
                   </p>
                 </div>
                 <Button asChild variant="outline" size="sm">

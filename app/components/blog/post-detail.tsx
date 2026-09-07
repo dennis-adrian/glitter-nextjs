@@ -5,14 +5,7 @@ import CategoryPill from "@/app/components/blog/category-pill";
 import TagPill from "@/app/components/blog/tag-pill";
 import type { PostWithRelations } from "@/app/lib/posts/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
-
-function authorName(author: PostWithRelations["author"]): string {
-  return (
-    (author.displayName ??
-      [author.firstName, author.lastName].filter(Boolean).join(" ")) ||
-    "Equipo Glitter"
-  );
-}
+import { postAuthorName } from "@/app/lib/posts/helpers";
 
 type Props = {
   post: PostWithRelations;
@@ -45,7 +38,7 @@ export default function PostDetail({ post, previewBanner }: Props) {
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <UserIcon className="h-4 w-4" />
-            {authorName(post.author)}
+            {postAuthorName(post.author)}
           </span>
           {post.publishedAt && (
             <span className="inline-flex items-center gap-1.5">
