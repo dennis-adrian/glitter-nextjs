@@ -373,15 +373,6 @@ export async function fetchPostCategoryBySlug(
   }
 }
 
-export async function fetchPostTags(): Promise<PostTagRow[]> {
-  try {
-    return await db.select().from(postTags).orderBy(asc(postTags.name));
-  } catch (error) {
-    console.error("fetchPostTags", error);
-    return [];
-  }
-}
-
 export async function fetchPostTagBySlug(
   slug: string,
 ): Promise<PostTagRow | null> {
