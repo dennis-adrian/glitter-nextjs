@@ -1,6 +1,6 @@
 {
-  "id": "8baa4c55-fee1-4396-ba81-27dd7eb7afad",
-  "prevId": "8fb4d132-87a5-4239-a540-5af50adb5c0f",
+  "id": "2e6308d6-277b-4a5f-b47e-1876ff43279c",
+  "prevId": "8baa4c55-fee1-4396-ba81-27dd7eb7afad",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7972,12 +7972,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "expires_at": {
           "name": "expires_at",
           "type": "timestamp",
@@ -8066,15 +8060,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "post_share_links_token_hash_unique": {
-          "name": "post_share_links_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
