@@ -13,7 +13,17 @@ type Reason = "anonymous" | "unverified";
  * should be told that rather than bounced to a login form they have already
  * used.
  */
-export default function PostGate({ reason }: { reason: Reason }) {
+export default function PostGate({
+  reason,
+  slug,
+}: {
+  reason: Reason;
+  slug: string;
+}) {
+  // This app's auth routes use underscores, and every other caller passes
+  // `returnUrl` so the reader lands back where they were.
+  const returnUrl = encodeURIComponent(`/blog/${slug}`);
+
   return (
     <section className="my-8 rounded-lg border bg-muted/40 px-6 py-10 text-center">
       <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-background">
@@ -31,10 +41,14 @@ export default function PostGate({ reason }: { reason: Reason }) {
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button asChild>
-              <Link href="/sign-in">Iniciar sesión</Link>
+              <Link href={`/sign_in?returnUrl=${returnUrl}`}>
+                Iniciar sesión
+              </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/sign-up">Crear una cuenta</Link>
+              <Link href={`/sign_up?returnUrl=${returnUrl}`}>
+                Crear una cuenta
+              </Link>
             </Button>
           </div>
         </>

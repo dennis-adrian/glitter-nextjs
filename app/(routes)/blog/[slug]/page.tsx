@@ -114,7 +114,9 @@ export default async function BlogPostPage({
   // write under it either. The action re-checks this independently.
   const commenter =
     post.audience === "participants" ? viewer : await getCurrentUserProfile();
-  const comments = await fetchCommentThread(post.id);
+  // Not fetched at all when gated: the cheapest way to not leak a thread is
+  // to never put it in the response.
+  const comments = gated ? [] : await fetchCommentThread(post.id);
 
   return (
     <>
@@ -125,9 +127,11 @@ export default async function BlogPostPage({
       <div className="mx-auto max-w-3xl px-4 pb-12">
         <CommentThread
           postId={post.id}
+          postSlug={post.slug}
           comments={comments}
           viewerId={commenter?.id ?? null}
           viewerIsStaff={isStaff(commenter?.role)}
+          gated={gated}
           canComment={Boolean(commenter) && !gated}
         />
       </div>

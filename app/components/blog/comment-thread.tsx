@@ -7,9 +7,12 @@ import type { CommentNode } from "@/app/lib/posts/definitions";
 
 type Props = {
   postId: number;
+  postSlug: string;
   comments: CommentNode[];
   viewerId: number | null;
   viewerIsStaff: boolean;
+  /** True when the viewer may not read the article itself. */
+  gated: boolean;
   /**
    * False when the reader may see the article but not write on it — signed
    * out, or signed in without access to a restricted post.
@@ -19,15 +22,34 @@ type Props = {
 
 export default function CommentThread({
   postId,
+  postSlug,
   comments,
   viewerId,
   viewerIsStaff,
+  gated,
   canComment,
 }: Props) {
   const total = comments.reduce(
     (sum, comment) => sum + 1 + comment.replies.length,
     0,
   );
+
+  /**
+   * The discussion is part of the article. Showing it to someone who cannot
+   * read the article is both incoherent and a leak — a thread quotes and
+   * summarises what it is about — so the gate covers the whole section.
+   */
+  if (gated) {
+    return (
+      <section className="mt-12 border-t pt-8">
+        <h2 className="text-xl font-semibold">Comentarios</h2>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Los comentarios de este artículo son visibles solo para participantes
+          verificados.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-12 border-t pt-8">
@@ -47,7 +69,11 @@ export default function CommentThread({
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           <span>Iniciá sesión para dejar un comentario.</span>
           <Button asChild size="sm" variant="outline">
-            <Link href="/sign-in">Iniciar sesión</Link>
+            <Link
+              href={`/sign_in?returnUrl=${encodeURIComponent(`/blog/${postSlug}`)}`}
+            >
+              Iniciar sesión
+            </Link>
           </Button>
         </div>
       )}

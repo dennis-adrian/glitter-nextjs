@@ -94,3 +94,26 @@ describe("withGateApplied", () => {
     expect(withGateApplied(anonymous, open).contentHtml).toBe("<p>abierto</p>");
   });
 });
+
+/**
+ * Regression: the comment thread used to render for a viewer who could not
+ * read the article, which both reads as incoherent and leaks — a thread
+ * quotes and summarises what it is about. The page now skips fetching it
+ * entirely when the gate is closed, so these are the conditions that decide
+ * that.
+ */
+describe("comment visibility follows the article gate", () => {
+  const gatedPost = { audience: "participants" as const };
+
+  it("closes the thread for anyone who cannot read the post", () => {
+    for (const viewer of [anonymous, pending, paused, banned]) {
+      expect(isPostGatedFor(viewer, gatedPost)).toBe(true);
+    }
+  });
+
+  it("opens it for verified participants and staff", () => {
+    for (const viewer of [verified, admin, festivalAdmin]) {
+      expect(isPostGatedFor(viewer, gatedPost)).toBe(false);
+    }
+  });
+});

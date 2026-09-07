@@ -39,7 +39,9 @@ export default function ReviewActions({ postId }: Props) {
     try {
       const res = await approvePost(postId);
       if (res.success) {
-        toast.success("Artículo publicado");
+        toast.success(
+          "Artículo aprobado. Publicalo o programalo desde el editor.",
+        );
         router.refresh();
       } else {
         toast.error(res.message);
@@ -91,7 +93,7 @@ export default function ReviewActions({ postId }: Props) {
         disabled={busy}
         onClick={handleApprove}
       >
-        Aprobar y publicar
+        Aprobar
       </Button>
 
       <Dialog open={changesOpen} onOpenChange={setChangesOpen}>

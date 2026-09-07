@@ -70,7 +70,7 @@ export default function PostDetail({ post, previewBanner, gateReason }: Props) {
       )}
 
       {gateReason ? (
-        <PostGate reason={gateReason} />
+        <PostGate reason={gateReason} slug={post.slug} />
       ) : (
         <div
           className="blog-article"
