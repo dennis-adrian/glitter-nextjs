@@ -166,7 +166,7 @@ export async function adminConfirmReservationByReservationIdAction(
   if (invoiceId == null) {
     return {
       success: false,
-      message: "No se encontró la factura de la reserva.",
+      message: "No se encontró el cobro de la reserva.",
     };
   }
   const result = await adminConfirmReservation({

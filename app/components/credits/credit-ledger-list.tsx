@@ -28,7 +28,7 @@ const TYPE_LABELS: Record<CreditWalletEntry["type"], string> = {
 };
 
 function entryDetail(entry: CreditWalletEntry) {
-  if (entry.invoiceId) return `Aplicado a la factura #${entry.invoiceId}`;
+  if (entry.invoiceId) return `Aplicado al cobro #${entry.invoiceId}`;
   if (entry.featureActionId) return "Función opcional de reserva";
   return entry.reason;
 }

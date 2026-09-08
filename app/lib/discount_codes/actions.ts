@@ -220,7 +220,7 @@ export async function validateAndApplyDiscountCode({
       }
 
       if (invoice.userId !== currentUser.id && currentUser.role !== "admin") {
-        return { success: false, message: "No autorizado para esta factura." };
+        return { success: false, message: "No autorizado para este cobro." };
       }
 
       if (invoice.status !== "pending") {

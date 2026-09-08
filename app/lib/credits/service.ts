@@ -1216,4 +1216,60 @@ export async function adjustCreditAccount(input: {
   });
 }
 
+/**
+ * Posts an admin credit grant inside a caller's transaction.
+ *
+ * Split out of `adjustCreditAccount` so a workflow that already holds the
+ * reservation locks can credit somebody without opening a second transaction —
+ * the grant and whatever earned it have to commit together or not at all.
+ *
+ * The caller must already hold this user's credit-account lock, which the
+ * canonical lock order places before stands. Reversal handling is deliberately
+ * absent: this posts money, and undoing it stays with `adjustCreditAccount`,
+ * where the reversal bookkeeping lives.
+ */
+export async function grantCreditsInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    /** Positive. A debit belongs to `adjustCreditAccount`. */
+    amount: number;
+    reason: string;
+    idempotencyKey: string;
+  },
+): Promise<{ ledgerEntryId: number } | null> {
+  const amount = roundCredits(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    // The ledger key is global, so a key belonging to another user cannot fall
+    // through to an insert.
+    if (existing.userId !== input.userId) return null;
+    return { ledgerEntryId: existing.id };
+  }
+
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount,
+      type: "admin_grant",
+      idempotencyKey: input.idempotencyKey,
+      metadata: { reason: input.reason.trim() },
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return null;
+  await updateCachedBalance(tx, input.userId, amount);
+  return { ledgerEntryId: entry.id };
+}
+
 export { exactCreditShortfall };

@@ -56,9 +56,9 @@ export default async function Page(props: {
           backHref="/my_profile"
         />
         <div className="container p-4 md:p-6">
-          <h1 className="text-3xl font-bold mb-4">Factura de la reserva</h1>
+          <h1 className="text-3xl font-bold mb-4">Cobro de la reserva</h1>
           <p className="text-muted-foreground mb-8">
-            Podés ver el estado del pago, pero solo quien figura en la factura
+            Podés ver el estado del pago, pero solo quien figura en el cobro
             puede enviar el comprobante.
           </p>
           {visibleInvoices.map((invoice) => (
