@@ -12,7 +12,6 @@ import {
 import { fetchAdminCategory } from "@/app/lib/categories/queries";
 import { UNIQUE_LABEL_MESSAGE } from "@/app/lib/categories/copy";
 import { isUniqueViolation } from "@/app/lib/categories/pg";
-import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { requireAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -21,6 +20,11 @@ import { subcategories } from "@/db/schema";
 function revalidateCategoryPaths() {
   revalidatePath("/festivals/categories");
   revalidatePath("/dashboard/categories");
+}
+
+async function renderCategoryDescriptionHtml(blocks: unknown[]) {
+  const { blocksToSanitizedHtml } = await import("@/app/lib/rich-text/render");
+  return await blocksToSanitizedHtml(blocks, "compact", "una categoría");
 }
 
 async function cleanupCategoryImage(url: string, fileKey?: string | null) {
@@ -68,11 +72,7 @@ export async function createCategory(input: unknown) {
 
   try {
     const descriptionHtml = Array.isArray(data.descriptionJson)
-      ? await blocksToSanitizedHtml(
-          data.descriptionJson,
-          "compact",
-          "una categoría",
-        )
+      ? await renderCategoryDescriptionHtml(data.descriptionJson)
       : null;
     const sortOrder = await nextSortOrder(data.category);
 
@@ -133,11 +133,7 @@ export async function updateCategory(id: number, input: unknown) {
 
   try {
     const descriptionHtml = Array.isArray(data.descriptionJson)
-      ? await blocksToSanitizedHtml(
-          data.descriptionJson,
-          "compact",
-          "una categoría",
-        )
+      ? await renderCategoryDescriptionHtml(data.descriptionJson)
       : null;
 
     const movingArea = existing.category !== data.category;

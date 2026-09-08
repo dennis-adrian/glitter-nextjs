@@ -11,3 +11,15 @@ allowBuilds:
   msgpackr-extract: true
   protobufjs: true
   sharp: true
+
+# @blocknote/server-util loads jsdom to render stored blocks into HTML
+# (app/lib/rich-text/render.ts). From 27.4 on, jsdom's CommonJS code require()s
+# the ESM-only @exodus/bytes, and 27.0-27.3 reach ESM through
+# cssstyle -> @asamuzakjp/css-color -> @csstools/css-calc. Vercel runs functions
+# with Node's require(esm) support off, so those versions cannot load there at
+# all. 26.1.0 is the newest jsdom whose graph is entirely CommonJS.
+#
+# Scoped to the server renderer on purpose: the root jsdom devDependency is the
+# vitest DOM environment, which runs locally and needs to stay current.
+overrides:
+  '@blocknote/server-util>jsdom': 26.1.0
