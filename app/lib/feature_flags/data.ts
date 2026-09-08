@@ -94,16 +94,50 @@ async function fetchFlagTargets(flagId: number): Promise<FeatureFlagTarget[]> {
     .orderBy(featureFlagUserTargets.createdAt);
 }
 
-/** The evaluation input for one flag. */
+/**
+ * The evaluation input for one flag.
+ *
+ * If the row cannot be read, this falls back to the registry's declared
+ * default with nobody targeted, rather than throwing. Two reasons that is the
+ * right call here and not a papered-over error:
+ *
+ * - It is the same value `fetchOrCreateFlagRow` would have written had it been
+ *   able to reach the database, so the fallback invents no new behaviour.
+ * - Every default is `hidden` and the target list empties, so the failure is
+ *   fail-closed: an unreachable database can only ever hide a feature, never
+ *   reveal one.
+ *
+ * That keeps a prerender of a public page from dying on a flag lookup — during
+ * `next build` without a database, or on a transient outage in production,
+ * where the alternative is a 500 on a page that merely asked whether to show a
+ * nav entry.
+ *
+ * Only the evaluation path degrades. `fetchFeatureFlag` and
+ * `fetchAllFeatureFlags` still throw, because the admin screens that manage
+ * flags must never render fabricated state as if it were stored.
+ */
 export async function fetchFeatureFlagRule(
   key: FeatureFlagKey,
 ): Promise<FeatureFlagRule> {
-  const flag = await fetchFeatureFlag(key);
+  try {
+    const flag = await fetchFeatureFlag(key);
 
-  return {
-    visibility: flag.visibility,
-    targetedUserIds: flag.targets.map((target) => target.userId),
-  };
+    return {
+      visibility: flag.visibility,
+      targetedUserIds: flag.targets.map((target) => target.userId),
+    };
+  } catch (error) {
+    console.error(
+      `fetchFeatureFlagRule("${key}"): could not read the flag, falling back ` +
+        `to its registry default (${FEATURE_FLAGS[key].defaultVisibility}).`,
+      error,
+    );
+
+    return {
+      visibility: FEATURE_FLAGS[key].defaultVisibility,
+      targetedUserIds: [],
+    };
+  }
 }
 
 /**

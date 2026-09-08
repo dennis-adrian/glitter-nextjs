@@ -13,6 +13,8 @@ const {
   codeBlock,
   divider,
   image,
+  toggleListItem,
+  table,
 } = defaultBlockSpecs;
 
 export const COMPACT_BLOCK_TYPES = [
@@ -31,7 +33,19 @@ export const ARTICLE_BLOCK_TYPES = [
   "image",
 ] as const;
 
-export type EditorVariant = "compact" | "article";
+/**
+ * Blog posts are the widest surface: everything `article` allows, plus
+ * toggles and tables. Kept separate from `article` rather than widening it,
+ * because `article` also drives the festival terms editor, which should not
+ * grow tables just because the blog wants them.
+ */
+export const BLOG_BLOCK_TYPES = [
+  ...ARTICLE_BLOCK_TYPES,
+  "toggleListItem",
+  "table",
+] as const;
+
+export type EditorVariant = "compact" | "article" | "blog";
 
 export const compactEditorSchema = BlockNoteSchema.create({
   blockSpecs: {
@@ -57,16 +71,34 @@ export const articleEditorSchema = BlockNoteSchema.create({
   },
 });
 
+export const blogEditorSchema = BlockNoteSchema.create({
+  blockSpecs: {
+    paragraph,
+    heading: createHeadingBlockSpec({ levels: [1, 2, 3, 4] }),
+    bulletListItem,
+    numberedListItem,
+    quote,
+    checkListItem,
+    codeBlock,
+    divider,
+    image,
+    toggleListItem,
+    table,
+  },
+});
+
 export function schemaForVariant(variant: EditorVariant) {
+  if (variant === "blog") return blogEditorSchema;
   return variant === "article" ? articleEditorSchema : compactEditorSchema;
 }
 
 export function allowedBlockTypes(variant: EditorVariant): readonly string[] {
+  if (variant === "blog") return BLOG_BLOCK_TYPES;
   return variant === "article" ? ARTICLE_BLOCK_TYPES : COMPACT_BLOCK_TYPES;
 }
 
 export function allowedHeadingLevels(variant: EditorVariant): number[] {
-  return variant === "article" ? [1, 2, 3, 4] : [2, 3];
+  return variant === "compact" ? [2, 3] : [1, 2, 3, 4];
 }
 
 type WalkableBlock = {
@@ -102,7 +134,9 @@ export function disallowedBlockTypes(
   variant: EditorVariant,
 ): string[] {
   const allowed = new Set(allowedBlockTypes(variant));
-  return [...new Set(collectBlockTypes(blocks).filter((type) => !allowed.has(type)))];
+  return [
+    ...new Set(collectBlockTypes(blocks).filter((type) => !allowed.has(type))),
+  ];
 }
 
 export function headingLevelsIn(blocks: unknown): number[] {

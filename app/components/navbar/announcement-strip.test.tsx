@@ -48,7 +48,9 @@ describe("AnnouncementStrip", () => {
     render(<AnnouncementStrip announcement={announcement} />);
 
     expect(
-      screen.getByRole("link", { name: /Quiero participar/ }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: /Quiero participar/ })
+        .getAttribute("href"),
     ).toBe("#participa");
   });
 
@@ -57,7 +59,9 @@ describe("AnnouncementStrip", () => {
     render(<AnnouncementStrip announcement={announcement} />);
 
     expect(
-      screen.getByRole("link", { name: /Quiero participar/ }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: /Quiero participar/ })
+        .getAttribute("href"),
     ).toBe("/#participa");
   });
 

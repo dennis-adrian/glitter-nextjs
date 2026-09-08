@@ -6,7 +6,25 @@ import { Pool } from "pg";
 import "@/app/lib/config";
 import { getPostgresUrl } from "@/env";
 
+/**
+ * A blog share link's token is stored as issued rather than hashed, so that an
+ * author can see and re-send their own link (db/schema.ts, `postShareLinks`).
+ * This logger prints the params of every statement, which would otherwise put
+ * a working link into the logs each time one is created or resolved — the one
+ * way a stored token leaks without database access. Masked here, next to the
+ * participant contact details this function already masks.
+ */
+const SHARE_TOKEN_RE = /^[0-9a-f]{64}$/;
+
 function redactQueryParams(query: string, params: unknown[]): unknown[] {
+  if (/post_share_links/i.test(query)) {
+    return params.map((param) =>
+      typeof param === "string" && SHARE_TOKEN_RE.test(param)
+        ? "[REDACTED_SHARE_TOKEN]"
+        : param,
+    );
+  }
+
   if (!/external_participants/i.test(query)) {
     return params;
   }

@@ -7,6 +7,7 @@ import {
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
+import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { db } from "@/db";
 import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -357,6 +358,10 @@ export async function handleDeletionEmails(): Promise<
           // Keep program purchases but strip their personal data. Their FK is
           // RESTRICT, so the delete below would abort without this.
           await anonymizeProgramPurchasesForUser(tx, task.profile.id);
+
+          // Published articles stay under "Equipo Glitter"; drafts and other
+          // never-public posts go with their author.
+          await detachPostsForDeletedUser(tx, task.profile.id);
 
           await tx.delete(users).where(eq(users.id, task.profile.id));
 

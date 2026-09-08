@@ -18,6 +18,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import {
   // BookImageIcon, // used by the commented-out festival items
+  BookOpenIcon,
   BoxesIcon,
   Building2Icon,
   CalendarCheck2Icon,
@@ -66,6 +67,8 @@ type MobileSidebarProps = {
   profile?: NavbarProfile | null;
   /** Null when the entry is switched off, gated, or nothing is published. */
   programsHref?: string | null;
+  /** False until the `blog` flag is visible to this viewer. */
+  blogEnabled?: boolean;
   children: React.ReactNode;
 };
 
@@ -73,6 +76,7 @@ const MobileSidebar = ({
   children,
   profile,
   programsHref,
+  blogEnabled,
 }: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const { isSignedIn } = useUser();
@@ -122,6 +126,12 @@ const MobileSidebar = ({
             <CalendarCheck2Icon className="mr-2 h-6 w-6" />
             Próximo Evento
           </MobileSidebarItem>
+          {blogEnabled ? (
+            <MobileSidebarItem href="/blog">
+              <BookOpenIcon className="mr-2 h-6 w-6" />
+              Blog
+            </MobileSidebarItem>
+          ) : null}
           {canViewSupplies ? (
             <li>
               <h4 className="flex items-center p-2 text-lg">
@@ -309,6 +319,10 @@ const MobileSidebar = ({
                 <MobileSidebarItem href="/dashboard/landing">
                   <ImagesIcon className="mr-2 h-6 w-6" />
                   Contenido de inicio
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/blog">
+                  <BookOpenIcon className="mr-2 h-6 w-6" />
+                  Blog
                 </MobileSidebarItem>
                 <li>
                   <h4 className="flex items-center p-2 text-lg">

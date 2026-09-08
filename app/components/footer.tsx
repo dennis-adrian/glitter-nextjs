@@ -7,7 +7,12 @@ import { usePathname } from "next/navigation";
 import { MailIcon } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
-export default function Footer() {
+export default function Footer({
+  /** False until the `blog` flag is visible to this viewer. */
+  blogEnabled = false,
+}: {
+  blogEnabled?: boolean;
+}) {
   const pathname = usePathname();
 
   if (pathname === "/") return null;
@@ -38,6 +43,16 @@ export default function Footer() {
                   Festicker
                 </Link>
               </li>
+              {blogEnabled ? (
+                <li>
+                  <Link
+                    href="/blog"
+                    className="text-muted-foreground hover:text-primary"
+                  >
+                    Blog
+                  </Link>
+                </li>
+              ) : null}
             </ul>
           </div>
           <div>

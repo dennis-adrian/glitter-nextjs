@@ -1,9 +1,8 @@
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
 
 import {
-  articleEditorSchema,
   assertCompactDocument,
-  compactEditorSchema,
+  schemaForVariant,
   type EditorVariant,
 } from "@/app/lib/rich-text/schemas";
 import { sanitizeRichTextHtml } from "@/app/lib/rich-text/sanitize";
@@ -21,10 +20,11 @@ export async function blocksToSanitizedHtml(
     assertCompactDocument(blocks, documentLabel);
   }
 
-  const editor =
-    variant === "article"
-      ? ServerBlockNoteEditor.create({ schema: articleEditorSchema })
-      : ServerBlockNoteEditor.create({ schema: compactEditorSchema });
+  // `schemaForVariant` returns a union of three concrete schema types;
+  // ServerBlockNoteEditor wants one. Same cast the client editor uses.
+  const editor = ServerBlockNoteEditor.create({
+    schema: schemaForVariant(variant) as never,
+  });
 
   const html = await editor.blocksToHTMLLossy(blocks as never);
   return sanitizeRichTextHtml(html, variant);
