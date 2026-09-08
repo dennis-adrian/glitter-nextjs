@@ -18,7 +18,6 @@ import {
   hasMeaningfulContent,
   usesWorkingCopy,
 } from "@/app/lib/posts/helpers";
-import { renderPostHtml } from "@/app/lib/posts/render";
 import {
   ensureUniquePostCategorySlug,
   ensureUniquePostSlug,
@@ -320,6 +319,7 @@ export async function autosaveDraft(
   const data = parsed.data;
 
   try {
+    const { renderPostHtml } = await import("@/app/lib/posts/render");
     const contentHtml = await renderPostHtml(data.content);
     const stage = usesWorkingCopy(existing);
 
