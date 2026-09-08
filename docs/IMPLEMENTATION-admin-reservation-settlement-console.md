@@ -2,7 +2,7 @@
 
 **Product:** Glitter
 **Date:** 2026-09-08
-**Status:** Proposed
+**Status:** Implemented (2026-09-08)
 **Target:** Next.js 16 App Router, React 19, PostgreSQL/Drizzle
 
 ---
@@ -498,6 +498,37 @@ redirect, delete the stub route and `payments/table.tsx` + `payments/columns.tsx
 
 Phases 1–3 are independently shippable and each closes real defects. Phase 4 is reversible — the
 redirect is one line.
+
+### What shipped, and where it differs from the plan
+
+All four phases landed, in four commits. Three deviations are worth recording, because each one is a
+place the plan was wrong rather than a shortcut:
+
+**The credit release lives in `credits/service.ts`, not the settlement service.** The plan put
+`releaseInvoiceCreditsInTx` next to `rejectInvoiceSettlement`. That creates an import cycle:
+`payment-service` already imports `applyReservationCancellation` from `admin-service`, and the
+cancellation path is the one that most needs to refund. `releaseInvoiceCreditAllocationsInTx` sits in
+the credits service, which neither reservation module imports back.
+
+**The refund happens inside `applyReservationCancellation`, not in each caller.** The plan named
+`rejectInvoiceSettlement` and said to "audit the other cancellation paths". Auditing them found the
+same hole in `cancelReservation` and the expiry job, so the refund went into the one function they all
+reach. A caller cannot forget it.
+
+**`settleInvoiceShortfall` does not always route through `approveSubmissionInTx`.** §8.4 assumed it
+could. It cannot when credits alone cover the invoice: the approval path requires either a
+`payment_proof` submission with a payment id, or a `zero_value_entitlement` on an invoice of exactly
+zero, and a credits-only write-off is neither. The command now settles the invoice to
+`covered + submittedCash`, then approves the submission when there is one and applies the accepted
+transition directly when there is not. The exact-match invariant is still never loosened.
+
+Two smaller notes:
+
+- `ViewPaymentProofCell` and `PaymentProofModal` were narrowed to the fields they actually read, so
+  the reservation-rooted row can pass its own shape instead of being converted into an invoice-rooted
+  one.
+- The `expiration` column (createdAt + `RESERVATION_EXPIRATION_HOURS`) was replaced by `dueAt`, which
+  is what an admin extends. It was the third implementation of "when is this due".
 
 ## 16. Deliberately unchanged
 
