@@ -137,6 +137,7 @@ export async function resolveSharedPost(
           firstName: true,
           lastName: true,
           imageUrl: true,
+          role: true,
         },
       },
       reviewer: {
@@ -146,6 +147,7 @@ export async function resolveSharedPost(
           firstName: true,
           lastName: true,
           imageUrl: true,
+          role: true,
         },
       },
       postCategories: { with: { category: true } },

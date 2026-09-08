@@ -272,7 +272,7 @@ A document counts as having real content if any block anywhere in it carries non
 
 Deleting a participant's account must not be blocked by anything they wrote.
 
-- Published and archived posts are kept, with `authorId` set to null. Their byline falls back to "Equipo Glitter".
+- Published and archived posts are kept, with `authorId` set to null. Their byline falls back to "Equipo Glitter", the same credit a staff-written article carries (§7.12).
 - Posts in every other status — draft, submitted, approved, scheduled, rejected — are deleted with the account. None of them was ever visible to a reader. A scheduled post is deliberately included: it should not publish itself after its author asked to be forgotten.
 - Phase 2: their comments are deleted.
 
@@ -305,6 +305,21 @@ participants can be let in before everyone.
 Both flags are enforced server-side — a hidden blog answers 404 on its routes,
 and a participant navigating straight to `/portal/blog` is redirected — rather
 than only hiding links.
+
+### 7.12 Byline **[new]**
+
+An article written by staff (`admin`, `festival_admin`) is credited to **"Equipo Glitter"**, never to the person's own name. An announcement signed "Admin Glitter" reads like one person's opinion when it is the festival speaking. A participant keeps their own name — for them the byline is the credit they wrote for.
+
+This is a display rule, not a data one: `posts.authorId` still records the actual human, so the review trail and "Mis artículos" keep working.
+
+It applies only to reader-facing surfaces — the article, the listing cards, the shared view, and the `author` metadata. Two places deliberately keep the real name:
+
+- **The review queue**, where an admin needs to know which human submitted a draft.
+- **Comment threads**, where an admin is taking part in a conversation rather than publishing.
+
+`postAuthorName` stays the plain name and serves both; `postBylineName` is the public credit.
+
+An article whose author deleted their account already read as "Equipo Glitter" (§7.10), so the two cases now agree.
 
 ## 8) Technical Design Summary
 

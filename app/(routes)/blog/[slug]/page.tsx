@@ -9,7 +9,7 @@ import {
 } from "@/app/lib/posts/data";
 import { canEditPost } from "@/app/lib/posts/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { postAuthorName } from "@/app/lib/posts/helpers";
+import { postBylineName } from "@/app/lib/posts/helpers";
 import { isPostGatedFor } from "@/app/lib/posts/audience";
 import { isStaff } from "@/app/lib/posts/helpers";
 import { fetchCommentThread } from "@/app/lib/posts/comments";
@@ -57,7 +57,7 @@ export async function generateMetadata({
     post.seoDescription ??
     post.excerpt ??
     "Artículo del blog de Glitter";
-  const authorName = postAuthorName(post.author);
+  const authorName = postBylineName(post.author);
 
   return {
     title,

@@ -5,7 +5,7 @@ import CategoryPill from "@/app/components/blog/category-pill";
 import TagPill from "@/app/components/blog/tag-pill";
 import type { PostWithRelations } from "@/app/lib/posts/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
-import { postAuthorName } from "@/app/lib/posts/helpers";
+import { postBylineName } from "@/app/lib/posts/helpers";
 import AudienceBadge from "@/app/components/blog/audience-badge";
 import PostGate from "@/app/components/blog/post-gate";
 
@@ -45,7 +45,7 @@ export default function PostDetail({ post, previewBanner, gateReason }: Props) {
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <UserIcon className="h-4 w-4" />
-            {postAuthorName(post.author)}
+            {postBylineName(post.author)}
           </span>
           {post.publishedAt && (
             <span className="inline-flex items-center gap-1.5">

@@ -9,6 +9,8 @@ import {
   hasMeaningfulContent,
   hasWorking,
   isStaff,
+  postAuthorName,
+  postBylineName,
   usesWorkingCopy,
   workingPendingReview,
   workingRejected,
@@ -224,5 +226,65 @@ describe("hasMeaningfulContent", () => {
         },
       ]),
     ).toBe(true);
+  });
+});
+
+describe("postBylineName", () => {
+  const named = {
+    displayName: "Admin Glitter",
+    firstName: "Admin",
+    lastName: "Glitter",
+  };
+
+  /**
+   * Staff write as the organisation. An announcement signed with a person's
+   * name reads like their opinion when it is the festival speaking.
+   */
+  it("credits staff as Equipo Glitter", () => {
+    for (const role of ["admin", "festival_admin"]) {
+      expect(postBylineName({ ...named, role })).toBe("Equipo Glitter");
+    }
+  });
+
+  it("keeps a participant's own name", () => {
+    expect(
+      postBylineName({
+        displayName: "Ana Ilustra",
+        firstName: "Ana",
+        lastName: "Ilustra",
+        role: "artist",
+      }),
+    ).toBe("Ana Ilustra");
+  });
+
+  it("falls back to first and last name when there is no display name", () => {
+    expect(
+      postBylineName({
+        displayName: null,
+        firstName: "Ana",
+        lastName: "Ilustra",
+        role: "artist",
+      }),
+    ).toBe("Ana Ilustra");
+  });
+
+  /** A deleted author already read as the team; that stays true. */
+  it("credits a removed author as Equipo Glitter", () => {
+    expect(postBylineName(null)).toBe("Equipo Glitter");
+    expect(postBylineName(undefined)).toBe("Equipo Glitter");
+  });
+
+  it("treats a missing role as a participant", () => {
+    expect(postBylineName({ ...named, role: null })).toBe("Admin Glitter");
+    expect(postBylineName(named)).toBe("Admin Glitter");
+  });
+
+  /**
+   * The plain name is still what the review queue and comment threads show — a
+   * reviewer needs to know which human submitted a draft, and an admin in a
+   * comment thread is taking part, not publishing.
+   */
+  it("leaves postAuthorName alone", () => {
+    expect(postAuthorName({ ...named })).toBe("Admin Glitter");
   });
 });

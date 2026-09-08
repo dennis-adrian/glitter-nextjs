@@ -35,7 +35,7 @@ export type PostTagRow = InferSelectModel<typeof postTags>;
 
 export type PostAuthor = Pick<
   InferSelectModel<typeof users>,
-  "id" | "displayName" | "firstName" | "lastName" | "imageUrl"
+  "id" | "displayName" | "firstName" | "lastName" | "imageUrl" | "role"
 >;
 
 export type PostWithRelations = PostRow & {

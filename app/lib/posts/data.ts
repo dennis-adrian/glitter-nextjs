@@ -47,12 +47,18 @@ import {
 
 const PAGE_SIZE = 12;
 
+/**
+ * `role` is here so `postBylineName` can tell a staff-written article from a
+ * participant's without a second query. These are server components, so the
+ * value is used to render a string and never reaches the browser.
+ */
 const PUBLIC_AUTHOR_COLUMNS = {
   id: true as const,
   displayName: true as const,
   firstName: true as const,
   lastName: true as const,
   imageUrl: true as const,
+  role: true as const,
 };
 
 type ListFilters = {

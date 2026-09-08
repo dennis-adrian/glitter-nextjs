@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import PostDetail from "@/app/components/blog/post-detail";
 import SharedPostBanner from "@/app/components/blog/shared-post-banner";
-import { postAuthorName } from "@/app/lib/posts/helpers";
+import { postBylineName } from "@/app/lib/posts/helpers";
 import { resolveSharedPost } from "@/app/lib/posts/share-links";
 
 type PageProps = {
@@ -53,7 +53,7 @@ export default async function SharedPostPage({ params }: PageProps) {
       <div className="mx-auto max-w-3xl px-4 pt-8">
         <SharedPostBanner
           status={post.status}
-          authorName={postAuthorName(post.author)}
+          authorName={postBylineName(post.author)}
         />
       </div>
       {/*

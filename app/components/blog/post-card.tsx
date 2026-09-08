@@ -5,7 +5,7 @@ import Link from "next/link";
 import CategoryPill from "@/app/components/blog/category-pill";
 import type { PublicPostListItem } from "@/app/lib/posts/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
-import { postAuthorName } from "@/app/lib/posts/helpers";
+import { postBylineName } from "@/app/lib/posts/helpers";
 import AudienceBadge from "@/app/components/blog/audience-badge";
 
 export default function PostCard({ post }: { post: PublicPostListItem }) {
@@ -47,7 +47,7 @@ export default function PostCard({ post }: { post: PublicPostListItem }) {
           </p>
         )}
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
-          <span>{postAuthorName(post.author)}</span>
+          <span>{postBylineName(post.author)}</span>
           {post.publishedAt && (
             <span className="inline-flex items-center gap-1">
               <CalendarIcon className="h-3 w-3" />

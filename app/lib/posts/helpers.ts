@@ -144,3 +144,28 @@ export function postAuthorName(
     "Equipo Glitter"
   );
 }
+
+/**
+ * The name a *reader* sees on an article.
+ *
+ * Staff write as the organisation, not as themselves: an announcement signed
+ * "Admin Glitter" reads like a person's opinion when it is the festival
+ * speaking. A participant keeps their own name — the byline is the credit they
+ * are writing for.
+ *
+ * Deliberately separate from `postAuthorName`, which stays the plain name and
+ * is what the review queue and comment threads use. A reviewer needs to know
+ * which human submitted a draft, and an admin commenting in a thread is taking
+ * part in a conversation rather than publishing.
+ */
+export function postBylineName(
+  author:
+    | (Pick<BaseProfile, "displayName" | "firstName" | "lastName"> & {
+        role?: string | null;
+      })
+    | null
+    | undefined,
+): string {
+  if (author && isStaff(author.role)) return "Equipo Glitter";
+  return postAuthorName(author);
+}
