@@ -24,17 +24,17 @@ import {
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { cn } from "@/app/lib/utils";
 
+// No `dark:` variants: this project's Tailwind resolves them from
+// prefers-color-scheme, which is independent of the app's own light/dark
+// theme, so a dark-scheme browser on a light page picked the pale text and the
+// badge became unreadable. Every other badge in the app states one colour.
 const STYLES: Record<CoverageState, string> = {
-  unpaid:
-    "bg-gray-500/15 border border-gray-300 text-gray-800 dark:text-gray-200",
-  partial:
-    "bg-amber-500/15 border border-amber-300 text-amber-800 dark:text-amber-200",
-  under_review:
-    "bg-blue-500/15 border border-blue-300 text-blue-800 dark:text-blue-200",
-  overdue: "bg-red-500/15 border border-red-300 text-red-800 dark:text-red-200",
-  paid: "bg-green-500/15 border border-green-300 text-green-800 dark:text-green-200",
-  cancelled:
-    "bg-gray-500/15 border border-gray-300 text-gray-600 dark:text-gray-400",
+  unpaid: "bg-gray-500/15 border border-gray-400 text-gray-800",
+  partial: "bg-amber-500/15 border border-amber-400 text-amber-900",
+  under_review: "bg-blue-500/15 border border-blue-400 text-blue-900",
+  overdue: "bg-red-500/15 border border-red-400 text-red-900",
+  paid: "bg-green-500/15 border border-green-500 text-green-900",
+  cancelled: "bg-gray-500/15 border border-gray-400 text-gray-700",
 };
 
 const ICONS: Record<CoverageState, typeof MinusIcon> = {
@@ -167,7 +167,7 @@ export default function CoverageCell({
       ) : (
         state === "overdue" &&
         dueAt && (
-          <span className="text-xs text-red-700 dark:text-red-300">
+          <span className="text-xs text-red-700">
             Venció el {formatDateWithTime(new Date(dueAt))}
           </span>
         )
