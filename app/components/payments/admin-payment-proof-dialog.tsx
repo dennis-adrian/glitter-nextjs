@@ -47,7 +47,9 @@ export default function AdminPaymentProofDialog({
     const submittedMarkAsPaid = markAsPaid;
     if (submittedMarkAsPaid) {
       if (!extra?.submissionId) {
-        toast.error("No se pudo confirmar el pago. Recargá e intentá de nuevo.");
+        toast.error(
+          "No se pudo confirmar el pago. Recargá e intentá de nuevo.",
+        );
         router.refresh();
         return;
       }

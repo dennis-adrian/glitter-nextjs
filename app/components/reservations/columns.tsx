@@ -8,10 +8,12 @@ import {
 } from "@/components/ui/tooltip";
 import { ColumnDef } from "@tanstack/react-table";
 
-import { FullReservation } from "@/app/api/reservations/definitions";
+import {
+  FullReservation,
+  FullReservationWithTender,
+} from "@/app/api/reservations/definitions";
 import CategoryBadge from "@/app/components/category-badge";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
-import PaymentStatus from "@/app/components/reservations/cells/payment-status";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
@@ -25,10 +27,31 @@ import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { EyeOffIcon } from "lucide-react";
+import CoverageCell from "@/app/components/payments/coverage-cell";
 import {
-  DisplayPaymentStatus,
-  mapPaymentStatusToDisplayPaymentStatus,
-} from "@/app/lib/payments/helpers";
+  deriveCoverageState,
+  type CoverageState,
+} from "@/app/lib/payments/coverage";
+
+/**
+ * Coverage for the reservation's invoice, or null when it carries none.
+ *
+ * A reservation has exactly one invoice in every creation path, so reading the
+ * first is safe — but the schema does not enforce it, so this returns null
+ * rather than asserting.
+ */
+function reservationCoverageState(
+  reservation: FullReservationWithTender,
+): CoverageState | null {
+  const invoice = reservation.invoices[0];
+  if (!invoice || !reservation.tender) return null;
+  return deriveCoverageState({
+    invoiceStatus: invoice.status,
+    reservationStatus: reservation.status,
+    tender: reservation.tender,
+    dueAt: invoice.dueAt,
+  });
+}
 
 export const columnTitles = {
   artists: "Participantes",
@@ -62,7 +85,7 @@ function standCellLabel(reservation: FullReservation): string {
   return summary.label || formatStandLabel(reservation.stand);
 }
 
-export const columns: ColumnDef<FullReservation>[] = [
+export const columns: ColumnDef<FullReservationWithTender>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -303,17 +326,24 @@ export const columns: ColumnDef<FullReservation>[] = [
   },
   {
     id: "paymentStatus",
-    accessorFn: (row) =>
-      row.invoices.length > 0
-        ? mapPaymentStatusToDisplayPaymentStatus(row.invoices[0]!, row)
-        : DisplayPaymentStatus.NONE,
+    accessorFn: (row) => reservationCoverageState(row) ?? "",
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
         title={columnTitles.paymentStatus}
       />
     ),
-    cell: ({ row }) => <PaymentStatus reservation={row.original} />,
+    cell: ({ row }) => {
+      const state = reservationCoverageState(row.original);
+      if (!state || !row.original.tender) return "--";
+      return (
+        <CoverageCell
+          state={state}
+          tender={row.original.tender}
+          dueAt={row.original.invoices[0]?.dueAt}
+        />
+      );
+    },
     filterFn: (row, columnId, filter) => {
       if (!filter || filter.length === 0) return true;
       const status = row.getValue(columnId);

@@ -5,9 +5,14 @@ import PaymentStatus from "@/app/components/payments/payment-status";
 import ActionsCell from "@/app/components/payments/cells/actions";
 import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-proof-cell";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
+import CoverageCell from "@/app/components/payments/coverage-cell";
+import {
+  deriveCoverageState,
+  type CoverageState,
+} from "@/app/lib/payments/coverage";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -18,17 +23,27 @@ export const columnTitles = {
   id: "ID",
   amount: "Monto",
   category: "Categoría",
+  coverage: "Cobertura",
   createdAt: "Fecha de creación",
-  paymentProof: "Comprobante de pago",
-  profile: "Perfil",
+  creditAmount: "Créditos",
+  outstandingAmount: "Saldo",
+  paymentProof: "Comprobante",
+  profile: "Titular",
   stand: "Espacio",
   status: "Estado",
   reservationStatus: "Estado de la reserva",
 };
 
-export const columns = (
-  isAdmin = false,
-): ColumnDef<InvoiceWithParticipants>[] => [
+function invoiceCoverageState(invoice: InvoiceWithTender): CoverageState {
+  return deriveCoverageState({
+    invoiceStatus: invoice.status,
+    reservationStatus: invoice.reservation.status,
+    tender: invoice.tender,
+    dueAt: invoice.dueAt,
+  });
+}
+
+export const columns = (isAdmin = false): ColumnDef<InvoiceWithTender>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -84,12 +99,55 @@ export const columns = (
     },
   },
   {
+    id: "coverage",
+    accessorFn: (row) => invoiceCoverageState(row),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.coverage} />
+    ),
+    cell: ({ row }) => (
+      <CoverageCell
+        state={invoiceCoverageState(row.original)}
+        tender={row.original.tender}
+        dueAt={row.original.dueAt}
+      />
+    ),
+    filterFn: (row, columnId, filter) => {
+      if (!filter || filter.length === 0) return true;
+      return filter.includes(row.getValue(columnId));
+    },
+  },
+  {
     id: "amount",
     accessorKey: "amount",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.amount} />
     ),
     cell: ({ row }) => `${row.original.amount} Bs`,
+  },
+  {
+    id: "creditAmount",
+    accessorFn: (row) => row.tender.confirmedCreditAmount,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.creditAmount}
+      />
+    ),
+    cell: ({ row }) =>
+      row.original.tender.confirmedCreditAmount > 0
+        ? `${row.original.tender.confirmedCreditAmount} Bs`
+        : "--",
+  },
+  {
+    id: "outstandingAmount",
+    accessorFn: (row) => row.tender.outstandingAmount,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.outstandingAmount}
+      />
+    ),
+    cell: ({ row }) => `${row.original.tender.outstandingAmount} Bs`,
   },
   {
     id: "paymentProof",

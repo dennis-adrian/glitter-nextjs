@@ -71,7 +71,8 @@ export function deriveCoverageState(input: CoverageInput): CoverageState {
   const dueAt = toDate(input.dueAt);
   const now = input.now ?? new Date();
   const isOverdue =
-    dueAt != null && dueAt.getTime() < now.getTime() &&
+    dueAt != null &&
+    dueAt.getTime() < now.getTime() &&
     reservationStatus !== "accepted";
   if (isOverdue) return "overdue";
 

@@ -1,14 +1,14 @@
-import { FullReservation } from "@/app/api/reservations/definitions";
+import { FullReservationWithTender } from "@/app/api/reservations/definitions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { externalParticipantTypeOptions } from "@/app/lib/external_participants/definitions";
-import { DisplayPaymentStatus } from "@/app/lib/payments/helpers";
+import { COVERAGE_FILTER_OPTIONS } from "@/app/lib/payments/coverage";
 import { userCategoryOptions } from "@/app/lib/utils";
 import { columns, columnTitles } from "./columns";
 
 export default function ReservationsTable({
   data,
 }: {
-  data: FullReservation[];
+  data: FullReservationWithTender[];
 }) {
   return (
     <DataTable
@@ -32,30 +32,9 @@ export default function ReservationsTable({
           ],
         },
         {
-          label: "Estado del pago",
+          label: "Cobertura",
           columnId: "paymentStatus",
-          options: [
-            {
-              value: DisplayPaymentStatus.PENDING,
-              label: DisplayPaymentStatus.PENDING,
-            },
-            {
-              value: DisplayPaymentStatus.UNDER_REVIEW,
-              label: DisplayPaymentStatus.UNDER_REVIEW,
-            },
-            {
-              value: DisplayPaymentStatus.OUTSTANDING,
-              label: DisplayPaymentStatus.OUTSTANDING,
-            },
-            {
-              value: DisplayPaymentStatus.PAID,
-              label: DisplayPaymentStatus.PAID,
-            },
-            {
-              value: DisplayPaymentStatus.CANCELLED,
-              label: DisplayPaymentStatus.CANCELLED,
-            },
-          ],
+          options: COVERAGE_FILTER_OPTIONS,
         },
         {
           label: "Categoría",

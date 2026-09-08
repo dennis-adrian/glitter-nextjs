@@ -37,8 +37,9 @@ export default function PaymentProofUpload({
 
   const { startUpload: startReservationPaymentUpload } =
     useUploadThing("reservationPayment");
-  const { startUpload: startAdminReservationPaymentUpload } =
-    useUploadThing("adminReservationPayment");
+  const { startUpload: startAdminReservationPaymentUpload } = useUploadThing(
+    "adminReservationPayment",
+  );
   const { startUpload: startStoreOrderPaymentUpload } =
     useUploadThing("storeOrderPayment");
   const { startUpload: startGuestOrderPaymentUpload } =
@@ -105,9 +106,11 @@ export default function PaymentProofUpload({
           onUploading(false);
           return;
         }
-        res = await (endpoint === "adminReservationPayment"
-          ? startAdminReservationPaymentUpload
-          : startReservationPaymentUpload)([selectedFile], {
+        res = await (
+          endpoint === "adminReservationPayment"
+            ? startAdminReservationPaymentUpload
+            : startReservationPaymentUpload
+        )([selectedFile], {
           invoiceId,
         });
       }

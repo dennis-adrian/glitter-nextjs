@@ -35,9 +35,7 @@ export default function ConfirmReservationModal({
   const canSettleInvoice =
     invoice.status === "pending" || invoice.status === "verification_payment";
   const standLabel = formatStandLabel(invoice.reservation.stand);
-  const voucherUrl = findLatestActivePaymentProof(
-    invoice.payments,
-  )?.voucherUrl;
+  const voucherUrl = findLatestActivePaymentProof(invoice.payments)?.voucherUrl;
 
   return (
     <DrawerDialog

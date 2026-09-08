@@ -73,9 +73,9 @@ describe("deriveCoverageState", () => {
   });
 
   it("does not report overdue for an accepted reservation", () => {
-    expect(
-      coverage({ dueAt: YESTERDAY, reservationStatus: "accepted" }),
-    ).toBe("unpaid");
+    expect(coverage({ dueAt: YESTERDAY, reservationStatus: "accepted" })).toBe(
+      "unpaid",
+    );
   });
 
   it("treats a missing due date as not overdue", () => {

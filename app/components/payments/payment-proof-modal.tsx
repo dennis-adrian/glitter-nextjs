@@ -29,10 +29,7 @@ type PaymentProofModalProps = {
 export default function PaymentProofModal(props: PaymentProofModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const form = useForm();
-  const confirmIntentKey = useMemo(
-    () => crypto.randomUUID(),
-    [props.imageUrl],
-  );
+  const confirmIntentKey = useMemo(() => crypto.randomUUID(), [props.imageUrl]);
   const isReservationConfirmed =
     props.invoice.reservation.status === "accepted";
   const action = form.handleSubmit(async () => {

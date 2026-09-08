@@ -2,12 +2,13 @@
 
 import { columns, columnTitles } from "@/app/components/payments/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { InvoiceWithTender } from "@/app/data/invoices/definitions";
+import { COVERAGE_FILTER_OPTIONS } from "@/app/lib/payments/coverage";
 import { userCategoryOptions } from "@/app/lib/utils";
 
 type PaymentsTableProps = {
-  invoices: InvoiceWithParticipants[];
-  status?: InvoiceWithParticipants["status"];
+  invoices: InvoiceWithTender[];
+  status?: InvoiceWithTender["status"];
   columnVisbility?: Record<string, boolean>;
   isAdmin?: boolean;
 };
@@ -24,6 +25,11 @@ export default function PaymentsTable(props: PaymentsTableProps) {
             label: "Categoría",
             columnId: "category",
             options: [...userCategoryOptions],
+          },
+          {
+            label: "Cobertura",
+            columnId: "coverage",
+            options: COVERAGE_FILTER_OPTIONS,
           },
           {
             label: "Estado de la reserva",

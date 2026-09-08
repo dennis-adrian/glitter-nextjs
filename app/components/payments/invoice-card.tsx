@@ -24,8 +24,6 @@ import { formatDate } from "@/app/lib/formatters";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { cn } from "@/app/lib/utils";
 
-const PAYMENT_DUE_DAYS = 5;
-
 export type InvoiceWithReservation = InvoiceWithPaymentsAndOwner & {
   reservation: ReservationWithStandAndInvoicesAndFestival;
 };
@@ -39,10 +37,13 @@ type Props = {
 export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
   const statusConfig = getInvoiceStatusConfig(invoice.status);
   const createdAt = formatDate(invoice.createdAt);
-  const dueDate = createdAt.plus({ days: PAYMENT_DUE_DAYS });
+  // `invoices.due_at` is what an admin extends; deriving the date from
+  // createdAt instead kept showing a reservation as overdue after its deadline
+  // had been moved.
+  const dueDate = invoice.dueAt ? formatDate(invoice.dueAt) : null;
   const isPending = invoice.status === "pending";
   const isUnderReview = invoice.status === "verification_payment";
-  const isOverdue = isPending && DateTime.now() > dueDate;
+  const isOverdue = isPending && dueDate != null && DateTime.now() > dueDate;
   const isOwner = invoice.userId === profileId;
   const standLabel = formatStandLabel(invoice.reservation.stand);
   const sectorName = invoice.reservation.stand.festivalSector?.name;
@@ -78,7 +79,7 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
             <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
             Creada el {createdAt.toLocaleString(DateTime.DATE_MED)}
           </span>
-          {isPending && (
+          {isPending && dueDate && (
             <span
               className={cn(
                 "flex items-center gap-1",

@@ -34,7 +34,10 @@ export const addCollaborator = async (
 ) => {
   const actor = await getCurrentUserProfile();
   if (!actor) {
-    return { success: false, message: "Tenés que iniciar sesión para continuar." };
+    return {
+      success: false,
+      message: "Tenés que iniciar sesión para continuar.",
+    };
   }
 
   const parsed = parseUnknown(addCollaboratorSchema, {
@@ -61,7 +64,10 @@ export const addCollaborator = async (
       participantUserIds: reservation.participants.map((p) => p.userId),
     })
   ) {
-    return { success: false, message: "No estás autorizado para esta reserva." };
+    return {
+      success: false,
+      message: "No estás autorizado para esta reserva.",
+    };
   }
 
   let response: {
@@ -150,7 +156,10 @@ export const deleteReservationCollaborator = async (
 ) => {
   const actor = await getCurrentUserProfile();
   if (!actor) {
-    return { success: false, message: "Tenés que iniciar sesión para continuar." };
+    return {
+      success: false,
+      message: "Tenés que iniciar sesión para continuar.",
+    };
   }
 
   const parsed = parseUnknown(deleteCollaboratorSchema, {
@@ -174,7 +183,10 @@ export const deleteReservationCollaborator = async (
       participantUserIds: reservation.participants.map((p) => p.userId),
     })
   ) {
-    return { success: false, message: "No estás autorizado para esta reserva." };
+    return {
+      success: false,
+      message: "No estás autorizado para esta reserva.",
+    };
   }
 
   try {
@@ -183,7 +195,10 @@ export const deleteReservationCollaborator = async (
       .where(
         and(
           eq(reservationCollaborators.reservationId, parsed.data.reservationId),
-          eq(reservationCollaborators.collaboratorId, parsed.data.collaboratorId),
+          eq(
+            reservationCollaborators.collaboratorId,
+            parsed.data.collaboratorId,
+          ),
         ),
       );
   } catch (error) {

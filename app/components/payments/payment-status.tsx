@@ -69,7 +69,9 @@ export default function PaymentStatus({
     startTransition(async () => {
       let result: { success: boolean; message: string };
       if (nextStatus === "paid") {
-        result = await approveSubmittedSettlementForInvoiceAction({ invoiceId });
+        result = await approveSubmittedSettlementForInvoiceAction({
+          invoiceId,
+        });
       } else if (nextStatus === "pending") {
         result = await rejectSubmittedSettlementForInvoiceAction({ invoiceId });
       } else if (nextStatus === "cancelled") {

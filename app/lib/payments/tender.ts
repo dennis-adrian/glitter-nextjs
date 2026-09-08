@@ -92,9 +92,7 @@ function sumPaymentsForSubmissionStatus(
  * write paths; it delegates the arithmetic here so the list screens and the
  * settlement engine can never disagree about what an invoice is owed.
  */
-export function computeInvoiceTender(
-  input: InvoiceTenderInput,
-): InvoiceTender {
+export function computeInvoiceTender(input: InvoiceTenderInput): InvoiceTender {
   const totalAmount = roundMoney(toAmount(input.amount));
 
   const confirmedCreditAmount = roundMoney(
@@ -114,9 +112,7 @@ export function computeInvoiceTender(
     "submitted",
   );
 
-  const coveredAmount = roundMoney(
-    approvedCashAmount + confirmedCreditAmount,
-  );
+  const coveredAmount = roundMoney(approvedCashAmount + confirmedCreditAmount);
 
   return {
     totalAmount,
