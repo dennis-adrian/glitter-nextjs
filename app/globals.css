@@ -253,8 +253,8 @@
        #ff655b text on this ground is only 2.6:1, so the text steps down to
        hsl(6 75% 40%) — deep enough to pass at 5.8:1, and saturation eases off
        with it so it stays coral rather than turning fire-engine red. */
-    --secondary: 12 100% 96%;
-    --secondary-foreground: 6 75% 40%;
+    --secondary: 20 100% 96%;
+    --secondary-foreground: 14 75% 40%;
     --muted: 36 33.3% 94.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 251.4 91.3% 95.5%;
@@ -310,17 +310,17 @@
 
     /* Coral ramp, hue-matched to --secondary. Saturation eases off below 400
        so the dark steps read as deep red rather than fluorescent. */
-    --secondary-50: 4 100% 95%;
-    --secondary-100: 4 100% 90%;
-    --secondary-200: 4 100% 83%;
-    --secondary-300: 4 100% 75%;
-    --secondary-400: 4 100% 68%;
-    --secondary-500: 4 92% 58%;
-    --secondary-600: 4 84% 46%;
-    --secondary-700: 4 78% 35%;
-    --secondary-800: 4 72% 24%;
-    --secondary-900: 4 68% 14%;
-    --secondary-950: 4 64% 7%;
+    --secondary-50: 12 100% 95%;
+    --secondary-100: 12 100% 90%;
+    --secondary-200: 12 100% 83%;
+    --secondary-300: 12 100% 75%;
+    --secondary-400: 12 100% 68%;
+    --secondary-500: 12 92% 58%;
+    --secondary-600: 12 84% 46%;
+    --secondary-700: 12 78% 35%;
+    --secondary-800: 12 72% 24%;
+    --secondary-900: 12 68% 14%;
+    --secondary-950: 12 64% 7%;
 
     --accent-50: 337 69% 95%;
     --accent-100: 338 69% 90%;
@@ -348,8 +348,8 @@
        surface with light coral text, 7.4:1. Dormant — ThemeProvider is not
        mounted in the root layout — but kept in step so it is not still pink
        whenever dark mode is turned on. */
-    --secondary: 6 30% 18%;
-    --secondary-foreground: 8 85% 78%;
+    --secondary: 14 30% 18%;
+    --secondary-foreground: 16 85% 78%;
     --muted: 0 0% 80%;
     --muted-foreground: 242 39% 87%;
     --accent: 338 69% 35%;
