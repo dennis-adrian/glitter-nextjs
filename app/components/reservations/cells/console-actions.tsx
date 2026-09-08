@@ -5,6 +5,7 @@ import {
   CheckCheckIcon,
   CoinsIcon,
   FilePenLineIcon,
+  HistoryIcon,
   MoreHorizontalIcon,
   ScaleIcon,
   TagIcon,
@@ -23,6 +24,7 @@ import CorrectPaymentProofDialog from "@/app/components/payments/correct-payment
 import GuardedMenuItem from "@/app/components/payments/guarded-menu-item";
 import ReleaseCreditsDialog from "@/app/components/payments/release-credits-dialog";
 import SettleShortfallDialog from "@/app/components/payments/settle-shortfall-dialog";
+import ConsoleDetailDialog from "@/app/components/reservations/console-detail-dialog";
 import { DeleteReservationModal } from "@/app/components/reservations/form/delete-modal";
 import { ExtendDeadlineModal } from "@/app/components/reservations/form/extend-deadline-modal";
 import { RejectReservationModal } from "@/app/components/reservations/form/reject-modal";
@@ -34,6 +36,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { ReservationConsoleDetail } from "@/app/lib/reservations/console-detail";
+import { fetchReservationConsoleDetailAction } from "@/app/lib/reservations/payment-actions";
 import { EMPTY_TENDER } from "@/app/lib/payments/tender";
 import { isActivePaymentProof } from "@/app/lib/payments/helpers";
 
@@ -62,6 +66,26 @@ export function ConsoleActionsCell({
   const [openCorrectProof, setOpenCorrectProof] = useState(false);
   const [openReleaseCredits, setOpenReleaseCredits] = useState(false);
   const [openShortfall, setOpenShortfall] = useState(false);
+  const [openHistory, setOpenHistory] = useState(false);
+  const [detail, setDetail] = useState<ReservationConsoleDetail | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Loaded on the click that opens the panel: three extra queries per row is
+  // not worth paying for a whole festival to serve the few rows expanded.
+  async function openHistory_() {
+    setOpenHistory(true);
+    if (detail || isLoadingDetail) return;
+    setIsLoadingDetail(true);
+    try {
+      setDetail(
+        await fetchReservationConsoleDetailAction({
+          reservationId: reservation.id,
+        }),
+      );
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  }
 
   const invoice = reservation.invoices[0];
   const tender = reservation.tender ?? EMPTY_TENDER;
@@ -219,6 +243,10 @@ export function ConsoleActionsCell({
           </GuardedMenuItem>
 
           <DropdownMenuSeparator />
+          <GuardedMenuItem onSelect={() => void openHistory_()}>
+            <HistoryIcon className="h-4 w-4 mr-1" />
+            Ver historial
+          </GuardedMenuItem>
           <GuardedMenuItem
             disabledReason={notAdmin}
             onSelect={() => setOpenReject(true)}
@@ -237,6 +265,13 @@ export function ConsoleActionsCell({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <ConsoleDetailDialog
+        reservationId={reservation.id}
+        detail={detail}
+        isLoading={isLoadingDetail}
+        open={openHistory}
+        onOpenChange={setOpenHistory}
+      />
       <DeleteReservationModal
         open={openDelete}
         reservation={reservation}

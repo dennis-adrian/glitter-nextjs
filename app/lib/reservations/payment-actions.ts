@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { cancelReservation } from "@/app/lib/reservations/admin-service";
+import { fetchReservationConsoleDetail } from "@/app/lib/reservations/console-detail";
 import {
   adminConfirmReservation,
   applyInvoiceCredits,
@@ -186,4 +187,13 @@ export async function releaseInvoiceCreditsAction(input: unknown) {
 export async function settleInvoiceShortfallAction(input: unknown) {
   const result = await settleInvoiceShortfall(input);
   return { success: result.success, message: result.message };
+}
+
+export async function fetchReservationConsoleDetailAction(input: unknown) {
+  const parsed = parseUnknown(
+    z.object({ reservationId: positiveIntSchema }),
+    input,
+  );
+  if (!parsed.success) return null;
+  return fetchReservationConsoleDetail(parsed.data.reservationId);
 }
