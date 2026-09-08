@@ -6,7 +6,7 @@ import type { PostCategoryRow } from "@/app/lib/posts/definitions";
 /**
  * A category, optionally linking to its browse page.
  *
- * `asLink` exists because `PostCard` wraps the entire card in an anchor, and
+ * `asLink` exists because `PostRow` wraps the entire row in an anchor, and
  * an anchor inside an anchor is invalid HTML — React refuses to hydrate it and
  * the whole list page falls back to a client render. Inside a card the pill is
  * a label; the card itself is what navigates.

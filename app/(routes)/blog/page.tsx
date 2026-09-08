@@ -50,7 +50,10 @@ export default async function BlogIndexPage({
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    // One readable column: the header, the filters and the list share a width,
+    // the way a reading surface is laid out. A wider container only made the
+    // rows stretch away from their own heading.
+    <div className="container mx-auto max-w-3xl px-4 py-8">
       <header className="mb-8 space-y-2">
         <h1 className="text-3xl md:text-4xl font-bold">Blog</h1>
         <p className="text-muted-foreground">
