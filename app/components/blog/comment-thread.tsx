@@ -58,6 +58,17 @@ export default function CommentThread({
     );
   }
 
+  /**
+   * A closed thread with nothing under it has nothing to say: no form to
+   * disable, no discussion to frame. Two notices explaining an empty section
+   * are worse than no section, so the whole thing goes. Once a comment exists
+   * the section comes back, closed notice and all — the thread is content
+   * then, not an absent feature.
+   */
+  if (closed && total === 0) {
+    return null;
+  }
+
   return (
     <section className="mt-12 border-t pt-8">
       <h2 className="text-xl font-semibold">
