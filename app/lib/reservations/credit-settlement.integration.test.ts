@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { eq, inArray } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -307,7 +307,7 @@ describeDatabase("invoice credit release", () => {
       db
         .select({
           amount: invoiceCreditAllocations.amount,
-          reversed: schema.sql<boolean>`EXISTS (
+          reversed: sql<boolean>`EXISTS (
             SELECT 1 FROM ${creditLedgerEntries} r
             WHERE r.reverses_entry_id = ${invoiceCreditAllocations.ledgerEntryId}
           )`,
