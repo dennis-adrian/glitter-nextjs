@@ -177,6 +177,10 @@ This is what makes it safe to edit a published article: readers keep seeing the 
 - Per-user rate limit: max 5 comments per minute per post, enforced by counting that user's recent comments on that post.
 - No edit. Users can delete their own comments (soft delete via `isHidden` + ownership check).
 - Comments are cleared when their author's account is deleted.
+- **Comments can be closed per article** (`posts.commentsEnabled`, default true). Closing refuses new comments and replies; it does **not** erase the ones already posted, which stay readable with a note saying the thread is closed. Erasing a discussion people had is destructive, and closing is what "turn off comments" means everywhere else.
+  - It is **not** part of the working copy. Every other editable field on a published post stages and waits for review; a thread that turns nasty has to be shut immediately. `setCommentsEnabled` writes straight to the live row, guarded by `canEditPost` — the same predicate as the editor — so an author can close their own thread and staff can close any.
+  - Enforced in `addComment`, not only by hiding the form: a control that was never rendered is not a permission check.
+  - The closed notice takes precedence over the sign-in prompt. Telling a signed-out reader to sign in to a closed thread is a dead end.
 
 ### 7.7 Scheduled Publishing (Phase 2)
 
@@ -329,6 +333,7 @@ Relations registered for posts ↔ author, posts ↔ reviewer, posts ↔ categor
   - `directPublish` (admin — `draft`/`approved`/`archived` → `published`)
   - `rejectPost` (admin)
   - `schedulePost`, `cancelSchedule` (Phase 2, admin only)
+  - `setCommentsEnabled` (§7.6 — opens or closes the thread; direct, never staged)
   - `archivePost`, `restorePost` (admin only)
   - `createPostCategory`, `updatePostCategory`, `deletePostCategory` (admin only)
   - `addComment`, `hideComment`, `deleteOwnComment` (Phase 2)

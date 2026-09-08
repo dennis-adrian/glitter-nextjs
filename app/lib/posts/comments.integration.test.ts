@@ -66,6 +66,13 @@ const integrationDb = pool ? drizzle(pool, { schema }) : null;
 const describeDatabase = integrationDb ? describe : describe.skip;
 
 let actions: typeof import("@/app/lib/posts/comment-actions");
+/**
+ * Loaded in the same `beforeAll` as the rest. A nested one inherits the
+ * default hook timeout, and importing this module is slow enough — it reaches
+ * the renderer — to blow past it on a loaded machine, which skipped the whole
+ * closed-thread block and failed the file.
+ */
+let postActions: typeof import("@/app/lib/posts/actions");
 let fetchCommentThread: (typeof import("@/app/lib/posts/comments"))["fetchCommentThread"];
 
 let READER: { id: number; role: string; status: string };
@@ -145,6 +152,7 @@ describeDatabase("blog comments", () => {
     ADMIN = { id: rows[3].id, role: "admin", status: "verified" };
 
     actions = await import("@/app/lib/posts/comment-actions");
+    postActions = await import("@/app/lib/posts/actions");
     ({ fetchCommentThread } = await import("@/app/lib/posts/comments"));
   }, 60_000);
 
@@ -297,6 +305,104 @@ describeDatabase("blog comments", () => {
       await expect(
         actions.addComment(postId, "Otro más"),
       ).resolves.toMatchObject({ success: false });
+    });
+  });
+
+  describe("closed thread", () => {
+    async function closedPost() {
+      const postId = await makePost();
+      currentProfile.value = ADMIN;
+      await expect(
+        postActions.setCommentsEnabled(postId, false),
+      ).resolves.toMatchObject({ success: true });
+      currentProfile.value = READER;
+      return postId;
+    }
+
+    it("refuses a new comment", async () => {
+      const postId = await closedPost();
+
+      await expect(actions.addComment(postId, "Llego tarde")).resolves.toMatchObject({
+        success: false,
+      });
+      expect(await fetchCommentThread(postId)).toHaveLength(0);
+    });
+
+    it("refuses a reply as well as a top-level comment", async () => {
+      const postId = await makePost();
+      await actions.addComment(postId, "El primero");
+      const [comment] = await fetchCommentThread(postId);
+
+      currentProfile.value = ADMIN;
+      await postActions.setCommentsEnabled(postId, false);
+      currentProfile.value = READER;
+
+      await expect(
+        actions.addComment(postId, "Una respuesta", comment.id),
+      ).resolves.toMatchObject({ success: false });
+      expect((await fetchCommentThread(postId))[0].replies).toHaveLength(0);
+    });
+
+    /**
+     * Closing is not erasing. The comments people already left stay readable —
+     * that is the whole difference between this and hiding the section.
+     */
+    it("keeps the comments already posted", async () => {
+      const postId = await makePost();
+      await actions.addComment(postId, "Escrito mientras estaba abierto");
+
+      currentProfile.value = ADMIN;
+      await postActions.setCommentsEnabled(postId, false);
+
+      const thread = await fetchCommentThread(postId);
+      expect(thread).toHaveLength(1);
+      expect(thread[0].body).toBe("Escrito mientras estaba abierto");
+    });
+
+    it("takes comments again once reopened", async () => {
+      const postId = await closedPost();
+
+      currentProfile.value = ADMIN;
+      await expect(
+        postActions.setCommentsEnabled(postId, true),
+      ).resolves.toMatchObject({ success: true });
+
+      currentProfile.value = READER;
+      await expect(
+        actions.addComment(postId, "Ahora sí"),
+      ).resolves.toMatchObject({ success: true });
+      expect(await fetchCommentThread(postId)).toHaveLength(1);
+    });
+
+    it("refuses to toggle for someone who cannot edit the post", async () => {
+      const postId = await makePost();
+      currentProfile.value = OTHER;
+
+      await expect(
+        postActions.setCommentsEnabled(postId, false),
+      ).resolves.toMatchObject({ success: false });
+
+      currentProfile.value = READER;
+      await expect(
+        actions.addComment(postId, "Sigue abierto"),
+      ).resolves.toMatchObject({ success: true });
+    });
+
+    it("refuses to toggle for an anonymous caller", async () => {
+      const postId = await makePost();
+      currentProfile.value = null;
+
+      await expect(
+        postActions.setCommentsEnabled(postId, false),
+      ).resolves.toMatchObject({ success: false });
+    });
+
+    it("defaults to open", async () => {
+      const postId = await makePost();
+
+      await expect(
+        actions.addComment(postId, "Sin tocar nada"),
+      ).resolves.toMatchObject({ success: true });
     });
   });
 

@@ -755,6 +755,7 @@ export default function PostFormInner({
           slugPreview={post.slug}
           postId={post.id}
           shareLink={shareLink}
+          commentsEnabled={post.commentsEnabled}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
         />

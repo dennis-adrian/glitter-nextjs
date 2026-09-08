@@ -153,6 +153,7 @@ export default async function BlogPostPage({
           viewerIsStaff={isStaff(commenter?.role)}
           gated={gated}
           canComment={Boolean(commenter) && !gated}
+          closed={!post.commentsEnabled}
         />
       </div>
     </>

@@ -6216,6 +6216,17 @@ export const posts = pgTable(
      * to restricting an article, never the reverse.
      */
     audience: postAudienceEnum("audience").default("public").notNull(),
+    /**
+     * Whether the article still takes new comments. Closing a thread keeps the
+     * comments already on it — erasing a discussion people had is destructive,
+     * and closing is what "turn off comments" actually means.
+     *
+     * Deliberately outside the working copy: every other editable field on a
+     * published post stages and waits for review, but a thread that turns
+     * nasty has to be shut immediately, not after an admin approves. It is a
+     * direct action, like archiving or scheduling.
+     */
+    commentsEnabled: boolean("comments_enabled").default(true).notNull(),
     submittedAt: timestamp("submitted_at"),
     publishedAt: timestamp("published_at"),
     /** Absolute instant; the admin picks it in America/La_Paz. */

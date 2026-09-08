@@ -6,6 +6,7 @@ import type { Control } from "react-hook-form";
 
 import AudienceSelect from "@/app/components/blog/audience-select";
 import CategoryMultiselect from "@/app/components/blog/category-multiselect";
+import CommentsToggle from "@/app/components/blog/comments-toggle";
 import ShareLinkPanel from "@/app/components/blog/share-link-panel";
 import SlugField from "@/app/components/blog/slug-field";
 import TagInput from "@/app/components/blog/tag-input";
@@ -39,6 +40,7 @@ type Props = {
   slugPreview: string;
   postId: number;
   shareLink: ShareLinkSummary | null;
+  commentsEnabled: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
@@ -55,6 +57,7 @@ export default function PostSettingsSheet({
   slugPreview,
   postId,
   shareLink,
+  commentsEnabled,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: Props) {
@@ -96,6 +99,13 @@ export default function PostSettingsSheet({
 
           <div className="mt-6 flex flex-col gap-6">
             <AudienceSelect value={audience} onChange={onAudienceChange} />
+
+            <Separator />
+
+            <CommentsToggle
+              postId={postId}
+              initialEnabled={commentsEnabled}
+            />
 
             <Separator />
 

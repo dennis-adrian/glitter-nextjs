@@ -18,6 +18,12 @@ type Props = {
    * out, or signed in without access to a restricted post.
    */
   canComment: boolean;
+  /**
+   * The author closed the thread. Distinct from `canComment`: that one is
+   * about this reader, this one is about the article, and they need different
+   * messages — telling someone to sign in to a closed thread is a dead end.
+   */
+  closed: boolean;
 };
 
 export default function CommentThread({
@@ -28,6 +34,7 @@ export default function CommentThread({
   viewerIsStaff,
   gated,
   canComment,
+  closed,
 }: Props) {
   const total = comments.reduce(
     (sum, comment) => sum + 1 + comment.replies.length,
@@ -61,7 +68,15 @@ export default function CommentThread({
             : `${total} comentarios`}
       </h2>
 
-      {canComment ? (
+      {closed ? (
+        /*
+         * Closed, not erased: the comments already posted stay above. Saying
+         * so plainly beats a missing form, which reads as something broken.
+         */
+        <div className="mt-4 rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Los comentarios de este artículo están cerrados.
+        </div>
+      ) : canComment ? (
         <div className="mt-4">
           <CommentForm postId={postId} />
         </div>
@@ -88,7 +103,9 @@ export default function CommentThread({
               viewerId={viewerId}
               viewerIsStaff={viewerIsStaff}
               canReply
-              canComment={canComment}
+              // A closed thread takes no replies either; `addComment` refuses
+              // them regardless, this keeps the reply box from lying.
+              canComment={canComment && !closed}
             />
           ))}
         </ul>

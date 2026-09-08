@@ -46,6 +46,17 @@ export async function addComment(
   if (!canReadPost(profile, post)) {
     return { success: false, message: "Artículo no encontrado" };
   }
+  /**
+   * Checked here, not only in the page: the form being absent is a courtesy,
+   * not a permission check. A closed thread keeps its existing comments, so
+   * this refuses new ones without touching what is already there.
+   */
+  if (!post.commentsEnabled) {
+    return {
+      success: false,
+      message: "Los comentarios están cerrados en este artículo",
+    };
+  }
 
   if (parentId !== undefined) {
     const parent = await findValidParent(postId, parentId);

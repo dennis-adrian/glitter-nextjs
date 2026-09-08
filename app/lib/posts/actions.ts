@@ -866,6 +866,48 @@ export async function rejectPost(
   }
 }
 
+/**
+ * Opens or closes the article's comment thread.
+ *
+ * A direct action rather than a staged one. Everything else editable on a
+ * published post goes through the working copy and waits for a reviewer, but a
+ * thread that turns nasty has to be shut now — sending "close the comments"
+ * for approval would be absurd. Same reasoning as `archivePost`.
+ *
+ * Closing keeps the comments already posted. `addComment` is what enforces
+ * this; the missing form is a courtesy, not a permission check.
+ */
+export async function setCommentsEnabled(
+  postId: number,
+  enabled: boolean,
+): Promise<ActionResult> {
+  const profile = await getCurrentUserProfile();
+  if (!profile) return { success: false, message: "Debes iniciar sesión" };
+
+  const existing = await db.query.posts.findFirst({
+    where: eq(posts.id, postId),
+  });
+  if (!existing) return { success: false, message: "Artículo no encontrado" };
+  if (!canEditPost(profile, existing)) {
+    return {
+      success: false,
+      message: "No puedes cambiar los comentarios de este artículo",
+    };
+  }
+
+  try {
+    await db
+      .update(posts)
+      .set({ commentsEnabled: enabled, updatedAt: new Date() })
+      .where(eq(posts.id, postId));
+    invalidatePosts({ slugs: [existing.slug] });
+    return { success: true };
+  } catch (error) {
+    console.error("setCommentsEnabled", error);
+    return { success: false, message: "No se pudo actualizar los comentarios" };
+  }
+}
+
 export async function archivePost(postId: number): Promise<ActionResult> {
   const profile = await getCurrentUserProfile();
   if (!profile) return { success: false, message: "Debes iniciar sesión" };
