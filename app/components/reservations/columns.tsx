@@ -85,7 +85,9 @@ function standCellLabel(reservation: FullReservation): string {
   return summary.label || formatStandLabel(reservation.stand);
 }
 
-export const columns: ColumnDef<FullReservationWithTender>[] = [
+export const columns = (
+  canMutate = false,
+): ColumnDef<FullReservationWithTender>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -377,6 +379,8 @@ export const columns: ColumnDef<FullReservationWithTender>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <ActionsCell reservation={row.original} />,
+    cell: ({ row }) => (
+      <ActionsCell reservation={row.original} canMutate={canMutate} />
+    ),
   },
 ];

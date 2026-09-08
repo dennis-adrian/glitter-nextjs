@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import GuardedMenuItem from "@/app/components/payments/guarded-menu-item";
 import { DeleteReservationModal } from "@/app/components/reservations/form/delete-modal";
 import { useState } from "react";
 import { RejectReservationModal } from "@/app/components/reservations/form/reject-modal";
@@ -26,14 +27,24 @@ import { ExtendDeadlineModal } from "@/app/components/reservations/form/extend-d
 
 export function ActionsCell({
   reservation,
+  canMutate = false,
 }: {
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
+  /**
+   * Every action here is guarded server-side by `canMutateAdminReservations`,
+   * which is global-admin-only. Without this the menu offered a festival admin
+   * four controls that always failed.
+   */
+  canMutate?: boolean;
 }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [openRejectModal, setOpenRejectModal] = useState(false);
   const [openExtendModal, setOpenExtendModal] = useState(false);
 
-  const canExtend = reservation.status === "pending";
+  const canExtend = canMutate && reservation.status === "pending";
+  const deniedReason = canMutate
+    ? undefined
+    : "Solo un administrador global puede hacerlo";
 
   return (
     <>
@@ -52,20 +63,33 @@ export function ActionsCell({
               Editar
             </Link>
           </DropdownMenuItem>
-          {canExtend && (
-            <DropdownMenuItem onClick={() => setOpenExtendModal(true)}>
-              <CalendarClockIcon className="h-4 w-4 mr-1" />
-              Extender plazo de pago
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => setOpenRejectModal(true)}>
+          <GuardedMenuItem
+            disabledReason={
+              deniedReason ??
+              (reservation.status === "pending"
+                ? undefined
+                : "Solo se extienden reservas pendientes de pago")
+            }
+            onSelect={() => setOpenExtendModal(true)}
+          >
+            <CalendarClockIcon className="h-4 w-4 mr-1" />
+            Extender plazo de pago
+          </GuardedMenuItem>
+          <GuardedMenuItem
+            disabledReason={deniedReason}
+            onSelect={() => setOpenRejectModal(true)}
+          >
             <XCircleIcon className="h-4 w-4 mr-1" />
             Cancelar
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
+          </GuardedMenuItem>
+          <GuardedMenuItem
+            disabledReason={deniedReason}
+            destructive
+            onSelect={() => setOpenDeleteModal(true)}
+          >
             <Trash2Icon className="h-4 w-4 mr-1" />
             Eliminar
-          </DropdownMenuItem>
+          </GuardedMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <DeleteReservationModal

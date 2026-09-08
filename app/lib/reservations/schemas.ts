@@ -68,6 +68,20 @@ export const adminConfirmReservationSchema = z.object({
   markAsPaid: z.boolean().optional(),
 });
 
+export const releaseInvoiceCreditsSchema = z.object({
+  invoiceId: positiveIntSchema,
+  /** Omit to release every allocation still standing on the invoice. */
+  allocationId: positiveIntSchema.optional(),
+  reason: z.string().trim().min(1).max(1000),
+  idempotencyKey: uuidSchema,
+});
+
+export const settleInvoiceShortfallSchema = z.object({
+  invoiceId: positiveIntSchema,
+  reason: z.string().trim().min(1).max(1000),
+  idempotencyKey: uuidSchema,
+});
+
 export const correctSettlementProofSchema = z.object({
   invoiceId: positiveIntSchema,
   reason: z.string().trim().min(1).max(1000),

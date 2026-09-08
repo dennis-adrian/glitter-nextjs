@@ -12,6 +12,8 @@ import {
   findSubmittedSettlementId,
   findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
+  releaseInvoiceCredits,
+  settleInvoiceShortfall,
   submitZeroValueInvoiceForReview,
 } from "@/app/lib/reservations/payment-service";
 import {
@@ -173,5 +175,15 @@ export async function adminConfirmReservationByReservationIdAction(
     invoiceId,
     idempotencyKey: parsed.data.idempotencyKey,
   });
+  return { success: result.success, message: result.message };
+}
+
+export async function releaseInvoiceCreditsAction(input: unknown) {
+  const result = await releaseInvoiceCredits(input);
+  return { success: result.success, message: result.message };
+}
+
+export async function settleInvoiceShortfallAction(input: unknown) {
+  const result = await settleInvoiceShortfall(input);
   return { success: result.success, message: result.message };
 }

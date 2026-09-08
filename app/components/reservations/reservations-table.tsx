@@ -7,12 +7,14 @@ import { columns, columnTitles } from "./columns";
 
 export default function ReservationsTable({
   data,
+  canMutate = false,
 }: {
   data: FullReservationWithTender[];
+  canMutate?: boolean;
 }) {
   return (
     <DataTable
-      columns={columns}
+      columns={columns(canMutate)}
       data={data}
       columnTitles={columnTitles}
       initialState={{

@@ -3,6 +3,8 @@ import { fetchReservationsByFestivalId } from "@/app/lib/reservations/actions";
 import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { Plus } from "lucide-react";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
@@ -15,7 +17,13 @@ export default async function FestivalReservationsPage({
   params: Promise<z.infer<typeof ParamsSchema>>;
 }) {
   const { id } = await params;
-  const reservations = await fetchReservationsByFestivalId(id);
+  const [reservations, profile] = await Promise.all([
+    fetchReservationsByFestivalId(id),
+    getCurrentUserProfile(),
+  ]);
+  // Festival admins can read this page but mutate nothing on it; the actions
+  // menu disables what they cannot do rather than offering it and failing.
+  const canMutate = canMutateAdminReservations(profile);
 
   return (
     <div className="container p-4 md:p-6">
@@ -28,7 +36,7 @@ export default async function FestivalReservationsPage({
           </Link>
         </Button>
       </div>
-      <ReservationsTable data={reservations} />
+      <ReservationsTable data={reservations} canMutate={canMutate} />
     </div>
   );
 }

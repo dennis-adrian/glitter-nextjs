@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
+import { releaseInvoiceCreditAllocationsInTx } from "@/app/lib/credits/service";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import { activeReservationStandIds } from "@/app/lib/reservations/members";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
@@ -209,6 +210,39 @@ export async function applyReservationCancellation(
     .update(standReservations)
     .set({ status: "rejected", revealAt: null, updatedAt: new Date() })
     .where(eq(standReservations.id, input.reservation.id));
+
+  // Before the invoices are cancelled. Credits allocated to a cancelled
+  // invoice used to be destroyed: the allocation row stayed, the ledger kept
+  // the spend, and nothing could hand them back. This is the one choke point
+  // every cancellation reaches, so the refund belongs here rather than in each
+  // caller.
+  const invoiceIdsToRefund = await tx
+    .select({ id: invoices.id })
+    .from(invoices)
+    .where(eq(invoices.reservationId, input.reservation.id));
+  for (const invoice of invoiceIdsToRefund) {
+    const release = await releaseInvoiceCreditAllocationsInTx(tx, {
+      invoiceId: invoice.id,
+      idempotencyKey: `reservation-cancel:${input.reservation.id}:${invoice.id}`,
+    });
+    if (release.ok && release.released.length > 0) {
+      await insertStandReservationEvent(tx, {
+        reservationId: input.reservation.id,
+        actorUserId: input.actorUserId,
+        eventType: "status_changed",
+        fromStatus: input.reservation.status as ReservationStatus,
+        toStatus: input.reservation.status as ReservationStatus,
+        payload: {
+          kind: "invoice_credits_released",
+          invoiceId: invoice.id,
+          reason: input.reason ?? "reservation_cancelled",
+          released: release.released,
+        },
+        idempotencyKey: `reservation-cancel-credits:${input.reservation.id}:${invoice.id}`,
+      });
+    }
+  }
+
   await tx
     .update(invoices)
     .set({ status: "cancelled", updatedAt: new Date() })
@@ -584,9 +618,8 @@ export async function extendReservationPaymentDeadline(
   const requestKey = `extendDeadline:${reservationId}:${dueAt.toISOString()}`;
 
   try {
-    const { claimRequest, completeRequest, abandonRequest } = await import(
-      "@/app/lib/reservations/request-registry"
-    );
+    const { claimRequest, completeRequest, abandonRequest } =
+      await import("@/app/lib/reservations/request-registry");
     const outcome = await db.transaction(async (tx) => {
       const claimPreview = await previewReservationWriteSet(tx, reservationId);
       if (claimPreview) {

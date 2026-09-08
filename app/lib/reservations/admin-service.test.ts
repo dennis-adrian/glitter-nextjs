@@ -71,6 +71,7 @@ import {
   updateReservationPartner,
 } from "@/app/lib/reservations/admin-service";
 import {
+  invoiceCreditAllocations,
   invoices,
   reservationParticipants,
   scheduledTasks,
@@ -115,6 +116,13 @@ function tableAwareTx(options?: {
   }>;
   standCategory?: string;
   invoiceWhereConditions?: unknown[];
+  creditAllocations?: Array<{
+    id: number;
+    amount: number;
+    userId: number;
+    ledgerEntryId: number;
+    reversed?: boolean;
+  }>;
 }) {
   const reservation = options?.reservation ?? pendingReservation;
   let participantReads = 0;
@@ -190,13 +198,23 @@ function tableAwareTx(options?: {
             limit: vi.fn(() => afterLimit),
           });
         }
+        if (table === invoiceCreditAllocations) {
+          // Cancellation hands credits back before it cancels the invoice, so
+          // this is read (and locked) on every cancellation path.
+          const rows = options?.creditAllocations ?? [];
+          return Object.assign(Promise.resolve(rows), {
+            for: vi.fn(async () => rows),
+          });
+        }
         if (table === users) {
           return Promise.resolve([
             { id: 3, email: "owner@example.com" },
             { id: 5, email: "partner@example.com" },
           ]);
         }
-        return Promise.resolve([]);
+        return Object.assign(Promise.resolve([]), {
+          for: vi.fn(async () => []),
+        });
       },
     }),
   }));
