@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   ARTICLE_BLOCK_TYPES,
+  BLOG_BLOCK_TYPES,
   COMPACT_BLOCK_TYPES,
   allowedBlockTypes,
   articleEditorSchema,
   assertCompactDocument,
+  blogEditorSchema,
   compactEditorSchema,
   disallowedBlockTypes,
 } from "@/app/lib/rich-text/schemas";
@@ -38,6 +40,24 @@ describe("editor schemas", () => {
     expect(levels).toEqual([2, 3]);
     expect(levels).not.toContain(1);
     expect(levels).not.toContain(4);
+  });
+
+  it("keeps tables and toggles out of the article variant", () => {
+    // `article` also drives the festival terms editor. The blog wanting
+    // tables must not hand terms editors a table block.
+    const articleTypes = Object.keys(articleEditorSchema.blockSchema);
+    expect(articleTypes).not.toContain("table");
+    expect(articleTypes).not.toContain("toggleListItem");
+
+    const blogTypes = Object.keys(blogEditorSchema.blockSchema);
+    expect(blogTypes).toContain("table");
+    expect(blogTypes).toContain("toggleListItem");
+
+    for (const type of ARTICLE_BLOCK_TYPES) {
+      expect(BLOG_BLOCK_TYPES).toContain(type);
+    }
+    expect(allowedBlockTypes("blog")).toContain("table");
+    expect(allowedBlockTypes("article")).not.toContain("table");
   });
 
   it("rejects unsupported article heading levels", () => {
@@ -106,6 +126,34 @@ describe("HTML sanitizer", () => {
     const clean = sanitizeRichTextHtml(dirty, "article");
     expect(clean).not.toMatch(/textarea|onerror|alert/i);
     expect(clean).toContain('src="/safe.png"');
+  });
+
+  it("sanitizes the blog variant's extra tags without widening article", () => {
+    const dirty =
+      "<table><tr><td>c</td></tr></table><details><summary>s</summary></details>" +
+      '<input type="checkbox" checked><figure><figcaption>pie</figcaption></figure>';
+
+    const blog = sanitizeRichTextHtml(dirty, "blog");
+    expect(blog).toContain("<table>");
+    expect(blog).toContain("<details>");
+    expect(blog).toContain("<figcaption>");
+    // Shown, never operable — the reader is reading, not filling a form.
+    expect(blog).toContain("disabled");
+
+    const article = sanitizeRichTextHtml(dirty, "article");
+    expect(article).not.toContain("<table");
+    expect(article).not.toContain("<details");
+    expect(article).not.toContain("<input");
+  });
+
+  it("strips scripts and handlers in the blog variant too", () => {
+    const dirty =
+      '<table><tr><td onclick="alert(1)">c</td></tr></table>' +
+      '<script>alert(2)</script><a href="javascript:alert(3)">x</a>';
+    const clean = sanitizeRichTextHtml(dirty, "blog");
+    expect(clean).not.toMatch(/script/i);
+    expect(clean).not.toMatch(/onclick/i);
+    expect(clean).not.toMatch(/javascript:/i);
   });
 
   it("strips non-root-relative and protocol-relative URIs", () => {

@@ -33,6 +33,18 @@ export const FEATURE_FLAGS = {
       "Muestra el acceso a Semana Glitter en el menú principal. Independiente de `paid_programs`, para poder abrir las inscripciones por enlace directo antes de anunciarlas en el sitio. El acceso solo aparece si ambas están visibles.",
     defaultVisibility: "hidden",
   },
+  blog: {
+    label: "Blog",
+    description:
+      "Blog público: la lista, los artículos, y las páginas de categoría y etiqueta, más los accesos en el menú y el pie de página. Los artículos restringidos a participantes siguen requiriendo perfil verificado aunque esta bandera esté pública. Escribir artículos desde el panel de administración no depende de esta bandera.",
+    defaultVisibility: "hidden",
+  },
+  blog_contributors: {
+    label: "Artículos escritos por participantes",
+    description:
+      "Permite que participantes con reservas aceptadas en 3 o más festivales escriban artículos desde el portal y los envíen a revisión. Independiente de `blog`: el blog puede estar público y escribirse solo desde administración. Los administradores no dependen de esta bandera.",
+    defaultVisibility: "hidden",
+  },
   credits: {
     label: "Créditos",
     description:

@@ -210,6 +210,8 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   participantProducts: many(participantProducts),
   festivalActivityVotes: many(festivalActivityVotes),
   standHolds: many(standHolds),
+  postsAuthored: many(posts, { relationName: "postsAuthored" }),
+  postsReviewed: many(posts, { relationName: "postsReviewed" }),
   statusEvents: many(userStatusEvents, {
     relationName: "targetUserStatusEvents",
   }),
@@ -6165,3 +6167,349 @@ export const sessionWaitlistInvitationsRelations = relations(
     }),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Blog
+// ---------------------------------------------------------------------------
+
+export const postStatusEnum = pgEnum("post_status", [
+  "draft",
+  "submitted",
+  "approved",
+  "scheduled",
+  "published",
+  "rejected",
+  "archived",
+]);
+
+export const postAudienceEnum = pgEnum("post_audience", [
+  "public",
+  "participants",
+]);
+
+export const posts = pgTable(
+  "posts",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    slug: text("slug").notNull().unique(),
+    excerpt: text("excerpt"),
+    coverImageUrl: text("cover_image_url"),
+    content: jsonb("content").$type<unknown>().notNull(),
+    contentHtml: text("content_html").notNull(),
+    seoTitle: text("seo_title"),
+    seoDescription: text("seo_description"),
+    /**
+     * Nullable so a departing author does not block their own account
+     * deletion. `detachPostsForDeletedUser` deletes everything they wrote
+     * that never went public and nulls this column on the rest, leaving the
+     * published record intact under "Equipo Glitter". The `set null` here is
+     * the backstop that keeps `DELETE FROM users` from ever aborting.
+     */
+    authorId: integer("author_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    status: postStatusEnum("status").default("draft").notNull(),
+    /**
+     * Who may read the body. Orthogonal to `status`: a post can be published
+     * and still restricted. Defaults to `public` so an author has to opt in
+     * to restricting an article, never the reverse.
+     */
+    audience: postAudienceEnum("audience").default("public").notNull(),
+    /**
+     * Whether the article still takes new comments. Closing a thread keeps the
+     * comments already on it — erasing a discussion people had is destructive,
+     * and closing is what "turn off comments" actually means.
+     *
+     * Deliberately outside the working copy: every other editable field on a
+     * published post stages and waits for review, but a thread that turns
+     * nasty has to be shut immediately, not after an admin approves. It is a
+     * direct action, like archiving or scheduling.
+     */
+    commentsEnabled: boolean("comments_enabled").default(true).notNull(),
+    submittedAt: timestamp("submitted_at"),
+    publishedAt: timestamp("published_at"),
+    /** Absolute instant; the admin picks it in America/La_Paz. */
+    scheduledAt: timestamp("scheduled_at"),
+    reviewerId: integer("reviewer_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reviewerNotes: text("reviewer_notes"),
+    workingTitle: text("working_title"),
+    workingSlug: text("working_slug"),
+    workingExcerpt: text("working_excerpt"),
+    workingCoverImageUrl: text("working_cover_image_url"),
+    workingContent: jsonb("working_content").$type<unknown>(),
+    workingContentHtml: text("working_content_html"),
+    workingSeoTitle: text("working_seo_title"),
+    workingSeoDescription: text("working_seo_description"),
+    workingAudience: postAudienceEnum("working_audience"),
+    workingCategoryIds: jsonb("working_category_ids").$type<number[]>(),
+    workingTagInputs: jsonb("working_tag_inputs").$type<string[]>(),
+    workingUpdatedAt: timestamp("working_updated_at"),
+    workingSubmittedAt: timestamp("working_submitted_at"),
+    workingReviewerNotes: text("working_reviewer_notes"),
+    workingReviewerId: integer("working_reviewer_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("posts_status_published_at_idx").on(t.status, t.publishedAt),
+    index("posts_author_idx").on(t.authorId),
+    index("posts_scheduled_idx").on(t.status, t.scheduledAt),
+    check(
+      "posts_non_draft_requires_title_check",
+      sql`${t.status} = 'draft' OR length(btrim(${t.title})) >= 3`,
+    ),
+  ],
+);
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  comments: many(postComments),
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+    relationName: "postsAuthored",
+  }),
+  reviewer: one(users, {
+    fields: [posts.reviewerId],
+    references: [users.id],
+    relationName: "postsReviewed",
+  }),
+  postCategories: many(postCategoriesToPosts),
+  postTags: many(postTagsToPosts),
+}));
+
+export const postCategories = pgTable("post_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const postCategoriesRelations = relations(
+  postCategories,
+  ({ many }) => ({
+    postCategories: many(postCategoriesToPosts),
+  }),
+);
+
+export const postCategoriesToPosts = pgTable(
+  "post_categories_to_posts",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => postCategories.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique().on(t.postId, t.categoryId),
+    index("idx_post_categories_to_posts_category_id").on(t.categoryId),
+  ],
+);
+
+export const postCategoriesToPostsRelations = relations(
+  postCategoriesToPosts,
+  ({ one }) => ({
+    post: one(posts, {
+      fields: [postCategoriesToPosts.postId],
+      references: [posts.id],
+    }),
+    category: one(postCategories, {
+      fields: [postCategoriesToPosts.categoryId],
+      references: [postCategories.id],
+    }),
+  }),
+);
+
+export const postTags = pgTable("post_tags", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const postTagsRelations = relations(postTags, ({ many }) => ({
+  postTags: many(postTagsToPosts),
+}));
+
+export const postTagsToPosts = pgTable(
+  "post_tags_to_posts",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => postTags.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique().on(t.postId, t.tagId),
+    index("idx_post_tags_to_posts_tag_id").on(t.tagId),
+  ],
+);
+
+export const postTagsToPostsRelations = relations(
+  postTagsToPosts,
+  ({ one }) => ({
+    post: one(posts, {
+      fields: [postTagsToPosts.postId],
+      references: [posts.id],
+    }),
+    tag: one(postTags, {
+      fields: [postTagsToPosts.tagId],
+      references: [postTags.id],
+    }),
+  }),
+);
+
+export const postComments = pgTable(
+  "post_comments",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    /**
+     * Cascades: a departing participant's comments go with them, the way
+     * `detachPostsForDeletedUser` settles their articles.
+     */
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    /**
+     * One level only. `addComment` refuses a parent that is itself a reply;
+     * the check below stops the degenerate self-parent a bad write could
+     * otherwise produce.
+     */
+    parentId: integer("parent_id"),
+    isHidden: boolean("is_hidden").default(false).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "post_comments_parent_id_fk",
+      columns: [t.parentId],
+      foreignColumns: [t.id],
+    }).onDelete("cascade"),
+    index("post_comments_post_created_idx").on(t.postId, t.createdAt),
+    index("post_comments_parent_idx").on(t.parentId),
+    // Backs the per-post rate limit, which counts one user's recent rows.
+    index("post_comments_user_post_created_idx").on(
+      t.userId,
+      t.postId,
+      t.createdAt,
+    ),
+    check(
+      "post_comments_body_length_check",
+      sql`length(btrim(${t.body})) between 1 and 1000`,
+    ),
+    check(
+      "post_comments_not_own_parent_check",
+      sql`${t.parentId} is null or ${t.parentId} <> ${t.id}`,
+    ),
+  ],
+);
+
+export const postCommentsRelations = relations(
+  postComments,
+  ({ one, many }) => ({
+    post: one(posts, {
+      fields: [postComments.postId],
+      references: [posts.id],
+    }),
+    user: one(users, {
+      fields: [postComments.userId],
+      references: [users.id],
+    }),
+    parent: one(postComments, {
+      fields: [postComments.parentId],
+      references: [postComments.id],
+      relationName: "commentReplies",
+    }),
+    replies: many(postComments, { relationName: "commentReplies" }),
+  }),
+);
+
+/**
+ * An unlisted read link for a single post — the "share it with a couple of
+ * people before it is ready" case, the way an unlisted video works.
+ *
+ * A live row lets anyone holding the raw token read the post regardless of its
+ * status or audience, which is the whole point: the article is not published
+ * and must not be listed, yet a handful of people need to see it. Nothing else
+ * about the blog changes — the post still never enters a listing, a feed, or
+ * the search index because of this row.
+ *
+ * The token is stored as issued, not as a digest — deliberately unlike
+ * `sessionPurchases.accessTokenHash`, which guards payment and identity. What
+ * this opens is an unpublished blog post, and the cost of a one-way digest is
+ * that the author can never see their own link again: re-sending it to someone
+ * who lost the email would mean rotating, which breaks it for everyone else
+ * already holding it. Google Docs, Notion and Figma all keep one retrievable,
+ * revocable link per document for exactly this reason.
+ *
+ * The one place a stored token could leak on its own is the query logger in
+ * `db/index.ts`, which prints params for every statement; `redactQueryParams`
+ * masks this table's, the way it already masks participant contact details.
+ *
+ * `expiresAt` is nullable on purpose — null means the link does not expire,
+ * which is the sane default for "here, read my draft". Revocation is separate
+ * and always available.
+ */
+export const postShareLinks = pgTable(
+  "post_share_links",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    /** The link's secret, as issued. Masked in query logs, never hashed. */
+    token: text("token").notNull().unique(),
+    /** Null means the link never expires. */
+    expiresAt: timestamp("expires_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    /**
+     * One live link per post, so the editor has a single thing to show, copy
+     * and revoke. Revoked links accumulate as history without blocking a new
+     * one — the same shape as `session_waitlist_invitations_live_idx`.
+     */
+    uniqueIndex("post_share_links_live_idx")
+      .on(t.postId)
+      .where(sql`${t.revokedAt} is null`),
+    index("post_share_links_post_idx").on(t.postId),
+  ],
+);
+
+export const postShareLinksRelations = relations(postShareLinks, ({ one }) => ({
+  post: one(posts, {
+    fields: [postShareLinks.postId],
+    references: [posts.id],
+  }),
+  createdBy: one(users, {
+    fields: [postShareLinks.createdByUserId],
+    references: [users.id],
+  }),
+}));

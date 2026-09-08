@@ -394,3 +394,303 @@
 .cl-formButtonPrimary:hover {
   background-color: hsl(var(--primary) / 0.9);
 }
+
+/* BlockNote editor overrides — keep the editor consistent with the site.
+ * BlockNote puts both .bn-root and .bn-shadcn on the same element, so we need
+ * .bn-root.bn-shadcn (specificity 0,2,0) to beat BlockNote's own .bn-root
+ * rules (0,1,0). These are editor-only: the public article is plain semantic
+ * HTML rendered server-side, and .blog-article below styles it. The two
+ * scales are kept in step on purpose — the editor is meant to be WYSIWYG. */
+.bn-root.bn-shadcn {
+  --bn-colors-editor-text: hsl(var(--foreground));
+  color: hsl(var(--foreground));
+}
+.bn-root.bn-shadcn .bn-editor {
+  color: hsl(var(--foreground));
+}
+
+/* On mobile, slim the editor's internal horizontal padding so the content
+ * spans the page width with a small inset instead of BlockNote's default 54px,
+ * and bring heading sizes down a notch for better readability on narrow screens. */
+@media (max-width: 767px) {
+  .bn-root.bn-shadcn .bn-editor {
+    padding-inline: 0.75rem;
+  }
+  /* Title input is text-2xl (1.5rem / 24px) on mobile. Heading scale must
+	 * stay below that so the page title remains the visual top of the hierarchy. */
+  .bn-root.bn-shadcn [data-content-type="heading"] {
+    --level: 1.375rem; /* 22px */
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="2"] {
+    --level: 1.25rem; /* 20px */
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="3"] {
+    --level: 1.125rem; /* 18px */
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="4"] {
+    --level: 1rem; /* 16px */
+  }
+  .bn-root.bn-shadcn [data-prev-level="1"] {
+    --prev-level: 1.375rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="2"] {
+    --prev-level: 1.25rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="3"] {
+    --prev-level: 1.125rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="4"] {
+    --prev-level: 1rem;
+  }
+}
+
+/* Desktop heading scale — scoped to >=md so the mobile @media block above
+ * isn't overridden by source order. */
+@media (min-width: 768px) {
+  .bn-root.bn-shadcn [data-content-type="heading"] {
+    --level: 2.25rem;
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="2"] {
+    --level: 1.875rem;
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="3"] {
+    --level: 1.5rem;
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="4"] {
+    --level: 1.25rem;
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="5"] {
+    --level: 1.125rem;
+  }
+  .bn-root.bn-shadcn [data-content-type="heading"][data-level="6"] {
+    --level: 1rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="1"] {
+    --prev-level: 2.25rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="2"] {
+    --prev-level: 1.875rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="3"] {
+    --prev-level: 1.5rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="4"] {
+    --prev-level: 1.25rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="5"] {
+    --prev-level: 1.125rem;
+  }
+  .bn-root.bn-shadcn [data-prev-level="6"] {
+    --prev-level: 1rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Public article body.
+ *
+ * `contentHtml` is rendered server-side from the stored blocks into plain
+ * semantic HTML, so the reader carries none of BlockNote's classes and needs
+ * its own type scale. The heading sizes below mirror the editor block above
+ * step for step, at both breakpoints, so what an author writes is what a
+ * reader sees.
+ * ------------------------------------------------------------------------ */
+.blog-article {
+  color: hsl(var(--foreground));
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  overflow-wrap: break-word;
+}
+
+.blog-article > * + * {
+  margin-top: 1.25em;
+}
+
+.blog-article h1,
+.blog-article h2,
+.blog-article h3,
+.blog-article h4 {
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+/* Headings need more room above than below — the space belongs to the section
+ * they open, not the paragraph they sit on. */
+.blog-article > :is(h1, h2, h3, h4) + * {
+  margin-top: 0.6em;
+}
+.blog-article > * + :is(h1, h2, h3, h4) {
+  margin-top: 2em;
+}
+
+.blog-article h1 {
+  font-size: 1.375rem;
+}
+.blog-article h2 {
+  font-size: 1.25rem;
+}
+.blog-article h3 {
+  font-size: 1.125rem;
+}
+.blog-article h4 {
+  font-size: 1rem;
+}
+
+@media (min-width: 768px) {
+  .blog-article h1 {
+    font-size: 2.25rem;
+  }
+  .blog-article h2 {
+    font-size: 1.875rem;
+  }
+  .blog-article h3 {
+    font-size: 1.5rem;
+  }
+  .blog-article h4 {
+    font-size: 1.25rem;
+  }
+}
+
+.blog-article a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.blog-article a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.blog-article ul,
+.blog-article ol {
+  padding-inline-start: 1.5rem;
+}
+.blog-article ul {
+  list-style: disc;
+}
+.blog-article ol {
+  list-style: decimal;
+}
+.blog-article li + li {
+  margin-top: 0.375em;
+}
+
+/* BlockNote wraps every list item's text in its own <p>; left alone that
+ * would stack block margins inside each bullet. */
+.blog-article li > p {
+  margin: 0;
+}
+
+/* Check lists and toggles ride inside a plain <ul>, and only *checked* items
+ * carry `data-checked` — so the marker has to be suppressed by structure, not
+ * by that attribute, or unchecked rows keep a stray bullet. Both are authored
+ * content rather than controls: the box shows state (the sanitizer forces it
+ * disabled) and the row supplies no marker of its own. */
+.blog-article li:has(> input[type="checkbox"]),
+.blog-article li:has(> details) {
+  list-style: none;
+  margin-inline-start: -1.5rem;
+}
+
+.blog-article li:has(> input[type="checkbox"]) {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.blog-article li > input[type="checkbox"] {
+  flex: none;
+  translate: 0 0.15em;
+  accent-color: hsl(var(--primary));
+}
+
+/* A ticked item reads as done. */
+.blog-article li[data-checked="true"] > p {
+  color: hsl(var(--muted-foreground));
+  text-decoration: line-through;
+}
+
+.blog-article details {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+.blog-article summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.blog-article summary > p {
+  display: inline;
+  margin: 0;
+}
+
+.blog-article blockquote {
+  background-color: hsl(var(--muted));
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+
+.blog-article :not(pre) > code {
+  background-color: hsl(var(--muted));
+  border-radius: 0.25rem;
+  padding: 0.15em 0.35em;
+  font-size: 0.9em;
+}
+
+.blog-article pre {
+  background-color: hsl(var(--muted));
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+.blog-article pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.blog-article hr {
+  border: 0;
+  border-top: 1px solid hsl(var(--border));
+  margin-block: 2.5em;
+}
+
+.blog-article img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+.blog-article figure {
+  margin: 0;
+}
+.blog-article figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+
+/* A wide table must scroll inside its own box rather than widen the page. */
+.blog-article table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.blog-article :is(th, td) {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+  vertical-align: top;
+}
+.blog-article th {
+  background-color: hsl(var(--muted));
+  font-weight: 600;
+}
+.blog-article :is(th, td) > p {
+  margin: 0;
+}

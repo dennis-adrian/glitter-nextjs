@@ -150,10 +150,7 @@ export default function AnnouncementStrip({
                 : ""
             }`}
           >
-            <AnnouncementLine
-              item={item}
-              isLandingPage={pathname === "/"}
-            />
+            <AnnouncementLine item={item} isLandingPage={pathname === "/"} />
           </li>
         ))}
       </ul>

@@ -158,33 +158,69 @@ export const fetchPublishedPrograms = cache(async (): Promise<Program[]> => {
 });
 
 /**
+ * Both program route lists feed `generateStaticParams`, which runs while the
+ * build collects page data. The routes are `force-static` with `revalidate`
+ * set and leave `dynamicParams` at its default of true, so an empty list only
+ * costs prerendering: each page is rendered on first request and cached from
+ * there. Nothing renders incorrectly.
+ *
+ * That makes an unreachable database a bad reason to fail the whole build —
+ * `next build` on a machine whose database is not up, or a CI job that builds
+ * without one, has no database to reach and does not need one. A deploy still
+ * does: `vercel-build` runs `pnpm migrate` first, so a genuinely unreachable
+ * database fails there, before this code is ever called.
+ *
+ * It is logged rather than swallowed, because a deploy that quietly prerenders
+ * nothing is worth noticing.
+ */
+async function routeParamsOrEmpty<T>(
+  label: string,
+  query: () => Promise<T[]>,
+): Promise<T[]> {
+  try {
+    return await query();
+  } catch (error) {
+    console.error(
+      `${label}: could not read route params, continuing without prerendered ` +
+        `pages. They will render on demand instead.`,
+      error,
+    );
+    return [];
+  }
+}
+
+/**
  * Every public route generated at build time. This intentionally returns only
  * route params so prerendering does not load the full catalogue graph twice.
  */
-export const fetchPublishedProgramRouteParams = cache(async () => {
-  return db
-    .select({ slug: programs.slug })
-    .from(programs)
-    .where(eq(programs.status, "published"))
-    .orderBy(asc(programs.id));
-});
+export const fetchPublishedProgramRouteParams = cache(async () =>
+  routeParamsOrEmpty("fetchPublishedProgramRouteParams", () =>
+    db
+      .select({ slug: programs.slug })
+      .from(programs)
+      .where(eq(programs.status, "published"))
+      .orderBy(asc(programs.id)),
+  ),
+);
 
-export const fetchPublishedSessionRouteParams = cache(async () => {
-  return db
-    .select({
-      slug: programs.slug,
-      sessionSlug: programSessions.slug,
-    })
-    .from(programSessions)
-    .innerJoin(programs, eq(programSessions.programId, programs.id))
-    .where(
-      and(
-        eq(programs.status, "published"),
-        eq(programSessions.status, "published"),
-      ),
-    )
-    .orderBy(asc(programs.id), asc(programSessions.id));
-});
+export const fetchPublishedSessionRouteParams = cache(async () =>
+  routeParamsOrEmpty("fetchPublishedSessionRouteParams", () =>
+    db
+      .select({
+        slug: programs.slug,
+        sessionSlug: programSessions.slug,
+      })
+      .from(programSessions)
+      .innerJoin(programs, eq(programSessions.programId, programs.id))
+      .where(
+        and(
+          eq(programs.status, "published"),
+          eq(programSessions.status, "published"),
+        ),
+      )
+      .orderBy(asc(programs.id), asc(programSessions.id)),
+  ),
+);
 
 /**
  * A published program carrying only its published sessions. A draft session

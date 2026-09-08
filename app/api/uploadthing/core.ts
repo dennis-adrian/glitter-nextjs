@@ -9,6 +9,7 @@ import {
   getCreditTopUpUploadTarget,
   submitCreditTopUpVoucher,
 } from "@/app/lib/credits/service";
+import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolveReservationPaymentUpload } from "@/app/lib/payments/helpers";
@@ -604,6 +605,25 @@ export const ourFileRouter = {
       }
 
       return { userId: user.id };
+    })
+    .onUploadComplete(({ file }) => ({
+      imageUrl: (file as { url: string }).url,
+    })),
+  blogImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .middleware(async () => {
+      const user = await currentUser();
+      if (!user) throw new UploadThingError("Debes iniciar sesión");
+
+      const profile = await fetchUserProfile(user.id);
+      if (!profile) throw new UploadThingError("Perfil no encontrado");
+
+      if (!(await canAuthorPosts(profile))) {
+        throw new UploadThingError(
+          "No tienes permisos para subir imágenes del blog",
+        );
+      }
+
+      return { profileId: profile.id };
     })
     .onUploadComplete(({ file }) => ({
       imageUrl: (file as { url: string }).url,

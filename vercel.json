@@ -29,6 +29,10 @@
     {
       "path": "/api/cron/morning/reservationNotifications",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/publish-scheduled-posts",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
