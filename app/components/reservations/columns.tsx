@@ -13,7 +13,7 @@ import {
   FullReservationWithTender,
 } from "@/app/api/reservations/definitions";
 import CategoryBadge from "@/app/components/category-badge";
-import { ActionsCell } from "@/app/components/reservations/cells/actions";
+import { ConsoleActionsCell } from "@/app/components/reservations/cells/console-actions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
@@ -28,6 +28,7 @@ import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { EyeOffIcon } from "lucide-react";
 import CoverageCell from "@/app/components/payments/coverage-cell";
+import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-proof-cell";
 import {
   deriveCoverageState,
   type CoverageState,
@@ -55,16 +56,69 @@ function reservationCoverageState(
 
 export const columnTitles = {
   artists: "Participantes",
+  cashAmount: "QR",
+  collaborators: "Colaboradores",
+  coverage: "Cobertura",
   createdAt: "Creación",
+  creditAmount: "Créditos",
+  dueAt: "Vencimiento",
+  features: "Extras",
   festivalId: "Festival",
   id: "ID",
+  outstandingAmount: "Saldo",
+  owner: "Titular",
+  participantCategory: "Categoría",
+  proof: "Comprobante",
+  reviewAge: "En revisión desde",
   stand: "Espacio",
   status: "Estado de la Reserva",
-  paymentStatus: "Estado del Pago",
-  expiration: "Vencimiento",
-  collaborators: "Colaboradores",
-  participantCategory: "Categoría",
+  totalAmount: "Total",
 };
+
+function money(amount: number | undefined): string {
+  return amount == null ? "--" : `Bs${amount}`;
+}
+
+/**
+ * The invoice holder — who owes, and whose credits apply. Not the same
+ * question as who is on the stand, which `artists` answers.
+ */
+function invoiceOwnerName(
+  reservation: FullReservationWithTender,
+): string | null {
+  const user = reservation.invoices[0]?.user;
+  if (!user) return null;
+  return (
+    user.displayName ||
+    [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+    user.email
+  );
+}
+
+/** When the still-open settlement submission was sent, if there is one. */
+function reviewWaitingSince(
+  reservation: FullReservationWithTender,
+): Date | null {
+  const invoice = reservation.invoices[0];
+  if (!invoice || invoice.status !== "verification_payment") return null;
+  const latest = [...invoice.payments].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+  )[0];
+  return latest?.createdAt ?? invoice.updatedAt;
+}
+
+/**
+ * The optional features charged to this reservation — the other way credits
+ * attach to it, invisible on both of the previous screens.
+ */
+function featureSummary(reservation: FullReservationWithTender): string {
+  const parts: string[] = [];
+  if (reservation.members.filter((member) => !member.releasedAt).length > 1) {
+    parts.push("Mesa completa");
+  }
+  if (reservation.bookedParticipantCount > 1) parts.push("Compartida");
+  return parts.join(" · ");
+}
 
 /**
  * What the reservation occupies. Reading `row.stand` alone showed a full table
@@ -327,13 +381,10 @@ export const columns = (
     },
   },
   {
-    id: "paymentStatus",
+    id: "coverage",
     accessorFn: (row) => reservationCoverageState(row) ?? "",
     header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title={columnTitles.paymentStatus}
-      />
+      <DataTableColumnHeader column={column} title={columnTitles.coverage} />
     ),
     cell: ({ row }) => {
       const state = reservationCoverageState(row.original);
@@ -353,20 +404,101 @@ export const columns = (
     },
   },
   {
-    id: "expiration",
-    accessorFn: (row) =>
-      formatDate(row.createdAt)
-        .plus({
-          hours: RESERVATION_EXPIRATION_HOURS,
-        })
-        .toMillis(),
+    id: "owner",
+    accessorFn: (row) => invoiceOwnerName(row) ?? "",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.expiration} />
+      <DataTableColumnHeader column={column} title={columnTitles.owner} />
     ),
-    cell: ({ getValue }) => {
-      const ms = getValue<number>()!;
-      return formatDateWithTime(new Date(ms));
+    cell: ({ row }) => invoiceOwnerName(row.original) ?? "--",
+  },
+  {
+    id: "totalAmount",
+    accessorFn: (row) => row.tender?.totalAmount ?? 0,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.totalAmount} />
+    ),
+    cell: ({ row }) => money(row.original.tender?.totalAmount),
+  },
+  {
+    id: "creditAmount",
+    accessorFn: (row) => row.tender?.confirmedCreditAmount ?? 0,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.creditAmount}
+      />
+    ),
+    cell: ({ row }) =>
+      (row.original.tender?.confirmedCreditAmount ?? 0) > 0
+        ? money(row.original.tender!.confirmedCreditAmount)
+        : "--",
+  },
+  {
+    id: "cashAmount",
+    accessorFn: (row) => row.tender?.approvedCashAmount ?? 0,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.cashAmount} />
+    ),
+    cell: ({ row }) =>
+      (row.original.tender?.approvedCashAmount ?? 0) > 0
+        ? money(row.original.tender!.approvedCashAmount)
+        : "--",
+  },
+  {
+    id: "outstandingAmount",
+    accessorFn: (row) => row.tender?.outstandingAmount ?? 0,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.outstandingAmount}
+      />
+    ),
+    cell: ({ row }) => money(row.original.tender?.outstandingAmount),
+  },
+  {
+    id: "proof",
+    header: columnTitles.proof,
+    cell: ({ row }) => {
+      const invoice = row.original.invoices[0];
+      if (!invoice) return "--";
+      return (
+        <ViewPaymentProofCell
+          invoice={{ ...invoice, reservation: row.original }}
+        />
+      );
     },
+  },
+  {
+    id: "reviewAge",
+    // How long this row has been waiting on a decision — the settlement
+    // lens's real sort key.
+    accessorFn: (row) => reviewWaitingSince(row)?.getTime() ?? 0,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.reviewAge} />
+    ),
+    cell: ({ row }) => {
+      const since = reviewWaitingSince(row.original);
+      return since ? formatDateWithTime(since) : "--";
+    },
+  },
+  {
+    id: "dueAt",
+    accessorFn: (row) => row.invoices[0]?.dueAt?.getTime() ?? 0,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.dueAt} />
+    ),
+    cell: ({ row }) => {
+      const dueAt = row.original.invoices[0]?.dueAt;
+      return dueAt ? formatDateWithTime(dueAt) : "--";
+    },
+  },
+  {
+    id: "features",
+    accessorFn: (row) => featureSummary(row),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.features} />
+    ),
+    cell: ({ row }) => featureSummary(row.original) || "--",
   },
   {
     accessorKey: "createdAt",
@@ -380,7 +512,7 @@ export const columns = (
   {
     id: "actions",
     cell: ({ row }) => (
-      <ActionsCell reservation={row.original} canMutate={canMutate} />
+      <ConsoleActionsCell reservation={row.original} canMutate={canMutate} />
     ),
   },
 ];

@@ -1,27 +1,35 @@
+"use client";
+
 import { FullReservationWithTender } from "@/app/api/reservations/definitions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { externalParticipantTypeOptions } from "@/app/lib/external_participants/definitions";
 import { COVERAGE_FILTER_OPTIONS } from "@/app/lib/payments/coverage";
+import {
+  lensInitialState,
+  type ConsoleLens,
+} from "@/app/lib/reservations/console-lenses";
 import { userCategoryOptions } from "@/app/lib/utils";
 import { columns, columnTitles } from "./columns";
 
 export default function ReservationsTable({
   data,
   canMutate = false,
+  lens = "reservas",
 }: {
   data: FullReservationWithTender[];
   canMutate?: boolean;
+  /** Which column preset to open on. Everything stays reachable via the view menu. */
+  lens?: ConsoleLens;
 }) {
   return (
     <DataTable
+      // Remounts on a lens change so the preset's visibility and filters take
+      // effect; initialState is only read when the table is created.
+      key={lens}
       columns={columns(canMutate)}
       data={data}
       columnTitles={columnTitles}
-      initialState={{
-        columnVisibility: {
-          festivalId: false,
-        },
-      }}
+      initialState={lensInitialState(lens)}
       filters={[
         {
           label: "Estado de la reserva",
@@ -35,7 +43,7 @@ export default function ReservationsTable({
         },
         {
           label: "Cobertura",
-          columnId: "paymentStatus",
+          columnId: "coverage",
           options: COVERAGE_FILTER_OPTIONS,
         },
         {

@@ -265,6 +265,9 @@ export async function fetchReservationsByFestivalId(
         invoices: {
           with: {
             payments: true,
+            // The person who owes, and whose credits apply — not the same
+            // question as who is on the stand.
+            user: true,
           },
         },
         scheduledTasks: true,

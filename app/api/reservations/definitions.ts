@@ -5,7 +5,7 @@ import {
   ProfileWithSocials,
   UserSocial,
 } from "@/app/api/users/definitions";
-import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
+import { InvoiceWithPaymentsAndOwner } from "@/app/data/invoices/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { Collaborator } from "@/app/lib/reservations/definitions";
@@ -72,7 +72,7 @@ export type ReservationWithParticipantsAndUsersAndStandAndFestival =
 
 export type ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments =
   ReservationWithParticipantsAndUsersAndStandAndFestival & {
-    invoices: InvoiceWithPayments[];
+    invoices: InvoiceWithPaymentsAndOwner[];
   };
 
 export type FullReservation = ReservationBase & {
@@ -86,7 +86,7 @@ export type FullReservation = ReservationBase & {
   stand: StandBase;
   members: ReservationStandMember[];
   festival: FestivalWithDates;
-  invoices: InvoiceWithPayments[];
+  invoices: InvoiceWithPaymentsAndOwner[];
   collaborators: {
     collaborator: Collaborator;
   }[];

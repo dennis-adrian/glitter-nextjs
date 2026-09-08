@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/drawer-dialog";
 import Image from "next/image";
 import { adminConfirmReservationAction } from "@/app/lib/reservations/payment-actions";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";
@@ -20,7 +19,12 @@ import SubmitButton from "@/app/components/simple-submit-button";
 import { useMemo } from "react";
 
 type PaymentProofModalProps = {
-  invoice: InvoiceWithParticipants;
+  /**
+   * Only the id and the reservation's status are read here. Kept structural so
+   * both the invoice-rooted and reservation-rooted rows can pass their own
+   * shape without one being converted into the other.
+   */
+  invoice: { id: number; reservation: { status: string } };
   imageUrl?: string;
   show: boolean;
   onOpenChange: (open: boolean) => void;
