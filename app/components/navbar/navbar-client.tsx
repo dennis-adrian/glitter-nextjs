@@ -22,7 +22,7 @@ export default function NavbarClient({
   creditsEnabled,
   blogEnabled,
 }: Props) {
-  const { profile } = useNavbarProfile();
+  const { profile, isLoading } = useNavbarProfile();
 
   return (
     <header className="border-b border-brand-border bg-brand-elevated/95 backdrop-blur">
@@ -62,7 +62,11 @@ export default function NavbarClient({
             />
           </li>
           <li className="flex shrink-0 justify-self-end">
-            <SessionButtons profile={profile} creditsEnabled={creditsEnabled} />
+            <SessionButtons
+              profile={profile}
+              creditsEnabled={creditsEnabled}
+              isProfileLoading={isLoading}
+            />
           </li>
         </ul>
       </nav>

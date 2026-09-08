@@ -10,12 +10,15 @@ export function useNavbarProfile() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [profileFetchError, setProfileFetchError] = useState(false);
 
-  const isLoadingProfile =
+  // Boolean() rather than the bare chain: `isSignedIn` is undefined until
+  // Clerk loads, and consumers thread this down as a typed `boolean` prop.
+  const isLoadingProfile = Boolean(
     isSignedIn &&
-    isLoaded &&
-    user?.id != null &&
-    profileUserId !== user.id &&
-    !profileFetchError;
+      isLoaded &&
+      user?.id != null &&
+      profileUserId !== user.id &&
+      !profileFetchError,
+  );
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) {

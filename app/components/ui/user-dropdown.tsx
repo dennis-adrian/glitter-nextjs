@@ -15,6 +15,7 @@ import {
 
 import { NavbarProfile } from "@/app/api/users/definitions";
 
+import MissingProfileDropdown from "@/app/components/user_dropdown/missing-profile-dropdown";
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 import {
@@ -30,9 +31,17 @@ import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info
 export default function UserDropdown({
   profile,
   creditsEnabled,
+  isProfileLoading,
 }: {
   profile?: NavbarProfile | null;
   creditsEnabled: boolean;
+  /**
+   * Only `useNavbarProfile` can tell a fetch still in flight apart from one
+   * that resolved to `null`, so the answer has to be passed in. Re-deriving it
+   * from `!profile` here left a signed-in user without a `users` row on the
+   * skeleton forever, with the sign-out button trapped behind it.
+   */
+  isProfileLoading: boolean;
 }) {
   const clerk = useUser();
   const pathname = usePathname();
@@ -40,8 +49,12 @@ export default function UserDropdown({
   if (pathname.includes("festivals") && pathname.includes("registration"))
     return null;
 
-  if (!clerk.isLoaded || (clerk.isSignedIn && !profile)) {
+  if (!clerk.isLoaded || (clerk.isSignedIn && isProfileLoading)) {
     return <UserDropdownSkeleton />;
+  }
+
+  if (clerk.isSignedIn && !profile) {
+    return <MissingProfileDropdown />;
   }
 
   if (clerk.isSignedIn && profile) {
