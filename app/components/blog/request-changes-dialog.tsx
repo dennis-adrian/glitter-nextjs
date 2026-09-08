@@ -33,14 +33,21 @@ export default function RequestChangesDialog({
 
   function submit() {
     startTransition(async () => {
-      const res = await requestChanges(postId, { notes });
-      if (res.success) {
+      try {
+        const res = await requestChanges(postId, { notes });
+        if (!res.success) {
+          toast.error(res.message);
+          return;
+        }
         toast.success("Se enviaron los comentarios al autor");
         onOpenChange(false);
         setNotes("");
         onDone?.();
-      } else {
-        toast.error(res.message);
+      } catch {
+        // The action returns { success: false } for anything it can foresee, so
+        // a rejection is the transport failing. The dialog stays open with the
+        // notes intact, otherwise the review feedback is lost to a retry.
+        toast.error("No se pudieron enviar los comentarios. Intentá de nuevo.");
       }
     });
   }

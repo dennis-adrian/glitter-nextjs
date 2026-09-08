@@ -2,7 +2,7 @@
 
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
@@ -19,6 +19,17 @@ import { Label } from "@/app/components/ui/label";
 import { schedulePost } from "@/app/lib/posts/actions";
 
 const ZONE = "America/La_Paz";
+
+function seedValue(currentScheduledAt?: Date | null): string {
+  return currentScheduledAt
+    ? DateTime.fromJSDate(currentScheduledAt)
+        .setZone(ZONE)
+        .toFormat("yyyy-MM-dd'T'HH:mm")
+    : DateTime.now()
+        .setZone(ZONE)
+        .plus({ hours: 1 })
+        .toFormat("yyyy-MM-dd'T'HH:mm");
+}
 
 type Props = {
   postId: number;
@@ -42,18 +53,22 @@ export default function ScheduleDialog({
   onOpenChange,
   currentScheduledAt,
 }: Props) {
-  const [value, setValue] = useState(() =>
-    currentScheduledAt
-      ? DateTime.fromJSDate(currentScheduledAt)
-          .setZone(ZONE)
-          .toFormat("yyyy-MM-dd'T'HH:mm")
-      : DateTime.now()
-          .setZone(ZONE)
-          .plus({ hours: 1 })
-          .toFormat("yyyy-MM-dd'T'HH:mm"),
-  );
+  const [value, setValue] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+
+  // The dialog stays mounted with the page, so the picker is seeded on each
+  // open rather than once in useState: otherwise the “+1 hora” default is
+  // frozen at page load — and can land in the past — and a cancelled edit is
+  // still there the next time it opens.
+  const scheduledAtRef = useRef(currentScheduledAt);
+  useEffect(() => {
+    scheduledAtRef.current = currentScheduledAt;
+  }, [currentScheduledAt]);
+  useEffect(() => {
+    if (!open) return;
+    setValue(seedValue(scheduledAtRef.current));
+  }, [open]);
 
   function submit() {
     const parsed = DateTime.fromFormat(value, "yyyy-MM-dd'T'HH:mm", {

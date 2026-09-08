@@ -6,11 +6,11 @@ import PostsTable from "@/app/components/blog/posts-table";
 import { Button } from "@/app/components/ui/button";
 import { startNewDashboardDraft } from "@/app/lib/posts/actions";
 import { fetchAllPostsForAdmin } from "@/app/lib/posts/data";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 export default async function DashboardBlogPage() {
-  const profile = await getCurrentUserProfile();
-  if (!profile) redirect("/sign_in");
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) redirect("/dashboard");
 
   const posts = await fetchAllPostsForAdmin({});
 

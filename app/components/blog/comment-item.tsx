@@ -46,12 +46,19 @@ export default function CommentItem({
 
   function run(action: () => Promise<{ success: boolean; message?: string }>) {
     startTransition(async () => {
-      const result = await action();
-      if (!result.success) {
-        toast.error(result.message ?? "No se pudo completar la acción");
-        return;
+      try {
+        const result = await action();
+        if (!result.success) {
+          toast.error(result.message ?? "No se pudo completar la acción");
+          return;
+        }
+        router.refresh();
+      } catch {
+        // The actions return `{ success: false }` for anything they can
+        // foresee, so a rejection here is the transport failing. Left uncaught
+        // it takes the whole article down with the error boundary.
+        toast.error("No se pudo completar la acción. Intentá de nuevo.");
       }
-      router.refresh();
     });
   }
 

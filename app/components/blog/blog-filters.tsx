@@ -3,7 +3,7 @@
 import { SearchIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -36,6 +36,13 @@ export default function BlogFilters({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [value, setValue] = useState(q);
+
+  // q changes on soft navigation — “Quitar búsqueda”, “Limpiar filtros”, the
+  // back button — without remounting this component, so the input has to be
+  // resynced or it keeps showing a term the URL has already dropped.
+  useEffect(() => {
+    setValue(q);
+  }, [q]);
 
   function hrefWith(next: Record<string, string | undefined>): string {
     const params = new URLSearchParams(searchParams.toString());

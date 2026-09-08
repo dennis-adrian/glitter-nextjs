@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import PostStatusBadge from "@/app/components/blog/post-status-badge";
 import ReviewActions from "@/app/components/blog/review-actions";
@@ -6,8 +7,14 @@ import { Button } from "@/app/components/ui/button";
 import { fetchSubmittedPostsForReview } from "@/app/lib/posts/data";
 import { formatFullDate } from "@/app/lib/formatters";
 import { postAuthorName } from "@/app/lib/posts/helpers";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 export default async function DashboardBlogReviewPage() {
+  // The queue's own actions accept a festival admin too, so the page must
+  // admit the same pair the dashboard layout does rather than admins alone.
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) redirect("/dashboard");
+
   const posts = await fetchSubmittedPostsForReview();
 
   return (

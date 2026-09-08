@@ -34,14 +34,21 @@ export default function CommentForm({
 
   function submit() {
     startTransition(async () => {
-      const result = await addComment(postId, trimmed, parentId);
-      if (!result.success) {
-        toast.error(result.message);
-        return;
+      try {
+        const result = await addComment(postId, trimmed, parentId);
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        setBody("");
+        onDone?.();
+        router.refresh();
+      } catch {
+        // The action returns { success: false } for anything it can foresee, so
+        // a rejection is the transport failing. Uncaught it would take the page
+        // down with the error boundary and the typed comment with it.
+        toast.error("No se pudo publicar el comentario. Intentá de nuevo.");
       }
-      setBody("");
-      onDone?.();
-      router.refresh();
     });
   }
 

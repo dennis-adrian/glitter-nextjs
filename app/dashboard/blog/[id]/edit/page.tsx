@@ -19,7 +19,7 @@ export default async function DashboardBlogEditPage({
 
   const { id } = await params;
   const postId = Number(id);
-  if (Number.isNaN(postId)) notFound();
+  if (!Number.isInteger(postId) || postId <= 0) notFound();
 
   const [post, categories, shareLink] = await Promise.all([
     fetchPostByIdForEditor(postId),

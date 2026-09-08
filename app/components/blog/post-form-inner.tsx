@@ -288,7 +288,13 @@ export default function PostFormInner({
     if (!userInteractedRef.current) return;
     const payload = buildPayload();
     const serialized = JSON.stringify(payload);
-    if (serialized === lastSavedRef.current) return;
+    if (serialized === lastSavedRef.current) {
+      // Back to what is already persisted — usually a typo typed and deleted
+      // inside the debounce window. The pending save was cancelled by this
+      // effect's own cleanup, so nothing else would clear a stale "Guardando...".
+      setSaveStatus((prev) => (prev === "saving" ? "saved" : prev));
+      return;
+    }
 
     const version = ++versionRef.current;
     setSaveStatus("saving");

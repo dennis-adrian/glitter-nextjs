@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { Input } from "@/app/components/ui/input";
@@ -14,7 +14,8 @@ type Status =
   | { kind: "idle" }
   | { kind: "checking" }
   | { kind: "free" }
-  | { kind: "taken"; suggestion: string };
+  | { kind: "taken"; suggestion: string }
+  | { kind: "error" };
 
 /**
  * The slug, with the two things PRD §7.1 asks for: a live preview of the URL
@@ -51,20 +52,33 @@ export default function SlugField({
   const chosen = typed && !PLACEHOLDER_SLUG_RE.test(typed) ? typed : "";
   const effective = chosen || slugifyName(title || "") || slugPreview;
 
+  const requestRef = useRef(0);
+
   const check = useCallback(
     async (candidate: string) => {
       const normalized = candidate.trim();
+      // Blur fires again while a check is still in flight, so every call takes
+      // a ticket and only the latest one is allowed to paint. Clearing the
+      // field counts too, or a late "Disponible" lands on an empty input.
+      const version = ++requestRef.current;
       if (!normalized) {
         setStatus({ kind: "idle" });
         return;
       }
       setStatus({ kind: "checking" });
-      const result = await checkSlugAvailability(postId, normalized);
-      setStatus(
-        result.available
-          ? { kind: "free" }
-          : { kind: "taken", suggestion: result.suggestion },
-      );
+      try {
+        const result = await checkSlugAvailability(postId, normalized);
+        if (requestRef.current !== version) return;
+        setStatus(
+          result.available
+            ? { kind: "free" }
+            : { kind: "taken", suggestion: result.suggestion },
+        );
+      } catch (error) {
+        if (requestRef.current !== version) return;
+        console.error("checkSlugAvailability", error);
+        setStatus({ kind: "error" });
+      }
     },
     [postId],
   );
@@ -106,6 +120,12 @@ export default function SlugField({
             Ya hay un artículo con ese slug. Si lo dejás así, se publicará como{" "}
             <span className="font-medium">/blog/{status.suggestion}</span>.
           </span>
+        </p>
+      )}
+      {status.kind === "error" && (
+        <p className="flex items-center gap-1.5 text-xs text-destructive">
+          <TriangleAlertIcon className="size-3" />
+          No se pudo verificar la disponibilidad. Intentá de nuevo.
         </p>
       )}
       {status.kind === "idle" && (
