@@ -23,9 +23,12 @@ import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 export default function SessionButtons({
   profile,
   creditsEnabled,
+  isProfileLoading,
 }: {
   profile?: NavbarProfile | null;
   creditsEnabled: boolean;
+  /** Forwarded to the dropdown so a `null` profile is not read as loading. */
+  isProfileLoading: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -102,5 +105,11 @@ export default function SessionButtons({
     );
   }
 
-  return <UserDropdown profile={profile} creditsEnabled={creditsEnabled} />;
+  return (
+    <UserDropdown
+      profile={profile}
+      creditsEnabled={creditsEnabled}
+      isProfileLoading={isProfileLoading}
+    />
+  );
 }
