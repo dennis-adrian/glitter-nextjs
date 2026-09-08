@@ -249,12 +249,12 @@
     --popover: 0 0% 100%;
     --popover-foreground: 218.2 44% 9.8%;
     --primary-foreground: 0 0% 98%;
-    /* Brand coral (#ff655b), with its own darkest ramp step as the foreground.
-       White fails here at 2.8:1 — as the white-on-pink it replaces did, at
-       2.2:1. This pairing reaches 5.7:1 and stays inside the coral family
-       rather than borrowing the purple brand ink. */
-    --secondary: 3.7 100% 67.8%;
-    --secondary-foreground: 4 68% 14%;
+    /* A tinted coral badge: pale coral ground, coral text.
+       #ff655b text on this ground is only 2.6:1, so the text steps down to
+       hsl(6 75% 40%) — deep enough to pass at 5.8:1, and saturation eases off
+       with it so it stays coral rather than turning fire-engine red. */
+    --secondary: 12 100% 96%;
+    --secondary-foreground: 6 75% 40%;
     --muted: 36 33.3% 94.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 251.4 91.3% 95.5%;
@@ -344,11 +344,12 @@
     --popover-foreground: 242 39% 87%;
     --primary: 262 77% 51%;
     --primary-foreground: 242 39% 87%;
-    /* Coral, darkened for a dark ground. This block is dormant — ThemeProvider
-       is not mounted in the root layout — but it is kept in step so it is not
-       still pink whenever dark mode is turned on. */
-    --secondary: 4 45% 30%;
-    --secondary-foreground: 4 100% 92%;
+    /* The same tinted badge inverted for a dark ground: a coral-tinted
+       surface with light coral text, 7.4:1. Dormant — ThemeProvider is not
+       mounted in the root layout — but kept in step so it is not still pink
+       whenever dark mode is turned on. */
+    --secondary: 6 30% 18%;
+    --secondary-foreground: 8 85% 78%;
     --muted: 0 0% 80%;
     --muted-foreground: 242 39% 87%;
     --accent: 338 69% 35%;
