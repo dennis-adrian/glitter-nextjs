@@ -47,9 +47,14 @@ import {
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
 import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/actions";
+import {
+  computeInvoiceTender,
+  type InvoiceTender,
+} from "@/app/lib/payments/tender";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  creditLedgerEntries,
   creditTopUps,
   discountCodes,
   invoiceSettlementSubmissions,
@@ -234,52 +239,55 @@ async function loadInvoiceAggregate(
   return { kind: "ok", invoice, reservation, participants };
 }
 
-export type InvoiceTenderTotals = {
-  approvedCashAmount: number;
-  confirmedCreditAmount: number;
-  coveredAmount: number;
-  outstandingAmount: number;
-};
+export type InvoiceTenderTotals = InvoiceTender;
 
+/**
+ * The locked-path reader for invoice coverage.
+ *
+ * Selects the tender rows under whatever lock the caller already holds and
+ * hands them to `computeInvoiceTender`, so this and the list screens can never
+ * disagree about what an invoice is owed.
+ */
 export async function getInvoiceTenderTotalsInTx(
   tx: DbTx,
   invoice: Pick<typeof invoices.$inferSelect, "id" | "amount">,
 ): Promise<InvoiceTenderTotals> {
-  const [cash] = await tx
-    .select({
-      amount: sql<number>`coalesce(sum(${payments.amount}), 0)`,
-    })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.invoiceId, invoice.id),
-        sql`EXISTS (
+  const [paymentRows, allocationRows, submissionRows] = await Promise.all([
+    tx
+      .select({ id: payments.id, amount: payments.amount })
+      .from(payments)
+      .where(eq(payments.invoiceId, invoice.id)),
+    tx
+      .select({
+        amount: invoiceCreditAllocations.amount,
+        // An allocation is undone by a ledger entry pointing at its spend; the
+        // row itself stays as history.
+        reversed: sql<boolean>`EXISTS (
           SELECT 1
-          FROM ${invoiceSettlementSubmissions}
-          WHERE ${invoiceSettlementSubmissions.invoiceId} = ${invoice.id}
-            AND ${invoiceSettlementSubmissions.paymentId} = ${payments.id}
-            AND ${invoiceSettlementSubmissions.status} = 'approved'
+          FROM ${creditLedgerEntries} r
+          WHERE r.reverses_entry_id = ${invoiceCreditAllocations.ledgerEntryId}
         )`,
-      ),
-    );
-  const [credits] = await tx
-    .select({
-      amount: sql<number>`coalesce(sum(${invoiceCreditAllocations.amount}), 0)`,
-    })
-    .from(invoiceCreditAllocations)
-    .where(eq(invoiceCreditAllocations.invoiceId, invoice.id));
-  const approvedCashAmount = roundMoney(Number(cash?.amount ?? 0));
-  const confirmedCreditAmount = roundMoney(Number(credits?.amount ?? 0));
-  const coveredAmount = roundMoney(approvedCashAmount + confirmedCreditAmount);
-  return {
-    approvedCashAmount,
-    confirmedCreditAmount,
-    coveredAmount,
-    outstandingAmount: Math.max(
-      0,
-      roundMoney(Number(invoice.amount) - coveredAmount),
-    ),
-  };
+      })
+      .from(invoiceCreditAllocations)
+      .where(eq(invoiceCreditAllocations.invoiceId, invoice.id)),
+    tx
+      .select({
+        paymentId: invoiceSettlementSubmissions.paymentId,
+        status: invoiceSettlementSubmissions.status,
+      })
+      .from(invoiceSettlementSubmissions)
+      .where(eq(invoiceSettlementSubmissions.invoiceId, invoice.id)),
+  ]);
+
+  return computeInvoiceTender({
+    amount: invoice.amount,
+    payments: paymentRows,
+    allocations: allocationRows.map((row) => ({
+      amount: row.amount,
+      reversed: Boolean(row.reversed),
+    })),
+    submissions: submissionRows,
+  });
 }
 
 function aggregateUnavailable(

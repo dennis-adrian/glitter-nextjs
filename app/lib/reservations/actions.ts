@@ -11,7 +11,12 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import {
   FullReservation,
+  FullReservationWithTender,
 } from "@/app/api/reservations/definitions";
+import {
+  fetchInvoiceTenders,
+  tenderFor,
+} from "@/app/lib/payments/tender-queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
   canMutateReservationCollaborators,
@@ -198,7 +203,7 @@ export const deleteReservationCollaborator = async (
 
 export async function fetchReservationsByFestivalId(
   festivalId: number,
-): Promise<FullReservation[]> {
+): Promise<FullReservationWithTender[]> {
   const actor = await getCurrentUserProfile();
   if (
     !actor ||
@@ -208,7 +213,7 @@ export async function fetchReservationsByFestivalId(
   }
 
   try {
-    return await db.query.standReservations.findMany({
+    const reservations = await db.query.standReservations.findMany({
       where: eq(standReservations.festivalId, festivalId),
       with: {
         stand: true,
@@ -249,6 +254,28 @@ export async function fetchReservationsByFestivalId(
         },
         scheduledTasks: true,
       },
+    });
+
+    // One reservation carries one invoice, so coverage is resolved for the
+    // whole page in a single extra round rather than per row.
+    const invoiceAmounts = new Map(
+      reservations.flatMap((reservation) =>
+        reservation.invoices.map(
+          (invoice) => [invoice.id, invoice.amount] as const,
+        ),
+      ),
+    );
+    const tenders = await fetchInvoiceTenders(
+      [...invoiceAmounts.keys()],
+      invoiceAmounts,
+    );
+
+    return reservations.map((reservation) => {
+      const invoice = reservation.invoices[0];
+      return {
+        ...reservation,
+        tender: invoice ? tenderFor(tenders, invoice.id) : null,
+      };
     });
   } catch (error) {
     console.error(error);

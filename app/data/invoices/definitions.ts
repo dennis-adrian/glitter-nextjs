@@ -1,4 +1,5 @@
 import { StandReservationWithFestival } from "@/app/api/stands/actions";
+import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { ReservationStandMember } from "@/app/api/reservations/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
@@ -55,4 +56,15 @@ export type InvoiceWithParticipants = InvoiceWithPaymentsAndStandAndProfile & {
   reservation: InvoiceWithPaymentsAndStandAndProfile["reservation"] & {
     participants: ReservationParticipantWithUser[];
   };
+};
+
+/**
+ * An invoice with its coverage resolved.
+ *
+ * `payments` alone cannot answer what an invoice is owed once credits exist,
+ * and the row is overwritten in place on every re-upload, so the amount it
+ * carries is only ever the current cash remainder.
+ */
+export type InvoiceWithTender = InvoiceWithParticipants & {
+  tender: InvoiceTender;
 };

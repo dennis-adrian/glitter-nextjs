@@ -7,6 +7,7 @@ import {
 } from "@/app/api/users/definitions";
 import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 import {
   externalParticipants,
@@ -90,4 +91,14 @@ export type FullReservation = ReservationBase & {
     collaborator: Collaborator;
   }[];
   scheduledTasks: ReservationScheduledTask[];
+};
+
+/**
+ * A reservation whose invoice coverage has been resolved.
+ *
+ * `tender` is null only when the reservation carries no invoice at all, which
+ * the schema permits but no creation path produces.
+ */
+export type FullReservationWithTender = FullReservation & {
+  tender: InvoiceTender | null;
 };
