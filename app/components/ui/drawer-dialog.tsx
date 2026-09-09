@@ -71,11 +71,22 @@ const DrawerDialogDescription = ({
   return <Component {...props}>{children}</Component>;
 };
 
+/**
+ * Dismissal is prevented by default, which suits a dialog holding unsaved
+ * input. Callers that are browse surfaces pass their own no-op handlers to get
+ * click-outside-to-close back, so those callbacks have to be part of the type.
+ */
+type DrawerDialogContentProps = DrawerDialogProps &
+  Pick<
+    React.ComponentPropsWithoutRef<typeof DialogContent>,
+    "onPointerDownOutside" | "onInteractOutside" | "onEscapeKeyDown"
+  >;
+
 const DrawerDialogContent = ({
   children,
   isDesktop = false,
   ...props
-}: DrawerDialogProps) => {
+}: DrawerDialogContentProps) => {
   const Component = isDesktop ? DialogContent : DrawerContent;
   return (
     <Component

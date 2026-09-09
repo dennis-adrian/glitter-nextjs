@@ -27,6 +27,31 @@ function newestReservationFirst(
 }
 
 /**
+ * Whether a reservation actually occupies this stand.
+ *
+ * `reservation.standId` is only the originally selected half, so matching on it
+ * left the second stand of every full table looking empty on the admin map —
+ * no colour, no tooltip, no drawer — while the reservation that held it sat one
+ * square over. `members` is what is occupied, and a released member is not.
+ *
+ * Falls back to the root when a reservation carries no member rows. Every row
+ * has them today, but the fallback keeps a reservation from vanishing off the
+ * map entirely if one ever does not.
+ */
+function occupiesStand(
+  invoice: InvoiceWithParticipants,
+  standId: number,
+): boolean {
+  const members = invoice.reservation.members;
+  if (!members || members.length === 0) {
+    return invoice.reservation.standId === standId;
+  }
+  return members.some(
+    (member) => member.standId === standId && !member.releasedAt,
+  );
+}
+
+/**
  * Keeps terminal reservations out of the stand's current state while retaining
  * them as history. If inconsistent data contains more than one active
  * reservation, the newest reservation wins deterministically.
@@ -36,7 +61,7 @@ export function getStandReservationSummary<T extends InvoiceWithParticipants>(
   standId: number,
 ): StandReservationSummary<T> {
   const standInvoices = invoices
-    .filter((invoice) => invoice.reservation.standId === standId)
+    .filter((invoice) => occupiesStand(invoice, standId))
     .sort(newestReservationFirst);
 
   return {

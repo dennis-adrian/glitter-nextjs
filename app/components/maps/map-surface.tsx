@@ -14,6 +14,7 @@ import {
 import {
   indexJointGroupsByStandId,
   resolveJointGroups,
+  type JointGroup,
 } from "@/app/lib/stands/groups";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapElement from "@/app/components/maps/map-element";
@@ -39,8 +40,13 @@ type MapSurfaceProps<T extends MapStandLike = MapStandLike> = {
    * Draw admin-declared groups as one joined stand. Views that encode per-stand
    * state in a stand's color must opt out, since one outline can only carry one
    * color and would hide the difference between members.
+   *
+   * A predicate narrows that to the groups a view can honestly join — the admin
+   * overview joins only the ones a single reservation holds end to end, where
+   * the members cannot disagree about status because they share an invoice.
+   * Memoize it; it is a dependency of the group resolution.
    */
-  joinGroups?: boolean;
+  joinGroups?: boolean | ((group: JointGroup<T>) => boolean);
   /** Extra SVG content painted on top of the stands */
   children?: React.ReactNode;
 };
@@ -69,10 +75,13 @@ export default function MapSurface<T extends MapStandLike>({
   children,
 }: MapSurfaceProps<T>) {
   const bounds = mapBounds ?? computeCanvasBounds(stands, mapElements);
-  const jointGroups = useMemo(
-    () => (joinGroups ? resolveJointGroups(stands) : []),
-    [stands, joinGroups],
-  );
+  const jointGroups = useMemo(() => {
+    if (!joinGroups) return [];
+    const groups = resolveJointGroups(stands);
+    return typeof joinGroups === "function"
+      ? groups.filter((group) => joinGroups(group))
+      : groups;
+  }, [stands, joinGroups]);
   const groupByStandId = useMemo(
     () => indexJointGroupsByStandId(jointGroups),
     [jointGroups],

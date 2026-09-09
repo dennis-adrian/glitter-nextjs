@@ -12,11 +12,13 @@ import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import ConfirmReservationModal from "@/app/components/payments/confirm-reservation-modal";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/app/components/ui/drawer";
+  DrawerDialog,
+  DrawerDialogContent,
+  DrawerDialogDescription,
+  DrawerDialogHeader,
+  DrawerDialogTitle,
+} from "@/app/components/ui/drawer-dialog";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { Button } from "@/app/components/ui/button";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
@@ -27,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { cn } from "@/app/lib/utils";
 
 type AdminOverviewStandDrawerProps = {
@@ -78,6 +81,10 @@ export default function AdminOverviewStandDrawer({
   const [selectedStatus, setSelectedStatus] = useState<string>(
     stand?.status ?? "available",
   );
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const standLabel = invoice
+    ? reservationStandLabel(invoice.reservation)
+    : `${stand?.label ?? ""}${stand?.standNumber ?? ""}`;
   const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -124,16 +131,37 @@ export default function AdminOverviewStandDrawer({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>
-              Espacio {stand.label}
-              {stand.standNumber} — Sector {sectorName}
-            </DrawerTitle>
-          </DrawerHeader>
+      <DrawerDialog
+        isDesktop={isDesktop}
+        open={open}
+        onOpenChange={onOpenChange}
+      >
+        <DrawerDialogContent
+          isDesktop={isDesktop}
+          className="sm:max-w-lg"
+          // The shared content prevents outside dismissal, which suits a dialog
+          // holding unsaved input. This one is a browse surface an admin opens
+          // stand after stand, so clicking the map again closes it as the plain
+          // drawer always did.
+          onPointerDownOutside={() => {}}
+          onInteractOutside={() => {}}
+        >
+          <DrawerDialogHeader isDesktop={isDesktop}>
+            <DrawerDialogTitle isDesktop={isDesktop}>
+              {/* A full table is one clickable unit on the map, so the title
+                  names every stand its reservation holds rather than the half
+                  the group happened to dispatch. */}
+              Espacio {standLabel} — Sector {sectorName}
+            </DrawerDialogTitle>
+            <DrawerDialogDescription isDesktop={isDesktop}>
+              Estado del espacio y la reserva que lo ocupa.
+            </DrawerDialogDescription>
+          </DrawerDialogHeader>
 
-          <div className="px-4 pb-6 space-y-4 overflow-y-auto max-h-[70vh]">
+          {/* Padding only below md: the dialog this becomes on desktop already
+              carries p-6, and keeping the drawer's own inset there indented the
+              body past its title. */}
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto px-4 pb-6 md:px-0 md:pb-0">
             {/* Stand meta */}
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {stand.standCategory && (
@@ -332,8 +360,8 @@ export default function AdminOverviewStandDrawer({
               </div>
             )}
           </div>
-        </DrawerContent>
-      </Drawer>
+        </DrawerDialogContent>
+      </DrawerDialog>
 
       {invoice && showConfirmModal && (
         <ConfirmReservationModal

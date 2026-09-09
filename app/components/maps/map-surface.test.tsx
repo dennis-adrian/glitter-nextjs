@@ -81,6 +81,43 @@ describe("MapSurface joint groups", () => {
     expect(standNodes(container)).toHaveLength(2);
   });
 
+  it("joins only the groups a predicate accepts", () => {
+    // The admin overview encodes each stand's payment state in its colour, so
+    // it joins a pair only when one reservation holds both halves — there the
+    // members share an invoice and one outline cannot hide a difference.
+    const { container } = render(
+      <MapSurface stands={jointPair()} joinGroups={() => false} />,
+    );
+
+    expect(groupNodes(container)).toHaveLength(0);
+    expect(standNodes(container)).toHaveLength(2);
+  });
+
+  it("still joins a group the predicate accepts", () => {
+    const { container } = render(
+      <MapSurface stands={jointPair()} joinGroups={() => true} />,
+    );
+
+    expect(groupNodes(container)).toHaveLength(1);
+    expect(standNodes(container)).toHaveLength(0);
+  });
+
+  it("hands the predicate the resolved group", () => {
+    const seen: number[][] = [];
+    render(
+      <MapSurface
+        stands={jointPair()}
+        joinGroups={(group) => {
+          seen.push(group.stands.map((s) => s.id));
+          return true;
+        }}
+      />,
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toHaveLength(2);
+  });
+
   it("keeps ungrouped stands rendering individually", () => {
     const { container } = render(
       <MapSurface
