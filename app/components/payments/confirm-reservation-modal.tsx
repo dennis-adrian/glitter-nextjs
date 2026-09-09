@@ -12,6 +12,10 @@ import {
 } from "@/app/components/ui/drawer-dialog";
 import { ConfirmReservationForm } from "@/app/components/payments/forms/confirm-reservation-form";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import {
+  featureCreditReason,
+  type FeatureCreditSummary,
+} from "@/app/lib/payments/feature-credits";
 import { findLatestActivePaymentProof } from "@/app/lib/payments/helpers";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { formatDateWithTime } from "@/app/lib/formatters";
@@ -29,12 +33,23 @@ function ownerName(user: InvoiceWithParticipants["user"]): string {
 
 type ConfirmReservationModalProps = {
   invoice: InvoiceWithParticipants;
+  /**
+   * Credits the reservation spent on extras, when the caller knows them.
+   *
+   * This is the figure that makes the cobro legible at the moment of
+   * approving. A reservation can hold two people and bill the individual
+   * price, because the difference and the fee were charged in credits against
+   * the reservation and never repriced the invoice — an admin looking at
+   * "Bs370" and two participants otherwise has to conclude something is wrong.
+   */
+  featureCredits?: FeatureCreditSummary;
   show: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
 export default function ConfirmReservationModal({
   invoice,
+  featureCredits,
   show,
   onOpenChange,
 }: ConfirmReservationModalProps) {
@@ -51,6 +66,8 @@ export default function ConfirmReservationModal({
   // credits or an earlier payment covered part of it.
   const expected = proof ? roundMoney(Number(proof.amount)) : total;
   const alreadyCovered = roundMoney(total - expected);
+  const extras =
+    featureCredits && featureCredits.total > 0 ? featureCredits : null;
 
   return (
     <DrawerDialog isDesktop={isDesktop} open={show} onOpenChange={onOpenChange}>
@@ -102,6 +119,32 @@ export default function ConfirmReservationModal({
               </div>
             )}
           </dl>
+
+          {/* Below the cobro's own arithmetic, never inside it: these credits
+              were charged against the reservation and are already settled, so
+              adding them to any line above would misstate what is owed. */}
+          {extras && (
+            <dl className="rounded-md border border-dashed p-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">
+                  Extras pagados con créditos
+                </dt>
+                <dd className="tabular-nums font-medium">Bs{extras.total}</dd>
+              </div>
+              {/* Sentence case, not `capitalize`: the reasons are phrased for
+                  mid-sentence use, and title-casing them would turn "compañero
+                  agregado" into "Compañero Agregado". */}
+              {extras.types.length > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground first-letter:uppercase">
+                  {featureCreditReason(extras.types)}
+                </p>
+              )}
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Ya cobrados por separado y fuera de este cobro. El total de
+                arriba es correcto aunque la reserva tenga más de una persona.
+              </p>
+            </dl>
+          )}
 
           {voucherUrl && (
             <figure className="space-y-1.5">

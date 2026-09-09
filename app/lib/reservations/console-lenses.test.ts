@@ -61,9 +61,17 @@ describe("lensInitialState", () => {
     expect(coverage?.value).toEqual(["under_review", "partial", "overdue"]);
   });
 
-  it("leaves the other lenses unfiltered", () => {
+  it("opens créditos on the reservations its subtitle promises", () => {
+    // "Reservas con créditos aplicados o extras pagados con crédito" — the
+    // lens showed the festival's every reservation, so the tab was
+    // indistinguishable from Cobros.
+    const filters = lensInitialState("creditos").columnFilters ?? [];
+    const source = filters.find((filter) => filter.id === "creditSource");
+    expect(source?.value).toEqual(["invoice", "features"]);
+  });
+
+  it("leaves the reservations lens unfiltered", () => {
     expect(lensInitialState("reservas").columnFilters).toEqual([]);
-    expect(lensInitialState("creditos").columnFilters).toEqual([]);
   });
 
   it("declares every column so a preset hides rather than omits", () => {

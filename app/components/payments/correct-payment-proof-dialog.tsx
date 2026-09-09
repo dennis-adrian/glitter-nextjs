@@ -79,7 +79,7 @@ export default function CorrectPaymentProofDialog({
             Corregir comprobante
           </DrawerDialogTitle>
           <DrawerDialogDescription isDesktop={isDesktop}>
-            Se rechazará el comprobante del pago #{invoice.id}. La reserva y el
+            Se rechazará el comprobante del cobro #{invoice.id}. La reserva y el
             cobro volverán a pendiente. El registro de pago se conserva.
           </DrawerDialogDescription>
         </DrawerDialogHeader>

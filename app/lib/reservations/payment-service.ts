@@ -279,6 +279,9 @@ export async function getInvoiceTenderTotalsInTx(
       .select({
         paymentId: invoiceSettlementSubmissions.paymentId,
         status: invoiceSettlementSubmissions.status,
+        // Selected so `pendingZeroValueRequest` is answerable; the locked write
+        // paths and the list screens must agree on it.
+        kind: invoiceSettlementSubmissions.kind,
       })
       .from(invoiceSettlementSubmissions)
       .where(eq(invoiceSettlementSubmissions.invoiceId, invoice.id)),

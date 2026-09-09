@@ -14,13 +14,13 @@ import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { ClockIcon, HistoryIcon } from "lucide-react";
 
 type AdminOverviewMapTooltipProps = {
   stand: StandWithReservationsWithParticipants;
-  invoice: InvoiceWithParticipants | null;
-  cancelledInvoices: InvoiceWithParticipants[];
+  invoice: InvoiceWithTender | null;
+  cancelledInvoices: InvoiceWithTender[];
   anchorRect: DOMRect;
   dueDate?: Date | null;
   isOverdue?: boolean;

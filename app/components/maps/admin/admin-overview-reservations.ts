@@ -1,9 +1,19 @@
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 
-export type StandReservationSummary = {
-  activeInvoice: InvoiceWithParticipants | null;
-  cancelledInvoices: InvoiceWithParticipants[];
+/**
+ * Generic over the invoice shape so the caller's extra fields survive.
+ *
+ * Pinning this to `InvoiceWithParticipants` silently narrowed the map's
+ * invoices on the way to the stand drawer, so the confirmation dialog — the
+ * same component the reservations console uses — lost the feature credits the
+ * query had already loaded.
+ */
+export type StandReservationSummary<
+  T extends InvoiceWithParticipants = InvoiceWithParticipants,
+> = {
+  activeInvoice: T | null;
+  cancelledInvoices: T[];
 };
 
 function newestReservationFirst(
@@ -21,10 +31,10 @@ function newestReservationFirst(
  * them as history. If inconsistent data contains more than one active
  * reservation, the newest reservation wins deterministically.
  */
-export function getStandReservationSummary(
-  invoices: InvoiceWithParticipants[],
+export function getStandReservationSummary<T extends InvoiceWithParticipants>(
+  invoices: T[],
   standId: number,
-): StandReservationSummary {
+): StandReservationSummary<T> {
   const standInvoices = invoices
     .filter((invoice) => invoice.reservation.standId === standId)
     .sort(newestReservationFirst);

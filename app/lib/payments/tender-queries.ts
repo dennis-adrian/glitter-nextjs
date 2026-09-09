@@ -60,6 +60,7 @@ export async function fetchInvoiceTenders(
         invoiceId: invoiceSettlementSubmissions.invoiceId,
         paymentId: invoiceSettlementSubmissions.paymentId,
         status: invoiceSettlementSubmissions.status,
+        kind: invoiceSettlementSubmissions.kind,
       })
       .from(invoiceSettlementSubmissions)
       .where(inArray(invoiceSettlementSubmissions.invoiceId, ids)),

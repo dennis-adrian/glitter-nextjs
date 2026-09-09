@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { ClockIcon, ExternalLinkIcon, HistoryIcon } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { updateStand } from "@/app/api/stands/actions";
 import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
@@ -31,8 +31,8 @@ import { cn } from "@/app/lib/utils";
 
 type AdminOverviewStandDrawerProps = {
   stand: StandWithReservationsWithParticipants | null;
-  invoice: InvoiceWithParticipants | null;
-  cancelledInvoices: InvoiceWithParticipants[];
+  invoice: InvoiceWithTender | null;
+  cancelledInvoices: InvoiceWithTender[];
   sectorName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -338,6 +338,7 @@ export default function AdminOverviewStandDrawer({
       {invoice && showConfirmModal && (
         <ConfirmReservationModal
           invoice={invoice}
+          featureCredits={invoice.featureCredits}
           show={showConfirmModal}
           onOpenChange={(isOpen) => {
             setShowConfirmModal(isOpen);

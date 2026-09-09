@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { getAdminOverviewColors } from "@/app/components/maps/map-utils";
 import MapSurface from "@/app/components/maps/map-surface";
@@ -23,7 +23,7 @@ import { hasExternalParticipants } from "@/app/components/maps/map-participants"
 
 type AdminOverviewMapProps = {
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
-  invoices: InvoiceWithParticipants[];
+  invoices: InvoiceWithTender[];
 };
 
 const LEGEND_ITEMS = [
@@ -110,7 +110,10 @@ export default function AdminOverviewMap({
   const visibleStands = activeSector?.stands ?? [];
 
   const reservationSummaries = useMemo(() => {
-    const summaries = new Map<number, StandReservationSummary>();
+    const summaries = new Map<
+      number,
+      StandReservationSummary<InvoiceWithTender>
+    >();
 
     for (const stand of sectors.flatMap((sector) => sector.stands)) {
       summaries.set(stand.id, getStandReservationSummary(invoices, stand.id));
@@ -120,7 +123,7 @@ export default function AdminOverviewMap({
   }, [invoices, sectors]);
 
   const getReservationSummary = useCallback(
-    (standId: number): StandReservationSummary =>
+    (standId: number): StandReservationSummary<InvoiceWithTender> =>
       reservationSummaries.get(standId) ?? {
         activeInvoice: null,
         cancelledInvoices: [],
@@ -129,7 +132,7 @@ export default function AdminOverviewMap({
   );
 
   const findInvoiceForStand = useCallback(
-    (standId: number): InvoiceWithParticipants | null =>
+    (standId: number): InvoiceWithTender | null =>
       getReservationSummary(standId).activeInvoice,
     [getReservationSummary],
   );
