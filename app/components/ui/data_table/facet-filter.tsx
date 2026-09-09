@@ -1,11 +1,12 @@
 "use client";
 "use no memo";
 
-import { CheckIcon, PlusCircleIcon } from "lucide-react";
+import { PlusCircleIcon } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import {
   Command,
   CommandEmpty,
@@ -107,7 +108,7 @@ export function DataTableFacetFilter<TData>({
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
               {selected.size > MAX_INLINE_BADGES ? (
-                <Badge variant="secondary" size="sm" className="rounded-sm">
+                <Badge variant="secondary" size="sm">
                   {selected.size} seleccionados
                 </Badge>
               ) : (
@@ -115,12 +116,7 @@ export function DataTableFacetFilter<TData>({
                   {options
                     .filter((option) => selected.has(option.value))
                     .map((option) => (
-                      <Badge
-                        key={option.value}
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-sm"
-                      >
+                      <Badge key={option.value} variant="secondary" size="sm">
                         {option.label}
                       </Badge>
                     ))}
@@ -145,16 +141,15 @@ export function DataTableFacetFilter<TData>({
                     value={option.label}
                     onSelect={() => toggle(option.value)}
                   >
-                    <div
-                      className={cn(
-                        "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                        isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "opacity-50 [&_svg]:invisible",
-                      )}
-                    >
-                      <CheckIcon className="h-3 w-3" />
-                    </div>
+                    {/* The real atom rather than a look-alike: a hand-rolled
+                        box here used rounded-sm, which this project resolves to
+                        8px — half of a 16px box, so it rendered as a circle. */}
+                    <Checkbox
+                      checked={isSelected}
+                      tabIndex={-1}
+                      aria-hidden
+                      className="mr-2 pointer-events-none"
+                    />
                     <span>{option.label}</span>
                   </CommandItem>
                 );
