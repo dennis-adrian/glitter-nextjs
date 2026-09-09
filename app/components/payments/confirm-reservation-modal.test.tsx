@@ -26,9 +26,13 @@ const invoice = {
   id: 9,
   status: "verification_payment" as const,
   amount: 370,
+  user: { displayName: "soychiiru" },
   payments: [
     {
       id: 3,
+      // submitPaymentProof stamps the outstanding balance here, which is what
+      // the comprobante was raised for — Bs20 of the Bs370 came from credits.
+      amount: 350,
       voucherUrl: "https://files.example.com/voucher.png",
       fileKey: "uploadthing-key",
       createdAt: new Date("2026-09-05T10:00:00Z"),
@@ -67,6 +71,26 @@ describe("ConfirmReservationModal", () => {
     expect(screen.getByRole("dialog").textContent).not.toContain(
       "Marcar el pago como pagado",
     );
+  });
+
+  it("names the figure the comprobante should show, not the whole cobro", () => {
+    renderModal();
+
+    const summary = screen.getByRole("dialog").querySelector("dl")!.textContent;
+    // The reason this row exists: an admin checking a Bs350 voucher against a
+    // Bs370 cobro would otherwise think it short.
+    expect(summary).toContain("Debe decir el comprobante");
+    expect(summary).toContain("Bs350");
+    expect(summary).toContain("Ya cubierto");
+    expect(summary).toContain("−Bs20");
+  });
+
+  it("names the holder, to check against the sending account", () => {
+    renderModal();
+
+    expect(
+      screen.getByRole("dialog").querySelector("dl")!.textContent,
+    ).toContain("soychiiru");
   });
 
   it("renders the comprobante inline, not as a trip to another tab", () => {
