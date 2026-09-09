@@ -1225,6 +1225,9 @@ export async function fetchFestivalParticipants(
         reservation: {
           with: {
             stand: true,
+            // A full table holds two stands; `stand` alone names only the one
+            // the participant picked first.
+            members: { with: { stand: true } },
             festival: true,
           },
         },

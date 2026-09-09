@@ -17,10 +17,24 @@ export default function ProfileAvatarGroup({
       {profiles.map((profile, i) => {
         let showStamp = false;
         if (festivalId && stand) {
+          // `reservation.standId` is only the half picked first, so a
+          // participant holding a full table lost their stamp on its second
+          // stand. `members` is what the reservation occupies; the root is the
+          // fallback for a participation loaded without them.
           const currentParticipation = profile.participations.find(
-            (participation) =>
-              participation.reservation.festivalId === festivalId &&
-              participation.reservation.standId === stand.id,
+            (participation) => {
+              if (participation.reservation.festivalId !== festivalId) {
+                return false;
+              }
+              const members = participation.reservation.members;
+              if (!members || members.length === 0) {
+                return participation.reservation.standId === stand.id;
+              }
+              return members.some(
+                (member) =>
+                  member.stand.id === stand.id && member.releasedAt == null,
+              );
+            },
           );
           showStamp = !!currentParticipation?.hasStamp;
         }

@@ -4,6 +4,7 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
 import { ReservedStandCard } from "@/app/components/user_profile/announcements_cards/reserved-stand-card";
 import { TermsCard } from "@/app/components/user_profile/announcements_cards/terms-card";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { isProfileComplete } from "@/app/lib/utils";
 import PendingVerificationCard from "./pending-verification-card";
 import RejectedProfileCard from "./rejected-profile.card";
@@ -28,9 +29,7 @@ export default async function Card({ profile }: { profile: ProfileType }) {
   if (!festival) return null;
 
   if (await profileNeedsTermsReacceptance(festival, profile)) {
-    return (
-      <TermsCard festival={festival} profile={profile} isReacceptance />
-    );
+    return <TermsCard festival={festival} profile={profile} isReacceptance />;
   }
 
   if (isProfileInFestival(festival.id, profile)) {
@@ -54,6 +53,7 @@ export default async function Card({ profile }: { profile: ProfileType }) {
           <ReservedStandCard
             festival={festival}
             stand={stand}
+            standLabel={reservationStandLabel(representative.reservation)}
             reservationStatus={representative.reservation.status}
           />
         );

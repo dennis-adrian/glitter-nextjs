@@ -20,7 +20,7 @@ import { findLatestActivePaymentProof } from "@/app/lib/payments/helpers";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import { roundMoney } from "@/app/lib/reservations/money";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 
 function ownerName(user: InvoiceWithParticipants["user"]): string {
   return (
@@ -54,7 +54,10 @@ export default function ConfirmReservationModal({
   onOpenChange,
 }: ConfirmReservationModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  const standLabel = formatStandLabel(invoice.reservation.stand);
+  // `reservation.stand` is only the half the participant picked first, so
+  // confirming a full table from the map's other square announced a stand the
+  // admin had not clicked. `members` is what the reservation occupies.
+  const standLabel = reservationStandLabel(invoice.reservation);
   // The same payment whose image is shown below, so the figure and the picture
   // can never describe different uploads.
   const proof = findLatestActivePaymentProof(invoice.payments);

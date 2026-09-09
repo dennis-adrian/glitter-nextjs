@@ -7,6 +7,7 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import {
   ArrowRightIcon,
   CalendarIcon,
@@ -95,8 +96,8 @@ export default function ParticipationsHistory({
               />
               <p className="text-muted-foreground leading-tight text-sm md:text-base flex items-center gap-1">
                 <LandPlotIcon className="w-4 h-4" />
-                Espacio {currentParticipation.reservation.stand.label}
-                {currentParticipation.reservation.stand.standNumber}
+                Espacio{" "}
+                {reservationStandLabel(currentParticipation.reservation)}
               </p>
               {getFestivalDateString(startDate, endDate) && (
                 <p className="text-muted-foreground leading-tight text-sm md:text-base flex items-center gap-1">
