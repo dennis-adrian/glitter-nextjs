@@ -1033,6 +1033,19 @@ export async function releaseInvoiceCredits(input: unknown): Promise<
 }
 
 /**
+ * Carries a refusal out of the transaction by throwing, so the rollback takes
+ * the invoice write-down with it. Returning a failure would commit.
+ */
+class ShortfallApprovalFailure extends Error {
+  constructor(
+    readonly failure: Extract<ReservationActionResult, { success: false }>,
+  ) {
+    super("shortfall_approval_failed");
+    this.name = "ShortfallApprovalFailure";
+  }
+}
+
+/**
  * Admin command: confirm a reservation whose tender does not reach the invoice.
  *
  * `approveSubmissionInTx` requires the tender to equal the invoice exactly, so
@@ -1120,6 +1133,19 @@ export async function settleInvoiceShortfall(input: unknown): Promise<
 
       const submission = await findSubmittedSettlementInTx(tx, invoice.id);
 
+      // Refused before anything is written: approveSubmissionInTx only accepts
+      // a zero-value entitlement on an invoice of exactly zero, so writing the
+      // amount down first would guarantee a failure with the write already
+      // made.
+      if (submission?.kind === "zero_value_entitlement") {
+        return fail(
+          adminReservationFailure(
+            "VALIDATION",
+            "Este cobro tiene una solicitud de reserva sin costo en revisión. Resolvela antes de dar por saldado un monto.",
+          ),
+        );
+      }
+
       // Bring the invoice down to what was actually tendered. A voucher still
       // in review counts towards the new amount, so approving it below is an
       // exact match and `approveSubmissionInTx` keeps its invariant intact.
@@ -1170,7 +1196,12 @@ export async function settleInvoiceShortfall(input: unknown): Promise<
           submission,
           actorUserId,
         );
-        if ("success" in approved) return fail(approved);
+        // Thrown, not returned: the invoice has already been written down by
+        // this point, and returning would let the transaction commit that
+        // write-down with no approval behind it — the cobro permanently
+        // reduced for nothing. The throw rolls the whole thing back and the
+        // catch below unwraps it.
+        if ("success" in approved) throw new ShortfallApprovalFailure(approved);
         jobIds = approved.jobIds;
       } else {
         // Covered entirely by credits, with no voucher to approve. This
@@ -1220,6 +1251,8 @@ export async function settleInvoiceShortfall(input: unknown): Promise<
       `Reserva confirmada. Se dio por saldado Bs${outcome.writtenOffAmount}.`,
     );
   } catch (error) {
+    // A refusal raised after the write-down, carried out through the rollback.
+    if (error instanceof ShortfallApprovalFailure) return error.failure;
     console.error("Error settling invoice shortfall", error);
     return adminReservationFailure("CONFLICT_RETRY");
   }

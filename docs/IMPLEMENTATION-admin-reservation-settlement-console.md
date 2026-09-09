@@ -221,7 +221,7 @@ an unreviewed voucher is money.
 An allocation is reversed when a ledger entry points at its spend:
 
 ```sql
-NOT EXISTS (
+EXISTS (
   SELECT 1 FROM credit_ledger_entries r
   WHERE r.reverses_entry_id = invoice_credit_allocations.ledger_entry_id
 )

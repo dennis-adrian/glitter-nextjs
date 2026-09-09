@@ -39,21 +39,32 @@ function describePayload(event: ConsoleEvent): string | null {
   if (payload == null || typeof payload !== "object") return null;
   const record = payload as Record<string, unknown>;
 
+  const money = (value: unknown) =>
+    typeof value === "number" ? `Bs${value}` : null;
+  const reason = typeof record.reason === "string" ? record.reason : null;
+  const suffix = reason ? ` — ${reason}` : "";
+
   switch (record.kind) {
-    case "invoice_credits_applied":
-      return `Aplicó Bs${record.amount} en créditos. Saldo: Bs${record.outstandingAmount}`;
+    case "invoice_credits_applied": {
+      const applied = money(record.amount);
+      const outstanding = money(record.outstandingAmount);
+      if (!applied) return "Aplicó créditos al cobro";
+      return outstanding
+        ? `Aplicó ${applied} en créditos. Saldo: ${outstanding}`
+        : `Aplicó ${applied} en créditos`;
+    }
     case "invoice_credits_released":
-      return `Devolvió los créditos aplicados${
-        record.reason ? ` — ${record.reason}` : ""
-      }`;
-    case "invoice_shortfall_written_off":
-      return `Dio por saldado Bs${record.writtenOffAmount}${
-        record.reason ? ` — ${record.reason}` : ""
-      }`;
+      return `Devolvió los créditos aplicados${suffix}`;
+    case "invoice_shortfall_written_off": {
+      const writtenOff = money(record.writtenOffAmount);
+      return writtenOff
+        ? `Dio por saldado ${writtenOff}${suffix}`
+        : `Dio por saldado el resto del cobro${suffix}`;
+    }
     default:
       break;
   }
-  if (typeof record.reason === "string") return record.reason;
+  if (reason) return reason;
   if (typeof record.correction === "string") {
     return `Corrección: ${record.correction}`;
   }

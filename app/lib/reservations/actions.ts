@@ -9,10 +9,7 @@ import {
 import { Collaborator, NewCollaborator } from "./definitions";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
-import {
-  FullReservation,
-  FullReservationWithTender,
-} from "@/app/api/reservations/definitions";
+import { FullReservationWithTender } from "@/app/api/reservations/definitions";
 import {
   fetchInvoiceTenders,
   tenderFor,
@@ -263,6 +260,13 @@ export async function fetchReservationsByFestivalId(
           },
         },
         invoices: {
+          // Ordered so `invoices[0]` is the same row on every read. A
+          // reservation carries exactly one invoice — both creation sites
+          // insert one, and 1,765 of 1,765 rows hold to it — but the relational
+          // builder returns them unordered, so the pick was only stable by
+          // luck. The columns read `invoices[0]` from this same array, so one
+          // ordering keeps the query and the cell agreeing.
+          orderBy: (invoice, { asc }) => [asc(invoice.id)],
           with: {
             payments: true,
             // The person who owes, and whose credits apply — not the same

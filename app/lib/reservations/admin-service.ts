@@ -225,6 +225,14 @@ export async function applyReservationCancellation(
       invoiceId: invoice.id,
       idempotencyKey: `reservation-cancel:${input.reservation.id}:${invoice.id}`,
     });
+    // CREDITS_NOT_RELEASABLE means there was nothing to hand back and
+    // CREDITS_ALREADY_RELEASED that a retry got here second; both are fine to
+    // cancel through. CONFLICT is a refund that genuinely failed, and
+    // cancelling past it would destroy the credits this block exists to save,
+    // so it aborts the transaction and the caller retries.
+    if (!release.ok && release.code === "CONFLICT") {
+      throw new Error("reservation_cancel_credit_release_conflict");
+    }
     if (release.ok && release.released.length > 0) {
       await insertStandReservationEvent(tx, {
         reservationId: input.reservation.id,

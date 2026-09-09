@@ -142,7 +142,9 @@ export function ConsoleActionsCell({
               noInvoice ??
               (reservation.status === "accepted"
                 ? "La reserva ya está confirmada"
-                : undefined)
+                : settled
+                  ? "Este cobro ya está cerrado"
+                  : undefined)
             }
             onSelect={() => setOpenConfirm(true)}
           >

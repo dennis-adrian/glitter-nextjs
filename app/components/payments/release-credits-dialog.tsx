@@ -83,7 +83,7 @@ export default function ReleaseCreditsDialog({
           </DrawerDialogTitle>
           <DrawerDialogDescription isDesktop={isDesktop}>
             Se devolverán Bs{creditAmount} a la cuenta de{" "}
-            {invoice.user.displayName ?? "la persona titular"}. El saldo del
+            {invoice.user.displayName || "la persona titular"}. El saldo del
             cobro #{invoice.id} pasará a Bs{nextOutstanding}. Queda registrado
             en el libro de créditos y en el historial de la reserva.
           </DrawerDialogDescription>
