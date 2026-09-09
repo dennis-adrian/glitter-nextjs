@@ -113,6 +113,11 @@ export default function CoverageCell({
 
   const badge = (
     <Badge
+      // `outline` rather than the default variant: default carries
+      // hover:bg-primary/80, and twMerge cannot drop it — the STYLES below
+      // override the background but nothing overrides the hover, so a blue
+      // badge turned purple under the cursor.
+      variant="outline"
       className={cn("flex w-fit items-center gap-1 font-normal", STYLES[state])}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

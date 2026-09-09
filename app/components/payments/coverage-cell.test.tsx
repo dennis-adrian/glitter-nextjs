@@ -66,6 +66,16 @@ describe("CoverageCell", () => {
     expect(screen.getByText(/Venció el/)).toBeDefined();
   });
 
+  it("keeps its own colour on hover instead of the primary purple", () => {
+    render(<CoverageCell state="under_review" tender={partiallyCredited} />);
+
+    // Badge's default variant carries hover:bg-primary/80, and twMerge cannot
+    // drop it: the state styles override the background but nothing overrides
+    // the hover, so the badge turned purple under the cursor.
+    const badge = screen.getByText("En revisión");
+    expect(badge.className).not.toContain("hover:bg-primary");
+  });
+
   it("renders only the badge when compact", () => {
     render(<CoverageCell state="partial" tender={partiallyCredited} compact />);
 
