@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircleIcon, ExternalLinkIcon } from "lucide-react";
+import Image from "next/image";
 
 import {
   DrawerDialog,
@@ -48,15 +49,31 @@ export default function ConfirmReservationModal({
 
         <div className="space-y-4 px-4 pb-6 md:px-0 md:pb-0">
           {voucherUrl && (
-            <a
-              href={voucherUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-            >
-              Ver comprobante de pago
-              <ExternalLinkIcon className="h-3.5 w-3.5" />
-            </a>
+            <figure className="space-y-1.5">
+              {/* Inline rather than a link: the comprobante is the thing being
+                  judged, and sending an admin to another tab to look at it
+                  loses the dialog they were deciding in. Vouchers are always
+                  images — reservationPayment accepts image uploads only — so
+                  next/image is safe here. */}
+              <Image
+                src={voucherUrl}
+                alt="Comprobante de pago"
+                width={640}
+                height={900}
+                className="mx-auto max-h-72 w-auto rounded-md border object-contain"
+              />
+              <figcaption className="text-center">
+                <a
+                  href={voucherUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Abrir en tamaño completo
+                  <ExternalLinkIcon className="h-3 w-3" />
+                </a>
+              </figcaption>
+            </figure>
           )}
 
           <ConfirmReservationForm

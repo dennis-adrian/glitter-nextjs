@@ -20,7 +20,7 @@ const invoice = {
   payments: [
     {
       id: 3,
-      voucherUrl: "https://files.example.com/voucher.pdf",
+      voucherUrl: "https://files.example.com/voucher.png",
       fileKey: "uploadthing-key",
       createdAt: new Date("2026-09-05T10:00:00Z"),
     },
@@ -60,12 +60,21 @@ describe("ConfirmReservationModal", () => {
     );
   });
 
-  it("links the comprobante so the decision can be checked first", () => {
+  it("renders the comprobante inline, not as a trip to another tab", () => {
     renderModal();
 
-    const link = screen.getByRole("link", { name: /Ver comprobante de pago/ });
+    const proof = screen.getByAltText("Comprobante de pago");
+    expect(proof.getAttribute("src")).toContain(
+      encodeURIComponent("https://files.example.com/voucher.png"),
+    );
+  });
+
+  it("still offers the full-size original as a secondary way out", () => {
+    renderModal();
+
+    const link = screen.getByRole("link", { name: /Abrir en tamaño completo/ });
     expect(link.getAttribute("href")).toBe(
-      "https://files.example.com/voucher.pdf",
+      "https://files.example.com/voucher.png",
     );
   });
 });
