@@ -141,7 +141,16 @@ export async function fetchReservationConsoleDetail(
       .from(standReservationEvents)
       .leftJoin(users, eq(users.id, standReservationEvents.actorUserId))
       .where(eq(standReservationEvents.reservationId, reservationId))
-      .orderBy(asc(standReservationEvents.createdAt)),
+      // Same tiebreaker as the two queries above, and this one needs it most:
+      // `created_at` defaults to `now()`, which is transaction start time, so
+      // every event a single command writes ties exactly. Settling a shortfall
+      // writes two, and without `id` the panel could show the approval above
+      // the status change that caused it — backwards, in a list that reads as
+      // a chronology.
+      .orderBy(
+        asc(standReservationEvents.createdAt),
+        asc(standReservationEvents.id),
+      ),
   ]);
 
   return {
