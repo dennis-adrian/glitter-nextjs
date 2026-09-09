@@ -1,10 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { ExternalLinkIcon } from "lucide-react";
-import Image from "next/image";
-
-import { Skeleton } from "@/app/components/ui/skeleton";
+import VoucherViewer from "@/app/components/payments/voucher-viewer";
 
 import {
   DrawerDialog,
@@ -31,7 +28,6 @@ export default function ConfirmReservationModal({
   onOpenChange,
 }: ConfirmReservationModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  const [proofSettled, setProofSettled] = useState(false);
   const standLabel = formatStandLabel(invoice.reservation.stand);
   const voucherUrl = findLatestActivePaymentProof(invoice.payments)?.voucherUrl;
 
@@ -56,27 +52,8 @@ export default function ConfirmReservationModal({
                   loses the dialog they were deciding in. Vouchers are always
                   images — reservationPayment accepts image uploads only — so
                   next/image is safe here. */}
-              {/* Fixed-height frame so the dialog is the same size before and
-                  after the image arrives. Sizing from the intrinsic ratio
-                  instead let the width jump on load, since a comprobante is
-                  whatever shape the participant's phone screenshot was. */}
-              <div className="relative mx-auto h-72 w-full overflow-hidden rounded-md border bg-muted/40">
-                {!proofSettled && (
-                  <Skeleton className="absolute inset-0 rounded-none" />
-                )}
-                <Image
-                  src={voucherUrl}
-                  alt="Comprobante de pago"
-                  fill
-                  sizes="(min-width: 768px) 28rem, 90vw"
-                  className="object-contain"
-                  onLoad={() => setProofSettled(true)}
-                  // Also on error: a failed proxy fetch would otherwise leave
-                  // the skeleton pulsing forever with no way to tell it apart
-                  // from a slow one. The full-size link below is the recourse.
-                  onError={() => setProofSettled(true)}
-                />
-              </div>
+              <VoucherViewer src={voucherUrl} />
+
               <figcaption className="text-center">
                 <a
                   href={voucherUrl}
