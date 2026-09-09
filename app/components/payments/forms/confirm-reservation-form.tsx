@@ -12,7 +12,6 @@ import { useState } from "react";
 type ConfirmReservationFormProps = {
   invoice: InvoiceWithParticipants;
   onSuccess: () => void;
-  markAsPaid?: boolean;
 };
 export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
   const form = useForm();
@@ -22,7 +21,6 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
   const action = form.handleSubmit(async () => {
     const result = await adminConfirmReservationAction({
       invoiceId: props.invoice.id,
-      markAsPaid: props.markAsPaid,
       idempotencyKey: confirmIntentKey,
     });
     if (result.success) {

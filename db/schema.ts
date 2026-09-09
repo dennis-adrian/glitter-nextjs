@@ -1232,12 +1232,16 @@ export const standReservations = pgTable(
       t.id,
       t.festivalId,
     ),
-    uniqueIndex("stand_reservations_capacity_stand_unique")
-      .on(t.standId)
-      .where(
-        sql`${t.status} IN ('pending', 'verification_payment', 'accepted')`,
-      ),
+    // The parent capacity index is deliberately gone. Occupancy is guaranteed
+    // at member level by `stand_reservation_stands_active_stand_unique`, which
+    // PRD §11 always intended to replace it once verified in production. It had
+    // to go for a stand exchange to be possible at all: both indexes are
+    // partial, Postgres checks a unique index per row as the statement runs,
+    // and a partial unique constraint cannot be declared DEFERRABLE — so a
+    // swap has no legal intermediate value on this column, while the member
+    // table can park a row on `released_at`.
     index("stand_reservations_owner_user_id_idx").on(t.ownerUserId),
+    index("stand_reservations_stand_id_idx").on(t.standId),
     uniqueIndex("stand_reservations_idempotency_key_unique")
       .on(t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
@@ -2253,7 +2257,9 @@ export const reservationRequestRegistry = pgTable(
         'createFeatureCreditTopUp',
         'createDebtCreditTopUp',
         'releaseReservation',
-        'addLatePartner'
+        'addLatePartner',
+        'changeReservationStand',
+        'settleInvoiceShortfall'
       )`,
     ),
   ],

@@ -50,7 +50,7 @@ describe("LatePartnerAddedTemplate", () => {
   it("tells the owner their original invoice is untouched", () => {
     const html = render({ recipient: OWNER, isOwner: true });
 
-    expect(html).toContain("factura original no cambia");
+    expect(html).toContain("cobro original no cambia");
   });
 
   it("links both of them to the reservation, each under their own profile", () => {

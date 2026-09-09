@@ -27,7 +27,12 @@ import { FieldValues, Path, UseFormReturn } from "react-hook-form";
 
 type ComboboxInputProps<T extends FieldValues> = {
   form: UseFormReturn<T>;
-  options: { value: string; label: string }[];
+  /**
+   * `disabled` keeps an option listed but unpickable. Callers use it to show
+   * why a choice is unavailable instead of dropping it, since a silently
+   * missing option reads as a broken list rather than a closed door.
+   */
+  options: { value: string; label: string; disabled?: boolean }[];
   name: Path<T>;
   label?: string;
   description?: string;
@@ -79,7 +84,9 @@ export default function ComboboxInput<T extends FieldValues>({
                       <CommandItem
                         value={option.label}
                         key={option.value}
+                        disabled={option.disabled}
                         onSelect={() => {
+                          if (option.disabled) return;
                           form.setValue(
                             name,
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any

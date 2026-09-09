@@ -8,14 +8,21 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        // None of these carry a hover colour. The base sets cursor-default, so
+        // a badge is not something you act on, and a colour change under the
+        // cursor says otherwise. They also leaked: twMerge drops an overridden
+        // background but keeps the hover, since the two are different property
+        // groups, so any badge given its own background through className took
+        // the variant's hover with it.
+        default: "border-transparent bg-primary text-primary-foreground",
+        // Three-part, like every categorical badge on the page (tint fill, mid
+        // border, deep text). A transparent border made this the odd one out.
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border-secondary-200 bg-secondary text-secondary-foreground",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+          "border-transparent bg-destructive text-destructive-foreground",
         outline: "text-foreground",
-        dark: "border-transparent bg-gray-900 text-white hover:bg-gray-700",
+        dark: "border-transparent bg-gray-900 text-white",
         illustration: "bg-purple-100 border border-purple-300 text-purple-900",
         entrepreneurship: "bg-pink-100 border border-pink-300 text-pink-900",
         gastronomy: "bg-orange-100 border border-orange-300 text-orange-900",

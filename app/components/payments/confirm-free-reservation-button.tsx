@@ -72,7 +72,7 @@ export default function ConfirmFreeReservationButton({
           disabled={form.formState.isSubmitting || isConfirming || isPending}
           loading={form.formState.isSubmitting || isConfirming || isPending}
         >
-            Solicitá revisión
+          Solicitá revisión
           <CheckIcon className="h-4 w-4 ml-2" />
         </SubmitButton>
       </form>

@@ -62,8 +62,12 @@ describe("InvoiceUnderReviewPanel", () => {
 
   it("shows the voucher link for the invoice owner by default", () => {
     render(<InvoiceUnderReviewPanel invoice={baseInvoice} />);
-    const link = screen.getByRole("link", { name: "Ver el comprobante enviado" });
-    expect(link.getAttribute("href")).toBe("https://files.example.com/voucher.pdf");
+    const link = screen.getByRole("link", {
+      name: "Ver el comprobante enviado",
+    });
+    expect(link.getAttribute("href")).toBe(
+      "https://files.example.com/voucher.pdf",
+    );
   });
 
   it("links to the latest payment voucher even when payments are unordered", () => {

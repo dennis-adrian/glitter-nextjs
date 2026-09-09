@@ -1,9 +1,6 @@
 import { UserCategory } from "@/app/api/users/definitions";
-import { InvoiceBase, InvoiceStatus } from "@/app/data/invoices/definitions";
+import { InvoiceStatus } from "@/app/data/invoices/definitions";
 import { FestivalBase } from "../festivals/definitions";
-import { DateTime } from "luxon";
-import { ReservationBase } from "@/app/api/reservations/definitions";
-import { formatDate } from "@/app/lib/formatters";
 
 export function getInvoiceStatusLabel(status: InvoiceStatus) {
   switch (status) {
@@ -41,18 +38,18 @@ export function resolveReservationPaymentUpload(input: {
       return { ok: false, message: "No autorizado" };
     }
     if (!invoice) {
-      return { ok: false, message: "Factura no encontrada" };
+      return { ok: false, message: "Cobro no encontrado" };
     }
     return { ok: true, invoiceId: invoice.id };
   }
 
   if (!invoice || (invoice.userId !== profile.id && profile.role !== "admin")) {
-    return { ok: false, message: "Factura no encontrada" };
+    return { ok: false, message: "Cobro no encontrado" };
   }
   if (!canAcceptInvoiceProof(invoice.status)) {
     return {
       ok: false,
-      message: "Esta factura ya no admite un comprobante",
+      message: "Este cobro ya no admite un comprobante",
     };
   }
   if (
@@ -105,42 +102,6 @@ export function getStandUrlByCategory(
   if (category === "entrepreneurship") {
     return festival.entrepreneurshipStandUrl;
   }
-}
-
-export function mapPaymentStatusToDisplayPaymentStatus(
-  invoice: InvoiceBase,
-  reservation: ReservationBase,
-): DisplayPaymentStatus {
-  const paymentDateDiff = DateTime.now().diff(
-    formatDate(invoice.createdAt),
-    "days",
-  ).days;
-
-  const isOutstanding =
-    paymentDateDiff > 5 &&
-    invoice.status === "pending" &&
-    reservation.status !== "accepted";
-  if (isOutstanding) return DisplayPaymentStatus.OUTSTANDING;
-
-  switch (invoice.status) {
-    case "pending":
-      return DisplayPaymentStatus.PENDING;
-    case "verification_payment":
-      return DisplayPaymentStatus.UNDER_REVIEW;
-    case "paid":
-      return DisplayPaymentStatus.PAID;
-    case "cancelled":
-      return DisplayPaymentStatus.CANCELLED;
-  }
-}
-
-export enum DisplayPaymentStatus {
-  PENDING = "Pendiente",
-  UNDER_REVIEW = "En revisión",
-  PAID = "Pagado",
-  CANCELLED = "Cancelado",
-  OUTSTANDING = "Atrasado",
-  NONE = "--",
 }
 
 export function isActivePaymentProof(payment: {

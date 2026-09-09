@@ -81,7 +81,9 @@ describe("what the card draws", () => {
         invoice={invoice([member(1, 0), member(2, 1)])}
       />,
     );
-    expect(screen.getByRole("img", { name: /mesa completa seleccionada/i })).toBeTruthy();
+    expect(
+      screen.getByRole("img", { name: /mesa completa seleccionada/i }),
+    ).toBeTruthy();
   });
 
   it("draws one stand with its neighbour muted for a single stand", () => {
@@ -90,7 +92,9 @@ describe("what the card draws", () => {
     );
     // Not a lone half: at 96px that reads as a whole table, which is the
     // confusion "1 espacio" in the heading has to fight.
-    expect(screen.getByRole("img", { name: /un solo stand resaltado/i })).toBeTruthy();
+    expect(
+      screen.getByRole("img", { name: /un solo stand resaltado/i }),
+    ).toBeTruthy();
   });
 
   it("goes back to one stand after a downgrade releases the companion", () => {
@@ -100,6 +104,8 @@ describe("what the card draws", () => {
         invoice={invoice([member(1, 0), member(2, 1, new Date())])}
       />,
     );
-    expect(screen.getByRole("img", { name: /un solo stand resaltado/i })).toBeTruthy();
+    expect(
+      screen.getByRole("img", { name: /un solo stand resaltado/i }),
+    ).toBeTruthy();
   });
 });

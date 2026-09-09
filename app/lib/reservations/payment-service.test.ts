@@ -199,6 +199,15 @@ function createTx(options: {
     festivalId: options.reservation?.festivalId ?? 10,
   };
   const invoicePayments = options.payments ?? [];
+  /**
+   * Cash already approved against this invoice, as a payment row plus the
+   * approved submission that makes it count. The service no longer takes an
+   * approved-cash total from SQL; it derives one from these two rows.
+   */
+  const approvedCashPayment =
+    options.approvedCashAmount != null && options.approvedCashAmount !== 0
+      ? { id: 9_000_001, amount: options.approvedCashAmount }
+      : null;
   const inserted: unknown[] = [];
   const updates: unknown[] = [];
   const settlementWhere: unknown[] = [];
@@ -222,6 +231,37 @@ function createTx(options: {
             });
           }
           if (table === invoiceSettlementSubmissions) {
+            // The tender read asks only for (paymentId, status); every other
+            // read of this table locks or selects an id.
+            if (
+              fields &&
+              "paymentId" in fields &&
+              "status" in fields &&
+              !("id" in fields)
+            ) {
+              const submission = options.existingSettlement;
+              return Promise.resolve([
+                ...(approvedCashPayment
+                  ? [
+                      {
+                        paymentId: approvedCashPayment.id,
+                        status: "approved" as const,
+                      },
+                    ]
+                  : []),
+                ...(submission
+                  ? [
+                      {
+                        paymentId: submission.paymentId ?? null,
+                        status: (submission.status ?? "submitted") as
+                          | "submitted"
+                          | "approved"
+                          | "rejected",
+                      },
+                    ]
+                  : []),
+              ]);
+            }
             settlementWhere.push(clause);
             const submission = options.existingSettlement;
             const rows = submission
@@ -263,9 +303,24 @@ function createTx(options: {
                   })),
                 };
               }
-              return Promise.resolve([
-                { amount: options.approvedCashAmount ?? 0 },
-              ]);
+              // The tender read selects every payment row and pairs it with
+              // its submission status, rather than pre-aggregating approved
+              // cash in SQL. Already-approved cash is modelled as a payment
+              // carrying an approved submission (see the submissions branch).
+              return Promise.resolve(
+                approvedCashPayment
+                  ? [
+                      ...invoicePayments.map((payment) => ({
+                        id: payment.id,
+                        amount: payment.amount,
+                      })),
+                      approvedCashPayment,
+                    ]
+                  : invoicePayments.map((payment) => ({
+                      id: payment.id,
+                      amount: payment.amount,
+                    })),
+              );
             }
             const paymentRows = invoicePayments;
             return Object.assign(Promise.resolve(paymentRows), {
@@ -599,7 +654,7 @@ describe("submitPaymentProof", () => {
     expect(result).toMatchObject({
       success: true,
       message:
-        "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+        "Ya enviamos un comprobante para este cobro. Esperá la revisión.",
     });
   });
 

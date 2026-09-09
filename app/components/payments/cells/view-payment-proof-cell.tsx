@@ -1,11 +1,18 @@
 import PaymentProofModal from "@/app/components/payments/payment-proof-modal";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { findLatestActivePaymentProof } from "@/app/lib/payments/helpers";
 import { EyeIcon } from "lucide-react";
 import { useState } from "react";
 
 type ViewPaymentProofCellProps = {
-  invoice: InvoiceWithParticipants;
+  invoice: {
+    id: number;
+    reservation: { status: string };
+    payments: {
+      createdAt: Date;
+      voucherUrl: string;
+      fileKey?: string | null;
+    }[];
+  };
 };
 export default function ViewPaymentProofCell(props: ViewPaymentProofCellProps) {
   const [showProofModal, setShowProofModal] = useState(false);

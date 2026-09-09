@@ -42,6 +42,16 @@ export const RESERVATION_ERROR_CODES = [
   "LATE_PARTNER_ALREADY_SHARED",
   "LATE_PARTNER_NOT_PRICEABLE",
   "LATE_PARTNER_INSUFFICIENT_CREDITS",
+  "STAND_CHANGE_SAME_STAND",
+  "STAND_CHANGE_NOT_MOVABLE",
+  "STAND_CHANGE_DESTINATION_HELD",
+  "STAND_CHANGE_EXCHANGE_NOT_CONFIRMED",
+  "STAND_CHANGE_INVOICE_SETTLED",
+  "STAND_CHANGE_PROOF_UNDER_REVIEW",
+  "AMOUNT_BELOW_CREDITS",
+  "CREDITS_NOT_RELEASABLE",
+  "CREDITS_ALREADY_RELEASED",
+  "NOTHING_COVERED",
   "VALIDATION",
 ] as const;
 
@@ -81,10 +91,10 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     CONFLICT_RETRY:
       "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
     INVOICE_NOT_OWNED:
-      "Solo quien figura en la factura puede enviar el comprobante.",
-    INVOICE_NOT_PENDING: "Esta factura ya no admite un comprobante nuevo.",
+      "Solo quien figura en el cobro puede enviar el comprobante.",
+    INVOICE_NOT_PENDING: "Este cobro ya no admite un comprobante nuevo.",
     PAYMENT_ALREADY_SUBMITTED:
-      "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+      "Ya enviamos un comprobante para este cobro. Esperá la revisión.",
     PAYMENT_AMOUNT_MISMATCH:
       "El importe del comprobante no coincide con el saldo pendiente.",
     INSUFFICIENT_CREDITS:
@@ -108,7 +118,7 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     // admin — there is nothing safe to reduce here — and naming only the first
     // sent them looking for a second space that was never the problem.
     FULL_TABLE_NOT_DOWNGRADABLE:
-      "Esta reserva no se puede reducir: o no ocupa dos espacios, o su factura ya tiene pagos o créditos aplicados.",
+      "Esta reserva no se puede reducir: o no ocupa dos espacios, o ya tiene pagos o créditos aplicados.",
     FULL_TABLE_HOLD_ACTIVE:
       "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
     RELEASE_UNAVAILABLE:
@@ -132,8 +142,70 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "No podemos calcular el precio compartido de esta reserva. Escribinos y lo resolvemos.",
     LATE_PARTNER_INSUFFICIENT_CREDITS:
       "No te alcanzan los créditos para agregar un compañero. Comprá la diferencia y volvé.",
+    STAND_CHANGE_SAME_STAND:
+      "La reserva ya ocupa ese espacio. Elegí uno distinto.",
+    // Three causes, one code, for the same reason `FULL_TABLE_NOT_DOWNGRADABLE`
+    // merges its two: each means "this reservation cannot be moved as it
+    // stands", and the fix in every case is to look at the reservation rather
+    // than to pick a different destination.
+    STAND_CHANGE_NOT_MOVABLE:
+      "Esta reserva no se puede mover: ocupa dos espacios, ya no ocupa ninguno, o el espacio de destino ya figura en su historial.",
+    STAND_CHANGE_DESTINATION_HELD:
+      "Alguien está reservando ese espacio en este momento. Esperá a que termine o expire.",
+    // The admin picked an occupied stand without confirming the exchange. Not
+    // a refusal so much as a request for the decision the dialog exists to ask.
+    STAND_CHANGE_EXCHANGE_NOT_CONFIRMED:
+      "Ese espacio está ocupado por otra reserva. Confirmá el intercambio para continuar.",
+    STAND_CHANGE_INVOICE_SETTLED:
+      "El espacio de destino tiene otro precio y ya hay pagos o créditos aplicados. Resolvé el pago antes de mover la reserva.",
+    // A voucher in flight was sent for the old amount. Repricing under it would
+    // leave the reviewer comparing a comprobante against a total that changed
+    // after it was uploaded.
+    STAND_CHANGE_PROOF_UNDER_REVIEW:
+      "Hay un comprobante en revisión para esta reserva. Resolvelo antes de moverla a un espacio con otro precio.",
+    AMOUNT_BELOW_CREDITS:
+      "El monto no puede quedar por debajo de los créditos ya aplicados. Devolvé los créditos antes de bajarlo.",
+    CREDITS_NOT_RELEASABLE:
+      "No hay créditos aplicados que devolver, o hay un comprobante en revisión. Resolvelo primero.",
+    CREDITS_ALREADY_RELEASED: "Estos créditos ya fueron devueltos.",
+    NOTHING_COVERED:
+      "No hay saldo cubierto para confirmar. Usá la confirmación normal.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
+
+/**
+ * Admin phrasings for the codes an operator can actually hit.
+ *
+ * The default messages address the participant — "No tenés créditos", "Ya
+ * tenés una compra en revisión" — and admin surfaces render them verbatim, so
+ * an operator ends up reading about their own balance while looking at
+ * somebody else's cobro.
+ */
+const ADMIN_ERROR_MESSAGES: Partial<Record<ReservationErrorCode, string>> = {
+  UNAUTHORIZED: "Solo un administrador global puede hacer esto.",
+  INVOICE_NOT_PENDING: "Este cobro ya no admite esa acción.",
+  INVOICE_NOT_OWNED: "Este cobro pertenece a otra persona.",
+  PAYMENT_AMOUNT_MISMATCH:
+    "Lo tendido no coincide con el monto del cobro. Revisá créditos y comprobante, o confirmá con saldo pendiente.",
+  INSUFFICIENT_CREDITS: "La persona no tiene créditos confirmados suficientes.",
+  CREDIT_TOP_UP_UNDER_REVIEW:
+    "La persona tiene una compra de créditos en revisión para este cobro.",
+  PAYMENT_ALREADY_SUBMITTED:
+    "Ya hay un comprobante en revisión para este cobro.",
+  CONFLICT_RETRY:
+    "Otro cambio ocurrió al mismo tiempo. Actualizá la página e intentá de nuevo.",
+};
+
+/** The message for `code`, phrased for whoever is going to read it. */
+export function reservationErrorMessage(
+  code: ReservationErrorCode,
+  audience: "participant" | "admin" = "participant",
+): string {
+  if (audience === "admin") {
+    return ADMIN_ERROR_MESSAGES[code] ?? RESERVATION_ERROR_MESSAGES[code];
+  }
+  return RESERVATION_ERROR_MESSAGES[code];
+}
 
 export type ReservationActionResult<T = undefined> =
   | { success: true; data: T; message: string }
@@ -147,6 +219,18 @@ export function reservationFailure(
     success: false,
     code,
     message: message ?? RESERVATION_ERROR_MESSAGES[code],
+  };
+}
+
+/** `reservationFailure` for a command only an admin can issue. */
+export function adminReservationFailure(
+  code: ReservationErrorCode,
+  message?: string,
+): Extract<ReservationActionResult, { success: false }> {
+  return {
+    success: false,
+    code,
+    message: message ?? reservationErrorMessage(code, "admin"),
   };
 }
 

@@ -643,7 +643,7 @@ export default function StandBulkActionsMenu({
             <DialogTitle>Precio de la mesa completa</DialogTitle>
             <DialogDescription>
               Lo que cuesta reservar la mesa entera. Reemplaza el precio
-              individual de sus dos mitades en la factura, no se suma a él. Los
+              individual de sus dos mitades en el cobro, no se suma a él. Los
               créditos de la función se cobran aparte.
             </DialogDescription>
           </DialogHeader>

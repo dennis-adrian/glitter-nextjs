@@ -117,7 +117,7 @@ describe("adminConfirmReservationByReservationIdAction", () => {
     expect(adminConfirmReservationMock).not.toHaveBeenCalled();
     expect(result).toEqual({
       success: false,
-      message: "No se encontró la factura de la reserva.",
+      message: "No se encontró el cobro de la reserva.",
     });
   });
 });

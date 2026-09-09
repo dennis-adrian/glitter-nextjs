@@ -4,8 +4,14 @@ import {
   InvoiceWithParticipants,
   InvoiceWithPaymentsAndStand,
   InvoiceWithPaymentsAndStandAndProfile,
+  InvoiceWithTender,
   ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
+import {
+  fetchInvoiceTenders,
+  tenderFor,
+} from "@/app/lib/payments/tender-queries";
+import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { db } from "@/db";
 import {
   invoiceCreditAllocations,
@@ -368,7 +374,7 @@ export async function fetchPendingInvoicesByProfile(
 
 export async function fetchInvoicesByFestival(
   festivalId: number,
-): Promise<InvoiceWithParticipants[]> {
+): Promise<InvoiceWithTender[]> {
   const actor = await getCurrentUserProfile();
   if (
     !actor ||
@@ -382,7 +388,7 @@ export async function fetchInvoicesByFestival(
       .from(standReservations)
       .where(eq(standReservations.festivalId, festivalId));
 
-    return await db.query.invoices.findMany({
+    const rows = await db.query.invoices.findMany({
       where: inArray(invoices.reservationId, reservationsSubquery),
       with: {
         payments: true,
@@ -403,8 +409,28 @@ export async function fetchInvoicesByFestival(
         user: true,
       },
     });
+
+    return await attachInvoiceTenders(rows);
   } catch (error) {
     console.error("Error fetching invoices by festival", error);
     return [];
   }
+}
+
+/**
+ * Resolves coverage for a page of invoices in one extra round of queries.
+ *
+ * Kept out of the relational query because "has this allocation been reversed"
+ * is a lookup for ledger entries pointing back at the allocation's spend, which
+ * the relational builder has no inverse relation for.
+ */
+async function attachInvoiceTenders<T extends InvoiceWithParticipants>(
+  rows: T[],
+): Promise<(T & { tender: InvoiceTender })[]> {
+  const amounts = new Map(rows.map((row) => [row.id, row.amount]));
+  const tenders = await fetchInvoiceTenders(
+    rows.map((row) => row.id),
+    amounts,
+  );
+  return rows.map((row) => ({ ...row, tender: tenderFor(tenders, row.id) }));
 }

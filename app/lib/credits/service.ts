@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import {
   calculateCreditBalances,
@@ -18,6 +18,7 @@ import {
   creditHolds,
   creditLedgerEntries,
   creditTopUps,
+  invoiceCreditAllocations,
   pendingUserDeletions,
   reservationFeatureActions,
   users,
@@ -660,6 +661,224 @@ export async function debitConfirmedCreditsForInvoiceInTx(
   };
 }
 
+/**
+ * Returns credits an invoice allocation had spent.
+ *
+ * The counterpart to `debitConfirmedCreditsForInvoiceInTx`, and the operation
+ * `adjustCreditAccount` deliberately refuses to perform: it will not reverse a
+ * spend, because "a spend is undone by whatever booked it". This is that
+ * whatever — the invoice side, which knows the allocation is no longer standing.
+ *
+ * Posts a positive `admin_adjustment` linked to the spend it undoes. The link
+ * is what makes a second attempt detectable, and what lets the tender exclude
+ * the allocation without deleting the history of it.
+ */
+export async function refundInvoiceCreditsInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    amount: number;
+    /** The `spend` entry this refund reverses. */
+    spendLedgerEntryId: number;
+    idempotencyKey: string;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
+  const amount = positiveCreditAmount(input.amount);
+  if (amount == null || !input.idempotencyKey.trim()) {
+    return failure("INVALID_AMOUNT");
+  }
+  if (!(await lockCreditUserForMutation(tx, input.userId))) {
+    return failure("USER_DELETION_PENDING");
+  }
+  await lockCreditAccount(tx, input.userId);
+
+  // Ahead of the already-reversed check, so a retry replays its own success
+  // rather than tripping over the entry its first attempt posted.
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+      amount: creditLedgerEntries.amount,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    if (
+      existing.userId !== input.userId ||
+      roundCredits(Number(existing.amount)) !== amount
+    ) {
+      return failure("IDEMPOTENCY_CONFLICT");
+    }
+    return {
+      ok: true,
+      data: {
+        ledgerEntryId: existing.id,
+        balances: await lockedCreditBalances(tx, input.userId),
+      },
+    };
+  }
+
+  const [target] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+      amount: creditLedgerEntries.amount,
+      type: creditLedgerEntries.type,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.id, input.spendLedgerEntryId))
+    .limit(1);
+  if (
+    !target ||
+    target.userId !== input.userId ||
+    target.type !== "spend" ||
+    roundCredits(Number(target.amount)) !== -amount
+  ) {
+    return failure("ENTRY_NOT_REVERTIBLE");
+  }
+
+  const [alreadyReversed] = await tx
+    .select({ id: creditLedgerEntries.id })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.reversesEntryId, input.spendLedgerEntryId))
+    .limit(1);
+  if (alreadyReversed) return failure("ENTRY_ALREADY_REVERTED");
+
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount,
+      // `reversal` is constrained negative — it exists to claw back a rejected
+      // top-up. Returning credits is a positive correction.
+      type: "admin_adjustment",
+      reversesEntryId: input.spendLedgerEntryId,
+      idempotencyKey: input.idempotencyKey,
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return failure("TOP_UP_NOT_FOUND");
+
+  await updateCachedBalance(tx, input.userId, amount);
+  return {
+    ok: true,
+    data: {
+      ledgerEntryId: entry.id,
+      balances: await lockedCreditBalances(tx, input.userId),
+    },
+  };
+}
+
+export type ReleasedAllocation = {
+  allocationId: number;
+  amount: number;
+  ledgerEntryId: number;
+};
+
+/**
+ * Hands back every credit allocation standing on an invoice, inside the
+ * caller's transaction and under whatever invoice lock it already holds.
+ *
+ * Every path that cancels an invoice has to call this. Cancelling with
+ * allocations standing destroyed the participant's credits outright: the
+ * allocation rows stayed, the ledger kept the spend, and no screen or command
+ * anywhere could give them back.
+ *
+ * Lives here rather than beside the settlement service so both that service
+ * and the shared cancellation path can call it without an import cycle.
+ */
+export async function releaseInvoiceCreditAllocationsInTx(
+  tx: CreditTx,
+  input: {
+    invoiceId: number;
+    /** Restrict to one allocation; omit to release all of them. */
+    allocationId?: number;
+    idempotencyKey: string;
+  },
+): Promise<
+  | { ok: true; released: ReleasedAllocation[] }
+  | {
+      ok: false;
+      code: "CREDITS_NOT_RELEASABLE" | "CREDITS_ALREADY_RELEASED" | "CONFLICT";
+    }
+> {
+  const allocationRows = await tx
+    .select({
+      id: invoiceCreditAllocations.id,
+      amount: invoiceCreditAllocations.amount,
+      userId: invoiceCreditAllocations.userId,
+      ledgerEntryId: invoiceCreditAllocations.ledgerEntryId,
+      reversed: sql<boolean>`EXISTS (
+        SELECT 1
+        FROM ${creditLedgerEntries} r
+        WHERE r.reverses_entry_id = ${invoiceCreditAllocations.ledgerEntryId}
+      )`,
+    })
+    .from(invoiceCreditAllocations)
+    .where(eq(invoiceCreditAllocations.invoiceId, input.invoiceId))
+    // Ordered by user, not left to the scan. Each refund below takes that
+    // user's row and credit account, so the loop acquires a set of per-user
+    // locks — and two commands touching the same two participants in opposite
+    // orders deadlock. Physical row order is not stable (an UPDATE moves a
+    // row), so without this the order could differ between two runs of the
+    // same code. `LockRows` sits above the sort, so FOR UPDATE takes the
+    // allocation rows themselves in this order too. `id` only breaks ties, to
+    // keep one user's allocations deterministic as well.
+    .orderBy(
+      asc(invoiceCreditAllocations.userId),
+      asc(invoiceCreditAllocations.id),
+    )
+    .for("update");
+
+  const targets = allocationRows.filter(
+    (row) =>
+      !row.reversed &&
+      (input.allocationId == null || row.id === input.allocationId),
+  );
+  if (targets.length === 0) {
+    // Either nothing was allocated, or it has already been handed back. A
+    // second click on a stale screen must not post a second refund.
+    const alreadyDone = allocationRows.some(
+      (row) =>
+        row.reversed &&
+        (input.allocationId == null || row.id === input.allocationId),
+    );
+    return {
+      ok: false,
+      code: alreadyDone ? "CREDITS_ALREADY_RELEASED" : "CREDITS_NOT_RELEASABLE",
+    };
+  }
+
+  const released: ReleasedAllocation[] = [];
+  for (const allocation of targets) {
+    const refund = await refundInvoiceCreditsInTx(tx, {
+      userId: allocation.userId,
+      amount: roundCredits(Number(allocation.amount)),
+      spendLedgerEntryId: allocation.ledgerEntryId,
+      // Keyed by allocation so a retry of the same command refunds each
+      // allocation exactly once, whatever order the loop runs in.
+      idempotencyKey: `invoice-credit-release:${input.idempotencyKey}:${allocation.id}`,
+    });
+    if (!refund.ok) {
+      return {
+        ok: false,
+        code:
+          refund.code === "ENTRY_ALREADY_REVERTED"
+            ? "CREDITS_ALREADY_RELEASED"
+            : "CONFLICT",
+      };
+    }
+    released.push({
+      allocationId: allocation.id,
+      amount: roundCredits(Number(allocation.amount)),
+      ledgerEntryId: refund.data.ledgerEntryId,
+    });
+  }
+
+  return { ok: true, released };
+}
+
 /** Internal primitive for Phase 3 full-table activation. */
 /**
  * Hold creation inside a caller's transaction.
@@ -1214,6 +1433,85 @@ export async function adjustCreditAccount(input: {
       },
     };
   });
+}
+
+/**
+ * Posts an admin credit grant inside a caller's transaction.
+ *
+ * Split out of `adjustCreditAccount` so a workflow that already holds the
+ * reservation locks can credit somebody without opening a second transaction —
+ * the grant and whatever earned it have to commit together or not at all.
+ *
+ * The caller must already hold this user's credit-account lock, which the
+ * canonical lock order places before stands. That lock is the concurrency
+ * guarantee, not the `FOR UPDATE` below: a key that matches no row locks
+ * nothing, so two callers could otherwise both miss it and race to insert.
+ * Serialising on the account row is what makes the second one see the first's
+ * committed entry and replay it. Every sibling here — `adjustCreditAccount`,
+ * `resolveCreditDebt`, `spendCreditsForFeatureInTx` — rests on the same lock
+ * for the same reason.
+ *
+ * Deliberately no unique-violation rescue: recovering from one inside the
+ * caller's transaction needs a SAVEPOINT, because Postgres aborts the whole
+ * transaction on the error and every later statement fails with 25P02. Catching
+ * it without one would turn a clear constraint error into a confusing "current
+ * transaction is aborted" further down.
+ *
+ * Reversal handling is deliberately absent: this posts money, and undoing it
+ * stays with `adjustCreditAccount`, where the reversal bookkeeping lives.
+ */
+export async function grantCreditsInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    /** Positive. A debit belongs to `adjustCreditAccount`. */
+    amount: number;
+    reason: string;
+    idempotencyKey: string;
+    /**
+     * What the grant was for, in terms the granting workflow can query back.
+     *
+     * `reason` is prose for a human reading the wallet; this is for the caller
+     * that has to find its own past grants later. The stand change needs it:
+     * a refund it posted has to reduce the coverage the *next* move measures,
+     * and nothing else on the entry says which reservation it came from.
+     * Merged under `reason`, which stays authoritative.
+     */
+    metadata?: Record<string, string>;
+  },
+): Promise<{ ledgerEntryId: number } | null> {
+  const amount = roundCredits(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    // The ledger key is global, so a key belonging to another user cannot fall
+    // through to an insert.
+    if (existing.userId !== input.userId) return null;
+    return { ledgerEntryId: existing.id };
+  }
+
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount,
+      type: "admin_grant",
+      idempotencyKey: input.idempotencyKey,
+      metadata: { ...input.metadata, reason: input.reason.trim() },
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return null;
+  await updateCachedBalance(tx, input.userId, amount);
+  return { ledgerEntryId: entry.id };
 }
 
 export { exactCreditShortfall };

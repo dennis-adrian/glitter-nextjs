@@ -9,9 +9,11 @@ import {
 import { Collaborator, NewCollaborator } from "./definitions";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
+import { FullReservationWithTender } from "@/app/api/reservations/definitions";
 import {
-  FullReservation,
-} from "@/app/api/reservations/definitions";
+  fetchInvoiceTenders,
+  tenderFor,
+} from "@/app/lib/payments/tender-queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
   canMutateReservationCollaborators,
@@ -29,7 +31,10 @@ export const addCollaborator = async (
 ) => {
   const actor = await getCurrentUserProfile();
   if (!actor) {
-    return { success: false, message: "Tenés que iniciar sesión para continuar." };
+    return {
+      success: false,
+      message: "Tenés que iniciar sesión para continuar.",
+    };
   }
 
   const parsed = parseUnknown(addCollaboratorSchema, {
@@ -56,7 +61,10 @@ export const addCollaborator = async (
       participantUserIds: reservation.participants.map((p) => p.userId),
     })
   ) {
-    return { success: false, message: "No estás autorizado para esta reserva." };
+    return {
+      success: false,
+      message: "No estás autorizado para esta reserva.",
+    };
   }
 
   let response: {
@@ -145,7 +153,10 @@ export const deleteReservationCollaborator = async (
 ) => {
   const actor = await getCurrentUserProfile();
   if (!actor) {
-    return { success: false, message: "Tenés que iniciar sesión para continuar." };
+    return {
+      success: false,
+      message: "Tenés que iniciar sesión para continuar.",
+    };
   }
 
   const parsed = parseUnknown(deleteCollaboratorSchema, {
@@ -169,7 +180,10 @@ export const deleteReservationCollaborator = async (
       participantUserIds: reservation.participants.map((p) => p.userId),
     })
   ) {
-    return { success: false, message: "No estás autorizado para esta reserva." };
+    return {
+      success: false,
+      message: "No estás autorizado para esta reserva.",
+    };
   }
 
   try {
@@ -178,7 +192,10 @@ export const deleteReservationCollaborator = async (
       .where(
         and(
           eq(reservationCollaborators.reservationId, parsed.data.reservationId),
-          eq(reservationCollaborators.collaboratorId, parsed.data.collaboratorId),
+          eq(
+            reservationCollaborators.collaboratorId,
+            parsed.data.collaboratorId,
+          ),
         ),
       );
   } catch (error) {
@@ -198,7 +215,7 @@ export const deleteReservationCollaborator = async (
 
 export async function fetchReservationsByFestivalId(
   festivalId: number,
-): Promise<FullReservation[]> {
+): Promise<FullReservationWithTender[]> {
   const actor = await getCurrentUserProfile();
   if (
     !actor ||
@@ -208,7 +225,7 @@ export async function fetchReservationsByFestivalId(
   }
 
   try {
-    return await db.query.standReservations.findMany({
+    const reservations = await db.query.standReservations.findMany({
       where: eq(standReservations.festivalId, festivalId),
       with: {
         stand: true,
@@ -243,12 +260,44 @@ export async function fetchReservationsByFestivalId(
           },
         },
         invoices: {
+          // Ordered so `invoices[0]` is the same row on every read. A
+          // reservation carries exactly one invoice — both creation sites
+          // insert one, and 1,765 of 1,765 rows hold to it — but the relational
+          // builder returns them unordered, so the pick was only stable by
+          // luck. The columns read `invoices[0]` from this same array, so one
+          // ordering keeps the query and the cell agreeing.
+          orderBy: (invoice, { asc }) => [asc(invoice.id)],
           with: {
             payments: true,
+            // The person who owes, and whose credits apply — not the same
+            // question as who is on the stand.
+            user: true,
           },
         },
         scheduledTasks: true,
       },
+    });
+
+    // One reservation carries one invoice, so coverage is resolved for the
+    // whole page in a single extra round rather than per row.
+    const invoiceAmounts = new Map(
+      reservations.flatMap((reservation) =>
+        reservation.invoices.map(
+          (invoice) => [invoice.id, invoice.amount] as const,
+        ),
+      ),
+    );
+    const tenders = await fetchInvoiceTenders(
+      [...invoiceAmounts.keys()],
+      invoiceAmounts,
+    );
+
+    return reservations.map((reservation) => {
+      const invoice = reservation.invoices[0];
+      return {
+        ...reservation,
+        tender: invoice ? tenderFor(tenders, invoice.id) : null,
+      };
     });
   } catch (error) {
     console.error(error);

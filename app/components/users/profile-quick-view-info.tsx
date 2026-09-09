@@ -78,11 +78,13 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
             )}
           </span>
         </div>
-        {props.showAdminControls && (
+        {/* Template-stringing the phone turned a missing one into the literal
+            badge "null", which read as a WhatsApp handle nobody could call. */}
+        {props.showAdminControls && props.profile.phoneNumber && (
           <div className="mt-2">
             <SocialMediaBadge
               socialMediaType="whatsapp"
-              username={`${props.profile.phoneNumber}`}
+              username={props.profile.phoneNumber}
             />
           </div>
         )}

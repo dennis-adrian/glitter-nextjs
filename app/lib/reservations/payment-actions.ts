@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { cancelReservation } from "@/app/lib/reservations/admin-service";
+import { fetchReservationConsoleDetail } from "@/app/lib/reservations/console-detail";
 import {
   adminConfirmReservation,
   applyInvoiceCredits,
@@ -12,6 +13,8 @@ import {
   findSubmittedSettlementId,
   findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
+  releaseInvoiceCredits,
+  settleInvoiceShortfall,
   submitZeroValueInvoiceForReview,
 } from "@/app/lib/reservations/payment-service";
 import {
@@ -166,7 +169,7 @@ export async function adminConfirmReservationByReservationIdAction(
   if (invoiceId == null) {
     return {
       success: false,
-      message: "No se encontró la factura de la reserva.",
+      message: "No se encontró el cobro de la reserva.",
     };
   }
   const result = await adminConfirmReservation({
@@ -174,4 +177,23 @@ export async function adminConfirmReservationByReservationIdAction(
     idempotencyKey: parsed.data.idempotencyKey,
   });
   return { success: result.success, message: result.message };
+}
+
+export async function releaseInvoiceCreditsAction(input: unknown) {
+  const result = await releaseInvoiceCredits(input);
+  return { success: result.success, message: result.message };
+}
+
+export async function settleInvoiceShortfallAction(input: unknown) {
+  const result = await settleInvoiceShortfall(input);
+  return { success: result.success, message: result.message };
+}
+
+export async function fetchReservationConsoleDetailAction(input: unknown) {
+  const parsed = parseUnknown(
+    z.object({ reservationId: positiveIntSchema }),
+    input,
+  );
+  if (!parsed.success) return null;
+  return fetchReservationConsoleDetail(parsed.data.reservationId);
 }

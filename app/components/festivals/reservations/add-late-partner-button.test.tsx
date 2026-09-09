@@ -69,7 +69,7 @@ describe("AddLatePartnerButton", () => {
     openDialog();
 
     expect(screen.getByRole("dialog").textContent).toContain(
-      "factura original no cambia",
+      "cobro original no cambia",
     );
   });
 
