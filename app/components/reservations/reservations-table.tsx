@@ -42,7 +42,7 @@ export default function ReservationsTable({
           ],
         },
         {
-          label: "Cobertura",
+          label: "Pago",
           columnId: "coverage",
           options: COVERAGE_FILTER_OPTIONS,
         },

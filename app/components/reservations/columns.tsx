@@ -58,7 +58,7 @@ export const columnTitles = {
   artists: "Participantes",
   cashAmount: "QR",
   collaborators: "Colaboradores",
-  coverage: "Cobertura",
+  coverage: "Pago",
   createdAt: "Creación",
   creditAmount: "Créditos",
   dueAt: "Vencimiento",

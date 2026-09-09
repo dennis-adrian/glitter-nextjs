@@ -392,7 +392,7 @@ override any preset.
 | `owner`               | Titular              |          |   ●    |    ●     |
 | `participantCategory` | Categoría            |    ●     |   ●    |    ●     |
 | `status`              | Estado de la reserva |    ●     |   ●    |    ●     |
-| `coverage`            | Cobertura            |    ●     |   ●    |    ●     |
+| `coverage`            | Pago                 |    ●     |   ●    |    ●     |
 | `totalAmount`         | Total                |          |   ●    |    ●     |
 | `creditAmount`        | Créditos             |          |   ●    |    ●     |
 | `cashAmount`          | QR                   |          |   ●    |          |
@@ -464,7 +464,10 @@ Row expansion, or a sheet — not a route. An admin working a queue should not l
   **cobro** for the object and **monto** for the figure. Current offenders: "Factura no encontrada",
   "No autorizado para esta factura", "Esta factura ya no admite un comprobante".
 - **Comprobante** for the voucher image. Never "pago" — the participant sends proof, not money.
-- **Cobertura** / **Saldo pendiente** for tender state.
+- **Pago** for the column that answers what has happened with the money, and
+  **Saldo pendiente** for what is still owed. Not "Cobertura": it named the sum
+  of the tenders accurately but had to be explained, which a column header
+  cannot afford.
 - Page title becomes **Reservas y cobros**.
 
 ## 14. Permissions
