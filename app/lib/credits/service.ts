@@ -1224,9 +1224,22 @@ export async function adjustCreditAccount(input: {
  * the grant and whatever earned it have to commit together or not at all.
  *
  * The caller must already hold this user's credit-account lock, which the
- * canonical lock order places before stands. Reversal handling is deliberately
- * absent: this posts money, and undoing it stays with `adjustCreditAccount`,
- * where the reversal bookkeeping lives.
+ * canonical lock order places before stands. That lock is the concurrency
+ * guarantee, not the `FOR UPDATE` below: a key that matches no row locks
+ * nothing, so two callers could otherwise both miss it and race to insert.
+ * Serialising on the account row is what makes the second one see the first's
+ * committed entry and replay it. Every sibling here — `adjustCreditAccount`,
+ * `resolveCreditDebt`, `spendCreditsForFeatureInTx` — rests on the same lock
+ * for the same reason.
+ *
+ * Deliberately no unique-violation rescue: recovering from one inside the
+ * caller's transaction needs a SAVEPOINT, because Postgres aborts the whole
+ * transaction on the error and every later statement fails with 25P02. Catching
+ * it without one would turn a clear constraint error into a confusing "current
+ * transaction is aborted" further down.
+ *
+ * Reversal handling is deliberately absent: this posts money, and undoing it
+ * stays with `adjustCreditAccount`, where the reversal bookkeeping lives.
  */
 export async function grantCreditsInTx(
   tx: CreditTx,

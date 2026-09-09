@@ -74,7 +74,7 @@ export default function CreditsExplainer() {
               <span className="block mt-1">
                 Toma en cuenta que con los créditos solo estarías activando la
                 opción de reservar una mesa completa. Esto es una funcionalidad
-                adicional que no se puede hacaer regularmente. El precio de una
+                adicional que no se puede hacer regularmente. El precio de una
                 mesa completa puede variar según el sector, pero en general es
                 el equivalente al pago de dos espacios.
               </span>
