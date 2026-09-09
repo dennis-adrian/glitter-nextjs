@@ -8,8 +8,12 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        // No hover: the base sets cursor-default, so a badge is not something
+        // you can act on, and a colour change under the cursor says otherwise.
+        // It also leaked — twMerge drops an overridden bg-primary but keeps
+        // hover:bg-primary/80, so any badge given its own background through
+        // className turned purple on hover.
+        default: "border-transparent bg-primary text-primary-foreground",
         // Three-part, like every categorical badge on the page (tint fill, mid
         // border, deep text). A transparent border made this the odd one out.
         secondary:
