@@ -36,6 +36,7 @@ import { getInvoiceTenderTotalsInTx } from "@/app/lib/reservations/payment-servi
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  creditLedgerEntries,
   invoiceCreditAllocations,
   invoiceSettlementSubmissions,
   invoices,
@@ -271,6 +272,59 @@ async function coveredAmountForInvoices(
   return roundMoney(covered);
 }
 
+/**
+ * Marks a refund grant as belonging to a reservation, so later moves find it.
+ *
+ * The command's idempotency key already names the reservation, but a key is an
+ * identifier, not a field to query on. This is the field.
+ */
+const STAND_CHANGE_REFUND_RESERVATION_KEY = "standChangeRefundReservationId";
+
+/**
+ * What earlier stand changes have already handed back for this reservation.
+ *
+ * Coverage is computed from payments and credit allocations, and a refund
+ * touches neither — it posts a grant into the participant's wallet. So without
+ * this, every move re-measures the same coverage an earlier move already paid
+ * out against: 500 → 300 refunds 200 and then 300 → 200 refunds another 200,
+ * against 500 that was only ever tendered once. Moving back up is the mirror
+ * image — 500 → 300 → 500 would read as fully covered on a stand the
+ * participant no longer has the money for, because the 200 is in their wallet
+ * now.
+ *
+ * Reversed grants are excluded, the same rule `computeInvoiceTender` applies to
+ * allocations: an admin who undoes the refund from the wallet has put the
+ * coverage back, and the reservation is covered again.
+ *
+ * Keyed on the reservation rather than the owner, because it is the
+ * reservation's coverage being restated — a reservation whose owner changed
+ * still had the money handed back exactly once.
+ */
+async function standChangeRefundedAmount(
+  tx: DbTx,
+  reservationId: number,
+): Promise<number> {
+  const [row] = await tx
+    .select({
+      amount: sql<string>`coalesce(sum(${creditLedgerEntries.amount}), 0)`,
+    })
+    .from(creditLedgerEntries)
+    .where(
+      and(
+        eq(creditLedgerEntries.type, "admin_grant"),
+        sql`${creditLedgerEntries.metadata} ->> '${sql.raw(
+          STAND_CHANGE_REFUND_RESERVATION_KEY,
+        )}' = ${String(reservationId)}`,
+        sql`NOT EXISTS (
+          SELECT 1
+          FROM ${creditLedgerEntries} r
+          WHERE r.reverses_entry_id = ${creditLedgerEntries.id}
+        )`,
+      ),
+    );
+  return roundMoney(Number(row?.amount ?? 0));
+}
+
 type SidePlan = {
   reservation: MovableReservation;
   fromStandId: number;
@@ -284,7 +338,10 @@ type SidePlan = {
     | "disabled";
   pricing: ReturnType<typeof resolveStandChangePricing>;
   invoices: InvoiceRow[];
-  /** Approved cash plus confirmed credits, before the move. */
+  /**
+   * Approved cash plus confirmed credits before the move, less whatever
+   * earlier stand changes already refunded out of it.
+   */
   coveredAmount: number;
   settlement: StandChangeSettlement;
   /** The command's idempotency key, so the credit grant inherits it. */
@@ -444,6 +501,11 @@ async function reopenReservationForBalance(
  * would be a much larger decision than the move itself. The grant is an
  * ordinary `admin_grant` ledger entry, so it shows up in the wallet with its
  * reason and can be reversed from the credit screen like any other.
+ *
+ * Tagged with the reservation so `standChangeRefundedAmount` can find it. The
+ * idempotency key stops one command paying twice; the tag is what stops the
+ * *next* command doing it, by taking this refund back out of the coverage that
+ * move is measured against.
  */
 async function refundOverpaymentAsCredits(tx: DbTx, plan: SidePlan) {
   if (plan.settlement.kind !== "overpaid") return;
@@ -454,6 +516,9 @@ async function refundOverpaymentAsCredits(tx: DbTx, plan: SidePlan) {
     userId: ownerUserId,
     amount: plan.settlement.refundAmount,
     reason: `Cambio de espacio: diferencia a favor de la reserva #${plan.reservation.id}`,
+    metadata: {
+      [STAND_CHANGE_REFUND_RESERVATION_KEY]: String(plan.reservation.id),
+    },
     // The command's own key, not a fresh one: the ledger is append-only, and a
     // retry that reached here twice would grant the difference twice.
     idempotencyKey: `stand-change-refund:${plan.requestKey}:${plan.reservation.id}`,
@@ -477,7 +542,17 @@ async function buildSidePlan(
   const liveInvoices = invoiceRows.filter(
     (invoice) => invoice.status !== "cancelled",
   );
-  const coveredAmount = await coveredAmountForInvoices(tx, liveInvoices);
+  // Net of what earlier moves handed back. Clamped at zero so `coveredAmount`
+  // keeps meaning what its name says: a voucher rejected after a refund can
+  // leave the two out of step, and that is a debt for the wallet to carry, not
+  // a negative coverage for the settlement to reason about.
+  const coveredAmount = Math.max(
+    0,
+    roundMoney(
+      (await coveredAmountForInvoices(tx, liveInvoices)) -
+        (await standChangeRefundedAmount(tx, reservation.id)),
+    ),
+  );
   // Priced against the discount the invoice already carries, so the settlement
   // is measured against what will actually be owed rather than the gross price.
   const newInvoiceAmount =

@@ -72,7 +72,7 @@ export default function CreditsExplainer() {
               una mesa completa te permitirá intentarlo pero no te garantiza
               ninguna mesa ni ubicación.
               <span className="block mt-1">
-                Toma en cuenta que con los créditos solo estarías activando la
+                Tomá en cuenta que con los créditos solo estarías activando la
                 opción de reservar una mesa completa. Esto es una funcionalidad
                 adicional que no se puede hacer regularmente. El precio de una
                 mesa completa puede variar según el sector, pero en general es

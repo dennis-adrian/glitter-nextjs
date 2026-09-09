@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import {
   calculateCreditBalances,
@@ -817,6 +817,18 @@ export async function releaseInvoiceCreditAllocationsInTx(
     })
     .from(invoiceCreditAllocations)
     .where(eq(invoiceCreditAllocations.invoiceId, input.invoiceId))
+    // Ordered by user, not left to the scan. Each refund below takes that
+    // user's row and credit account, so the loop acquires a set of per-user
+    // locks — and two commands touching the same two participants in opposite
+    // orders deadlock. Physical row order is not stable (an UPDATE moves a
+    // row), so without this the order could differ between two runs of the
+    // same code. `LockRows` sits above the sort, so FOR UPDATE takes the
+    // allocation rows themselves in this order too. `id` only breaks ties, to
+    // keep one user's allocations deterministic as well.
+    .orderBy(
+      asc(invoiceCreditAllocations.userId),
+      asc(invoiceCreditAllocations.id),
+    )
     .for("update");
 
   const targets = allocationRows.filter(
@@ -1456,6 +1468,16 @@ export async function grantCreditsInTx(
     amount: number;
     reason: string;
     idempotencyKey: string;
+    /**
+     * What the grant was for, in terms the granting workflow can query back.
+     *
+     * `reason` is prose for a human reading the wallet; this is for the caller
+     * that has to find its own past grants later. The stand change needs it:
+     * a refund it posted has to reduce the coverage the *next* move measures,
+     * and nothing else on the entry says which reservation it came from.
+     * Merged under `reason`, which stays authoritative.
+     */
+    metadata?: Record<string, string>;
   },
 ): Promise<{ ledgerEntryId: number } | null> {
   const amount = roundCredits(input.amount);
@@ -1484,7 +1506,7 @@ export async function grantCreditsInTx(
       amount,
       type: "admin_grant",
       idempotencyKey: input.idempotencyKey,
-      metadata: { reason: input.reason.trim() },
+      metadata: { ...input.metadata, reason: input.reason.trim() },
     })
     .returning({ id: creditLedgerEntries.id });
   if (!entry) return null;

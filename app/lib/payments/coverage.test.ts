@@ -59,6 +59,25 @@ describe("deriveCoverageState", () => {
     ).toBe("awaiting_confirmation");
   });
 
+  it("does not report a zero-amount cobro as unpaid", () => {
+    // A free stand awaiting its zero-value entitlement owes nothing; "Sin
+    // pagar" names a debt it does not have.
+    expect(
+      coverage({
+        tender: { totalAmount: 0, coveredAmount: 0, submittedCashAmount: 0 },
+      }),
+    ).toBe("awaiting_confirmation");
+  });
+
+  it("does not report a zero-amount cobro as overdue", () => {
+    expect(
+      coverage({
+        dueAt: YESTERDAY,
+        tender: { totalAmount: 0, coveredAmount: 0, submittedCashAmount: 0 },
+      }),
+    ).toBe("awaiting_confirmation");
+  });
+
   it("still reports partial just below the total", () => {
     expect(
       coverage({

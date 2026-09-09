@@ -32,6 +32,15 @@ export default function SettleShortfallDialog({
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [isSettling, setIsSettling] = useState(false);
   const [reason, setReason] = useState("");
+  // Held across retries, not minted per submit — the same rule the full-table
+  // downgrade follows. settleInvoiceShortfall claims this key in the request
+  // registry, so a request whose response is lost has still been recorded:
+  // retrying with the same key replays that result, while a fresh key runs a
+  // second write-off against an invoice the first call already brought down.
+  // Only an explicit refusal, which proves the server decided, earns a new one.
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    crypto.randomUUID(),
+  );
   const router = useRouter();
 
   const { tender } = invoice;
@@ -51,15 +60,17 @@ export default function SettleShortfallDialog({
       const result = await settleInvoiceShortfallAction({
         invoiceId: invoice.id,
         reason: trimmed,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey,
       });
       if (!result.success) {
         toast.error(result.message);
+        setIdempotencyKey(crypto.randomUUID());
         return;
       }
 
       toast.success(result.message);
       setReason("");
+      setIdempotencyKey(crypto.randomUUID());
       onOpenChange(false);
       router.refresh();
     } catch {

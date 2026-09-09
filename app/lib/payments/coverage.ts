@@ -76,7 +76,14 @@ export function deriveCoverageState(input: CoverageInput): CoverageState {
   // AMOUNT_BELOW_CREDITS guard permits (it refuses only *below*). Neither
   // "Parcial" nor "Atrasado" is true of it: no money is missing, so a deadline
   // it has already met cannot make it late.
-  if (tender.coveredAmount >= tender.totalAmount && tender.totalAmount > 0) {
+  //
+  // A zero-amount cobro lands here too, and belongs here: it owes nothing and
+  // is waiting on the same confirmation. It reads as pending only until the
+  // participant asks for the zero-value entitlement, and calling that "Sin
+  // pagar" — or, past its due date, "Atrasado" — names a debt that does not
+  // exist. An absent tender never reaches this function; the coverage column
+  // renders nothing at all for it.
+  if (tender.coveredAmount >= tender.totalAmount) {
     return "awaiting_confirmation";
   }
 

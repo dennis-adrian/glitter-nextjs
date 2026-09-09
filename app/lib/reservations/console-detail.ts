@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -66,15 +66,22 @@ export async function fetchReservationConsoleDetail(
   const actor = await getCurrentUserProfile();
   if (!canViewAdminReservationData(actor)) return null;
 
+  // Every invoice the reservation has, not the first row the scan happened to
+  // return. A reservation normally has one, but nothing in the schema says so,
+  // and a cancelled invoice beside a live one is the ordinary way to end up
+  // with two — picking one arbitrarily would show that reservation's history
+  // as empty, or drop half of it, depending on physical row order. This is a
+  // read-only history panel, so the honest answer is all of it.
   const invoiceRows = await db
     .select({ id: invoices.id })
     .from(invoices)
-    .where(eq(invoices.reservationId, reservationId));
-  const invoiceId = invoiceRows[0]?.id;
+    .where(eq(invoices.reservationId, reservationId))
+    .orderBy(asc(invoices.createdAt), asc(invoices.id));
+  const invoiceIds = invoiceRows.map((row) => row.id);
 
   const reviewer = users;
   const [allocationRows, submissionRows, eventRows] = await Promise.all([
-    invoiceId == null
+    invoiceIds.length === 0
       ? Promise.resolve([])
       : db
           .select({
@@ -91,9 +98,14 @@ export async function fetchReservationConsoleDetail(
               invoiceCreditAllocations.ledgerEntryId,
             ),
           )
-          .where(eq(invoiceCreditAllocations.invoiceId, invoiceId))
-          .orderBy(asc(invoiceCreditAllocations.createdAt)),
-    invoiceId == null
+          .where(inArray(invoiceCreditAllocations.invoiceId, invoiceIds))
+          // `id` breaks ties: allocations made in one transaction share a
+          // createdAt, and across two invoices so can unrelated ones.
+          .orderBy(
+            asc(invoiceCreditAllocations.createdAt),
+            asc(invoiceCreditAllocations.id),
+          ),
+    invoiceIds.length === 0
       ? Promise.resolve([])
       : db
           .select({
@@ -111,8 +123,11 @@ export async function fetchReservationConsoleDetail(
             reviewer,
             eq(reviewer.id, invoiceSettlementSubmissions.reviewedByUserId),
           )
-          .where(eq(invoiceSettlementSubmissions.invoiceId, invoiceId))
-          .orderBy(asc(invoiceSettlementSubmissions.createdAt)),
+          .where(inArray(invoiceSettlementSubmissions.invoiceId, invoiceIds))
+          .orderBy(
+            asc(invoiceSettlementSubmissions.createdAt),
+            asc(invoiceSettlementSubmissions.id),
+          ),
     db
       .select({
         id: standReservationEvents.id,

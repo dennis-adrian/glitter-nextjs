@@ -151,6 +151,15 @@ export function DataTableFacetFilter<TData>({
                       className="mr-2 pointer-events-none"
                     />
                     <span>{option.label}</span>
+                    {/* The box is the only thing that says whether this option
+                        is on, and it is aria-hidden — so checked state reached
+                        sighted users alone. Said in text instead of through the
+                        item's own aria-selected, which cmdk owns and uses for
+                        the highlighted row: setting it here would announce
+                        every filter as chosen the moment it was arrowed onto. */}
+                    <span className="sr-only">
+                      {isSelected ? "seleccionado" : "no seleccionado"}
+                    </span>
                   </CommandItem>
                 );
               })}

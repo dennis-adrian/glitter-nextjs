@@ -681,6 +681,112 @@ describeDatabase("admin stand switch and exchange", () => {
       expect(Number(ledger[0].amount)).toBe(200);
     });
 
+    it("does not hand the same surplus back on a second move", async () => {
+      // 500 tendered once. Moving down twice must return 300 in total — what
+      // is left after the 200 stand is paid for — not 200 and then a further
+      // 300 measured against money already sitting in the wallet.
+      const seeded = await seedFestival({
+        standPrices: [
+          { individual: 500 },
+          { individual: 300 },
+          { individual: 200 },
+        ],
+        userCount: 1,
+      });
+      const [origin, middle, cheapest] = seeded.standRows;
+      const { reservation, invoice } = await seedReservation({
+        festivalId: seeded.festival.id,
+        standId: origin.id,
+        ownerUserId: seeded.participants[0].id,
+        status: "accepted",
+        price: 500,
+        standStatus: "confirmed",
+      });
+      await payInvoice({
+        invoiceId: invoice.id,
+        amount: 500,
+        userId: seeded.participants[0].id,
+      });
+
+      const first = await changeReservationStand({
+        reservationId: reservation.id,
+        destinationStandId: middle.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(first.success).toBe(true);
+
+      const second = await changeReservationStand({
+        reservationId: reservation.id,
+        destinationStandId: cheapest.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(second.success).toBe(true);
+
+      const ledger = await readLedger(seeded.participants[0].id);
+      expect(ledger).toHaveLength(2);
+      expect(
+        ledger.map((entry) => Number(entry.amount)).sort((a, b) => a - b),
+      ).toEqual([100, 200]);
+      // The whole point: 500 paid, a 200 stand kept, 300 handed back.
+      expect(ledger.reduce((sum, entry) => sum + Number(entry.amount), 0)).toBe(
+        300,
+      );
+      expect(Number((await readInvoice(invoice.id)).amount)).toBe(200);
+      expect((await readReservation(reservation.id)).status).toBe("accepted");
+    });
+
+    it("reopens the balance when a refunded reservation moves back up", async () => {
+      // The money for the difference is in the wallet now, so the dearer stand
+      // is not covered any more — reading the original payment again would
+      // confirm a reservation nobody has paid for.
+      const seeded = await seedFestival({
+        standPrices: [
+          { individual: 500 },
+          { individual: 300 },
+          { individual: 500 },
+        ],
+        userCount: 1,
+      });
+      const [origin, cheaper, dearer] = seeded.standRows;
+      const { reservation, invoice } = await seedReservation({
+        festivalId: seeded.festival.id,
+        standId: origin.id,
+        ownerUserId: seeded.participants[0].id,
+        status: "accepted",
+        price: 500,
+        standStatus: "confirmed",
+      });
+      await payInvoice({
+        invoiceId: invoice.id,
+        amount: 500,
+        userId: seeded.participants[0].id,
+      });
+
+      await changeReservationStand({
+        reservationId: reservation.id,
+        destinationStandId: cheaper.id,
+        idempotencyKey: randomUUID(),
+      });
+      const back = await changeReservationStand({
+        reservationId: reservation.id,
+        destinationStandId: dearer.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(back.success).toBe(true);
+
+      const moved = await readReservation(reservation.id);
+      expect(moved.status).toBe("pending");
+      expect((await readStand(dearer.id)).status).toBe("reserved");
+      const repriced = await readInvoice(invoice.id);
+      expect(Number(repriced.amount)).toBe(500);
+      expect(repriced.status).toBe("pending");
+
+      // Only the first move's refund; moving back up hands nothing back.
+      const ledger = await readLedger(seeded.participants[0].id);
+      expect(ledger).toHaveLength(1);
+      expect(Number(ledger[0].amount)).toBe(200);
+    });
+
     it("reuses the open payment task instead of opening a second one", async () => {
       const seeded = await seedFestival({
         standPrices: [{ individual: 300 }, { individual: 450 }],

@@ -200,9 +200,15 @@ function tableAwareTx(options?: {
         }
         if (table === invoiceCreditAllocations) {
           // Cancellation hands credits back before it cancels the invoice, so
-          // this is read (and locked) on every cancellation path.
+          // this is read (and locked) on every cancellation path. Ordered by
+          // user before it is locked, so the per-user locks the refunds take
+          // are acquired in one canonical order.
           const rows = options?.creditAllocations ?? [];
+          const afterOrderBy = Object.assign(Promise.resolve(rows), {
+            for: vi.fn(async () => rows),
+          });
           return Object.assign(Promise.resolve(rows), {
+            orderBy: vi.fn(() => afterOrderBy),
             for: vi.fn(async () => rows),
           });
         }
