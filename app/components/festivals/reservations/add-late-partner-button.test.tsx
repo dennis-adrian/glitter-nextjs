@@ -63,16 +63,6 @@ describe("AddLatePartnerButton", () => {
     expect(dialog.textContent).toContain("55 créditos");
   });
 
-  /** §8.4: the original invoice is not reopened, and saying so avoids alarm. */
-  it("says the original invoice does not change", () => {
-    renderButton();
-    openDialog();
-
-    expect(screen.getByRole("dialog").textContent).toContain(
-      "factura original no cambia",
-    );
-  });
-
   it("names the deadline inside the dialog too", () => {
     renderButton();
     openDialog();

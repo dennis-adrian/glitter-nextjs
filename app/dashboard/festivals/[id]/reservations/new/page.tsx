@@ -4,6 +4,7 @@ import {
 } from "@/app/lib/festivals/actions";
 import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
 import { fetchExternalParticipants } from "@/app/lib/external_participants/actions";
+import { fetchFullTableOptions } from "@/app/lib/reservations/stand-change-queries";
 import CreateReservationForm from "./form";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -18,13 +19,19 @@ export default async function NewReservationPage({
   params: Promise<z.infer<typeof ParamsSchema>>;
 }) {
   const { id } = ParamsSchema.parse(await params);
-  const [festival, enrolledUsers, sectors, externalParticipants] =
-    await Promise.all([
-      fetchBaseFestival(id),
-      fetchAllFestivalEnrolledUsers(id),
-      fetchFestivalSectors(id),
-      fetchExternalParticipants(),
-    ]);
+  const [
+    festival,
+    enrolledUsers,
+    sectors,
+    externalParticipants,
+    fullTableOptions,
+  ] = await Promise.all([
+    fetchBaseFestival(id),
+    fetchAllFestivalEnrolledUsers(id),
+    fetchFestivalSectors(id),
+    fetchExternalParticipants(),
+    fetchFullTableOptions(id),
+  ]);
 
   if (!festival) notFound();
 
@@ -39,6 +46,7 @@ export default async function NewReservationPage({
         sectors={sectors}
         externalParticipants={externalParticipants}
         reservationsStartDate={festival.reservationsStartDate}
+        fullTableOptions={fullTableOptions}
       />
     </div>
   );

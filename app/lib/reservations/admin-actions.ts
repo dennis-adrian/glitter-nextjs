@@ -13,6 +13,7 @@ import {
   lockParticipantsBeforeRegistryClaim,
   lockReservationAggregate,
 } from "@/app/lib/reservations/locks";
+import { resolveFullTableCompanion } from "@/app/lib/reservations/full-table-access";
 import { insertReservationMembers } from "@/app/lib/reservations/members";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
@@ -40,7 +41,7 @@ import {
   standReservations,
   stands,
 } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export {
@@ -71,7 +72,24 @@ export async function createAdminReservation(
     ownerUserId: userId,
     partnerId,
     idempotencyKey,
+    fullTable = false,
   } = parsed.data;
+
+  // Previewed outside the locks only to name the second stand the lock set has
+  // to cover; re-resolved under them before anything is written.
+  const previewCompanion = fullTable
+    ? await resolveFullTableCompanion(db, standId)
+    : null;
+  if (fullTable && !previewCompanion) {
+    return {
+      success: false,
+      message:
+        "Ese espacio no forma parte de una mesa completa con precio configurado",
+    };
+  }
+  const previewStandIds = previewCompanion
+    ? [standId, previewCompanion.companionStandId]
+    : [standId];
 
   const stand = await fetchStandById(standId);
   if (!stand) {
@@ -181,7 +199,7 @@ export async function createAdminReservation(
       const locked = await lockReservationAggregate(tx, {
         festivalId,
         userIds: participantIds,
-        standIds: [standId],
+        standIds: previewStandIds,
       });
       if (!locked.ok) {
         return finish({
@@ -212,11 +230,38 @@ export async function createAdminReservation(
       // the participant path still refuses one (it requires `available`), and
       // the success path below flips this stand to `reserved`, so the owner can
       // see it on the map afterwards. Only live occupancy blocks an admin.
-      if (await standHasLiveOccupancy(tx, standId)) {
-        return finish({
-          success: false,
-          message: "El espacio ya está reservado",
-        });
+      // Re-resolved under the stand locks. A pair that moved — unpaired, or
+      // repriced to null between the preview and here — is not the table this
+      // request was priced against.
+      const companion = fullTable
+        ? await resolveFullTableCompanion(tx, standId)
+        : null;
+      if (fullTable) {
+        if (
+          !companion ||
+          companion.companionStandId !== previewCompanion!.companionStandId
+        ) {
+          return finish({
+            success: false,
+            message:
+              "Otro cambio ocurrió al mismo tiempo. Actualizá e intentá de nuevo.",
+          });
+        }
+      }
+      const memberStandIds = companion
+        ? [standId, companion.companionStandId]
+        : [standId];
+
+      for (const memberStandId of memberStandIds) {
+        if (await standHasLiveOccupancy(tx, memberStandId)) {
+          return finish({
+            success: false,
+            message:
+              memberStandId === standId
+                ? "El espacio ya está reservado"
+                : "La otra mitad de la mesa ya está reservada",
+          });
+        }
       }
 
       const ownerEligibility = await getReservationEligibility(
@@ -248,9 +293,13 @@ export async function createAdminReservation(
         }
       }
 
-      // Same participant-count rule as self-service booking (PRD §6.1).
-      const adminStandPrice =
-        participantIds.length > 1 && lockedStand.sharedPrice != null
+      // A full table is a priced product in its own right, so the table's
+      // price replaces its halves' rather than adding to them, and the
+      // participant count does not move it: the same rule hold confirmation
+      // applies. Only a single stand falls through to PRD §6.1's count rule.
+      const adminStandPrice = companion
+        ? companion.fullTablePrice
+        : participantIds.length > 1 && lockedStand.sharedPrice != null
           ? lockedStand.sharedPrice
           : (lockedStand.individualPrice ?? 0);
 
@@ -262,19 +311,25 @@ export async function createAdminReservation(
           source: "admin_assignment",
           ownerUserId: userId,
           priceAmountSnapshot: roundMoney(adminStandPrice),
-          individualPriceSnapshot: roundMoney(
-            lockedStand.individualPrice ?? 0,
-          ),
+          individualPriceSnapshot: roundMoney(lockedStand.individualPrice ?? 0),
           sharedPriceSnapshot:
             lockedStand.sharedPrice == null
               ? null
               : roundMoney(lockedStand.sharedPrice),
+          // Set only for a table, and read by the manual downgrade to price
+          // the half that survives it. The individual and shared snapshots
+          // above stay the picked half's for exactly that reason.
+          fullTablePriceSnapshot: companion
+            ? roundMoney(companion.fullTablePrice)
+            : null,
           bookedParticipantCount: participantIds.length,
           revealAt,
         })
         .returning();
 
-      await insertReservationMembers(tx, reservation.id, [standId]);
+      // Position 0 is the half the admin picked — the one a later downgrade
+      // keeps.
+      await insertReservationMembers(tx, reservation.id, memberStandIds);
 
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
@@ -291,14 +346,16 @@ export async function createAdminReservation(
         payload: {
           source: "admin_assignment",
           standId,
+          standIds: memberStandIds,
           partnerId: partnerId ?? null,
+          fullTable: companion != null,
         },
       });
 
       await tx
         .update(stands)
         .set({ status: "reserved", updatedAt: new Date() })
-        .where(eq(stands.id, standId));
+        .where(inArray(stands.id, memberStandIds));
 
       await tx.insert(invoices).values({
         date: new Date(),

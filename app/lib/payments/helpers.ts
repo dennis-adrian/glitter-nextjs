@@ -41,18 +41,18 @@ export function resolveReservationPaymentUpload(input: {
       return { ok: false, message: "No autorizado" };
     }
     if (!invoice) {
-      return { ok: false, message: "Factura no encontrada" };
+      return { ok: false, message: "Cobro no encontrado" };
     }
     return { ok: true, invoiceId: invoice.id };
   }
 
   if (!invoice || (invoice.userId !== profile.id && profile.role !== "admin")) {
-    return { ok: false, message: "Factura no encontrada" };
+    return { ok: false, message: "Cobro no encontrado" };
   }
   if (!canAcceptInvoiceProof(invoice.status)) {
     return {
       ok: false,
-      message: "Esta factura ya no admite un comprobante",
+      message: "Este cobro ya no admite un comprobante",
     };
   }
   if (

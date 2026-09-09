@@ -29,9 +29,7 @@ function invoice(status: InvoiceBase["status"]): InvoiceBase {
   };
 }
 
-function reservation(
-  status: ReservationBase["status"],
-): ReservationBase {
+function reservation(status: ReservationBase["status"]): ReservationBase {
   return {
     id: 4,
     standId: 7,
@@ -171,7 +169,7 @@ describe("resolveReservationPaymentUpload", () => {
       }),
     ).toEqual({
       ok: false,
-      message: "Esta factura ya no admite un comprobante",
+      message: "Este cobro ya no admite un comprobante",
     });
   });
 

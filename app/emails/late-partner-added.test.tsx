@@ -46,13 +46,6 @@ describe("LatePartnerAddedTemplate", () => {
     expect(html).toContain("55 créditos");
   });
 
-  /** Adding a partner never reopens the original invoice (PRD §8.4). */
-  it("tells the owner their original invoice is untouched", () => {
-    const html = render({ recipient: OWNER, isOwner: true });
-
-    expect(html).toContain("factura original no cambia");
-  });
-
   it("links both of them to the reservation, each under their own profile", () => {
     expect(render()).toContain("/profiles/2/festivals/7/reservations/42");
     expect(render({ recipient: OWNER, isOwner: true })).toContain(

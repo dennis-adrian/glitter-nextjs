@@ -42,7 +42,7 @@ export default async function FestivalInvoicesList({
       <Card>
         <CardContent className="p-6 text-center">
           <p className="text-sm text-muted-foreground">
-            No tienes facturas en este festival.
+            No tenés cobros en este festival.
           </p>
         </CardContent>
       </Card>

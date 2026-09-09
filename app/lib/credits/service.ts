@@ -1216,4 +1216,73 @@ export async function adjustCreditAccount(input: {
   });
 }
 
+/**
+ * Posts an admin credit grant inside a caller's transaction.
+ *
+ * Split out of `adjustCreditAccount` so a workflow that already holds the
+ * reservation locks can credit somebody without opening a second transaction —
+ * the grant and whatever earned it have to commit together or not at all.
+ *
+ * The caller must already hold this user's credit-account lock, which the
+ * canonical lock order places before stands. That lock is the concurrency
+ * guarantee, not the `FOR UPDATE` below: a key that matches no row locks
+ * nothing, so two callers could otherwise both miss it and race to insert.
+ * Serialising on the account row is what makes the second one see the first's
+ * committed entry and replay it. Every sibling here — `adjustCreditAccount`,
+ * `resolveCreditDebt`, `spendCreditsForFeatureInTx` — rests on the same lock
+ * for the same reason.
+ *
+ * Deliberately no unique-violation rescue: recovering from one inside the
+ * caller's transaction needs a SAVEPOINT, because Postgres aborts the whole
+ * transaction on the error and every later statement fails with 25P02. Catching
+ * it without one would turn a clear constraint error into a confusing "current
+ * transaction is aborted" further down.
+ *
+ * Reversal handling is deliberately absent: this posts money, and undoing it
+ * stays with `adjustCreditAccount`, where the reversal bookkeeping lives.
+ */
+export async function grantCreditsInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    /** Positive. A debit belongs to `adjustCreditAccount`. */
+    amount: number;
+    reason: string;
+    idempotencyKey: string;
+  },
+): Promise<{ ledgerEntryId: number } | null> {
+  const amount = roundCredits(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    // The ledger key is global, so a key belonging to another user cannot fall
+    // through to an insert.
+    if (existing.userId !== input.userId) return null;
+    return { ledgerEntryId: existing.id };
+  }
+
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount,
+      type: "admin_grant",
+      idempotencyKey: input.idempotencyKey,
+      metadata: { reason: input.reason.trim() },
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return null;
+  await updateCachedBalance(tx, input.userId, amount);
+  return { ledgerEntryId: entry.id };
+}
+
 export { exactCreditShortfall };

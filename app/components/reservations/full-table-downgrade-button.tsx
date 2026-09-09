@@ -118,9 +118,9 @@ export default function FullTableDowngradeButton({
                   Otro participante puede tomarlo enseguida.
                 </p>
                 <p>
-                  La factura pasa a costar lo que cuesta un solo espacio,
-                  manteniendo el descuento que ya tenía. Los pagos, los créditos
-                  gastados y los participantes quedan como están.
+                  El cobro pasa a ser el de un solo espacio, manteniendo el
+                  descuento que ya tenía. Los pagos, los créditos gastados y los
+                  participantes quedan como están.
                 </p>
                 <p>
                   Los créditos de la mesa completa no se devuelven. Si quedó

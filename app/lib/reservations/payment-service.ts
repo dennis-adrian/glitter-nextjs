@@ -527,7 +527,7 @@ export async function submitPaymentProof(
     if (outcome.kind === "replayed") {
       return reservationSuccess(
         { submissionId: outcome.submissionId },
-        "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+        "Ya enviamos un comprobante para este cobro. Esperá la revisión.",
       );
     }
 

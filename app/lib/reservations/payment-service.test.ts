@@ -599,7 +599,7 @@ describe("submitPaymentProof", () => {
     expect(result).toMatchObject({
       success: true,
       message:
-        "Ya enviamos un comprobante para esta factura. Esperá la revisión.",
+        "Ya enviamos un comprobante para este cobro. Esperá la revisión.",
     });
   });
 

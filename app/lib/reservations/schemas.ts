@@ -171,6 +171,15 @@ export const createAdminReservationSchema = z.object({
   partnerId: positiveIntSchema.optional(),
   revealAt: z.coerce.date().nullable().optional(),
   idempotencyKey: uuidSchema,
+  /**
+   * Assign both halves of the declared full table `standId` belongs to.
+   *
+   * The companion is resolved server-side from `stand_groups`, never sent: a
+   * request that could name its own second stand could pair two stands an
+   * admin never declared as a table, and price the result from a group that
+   * has nothing to do with either.
+   */
+  fullTable: z.boolean().optional(),
 });
 
 export const extendDeadlineSchema = z.object({

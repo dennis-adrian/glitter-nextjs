@@ -68,14 +68,15 @@ export default function CreditsExplainer() {
               </span>{" "}
               En los sectores de ilustración y emprendimientos creativos un
               espacio es media mesa, de 120 × 60 cm. La mesa completa son dos
-              espacios contiguos, 240 × 60 cm. Activar la función
-              de reservar una mesa completa te permitirá intentarlo pero no te
-              garantiza ninguna mesa ni ubicación.
+              espacios contiguos, 240 × 60 cm. Activar la función de reservar
+              una mesa completa te permitirá intentarlo pero no te garantiza
+              ninguna mesa ni ubicación.
               <span className="block mt-1">
-                Toma en cuenta que con los créditos solo estarías activando la opción de reservar{" "}
-                una mesa completa. Esto es una funcionalidad adicional que no se puede hacaer regularmente.{" "}
-                El precio de una mesa completa puede variar según el sector, pero en general es el equivalente al pago de{" "}
-                dos espacios.
+                Toma en cuenta que con los créditos solo estarías activando la
+                opción de reservar una mesa completa. Esto es una funcionalidad
+                adicional que no se puede hacer regularmente. El precio de una
+                mesa completa puede variar según el sector, pero en general es
+                el equivalente al pago de dos espacios.
               </span>
             </li>
             <li>
@@ -95,8 +96,8 @@ export default function CreditsExplainer() {
               </span>{" "}
               Tal vez cometiste un error y te gustaría agarrar un espacio en
               otra ubicación. O tal vez querés ser el compañero de stand de otro
-              ilustrador. Para eso podés activar la opción de liberar tu
-              reserva y modificar la manera en la que participas en festival.
+              ilustrador. Para eso podés activar la opción de liberar tu reserva
+              y modificar la manera en la que participas en festival.
             </li>
           </ul>
         </CardContent>
@@ -115,7 +116,7 @@ export default function CreditsExplainer() {
             billetera y, aunque estén{" "}
             <span className="font-medium text-foreground">en revisión</span>,
             los podés usar inmediatamente para todo: activar funciones
-            opcionales como la mesa completa y también pagar la factura de tu
+            opcionales como la mesa completa y también pagar el cobro de tu
             reserva. No hay nada que esperar.
           </p>
           <p>

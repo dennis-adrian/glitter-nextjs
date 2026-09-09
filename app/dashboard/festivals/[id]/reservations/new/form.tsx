@@ -6,7 +6,12 @@ import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Building2Icon, UserIcon } from "lucide-react";
+import {
+  Building2Icon,
+  LayoutGridIcon,
+  SquareIcon,
+  UserIcon,
+} from "lucide-react";
 import { DateTime } from "luxon";
 
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -32,6 +37,8 @@ import {
   externalParticipantTypeOptions,
 } from "@/app/lib/external_participants/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { toFullTableChoices } from "@/app/components/reservations/full-table-choices";
+import type { FullTableOption } from "@/app/lib/reservations/stand-change-queries";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { createAdminReservation } from "@/app/lib/reservations/admin-actions";
 import { createExternalParticipantReservation } from "@/app/lib/external_participants/actions";
@@ -39,6 +46,8 @@ import { deleteFile } from "@/app/lib/uploadthing/actions";
 
 const FormSchema = z.object({
   mode: z.enum(["user", "external"]),
+  /** Whether a user reservation covers one stand or a whole declared table. */
+  standMode: z.enum(["single", "fullTable"]),
   externalMode: z.enum(["existing", "new"]),
   userId: z.string().optional(),
   standId: z.string().min(1, "Seleccioná un espacio"),
@@ -64,6 +73,8 @@ type Props = {
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
   externalParticipants: ExternalParticipant[];
   reservationsStartDate: Date;
+  /** Both halves of every table an admin has declared in this festival. */
+  fullTableOptions: FullTableOption[];
 };
 
 // Format/parse in the store timezone so SSR and client hydration agree
@@ -114,6 +125,7 @@ export default function CreateReservationForm({
   sectors,
   externalParticipants,
   reservationsStartDate,
+  fullTableOptions,
 }: Props) {
   const router = useRouter();
   const [adminCreateIntentKey] = useState(() => crypto.randomUUID());
@@ -146,6 +158,19 @@ export default function CreateReservationForm({
       })),
   );
 
+  // Unpriced, malformed and half-taken tables stay listed, disabled, with the
+  // reason: an admin who declared a table and forgot its price has to see that
+  // rather than an empty list.
+  const fullTableStandOptions = toFullTableChoices(fullTableOptions).map(
+    (choice) => ({
+      value: String(choice.standId),
+      label: choice.disabledReason
+        ? `${choice.label} — ${choice.disabledReason}`
+        : choice.label,
+      disabled: choice.disabledReason != null,
+    }),
+  );
+
   const externalParticipantOptions = externalParticipants.map(
     (participant) => ({
       value: String(participant.id),
@@ -157,6 +182,7 @@ export default function CreateReservationForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       mode: "user",
+      standMode: "single",
       externalMode: externalParticipantOptions.length > 0 ? "existing" : "new",
       userId: "",
       standId: "",
@@ -176,6 +202,7 @@ export default function CreateReservationForm({
   });
 
   const mode = form.watch("mode");
+  const standMode = form.watch("standMode");
   const externalMode = form.watch("externalMode");
   const externalImageUrl = form.watch("imageUrl");
 
@@ -193,6 +220,9 @@ export default function CreateReservationForm({
         partnerId: data.partnerId ? Number(data.partnerId) : undefined,
         revealAt: data.revealAt ? fromDateTimeLocal(data.revealAt) : null,
         idempotencyKey: adminCreateIntentKey,
+        // The companion half is resolved server-side from the stand group;
+        // this only says which kind of reservation was intended.
+        fullTable: data.standMode === "fullTable",
       });
 
       if (result.success) {
@@ -323,12 +353,55 @@ export default function CreateReservationForm({
               placeholder="Seleccionar usuario"
               options={userOptions}
             />
+            <FormField
+              control={form.control}
+              name="standMode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de reserva</FormLabel>
+                  <FormControl>
+                    <Tabs
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // The two modes list different things, so a stand
+                        // picked in one is meaningless in the other.
+                        form.setValue("standId", "");
+                      }}
+                    >
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="single" className="gap-2">
+                          <SquareIcon className="size-4" />
+                          Un espacio
+                        </TabsTrigger>
+                        <TabsTrigger value="fullTable" className="gap-2">
+                          <LayoutGridIcon className="size-4" />
+                          Mesa completa
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <ComboboxInput
               form={form}
               name="standId"
-              label="Espacio"
-              placeholder="Seleccionar espacio"
-              options={standOptions}
+              label={standMode === "fullTable" ? "Mesa" : "Espacio"}
+              description={
+                standMode === "fullTable"
+                  ? "Se reservan las dos mitades de la mesa y se cobra el precio de la mesa. No se usan créditos."
+                  : undefined
+              }
+              placeholder={
+                standMode === "fullTable"
+                  ? "Seleccionar mesa"
+                  : "Seleccionar espacio"
+              }
+              options={
+                standMode === "fullTable" ? fullTableStandOptions : standOptions
+              }
             />
             <ComboboxInput
               form={form}
