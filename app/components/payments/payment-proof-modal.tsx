@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/app/components/ui/button";
+import VoucherViewer from "@/app/components/payments/voucher-viewer";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
   DrawerDialog,
@@ -10,7 +11,6 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/components/ui/drawer-dialog";
-import Image from "next/image";
 import { adminConfirmReservationAction } from "@/app/lib/reservations/payment-actions";
 import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
@@ -68,14 +68,10 @@ export default function PaymentProofModal(props: PaymentProofModalProps) {
           </DrawerDialogTitle>
         </DrawerDialogHeader>
         <div className={`${isDesktop ? "" : "px-4"} py-4`}>
+          {/* Taller than the confirm dialog's frame: showing the comprobante
+              is this modal's entire purpose, not one step inside it. */}
           {props.imageUrl && (
-            <Image
-              className="mx-auto"
-              alt="Comprobante de pago"
-              src={props.imageUrl}
-              width={320}
-              height={460}
-            />
+            <VoucherViewer src={props.imageUrl} className="h-96" />
           )}
         </div>
         {isDesktop ? (
