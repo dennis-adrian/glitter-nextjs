@@ -2258,7 +2258,8 @@ export const reservationRequestRegistry = pgTable(
         'createDebtCreditTopUp',
         'releaseReservation',
         'addLatePartner',
-        'changeReservationStand'
+        'changeReservationStand',
+        'settleInvoiceShortfall'
       )`,
     ),
   ],
