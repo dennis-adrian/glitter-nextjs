@@ -34,6 +34,43 @@ describe("deriveCoverageState", () => {
     ).toBe("partial");
   });
 
+  it("does not report partial once the tender reaches the total", () => {
+    expect(
+      coverage({
+        tender: {
+          totalAmount: 400,
+          coveredAmount: 400,
+          submittedCashAmount: 0,
+        },
+      }),
+    ).toBe("awaiting_confirmation");
+  });
+
+  it("does not report overdue on a fully covered cobro", () => {
+    expect(
+      coverage({
+        dueAt: YESTERDAY,
+        tender: {
+          totalAmount: 400,
+          coveredAmount: 400,
+          submittedCashAmount: 0,
+        },
+      }),
+    ).toBe("awaiting_confirmation");
+  });
+
+  it("still reports partial just below the total", () => {
+    expect(
+      coverage({
+        tender: {
+          totalAmount: 400,
+          coveredAmount: 399,
+          submittedCashAmount: 0,
+        },
+      }),
+    ).toBe("partial");
+  });
+
   it("reports a submitted voucher as under review", () => {
     expect(
       coverage({
@@ -106,6 +143,7 @@ describe("deriveCoverageState", () => {
 
   it("labels every state in Spanish", () => {
     expect(getCoverageLabel("partial")).toBe("Parcial");
+    expect(getCoverageLabel("awaiting_confirmation")).toBe("Por confirmar");
     expect(getCoverageLabel("under_review")).toBe("En revisión");
     expect(getCoverageLabel("overdue")).toBe("Atrasado");
   });

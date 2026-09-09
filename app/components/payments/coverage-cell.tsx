@@ -4,6 +4,7 @@ import {
   AlertCircleIcon,
   CheckIcon,
   ClockIcon,
+  CircleDotIcon,
   CircleXIcon,
   MinusIcon,
   PieChartIcon,
@@ -31,6 +32,7 @@ import { cn } from "@/app/lib/utils";
 const STYLES: Record<CoverageState, string> = {
   unpaid: "bg-gray-500/15 border border-gray-400 text-gray-800",
   partial: "bg-amber-500/15 border border-amber-400 text-amber-900",
+  awaiting_confirmation: "bg-teal-500/15 border border-teal-400 text-teal-900",
   under_review: "bg-blue-500/15 border border-blue-400 text-blue-900",
   overdue: "bg-red-500/15 border border-red-400 text-red-900",
   paid: "bg-green-500/15 border border-green-500 text-green-900",
@@ -40,6 +42,7 @@ const STYLES: Record<CoverageState, string> = {
 const ICONS: Record<CoverageState, typeof MinusIcon> = {
   unpaid: MinusIcon,
   partial: PieChartIcon,
+  awaiting_confirmation: CircleDotIcon,
   under_review: ClockIcon,
   overdue: AlertCircleIcon,
   paid: CheckIcon,
@@ -49,6 +52,7 @@ const ICONS: Record<CoverageState, typeof MinusIcon> = {
 const BAR_FILL: Record<CoverageState, string> = {
   unpaid: "bg-gray-400",
   partial: "bg-amber-500",
+  awaiting_confirmation: "bg-teal-500",
   under_review: "bg-blue-500",
   overdue: "bg-red-500",
   paid: "bg-green-500",

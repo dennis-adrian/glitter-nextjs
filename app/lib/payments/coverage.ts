@@ -16,6 +16,7 @@ import type { InvoiceTender } from "@/app/lib/payments/tender";
 export type CoverageState =
   | "unpaid"
   | "partial"
+  | "awaiting_confirmation"
   | "under_review"
   | "overdue"
   | "paid"
@@ -35,6 +36,7 @@ export type CoverageInput = {
 const LABELS: Record<CoverageState, string> = {
   unpaid: "Sin pagar",
   partial: "Parcial",
+  awaiting_confirmation: "Por confirmar",
   under_review: "En revisión",
   overdue: "Atrasado",
   paid: "Pagado",
@@ -68,6 +70,16 @@ export function deriveCoverageState(input: CoverageInput): CoverageState {
     invoiceStatus === "verification_payment" || tender.submittedCashAmount > 0;
   if (hasSubmittedProof) return "under_review";
 
+  // Everything owed has been tendered and nobody has closed the cobro yet —
+  // the state "Confirmar reserva" exists to resolve. Reached by correcting an
+  // amount down to exactly the credits already applied, which the
+  // AMOUNT_BELOW_CREDITS guard permits (it refuses only *below*). Neither
+  // "Parcial" nor "Atrasado" is true of it: no money is missing, so a deadline
+  // it has already met cannot make it late.
+  if (tender.coveredAmount >= tender.totalAmount && tender.totalAmount > 0) {
+    return "awaiting_confirmation";
+  }
+
   const dueAt = toDate(input.dueAt);
   const now = input.now ?? new Date();
   const isOverdue =
@@ -76,6 +88,8 @@ export function deriveCoverageState(input: CoverageInput): CoverageState {
     reservationStatus !== "accepted";
   if (isOverdue) return "overdue";
 
+  // Strictly between nothing and everything. The upper bound is what makes
+  // "Parcial" honest.
   return tender.coveredAmount > 0 ? "partial" : "unpaid";
 }
 
@@ -85,6 +99,7 @@ export const COVERAGE_FILTER_OPTIONS: {
 }[] = [
   { value: "unpaid", label: LABELS.unpaid },
   { value: "partial", label: LABELS.partial },
+  { value: "awaiting_confirmation", label: LABELS.awaiting_confirmation },
   { value: "under_review", label: LABELS.under_review },
   { value: "overdue", label: LABELS.overdue },
   { value: "paid", label: LABELS.paid },

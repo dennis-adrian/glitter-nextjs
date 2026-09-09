@@ -256,14 +256,15 @@ single extra query keyed by invoice id is.
 Delete `DisplayPaymentStatus` and `mapPaymentStatusToDisplayPaymentStatus`. Replace with a derivation
 over `(invoice.status, tender, invoice.dueAt, reservation.status, now)`:
 
-| State          | Condition                                                        | Label       |
-| -------------- | ---------------------------------------------------------------- | ----------- |
-| `unpaid`       | `covered = 0`, no submitted proof                                | Sin pagar   |
-| `partial`      | `0 < covered < total`, no submitted proof                        | Parcial     |
-| `under_review` | a `submitted` settlement exists                                  | En revisión |
-| `overdue`      | `unpaid` or `partial`, `dueAt < now`, reservation not `accepted` | Atrasado    |
-| `paid`         | `invoice.status = 'paid'`                                        | Pagado      |
-| `cancelled`    | `invoice.status = 'cancelled'`                                   | Cancelado   |
+| State                   | Condition                                                        | Label         |
+| ----------------------- | ---------------------------------------------------------------- | ------------- |
+| `unpaid`                | `covered = 0`, no submitted proof                                | Sin pagar     |
+| `partial`               | `0 < covered < total`, no submitted proof                        | Parcial       |
+| `awaiting_confirmation` | `covered >= total`, invoice not yet `paid`                       | Por confirmar |
+| `under_review`          | a `submitted` settlement exists                                  | En revisión   |
+| `overdue`               | `unpaid` or `partial`, `dueAt < now`, reservation not `accepted` | Atrasado      |
+| `paid`                  | `invoice.status = 'paid'`                                        | Pagado        |
+| `cancelled`             | `invoice.status = 'cancelled'`                                   | Cancelado     |
 
 `overdue` reads `invoices.due_at`, fixing §5.4 for every consumer at once. `invoice-card.tsx` drops its
 `PAYMENT_DUE_DAYS` constant and calls the same derivation.
@@ -408,9 +409,11 @@ override any preset.
 `owner` is the invoice holder — the person who owes and whose credits apply. `artists` is everyone on
 the stand. They are different questions and the current pages each answer only one.
 
-`features` summarises `reservation_feature_actions` (`full_table_access`, `late_partner`,
-`reservation_release`) — the other way credits attach to a reservation, currently invisible on both
-pages.
+`features` summarises what the reservation occupies beyond a plain half table: **Mesa completa** when
+more than one unreleased member row stands, **Compartida** when `bookedParticipantCount` exceeds one.
+It reads the member rows the query already loads rather than `reservation_feature_actions`, which no
+console query loads — the feature-action rows are written by `full-table-service` and would each cost
+a join for a column that only needs to say what the space is.
 
 `reviewAge` is how long the oldest `submitted` settlement has waited. It is the queue's actual sort key.
 
