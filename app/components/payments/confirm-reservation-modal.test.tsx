@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/components/payments/forms/confirm-reservation-form", () => ({
@@ -67,6 +67,26 @@ describe("ConfirmReservationModal", () => {
     expect(proof.getAttribute("src")).toContain(
       encodeURIComponent("https://files.example.com/voucher.png"),
     );
+  });
+
+  it("holds the frame at a fixed height so nothing shifts when the image lands", () => {
+    renderModal();
+
+    const frame = screen.getByAltText("Comprobante de pago").parentElement!;
+    // Sized by the container, not by the image's own ratio, so the dialog
+    // measures the same before and after the fetch resolves.
+    expect(frame.className).toContain("h-72");
+    expect(frame.className).toContain("relative");
+  });
+
+  it("stops the skeleton even when the image fails, so it cannot pulse forever", () => {
+    renderModal();
+
+    const proof = screen.getByAltText("Comprobante de pago");
+    expect(document.querySelector(".animate-pulse")).not.toBeNull();
+
+    fireEvent.error(proof);
+    expect(document.querySelector(".animate-pulse")).toBeNull();
   });
 
   it("still offers the full-size original as a secondary way out", () => {
