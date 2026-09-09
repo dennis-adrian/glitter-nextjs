@@ -14,8 +14,9 @@ import {
   getExternalParticipantStandColors,
   getPublicStandColors,
 } from "@/app/components/maps/map-utils";
-import MapPinchHint from "@/app/components/maps/map-pinch-hint";
 import MapSurface from "@/app/components/maps/map-surface";
+import MapToolbar from "@/app/components/maps/map-toolbar";
+import { cn } from "@/app/lib/utils";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
 import { hasExternalParticipants } from "@/app/components/maps/map-participants";
@@ -37,6 +38,13 @@ type FestivalNavMapCanvasProps = {
   matchingStandIds?: number[] | null;
   activityUserIds: StandActivityUserIds;
   sectorName: string;
+  /**
+   * Shown beside the zoom controls. Passed in rather than rendered by the
+   * caller so the name and the controls share one row: they are the same
+   * header, and stacking them cost a strip of vertical space on a page that is
+   * mostly map.
+   */
+  sectorLabel?: string;
   onStandSelect: (
     stand: StandWithReservationsWithParticipants,
     sectorName: string,
@@ -61,6 +69,7 @@ export default function FestivalNavMapCanvas({
   matchingStandIds,
   activityUserIds,
   sectorName,
+  sectorLabel,
   onStandSelect,
 }: FestivalNavMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,7 +148,7 @@ export default function FestivalNavMapCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden rounded-lg border"
+      className="w-full"
       style={{
         // Set from the real height of sticky controls (explorer or standalone
         // map). The fallback is for callers that have none.
@@ -153,31 +162,54 @@ export default function FestivalNavMapCanvas({
         maxScale={4}
         centerOnInit
       >
-        <TransformComponent
-          wrapperStyle={{ width: "100%" }}
-          contentStyle={{ width: "100%" }}
+        {/* Above the frame rather than floating over it, as the admin map does:
+            the visitor's own stand can sit anywhere on the canvas, and controls
+            overlaying a corner would cover somebody's space. The sector name
+            shares the row; the rule under it is what separates one sector from
+            the next when they are listed together. */}
+        <div
+          className={cn(
+            "flex w-full items-center gap-2 pb-2",
+            sectorLabel && "mb-2 border-b px-4 pt-2",
+          )}
         >
-          <MapSurface
-            stands={visibleStands}
-            mapElements={mapElements}
-            mapBounds={mapBounds}
-            selectedStandId={selectedStandId}
-            highlightedStandId={locateRequest?.standId}
-            highlightRequestId={locateRequest?.requestId}
-            dimmedStandIds={dimmedStandIdSet}
-            getColors={getNavStandColors}
-            onStandClick={handleStandSelect}
-            onStandTouchTap={handleStandSelect}
-          >
-            <FestivalNavStandBadges
-              stands={occupiedStands}
-              activityUserIds={activityUserIds}
-              dimmedStandIds={dimmedStandIdSet}
-            />
-          </MapSurface>
-        </TransformComponent>
+          {/* leading-8 matches the control buttons' h-8, so the row is one even
+              band rather than a short label beside taller buttons. */}
+          {sectorLabel && (
+            <p className="text-lg font-semibold text-muted-foreground">
+              {sectorLabel}
+            </p>
+          )}
+          <div className="ml-auto">
+            <MapToolbar />
+          </div>
+        </div>
 
-        <MapPinchHint className="bottom-12 pointer-events-none" />
+        <div className="relative w-full overflow-hidden rounded-lg border">
+          <TransformComponent
+            wrapperStyle={{ width: "100%" }}
+            contentStyle={{ width: "100%" }}
+          >
+            <MapSurface
+              stands={visibleStands}
+              mapElements={mapElements}
+              mapBounds={mapBounds}
+              selectedStandId={selectedStandId}
+              highlightedStandId={locateRequest?.standId}
+              highlightRequestId={locateRequest?.requestId}
+              dimmedStandIds={dimmedStandIdSet}
+              getColors={getNavStandColors}
+              onStandClick={handleStandSelect}
+              onStandTouchTap={handleStandSelect}
+            >
+              <FestivalNavStandBadges
+                stands={occupiedStands}
+                activityUserIds={activityUserIds}
+                dimmedStandIds={dimmedStandIdSet}
+              />
+            </MapSurface>
+          </TransformComponent>
+        </div>
       </MapTransformWrapper>
     </div>
   );
