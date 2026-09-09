@@ -1824,7 +1824,7 @@ export async function adminConfirmReservation(
 
   const parsed = parseUnknown(adminConfirmReservationSchema, input);
   if (!parsed.success) return reservationFailure("VALIDATION");
-  const { invoiceId, idempotencyKey, markAsPaid } = parsed.data;
+  const { invoiceId, idempotencyKey } = parsed.data;
 
   try {
     const outcome = await db.transaction(async (tx) => {
@@ -1833,10 +1833,7 @@ export async function adminConfirmReservation(
         requestKey: idempotencyKey,
         operation: "adminConfirmReservation",
         actorUserId: actor.id,
-        scope: {
-          invoiceId,
-          markAsPaid: markAsPaid === true,
-        },
+        scope: { invoiceId },
       });
       if (claim.kind === "conflict") {
         return reservationFailure("CONFLICT_RETRY");
@@ -1924,7 +1921,7 @@ export async function adminConfirmReservation(
           .limit(1);
         const proofUrl = currentPayment?.voucherUrl ?? null;
         const fileKey = currentPayment?.fileKey ?? null;
-        if (markAsPaid === true || proofUrl) {
+        if (proofUrl) {
           if (!proofUrl || !fileKey) {
             return finish(reservationFailure("VALIDATION"));
           }

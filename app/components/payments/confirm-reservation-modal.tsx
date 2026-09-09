@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { AlertCircleIcon, ExternalLinkIcon } from "lucide-react";
 
-import { Checkbox } from "@/app/components/ui/checkbox";
 import {
   DrawerDialog,
   DrawerDialogContent,
@@ -21,31 +19,19 @@ type ConfirmReservationModalProps = {
   invoice: InvoiceWithParticipants;
   show: boolean;
   onOpenChange: (open: boolean) => void;
-  canMarkAsPaid?: boolean;
 };
 
 export default function ConfirmReservationModal({
   invoice,
   show,
   onOpenChange,
-  canMarkAsPaid = false,
 }: ConfirmReservationModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  const [markAsPaid, setMarkAsPaid] = useState(false);
-  const canSettleInvoice =
-    invoice.status === "pending" || invoice.status === "verification_payment";
   const standLabel = formatStandLabel(invoice.reservation.stand);
   const voucherUrl = findLatestActivePaymentProof(invoice.payments)?.voucherUrl;
 
   return (
-    <DrawerDialog
-      isDesktop={isDesktop}
-      open={show}
-      onOpenChange={(open) => {
-        if (!open) setMarkAsPaid(false);
-        onOpenChange(open);
-      }}
-    >
+    <DrawerDialog isDesktop={isDesktop} open={show} onOpenChange={onOpenChange}>
       <DrawerDialogContent isDesktop={isDesktop} className="sm:max-w-md">
         <DrawerDialogHeader isDesktop={isDesktop}>
           <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
@@ -55,8 +41,8 @@ export default function ConfirmReservationModal({
             Confirmar reserva
           </DrawerDialogTitle>
           <DrawerDialogDescription isDesktop={isDesktop}>
-            Se confirmará el espacio {standLabel} y se notificará por correo a
-            las personas de la reserva.
+            Se confirmará el espacio {standLabel}, el cobro quedará como pagado
+            y se notificará por correo a las personas de la reserva.
           </DrawerDialogDescription>
         </DrawerDialogHeader>
 
@@ -73,33 +59,9 @@ export default function ConfirmReservationModal({
             </a>
           )}
 
-          {canSettleInvoice && canMarkAsPaid && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
-              <Checkbox
-                checked={markAsPaid}
-                onCheckedChange={(checked) => setMarkAsPaid(checked === true)}
-                className="mt-0.5"
-              />
-              <span className="space-y-1">
-                <span className="block text-sm font-medium">
-                  Marcar el pago como pagado
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  {invoice.status === "verification_payment"
-                    ? "El comprobante está en revisión. Confirmá solo si el pago es válido."
-                    : "El pago todavía figura como pendiente."}
-                </span>
-              </span>
-            </label>
-          )}
-
           <ConfirmReservationForm
             invoice={invoice}
-            markAsPaid={canSettleInvoice && markAsPaid}
-            onSuccess={() => {
-              setMarkAsPaid(false);
-              onOpenChange(false);
-            }}
+            onSuccess={() => onOpenChange(false)}
           />
         </div>
       </DrawerDialogContent>

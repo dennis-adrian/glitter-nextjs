@@ -65,7 +65,6 @@ export const submitZeroValueInvoiceSchema = z.object({
 export const adminConfirmReservationSchema = z.object({
   invoiceId: positiveIntSchema,
   idempotencyKey: uuidSchema,
-  markAsPaid: z.boolean().optional(),
 });
 
 export const releaseInvoiceCreditsSchema = z.object({

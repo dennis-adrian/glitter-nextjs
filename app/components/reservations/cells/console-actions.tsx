@@ -294,7 +294,6 @@ export function ConsoleActionsCell({
             show={openConfirm}
             onOpenChange={setOpenConfirm}
             invoice={invoiceWithReservation}
-            canMarkAsPaid
           />
           <ApplyDiscountDialog
             invoice={invoiceWithReservation}
