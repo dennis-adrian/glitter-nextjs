@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircleIcon, ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import Image from "next/image";
 
 import {
@@ -35,9 +35,6 @@ export default function ConfirmReservationModal({
     <DrawerDialog isDesktop={isDesktop} open={show} onOpenChange={onOpenChange}>
       <DrawerDialogContent isDesktop={isDesktop} className="sm:max-w-md">
         <DrawerDialogHeader isDesktop={isDesktop}>
-          <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-            <AlertCircleIcon className="h-5 w-5" />
-          </div>
           <DrawerDialogTitle isDesktop={isDesktop}>
             Confirmar reserva
           </DrawerDialogTitle>
