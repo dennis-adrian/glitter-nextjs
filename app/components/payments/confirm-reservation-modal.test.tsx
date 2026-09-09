@@ -79,7 +79,7 @@ describe("ConfirmReservationModal", () => {
     const summary = screen.getByRole("dialog").querySelector("dl")!.textContent;
     // The reason this row exists: an admin checking a Bs350 voucher against a
     // Bs370 cobro would otherwise think it short.
-    expect(summary).toContain("Debe decir el comprobante");
+    expect(summary).toContain("Monto en el comprobante");
     expect(summary).toContain("Bs350");
     expect(summary).toContain("Ya cubierto");
     expect(summary).toContain("−Bs20");

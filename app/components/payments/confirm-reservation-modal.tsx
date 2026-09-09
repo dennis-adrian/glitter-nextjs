@@ -90,7 +90,7 @@ export default function ConfirmReservationModal({
               </div>
             )}
             <div className="flex justify-between gap-4 border-t pt-1 font-medium">
-              <dt>Debe decir el comprobante</dt>
+              <dt>Monto en el comprobante</dt>
               <dd className="tabular-nums">Bs{expected}</dd>
             </div>
             {proof && (
