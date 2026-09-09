@@ -48,6 +48,10 @@ export const RESERVATION_ERROR_CODES = [
   "STAND_CHANGE_EXCHANGE_NOT_CONFIRMED",
   "STAND_CHANGE_INVOICE_SETTLED",
   "STAND_CHANGE_PROOF_UNDER_REVIEW",
+  "AMOUNT_BELOW_CREDITS",
+  "CREDITS_NOT_RELEASABLE",
+  "CREDITS_ALREADY_RELEASED",
+  "NOTHING_COVERED",
   "VALIDATION",
 ] as const;
 
@@ -159,8 +163,49 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     // after it was uploaded.
     STAND_CHANGE_PROOF_UNDER_REVIEW:
       "Hay un comprobante en revisión para esta reserva. Resolvelo antes de moverla a un espacio con otro precio.",
+    AMOUNT_BELOW_CREDITS:
+      "El monto no puede quedar por debajo de los créditos ya aplicados. Devolvé los créditos antes de bajarlo.",
+    CREDITS_NOT_RELEASABLE:
+      "No hay créditos aplicados que devolver, o hay un comprobante en revisión. Resolvelo primero.",
+    CREDITS_ALREADY_RELEASED: "Estos créditos ya fueron devueltos.",
+    NOTHING_COVERED:
+      "No hay saldo cubierto para confirmar. Usá la confirmación normal.",
     VALIDATION: "Los datos enviados no son válidos. Revisá e intentá de nuevo.",
   };
+
+/**
+ * Admin phrasings for the codes an operator can actually hit.
+ *
+ * The default messages address the participant — "No tenés créditos", "Ya
+ * tenés una compra en revisión" — and admin surfaces render them verbatim, so
+ * an operator ends up reading about their own balance while looking at
+ * somebody else's cobro.
+ */
+const ADMIN_ERROR_MESSAGES: Partial<Record<ReservationErrorCode, string>> = {
+  UNAUTHORIZED: "Solo un administrador global puede hacer esto.",
+  INVOICE_NOT_PENDING: "Este cobro ya no admite esa acción.",
+  INVOICE_NOT_OWNED: "Este cobro pertenece a otra persona.",
+  PAYMENT_AMOUNT_MISMATCH:
+    "Lo tendido no coincide con el monto del cobro. Revisá créditos y comprobante, o confirmá con saldo pendiente.",
+  INSUFFICIENT_CREDITS: "La persona no tiene créditos confirmados suficientes.",
+  CREDIT_TOP_UP_UNDER_REVIEW:
+    "La persona tiene una compra de créditos en revisión para este cobro.",
+  PAYMENT_ALREADY_SUBMITTED:
+    "Ya hay un comprobante en revisión para este cobro.",
+  CONFLICT_RETRY:
+    "Otro cambio ocurrió al mismo tiempo. Actualizá la página e intentá de nuevo.",
+};
+
+/** The message for `code`, phrased for whoever is going to read it. */
+export function reservationErrorMessage(
+  code: ReservationErrorCode,
+  audience: "participant" | "admin" = "participant",
+): string {
+  if (audience === "admin") {
+    return ADMIN_ERROR_MESSAGES[code] ?? RESERVATION_ERROR_MESSAGES[code];
+  }
+  return RESERVATION_ERROR_MESSAGES[code];
+}
 
 export type ReservationActionResult<T = undefined> =
   | { success: true; data: T; message: string }
@@ -174,6 +219,18 @@ export function reservationFailure(
     success: false,
     code,
     message: message ?? RESERVATION_ERROR_MESSAGES[code],
+  };
+}
+
+/** `reservationFailure` for a command only an admin can issue. */
+export function adminReservationFailure(
+  code: ReservationErrorCode,
+  message?: string,
+): Extract<ReservationActionResult, { success: false }> {
+  return {
+    success: false,
+    code,
+    message: message ?? reservationErrorMessage(code, "admin"),
   };
 }
 

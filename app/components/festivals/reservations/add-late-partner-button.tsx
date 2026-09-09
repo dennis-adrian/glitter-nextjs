@@ -221,7 +221,7 @@ export default function AddLatePartnerButton({
             </dl>
 
             <p className="text-sm text-muted-foreground">
-              Tu pago inicial se mantendrá. Esto se paga aparte, con créditos.
+              Tu cobro original no cambia. Esto se paga aparte, con créditos.
               {deadlineLabel
                 ? ` Podés agregar a alguien hasta el ${deadlineLabel}.`
                 : null}

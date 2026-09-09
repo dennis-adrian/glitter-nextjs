@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/app/components/ui/button";
+import VoucherViewer from "@/app/components/payments/voucher-viewer";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
   DrawerDialog,
@@ -10,9 +11,7 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/components/ui/drawer-dialog";
-import Image from "next/image";
 import { adminConfirmReservationAction } from "@/app/lib/reservations/payment-actions";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";
@@ -20,7 +19,12 @@ import SubmitButton from "@/app/components/simple-submit-button";
 import { useMemo } from "react";
 
 type PaymentProofModalProps = {
-  invoice: InvoiceWithParticipants;
+  /**
+   * Only the id and the reservation's status are read here. Kept structural so
+   * both the invoice-rooted and reservation-rooted rows can pass their own
+   * shape without one being converted into the other.
+   */
+  invoice: { id: number; reservation: { status: string } };
   imageUrl?: string;
   show: boolean;
   onOpenChange: (open: boolean) => void;
@@ -29,10 +33,7 @@ type PaymentProofModalProps = {
 export default function PaymentProofModal(props: PaymentProofModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const form = useForm();
-  const confirmIntentKey = useMemo(
-    () => crypto.randomUUID(),
-    [props.imageUrl],
-  );
+  const confirmIntentKey = useMemo(() => crypto.randomUUID(), [props.imageUrl]);
   const isReservationConfirmed =
     props.invoice.reservation.status === "accepted";
   const action = form.handleSubmit(async () => {
@@ -67,14 +68,10 @@ export default function PaymentProofModal(props: PaymentProofModalProps) {
           </DrawerDialogTitle>
         </DrawerDialogHeader>
         <div className={`${isDesktop ? "" : "px-4"} py-4`}>
+          {/* Taller than the confirm dialog's frame: showing the comprobante
+              is this modal's entire purpose, not one step inside it. */}
           {props.imageUrl && (
-            <Image
-              className="mx-auto"
-              alt="Comprobante de pago"
-              src={props.imageUrl}
-              width={320}
-              height={460}
-            />
+            <VoucherViewer src={props.imageUrl} className="h-96" />
           )}
         </div>
         {isDesktop ? (

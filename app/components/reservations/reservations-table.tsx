@@ -1,25 +1,35 @@
-import { FullReservation } from "@/app/api/reservations/definitions";
+"use client";
+
+import { FullReservationWithTender } from "@/app/api/reservations/definitions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { externalParticipantTypeOptions } from "@/app/lib/external_participants/definitions";
-import { DisplayPaymentStatus } from "@/app/lib/payments/helpers";
+import { COVERAGE_FILTER_OPTIONS } from "@/app/lib/payments/coverage";
+import {
+  lensInitialState,
+  type ConsoleLens,
+} from "@/app/lib/reservations/console-lenses";
 import { userCategoryOptions } from "@/app/lib/utils";
 import { columns, columnTitles } from "./columns";
 
 export default function ReservationsTable({
   data,
+  canMutate = false,
+  lens = "reservas",
 }: {
-  data: FullReservation[];
+  data: FullReservationWithTender[];
+  canMutate?: boolean;
+  /** Which column preset to open on. Everything stays reachable via the view menu. */
+  lens?: ConsoleLens;
 }) {
   return (
     <DataTable
-      columns={columns}
+      // Remounts on a lens change so the preset's visibility and filters take
+      // effect; initialState is only read when the table is created.
+      key={lens}
+      columns={columns(canMutate)}
       data={data}
       columnTitles={columnTitles}
-      initialState={{
-        columnVisibility: {
-          festivalId: false,
-        },
-      }}
+      initialState={lensInitialState(lens)}
       filters={[
         {
           label: "Estado de la reserva",
@@ -32,30 +42,9 @@ export default function ReservationsTable({
           ],
         },
         {
-          label: "Estado del pago",
-          columnId: "paymentStatus",
-          options: [
-            {
-              value: DisplayPaymentStatus.PENDING,
-              label: DisplayPaymentStatus.PENDING,
-            },
-            {
-              value: DisplayPaymentStatus.UNDER_REVIEW,
-              label: DisplayPaymentStatus.UNDER_REVIEW,
-            },
-            {
-              value: DisplayPaymentStatus.OUTSTANDING,
-              label: DisplayPaymentStatus.OUTSTANDING,
-            },
-            {
-              value: DisplayPaymentStatus.PAID,
-              label: DisplayPaymentStatus.PAID,
-            },
-            {
-              value: DisplayPaymentStatus.CANCELLED,
-              label: DisplayPaymentStatus.CANCELLED,
-            },
-          ],
+          label: "Pago",
+          columnId: "coverage",
+          options: COVERAGE_FILTER_OPTIONS,
         },
         {
           label: "Categoría",

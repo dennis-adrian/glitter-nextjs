@@ -21,8 +21,8 @@ import {
 import { DataTableViewOptions } from "@/app/components/ui/data_table/column-toggle";
 import { DataTableBody } from "@/app/components/ui/data_table/data-table-body";
 import { DataTableHeader } from "@/app/components/ui/data_table/data-table-header";
-import { DataTableFilter } from "@/app/components/ui/data_table/filter";
-import { DataTableFilters } from "@/app/components/ui/data_table/filters";
+import { DataTableActiveFilters } from "@/app/components/ui/data_table/active-filters";
+import { DataTableFacetFilter } from "@/app/components/ui/data_table/facet-filter";
 import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
 import type { TableDensity } from "@/app/components/ui/data_table/density-toggle";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -236,8 +236,8 @@ export function DataTable<TData, TValue>({
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-60 items-center py-2 sm:min-w-80">
             <span className="relative left-3 top-1/2 w-0">
               <SearchIcon className="h-4 w-4 text-gray-500" />
@@ -249,25 +249,39 @@ export function DataTable<TData, TValue>({
               className="max-w-sm pl-10"
             />
           </div>
-          {filters.length > 0 && (
-            <DataTableFilters>
-              {filters.map(({ columnId, options, label }, index) => (
-                <DataTableFilter
-                  key={index}
-                  columnId={columnId}
-                  label={label}
-                  options={options}
-                  table={table}
-                />
-              ))}
-            </DataTableFilters>
-          )}
+          {/* One control per filter group. They used to share a single
+              "Filtros" dropdown, which put every option of every group into
+              one scrolling list and showed nothing about what was applied. */}
+          {filters.map(({ columnId, options, label }) => (
+            <DataTableFacetFilter
+              key={columnId}
+              columnId={columnId}
+              label={label ?? "Filtro"}
+              options={options}
+              table={table}
+            />
+          ))}
         </div>
-        <div className="flex items-center gap-2">
+        {/* ml-auto so the view controls stay right-aligned when the filter
+            pills wrap onto their own line on a narrow screen. */}
+        <div className="ml-auto flex items-center gap-2">
           {typeof actions === "function" ? actions(table) : actions}
           <DataTableViewOptions table={table} columnTitles={columnTitles} />
         </div>
       </div>
+
+      {filters.length > 0 && (
+        <DataTableActiveFilters
+          filters={filters.map(({ columnId, options, label }) => ({
+            columnId,
+            label: label ?? "Filtro",
+            options,
+          }))}
+          table={table}
+          visibleCount={table.getFilteredRowModel().rows.length}
+          totalCount={table.getPreFilteredRowModel().rows.length}
+        />
+      )}
       <div className="mb-4 rounded-md border">
         <Table wrapperClassName="max-h-[calc(100dvh-16rem)]">
           <DataTableHeader table={table} density={density} />
