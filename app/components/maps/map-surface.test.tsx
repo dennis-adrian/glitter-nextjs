@@ -115,7 +115,9 @@ describe("MapSurface joint groups", () => {
     );
 
     expect(seen).toHaveLength(1);
-    expect(seen[0]).toHaveLength(2);
+    // Both members, in render order: the predicate has to be able to compare
+    // the halves it is deciding about, not just count them.
+    expect(seen[0]).toEqual([7, 8]);
   });
 
   it("keeps ungrouped stands rendering individually", () => {

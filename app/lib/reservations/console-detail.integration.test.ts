@@ -116,8 +116,15 @@ describeDatabase("reservation console detail", () => {
       // enforced by a trigger; it is dropped only for this delete and restored
       // immediately, so no test runs against a database that is missing it.
       // Reversals go first — they point at the spend under the same rule.
+      //
+      // One transaction, so the ACCESS EXCLUSIVE lock `ALTER TABLE` takes is
+      // held until the trigger is back: outside one, the lock drops the moment
+      // the disable commits and a concurrent test file could append to an
+      // unguarded ledger. A rollback reverts the disable too — DDL is
+      // transactional here — so a failed delete cannot leave it off.
       const client = await pool!.connect();
       try {
+        await client.query("BEGIN");
         await client.query(
           "ALTER TABLE credit_ledger_entries DISABLE TRIGGER credit_ledger_entries_append_only",
         );
@@ -130,10 +137,14 @@ describeDatabase("reservation console detail", () => {
           `DELETE FROM credit_ledger_entries WHERE user_id = ANY($1::int[])`,
           [fixture.userIds],
         );
-      } finally {
         await client.query(
           "ALTER TABLE credit_ledger_entries ENABLE TRIGGER credit_ledger_entries_append_only",
         );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
         client.release();
       }
       await db
