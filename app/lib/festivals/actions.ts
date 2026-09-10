@@ -1234,8 +1234,13 @@ export async function fetchFestivalParticipants(
       },
     });
   } catch (error) {
+    // Rethrown, not swallowed. Returning [] asserted the festival had no
+    // participants, so a query that could not run rendered as an empty table
+    // and read as a plausible answer — that is how an unresolvable `users`
+    // relation sat here undetected. The route's error boundary says what
+    // happened instead.
     console.error("Error fetching festival participants", error);
-    return [];
+    throw error;
   }
 }
 
@@ -1286,8 +1291,11 @@ export async function fetchEnrolledParticipants(
       .map((userRequest) => userRequest.users)
       .filter((user): user is NonNullable<typeof user> => user !== null);
   } catch (error) {
-    console.error(error);
-    return [];
+    // Same reasoning as `fetchFestivalParticipants`: this feeds the other tab
+    // of the same table, and an empty list there is indistinguishable from
+    // nobody having enrolled.
+    console.error("Error fetching enrolled participants", error);
+    throw error;
   }
 }
 
