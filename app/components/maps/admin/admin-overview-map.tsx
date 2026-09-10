@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { getAdminOverviewColors } from "@/app/components/maps/map-utils";
+import type { JointGroup } from "@/app/lib/stands/groups";
 import MapSurface from "@/app/components/maps/map-surface";
 import MapToolbar from "@/app/components/maps/map-toolbar";
 import ZoomableMapFrame from "@/app/components/maps/zoomable-map-frame";
@@ -23,7 +24,7 @@ import { hasExternalParticipants } from "@/app/components/maps/map-participants"
 
 type AdminOverviewMapProps = {
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
-  invoices: InvoiceWithParticipants[];
+  invoices: InvoiceWithTender[];
 };
 
 const LEGEND_ITEMS = [
@@ -110,7 +111,10 @@ export default function AdminOverviewMap({
   const visibleStands = activeSector?.stands ?? [];
 
   const reservationSummaries = useMemo(() => {
-    const summaries = new Map<number, StandReservationSummary>();
+    const summaries = new Map<
+      number,
+      StandReservationSummary<InvoiceWithTender>
+    >();
 
     for (const stand of sectors.flatMap((sector) => sector.stands)) {
       summaries.set(stand.id, getStandReservationSummary(invoices, stand.id));
@@ -120,7 +124,7 @@ export default function AdminOverviewMap({
   }, [invoices, sectors]);
 
   const getReservationSummary = useCallback(
-    (standId: number): StandReservationSummary =>
+    (standId: number): StandReservationSummary<InvoiceWithTender> =>
       reservationSummaries.get(standId) ?? {
         activeInvoice: null,
         cancelledInvoices: [],
@@ -129,9 +133,26 @@ export default function AdminOverviewMap({
   );
 
   const findInvoiceForStand = useCallback(
-    (standId: number): InvoiceWithParticipants | null =>
+    (standId: number): InvoiceWithTender | null =>
       getReservationSummary(standId).activeInvoice,
     [getReservationSummary],
+  );
+
+  /**
+   * A full table: every stand of an admin-declared group held by one
+   * reservation. The physical group only says the stands *can* be joined; this
+   * says the booking actually took them together, which is what an admin needs
+   * to see at a glance and what makes one colour and one drawer honest.
+   */
+  const joinFullTableGroups = useCallback(
+    (group: JointGroup<StandWithReservationsWithParticipants>) => {
+      const reservationIds = group.stands.map(
+        (stand) => findInvoiceForStand(stand.id)?.reservation.id ?? null,
+      );
+      const [first] = reservationIds;
+      return first != null && reservationIds.every((id) => id === first);
+    },
+    [findInvoiceForStand],
   );
 
   const getReservationStatus = useCallback(
@@ -367,10 +388,11 @@ export default function AdminOverviewMap({
         <MapSurface
           stands={visibleStands}
           mapElements={activeSector?.mapElements ?? []}
-          // Stand color here encodes each stand's own payment state, which two
-          // members of a group can disagree on. Joining them would show only
-          // the first member's status.
-          joinGroups={false}
+          // Stand color encodes each stand's own payment state, which two
+          // members of a group can disagree on — so only the groups one
+          // reservation holds end to end are drawn joined. Those share an
+          // invoice, so the single outline cannot hide a difference.
+          joinGroups={joinFullTableGroups}
           selectedStandId={drawerOpen ? (selectedStand?.id ?? null) : null}
           getColors={(stand) =>
             getAdminOverviewColors(

@@ -7,6 +7,7 @@ import {
 } from "@/app/api/users/definitions";
 import { InvoiceWithPaymentsAndOwner } from "@/app/data/invoices/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import type { FeatureCreditSummary } from "@/app/lib/payments/feature-credits";
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 import {
@@ -101,4 +102,10 @@ export type FullReservation = ReservationBase & {
  */
 export type FullReservationWithTender = FullReservation & {
   tender: InvoiceTender | null;
+  /**
+   * Credits charged to the reservation through feature actions — adding a
+   * partner, taking the full table — which never touch the invoice and so are
+   * absent from `tender`. Totals zero when the reservation cost none.
+   */
+  featureCredits: FeatureCreditSummary;
 };

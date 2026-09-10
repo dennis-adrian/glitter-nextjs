@@ -18,6 +18,9 @@ import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
 import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { formatMoney } from "@/app/lib/formatters";
+import { featureCreditReason } from "@/app/lib/payments/feature-credits";
+import { shortfallWriteOff } from "@/app/lib/payments/tender";
 import { settleInvoiceShortfallAction } from "@/app/lib/reservations/payment-actions";
 
 export default function SettleShortfallDialog({
@@ -43,11 +46,13 @@ export default function SettleShortfallDialog({
   );
   const router = useRouter();
 
-  const { tender } = invoice;
+  const { tender, featureCredits } = invoice;
   // A voucher still in review counts towards the settled amount: approving it
-  // is part of this command.
-  const settledAmount = tender.coveredAmount + tender.submittedCashAmount;
-  const writtenOff = Math.max(0, tender.totalAmount - settledAmount);
+  // is part of this command. Shared with the menu that opens this dialog so
+  // the two can never disagree about whether there is anything to write off.
+  const writtenOff = shortfallWriteOff(tender);
+  const settledAmount = tender.totalAmount - writtenOff;
+  const extras = featureCredits.total > 0 ? featureCredits : null;
 
   async function handleSettle() {
     const trimmed = reason.trim();
@@ -97,16 +102,73 @@ export default function SettleShortfallDialog({
             Confirmar con saldo pendiente
           </DrawerDialogTitle>
           <DrawerDialogDescription isDesktop={isDesktop}>
-            El cobro #{invoice.id} bajará de Bs{tender.totalAmount} a Bs
-            {settledAmount} y la reserva quedará confirmada.
+            El cobro #{invoice.id} bajará de {formatMoney(tender.totalAmount)} a{" "}
+            {formatMoney(settledAmount)} y la reserva quedará confirmada.
           </DrawerDialogDescription>
         </DrawerDialogHeader>
 
         <div className="space-y-3 px-4 md:px-0">
+          {/* What actually covers the cobro, itemised. This command exists
+              because credits can leave an invoice partially covered, so an
+              admin deciding what to write off has to see which part of the
+              coverage is credits and which is a voucher nobody has approved
+              yet. */}
+          <dl className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Total del cobro</dt>
+              <dd className="tabular-nums">
+                {formatMoney(tender.totalAmount)}
+              </dd>
+            </div>
+            {tender.confirmedCreditAmount > 0 && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Créditos aplicados</dt>
+                <dd className="tabular-nums">
+                  {formatMoney(tender.confirmedCreditAmount)}
+                </dd>
+              </div>
+            )}
+            {tender.approvedCashAmount > 0 && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">QR aprobado</dt>
+                <dd className="tabular-nums">
+                  {formatMoney(tender.approvedCashAmount)}
+                </dd>
+              </div>
+            )}
+            {tender.submittedCashAmount > 0 && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">
+                  QR en revisión (se aprobará)
+                </dt>
+                <dd className="tabular-nums">
+                  {formatMoney(tender.submittedCashAmount)}
+                </dd>
+              </div>
+            )}
+            <div className="flex justify-between gap-4 border-t pt-1 font-medium">
+              <dt>Se dará por pagado</dt>
+              <dd className="tabular-nums">{formatMoney(writtenOff)}</dd>
+            </div>
+          </dl>
+
           <Banner variant="warning">
-            Se dará por pagado Bs{writtenOff} que nadie tendió. Queda registrado
-            en el historial de la reserva con este motivo.
+            Se dará por pagado {formatMoney(writtenOff)} que nadie pagó. Queda
+            registrado en el historial de la reserva con este motivo.
           </Banner>
+
+          {/* The reservation's other ledger, kept out of the arithmetic above:
+              these credits settled an extra, not this cobro, so they neither
+              cover it nor reduce what is being written off. */}
+          {extras && (
+            <p className="text-xs text-muted-foreground">
+              Además, la reserva tiene {formatMoney(extras.total)} en créditos
+              por extras
+              {extras.types.length > 0 &&
+                ` (${featureCreditReason(extras.types)})`}
+              , cobrados aparte y fuera de este cobro.
+            </p>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="settle-shortfall-reason">Motivo</Label>

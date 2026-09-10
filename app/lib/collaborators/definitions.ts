@@ -1,3 +1,4 @@
+import { ReservationStandMember } from "@/app/api/reservations/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
 import {
   collaborators,
@@ -11,7 +12,9 @@ export type ReservationCollaboration =
 
 export type ReservationCollaborationWithRelations = ReservationCollaboration & {
   reservation: {
+    /** The originally selected half; `members` is what is occupied. */
     stand: StandBase;
+    members: ReservationStandMember[];
     festival: FestivalWithDates;
   };
   collaborator: typeof collaborators.$inferSelect;

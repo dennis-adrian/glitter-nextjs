@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeInvoiceTender,
   isOverAllocated,
+  shortfallWriteOff,
   type InvoiceTenderInput,
 } from "@/app/lib/payments/tender";
 
@@ -140,5 +141,83 @@ describe("computeInvoiceTender", () => {
     });
     expect(result.approvedCashAmount).toBe(0);
     expect(result.outstandingAmount).toBe(0);
+  });
+});
+
+describe("pendingZeroValueRequest", () => {
+  it("is set while a zero-value entitlement awaits review", () => {
+    const result = tender({
+      submissions: [
+        {
+          paymentId: null,
+          status: "submitted",
+          kind: "zero_value_entitlement",
+        },
+      ],
+    });
+    expect(result.pendingZeroValueRequest).toBe(true);
+  });
+
+  it("is not set once that request has been decided", () => {
+    const result = tender({
+      submissions: [
+        { paymentId: null, status: "approved", kind: "zero_value_entitlement" },
+      ],
+    });
+    expect(result.pendingZeroValueRequest).toBe(false);
+  });
+
+  it("is not set for an ordinary voucher in review", () => {
+    const result = tender({
+      payments: [{ id: 1, amount: 400 }],
+      submissions: [
+        { paymentId: 1, status: "submitted", kind: "payment_proof" },
+      ],
+    });
+    expect(result.pendingZeroValueRequest).toBe(false);
+  });
+});
+
+describe("shortfallWriteOff", () => {
+  it("is nothing when credits plus a voucher in review reach the total", () => {
+    // The ordinary credited reservation: Bs20 of credits and a Bs350 voucher
+    // against a Bs370 cobro. The saldo reads Bs350 because the voucher is not
+    // approved yet, but approving it is part of the same command, so there is
+    // nothing left to write off — and the control that used to be gated on the
+    // saldo was offered here and always failed.
+    const result = tender({
+      amount: 370,
+      allocations: [{ amount: 20, reversed: false }],
+      payments: [{ id: 1, amount: 350 }],
+      submissions: [{ paymentId: 1, status: "submitted" }],
+    });
+    expect(result.outstandingAmount).toBe(350);
+    expect(shortfallWriteOff(result)).toBe(0);
+  });
+
+  it("is the gap credits alone leave with no voucher", () => {
+    const result = tender({
+      amount: 370,
+      allocations: [{ amount: 120, reversed: false }],
+    });
+    expect(shortfallWriteOff(result)).toBe(250);
+  });
+
+  it("is the remainder a short voucher does not close", () => {
+    const result = tender({
+      amount: 370,
+      allocations: [{ amount: 20, reversed: false }],
+      payments: [{ id: 1, amount: 300 }],
+      submissions: [{ paymentId: 1, status: "submitted" }],
+    });
+    expect(shortfallWriteOff(result)).toBe(50);
+  });
+
+  it("never goes negative on an over-covered invoice", () => {
+    const result = tender({
+      amount: 100,
+      allocations: [{ amount: 150, reversed: false }],
+    });
+    expect(shortfallWriteOff(result)).toBe(0);
   });
 });

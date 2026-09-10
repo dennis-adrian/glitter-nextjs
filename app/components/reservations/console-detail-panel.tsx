@@ -4,6 +4,10 @@ import { CoinsIcon, FileTextIcon, HistoryIcon } from "lucide-react";
 
 import { Badge } from "@/app/components/ui/badge";
 import { formatDateWithTime } from "@/app/lib/formatters";
+import {
+  featureActionLabel,
+  featureItemLabel,
+} from "@/app/lib/payments/feature-credits";
 import type {
   ConsoleEvent,
   ReservationConsoleDetail,
@@ -64,6 +68,37 @@ function describePayload(event: ConsoleEvent): string | null {
     default:
       break;
   }
+
+  // The feature commands tag their payload `action` rather than `kind`, so
+  // every one of them fell through to a bare "Cambio de estado" — including
+  // the late partner, the one event that explains why a reservation billed for
+  // one person is standing with two.
+  switch (record.action) {
+    case "late_partner_added": {
+      const total = money(record.totalCredits);
+      const difference = money(record.sharedPriceDifference);
+      const feature = money(record.featurePrice);
+      if (!total) return "Agregó un compañero";
+      return difference && feature
+        ? `Agregó un compañero: ${total} en créditos (${difference} de diferencia + ${feature} de la función)`
+        : `Agregó un compañero: ${total} en créditos`;
+    }
+    case "full_table_manually_downgraded":
+      return "Bajó la reserva a media mesa";
+    case "reservation_released": {
+      const price = money(record.creditPrice);
+      return price
+        ? `Liberó el espacio: ${price} en créditos`
+        : "Liberó el espacio";
+    }
+    case "stand_switched":
+      return "Cambió de espacio";
+    case "stand_exchanged":
+      return "Intercambió el espacio con otra reserva";
+    default:
+      break;
+  }
+
   if (reason) return reason;
   if (typeof record.correction === "string") {
     return `Corrección: ${record.correction}`;
@@ -83,7 +118,10 @@ export default function ConsoleDetailPanel({
 }: {
   detail: ReservationConsoleDetail;
 }) {
-  const { allocations, submissions, events } = detail;
+  const { allocations, featureCredits, submissions, events } = detail;
+  const charged = featureCredits.filter(
+    (action) => action.amount > 0 && !action.reversed,
+  );
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
@@ -116,6 +154,51 @@ export default function ConsoleDetailPanel({
               </li>
             ))}
           </ul>
+        )}
+
+        {/*
+          The reservation's other credit ledger, kept visually separate from
+          the allocations above because it settles a different thing: these
+          credits bought the reservation an extra, they did not cover the
+          cobro. Folding the two totals together would make the outstanding
+          balance read as smaller than it is.
+        */}
+        {charged.length > 0 && (
+          <div className="space-y-2 border-t pt-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              Créditos gastados en la reserva
+            </p>
+            <ul className="space-y-2">
+              {charged.map((action) => (
+                <li key={action.actionId} className="text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Bs{action.amount}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {featureActionLabel(action.type)}
+                    </span>
+                  </div>
+                  {action.items.length > 0 && (
+                    <ul className="mt-0.5 space-y-0.5">
+                      {action.items.map((item) => (
+                        <li
+                          key={`${action.actionId}-${item.kind}`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          {featureItemLabel(item.kind)}: Bs{item.amount}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateWithTime(action.createdAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              No cubren el cobro; se pagaron aparte con créditos.
+            </p>
+          </div>
         )}
       </section>
 

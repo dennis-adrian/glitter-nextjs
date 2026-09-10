@@ -196,8 +196,17 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   profileTags: many(profileTags),
   profileSubcategories: many(profileSubcategories),
   userBadges: many(userBadges),
-  infractions: many(infractions),
-  sanctions: many(sanctions),
+  // Named on both sides: `infractions` has four relations to `users` (the
+  // person sanctioned, plus who created, resolved and voided it), and without
+  // a name on this pair the relational query builder cannot tell which one
+  // `users.infractions` inverts. It threw on every read, and the festival
+  // participants page caught that and rendered an empty table.
+  infractions: many(infractions, { relationName: "userInfractions" }),
+  // Same pairing as `infractions` above: `sanctions` also carries created,
+  // approved and revoked relations to `users`, so this one needs a name to be
+  // resolvable. Nothing reads it yet; without this the first caller that does
+  // would hit the same error.
+  sanctions: many(sanctions, { relationName: "userSanctions" }),
   createdSanctions: many(sanctions, {
     relationName: "createdSanctions",
   }),
@@ -3857,6 +3866,7 @@ export const infractionsRelations = relations(infractions, ({ one, many }) => ({
   user: one(users, {
     fields: [infractions.userId],
     references: [users.id],
+    relationName: "userInfractions",
   }),
   type: one(infractionTypes, {
     fields: [infractions.typeId],
@@ -4163,6 +4173,7 @@ export const sanctionsRelations = relations(sanctions, ({ one, many }) => ({
   user: one(users, {
     fields: [sanctions.userId],
     references: [users.id],
+    relationName: "userSanctions",
   }),
   /** @deprecated Prefer `sanctionInfractions`. */
   infraction: one(infractions, {

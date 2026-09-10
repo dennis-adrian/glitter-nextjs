@@ -110,6 +110,49 @@ describeDatabase("reservation console detail", () => {
           .delete(standReservations)
           .where(inArray(standReservations.id, reservationIds));
       }
+      // Before the festival goes: `credit_ledger_entries.feature_action_id`
+      // and `.user_id` are both `on delete restrict`, so a spend left standing
+      // would block the cascade. The ledger is append-only in production,
+      // enforced by a trigger; it is dropped only for this delete and restored
+      // immediately, so no test runs against a database that is missing it.
+      // Reversals go first — they point at the spend under the same rule.
+      //
+      // One transaction, so the ACCESS EXCLUSIVE lock `ALTER TABLE` takes is
+      // held until the trigger is back: outside one, the lock drops the moment
+      // the disable commits and a concurrent test file could append to an
+      // unguarded ledger. A rollback reverts the disable too — DDL is
+      // transactional here — so a failed delete cannot leave it off.
+      const client = await pool!.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          "ALTER TABLE credit_ledger_entries DISABLE TRIGGER credit_ledger_entries_append_only",
+        );
+        await client.query(
+          `DELETE FROM credit_ledger_entries
+           WHERE user_id = ANY($1::int[]) AND reverses_entry_id IS NOT NULL`,
+          [fixture.userIds],
+        );
+        await client.query(
+          `DELETE FROM credit_ledger_entries WHERE user_id = ANY($1::int[])`,
+          [fixture.userIds],
+        );
+        await client.query(
+          "ALTER TABLE credit_ledger_entries ENABLE TRIGGER credit_ledger_entries_append_only",
+        );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+      await db
+        .delete(schema.reservationFeatureActions)
+        .where(
+          eq(schema.reservationFeatureActions.festivalId, fixture.festivalId),
+        );
+
       await db.delete(stands).where(eq(stands.festivalId, fixture.festivalId));
       await db
         .delete(festivalSectors)
@@ -379,14 +422,143 @@ describeDatabase("reservation console detail", () => {
     expect(await fetchReservationConsoleDetail(reservation.id)).toBeNull();
   });
 
+  it("reports the credits a reservation spent on features, itemised", async () => {
+    const { festival, owner, reservation } = await seedReservation();
+    const db = integrationDb!;
+
+    const [action] = await db
+      .insert(schema.reservationFeatureActions)
+      .values({
+        festivalId: festival.id,
+        reservationId: reservation.id,
+        ownerUserId: owner.id,
+        type: "late_partner",
+        status: "fulfilled",
+        featurePriceSnapshot: 20,
+        individualPriceSnapshot: 370,
+        sharedPriceSnapshot: 400,
+      })
+      .returning();
+    await db.insert(schema.reservationFeatureActionItems).values([
+      {
+        featureActionId: action.id,
+        kind: "shared_price_difference",
+        amount: 30,
+        descriptionSnapshot: "Diferencia",
+      },
+      { featureActionId: action.id, kind: "feature_access", amount: 20 },
+    ]);
+    await db.insert(schema.creditLedgerEntries).values({
+      userId: owner.id,
+      amount: -50,
+      type: "spend",
+      featureActionId: action.id,
+      idempotencyKey: `cd-spend-${action.id}`,
+    });
+
+    const detail = await fetchReservationConsoleDetail(reservation.id);
+
+    // Nothing was allocated to the cobro; the 50 credits bought the second
+    // seat. Reading only allocations is what made this reservation look as
+    // though it had been paid for one person.
+    expect(detail!.allocations).toEqual([]);
+    expect(detail!.featureCredits).toHaveLength(1);
+    expect(detail!.featureCredits[0]).toMatchObject({
+      type: "late_partner",
+      amount: 50,
+      reversed: false,
+    });
+    expect(
+      detail!.featureCredits[0].items.map(({ kind, amount }) => ({
+        kind,
+        amount,
+      })),
+    ).toEqual([
+      { kind: "shared_price_difference", amount: 30 },
+      { kind: "feature_access", amount: 20 },
+    ]);
+  });
+
+  it("charges nothing for a feature action whose spend never posted", async () => {
+    const { festival, owner, reservation } = await seedReservation();
+    const db = integrationDb!;
+
+    // The ordinary shape of a full-table hold that was never captured: the
+    // action row stands, priced, with no ledger entry behind it. Summing
+    // `feature_price_snapshot` instead would invent a charge nobody paid.
+    await db.insert(schema.reservationFeatureActions).values({
+      festivalId: festival.id,
+      reservationId: reservation.id,
+      ownerUserId: owner.id,
+      type: "full_table_access",
+      status: "cancelled",
+      featurePriceSnapshot: 20,
+    });
+
+    const detail = await fetchReservationConsoleDetail(reservation.id);
+
+    expect(detail!.featureCredits).toHaveLength(1);
+    expect(detail!.featureCredits[0]).toMatchObject({ amount: 0, items: [] });
+  });
+
+  it("marks a feature spend that was later refunded as reversed", async () => {
+    const { festival, owner, reservation } = await seedReservation();
+    const db = integrationDb!;
+
+    const [action] = await db
+      .insert(schema.reservationFeatureActions)
+      .values({
+        festivalId: festival.id,
+        reservationId: reservation.id,
+        ownerUserId: owner.id,
+        type: "reservation_release",
+        status: "fulfilled",
+        featurePriceSnapshot: 20,
+      })
+      .returning();
+    const [spend] = await db
+      .insert(schema.creditLedgerEntries)
+      .values({
+        userId: owner.id,
+        amount: -20,
+        type: "spend",
+        featureActionId: action.id,
+        idempotencyKey: `cd-spend-rev-${action.id}`,
+      })
+      .returning();
+    await db.insert(schema.creditLedgerEntries).values({
+      userId: owner.id,
+      amount: 20,
+      type: "admin_adjustment",
+      reversesEntryId: spend.id,
+      idempotencyKey: `cd-refund-${action.id}`,
+    });
+
+    const detail = await fetchReservationConsoleDetail(reservation.id);
+
+    // Same predicate the tender uses for a released allocation, so a refunded
+    // feature reads the same way a returned credit does.
+    expect(detail!.featureCredits[0]).toMatchObject({
+      amount: 20,
+      reversed: true,
+    });
+  });
+
   it("returns empty history for a reservation with no invoice", async () => {
     const { reservation } = await seedReservation();
 
     const detail = await fetchReservationConsoleDetail(reservation.id);
 
     // The invoice-scoped queries are skipped entirely rather than run against
-    // an empty id list, so this asserts that path still answers.
-    expect(detail).toEqual({ allocations: [], submissions: [], events: [] });
+    // an empty id list, so this asserts that path still answers. Feature
+    // credits are keyed by reservation, not invoice, so they are queried even
+    // here — and come back empty because this reservation bought no extras.
+    expect(detail).toEqual({
+      featureCredits: [],
+      allocations: [],
+      submissions: [],
+      events: [],
+    });
   });
 
   it("keeps every event row it was given", async () => {

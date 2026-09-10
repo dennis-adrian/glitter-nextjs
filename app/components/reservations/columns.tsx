@@ -20,9 +20,8 @@ import { Badge } from "@/app/components/ui/badge";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
-import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
 import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
-import { formatDate, formatDateWithTime } from "@/app/lib/formatters";
+import { formatDateWithTime } from "@/app/lib/formatters";
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
@@ -54,6 +53,42 @@ function reservationCoverageState(
   });
 }
 
+/**
+ * Where a reservation's credits went — the two answers are independent.
+ *
+ * `invoice` is an allocation against the cobro, which lowers the saldo.
+ * `features` is a feature action, which does not: it bought the reservation an
+ * extra and left the cobro exactly as it was. A reservation can carry both, so
+ * this returns every source that applies rather than picking one.
+ */
+export type CreditSource = "invoice" | "features" | "none";
+
+function creditSourcesFor(
+  reservation: FullReservationWithTender,
+): CreditSource[] {
+  const sources: CreditSource[] = [];
+  if ((reservation.tender?.confirmedCreditAmount ?? 0) > 0) {
+    sources.push("invoice");
+  }
+  if (reservation.featureCredits.total > 0) sources.push("features");
+  return sources.length > 0 ? sources : ["none"];
+}
+
+const CREDIT_SOURCE_LABELS: Record<CreditSource, string> = {
+  invoice: "Aplicados al cobro",
+  features: "Extras con crédito",
+  none: "Sin créditos",
+};
+
+export const CREDIT_SOURCE_FILTER_OPTIONS: {
+  value: CreditSource;
+  label: string;
+}[] = [
+  { value: "invoice", label: CREDIT_SOURCE_LABELS.invoice },
+  { value: "features", label: CREDIT_SOURCE_LABELS.features },
+  { value: "none", label: CREDIT_SOURCE_LABELS.none },
+];
+
 export const columnTitles = {
   artists: "Participantes",
   cashAmount: "QR",
@@ -61,6 +96,7 @@ export const columnTitles = {
   coverage: "Pago",
   createdAt: "Creación",
   creditAmount: "Créditos",
+  creditSource: "Origen de créditos",
   dueAt: "Vencimiento",
   features: "Extras",
   festivalId: "Festival",
@@ -108,8 +144,13 @@ function reviewWaitingSince(
 }
 
 /**
- * The optional features charged to this reservation — the other way credits
- * attach to it, invisible on both of the previous screens.
+ * The optional features charged to this reservation, and what they cost.
+ *
+ * The shape alone was misleading: a reservation could read "Compartida" beside
+ * a Total that was the individual price and a Créditos column of "--", because
+ * the credits that bought the second seat were spent through a feature action
+ * and never allocated to the invoice. Naming the figure here is what connects
+ * the two participants to the money that paid for them.
  */
 function featureSummary(reservation: FullReservationWithTender): string {
   const parts: string[] = [];
@@ -117,6 +158,9 @@ function featureSummary(reservation: FullReservationWithTender): string {
     parts.push("Mesa completa");
   }
   if (reservation.bookedParticipantCount > 1) parts.push("Compartida");
+  if (reservation.featureCredits.total > 0) {
+    parts.push(`Bs${reservation.featureCredits.total} en créditos`);
+  }
   return parts.join(" · ");
 }
 
@@ -394,6 +438,7 @@ export const columns = (
           state={state}
           tender={row.original.tender}
           dueAt={row.original.invoices[0]?.dueAt}
+          featureCredits={row.original.featureCredits}
         />
       );
     },
@@ -490,6 +535,35 @@ export const columns = (
     cell: ({ row }) => {
       const dueAt = row.original.invoices[0]?.dueAt;
       return dueAt ? formatDateWithTime(dueAt) : "--";
+    },
+  },
+  {
+    // Hidden in every preset: `creditAmount` and `features` already say how
+    // much and for what. This exists so the créditos lens can open on the
+    // reservations it claims to be about, as a filter an admin can see in the
+    // bar and clear — not as a silent narrowing of the data.
+    id: "creditSource",
+    accessorFn: (row) =>
+      creditSourcesFor(row)
+        .map((source) => CREDIT_SOURCE_LABELS[source])
+        .join(" · "),
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.creditSource}
+      />
+    ),
+    cell: ({ row }) =>
+      creditSourcesFor(row.original)
+        .map((source) => CREDIT_SOURCE_LABELS[source])
+        .join(" · "),
+    filterFn: (row, _columnId, filter) => {
+      if (!filter || !Array.isArray(filter) || filter.length === 0) return true;
+      // A reservation with both sources matches either selection, so the two
+      // options read as "or", the way the lens describes itself.
+      return creditSourcesFor(row.original).some((source) =>
+        filter.includes(source),
+      );
     },
   },
   {

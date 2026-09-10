@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ReservationConsoleDetail } from "@/app/lib/reservations/console-detail";
 import { fetchReservationConsoleDetailAction } from "@/app/lib/reservations/payment-actions";
-import { EMPTY_TENDER } from "@/app/lib/payments/tender";
+import { EMPTY_TENDER, shortfallWriteOff } from "@/app/lib/payments/tender";
 import { isActivePaymentProof } from "@/app/lib/payments/helpers";
 
 /**
@@ -89,6 +89,8 @@ export function ConsoleActionsCell({
 
   const invoice = reservation.invoices[0];
   const tender = reservation.tender ?? EMPTY_TENDER;
+  const featureCredits = reservation.featureCredits;
+  const writeOff = shortfallWriteOff(tender);
   const hasProof = invoice?.payments.some(isActivePaymentProof) ?? false;
   const settled = invoice?.status === "paid" || invoice?.status === "cancelled";
   const underReview = invoice?.status === "verification_payment";
@@ -101,7 +103,7 @@ export function ConsoleActionsCell({
   // The invoice-rooted dialogs still expect the invoice to carry its
   // reservation; this row has them the other way around.
   const invoiceWithReservation = invoice
-    ? { ...invoice, reservation, tender }
+    ? { ...invoice, reservation, tender, featureCredits }
     : null;
 
   return (
@@ -161,7 +163,17 @@ export function ConsoleActionsCell({
                   ? "No hay saldo cubierto para confirmar"
                   : tender.outstandingAmount <= 0
                     ? "No hay saldo pendiente; usá la confirmación normal"
-                    : undefined)
+                    : tender.pendingZeroValueRequest
+                      ? "Hay una solicitud de reserva sin costo en revisión. Resolvela primero"
+                      : // Not `outstandingAmount`: the command settles down to
+                        // everything tendered, a voucher in review included. On
+                        // the ordinary credited reservation — credits plus one
+                        // closing voucher — the saldo is large and the write-off
+                        // is nothing, and this item used to be offered anyway
+                        // and always failed.
+                        writeOff <= 0
+                        ? "El comprobante en revisión cubre el saldo; usá la confirmación normal"
+                        : undefined)
             }
             onSelect={() => setOpenShortfall(true)}
           >
@@ -296,6 +308,7 @@ export function ConsoleActionsCell({
             show={openConfirm}
             onOpenChange={setOpenConfirm}
             invoice={invoiceWithReservation}
+            featureCredits={featureCredits}
           />
           <ApplyDiscountDialog
             invoice={invoiceWithReservation}

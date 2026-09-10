@@ -14,6 +14,8 @@ import {
   fetchInvoiceTenders,
   tenderFor,
 } from "@/app/lib/payments/tender-queries";
+import { summarizeFeatureCredits } from "@/app/lib/payments/feature-credits";
+import { fetchReservationFeatureCredits } from "@/app/lib/payments/feature-credits-queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
   canMutateReservationCollaborators,
@@ -287,16 +289,22 @@ export async function fetchReservationsByFestivalId(
         ),
       ),
     );
-    const tenders = await fetchInvoiceTenders(
-      [...invoiceAmounts.keys()],
-      invoiceAmounts,
-    );
+    // The reservation's other ledger: credits spent on features never reach
+    // the invoice, so a reservation billed for one person can be standing with
+    // two and nothing in `tender` says how.
+    const [tenders, featureCredits] = await Promise.all([
+      fetchInvoiceTenders([...invoiceAmounts.keys()], invoiceAmounts),
+      fetchReservationFeatureCredits(reservations.map(({ id }) => id)),
+    ]);
 
     return reservations.map((reservation) => {
       const invoice = reservation.invoices[0];
       return {
         ...reservation,
         tender: invoice ? tenderFor(tenders, invoice.id) : null,
+        featureCredits: summarizeFeatureCredits(
+          featureCredits.get(reservation.id) ?? [],
+        ),
       };
     });
   } catch (error) {

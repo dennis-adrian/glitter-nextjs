@@ -1,3 +1,4 @@
+import { ReservationStandMember } from "@/app/api/reservations/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
 import { InfractionType } from "@/app/lib/infractions/definitions";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
@@ -46,7 +47,9 @@ export type ParticipationWithParticipantWithInfractionsAndReservations =
       })[];
     };
     reservation: typeof standReservations.$inferSelect & {
+      /** The originally selected half; `members` is what is occupied. */
       stand: StandBase;
+      members: ReservationStandMember[];
     };
   };
 

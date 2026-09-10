@@ -2,6 +2,8 @@ import "server-only";
 
 import { asc, eq, inArray } from "drizzle-orm";
 
+import { type FeatureCreditAction } from "@/app/lib/payments/feature-credits";
+import { fetchReservationFeatureCredits } from "@/app/lib/payments/feature-credits-queries";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -45,6 +47,12 @@ export type ConsoleEvent = {
 
 export type ReservationConsoleDetail = {
   allocations: ConsoleAllocation[];
+  /**
+   * The reservation's other credit ledger. Allocations answer "what covered
+   * the cobro"; these answer "what else did this reservation cost", which is
+   * the only place a late partner's credits are recorded.
+   */
+  featureCredits: FeatureCreditAction[];
   submissions: ConsoleSubmission[];
   events: ConsoleEvent[];
 };
@@ -80,80 +88,85 @@ export async function fetchReservationConsoleDetail(
   const invoiceIds = invoiceRows.map((row) => row.id);
 
   const reviewer = users;
-  const [allocationRows, submissionRows, eventRows] = await Promise.all([
-    invoiceIds.length === 0
-      ? Promise.resolve([])
-      : db
-          .select({
-            id: invoiceCreditAllocations.id,
-            amount: invoiceCreditAllocations.amount,
-            createdAt: invoiceCreditAllocations.createdAt,
-            reversedAt: creditLedgerEntries.createdAt,
-          })
-          .from(invoiceCreditAllocations)
-          .leftJoin(
-            creditLedgerEntries,
-            eq(
-              creditLedgerEntries.reversesEntryId,
-              invoiceCreditAllocations.ledgerEntryId,
+  const [featureCredits, allocationRows, submissionRows, eventRows] =
+    await Promise.all([
+      // Keyed by reservation, not invoice: a feature action is charged to the
+      // reservation and survives its invoice being cancelled and replaced.
+      fetchReservationFeatureCredits([reservationId]),
+      invoiceIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({
+              id: invoiceCreditAllocations.id,
+              amount: invoiceCreditAllocations.amount,
+              createdAt: invoiceCreditAllocations.createdAt,
+              reversedAt: creditLedgerEntries.createdAt,
+            })
+            .from(invoiceCreditAllocations)
+            .leftJoin(
+              creditLedgerEntries,
+              eq(
+                creditLedgerEntries.reversesEntryId,
+                invoiceCreditAllocations.ledgerEntryId,
+              ),
+            )
+            .where(inArray(invoiceCreditAllocations.invoiceId, invoiceIds))
+            // `id` breaks ties: allocations made in one transaction share a
+            // createdAt, and across two invoices so can unrelated ones.
+            .orderBy(
+              asc(invoiceCreditAllocations.createdAt),
+              asc(invoiceCreditAllocations.id),
             ),
-          )
-          .where(inArray(invoiceCreditAllocations.invoiceId, invoiceIds))
-          // `id` breaks ties: allocations made in one transaction share a
-          // createdAt, and across two invoices so can unrelated ones.
-          .orderBy(
-            asc(invoiceCreditAllocations.createdAt),
-            asc(invoiceCreditAllocations.id),
-          ),
-    invoiceIds.length === 0
-      ? Promise.resolve([])
-      : db
-          .select({
-            id: invoiceSettlementSubmissions.id,
-            kind: invoiceSettlementSubmissions.kind,
-            status: invoiceSettlementSubmissions.status,
-            voucherUrl: invoiceSettlementSubmissions.voucherUrl,
-            rejectionReason: invoiceSettlementSubmissions.rejectionReason,
-            reviewedAt: invoiceSettlementSubmissions.reviewedAt,
-            reviewerName: reviewer.displayName,
-            createdAt: invoiceSettlementSubmissions.createdAt,
-          })
-          .from(invoiceSettlementSubmissions)
-          .leftJoin(
-            reviewer,
-            eq(reviewer.id, invoiceSettlementSubmissions.reviewedByUserId),
-          )
-          .where(inArray(invoiceSettlementSubmissions.invoiceId, invoiceIds))
-          .orderBy(
-            asc(invoiceSettlementSubmissions.createdAt),
-            asc(invoiceSettlementSubmissions.id),
-          ),
-    db
-      .select({
-        id: standReservationEvents.id,
-        eventType: standReservationEvents.eventType,
-        fromStatus: standReservationEvents.fromStatus,
-        toStatus: standReservationEvents.toStatus,
-        payload: standReservationEvents.payload,
-        createdAt: standReservationEvents.createdAt,
-        actorName: users.displayName,
-      })
-      .from(standReservationEvents)
-      .leftJoin(users, eq(users.id, standReservationEvents.actorUserId))
-      .where(eq(standReservationEvents.reservationId, reservationId))
-      // Same tiebreaker as the two queries above, and this one needs it most:
-      // `created_at` defaults to `now()`, which is transaction start time, so
-      // every event a single command writes ties exactly. Settling a shortfall
-      // writes two, and without `id` the panel could show the approval above
-      // the status change that caused it — backwards, in a list that reads as
-      // a chronology.
-      .orderBy(
-        asc(standReservationEvents.createdAt),
-        asc(standReservationEvents.id),
-      ),
-  ]);
+      invoiceIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({
+              id: invoiceSettlementSubmissions.id,
+              kind: invoiceSettlementSubmissions.kind,
+              status: invoiceSettlementSubmissions.status,
+              voucherUrl: invoiceSettlementSubmissions.voucherUrl,
+              rejectionReason: invoiceSettlementSubmissions.rejectionReason,
+              reviewedAt: invoiceSettlementSubmissions.reviewedAt,
+              reviewerName: reviewer.displayName,
+              createdAt: invoiceSettlementSubmissions.createdAt,
+            })
+            .from(invoiceSettlementSubmissions)
+            .leftJoin(
+              reviewer,
+              eq(reviewer.id, invoiceSettlementSubmissions.reviewedByUserId),
+            )
+            .where(inArray(invoiceSettlementSubmissions.invoiceId, invoiceIds))
+            .orderBy(
+              asc(invoiceSettlementSubmissions.createdAt),
+              asc(invoiceSettlementSubmissions.id),
+            ),
+      db
+        .select({
+          id: standReservationEvents.id,
+          eventType: standReservationEvents.eventType,
+          fromStatus: standReservationEvents.fromStatus,
+          toStatus: standReservationEvents.toStatus,
+          payload: standReservationEvents.payload,
+          createdAt: standReservationEvents.createdAt,
+          actorName: users.displayName,
+        })
+        .from(standReservationEvents)
+        .leftJoin(users, eq(users.id, standReservationEvents.actorUserId))
+        .where(eq(standReservationEvents.reservationId, reservationId))
+        // Same tiebreaker as the two queries above, and this one needs it most:
+        // `created_at` defaults to `now()`, which is transaction start time, so
+        // every event a single command writes ties exactly. Settling a shortfall
+        // writes two, and without `id` the panel could show the approval above
+        // the status change that caused it — backwards, in a list that reads as
+        // a chronology.
+        .orderBy(
+          asc(standReservationEvents.createdAt),
+          asc(standReservationEvents.id),
+        ),
+    ]);
 
   return {
+    featureCredits: featureCredits.get(reservationId) ?? [],
     allocations: allocationRows.map((row) => ({
       id: row.id,
       amount: Number(row.amount),
