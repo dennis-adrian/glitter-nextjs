@@ -45,6 +45,14 @@ type FestivalNavMapCanvasProps = {
    * mostly map.
    */
   sectorLabel?: string;
+  /**
+   * Heading level for `sectorLabel`. The standalone map puts an `h1` above
+   * these, so 2 is right there; the explorer embeds the map under its own
+   * section heading, where 3 keeps the outline nested instead of flat. The
+   * canvas takes the level rather than a flag, so it never has to know which
+   * page it is on.
+   */
+  sectorHeadingLevel?: 2 | 3;
   onStandSelect: (
     stand: StandWithReservationsWithParticipants,
     sectorName: string,
@@ -70,8 +78,10 @@ export default function FestivalNavMapCanvas({
   activityUserIds,
   sectorName,
   sectorLabel,
+  sectorHeadingLevel = 2,
   onStandSelect,
 }: FestivalNavMapCanvasProps) {
+  const SectorHeading = `h${sectorHeadingLevel}` as const;
   const containerRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const visibleStands = useMemo(
@@ -175,12 +185,11 @@ export default function FestivalNavMapCanvas({
         >
           {/* A heading, not a paragraph: in the all-sectors view this titles
               each sector's map, and heading navigation is how a screen reader
-              user moves between them. Level 2 sits under the `h1` the
-              standalone map renders for the festival name. */}
+              user moves between them. */}
           {sectorLabel && (
-            <h2 className="text-lg font-semibold text-muted-foreground">
+            <SectorHeading className="text-lg font-semibold text-muted-foreground">
               {sectorLabel}
-            </h2>
+            </SectorHeading>
           )}
           <div className="ml-auto">
             <MapToolbar />

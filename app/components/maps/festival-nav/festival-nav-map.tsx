@@ -321,6 +321,7 @@ export default function FestivalNavMap({
                     activityUserIds={activityUserIds}
                     sectorName={sector.name}
                     sectorLabel={sectors.length > 1 ? sector.name : undefined}
+                    sectorHeadingLevel={embedded ? 3 : 2}
                     onStandSelect={handleStandSelect}
                   />
                 </div>
