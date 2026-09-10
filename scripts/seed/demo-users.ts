@@ -175,12 +175,15 @@ const LOCAL_DB_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
  *
  * An unset URL is allowed through: every caller refuses to run without one
  * before it reaches the gate, so there is no target to judge.
+ *
+ * Both the caller's env and `process.env` are checked, because they can differ
+ * and only one of them is real: the `@/db` singleton connects with
+ * `process.env.POSTGRES_URL` whatever bag was handed to this function. A gate
+ * that trusted the argument alone would approve an injected local URL while the
+ * write went somewhere else. If the two disagree, that disagreement is itself
+ * the thing worth stopping on.
  */
-function getSeedTargetGate(env: SeedEnv): SeedGateResult {
-  const url = env.POSTGRES_URL?.trim();
-  if (!url) return { allowed: true };
-  if (env.ALLOW_REMOTE_DEV_SEED === "true") return { allowed: true };
-
+function checkSeedTargetUrl(url: string): SeedGateResult {
   let hostname: string;
   try {
     hostname = new URL(url).hostname;
@@ -202,6 +205,23 @@ function getSeedTargetGate(env: SeedEnv): SeedGateResult {
       `Refusing to seed the database at ${hostname}: it is not local. ` +
       "Set ALLOW_REMOTE_DEV_SEED=true only if you are certain it is disposable.",
   };
+}
+
+function getSeedTargetGate(env: SeedEnv): SeedGateResult {
+  if (env.ALLOW_REMOTE_DEV_SEED === "true") return { allowed: true };
+
+  const urls = new Set(
+    [env.POSTGRES_URL, process.env.POSTGRES_URL]
+      .map((url) => url?.trim())
+      .filter((url): url is string => Boolean(url)),
+  );
+
+  for (const url of urls) {
+    const result = checkSeedTargetUrl(url);
+    if (!result.allowed) return result;
+  }
+
+  return { allowed: true };
 }
 
 /**

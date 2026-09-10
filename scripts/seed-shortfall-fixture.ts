@@ -39,6 +39,25 @@ async function main() {
     return;
   }
 
+  // Validated before anything connects, and kept distinct from "no argument".
+  // `Number("typo")` is NaN, which is falsy, so a mistyped id used to fall
+  // through to the same branch as omitting one and quietly seed whichever
+  // reservation the scan reached first — writing ledger entries that cannot be
+  // undone against a reservation nobody named.
+  const rawId = process.argv[2];
+  let requestedId: number | undefined;
+  if (rawId !== undefined) {
+    const parsed = Number(rawId);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      console.error(
+        `"${rawId}" is not a reservation id. Pass a positive integer, or no argument to pick one.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    requestedId = parsed;
+  }
+
   const { pool, db } = await import("@/db");
   const { getDevSeedGate } = await import("@/scripts/seed/demo-users");
 
@@ -61,8 +80,6 @@ async function main() {
   } = await import("@/db/schema");
   const { grantCreditsInTx, debitConfirmedCreditsForInvoiceInTx } =
     await import("@/app/lib/credits/service");
-
-  const requestedId = Number(process.argv[2]);
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -94,8 +111,12 @@ async function main() {
             isNull(
               sql`(SELECT 1 FROM ${invoiceCreditAllocations} WHERE ${invoiceCreditAllocations.invoiceId} = ${invoices.id} LIMIT 1)`,
             ),
-            sql`${invoices.amount} > 0`,
-            requestedId ? eq(standReservations.id, requestedId) : sql`TRUE`,
+            // At least 2 so a split can leave both sides positive: a total of
+            // 1 cannot be part-covered and still owe something.
+            sql`${invoices.amount} >= 2`,
+            requestedId !== undefined
+              ? eq(standReservations.id, requestedId)
+              : sql`TRUE`,
           ),
         )
         .orderBy(standReservations.id)
@@ -107,9 +128,14 @@ async function main() {
       }
 
       const total = Number(target.amount);
-      // Deliberately short of the total: covering it fully would settle the
-      // cobro and close the very state this fixture exists to produce.
-      const credits = Math.max(1, Math.round(total * 0.4));
+      // Strictly between nothing and everything. Covering the total in full
+      // would settle the cobro and close the very state this exists to produce,
+      // and exceeding it would over-allocate — which the real command guards
+      // against and this would otherwise walk straight into on a small total.
+      const credits = Math.min(
+        Math.max(1, Math.round(total * 0.4)),
+        Math.floor(total) - 1,
+      );
 
       const grant = await grantCreditsInTx(tx, {
         userId: target.userId,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   DEFAULT_SEED_DEMO_EMAIL_BASE,
@@ -11,6 +11,18 @@ import {
 } from "./demo-users";
 
 describe("getDevSeedGate", () => {
+  // The gate reads `process.env.POSTGRES_URL` as well as the bag it is handed,
+  // so these cases have to own it rather than inherit whatever the shell or CI
+  // happens to export.
+  const realUrl = process.env.POSTGRES_URL;
+  beforeEach(() => {
+    delete process.env.POSTGRES_URL;
+  });
+  afterEach(() => {
+    if (realUrl === undefined) delete process.env.POSTGRES_URL;
+    else process.env.POSTGRES_URL = realUrl;
+  });
+
   it("allows development clerk secrets outside production", () => {
     expect(
       getDevSeedGate({
@@ -75,6 +87,22 @@ describe("getDevSeedGate", () => {
         ALLOW_REMOTE_DEV_SEED: "true",
       }),
     ).toEqual({ allowed: true });
+  });
+
+  it("blocks when process.env names a remote database the caller's env hides", () => {
+    // `@/db` connects with process.env whatever bag reaches the gate, so an
+    // injected local URL must not vouch for a remote one.
+    process.env.POSTGRES_URL =
+      "postgresql://postgres:pw@containers-us-west-1.railway.app:6543/railway";
+    const result = getDevSeedGate({
+      CLERK_SECRET_KEY: "sk_test_abc",
+      VERCEL_ENV: "development",
+      POSTGRES_URL: "postgresql://glitter:pw@localhost:5432/glitter_dev",
+    });
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.reason).toMatch(/railway\.app/);
+    }
   });
 
   it("blocks a target it cannot parse", () => {
