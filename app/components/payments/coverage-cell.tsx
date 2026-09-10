@@ -22,6 +22,10 @@ import {
   getCoverageLabel,
   type CoverageState,
 } from "@/app/lib/payments/coverage";
+import {
+  featureCreditReason,
+  type FeatureCreditSummary,
+} from "@/app/lib/payments/feature-credits";
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { cn } from "@/app/lib/utils";
 
@@ -88,6 +92,12 @@ type CoverageCellProps = {
   state: CoverageState;
   tender: InvoiceTender;
   dueAt?: Date | string | null;
+  /**
+   * Credits the reservation spent on extras. Deliberately outside `tender` —
+   * they cover nothing here — but shown because their absence is what makes a
+   * two-participant reservation at the individual price look like a mistake.
+   */
+  featureCredits?: FeatureCreditSummary;
   /** Hides the bar and split, for dense contexts like a drawer header. */
   compact?: boolean;
 };
@@ -103,8 +113,11 @@ export default function CoverageCell({
   state,
   tender,
   dueAt,
+  featureCredits,
   compact = false,
 }: CoverageCellProps) {
+  const extras =
+    featureCredits && featureCredits.total > 0 ? featureCredits : null;
   const Icon = ICONS[state];
   const label = getCoverageLabel(state);
   const parts = breakdown(tender);
@@ -161,6 +174,12 @@ export default function CoverageCell({
               <span>Total {money(tender.totalAmount)}</span>
               <span>Cubierto {money(tender.coveredAmount)}</span>
               <span>Saldo {money(tender.outstandingAmount)}</span>
+              {extras && (
+                <span className="border-t border-border/40 pt-0.5">
+                  Extras {money(extras.total)} en créditos — cobrados aparte, no
+                  cubren este cobro
+                </span>
+              )}
               {dueAt && state === "overdue" && (
                 <span>Venció el {formatDateWithTime(new Date(dueAt))}</span>
               )}
@@ -180,6 +199,18 @@ export default function CoverageCell({
             Venció el {formatDateWithTime(new Date(dueAt))}
           </span>
         )
+      )}
+
+      {/*
+        A separate line, and prefixed, because this money is not part of the
+        bar above it. The cobro can read as the individual price and be
+        correct; this is the sentence that says why.
+      */}
+      {extras && (
+        <span className="text-xs text-muted-foreground">
+          + {money(extras.total)} en créditos
+          {extras.types.length > 0 && ` · ${featureCreditReason(extras.types)}`}
+        </span>
       )}
     </div>
   );

@@ -104,6 +104,7 @@ const ALL_COLUMNS = [
   "reviewAge",
   "dueAt",
   "features",
+  "creditSource",
   "collaborators",
   "festivalId",
   "createdAt",
@@ -119,11 +120,26 @@ export function lensInitialState(lens: ConsoleLens): DataTableInitialState {
 
   return {
     columnVisibility,
-    // The settlement queue opens on what is waiting for a decision; the other
-    // lenses open unfiltered.
-    columnFilters:
-      lens === "cobros"
-        ? [{ id: "coverage", value: ["under_review", "partial", "overdue"] }]
-        : [],
+    columnFilters: LENS_FILTERS[lens],
   };
 }
+
+/**
+ * What each lens opens on.
+ *
+ * These are defaults, not restrictions: both appear in the filter bar as
+ * removable chips, so an admin can see why rows are missing and widen the view
+ * without leaving the lens.
+ */
+const LENS_FILTERS: Record<
+  ConsoleLens,
+  NonNullable<DataTableInitialState["columnFilters"]>
+> = {
+  reservas: [],
+  // The settlement queue opens on what is waiting for a decision.
+  cobros: [{ id: "coverage", value: ["under_review", "partial", "overdue"] }],
+  // "Reservas con créditos aplicados o extras pagados con crédito" — the
+  // subtitle promised a narrowed list and the lens showed every reservation in
+  // the festival, which made the tab indistinguishable from Cobros.
+  creditos: [{ id: "creditSource", value: ["invoice", "features"] }],
+};

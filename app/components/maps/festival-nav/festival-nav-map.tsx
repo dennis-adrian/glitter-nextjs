@@ -311,11 +311,6 @@ export default function FestivalNavMap({
             <div className="flex flex-col gap-4">
               {sectors.map((sector) => (
                 <div key={sector.id} className="scroll-mt-36 md:scroll-mt-40">
-                  {sectors.length > 1 && (
-                    <p className="px-4 py-2 text-sm font-semibold text-muted-foreground border-b">
-                      {sector.name}
-                    </p>
-                  )}
                   <FestivalNavMapCanvas
                     stands={sector.stands}
                     mapElements={sector.mapElements ?? []}
@@ -325,6 +320,8 @@ export default function FestivalNavMap({
                     matchingStandIds={matchingStandIds}
                     activityUserIds={activityUserIds}
                     sectorName={sector.name}
+                    sectorLabel={sectors.length > 1 ? sector.name : undefined}
+                    sectorHeadingLevel={embedded ? 3 : 2}
                     onStandSelect={handleStandSelect}
                   />
                 </div>

@@ -9,7 +9,7 @@ import {
   type ConsoleLens,
 } from "@/app/lib/reservations/console-lenses";
 import { userCategoryOptions } from "@/app/lib/utils";
-import { columns, columnTitles } from "./columns";
+import { columns, columnTitles, CREDIT_SOURCE_FILTER_OPTIONS } from "./columns";
 
 export default function ReservationsTable({
   data,
@@ -45,6 +45,11 @@ export default function ReservationsTable({
           label: "Pago",
           columnId: "coverage",
           options: COVERAGE_FILTER_OPTIONS,
+        },
+        {
+          label: "Créditos",
+          columnId: "creditSource",
+          options: CREDIT_SOURCE_FILTER_OPTIONS,
         },
         {
           label: "Categoría",

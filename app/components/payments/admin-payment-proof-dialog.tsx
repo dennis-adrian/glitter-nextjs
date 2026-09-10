@@ -86,7 +86,7 @@ export default function AdminPaymentProofDialog({
             Subir comprobante
           </DrawerDialogTitle>
           <DrawerDialogDescription isDesktop={isDesktop}>
-            Pago #{invoice.id} · {invoice.user.displayName}
+            Cobro #{invoice.id} · {invoice.user.displayName}
           </DrawerDialogDescription>
         </DrawerDialogHeader>
         <div className="space-y-4 px-4 pb-6 md:px-0 md:pb-0">

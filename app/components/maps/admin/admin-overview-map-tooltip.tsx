@@ -14,13 +14,14 @@ import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { InvoiceWithTender } from "@/app/data/invoices/definitions";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { ClockIcon, HistoryIcon } from "lucide-react";
 
 type AdminOverviewMapTooltipProps = {
   stand: StandWithReservationsWithParticipants;
-  invoice: InvoiceWithParticipants | null;
-  cancelledInvoices: InvoiceWithParticipants[];
+  invoice: InvoiceWithTender | null;
+  cancelledInvoices: InvoiceWithTender[];
   anchorRect: DOMRect;
   dueDate?: Date | null;
   isOverdue?: boolean;
@@ -101,8 +102,10 @@ export default function AdminOverviewMapTooltip({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold">
-              Espacio {stand.label}
-              {stand.standNumber}
+              Espacio{" "}
+              {invoice
+                ? reservationStandLabel(invoice.reservation)
+                : `${stand.label ?? ""}${stand.standNumber}`}
             </p>
             {invoice && (
               <p className="text-xs text-muted-foreground">

@@ -156,6 +156,75 @@ export type SeedGateResult =
   | { allowed: false; reason: string };
 
 /**
+ * Where a dev seed is allowed to write. Anything else is somebody's data.
+ *
+ * `[::1]` carries its brackets because that is what WHATWG URL parsing returns
+ * for an IPv6 literal.
+ */
+const LOCAL_DB_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/**
+ * Refuses a seed aimed at a database that is not on this machine.
+ *
+ * The checks above this one look at credentials and at the runtime, and a
+ * Railway database reached with test Clerk keys from a local shell passes both
+ * — which is the exact combination someone has when they mean to seed and have
+ * `.env.local` pointed somewhere else. `POSTGRES_URL` has no fixed target in
+ * this project, so the host is the only thing that says what is about to be
+ * written to.
+ *
+ * An unset URL is allowed through: every caller refuses to run without one
+ * before it reaches the gate, so there is no target to judge.
+ *
+ * Both the caller's env and `process.env` are checked, because they can differ
+ * and only one of them is real: the `@/db` singleton connects with
+ * `process.env.POSTGRES_URL` whatever bag was handed to this function. A gate
+ * that trusted the argument alone would approve an injected local URL while the
+ * write went somewhere else. If the two disagree, that disagreement is itself
+ * the thing worth stopping on.
+ */
+function checkSeedTargetUrl(url: string): SeedGateResult {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return {
+      allowed: false,
+      reason:
+        "POSTGRES_URL could not be parsed, so the seed target is unknown.",
+    };
+  }
+
+  if (LOCAL_DB_HOSTNAMES.has(hostname) || hostname.endsWith(".localhost")) {
+    return { allowed: true };
+  }
+
+  return {
+    allowed: false,
+    reason:
+      `Refusing to seed the database at ${hostname}: it is not local. ` +
+      "Set ALLOW_REMOTE_DEV_SEED=true only if you are certain it is disposable.",
+  };
+}
+
+function getSeedTargetGate(env: SeedEnv): SeedGateResult {
+  if (env.ALLOW_REMOTE_DEV_SEED === "true") return { allowed: true };
+
+  const urls = new Set(
+    [env.POSTGRES_URL, process.env.POSTGRES_URL]
+      .map((url) => url?.trim())
+      .filter((url): url is string => Boolean(url)),
+  );
+
+  for (const url of urls) {
+    const result = checkSeedTargetUrl(url);
+    if (!result.allowed) return result;
+  }
+
+  return { allowed: true };
+}
+
+/**
  * Only allow seeding against a Clerk *development* secret key and a non-production
  * runtime. Preview/production Vercel deploys and live Clerk keys are refused.
  */
@@ -183,6 +252,9 @@ export function getDevSeedGate(env: SeedEnv = process.env): SeedGateResult {
       reason: "Refusing to seed when VERCEL_ENV/NODE_ENV is production.",
     };
   }
+
+  const target = getSeedTargetGate(env);
+  if (!target.allowed) return target;
 
   if (env.ALLOW_DEV_SEED === "false") {
     return { allowed: false, reason: "ALLOW_DEV_SEED=false." };

@@ -78,3 +78,17 @@ export const getFestivalDateString = (
 
   return `${startDate} - ${endDate}`;
 };
+
+/**
+ * Bolivianos as an admin reads them: no decimals on a whole number, exactly
+ * two when there are any.
+ *
+ * Several dialogs interpolated `Bs{amount}` directly, so a cobro of 370.5
+ * rendered "Bs370.5" beside a table that said "Bs370,50".
+ */
+export function formatMoney(amount: number): string {
+  return `Bs${amount.toLocaleString("es-BO", {
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}

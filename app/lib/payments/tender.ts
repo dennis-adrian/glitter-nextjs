@@ -27,6 +27,15 @@ export type InvoiceTender = {
   submittedCashAmount: number;
   coveredAmount: number;
   outstandingAmount: number;
+  /**
+   * A zero-value entitlement request is awaiting review.
+   *
+   * Carried because `settleInvoiceShortfall` refuses outright in this state —
+   * `approveSubmissionInTx` only accepts such a request on an invoice of
+   * exactly zero — and without it no screen can tell in advance, so the menu
+   * offered an action that always failed.
+   */
+  pendingZeroValueRequest: boolean;
 };
 
 export type TenderAllocationInput = {
@@ -43,6 +52,8 @@ export type TenderPaymentInput = {
 export type TenderSubmissionInput = {
   paymentId: number | null;
   status: "submitted" | "approved" | "rejected";
+  /** Absent where a caller has no need to distinguish request kinds. */
+  kind?: string | null;
 };
 
 export type InvoiceTenderInput = {
@@ -114,6 +125,12 @@ export function computeInvoiceTender(input: InvoiceTenderInput): InvoiceTender {
 
   const coveredAmount = roundMoney(approvedCashAmount + confirmedCreditAmount);
 
+  const pendingZeroValueRequest = input.submissions.some(
+    (submission) =>
+      submission.status === "submitted" &&
+      submission.kind === "zero_value_entitlement",
+  );
+
   return {
     totalAmount,
     approvedCashAmount,
@@ -123,7 +140,23 @@ export function computeInvoiceTender(input: InvoiceTenderInput): InvoiceTender {
     // Clamped: an over-allocated invoice is a bug to surface elsewhere, not a
     // negative balance to render.
     outstandingAmount: Math.max(0, roundMoney(totalAmount - coveredAmount)),
+    pendingZeroValueRequest,
   };
+}
+
+/**
+ * What `settleInvoiceShortfall` would actually write off.
+ *
+ * Not `outstandingAmount`: that command settles the invoice down to everything
+ * tendered *including* a voucher still in review, because approving it is part
+ * of the same command. On the ordinary credited reservation — some credits
+ * plus one closing voucher — the outstanding balance is large and the write-off
+ * is zero, so gating a control on the outstanding balance offered an action the
+ * server then refused.
+ */
+export function shortfallWriteOff(tender: InvoiceTender): number {
+  const settled = roundMoney(tender.coveredAmount + tender.submittedCashAmount);
+  return Math.max(0, roundMoney(tender.totalAmount - settled));
 }
 
 /** True when the tender covers more than the invoice asks for. */
@@ -138,4 +171,5 @@ export const EMPTY_TENDER: InvoiceTender = {
   submittedCashAmount: 0,
   coveredAmount: 0,
   outstandingAmount: 0,
+  pendingZeroValueRequest: false,
 };

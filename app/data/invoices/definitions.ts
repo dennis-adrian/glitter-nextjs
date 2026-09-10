@@ -1,4 +1,5 @@
 import { StandReservationWithFestival } from "@/app/api/stands/actions";
+import type { FeatureCreditSummary } from "@/app/lib/payments/feature-credits";
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { ReservationStandMember } from "@/app/api/reservations/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
@@ -67,4 +68,12 @@ export type InvoiceWithParticipants = InvoiceWithPaymentsAndStandAndProfile & {
  */
 export type InvoiceWithTender = InvoiceWithParticipants & {
   tender: InvoiceTender;
+  /**
+   * Credits the reservation spent on extras. Not part of `tender` — they
+   * settle the reservation's features, not this cobro — but carried alongside
+   * it because every screen that shows one has to be able to explain the
+   * other. A cobro at the individual price on a two-person reservation is
+   * correct, and this is the only field that says so.
+   */
+  featureCredits: FeatureCreditSummary;
 };

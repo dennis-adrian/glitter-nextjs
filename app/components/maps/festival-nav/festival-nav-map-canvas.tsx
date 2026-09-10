@@ -14,8 +14,9 @@ import {
   getExternalParticipantStandColors,
   getPublicStandColors,
 } from "@/app/components/maps/map-utils";
-import MapPinchHint from "@/app/components/maps/map-pinch-hint";
 import MapSurface from "@/app/components/maps/map-surface";
+import MapToolbar from "@/app/components/maps/map-toolbar";
+import { cn } from "@/app/lib/utils";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
 import { hasExternalParticipants } from "@/app/components/maps/map-participants";
@@ -37,6 +38,21 @@ type FestivalNavMapCanvasProps = {
   matchingStandIds?: number[] | null;
   activityUserIds: StandActivityUserIds;
   sectorName: string;
+  /**
+   * Shown beside the zoom controls. Passed in rather than rendered by the
+   * caller so the name and the controls share one row: they are the same
+   * header, and stacking them cost a strip of vertical space on a page that is
+   * mostly map.
+   */
+  sectorLabel?: string;
+  /**
+   * Heading level for `sectorLabel`. The standalone map puts an `h1` above
+   * these, so 2 is right there; the explorer embeds the map under its own
+   * section heading, where 3 keeps the outline nested instead of flat. The
+   * canvas takes the level rather than a flag, so it never has to know which
+   * page it is on.
+   */
+  sectorHeadingLevel?: 2 | 3;
   onStandSelect: (
     stand: StandWithReservationsWithParticipants,
     sectorName: string,
@@ -61,8 +77,11 @@ export default function FestivalNavMapCanvas({
   matchingStandIds,
   activityUserIds,
   sectorName,
+  sectorLabel,
+  sectorHeadingLevel = 2,
   onStandSelect,
 }: FestivalNavMapCanvasProps) {
+  const SectorHeading = `h${sectorHeadingLevel}` as const;
   const containerRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const visibleStands = useMemo(
@@ -139,7 +158,7 @@ export default function FestivalNavMapCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden rounded-lg border"
+      className="w-full"
       style={{
         // Set from the real height of sticky controls (explorer or standalone
         // map). The fallback is for callers that have none.
@@ -153,31 +172,55 @@ export default function FestivalNavMapCanvas({
         maxScale={4}
         centerOnInit
       >
-        <TransformComponent
-          wrapperStyle={{ width: "100%" }}
-          contentStyle={{ width: "100%" }}
+        {/* Above the frame rather than floating over it, as the admin map does:
+            the visitor's own stand can sit anywhere on the canvas, and controls
+            overlaying a corner would cover somebody's space. The sector name
+            shares the row; the rule under it is what separates one sector from
+            the next when they are listed together. */}
+        <div
+          className={cn(
+            "flex w-full items-center gap-2 pb-2",
+            sectorLabel && "mb-2 border-b px-4 pt-2",
+          )}
         >
-          <MapSurface
-            stands={visibleStands}
-            mapElements={mapElements}
-            mapBounds={mapBounds}
-            selectedStandId={selectedStandId}
-            highlightedStandId={locateRequest?.standId}
-            highlightRequestId={locateRequest?.requestId}
-            dimmedStandIds={dimmedStandIdSet}
-            getColors={getNavStandColors}
-            onStandClick={handleStandSelect}
-            onStandTouchTap={handleStandSelect}
-          >
-            <FestivalNavStandBadges
-              stands={occupiedStands}
-              activityUserIds={activityUserIds}
-              dimmedStandIds={dimmedStandIdSet}
-            />
-          </MapSurface>
-        </TransformComponent>
+          {/* A heading, not a paragraph: in the all-sectors view this titles
+              each sector's map, and heading navigation is how a screen reader
+              user moves between them. */}
+          {sectorLabel && (
+            <SectorHeading className="text-lg font-semibold text-muted-foreground">
+              {sectorLabel}
+            </SectorHeading>
+          )}
+          <div className="ml-auto">
+            <MapToolbar />
+          </div>
+        </div>
 
-        <MapPinchHint className="bottom-12 pointer-events-none" />
+        <div className="relative w-full overflow-hidden rounded-lg border">
+          <TransformComponent
+            wrapperStyle={{ width: "100%" }}
+            contentStyle={{ width: "100%" }}
+          >
+            <MapSurface
+              stands={visibleStands}
+              mapElements={mapElements}
+              mapBounds={mapBounds}
+              selectedStandId={selectedStandId}
+              highlightedStandId={locateRequest?.standId}
+              highlightRequestId={locateRequest?.requestId}
+              dimmedStandIds={dimmedStandIdSet}
+              getColors={getNavStandColors}
+              onStandClick={handleStandSelect}
+              onStandTouchTap={handleStandSelect}
+            >
+              <FestivalNavStandBadges
+                stands={occupiedStands}
+                activityUserIds={activityUserIds}
+                dimmedStandIds={dimmedStandIdSet}
+              />
+            </MapSurface>
+          </TransformComponent>
+        </div>
       </MapTransformWrapper>
     </div>
   );

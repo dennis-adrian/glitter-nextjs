@@ -8,7 +8,7 @@ import TableActions from "@/app/components/organisms/collaborators/table-actions
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { getArrivalTimeByFestivalDate } from "@/app/components/organisms/collaborators/helpers";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 export const columnTitles = {
   arrivedDayOne: "Llegada Día 1",
   arrivedDayTwo: "Llegada Día 2",
@@ -45,8 +45,8 @@ export const columns: ColumnDef<ReservationCollaborationWithRelations>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.stand} />
     ),
-    accessorFn: (row) => formatStandLabel(row.reservation.stand),
-    cell: ({ row }) => formatStandLabel(row.original.reservation.stand),
+    accessorFn: (row) => reservationStandLabel(row.reservation),
+    cell: ({ row }) => reservationStandLabel(row.original.reservation),
   },
   {
     id: "fullName",

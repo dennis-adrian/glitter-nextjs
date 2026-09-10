@@ -7,12 +7,17 @@ function makeInvoice({
   invoiceId,
   reservationId,
   standId = 10,
+  memberStandIds,
+  releasedStandIds = [],
   status,
   createdAt,
 }: {
   invoiceId: number;
   reservationId: number;
   standId?: number;
+  /** Stands the aggregate occupies. Omit to model a row with no member rows. */
+  memberStandIds?: number[];
+  releasedStandIds?: number[];
   status:
     | "pending"
     | "verification_payment"
@@ -30,6 +35,12 @@ function makeInvoice({
       standId,
       status,
       createdAt: new Date(createdAt),
+      members: memberStandIds?.map((id, index) => ({
+        standId: id,
+        position: index,
+        releasedAt: releasedStandIds.includes(id) ? new Date(createdAt) : null,
+        stand: { id },
+      })),
     },
   } as unknown as InvoiceWithParticipants;
 }
@@ -120,5 +131,78 @@ describe("getStandReservationSummary", () => {
       activeInvoice: null,
       cancelledInvoices: [],
     });
+  });
+});
+
+describe("full tables", () => {
+  it("attaches the reservation to both halves, not just the one picked first", () => {
+    // The defect this file exists to prevent: `reservation.standId` names only
+    // the originally selected stand, so the second half of every full table
+    // rendered as an empty square — no colour, no tooltip, no drawer — while
+    // the reservation holding it sat one square over.
+    const fullTable = makeInvoice({
+      invoiceId: 1,
+      reservationId: 100,
+      standId: 10,
+      memberStandIds: [10, 11],
+      status: "accepted",
+      createdAt: "2026-06-01T12:00:00.000Z",
+    });
+
+    expect(getStandReservationSummary([fullTable], 10).activeInvoice).toBe(
+      fullTable,
+    );
+    expect(getStandReservationSummary([fullTable], 11).activeInvoice).toBe(
+      fullTable,
+    );
+  });
+
+  it("lets go of a half an admin downgraded away", () => {
+    const downgraded = makeInvoice({
+      invoiceId: 1,
+      reservationId: 100,
+      standId: 10,
+      memberStandIds: [10, 11],
+      releasedStandIds: [11],
+      status: "accepted",
+      createdAt: "2026-06-01T12:00:00.000Z",
+    });
+
+    expect(getStandReservationSummary([downgraded], 10).activeInvoice).toBe(
+      downgraded,
+    );
+    expect(getStandReservationSummary([downgraded], 11)).toEqual({
+      activeInvoice: null,
+      cancelledInvoices: [],
+    });
+  });
+
+  it("claims no stand it does not occupy", () => {
+    const fullTable = makeInvoice({
+      invoiceId: 1,
+      reservationId: 100,
+      standId: 10,
+      memberStandIds: [10, 11],
+      status: "accepted",
+      createdAt: "2026-06-01T12:00:00.000Z",
+    });
+
+    expect(getStandReservationSummary([fullTable], 12)).toEqual({
+      activeInvoice: null,
+      cancelledInvoices: [],
+    });
+  });
+
+  it("falls back to the root stand when a reservation has no member rows", () => {
+    const legacy = makeInvoice({
+      invoiceId: 1,
+      reservationId: 100,
+      standId: 10,
+      status: "accepted",
+      createdAt: "2026-06-01T12:00:00.000Z",
+    });
+
+    expect(getStandReservationSummary([legacy], 10).activeInvoice).toBe(legacy);
+    expect(getStandReservationSummary([legacy], 11).activeInvoice).toBeNull();
   });
 });

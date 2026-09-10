@@ -11,6 +11,12 @@ import {
   fetchInvoiceTenders,
   tenderFor,
 } from "@/app/lib/payments/tender-queries";
+import {
+  EMPTY_FEATURE_CREDIT_SUMMARY,
+  summarizeFeatureCredits,
+  type FeatureCreditSummary,
+} from "@/app/lib/payments/feature-credits";
+import { fetchReservationFeatureCredits } from "@/app/lib/payments/feature-credits-queries";
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { db } from "@/db";
 import {
@@ -418,19 +424,41 @@ export async function fetchInvoicesByFestival(
 }
 
 /**
- * Resolves coverage for a page of invoices in one extra round of queries.
+ * Resolves what a page of invoices is owed, and what their reservations spent
+ * on extras, in one extra round of queries.
  *
  * Kept out of the relational query because "has this allocation been reversed"
  * is a lookup for ledger entries pointing back at the allocation's spend, which
  * the relational builder has no inverse relation for.
+ *
+ * Feature credits ride along rather than being fetched per screen: the map's
+ * confirmation dialog is the same component as the console's, and it went
+ * blind to them purely because this query never loaded them.
  */
 async function attachInvoiceTenders<T extends InvoiceWithParticipants>(
   rows: T[],
-): Promise<(T & { tender: InvoiceTender })[]> {
+): Promise<
+  (T & { tender: InvoiceTender; featureCredits: FeatureCreditSummary })[]
+> {
   const amounts = new Map(rows.map((row) => [row.id, row.amount]));
-  const tenders = await fetchInvoiceTenders(
-    rows.map((row) => row.id),
-    amounts,
-  );
-  return rows.map((row) => ({ ...row, tender: tenderFor(tenders, row.id) }));
+  const reservationIds = rows
+    .map((row) => row.reservationId)
+    .filter((id): id is number => id != null);
+
+  const [tenders, featureCredits] = await Promise.all([
+    fetchInvoiceTenders(
+      rows.map((row) => row.id),
+      amounts,
+    ),
+    fetchReservationFeatureCredits(reservationIds),
+  ]);
+
+  return rows.map((row) => ({
+    ...row,
+    tender: tenderFor(tenders, row.id),
+    featureCredits:
+      row.reservationId == null
+        ? EMPTY_FEATURE_CREDIT_SUMMARY
+        : summarizeFeatureCredits(featureCredits.get(row.reservationId) ?? []),
+  }));
 }
