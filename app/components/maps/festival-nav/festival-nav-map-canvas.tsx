@@ -173,12 +173,14 @@ export default function FestivalNavMapCanvas({
             sectorLabel && "mb-2 border-b px-4 pt-2",
           )}
         >
-          {/* leading-8 matches the control buttons' h-8, so the row is one even
-              band rather than a short label beside taller buttons. */}
+          {/* A heading, not a paragraph: in the all-sectors view this titles
+              each sector's map, and heading navigation is how a screen reader
+              user moves between them. Level 2 sits under the `h1` the
+              standalone map renders for the festival name. */}
           {sectorLabel && (
-            <p className="text-lg font-semibold text-muted-foreground">
+            <h2 className="text-lg font-semibold text-muted-foreground">
               {sectorLabel}
-            </p>
+            </h2>
           )}
           <div className="ml-auto">
             <MapToolbar />
