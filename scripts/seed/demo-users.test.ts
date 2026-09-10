@@ -40,6 +40,52 @@ describe("getDevSeedGate", () => {
     expect(result.allowed).toBe(false);
   });
 
+  it("allows a local database target", () => {
+    expect(
+      getDevSeedGate({
+        CLERK_SECRET_KEY: "sk_test_abc",
+        VERCEL_ENV: "development",
+        POSTGRES_URL: "postgresql://glitter:pw@localhost:5432/glitter_dev",
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it("blocks a remote database even with development credentials", () => {
+    // The combination someone actually has when `.env.local` is pointed at a
+    // hosted database: test Clerk keys, a local runtime, and a target that is
+    // not theirs to overwrite.
+    const result = getDevSeedGate({
+      CLERK_SECRET_KEY: "sk_test_abc",
+      VERCEL_ENV: "development",
+      POSTGRES_URL:
+        "postgresql://postgres:pw@containers-us-west-1.railway.app:6543/railway",
+    });
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.reason).toMatch(/railway\.app/);
+    }
+  });
+
+  it("lets an explicit opt-in through for a disposable remote database", () => {
+    expect(
+      getDevSeedGate({
+        CLERK_SECRET_KEY: "sk_test_abc",
+        VERCEL_ENV: "development",
+        POSTGRES_URL: "postgresql://postgres:pw@db.example.com:5432/scratch",
+        ALLOW_REMOTE_DEV_SEED: "true",
+      }),
+    ).toEqual({ allowed: true });
+  });
+
+  it("blocks a target it cannot parse", () => {
+    const result = getDevSeedGate({
+      CLERK_SECRET_KEY: "sk_test_abc",
+      VERCEL_ENV: "development",
+      POSTGRES_URL: "not a url",
+    });
+    expect(result.allowed).toBe(false);
+  });
+
   it("blocks when ALLOW_DEV_SEED=false", () => {
     const result = getDevSeedGate({
       CLERK_SECRET_KEY: "sk_test_abc",
