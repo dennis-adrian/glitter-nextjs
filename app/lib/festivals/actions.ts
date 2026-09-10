@@ -27,16 +27,7 @@ import {
   userRequests,
   users,
 } from "@/db/schema";
-import {
-  and,
-  desc,
-  eq,
-  getTableColumns,
-  inArray,
-  not,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, desc, eq, inArray, not, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   FestivalActivityWithDetailsAndParticipants,
@@ -263,8 +254,8 @@ export async function fetchActiveFestivalBase() {
       where: eq(festivals.status, "active"),
     });
   } catch (error) {
-    console.error("Error fetching active festival", error);
-    return null;
+    console.error("Error fetching active festival base", error);
+    throw error;
   }
 }
 
@@ -538,8 +529,8 @@ export async function fetchFestivalActivityForReview(
       },
     });
   } catch (error) {
-    console.error("Error fetching festival activity for review:", error);
-    return null;
+    console.error("Error fetching festival activity for review", error);
+    throw error;
   }
 }
 
@@ -558,7 +549,7 @@ export async function fetchPublishedActiveFestivals(): Promise<
     })) as FestivalWithDates[];
   } catch (error) {
     console.error("Error fetching published/active festivals", error);
-    return [];
+    throw error;
   }
 }
 
@@ -585,7 +576,7 @@ export async function fetchFestivalActivitiesByFestivalId(
     })) as FestivalActivityWithDetailsAndParticipants[];
   } catch (error) {
     console.error("Error fetching festival activities by festival id", error);
-    return [];
+    throw error;
   }
 }
 
@@ -628,7 +619,7 @@ export async function fetchFestivalWithDatesAndSectors(
     } as FestivalWithDatesAndSectors;
   } catch (error) {
     console.error("Error fetching festival with dates and sectors", error);
-    return null;
+    throw error;
   }
 }
 
@@ -643,8 +634,8 @@ export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates 
 
     return festival as FestivalWithDates | null;
   } catch (error) {
-    console.error("Error fetching active festival base", error);
-    return null;
+    console.error("Error fetching active festival with dates", error);
+    throw error;
   }
 }
 
@@ -713,8 +704,8 @@ export async function fetchFestival({
       },
     });
   } catch (error) {
-    console.error("Error fetching active festival", error);
-    return null;
+    console.error("Error fetching festival", error);
+    throw error;
   }
 }
 
@@ -734,8 +725,8 @@ export async function fetchFestivalWithTicketsAndDates(
       },
     });
   } catch (error) {
-    console.error("Error fetching active festival", error);
-    return null;
+    console.error("Error fetching festival with tickets and dates", error);
+    throw error;
   }
 }
 
@@ -747,8 +738,8 @@ export async function fetchBaseFestival(
       where: eq(festivals.id, id),
     });
   } catch (error) {
-    console.error("Error fetching active festival", error);
-    return null;
+    console.error("Error fetching base festival", error);
+    throw error;
   }
 }
 
@@ -763,8 +754,8 @@ export async function fetchFestivalWithDates(
       where: eq(festivals.id, id),
     });
   } catch (error) {
-    console.error("Error fetching active festival", error);
-    return null;
+    console.error("Error fetching festival with dates", error);
+    throw error;
   }
 }
 
@@ -796,7 +787,7 @@ export async function fetchFestivals(): Promise<FestivalWithDates[]> {
     });
   } catch (error) {
     console.error("Error fetching festivals", error);
-    return [];
+    throw error;
   }
 }
 
@@ -897,8 +888,8 @@ export async function getFestivalAvailableUsers(festivalId: number) {
         and(eq(users.status, "verified"), inArray(users.category, categories)),
       );
   } catch (error) {
-    console.error(error);
-    return [];
+    console.error("Error fetching festival available users", error);
+    throw error;
   }
 }
 export async function sendUserEmailsTemp(
@@ -1137,58 +1128,6 @@ export async function sendEmailToUsers(
   }
 }
 
-export async function fetchAvailableArtistsInFestival(
-  festivalId: number,
-): Promise<BaseProfile[]> {
-  try {
-    const usersTableColumns = getTableColumns(users);
-    return await db.transaction(async (tx) => {
-      const festivalParticipantIds = await tx
-        .select({ participantId: reservationParticipants.userId })
-        .from(reservationParticipants)
-        .leftJoin(
-          standReservations,
-          eq(standReservations.id, reservationParticipants.reservationId),
-        )
-        .where(eq(standReservations.festivalId, festivalId));
-
-      const participantsWhereCondition = [
-        eq(users.status, "verified"),
-        inArray(users.category, ["illustration", "new_artist"]),
-        not(eq(users.role, "admin")),
-        eq(userRequests.status, "accepted"),
-        eq(userRequests.festivalId, festivalId),
-      ];
-
-      if (festivalParticipantIds.length > 0) {
-        participantsWhereCondition.push(
-          not(
-            inArray(
-              users.id,
-              festivalParticipantIds.map(
-                (participant) => participant.participantId,
-              ),
-            ),
-          ),
-        );
-      }
-
-      return await tx
-        .selectDistinctOn([users.id], usersTableColumns)
-        .from(users)
-        .leftJoin(userRequests, eq(userRequests.userId, users.id))
-        .leftJoin(
-          reservationParticipants,
-          eq(reservationParticipants.userId, users.id),
-        )
-        .where(and(...participantsWhereCondition));
-    });
-  } catch (error) {
-    console.error("Error fetching profiles in festival", error);
-    return [];
-  }
-}
-
 export async function fetchFestivalParticipants(
   festivalId: number,
   confirmedOnly = false,
@@ -1313,7 +1252,7 @@ export async function fetchProfileEnrollmentInFestival(
     });
   } catch (error) {
     console.error("Error fetching profile enrollment in festival", error);
-    return null;
+    throw error;
   }
 }
 
@@ -1338,6 +1277,6 @@ export async function fetchAllFestivalEnrolledUsers(
       .filter((user): user is NonNullable<typeof user> => user !== null);
   } catch (error) {
     console.error("Error fetching all festival enrolled users", error);
-    return [];
+    throw error;
   }
 }
