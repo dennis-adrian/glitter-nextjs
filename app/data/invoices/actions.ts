@@ -20,14 +20,11 @@ import { fetchReservationFeatureCredits } from "@/app/lib/payments/feature-credi
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { db } from "@/db";
 import {
-  invoiceCreditAllocations,
-  invoiceSettlementSubmissions,
   invoices,
-  payments,
   reservationParticipants,
   standReservations,
 } from "@/db/schema";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { type ReservationActionResult } from "@/app/lib/reservations/errors";
 import {
   canSubmitInvoiceSettlement,
@@ -82,40 +79,20 @@ export async function fetchInvoiceTenderSummary(
     return null;
   }
 
-  const [cash] = await db
-    .select({ amount: sql<number>`coalesce(sum(${payments.amount}), 0)` })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.invoiceId, invoice.id),
-        sql`EXISTS (
-          SELECT 1
-          FROM ${invoiceSettlementSubmissions}
-          WHERE ${invoiceSettlementSubmissions.invoiceId} = ${invoice.id}
-            AND ${invoiceSettlementSubmissions.paymentId} = ${payments.id}
-            AND ${invoiceSettlementSubmissions.status} = 'approved'
-        )`,
-      ),
-    );
-  const [credits] = await db
-    .select({
-      amount: sql<number>`coalesce(sum(${invoiceCreditAllocations.amount}), 0)`,
-    })
-    .from(invoiceCreditAllocations)
-    .where(eq(invoiceCreditAllocations.invoiceId, invoice.id));
+  // Read through the one definition of coverage rather than re-summing the
+  // rows here. The hand-rolled version this replaces summed every credit
+  // allocation with no reversal filter, so a participant whose credits had
+  // been released was still shown them and quoted too small a balance.
+  const tenders = await fetchInvoiceTenders(
+    [invoice.id],
+    new Map([[invoice.id, invoice.amount]]),
+  );
+  const tender = tenderFor(tenders, invoice.id);
 
-  const approvedCashAmount = Number(cash?.amount ?? 0);
-  const confirmedCreditAmount = Number(credits?.amount ?? 0);
   return {
-    approvedCashAmount,
-    confirmedCreditAmount,
-    outstandingAmount: Math.max(
-      0,
-      Math.round(
-        (Number(invoice.amount) - approvedCashAmount - confirmedCreditAmount) *
-          100,
-      ) / 100,
-    ),
+    approvedCashAmount: tender.approvedCashAmount,
+    confirmedCreditAmount: tender.confirmedCreditAmount,
+    outstandingAmount: tender.outstandingAmount,
   };
 }
 
