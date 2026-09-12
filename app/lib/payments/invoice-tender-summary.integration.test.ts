@@ -1,14 +1,21 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
 import {
-  creditLedgerEntries,
   festivals,
   invoiceCreditAllocations,
   invoices,
@@ -18,6 +25,38 @@ import {
 } from "@/db/schema";
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+}));
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+
+const currentProfile = vi.hoisted(() => ({ value: null as unknown }));
+vi.mock("@/app/lib/users/helpers", () => ({
+  getCurrentUserProfile: vi.fn(async () => currentProfile.value),
+}));
+
+/**
+ * Forwards every `db.*` access to the real client, which is only available
+ * once `beforeAll` has built it. Methods are bound so `db.transaction(...)`
+ * keeps its receiver.
+ */
+const dbHolder = vi.hoisted(() => ({ current: null as never }));
+vi.mock("@/db", () => ({
+  db: new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        const value = (dbHolder.current as never as Record<string, unknown>)[
+          prop as string
+        ];
+        return typeof value === "function"
+          ? (value as (...args: unknown[]) => unknown).bind(dbHolder.current)
+          : value;
+      },
+    },
+  ),
+}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -43,22 +82,22 @@ const pool = testDatabaseUrl
 const integrationDb = pool ? drizzle(pool, { schema }) : null;
 const describeDatabase = integrationDb ? describe : describe.skip;
 
-type CreditService = typeof import("@/app/lib/credits/service");
-let creditService: CreditService;
+let creditService: typeof import("@/app/lib/credits/service");
+let invoiceActions: typeof import("@/app/data/invoices/actions");
+let tenderQueries: typeof import("@/app/lib/payments/tender-queries");
 
 const createdUserIds: number[] = [];
 const createdFestivalIds: number[] = [];
 
-async function createUser() {
-  const db = integrationDb!;
+async function createUser(role: "user" | "admin" = "user") {
   const suffix = randomUUID();
-  const [user] = await db
+  const [user] = await integrationDb!
     .insert(users)
     .values({
-      clerkId: `credit-settlement-${suffix}`,
-      email: `credit-settlement-${suffix}@example.com`,
-      displayName: "Credit Settlement",
-      role: "user",
+      clerkId: `tender-summary-${suffix}`,
+      email: `tender-summary-${suffix}@example.test`,
+      displayName: "Tender Summary",
+      role,
       status: "verified",
     })
     .returning({ id: users.id });
@@ -67,9 +106,9 @@ async function createUser() {
 }
 
 /**
- * A reservation with an invoice and a credit allocation against it — the shape
- * festival 490 produces when a participant puts part of their balance towards
- * a stand and owes the rest by QR.
+ * A reservation whose invoice is part-covered by credits — the shape a
+ * participant produces when they put some balance towards a stand and owe the
+ * rest by QR.
  */
 async function createCreditedInvoice(input: {
   userId: number;
@@ -79,7 +118,7 @@ async function createCreditedInvoice(input: {
   const db = integrationDb!;
   const [festival] = await db
     .insert(festivals)
-    .values({ name: `Credit Settlement ${randomUUID()}` })
+    .values({ name: `Tender Summary ${randomUUID()}` })
     .returning({ id: festivals.id });
   createdFestivalIds.push(festival!.id);
 
@@ -115,7 +154,7 @@ async function createCreditedInvoice(input: {
     .returning({ id: invoices.id });
 
   // Spend the credits the way applyInvoiceCredits does, so the allocation
-  // points at a real `spend` entry.
+  // points at a real `spend` entry that a release can reverse.
   const debit = await creditService.debitConfirmedCreditsForInvoiceInTx(
     db as never,
     {
@@ -141,7 +180,6 @@ async function createCreditedInvoice(input: {
     invoiceId: invoice!.id,
     reservationId: reservation!.id,
     allocationId: allocation!.id,
-    spendLedgerEntryId: debit.data.ledgerEntryId,
   };
 }
 
@@ -155,36 +193,41 @@ async function grantCredits(userId: number, amount: number) {
   if (!result.ok) throw new Error(`fixture grant failed: ${result.code}`);
 }
 
-async function ledgerBalance(userId: number) {
-  const db = integrationDb!;
-  const rows = await db
-    .select({ amount: creditLedgerEntries.amount })
-    .from(creditLedgerEntries)
-    .where(eq(creditLedgerEntries.userId, userId));
-  return rows.reduce((total, row) => total + Number(row.amount), 0);
+/** The canonical tender, read through the same path the admin screens use. */
+async function canonicalTender(invoiceId: number, amount: number) {
+  const tenders = await tenderQueries.fetchInvoiceTenders(
+    [invoiceId],
+    new Map([[invoiceId, amount]]),
+  );
+  return tenderQueries.tenderFor(tenders, invoiceId);
 }
 
-describeDatabase("invoice credit release", () => {
+describeDatabase("participant invoice tender summary", () => {
   beforeAll(async () => {
     process.env.POSTGRES_URL = testDatabaseUrl!;
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
-    creditService = await import("@/app/lib/credits/service");
 
-    const db = integrationDb!;
-    try {
-      await db
-        .select({ id: invoiceCreditAllocations.id })
-        .from(invoiceCreditAllocations)
-        .limit(1);
-    } catch (error) {
+    dbHolder.current = integrationDb as never;
+
+    const probe = await pool!.query<{ table: string | null }>(
+      "select to_regclass('public.invoice_credit_allocations')::text as table",
+    );
+    if (!probe.rows[0]?.table) {
       throw new Error(
         "TEST_DATABASE_URL is safe but unmigrated; apply Drizzle migrations first.",
-        { cause: error },
       );
     }
+
+    creditService = await import("@/app/lib/credits/service");
+    invoiceActions = await import("@/app/data/invoices/actions");
+    tenderQueries = await import("@/app/lib/payments/tender-queries");
   }, 60_000);
+
+  beforeEach(() => {
+    currentProfile.value = null;
+  });
 
   afterAll(async () => {
     // Every delete is wrapped so `pool.end()` still runs if one throws —
@@ -228,8 +271,7 @@ describeDatabase("invoice credit release", () => {
         // the lock drops the moment the disable commits and a concurrent test
         // file could append to an unguarded ledger. A rollback reverts the
         // disable too, so a failed delete cannot leave it off. Reversals go
-        // first: they point at the spend under the same restrict rule, and
-        // this suite exists to create them.
+        // first: they point at the spend under the same restrict rule.
         const client = await pool!.connect();
         try {
           await client.query("BEGIN");
@@ -264,110 +306,72 @@ describeDatabase("invoice credit release", () => {
     }
   });
 
-  it("returns the credits to the account and marks the allocation reversed", async () => {
-    const db = integrationDb!;
+  it("agrees with the canonical tender on an invoice with a live allocation", async () => {
     const userId = await createUser();
     await grantCredits(userId, 100);
-
-    const { invoiceId, allocationId } = await createCreditedInvoice({
+    const { invoiceId } = await createCreditedInvoice({
       userId,
       invoiceAmount: 370,
       creditAmount: 20,
     });
-    expect(await ledgerBalance(userId)).toBe(80);
+    currentProfile.value = { id: userId, role: "user" };
+
+    const summary = await invoiceActions.fetchInvoiceTenderSummary(invoiceId);
+    const canonical = await canonicalTender(invoiceId, 370);
+
+    expect(summary).not.toBeNull();
+    expect(summary!.confirmedCreditAmount).toBe(
+      canonical.confirmedCreditAmount,
+    );
+    expect(summary!.outstandingAmount).toBe(canonical.outstandingAmount);
+    expect(summary!.confirmedCreditAmount).toBe(20);
+    expect(summary!.outstandingAmount).toBe(350);
+  });
+
+  /**
+   * The divergence this suite exists for. `fetchInvoiceTenderSummary` used to
+   * sum `invoice_credit_allocations.amount` with no reversal filter, so a
+   * participant whose credits had been released still saw them counted and was
+   * told they owed less than they did.
+   */
+  it("drops a reversed allocation, exactly as the canonical tender does", async () => {
+    const userId = await createUser();
+    await grantCredits(userId, 100);
+    const { invoiceId } = await createCreditedInvoice({
+      userId,
+      invoiceAmount: 370,
+      creditAmount: 20,
+    });
 
     const release = await creditService.releaseInvoiceCreditAllocationsInTx(
-      db as never,
+      integrationDb! as never,
       { invoiceId, idempotencyKey: randomUUID() },
     );
-
     expect(release.ok).toBe(true);
-    if (!release.ok) return;
-    expect(release.released).toHaveLength(1);
-    expect(release.released[0]!.allocationId).toBe(allocationId);
-    expect(release.released[0]!.amount).toBe(20);
-    // The whole point: the participant has their credits back.
-    expect(await ledgerBalance(userId)).toBe(100);
-  });
 
-  it("refuses a second release rather than refunding twice", async () => {
-    const db = integrationDb!;
-    const userId = await createUser();
-    await grantCredits(userId, 100);
-    const { invoiceId } = await createCreditedInvoice({
-      userId,
-      invoiceAmount: 370,
-      creditAmount: 20,
-    });
-
-    const first = await creditService.releaseInvoiceCreditAllocationsInTx(
-      db as never,
-      { invoiceId, idempotencyKey: randomUUID() },
-    );
-    expect(first.ok).toBe(true);
-
-    // A different key, the way a second click from a stale screen would arrive.
-    const second = await creditService.releaseInvoiceCreditAllocationsInTx(
-      db as never,
-      { invoiceId, idempotencyKey: randomUUID() },
-    );
-
-    expect(second.ok).toBe(false);
-    if (second.ok) return;
-    expect(second.code).toBe("CREDITS_ALREADY_RELEASED");
-    expect(await ledgerBalance(userId)).toBe(100);
-  });
-
-  it("replays the same idempotency key without a second refund", async () => {
-    const db = integrationDb!;
-    const userId = await createUser();
-    await grantCredits(userId, 100);
-    const { invoiceId } = await createCreditedInvoice({
-      userId,
-      invoiceAmount: 370,
-      creditAmount: 20,
-    });
-
-    const key = randomUUID();
-    await creditService.releaseInvoiceCreditAllocationsInTx(db as never, {
-      invoiceId,
-      idempotencyKey: key,
-    });
-    const replay = await creditService.releaseInvoiceCreditAllocationsInTx(
-      db as never,
-      { invoiceId, idempotencyKey: key },
-    );
-
-    expect(replay.ok).toBe(false);
-    expect(await ledgerBalance(userId)).toBe(100);
-  });
-
-  it("reports nothing to release on an invoice with no allocations", async () => {
-    const db = integrationDb!;
-    const userId = await createUser();
-    await grantCredits(userId, 100);
-    const { invoiceId } = await createCreditedInvoice({
-      userId,
-      invoiceAmount: 370,
-      creditAmount: 20,
-    });
-
-    await db
-      .delete(invoiceCreditAllocations)
+    // The allocation row is still there; only the ledger reversal marks it dead.
+    const remaining = await integrationDb!
+      .select({ id: invoiceCreditAllocations.id })
+      .from(invoiceCreditAllocations)
       .where(eq(invoiceCreditAllocations.invoiceId, invoiceId));
+    expect(remaining).toHaveLength(1);
 
-    const result = await creditService.releaseInvoiceCreditAllocationsInTx(
-      db as never,
-      { invoiceId, idempotencyKey: randomUUID() },
+    currentProfile.value = { id: userId, role: "user" };
+    const summary = await invoiceActions.fetchInvoiceTenderSummary(invoiceId);
+    const canonical = await canonicalTender(invoiceId, 370);
+
+    expect(canonical.confirmedCreditAmount).toBe(0);
+    expect(canonical.outstandingAmount).toBe(370);
+
+    expect(summary).not.toBeNull();
+    expect(summary!.confirmedCreditAmount).toBe(
+      canonical.confirmedCreditAmount,
     );
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.code).toBe("CREDITS_NOT_RELEASABLE");
+    // The participant owes the whole bill again, and must be told so.
+    expect(summary!.outstandingAmount).toBe(canonical.outstandingAmount);
   });
 
-  it("excludes a released allocation from the invoice tender", async () => {
-    const db = integrationDb!;
+  it("still refuses a caller who neither owns the invoice nor is an admin", async () => {
     const userId = await createUser();
     await grantCredits(userId, 100);
     const { invoiceId } = await createCreditedInvoice({
@@ -376,46 +380,37 @@ describeDatabase("invoice credit release", () => {
       creditAmount: 20,
     });
 
-    const { computeInvoiceTender } = await import("@/app/lib/payments/tender");
-    const readAllocations = async () =>
-      db
-        .select({
-          amount: invoiceCreditAllocations.amount,
-          reversed: sql<boolean>`EXISTS (
-            SELECT 1 FROM ${creditLedgerEntries} r
-            WHERE r.reverses_entry_id = ${invoiceCreditAllocations.ledgerEntryId}
-          )`,
-        })
-        .from(invoiceCreditAllocations)
-        .where(eq(invoiceCreditAllocations.invoiceId, invoiceId));
+    currentProfile.value = { id: await createUser(), role: "user" };
+    expect(
+      await invoiceActions.fetchInvoiceTenderSummary(invoiceId),
+    ).toBeNull();
 
-    const before = computeInvoiceTender({
-      amount: 370,
-      allocations: (await readAllocations()).map((row) => ({
-        amount: row.amount,
-        reversed: Boolean(row.reversed),
-      })),
-      payments: [],
-      submissions: [],
-    });
-    expect(before.confirmedCreditAmount).toBe(20);
-    expect(before.outstandingAmount).toBe(350);
+    currentProfile.value = null;
+    expect(
+      await invoiceActions.fetchInvoiceTenderSummary(invoiceId),
+    ).toBeNull();
+  });
 
-    await creditService.releaseInvoiceCreditAllocationsInTx(db as never, {
-      invoiceId,
-      idempotencyKey: randomUUID(),
+  it("serves a global admin the same totals as the owner", async () => {
+    const userId = await createUser();
+    await grantCredits(userId, 100);
+    const { invoiceId } = await createCreditedInvoice({
+      userId,
+      invoiceAmount: 370,
+      creditAmount: 20,
     });
 
-    const after = computeInvoiceTender({
-      amount: 370,
-      allocations: (await readAllocations()).map((row) => ({
-        amount: row.amount,
-        reversed: Boolean(row.reversed),
-      })),
-      payments: [],
-      submissions: [],
-    });
-    expect(after.confirmedCreditAmount).toBe(0);
-    expect(after.outstandingAmount).toBe(370);
+    currentProfile.value = { id: userId, role: "user" };
+    const asOwner = await invoiceActions.fetchInvoiceTenderSummary(invoiceId);
+
+    currentProfile.value = { id: await createUser("admin"), role: "admin" };
+    const asAdmin = await invoiceActions.fetchInvoiceTenderSummary(invoiceId);
+
+    expect(asAdmin).toEqual(asOwner);
+  });
+
+  it("returns null for an invoice that does not exist", async () => {
+    currentProfile.value = { id: await createUser("admin"), role: "admin" };
+    expect(await invoiceActions.fetchInvoiceTenderSummary(-1)).toBeNull();
   });
 });
