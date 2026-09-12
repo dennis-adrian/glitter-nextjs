@@ -4,7 +4,15 @@ import { randomUUID } from "crypto";
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
 import {
@@ -17,7 +25,10 @@ import {
 } from "@/db/schema";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 const currentProfile = vi.hoisted(() => ({ value: null as unknown }));
@@ -219,7 +230,80 @@ describeDatabase("participant invoice tender summary", () => {
   });
 
   afterAll(async () => {
-    await pool?.end();
+    // Every delete is wrapped so `pool.end()` still runs if one throws —
+    // otherwise a cleanup failure leaks the pool and the run hangs on exit
+    // instead of reporting the failure.
+    try {
+      const db = integrationDb;
+      if (db && createdUserIds.length > 0) {
+        // `invoice_credit_allocations.user_id` and `.ledger_entry_id` are both
+        // `on delete restrict`, so the allocations go before either the ledger
+        // rows they point at or the users that own them. Submissions and
+        // payments cascade from the invoice.
+        await db
+          .delete(invoiceCreditAllocations)
+          .where(inArray(invoiceCreditAllocations.userId, createdUserIds));
+        await db
+          .delete(invoices)
+          .where(inArray(invoices.userId, createdUserIds));
+      }
+
+      if (db && createdFestivalIds.length > 0) {
+        // Reservations before stands: `stand_reservations.stand_id` is
+        // `no action`, so a standing reservation blocks its stand.
+        await db
+          .delete(standReservations)
+          .where(inArray(standReservations.festivalId, createdFestivalIds));
+        await db
+          .delete(stands)
+          .where(inArray(stands.festivalId, createdFestivalIds));
+        await db
+          .delete(festivals)
+          .where(inArray(festivals.id, createdFestivalIds));
+      }
+
+      if (db && createdUserIds.length > 0) {
+        // `credit_ledger_entries.user_id` is `on delete restrict`, so the
+        // spends block their users. The ledger is append-only in production,
+        // enforced by a trigger; it is dropped only for this delete and
+        // restored immediately. One transaction, so the ACCESS EXCLUSIVE lock
+        // `ALTER TABLE` takes is held until the trigger is back — outside one
+        // the lock drops the moment the disable commits and a concurrent test
+        // file could append to an unguarded ledger. A rollback reverts the
+        // disable too, so a failed delete cannot leave it off. Reversals go
+        // first: they point at the spend under the same restrict rule.
+        const client = await pool!.connect();
+        try {
+          await client.query("BEGIN");
+          await client.query(
+            "ALTER TABLE credit_ledger_entries DISABLE TRIGGER credit_ledger_entries_append_only",
+          );
+          await client.query(
+            `DELETE FROM credit_ledger_entries
+             WHERE user_id = ANY($1::int[]) AND reverses_entry_id IS NOT NULL`,
+            [createdUserIds],
+          );
+          await client.query(
+            `DELETE FROM credit_ledger_entries WHERE user_id = ANY($1::int[])`,
+            [createdUserIds],
+          );
+          await client.query(
+            "ALTER TABLE credit_ledger_entries ENABLE TRIGGER credit_ledger_entries_append_only",
+          );
+          await client.query("COMMIT");
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        } finally {
+          client.release();
+        }
+
+        // `credit_accounts.user_id` cascades, so the account goes with the user.
+        await db.delete(users).where(inArray(users.id, createdUserIds));
+      }
+    } finally {
+      await pool?.end();
+    }
   });
 
   it("agrees with the canonical tender on an invoice with a live allocation", async () => {
@@ -236,7 +320,9 @@ describeDatabase("participant invoice tender summary", () => {
     const canonical = await canonicalTender(invoiceId, 370);
 
     expect(summary).not.toBeNull();
-    expect(summary!.confirmedCreditAmount).toBe(canonical.confirmedCreditAmount);
+    expect(summary!.confirmedCreditAmount).toBe(
+      canonical.confirmedCreditAmount,
+    );
     expect(summary!.outstandingAmount).toBe(canonical.outstandingAmount);
     expect(summary!.confirmedCreditAmount).toBe(20);
     expect(summary!.outstandingAmount).toBe(350);
@@ -278,7 +364,9 @@ describeDatabase("participant invoice tender summary", () => {
     expect(canonical.outstandingAmount).toBe(370);
 
     expect(summary).not.toBeNull();
-    expect(summary!.confirmedCreditAmount).toBe(canonical.confirmedCreditAmount);
+    expect(summary!.confirmedCreditAmount).toBe(
+      canonical.confirmedCreditAmount,
+    );
     // The participant owes the whole bill again, and must be told so.
     expect(summary!.outstandingAmount).toBe(canonical.outstandingAmount);
   });
@@ -293,10 +381,14 @@ describeDatabase("participant invoice tender summary", () => {
     });
 
     currentProfile.value = { id: await createUser(), role: "user" };
-    expect(await invoiceActions.fetchInvoiceTenderSummary(invoiceId)).toBeNull();
+    expect(
+      await invoiceActions.fetchInvoiceTenderSummary(invoiceId),
+    ).toBeNull();
 
     currentProfile.value = null;
-    expect(await invoiceActions.fetchInvoiceTenderSummary(invoiceId)).toBeNull();
+    expect(
+      await invoiceActions.fetchInvoiceTenderSummary(invoiceId),
+    ).toBeNull();
   });
 
   it("serves a global admin the same totals as the owner", async () => {
