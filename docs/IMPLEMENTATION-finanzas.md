@@ -109,7 +109,7 @@ not a convention.
 
 ## 4. Schema
 
-Seven tables. All additive — no existing table is restructured. Uses the existing `money()` helper
+Eight tables. All additive — no existing table is restructured. Uses the existing `money()` helper
 ([db/schema.ts:22](../db/schema.ts), `numeric(12,2)` mode `number`).
 
 ### 4.1 `finance_accounts`
@@ -325,49 +325,327 @@ The composite FK to `(finance_accounts.id, currency)` means a line's currency **
 account's currency. That is what makes the "never revalue a Bs-denominated obligation" rule unfalsifiable
 rather than a convention.
 
-### 4.5 `finance_budget_lines` and `finance_commitments`
+### 4.5 Enums
 
-Envelopes and the commitment stage. See §5.
+```ts
+export const financeCounterpartyKindEnum = pgEnum("finance_counterparty_kind", [
+  "person",
+  "vendor",
+]);
 
-### 4.6 `finance_balance_assertions`
+export const financeFxRateSourceEnum = pgEnum("finance_fx_rate_source", [
+  "manual",
+  "statement_derived",
+  "bcb_official",
+  "parallel_market",
+]);
 
-Cash counts (_arqueo_). A counted balance is an **assertion**, not a column — if it disagrees with the
-ledger, a visible `ajuste_de_caja` entry reconciles it. Beancount's `pad` directive.
+// 14 values: the 13 named in §9.4 plus ingreso_stands_derivado, which the
+// automatic stand-income generator posts under (§7.1).
+export const financeEntryTemplateEnum = pgEnum("finance_entry_template", [
+  "gasto",
+  "ingreso",
+  "ingreso_stands_derivado",
+  "prestamo_recibido",
+  "pago_prestamo",
+  "sueldo_devengado",
+  "pago_sueldo",
+  "pago_sueldo_con_stand",
+  "adelanto_a_persona",
+  "traspaso",
+  "condonacion",
+  "apertura",
+  "ajuste_de_caja",
+  "correccion",
+]);
 
-This exists because the Sheet's per-event cash count box is filled in on **2 of 18 tabs**. The design must
-be correct and useful with a stale count, not dependent on the ritual.
+// Three values on purpose. No 'partially_settled': partial discharge is the signed
+// Σ of the lines pointing at the commitment, and a stored copy is a second truth
+// that drifts. No 'expired' either — a commitment past its due date is still owed;
+// age is a display concern.
+export const financeCommitmentStatusEnum = pgEnum("finance_commitment_status", [
+  "open",
+  "settled",
+  "cancelled",
+]);
+```
 
-### 4.7 `finance_fx_rates`
+### 4.6 `finance_budget_lines` — the envelope
 
-Rate **observations**, not authority. See §6.4.
+```ts
+export const financeBudgetLines = pgTable(
+  "finance_budget_lines",
+  {
+    id: serial("id").primaryKey(),
+    // Scope: exactly one of these. A NULL festival_id therefore cannot mean
+    // "unknown" — the row cannot exist without period_month instead.
+    festivalId: integer("festival_id").references(() => festivals.id, {
+      onDelete: "restrict",
+    }),
+    periodMonth: date("period_month"), // first day of month, org-level only
+    categoryAccountId: integer("category_account_id").notNull(),
+    categoryAccountRole: financeAccountRoleEnum("category_account_role")
+      .default("category")
+      .notNull(),
+    currency: financeCurrencyEnum("currency").notNull(),
+    amount: money("amount").notNull(), // presupuestado, always positive
+    rollsOver: boolean("rolls_over").default(false).notNull(), // sinking funds, §5.3
+    targetAmount: money("target_amount"),
+    targetOn: date("target_on"),
+    notes: text("notes"),
+    archivedAt: timestamp("archived_at"),
+    createdByUserId: integer("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("finance_budget_lines_id_currency_key").on(t.id, t.currency),
+    uniqueIndex("finance_budget_lines_festival_category_unique")
+      .on(t.festivalId, t.categoryAccountId, t.currency)
+      .where(sql`${t.festivalId} IS NOT NULL AND ${t.archivedAt} IS NULL`),
+    uniqueIndex("finance_budget_lines_period_category_unique")
+      .on(t.periodMonth, t.categoryAccountId, t.currency)
+      .where(sql`${t.periodMonth} IS NOT NULL AND ${t.archivedAt} IS NULL`),
+    check(
+      "finance_budget_lines_scope_exactly_one",
+      sql`num_nonnulls(${t.festivalId}, ${t.periodMonth}) = 1`,
+    ),
+    check(
+      "finance_budget_lines_period_is_a_month_start",
+      sql`${t.periodMonth} IS NULL OR ${t.periodMonth} = date_trunc('month', ${t.periodMonth})::date`,
+    ),
+    check("finance_budget_lines_amount_positive", sql`${t.amount} > 0`),
+    check(
+      "finance_budget_lines_category_only",
+      sql`${t.categoryAccountRole} = 'category'`,
+    ),
+    // A festival ends; its envelope has no next period to roll into.
+    check(
+      "finance_budget_lines_rollover_is_periodic",
+      sql`${t.rollsOver} = false OR ${t.periodMonth} IS NOT NULL`,
+    ),
+    foreignKey({
+      name: "finance_budget_lines_account_currency_role_fk",
+      columns: [t.categoryAccountId, t.currency, t.categoryAccountRole],
+      foreignColumns: [
+        financeAccounts.id,
+        financeAccounts.currency,
+        financeAccounts.role,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+```
 
-### 4.8 Enforcement (hand-written trigger migration)
+The composite FK pins account + currency + role in one constraint. Because
+`finance_accounts_results_are_local` forces category accounts to BOB, a USD envelope is structurally
+impossible — correct, since only monetary accounts are ever non-BOB.
 
-`drizzle-kit` cannot emit `CREATE FUNCTION` / `CREATE TRIGGER`. The house pattern is to generate the table
-DDL from `db/schema.ts`, then append hand-written trigger SQL beneath the generated statements in the same
-numbered file — exactly as [drizzle/0259_credit_ledger_integrity.sql](../drizzle/0259_credit_ledger_integrity.sql)
-does for `prevent_credit_ledger_entry_mutation`.
+`finance_lines.budgetLineId` FKs here, paired on currency so a line can never consume an envelope in
+another currency.
 
-> **Project rule reconciliation.** "Never hand-edit migrations" means never patch generated DDL. Appending
-> custom SQL below the generated statements is the established exception, and 0259 is the precedent. Use
-> `drizzle-kit generate --custom` for the trigger migration so it is a separate, reviewable file.
+### 4.7 `finance_commitments` — the encumbrance stage
 
-Four triggers:
+```ts
+export const financeCommitments = pgTable(
+  "finance_commitments",
+  {
+    id: serial("id").primaryKey(),
+    budgetLineId: integer("budget_line_id").notNull(),
+    currency: financeCurrencyEnum("currency").notNull(),
+    amount: money("amount").notNull(), // comprometido, positive
+    status: financeCommitmentStatusEnum("status").default("open").notNull(),
+    counterpartyId: integer("counterparty_id").references(
+      () => financeCounterparties.id,
+      { onDelete: "restrict" },
+    ),
+    payeeLabel: text("payee_label"), // when no counterparty record exists
+    description: text("description").notNull(),
+    dueOn: date("due_on"),
+    cancelledReason: text("cancelled_reason"),
+    createdByUserId: integer("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("finance_commitments_budget_line_idx").on(t.budgetLineId, t.status),
+    check("finance_commitments_amount_positive", sql`${t.amount} > 0`),
+    check(
+      "finance_commitments_payee_named",
+      sql`${t.counterpartyId} IS NOT NULL OR ${t.payeeLabel} IS NOT NULL`,
+    ),
+    check(
+      "finance_commitments_cancel_has_reason",
+      sql`${t.status} <> 'cancelled' OR ${t.cancelledReason} IS NOT NULL`,
+    ),
+    foreignKey({
+      name: "finance_commitments_budget_line_currency_fk",
+      columns: [t.budgetLineId, t.currency],
+      foreignColumns: [financeBudgetLines.id, financeBudgetLines.currency],
+    }).onDelete("restrict"),
+  ],
+);
+```
 
-1. **`finance_lines_balanced`** — deferred CONSTRAINT TRIGGER, `SUM(amount) = 0` per `(entry_id, currency)`
-   at COMMIT. Deferred because lines are inserted one at a time inside the entry's transaction.
-2. **`finance_lines_append_only`** — `BEFORE UPDATE OR DELETE`, raises unconditionally. Copy of 0259.
-3. **`finance_entries_freeze_financials`** — blocks changes to `template`, `festival_id`,
-   `idempotency_key`, `reverses_entry_id`. **`occurred_on` and `description` stay editable** (§8).
-4. **`finance_lines_reversal_mirrors`** — a reversal's lines must mirror the original exactly, with both
-   `amount` **and** `fx_rate` / `fx_counter_amount` sign-flipped and _never re-derived at today's rate_.
-   Re-deriving would permanently corrupt the account's weighted-average base rate.
+`finance_lines` carries a nullable `commitment_id`. Discharge is **not** stored:
 
-Integration test asserts all four directly against `pg_trigger` / `pg_constraint`, copying
-[app/lib/credits/credit-ledger-integrity.integration.test.ts](../app/lib/credits/credit-ledger-integrity.integration.test.ts).
+```sql
+-- SIGNED sum. Never abs().
+discharged = Σ finance_lines.amount WHERE commitment_id = c.id
+comprometido = greatest(c.amount - discharged, 0)   -- for status = 'open'
+```
 
-> **Must be registered in `package.json`'s `test:integration` script.** That list is a hand-enumerated set of
-> paths, **not a glob** — an unregistered test silently never runs.
+> **Why signed matters.** Correction-by-reversal (§8) is the only way to edit an amount, and a reversal
+> carries the same `commitment_id` with a negated amount. Under `Σ abs(amount)` a corrected Bs 300 payment
+> against a Bs 1,000 commitment makes `comprometido` read Bs 400 instead of Bs 1,000 — every corrected
+> payment silently halves its own encumbrance. Verified against PostgreSQL 16. Express it once as a view so
+> no query re-derives it.
+
+### 4.8 `finance_balance_assertions` — the arqueo
+
+```ts
+export const financeBalanceAssertions = pgTable(
+  "finance_balance_assertions",
+  {
+    id: serial("id").primaryKey(),
+    accountId: integer("account_id").notNull(),
+    accountRole: financeAccountRoleEnum("account_role")
+      .default("cash_rail")
+      .notNull(),
+    currency: financeCurrencyEnum("currency").notNull(),
+    countedOn: date("counted_on").notNull(),
+    countedAt: timestamp("counted_at").defaultNow().notNull(),
+    countedAmount: money("counted_amount").notNull(),
+    ledgerAmount: money("ledger_amount").notNull(), // what the ledger said at that moment
+    padEntryId: integer("pad_entry_id").references(() => financeEntries.id, {
+      onDelete: "restrict",
+    }),
+    countedByUserId: integer("counted_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    notes: text("notes"),
+  },
+  (t) => [
+    index("finance_balance_assertions_account_idx").on(
+      t.accountId,
+      t.countedOn,
+    ),
+    check(
+      "finance_balance_assertions_rail_only",
+      sql`${t.accountRole} = 'cash_rail'`,
+    ),
+    // A discrepancy cannot be recorded and abandoned: it must carry its ajuste_de_caja.
+    check(
+      "finance_balance_assertions_discrepancy_is_reconciled",
+      sql`${t.countedAmount} = ${t.ledgerAmount} OR ${t.padEntryId} IS NOT NULL`,
+    ),
+    foreignKey({
+      name: "finance_balance_assertions_account_currency_role_fk",
+      columns: [t.accountId, t.currency, t.accountRole],
+      foreignColumns: [
+        financeAccounts.id,
+        financeAccounts.currency,
+        financeAccounts.role,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+```
+
+No unique index on `(account_id, counted_on)` — event days need an opening and a closing count.
+
+### 4.9 `finance_fx_rates` — observations, not authority
+
+```ts
+export const financeFxRates = pgTable(
+  "finance_fx_rates",
+  {
+    id: serial("id").primaryKey(),
+    asOfDate: date("as_of_date").notNull(),
+    baseCurrency: financeCurrencyEnum("base_currency").notNull(), // USD
+    quoteCurrency: financeCurrencyEnum("quote_currency").notNull(), // BOB
+    rate: fxRate("rate").notNull(),
+    source: financeFxRateSourceEnum("source").notNull(),
+    isDayDefault: boolean("is_day_default").default(false).notNull(),
+    isDisplayDefault: boolean("is_display_default").default(false).notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("finance_fx_rates_lookup_idx").on(
+      t.asOfDate,
+      t.baseCurrency,
+      t.quoteCurrency,
+    ),
+    check("finance_fx_rates_positive", sql`${t.rate} > 0`),
+    check(
+      "finance_fx_rates_distinct_currencies",
+      sql`${t.baseCurrency} <> ${t.quoteCurrency}`,
+    ),
+    // Many rows per day allowed — the source ledger has two payments on 04/12/2025
+    // at 9.2998 and 9.8000. Only the DEFAULTS are unique.
+    uniqueIndex("finance_fx_rates_day_default_unique")
+      .on(t.asOfDate, t.baseCurrency, t.quoteCurrency, t.source)
+      .where(sql`${t.isDayDefault}`),
+    uniqueIndex("finance_fx_rates_display_default_unique")
+      .on(t.baseCurrency, t.quoteCurrency)
+      .where(sql`${t.isDisplayDefault}`),
+  ],
+);
+```
+
+### 4.10 Enforcement — five triggers
+
+`drizzle-kit` cannot emit `CREATE FUNCTION` / `CREATE TRIGGER`. House practice is to generate the table DDL
+from `db/schema.ts`, then append hand-written SQL beneath it in a `--custom` migration — exactly as
+[drizzle/0259_credit_ledger_integrity.sql](../drizzle/0259_credit_ledger_integrity.sql) does.
+
+> The project rule "never hand-edit migrations" means never patch generated DDL. Appending custom SQL below
+> the generated statements is the established exception, and 0259 is the precedent.
+
+| #   | Trigger                                     | On                                          | Enforces                                                                                                                       |
+| --- | ------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `finance_lines_balanced`                    | AFTER INSERT ON `finance_lines`, deferred   | `SUM(amount) = 0` per `(entry_id, currency)`                                                                                   |
+| 2   | `finance_entries_wellformed`                | AFTER INSERT ON `finance_entries`, deferred | Same aggregate, plus ≥2 legs and the festival-agreement rule                                                                   |
+| 3   | `finance_lines_append_only`                 | BEFORE UPDATE OR DELETE ON `finance_lines`  | Raises unconditionally                                                                                                         |
+| 4   | `finance_entries_freeze_financials`         | BEFORE UPDATE ON `finance_entries`          | Blocks `template`, `festival_id`, `idempotency_key`, `reverses_entry_id`; leaves `occurred_on` and `description` editable (§8) |
+| 5   | `finance_lines_reject_self_cancelling_pair` | AFTER INSERT ON `finance_lines`, deferred   | No two legs on the same `(account_id, currency)` that are exact negatives                                                      |
+
+**Triggers 1 and 2 are both required, and this is not belt-and-braces.** An earlier draft of this design put
+the balance check only on `finance_entries`. A verification pass tested it against PostgreSQL 16 and broke
+it: after committing a balanced two-leg entry, a second transaction inserted a lone `−99,999.00` line into
+that same entry and committed successfully, leaving it summing to −99,999.00. `finance_lines_append_only`
+blocks UPDATE and DELETE but **not INSERT**, and an entry-level AFTER INSERT trigger never fires again once
+the header row exists. Factor the aggregate into one function taking an entry id and call it from both.
+
+**Trigger 5 replaces a CHECK that cannot work.** An earlier draft said "add a CHECK rejecting any entry with
+two lines on the same `(account_id, currency)` whose amounts are exact negatives". A Postgres `CHECK` is
+per-row and cannot see sibling rows, so this must be a trigger. The pattern it catches is always either
+noise or a modelling error — it is what would have caught the four-leg `pago_sueldo_con_stand` bug (§9.4).
+
+All five are `AFTER ... FOR EACH ROW DEFERRABLE INITIALLY DEFERRED` where deferred; note a
+`CONSTRAINT TRIGGER` cannot be `BEFORE`. Triggers 3 and 4 are plain `BEFORE` triggers, not constraint
+triggers. An integration test asserts all five directly against `pg_trigger` / `pg_constraint`, copying
+[credit-ledger-integrity.integration.test.ts](../app/lib/credits/credit-ledger-integrity.integration.test.ts),
+and **must be registered in `package.json`'s `test:integration` list** — that list is hand-enumerated, not a
+glob, so an unregistered test silently never runs.
+
+### 4.11 Use one `roundMoney`, and it is the reservations one
+
+Two implementations exist and **they diverge on negative halves**:
+
+- [app/lib/reservations/money.ts:6](../app/lib/reservations/money.ts) extracts the sign first, so it rounds
+  half away from zero in both directions.
+- [app/lib/programs/pricing.ts:99](../app/lib/programs/pricing.ts) does not, and JS `Math.round(-0.5)` is
+  `-0`.
+
+So `roundMoney(-0.005)` returns `-0.01` from the first and `-0.00` from the second. In a ledger where every
+entry has negative legs by construction, that is a correctness difference, not a duplication smell.
+
+**The finanzas module uses the reservations implementation exclusively.** Consolidating the two is worth
+doing but is not a prerequisite — it touches the programs vertical and belongs in its own change.
 
 ---
 
@@ -520,7 +798,7 @@ has: `control:conversion:dennis` in BOB and in USD. The pair self-liquidates ove
 leaves no residual.
 
 A useful free property: `−(control BOB balance) / (control USD balance)` is the **weighted-average historical
-rate** of everything still open on that counterparty — exact, with no lot tracking and no eighth table.
+rate** of everything still open on that counterparty — exact, with no lot tracking and no extra table.
 
 ### 6.6 Seed exactly one rate, dated and labelled
 
@@ -591,7 +869,7 @@ forever (IAS 21.23(b) — the debt moves, the expense never does).
 | `control:conversion:dennis`   | USD |     −15.81 |
 | `control:conversion:dennis`   | BOB |    +154.94 |
 | `gastos:diferencia_de_cambio` | BOB | **+39.52** |
-| `activos:banco_1`             | BOB |    −194.46 |
+| `activos:mercantil`           | BOB |    −194.46 |
 
 BOB: 154.94 + 39.52 − 194.46 = 0 ✓ USD: 0 ✓
 Dennis USD **0.00**, control **0.00 in both currencies**, and the loss is named: **Bs 39.52**.
@@ -628,7 +906,7 @@ at that day's rate against a charge booked at 9.80. The feature formalises exist
   incompatible with the pooled weighted-average basis** used here — a pooled settlement discharges a fraction
   of a blended balance, so there is no single obligation to inherit from. Stated plainly instead: realised FX
   lands where the cash moved. If festival-level accuracy ever matters, the honest fix is a
-  settlement-to-obligation link table, which is the eighth table this design declines.
+  settlement-to-obligation link table, which is the ninth table this design declines.
 - **Stale display rate.** A computed number has no enforcement. >30 days the header reads
   _"dato de hace N días"_ and goes amber. Note that with a ~2-month annotation half-life in this ledger,
   **degraded is steady state** — so the two-line form `Bs 3.885,83 fijos + $us 75,10` is the permanent
@@ -670,7 +948,7 @@ its own flag with its own rollback, and none of them blocks the Phase 1–2 rele
 ### 7.1 Stand income
 
 Canonical source is `computeInvoiceTender` — approved cash + **non-reversed** credit allocations
-([app/lib/payments/tender.ts:111](../app/lib/payments/tender.ts)). The generator must never reimplement it.
+([app/lib/payments/tender.ts:106](../app/lib/payments/tender.ts); the non-reversed filter is at :111). The generator must never reimplement it.
 
 **Income definition, fixed here and never re-argued:**
 
@@ -679,19 +957,19 @@ Canonical source is `computeInvoiceTender` — approved cash + **non-reversed** 
 
 **Prerequisites, each a defect in the current domain:**
 
-| #   | Defect                                                                                                                                                                                                                                         | Fix                                                                                                                                                                                 |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1  | `settleInvoiceShortfall` destructively overwrites `invoices.amount`; the write-off survives only in an unread `stand_reservation_events` jsonb payload ([app/lib/reservations/payment-service.ts](../app/lib/reservations/payment-service.ts)) | Post a `condonacion` entry instead of overwriting. **Live billing — ship behind a flag, with a parallel-run check.**                                                                |
-| P2  | Free/discounted staff stands have no origination path: `createAdminReservation` writes a full-price invoice with no discount path. A `zero_value_entitlement` settlement path exists but nothing creates the zero-price invoice for it         | Add the origination path. Prerequisite for the `pago_sueldo_con_stand` template.                                                                                                    |
-| P3  | External-participant reservations get **no invoice at all** ([app/lib/reservations/capacity-service.ts](../app/lib/reservations/capacity-service.ts)) — sponsors and invited brands read as zero income                                        | Income query must be a three-way union: invoiced reservations, uninvoiced external participants at snapshot price, and grants. Otherwise the first screen ships a wrong number.     |
-| P4  | `stand_reservations.festival_id` is a bare `notNull` integer with **no foreign key**                                                                                                                                                           | Add the FK as `NOT VALID`, then `VALIDATE CONSTRAINT` in a **separate migration**, so one orphan row in 283 migrations of unenforced history cannot block the ledger's trigger DDL. |
-| P5  | `stands.individual_price` is overwritten in place with no history, so "projected" drifts retroactively                                                                                                                                         | Price snapshot per edition before any projected-vs-actual screen exists.                                                                                                            |
+| #   | Defect                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Fix                                                                                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | `settleInvoiceShortfall` destructively overwrites `invoices.amount`; the write-off survives only in an unread `stand_reservation_events` jsonb payload ([app/lib/reservations/payment-service.ts](../app/lib/reservations/payment-service.ts))                                                                                                                                                                                                                 | Post a `condonacion` entry instead of overwriting. **Live billing — ship behind a flag, with a parallel-run check.**                                                                |
+| P2  | Free/discounted staff stands have no origination path: `createAdminReservation` writes a full-price invoice with no discount path. A `zero_value_entitlement` settlement path exists but nothing creates the zero-price invoice for it                                                                                                                                                                                                                         | Add the origination path. Prerequisite for the `pago_sueldo_con_stand` template.                                                                                                    |
+| P3  | External-participant reservations get **no invoice at all** ([app/lib/reservations/capacity-service.ts](../app/lib/reservations/capacity-service.ts)) — sponsors and invited brands read as zero income                                                                                                                                                                                                                                                        | Income query must be a three-way union: invoiced reservations, uninvoiced external participants at snapshot price, and grants. Otherwise the first screen ships a wrong number.     |
+| P4  | `stand_reservations.festival_id` is a bare `notNull` integer with **no foreign key**                                                                                                                                                                                                                                                                                                                                                                           | Add the FK as `NOT VALID`, then `VALIDATE CONSTRAINT` in a **separate migration**, so one orphan row in 283 migrations of unenforced history cannot block the ledger's trigger DDL. |
+| P5  | **Narrower than it first appeared.** `stand_reservations` already snapshots price at reservation time — `priceAmountSnapshot`, `individualPriceSnapshot`, `sharedPriceSnapshot`, `fullTablePriceSnapshot` ([db/schema.ts:1223](../db/schema.ts)) — so **actual** income is already protected from drift. The gap is only **projected** income for stands nobody has reserved, which reads live `stands.individual_price` and does move when a price is edited. | A price snapshot per edition for the projected side only. Smaller than budgeted; shrinks Phase 4.                                                                                   |
 
 ### 7.2 Merch revenue
 
-| #   | Defect                                                                                                                                                                                                                                 | Fix                                                                   |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| P6  | Store money is `float4`: `orderItems.priceAtPurchase` ([db/schema.ts:3525](../db/schema.ts)), `products.price` (:2869), `products.discount` (:2881), `productVariants.price` (:2990), `qrCodes.amount` (:2370). **Floats do not foot** | Migrate to `numeric(12,2)`; route store pricing through `roundMoney`. |
+| #   | Defect                                                                                                                                                                                                                                 | Fix                                                                                                                                                                    |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P6  | Store money is `float4`: `orderItems.priceAtPurchase` ([db/schema.ts:3525](../db/schema.ts)), `products.price` (:2869), `products.discount` (:2881), `productVariants.price` (:2990), `qrCodes.amount` (:2370). **Floats do not foot** | Migrate to `numeric(12,2)`; route store pricing through `roundMoney` — **specifically [app/lib/reservations/money.ts:6](../app/lib/reservations/money.ts)**, see §4.9. |
 
 **P7 (a `festival_id` on `orders`) is deliberately not being done.** Decided 2026-09-12: merch is a
 continuous side business, and editions are attributed **by date range** instead.
@@ -796,37 +1074,146 @@ Facts verified in this repo that change the estimate:
   and `viewport: { viewportFit: 'cover' }` in the first release. A full service worker is deliberately out
   of scope — draft + outbox covers flaky wifi, and nothing in the data evidences genuine no-signal use.
 
-### 9.4 Entry templates
+### 9.4 Chart of accounts — 36 seeded rows
 
-~12 named events, each expanding **one typed amount** into the correct legs. hledger's rule: the user types
-one number, the rest is inferred.
+`app/lib/finanzas/accounts.ts`. Seeded in code, no editor in the UI. Spanish names, English identifiers.
+Codes are two or three lowercase colon-separated segments, satisfying `finance_accounts_code_shape`.
 
-`gasto` · `ingreso` · `prestamo_recibido` · `pago_prestamo` · `sueldo_devengado` · `pago_sueldo` ·
-`pago_sueldo_con_stand` · `adelanto_a_persona` · `traspaso` · `condonacion` · `apertura` · `ajuste_de_caja` ·
-`correccion`
+| Code                               | Nombre                         | type      | role         | cur |
+| ---------------------------------- | ------------------------------ | --------- | ------------ | --- |
+| `activos:mercantil`                | Cuenta Mercantil               | asset     | cash_rail    | BOB |
+| `activos:bcp`                      | Cuenta BCP                     | asset     | cash_rail    | BOB |
+| `activos:efectivo`                 | Efectivo                       | asset     | cash_rail    | BOB |
+| `activos:por_cobrar:participantes` | Por cobrar — participantes     | asset     | control      | BOB |
+| `pasivos:prestamos:dennis`         | Préstamos de Dennis (Bs)       | liability | counterparty | BOB |
+| `pasivos:prestamos:dennis_usd`     | Préstamos de Dennis ($us)      | liability | counterparty | USD |
+| `pasivos:prestamos:enrique`        | Préstamos de Enrique           | liability | counterparty | BOB |
+| `pasivos:prestamos:mama_andrea`    | Préstamos de la mamá de Andrea | liability | counterparty | BOB |
+| `pasivos:sueldos:andrea`           | Sueldos por pagar — Andrea     | liability | counterparty | BOB |
+| `pasivos:sin_atribuir`             | Sin atribuir                   | liability | counterparty | BOB |
+| `control:conversion:dennis_bob`    | Conversión — Dennis (Bs)       | equity    | control      | BOB |
+| `control:conversion:dennis_usd`    | Conversión — Dennis ($us)      | equity    | control      | USD |
+| `patrimonio:apertura`              | Saldo de apertura              | equity    | equity       | BOB |
+| `patrimonio:apertura:usd`          | Saldo de apertura ($us)        | equity    | equity       | USD |
+| `ingresos:stands`                  | Ingresos por stands            | income    | category     | BOB |
+| `ingresos:tienda`                  | Ingresos por tienda            | income    | category     | BOB |
+| `ingresos:programas`               | Ingresos por programas         | income    | category     | BOB |
+| `ingresos:ajustes_de_caja`         | Sobrantes de caja              | income    | category     | BOB |
+| `ingresos:diferencia_de_cambio`    | Diferencia de cambio a favor   | income    | category     | BOB |
+| `ingresos:condonaciones`           | Condonaciones recibidas        | income    | category     | BOB |
+| `gastos:espacio`                   | Alquiler de espacio            | expense   | category     | BOB |
+| `gastos:publicidad`                | Publicidad                     | expense   | category     | BOB |
+| `gastos:personal`                  | Personal                       | expense   | category     | BOB |
+| `gastos:decoracion`                | Decoración                     | expense   | category     | BOB |
+| `gastos:credenciales`              | Credenciales                   | expense   | category     | BOB |
+| `gastos:material_impreso`          | Material impreso               | expense   | category     | BOB |
+| `gastos:mesas`                     | Mesas                          | expense   | category     | BOB |
+| `gastos:toldo`                     | Toldo                          | expense   | category     | BOB |
+| `gastos:web_saas`                  | Página web y SaaS              | expense   | category     | BOB |
+| `gastos:comida`                    | Comida y consumos              | expense   | category     | BOB |
+| `gastos:transporte`                | Transporte                     | expense   | category     | BOB |
+| `gastos:papeleria`                 | Papelería                      | expense   | category     | BOB |
+| `gastos:condonaciones`             | Condonaciones otorgadas        | expense   | category     | BOB |
+| `gastos:diferencia_de_cambio`      | Diferencia de cambio           | expense   | category     | BOB |
+| `gastos:ajustes_de_caja`           | Ajustes de caja                | expense   | category     | BOB |
 
-> **`pago_sueldo_con_stand` is THREE legs, not four.** An earlier draft had four, two of which hit the same
-> account with `+FV` and `−FV` — they cancel, the expense is double-counted, and the staff liability is
-> never discharged. Correct:
->
-> ```
-> pasivos:sueldos:<persona>  +FV
-> ingresos:stands            −FV
-> gastos:personal            +FV   ← ONLY when no prior sueldo_devengado exists for that person and period
-> ```
->
-> Add a CHECK rejecting any entry with two lines on the same `(account_id, currency)` whose amounts are
-> exact negatives — that pattern is always either noise or a modelling error.
+Every `expense` and `income` account is BOB, satisfying `finance_accounts_results_are_local`. Only
+counterparty and cash-rail accounts are ever non-BOB.
 
-**Compensation in kind is recognised GROSS on both legs, at fair value. Never netted.** There is no
-"descontar del stand" shortcut and no template that touches an expense and an income account in one
-two-line entry. The Sheet uses three incompatible conventions for this across editions, which is precisely
-why _Ingresos_ and _Pagos Staff_ are not comparable between festivals.
+**Created on demand, not seeded:** `pasivos:sueldos:<slug>` when a `sueldo_devengado` first posts for a
+person, `activos:adelantos:<slug>` for an advance, `pasivos:prestamos:<slug>` when a new lender first lends,
+and the `control:conversion:<slug>_bob` / `_usd` pair when a counterparty first holds foreign currency.
+Export the code builders from `accounts.ts` so each shape has exactly one definition — a duplicated builder
+is how the control-pair codes diverged during authoring.
 
-`template` is a `pgEnum`, so **adding an event type is a migration.** Own that cost or make it a text column
-validated against a seeded table — do not claim it is free.
+### 9.5 Entry templates — the leg matrix
 
----
+14 templates. Each expands **one typed amount** into the correct legs (hledger's rule: the user types one
+number, the rest is inferred). `FV` = fair value, `Δ` = counted − ledger.
+
+| Template                  | Nombre                         | Legs                                                                                   |
+| ------------------------- | ------------------------------ | -------------------------------------------------------------------------------------- |
+| `gasto`                   | Gasto                          | `gastos:<cat>` +A · rail −A — or counterparty −A when someone else paid                |
+| `ingreso`                 | Ingreso                        | rail +A · `ingresos:<cat>` −A                                                          |
+| `ingreso_stands_derivado` | Ingreso de stands (automático) | `activos:por_cobrar:participantes` +A · `ingresos:stands` −A                           |
+| `prestamo_recibido`       | Préstamo recibido              | rail +A · `pasivos:prestamos:<p>` −A                                                   |
+| `pago_prestamo`           | Pago de préstamo               | see below                                                                              |
+| `sueldo_devengado`        | Sueldo devengado               | `gastos:personal` +A · `pasivos:sueldos:<p>` −A                                        |
+| `pago_sueldo`             | Pago de sueldo                 | `pasivos:sueldos:<p>` +D · `gastos:personal` +(A−D) · rail −A, where D = min(A, saldo) |
+| `pago_sueldo_con_stand`   | Pago de sueldo con stand       | see below                                                                              |
+| `adelanto_a_persona`      | Adelanto                       | `activos:adelantos:<p>` +A · rail −A                                                   |
+| `traspaso`                | Traspaso entre cuentas         | rail₁ −A · rail₂ +A                                                                    |
+| `condonacion`             | Condonación                    | `gastos:condonaciones` +A · `activos:por_cobrar:participantes` −A                      |
+| `apertura`                | Saldo de apertura              | account ±A · `patrimonio:apertura` ∓A                                                  |
+| `ajuste_de_caja`          | Ajuste de caja                 | rail +Δ · `gastos:ajustes_de_caja` −Δ (Δ<0) or `ingresos:ajustes_de_caja` −Δ (Δ>0)     |
+| `correccion`              | Corrección                     | every leg of the original, mirrored                                                    |
+
+#### `pago_sueldo_con_stand` — a partial discharge, not an either/or
+
+**Two earlier specifications of this were wrong, and it is the case the whole model is justified by.**
+
+The first had four legs, two of them on the same account with `+FV` and `−FV` — they cancel, double-count
+the expense, and never discharge the liability. The correction in an earlier revision of this document had
+three unconditional legs which **do not sum to zero** (`+FV − FV + FV = +FV`).
+
+The real shape is a **partial discharge**, because the stand's fair value and the accrued salary are
+independent numbers and usually differ:
+
+```
+D = min(FV, saldo)                         where saldo = the open salary liability
+
+pasivos:sueldos:<persona>  +D              emitted when D > 0
+gastos:personal            +(FV − D)       emitted when FV > D, carries festival_id
+ingresos:stands            −FV             always
+```
+
+Sum: `D + (FV − D) − FV = 0` ✓ — in all three branches (2 legs when `saldo` is 0 or ≥ FV, 3 in between).
+
+With an accrual of Bs 500 and a stand worth Bs 800, the binary version posted `+800` against a Bs 500
+liability, flipping it to a Bs 300 _favour_ position and recognising **zero** expense for Bs 300 of pay
+actually delivered. `pago_sueldo` has the identical defect and the identical fix.
+
+`saldo` must be read from the **account balance**, not from "does an accrual entry exist" — a
+`sueldo_devengado` that was later reversed still has its original entry row, so an existence check reports
+an accrual whose liability is zero.
+
+Compensation in kind stays **gross on both legs at fair value**. There is no "descontar del stand" shortcut.
+
+#### `pago_prestamo` across currencies
+
+Settling a USD obligation with bolivianos needs the conversion control pair (§6.5) plus a difference plug:
+
+```
+pasivos:prestamos:dennis_usd  USD  +discharged
+control:conversion:dennis_usd USD  −discharged
+control:conversion:dennis_bob BOB  +released          ← the historical basis released
+gastos:diferencia_de_cambio   BOB  +difference        ← the plug; may be negative
+activos:mercantil             BOB  −paid
+```
+
+USD sums to zero; BOB sums to zero because `difference = paid − released` by construction.
+
+**Split the payment when part of the balance has no basis.** Dennis's USD 100.35 is 75.10 carrying Bs 721.21
+of basis plus the Supabase 25.25 carrying none. Settling in full at 12.30 pays Bs 1,234.31 — and a naive plug
+books **Bs 513.10** as "diferencia de cambio" when the true realised difference is **Bs 202.52**. The other
+Bs 310.58 is unrecognised Supabase cost wearing an FX label. Since §12 makes the size of the difference
+account the system's own honesty metric, that corrupts the one number meant to measure corruption. Compute
+`paidForBasisless = paid × withoutBasis ÷ discharged` and post it to `patrimonio:apertura` instead — the
+basis-less debt was opened against equity with no BOB side, so closing it against equity is what discharges
+the opening-balance gap.
+
+#### Preconditions `postEntry()` enforces
+
+- Resolve every account through a typed lookup returning `CONTROL_PAIR_MISSING` / `UNKNOWN_ACCOUNT` rather
+  than letting a raw FK violation surface (§6.9).
+- Resolve the control pair **lazily** — a counterparty whose entire USD balance is basis-less emits no
+  control legs and must not be blocked by a missing pair.
+- `ajuste_de_caja`, `traspaso`, `prestamo_recibido`, `pago_prestamo` and `apertura` are balance-sheet only:
+  `festival_id` is forced to null (§3.3).
+- `correccion` mirrors `fx_rate` and `fx_counter_amount` with signs flipped and **never** re-derives the
+  rate at today's value — re-deriving permanently corrupts the account's weighted-average basis.
+- A `correccion` that re-posts must pass an explicit idempotency-key override, or a template with a
+  deterministic key (like `sueldo_devengado`) can be reversed but never re-posted.
 
 ## 10. Migration and cutover
 
