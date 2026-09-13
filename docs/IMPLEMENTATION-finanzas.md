@@ -100,16 +100,34 @@ A balance is `SUM(amount)`. Nothing stores a balance.
 
 ### 3.3 The rule that catches the `Deudas` class of error
 
-> A line on a `liability` or `equity` account may not carry a `festival_id`.
+> A festival's result is the sum of its `income` and `expense` lines. Nothing else. And an entry whose
+> template only moves balance-sheet accounts may not carry a `festival_id`.
 
-Loan principal movements are balance-sheet events. They can never touch a festival's result. This is a CHECK,
-not a convention.
+Two parts, enforced in two places, because `festival_id` lives on the **entry**, not the line:
+
+1. **The taxonomy is the guard.** The `festivales/[id]` query sums lines whose account `type` is `income` or
+   `expense`, joined to entries with that `festival_id`. A loan repayment posts to a `liability` account, so
+   it cannot enter a festival result no matter how it is tagged. This is what would have caught `Deudas`
+   booked as Gastos — the Sheet had no account types, so the label was the only thing distinguishing a
+   repayment from a cost.
+2. **Balance-sheet templates are unattributable.** `traspaso`, `prestamo_recibido`, `pago_prestamo`,
+   `adelanto_a_persona`, `ajuste_de_caja` and `apertura` touch no result account, so a `festival_id` on them
+   is noise at best and a filter bug at worst. A plain CHECK on `finance_entries`
+   (`finance_entries_balance_sheet_templates_unattributed`, §4.3) rejects it — both columns are on the same
+   row, so no trigger is needed.
+
+An earlier draft phrased this as "a line on a `liability` or `equity` account may not carry a
+`festival_id`, as a CHECK". That cannot be implemented (a `CHECK` on `finance_lines` cannot see the entry) and
+would be wrong if it could: `sueldo_devengado` and `pago_sueldo_con_stand` put a `pasivos:sueldos:<persona>`
+leg in a festival-attributed entry on purpose. A liability leg **inside** a festival entry is fine; it is
+simply not part of the result. Trigger 2 (§4.11) adds the converse: an entry that carries a `festival_id`
+must have at least one `income` or `expense` line.
 
 ---
 
 ## 4. Schema
 
-Eight tables. All additive — no existing table is restructured. Uses the existing `money()` helper
+Nine tables. All additive — no existing table is restructured. Uses the existing `money()` helper
 ([db/schema.ts:22](../db/schema.ts), `numeric(12,2)` mode `number`).
 
 ### 4.1 `finance_accounts`
@@ -157,6 +175,12 @@ export const financeAccounts = pgTable(
   (t) => [
     uniqueIndex("finance_accounts_code_unique").on(t.code),
     unique("finance_accounts_id_currency_key").on(t.id, t.currency),
+    // Target of the (id, currency, role) FKs from budget lines and balance assertions (§4.6, §4.8).
+    unique("finance_accounts_id_currency_role_key").on(
+      t.id,
+      t.currency,
+      t.role,
+    ),
     check(
       "finance_accounts_code_shape",
       sql`${t.code} ~ '^[a-z0-9]+(:[a-z0-9_-]+){1,2}$'`,
@@ -246,6 +270,10 @@ export const financeEntries = pgTable(
     festivalId: integer("festival_id").references(() => festivals.id, {
       onDelete: "restrict",
     }),
+    // Receipt photo via uploadthing. Same pair `payments` uses for vouchers
+    // (`voucher_url` + `file_key`); the key is what storage cleanup deletes.
+    receiptUrl: text("receipt_url"),
+    receiptFileKey: text("receipt_file_key"),
     idempotencyKey: text("idempotency_key").notNull(),
     reversesEntryId: integer("reverses_entry_id"),
     createdByUserId: integer("created_by_user_id")
@@ -255,11 +283,24 @@ export const financeEntries = pgTable(
   },
   (t) => [
     uniqueIndex("finance_entries_idempotency_key_unique").on(t.idempotencyKey),
+    uniqueIndex("finance_entries_receipt_file_key_unique")
+      .on(t.receiptFileKey)
+      .where(sql`${t.receiptFileKey} IS NOT NULL`),
     index("finance_entries_occurred_idx").on(t.occurredOn),
     index("finance_entries_festival_idx").on(t.festivalId),
     check(
       "finance_entries_occurred_on_sane",
       sql`${t.occurredOn} BETWEEN '2024-01-01' AND CURRENT_DATE + 365`,
+    ),
+    check(
+      "finance_entries_receipt_pair",
+      sql`(${t.receiptUrl} IS NULL) = (${t.receiptFileKey} IS NULL)`,
+    ),
+    // §3.3 part 2: templates that touch no income/expense account cannot be festival-attributed.
+    check(
+      "finance_entries_balance_sheet_templates_unattributed",
+      sql`${t.template} NOT IN ('traspaso', 'prestamo_recibido', 'pago_prestamo', 'adelanto_a_persona', 'ajuste_de_caja', 'apertura')
+        OR ${t.festivalId} IS NULL`,
     ),
     foreignKey({
       name: "finance_entries_reverses_entry_id_fk",
@@ -294,10 +335,10 @@ export const financeLines = pgTable(
     accountId: integer("account_id").notNull(),
     currency: financeCurrencyEnum("currency").notNull(),
     amount: money("amount").notNull(), // signed
-    budgetLineId: integer("budget_line_id").references(
-      () => financeBudgetLines.id,
-      { onDelete: "restrict" },
-    ),
+    // Envelope + commitment attribution (§4.6, §4.7). Plain integers here; the
+    // composite FKs below pin currency and the budget-line/commitment pairing.
+    budgetLineId: integer("budget_line_id"),
+    commitmentId: integer("commitment_id"),
 
     fxRate: fxRate("fx_rate"), // Bs per 1 unit of fx_counter_currency
     fxRateSource: financeFxRateSourceEnum("fx_rate_source"),
@@ -310,12 +351,39 @@ export const financeLines = pgTable(
   (t) => [
     index("finance_lines_entry_idx").on(t.entryId),
     index("finance_lines_account_idx").on(t.accountId),
+    index("finance_lines_budget_line_idx")
+      .on(t.budgetLineId)
+      .where(sql`${t.budgetLineId} IS NOT NULL`),
+    index("finance_lines_commitment_idx")
+      .on(t.commitmentId)
+      .where(sql`${t.commitmentId} IS NOT NULL`),
     check("finance_lines_amount_nonzero", sql`${t.amount} <> 0`),
+    // A commitment is always inside an envelope; a line cannot name one without the other.
+    check(
+      "finance_lines_commitment_implies_budget_line",
+      sql`${t.commitmentId} IS NULL OR ${t.budgetLineId} IS NOT NULL`,
+    ),
     // full FX CHECK set in §6.2
     foreignKey({
       name: "finance_lines_account_currency_fk",
       columns: [t.accountId, t.currency],
       foreignColumns: [financeAccounts.id, financeAccounts.currency],
+    }).onDelete("restrict"),
+    // A line can never consume an envelope in another currency.
+    foreignKey({
+      name: "finance_lines_budget_line_currency_fk",
+      columns: [t.budgetLineId, t.currency],
+      foreignColumns: [financeBudgetLines.id, financeBudgetLines.currency],
+    }).onDelete("restrict"),
+    // ...and a commitment it names must belong to that same envelope, in that same currency.
+    foreignKey({
+      name: "finance_lines_commitment_budget_line_currency_fk",
+      columns: [t.commitmentId, t.budgetLineId, t.currency],
+      foreignColumns: [
+        financeCommitments.id,
+        financeCommitments.budgetLineId,
+        financeCommitments.currency,
+      ],
     }).onDelete("restrict"),
   ],
 );
@@ -324,6 +392,11 @@ export const financeLines = pgTable(
 The composite FK to `(finance_accounts.id, currency)` means a line's currency **cannot** disagree with its
 account's currency. That is what makes the "never revalue a Bs-denominated obligation" rule unfalsifiable
 rather than a convention.
+
+The same trick pins envelopes and commitments: `(budget_line_id, currency)` and
+`(commitment_id, budget_line_id, currency)` are FKs onto matching UNIQUE constraints in §4.6 and §4.7, so a
+line cannot point at a commitment from a different envelope, or at an envelope in a different currency, and
+the service layer never has to check either.
 
 ### 4.5 Enums
 
@@ -340,12 +413,14 @@ export const financeFxRateSourceEnum = pgEnum("finance_fx_rate_source", [
   "parallel_market",
 ]);
 
-// 14 values: the 13 named in §9.4 plus ingreso_stands_derivado, which the
-// automatic stand-income generator posts under (§7.1).
+// 15 values: the 13 named in §9.5 plus ingreso_stands_derivado, which the
+// automatic stand-income generator posts under (§7.1), and cobro_participante,
+// which settles the receivable that generator creates.
 export const financeEntryTemplateEnum = pgEnum("finance_entry_template", [
   "gasto",
   "ingreso",
   "ingreso_stands_derivado",
+  "cobro_participante",
   "prestamo_recibido",
   "pago_prestamo",
   "sueldo_devengado",
@@ -442,8 +517,8 @@ The composite FK pins account + currency + role in one constraint. Because
 `finance_accounts_results_are_local` forces category accounts to BOB, a USD envelope is structurally
 impossible — correct, since only monetary accounts are ever non-BOB.
 
-`finance_lines.budgetLineId` FKs here, paired on currency so a line can never consume an envelope in
-another currency.
+`finance_lines.budgetLineId` FKs here through `finance_budget_lines_id_currency_key`, paired on currency so
+a line can never consume an envelope in another currency (§4.4).
 
 ### 4.7 `finance_commitments` — the encumbrance stage
 
@@ -471,6 +546,12 @@ export const financeCommitments = pgTable(
   },
   (t) => [
     index("finance_commitments_budget_line_idx").on(t.budgetLineId, t.status),
+    // Target of finance_lines_commitment_budget_line_currency_fk (§4.4).
+    unique("finance_commitments_id_budget_line_currency_key").on(
+      t.id,
+      t.budgetLineId,
+      t.currency,
+    ),
     check("finance_commitments_amount_positive", sql`${t.amount} > 0`),
     check(
       "finance_commitments_payee_named",
@@ -596,7 +677,58 @@ export const financeFxRates = pgTable(
 );
 ```
 
-### 4.10 Enforcement — five triggers
+### 4.10 `finance_entry_amendments` — the audit row for narrative edits
+
+§8 lets `occurred_on`, `description`, `fx_rate_note` and the receipt be edited in place. Every such edit
+writes one row here, so the ledger stays append-only in substance even where a column is mutable.
+
+```ts
+export const financeAmendedFieldEnum = pgEnum("finance_amended_field", [
+  "occurred_on",
+  "description",
+  "fx_rate_note",
+  "receipt",
+]);
+
+export const financeEntryAmendments = pgTable(
+  "finance_entry_amendments",
+  {
+    id: serial("id").primaryKey(),
+    entryId: integer("entry_id")
+      .notNull()
+      .references(() => financeEntries.id, { onDelete: "restrict" }),
+    // fx_rate_note lives on a line; the other three live on the entry.
+    lineId: integer("line_id").references(() => financeLines.id, {
+      onDelete: "restrict",
+    }),
+    field: financeAmendedFieldEnum("field").notNull(),
+    oldValue: text("old_value"), // as text; NULL when the field was empty
+    newValue: text("new_value"),
+    reason: text("reason"),
+    amendedByUserId: integer("amended_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    amendedAt: timestamp("amended_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("finance_entry_amendments_entry_idx").on(t.entryId, t.amendedAt),
+    check(
+      "finance_entry_amendments_line_only_for_note",
+      sql`(${t.field} = 'fx_rate_note') = (${t.lineId} IS NOT NULL)`,
+    ),
+    check(
+      "finance_entry_amendments_changed_something",
+      sql`${t.oldValue} IS DISTINCT FROM ${t.newValue}`,
+    ),
+  ],
+);
+```
+
+Append-only like the ledger: the same `BEFORE UPDATE OR DELETE` raise as trigger 3 (§4.11), on this table.
+Trigger 4 (`finance_entries_freeze_financials`) is what keeps the _editable_ set closed — anything not in this
+enum is edited through `correccion`.
+
+### 4.11 Enforcement — five triggers
 
 `drizzle-kit` cannot emit `CREATE FUNCTION` / `CREATE TRIGGER`. House practice is to generate the table DDL
 from `db/schema.ts`, then append hand-written SQL beneath it in a `--custom` migration — exactly as
@@ -608,7 +740,7 @@ from `db/schema.ts`, then append hand-written SQL beneath it in a `--custom` mig
 | #   | Trigger                                     | On                                          | Enforces                                                                                                                       |
 | --- | ------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | 1   | `finance_lines_balanced`                    | AFTER INSERT ON `finance_lines`, deferred   | `SUM(amount) = 0` per `(entry_id, currency)`                                                                                   |
-| 2   | `finance_entries_wellformed`                | AFTER INSERT ON `finance_entries`, deferred | Same aggregate, plus ≥2 legs and the festival-agreement rule                                                                   |
+| 2   | `finance_entries_wellformed`                | AFTER INSERT ON `finance_entries`, deferred | Same aggregate, plus ≥2 legs, plus: `festival_id IS NOT NULL` ⇒ at least one line on an `income`/`expense` account (§3.3)      |
 | 3   | `finance_lines_append_only`                 | BEFORE UPDATE OR DELETE ON `finance_lines`  | Raises unconditionally                                                                                                         |
 | 4   | `finance_entries_freeze_financials`         | BEFORE UPDATE ON `finance_entries`          | Blocks `template`, `festival_id`, `idempotency_key`, `reverses_entry_id`; leaves `occurred_on` and `description` editable (§8) |
 | 5   | `finance_lines_reject_self_cancelling_pair` | AFTER INSERT ON `finance_lines`, deferred   | No two legs on the same `(account_id, currency)` that are exact negatives                                                      |
@@ -627,12 +759,20 @@ noise or a modelling error — it is what would have caught the four-leg `pago_s
 
 All five are `AFTER ... FOR EACH ROW DEFERRABLE INITIALLY DEFERRED` where deferred; note a
 `CONSTRAINT TRIGGER` cannot be `BEFORE`. Triggers 3 and 4 are plain `BEFORE` triggers, not constraint
-triggers. An integration test asserts all five directly against `pg_trigger` / `pg_constraint`, copying
+triggers. Trigger 3's function is reused verbatim on `finance_entry_amendments` (§4.10).
+
+**There is deliberately no `finance_lines_reversal_mirrors` trigger.** An earlier draft had one, requiring a
+`correccion`'s lines to mirror the original's with `amount`, `fx_rate` and `fx_counter_amount` sign-flipped.
+It is dropped from the database layer because the only writer of a `correccion` is `postEntry()`, which
+derives the mirrored legs from the original rows rather than accepting them as input — there is no path by
+which a non-mirroring reversal can reach the table. The rule lives in §9.5's preconditions and is pinned by
+the §8 integration test (post, reverse, assert `saldo_fc = 0` **and** `base_bob = 0`). If a second writer
+ever appears, promote it back to a trigger. An integration test asserts all five directly against `pg_trigger` / `pg_constraint`, copying
 [credit-ledger-integrity.integration.test.ts](../app/lib/credits/credit-ledger-integrity.integration.test.ts),
 and **must be registered in `package.json`'s `test:integration` list** — that list is hand-enumerated, not a
 glob, so an unregistered test silently never runs.
 
-### 4.11 Use one `roundMoney`, and it is the reservations one
+### 4.12 Use one `roundMoney`, and it is the reservations one
 
 Two implementations exist and **they diverge on negative halves**:
 
@@ -906,7 +1046,7 @@ at that day's rate against a charge booked at 9.80. The feature formalises exist
   incompatible with the pooled weighted-average basis** used here — a pooled settlement discharges a fraction
   of a blended balance, so there is no single obligation to inherit from. Stated plainly instead: realised FX
   lands where the cash moved. If festival-level accuracy ever matters, the honest fix is a
-  settlement-to-obligation link table, which is the ninth table this design declines.
+  settlement-to-obligation link table, which is the tenth table this design declines.
 - **Stale display rate.** A computed number has no enforcement. >30 days the header reads
   _"dato de hace N días"_ and goes amber. Note that with a ~2-month annotation half-life in this ledger,
   **degraded is steady state** — so the two-line form `Bs 3.885,83 fijos + $us 75,10` is the permanent
@@ -967,9 +1107,9 @@ Canonical source is `computeInvoiceTender` — approved cash + **non-reversed** 
 
 ### 7.2 Merch revenue
 
-| #   | Defect                                                                                                                                                                                                                                 | Fix                                                                                                                                                                    |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P6  | Store money is `float4`: `orderItems.priceAtPurchase` ([db/schema.ts:3525](../db/schema.ts)), `products.price` (:2869), `products.discount` (:2881), `productVariants.price` (:2990), `qrCodes.amount` (:2370). **Floats do not foot** | Migrate to `numeric(12,2)`; route store pricing through `roundMoney` — **specifically [app/lib/reservations/money.ts:6](../app/lib/reservations/money.ts)**, see §4.9. |
+| #   | Defect                                                                                                                                                                                                                                 | Fix                                                                                                                                                                     |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P6  | Store money is `float4`: `orderItems.priceAtPurchase` ([db/schema.ts:3525](../db/schema.ts)), `products.price` (:2869), `products.discount` (:2881), `productVariants.price` (:2990), `qrCodes.amount` (:2370). **Floats do not foot** | Migrate to `numeric(12,2)`; route store pricing through `roundMoney` — **specifically [app/lib/reservations/money.ts:6](../app/lib/reservations/money.ts)**, see §4.12. |
 
 **P7 (a `festival_id` on `orders`) is deliberately not being done.** Decided 2026-09-12: merch is a
 continuous side business, and editions are attributed **by date range** instead.
@@ -1008,8 +1148,8 @@ follows, and the distinction matters:
 
 | Field                                                     | Behaviour                                                                                                                                                                                      |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description`, `fx_rate_note`, receipt attachment         | **Directly editable.** Narrative, not financial.                                                                                                                                               |
-| `occurred_on`                                             | **Editable**, with the change written to an audit row. It changes no amount and no account, so the ledger stays balanced — and a date typo is the commonest typo (the Sheet has `03/01/0206`). |
+| `description`, `fx_rate_note`, receipt attachment         | **Directly editable.** Narrative, not financial. Each edit writes a `finance_entry_amendments` row (§4.10).                                                                                    |
+| `occurred_on`                                             | **Editable**, with the change written to `finance_entry_amendments`. It changes no amount and no account, so the ledger stays balanced — and a date typo is the commonest typo (`03/01/0206`). |
 | `amount`, `fx_rate`, `account`, `template`, `festival_id` | **Edited through reversal.** The UI button says _Editar_. The service posts a reversing entry plus a corrected one, in one transaction.                                                        |
 
 From Dennis's side this is editing: he changes a number and saves. What the store does is reverse and
@@ -1128,7 +1268,7 @@ is how the control-pair codes diverged during authoring.
 
 ### 9.5 Entry templates — the leg matrix
 
-14 templates. Each expands **one typed amount** into the correct legs (hledger's rule: the user types one
+15 templates. Each expands **one typed amount** into the correct legs (hledger's rule: the user types one
 number, the rest is inferred). `FV` = fair value, `Δ` = counted − ledger.
 
 | Template                  | Nombre                         | Legs                                                                                   |
@@ -1136,6 +1276,7 @@ number, the rest is inferred). `FV` = fair value, `Δ` = counted − ledger.
 | `gasto`                   | Gasto                          | `gastos:<cat>` +A · rail −A — or counterparty −A when someone else paid                |
 | `ingreso`                 | Ingreso                        | rail +A · `ingresos:<cat>` −A                                                          |
 | `ingreso_stands_derivado` | Ingreso de stands (automático) | `activos:por_cobrar:participantes` +A · `ingresos:stands` −A                           |
+| `cobro_participante`      | Cobro a participante           | rail +A · `activos:por_cobrar:participantes` −A                                        |
 | `prestamo_recibido`       | Préstamo recibido              | rail +A · `pasivos:prestamos:<p>` −A                                                   |
 | `pago_prestamo`           | Pago de préstamo               | see below                                                                              |
 | `sueldo_devengado`        | Sueldo devengado               | `gastos:personal` +A · `pasivos:sueldos:<p>` −A                                        |
@@ -1144,9 +1285,23 @@ number, the rest is inferred). `FV` = fair value, `Δ` = counted − ledger.
 | `adelanto_a_persona`      | Adelanto                       | `activos:adelantos:<p>` +A · rail −A                                                   |
 | `traspaso`                | Traspaso entre cuentas         | rail₁ −A · rail₂ +A                                                                    |
 | `condonacion`             | Condonación                    | `gastos:condonaciones` +A · `activos:por_cobrar:participantes` −A                      |
-| `apertura`                | Saldo de apertura              | account ±A · `patrimonio:apertura` ∓A                                                  |
+| `apertura`                | Saldo de apertura              | account ±A · `patrimonio:apertura` ∓A (BOB) or `patrimonio:apertura:usd` ∓A (USD)      |
 | `ajuste_de_caja`          | Ajuste de caja                 | rail +Δ · `gastos:ajustes_de_caja` −Δ (Δ<0) or `ingresos:ajustes_de_caja` −Δ (Δ>0)     |
 | `correccion`              | Corrección                     | every leg of the original, mirrored                                                    |
+
+#### `cobro_participante` — why `ingreso` must not be used for stand cash
+
+Once the generator (§7.1) posts `ingreso_stands_derivado`, the income is recognised and the participant's
+unpaid balance sits on `activos:por_cobrar:participantes`. The QR payment that later lands on Mercantil is
+**not** income a second time — it is the receivable being collected. Recording it as `ingreso` (rail +A ·
+`ingresos:stands` −A) double-counts every stand, which is exactly the defect §7.1's income definition
+exists to prevent ("cash received … is **never added to it**"). So the cash leg has its own template, and
+the `/nuevo` form must not offer `ingresos:stands` as a category under `ingreso` at all — that account is
+written only by the generator and by `pago_sueldo_con_stand`.
+
+The same receivable is what `condonacion` writes off. Between the three, `por_cobrar` ties out to the
+credit subledger on `/diagnostico`: Σ open invoice balances (per `computeInvoiceTender`) must equal the
+account balance, and the tie-out is the acceptance test for Phase 4.
 
 #### `pago_sueldo_con_stand` — a partial discharge, not an either/or
 
@@ -1208,8 +1363,9 @@ the opening-balance gap.
   than letting a raw FK violation surface (§6.9).
 - Resolve the control pair **lazily** — a counterparty whose entire USD balance is basis-less emits no
   control legs and must not be blocked by a missing pair.
-- `ajuste_de_caja`, `traspaso`, `prestamo_recibido`, `pago_prestamo` and `apertura` are balance-sheet only:
-  `festival_id` is forced to null (§3.3).
+- `ajuste_de_caja`, `traspaso`, `prestamo_recibido`, `pago_prestamo`, `adelanto_a_persona` and `apertura`
+  are balance-sheet only: `festival_id` is forced to null before the insert, and the
+  `finance_entries_balance_sheet_templates_unattributed` CHECK (§4.3) is the backstop (§3.3).
 - `correccion` mirrors `fx_rate` and `fx_counter_amount` with signs flipped and **never** re-derives the
   rate at today's value — re-deriving permanently corrupts the account's weighted-average basis.
 - A `correccion` that re-posts must pass an explicit idempotency-key override, or a template with a
@@ -1274,7 +1430,7 @@ multi-week window per year.
 
 | Phase                                    | Scope                                                                                                                                                                                                                                                                                             | Weeks (est.) |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| **0 — El libro**                         | 7 tables, enums, CHECKs, composite FK (migration A). Four triggers as a `--custom` migration (B). Seed ~25 accounts. `postEntry()` + templates. Integration test registered in `test:integration`.                                                                                                | 1            |
+| **0 — El libro**                         | 9 tables, enums, CHECKs, composite FKs (migration A). Five triggers as a `--custom` migration (B). Seed 36 accounts. `postEntry()` + templates. Integration test registered in `test:integration`.                                                                                                | 1            |
 | **1+2 — Capturar y saber (one release)** | `/nuevo` full-page capture, `/movimientos`, manifest + safe-area, receipt upload fixes, the guided import sitting, opening balances, `/personas`. **FX _storage_ only** (§11.1). **Recurring-charge chips and the weekly summary email ship HERE**, not later — they are the retention mechanism. | 3            |
 | **2.5 — FX display**                     | `hoy_bob`, the oficial/paralelo control, the difference chip. Gated on at least one rate row existing and being under 30 days old (§11.1).                                                                                                                                                        | 0.5          |
 | **3 — Sobres y compromisos**             | Budget lines, commitments, `sin asignar`, `/festivales/[id]` and `/presupuesto`                                                                                                                                                                                                                   | 1.5          |
