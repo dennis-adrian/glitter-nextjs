@@ -205,8 +205,10 @@ export const financeAccounts = pgTable(
 );
 ```
 
-`finance_accounts_results_are_local` is load-bearing: it means only monetary accounts (counterparty, cash
-rail) are ever non-BOB, so the ~25-account chart does not double per currency.
+`finance_accounts_results_are_local` is load-bearing: it means **result** accounts (`income`, `expense`) are
+always BOB, so the category half of the 37-account chart never doubles per currency. Balance-sheet accounts
+— counterparty, cash rail, control, equity — may be USD; the chart seeds a USD control pair and a USD
+opening-equity account (§9.4).
 
 **Per-currency accounts are deliberate.** "Dennis BOB" and "Dennis USD" are two accounts, because a
 Bs-denominated loan handed over in dollars is a Bs 3,000 obligation forever and must never be revalued.
@@ -362,6 +364,8 @@ export const financeLines = pgTable(
   },
   (t) => [
     index("finance_lines_entry_idx").on(t.entryId),
+    // Target of finance_entry_amendments_line_entry_fk (§4.10).
+    unique("finance_lines_id_entry_key").on(t.id, t.entryId),
     index("finance_lines_account_idx").on(t.accountId),
     index("finance_lines_budget_line_idx")
       .on(t.budgetLineId)
@@ -425,8 +429,8 @@ export const financeFxRateSourceEnum = pgEnum("finance_fx_rate_source", [
   "parallel_market",
 ]);
 
-// 18 values. The five *_derivado / credito_* / stand_de_cortesia templates are
-// written only by the generators in §7.3–§7.4, never offered on /nuevo.
+// 18 values. Six are generator-only (§9.5) — the *_derivado / credito_* pair,
+// stand_de_cortesia and pago_sueldo_con_stand — never offered on /nuevo.
 export const financeEntryTemplateEnum = pgEnum("finance_entry_template", [
   "gasto",
   "ingreso",
@@ -643,9 +647,10 @@ export const financeBalanceAssertions = pgTable(
       sql`${t.accountRole} = 'cash_rail'`,
     ),
     // A discrepancy cannot be recorded and abandoned: it must carry its ajuste_de_caja.
+    // The CHECK only sees this row; trigger 6 (§4.15) verifies the pad entry itself.
     check(
       "finance_balance_assertions_discrepancy_is_reconciled",
-      sql`${t.countedAmount} = ${t.ledgerAmount} OR ${t.padEntryId} IS NOT NULL`,
+      sql`(${t.countedAmount} = ${t.ledgerAmount}) = (${t.padEntryId} IS NULL)`,
     ),
     foreignKey({
       name: "finance_balance_assertions_account_currency_role_fk",
@@ -686,6 +691,11 @@ export const financeFxRates = pgTable(
       t.quoteCurrency,
     ),
     check("finance_fx_rates_positive", sql`${t.rate} > 0`),
+    // Only USD→BOB is a supported pair; a reversed row could otherwise become a default.
+    check(
+      "finance_fx_rates_supported_pair",
+      sql`${t.baseCurrency} = 'USD' AND ${t.quoteCurrency} = 'BOB'`,
+    ),
     check(
       "finance_fx_rates_distinct_currencies",
       sql`${t.baseCurrency} <> ${t.quoteCurrency}`,
@@ -722,10 +732,9 @@ export const financeEntryAmendments = pgTable(
     entryId: integer("entry_id")
       .notNull()
       .references(() => financeEntries.id, { onDelete: "restrict" }),
-    // fx_rate_note lives on a line; the other three live on the entry.
-    lineId: integer("line_id").references(() => financeLines.id, {
-      onDelete: "restrict",
-    }),
+    // fx_rate_note lives on a line; the other three live on the entry. The
+    // composite FK below pins the line to *this* entry.
+    lineId: integer("line_id"),
     field: financeAmendedFieldEnum("field").notNull(),
     oldValue: text("old_value"), // as text; NULL when the field was empty
     newValue: text("new_value"),
@@ -737,6 +746,11 @@ export const financeEntryAmendments = pgTable(
   },
   (t) => [
     index("finance_entry_amendments_entry_idx").on(t.entryId, t.amendedAt),
+    foreignKey({
+      name: "finance_entry_amendments_line_entry_fk",
+      columns: [t.lineId, t.entryId],
+      foreignColumns: [financeLines.id, financeLines.entryId],
+    }).onDelete("restrict"),
     check(
       "finance_entry_amendments_line_only_for_note",
       sql`(${t.field} = 'fx_rate_note') = (${t.lineId} IS NOT NULL)`,
@@ -771,6 +785,9 @@ export const financeRecurringCharges = pgTable(
       .notNull(),
     // Who pays by default: a rail (Glitter's money) or a counterparty (someone fronts it).
     paidFromAccountId: integer("paid_from_account_id").notNull(),
+    paidFromAccountRole: financeAccountRoleEnum(
+      "paid_from_account_role",
+    ).notNull(),
     currency: financeCurrencyEnum("currency").notNull(), // of paid_from
     defaultAmount: money("default_amount"), // NULL = ask every time
     cadence: financeRecurringCadenceEnum("cadence")
@@ -803,10 +820,18 @@ export const financeRecurringCharges = pgTable(
       columns: [t.categoryAccountId, t.categoryAccountRole],
       foreignColumns: [financeAccounts.id, financeAccounts.role],
     }).onDelete("restrict"),
+    check(
+      "finance_recurring_charges_paid_from_is_money",
+      sql`${t.paidFromAccountRole} IN ('cash_rail', 'counterparty')`,
+    ),
     foreignKey({
-      name: "finance_recurring_charges_paid_from_currency_fk",
-      columns: [t.paidFromAccountId, t.currency],
-      foreignColumns: [financeAccounts.id, financeAccounts.currency],
+      name: "finance_recurring_charges_paid_from_fk",
+      columns: [t.paidFromAccountId, t.currency, t.paidFromAccountRole],
+      foreignColumns: [
+        financeAccounts.id,
+        financeAccounts.currency,
+        financeAccounts.role,
+      ],
     }).onDelete("restrict"),
   ],
 );
@@ -859,8 +884,10 @@ export const financeFestivalSettings = pgTable(
 ```
 
 **Windows must not overlap** (§7.2). That is a cross-row rule; an `EXCLUDE USING gist` needs `btree_gist`,
-which this database does not load. Enforce it in the service that saves the window (query the neighbours,
-refuse with `MERCH_WINDOW_OVERLAPS`), and list any overlap on `/diagnostico` as a backstop.
+which this database does not load. Enforce it in the service that saves the window: inside one transaction,
+take `pg_advisory_xact_lock(hashtext('finance_festival_settings:merch_window'))`, query the neighbours,
+refuse with `MERCH_WINDOW_OVERLAPS`, else upsert. The lock serialises concurrent saves so two admins cannot
+race past the check. `/diagnostico` lists any overlap as a backstop.
 
 ### 4.13 `finance_stand_grants` — the atomic two-leg event
 
@@ -902,8 +929,10 @@ export const financeStandGrants = pgTable(
 
 ### 4.14 `finance_digest_sends` — one weekly email, exactly once
 
-Vercel crons are at-least-once. The Monday digest (§9.8) inserts here **before** calling Resend, keyed on the
-ISO week, so a duplicate invocation hits the unique index and exits.
+Vercel crons are at-least-once, and Resend can fail after the row exists. So the row is a **claim**, not a
+receipt: inserted `pending` before the send, marked sent only after Resend returns an id, and retried on a
+later invocation while it is still pending. A duplicate invocation either hits the unique index (already
+claimed this minute) or finds a fresh claim and exits.
 
 ```ts
 export const financeDigestSends = pgTable(
@@ -911,12 +940,18 @@ export const financeDigestSends = pgTable(
   {
     id: serial("id").primaryKey(),
     isoWeek: text("iso_week").notNull(), // '2026-W38'
-    sentAt: timestamp("sent_at").defaultNow().notNull(),
-    recipientCount: integer("recipient_count").notNull(),
+    claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+    attempts: integer("attempts").default(1).notNull(),
+    sentAt: timestamp("sent_at"), // NULL while pending
+    recipientCount: integer("recipient_count"),
     resendId: text("resend_id"),
   },
   (t) => [
     uniqueIndex("finance_digest_sends_week_unique").on(t.isoWeek),
+    check(
+      "finance_digest_sends_sent_is_complete",
+      sql`(${t.sentAt} IS NULL) = (${t.resendId} IS NULL)`,
+    ),
     check(
       "finance_digest_sends_week_shape",
       sql`${t.isoWeek} ~ '^\\d{4}-W\\d{2}$'`,
@@ -925,7 +960,7 @@ export const financeDigestSends = pgTable(
 );
 ```
 
-### 4.15 Enforcement — five triggers
+### 4.15 Enforcement — six triggers
 
 `drizzle-kit` cannot emit `CREATE FUNCTION` / `CREATE TRIGGER`. House practice is to generate the table DDL
 from `db/schema.ts`, then append hand-written SQL beneath it in a `--custom` migration — exactly as
@@ -934,13 +969,14 @@ from `db/schema.ts`, then append hand-written SQL beneath it in a `--custom` mig
 > The project rule "never hand-edit migrations" means never patch generated DDL. Appending custom SQL below
 > the generated statements is the established exception, and 0259 is the precedent.
 
-| #   | Trigger                                     | On                                          | Enforces                                                                                                                       |
-| --- | ------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | `finance_lines_balanced`                    | AFTER INSERT ON `finance_lines`, deferred   | `SUM(amount) = 0` per `(entry_id, currency)`                                                                                   |
-| 2   | `finance_entries_wellformed`                | AFTER INSERT ON `finance_entries`, deferred | Same aggregate, plus ≥2 legs, plus: `festival_id IS NOT NULL` ⇒ at least one line on an `income`/`expense` account (§3.3)      |
-| 3   | `finance_lines_append_only`                 | BEFORE UPDATE OR DELETE ON `finance_lines`  | Raises unconditionally                                                                                                         |
-| 4   | `finance_entries_freeze_financials`         | BEFORE UPDATE ON `finance_entries`          | Blocks `template`, `festival_id`, `idempotency_key`, `reverses_entry_id`; leaves `occurred_on` and `description` editable (§8) |
-| 5   | `finance_lines_reject_self_cancelling_pair` | AFTER INSERT ON `finance_lines`, deferred   | No two legs on the same `(account_id, currency)` that are exact negatives                                                      |
+| #   | Trigger                                     | On                                                     | Enforces                                                                                                                                                                                              |
+| --- | ------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `finance_lines_balanced`                    | AFTER INSERT ON `finance_lines`, deferred              | `SUM(amount) = 0` per `(entry_id, currency)`                                                                                                                                                          |
+| 2   | `finance_entries_wellformed`                | AFTER INSERT ON `finance_entries`, deferred            | Same aggregate, plus ≥2 legs, plus: `festival_id IS NOT NULL` ⇒ at least one line on an `income`/`expense` account (§3.3)                                                                             |
+| 3   | `finance_lines_append_only`                 | BEFORE UPDATE OR DELETE ON `finance_lines`             | Raises unconditionally                                                                                                                                                                                |
+| 4   | `finance_entries_freeze_financials`         | BEFORE UPDATE ON `finance_entries`                     | Blocks `template`, `festival_id`, `idempotency_key`, `reverses_entry_id`; leaves `occurred_on` and `description` editable (§8)                                                                        |
+| 5   | `finance_lines_reject_self_cancelling_pair` | AFTER INSERT ON `finance_lines`, deferred              | No two legs on the same `(account_id, currency)` that are exact negatives                                                                                                                             |
+| 6   | `finance_balance_assertions_pad_matches`    | AFTER INSERT ON `finance_balance_assertions`, deferred | When `pad_entry_id` is set: that entry has `template = 'ajuste_de_caja'`, `occurred_on = counted_on`, and exactly one line on `(account_id, currency)` with `amount = counted_amount − ledger_amount` |
 
 **Triggers 1 and 2 are both required, and this is not belt-and-braces.** An earlier draft of this design put
 the balance check only on `finance_entries`. A verification pass tested it against PostgreSQL 16 and broke
@@ -954,7 +990,7 @@ two lines on the same `(account_id, currency)` whose amounts are exact negatives
 per-row and cannot see sibling rows, so this must be a trigger. The pattern it catches is always either
 noise or a modelling error — it is what would have caught the four-leg `pago_sueldo_con_stand` bug (§9.4).
 
-All five are `AFTER ... FOR EACH ROW DEFERRABLE INITIALLY DEFERRED` where deferred; note a
+All six are `AFTER ... FOR EACH ROW DEFERRABLE INITIALLY DEFERRED` where deferred; note a
 `CONSTRAINT TRIGGER` cannot be `BEFORE`. Triggers 3 and 4 are plain `BEFORE` triggers, not constraint
 triggers. Trigger 3's function is reused verbatim on `finance_entry_amendments` (§4.10).
 
@@ -964,7 +1000,7 @@ It is dropped from the database layer because the only writer of a `correccion` 
 derives the mirrored legs from the original rows rather than accepting them as input — there is no path by
 which a non-mirroring reversal can reach the table. The rule lives in §9.5's preconditions and is pinned by
 the §8 integration test (post, reverse, assert `saldo_fc = 0` **and** `base_bob = 0`). If a second writer
-ever appears, promote it back to a trigger. An integration test asserts all five directly against `pg_trigger` / `pg_constraint`, copying
+ever appears, promote it back to a trigger. An integration test asserts all six directly against `pg_trigger` / `pg_constraint`, copying
 [credit-ledger-integrity.integration.test.ts](../app/lib/credits/credit-ledger-integrity.integration.test.ts),
 and **must be registered in `package.json`'s `test:integration` list** — that list is hand-enumerated, not a
 glob, so an unregistered test silently never runs.
@@ -1070,6 +1106,12 @@ check("finance_lines_fx_counter_shape",
         AND (${t.fxCounterAmount} IS NULL
              OR (${t.fxCounterAmount} <> 0
                  AND sign(${t.fxCounterAmount}) = sign(${t.amount}))))`),
+
+// 2b. a typed rate is meaningless without the amount it converted: the two
+//     legal foreign shapes in §6.3 are (rate, counter) or (NULL, NULL/memo),
+//     never (rate, NULL). Rejects a partial pair the form could otherwise save.
+check("finance_lines_fx_rate_needs_counter",
+  sql`${t.fxRate} IS NULL OR ${t.fxCounterAmount} IS NOT NULL`),
 
 // 3. BOB is the reporting currency: one side of any pair is always BOB
 check("finance_lines_fx_pair_includes_local",
@@ -1352,14 +1394,15 @@ resumable. Generated cash lands on **`activos:mercantil`** (QR receipts); if a p
 elsewhere Dennis posts a `traspaso`. `occurred_on` is the source row's own date, so late runs still land
 in the right month.
 
-| Source row                                                                                                       | Template                  | Legs                                                                           | Key                                                 | `festival_id`        |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- | -------------------- |
-| `payments` row backing an **approved** submission (`computeInvoiceTender().approvedCashAmount` per payment)      | `ingreso_stands_derivado` | `activos:mercantil` +A · `ingresos:stands` −A                                  | `stand-income:payment:<id>`                         | reservation's        |
-| `invoice_credit_allocations` row, not reversed                                                                   | `credito_aplicado`        | `pasivos:creditos:participantes` +A · `ingresos:stands` −A                     | `stand-income:allocation:<id>`                      | reservation's        |
-| the same allocation, once reversed (`reversed = true`)                                                           | `correccion`              | mirror of the above                                                            | `stand-income:allocation:<id>:reversal`             | inherited            |
-| `credit_top_ups` row with status approved                                                                        | `credito_recibido`        | `activos:mercantil` +A · `pasivos:creditos:participantes` −A                   | `credit-cash:top-up:<id>`                           | null (balance-sheet) |
-| `finance_stand_grants` row, kind `staff`                                                                         | `pago_sueldo_con_stand`   | §9.5, with `FV = fair_value` and `saldo` read from `pasivos:sueldos:<persona>` | `stand-grant:<id>`                                  | reservation's        |
-| `finance_stand_grants` row, kind `courtesy`; **or** an accepted external-participant reservation with no invoice | `stand_de_cortesia`       | `gastos:cortesias` +FV · `ingresos:stands` −FV                                 | `stand-grant:<id>` / `stand-grant:reservation:<id>` | reservation's        |
+| Source row                                                                                                       | Template                  | Legs                                                                               | Key                                                 | `festival_id`        |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------- | -------------------- |
+| `payments` row backing an **approved** submission (`computeInvoiceTender().approvedCashAmount` per payment)      | `ingreso_stands_derivado` | `activos:mercantil` +A · `ingresos:stands` −A                                      | `stand-income:payment:<id>`                         | reservation's        |
+| `invoice_credit_allocations` row, not reversed                                                                   | `credito_aplicado`        | `pasivos:creditos:participantes` +A · `ingresos:stands` −A                         | `stand-income:allocation:<id>`                      | reservation's        |
+| the same allocation, once reversed (`reversed = true`) **and** `stand-income:allocation:<id>` already posted     | `correccion`              | mirror of the above                                                                | `stand-income:allocation:<id>:reversal`             | inherited            |
+| an allocation already reversed before its original was ever posted                                               | —                         | nothing: the pair nets to zero and both keys are skipped, logged on `/diagnostico` | —                                                   | —                    |
+| `credit_top_ups` row with status approved                                                                        | `credito_recibido`        | `activos:mercantil` +A · `pasivos:creditos:participantes` −A                       | `credit-cash:top-up:<id>`                           | null (balance-sheet) |
+| `finance_stand_grants` row, kind `staff`                                                                         | `pago_sueldo_con_stand`   | §9.5, with `FV = fair_value` and `saldo` read from `pasivos:sueldos:<persona>`     | `stand-grant:<id>`                                  | reservation's        |
+| `finance_stand_grants` row, kind `courtesy`; **or** an accepted external-participant reservation with no invoice | `stand_de_cortesia`       | `gastos:cortesias` +FV · `ingresos:stands` −FV                                     | `stand-grant:<id>` / `stand-grant:reservation:<id>` | reservation's        |
 
 `occurred_on`: `payments.date`; `invoice_credit_allocations.created_at`; `credit_top_ups.reviewed_at`;
 `finance_stand_grants.created_at`; the reservation's `updated_at` for the uninvoiced external case.
@@ -1481,8 +1524,12 @@ post, reverse, assert `saldo_fc = 0` **and** `base_bob = 0`.
 `admin` only. The existing dashboard gate at
 [app/dashboard/layout.tsx:19](../app/dashboard/layout.tsx) admits `admin` **and** `festival_admin`, so
 `/dashboard/finanzas` needs its own check — a `festival_admin` must not see salaries or personal loan
-balances. Add `requireFinanzasAccess()` in `app/lib/finanzas/policy.ts` and call it in the
-`finanzas/layout.tsx`. Roles get revisited later; this is a deliberate stopgap, not a design.
+balances. Add `requireFinanzasAccess()` in `app/lib/finanzas/policy.ts` and call it **at every server
+boundary, not only the layout**: the first line of every server action in `app/lib/finanzas/actions.ts`
+(`postEntryAction` included), every query entrypoint a page calls, the `financeReceipt` uploadthing
+middleware (§9.9) and the `/importar` steps. A layout gate only guards navigation; a server action is
+callable without rendering the page. The generators and the digest run under the cron secret, not a user,
+and bypass it by construction. Roles get revisited later; this is a deliberate stopgap, not a design.
 
 ### 9.2 Routes
 
@@ -1588,31 +1635,35 @@ is how the control-pair codes diverged during authoring.
 18 templates. Each expands **one typed amount** into the correct legs (hledger's rule: the user types one
 number, the rest is inferred). `FV` = fair value, `Δ` = counted − ledger.
 
-| Template                  | Nombre                         | Legs                                                                                                                                               |
-| ------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gasto`                   | Gasto                          | `gastos:<cat>` +A · rail −A — or counterparty −A when someone else paid                                                                            |
-| `ingreso`                 | Ingreso                        | rail +A · `ingresos:<cat>` −A                                                                                                                      |
-| `ingreso_stands_derivado` | Ingreso de stands (automático) | `activos:mercantil` +A · `ingresos:stands` −A — generator only (§7.3)                                                                              |
-| `ingreso_tienda_derivado` | Ingreso de tienda (automático) | `activos:mercantil` +A · `ingresos:tienda` −A — generator only (§7.4)                                                                              |
-| `credito_recibido`        | Crédito recibido (automático)  | `activos:mercantil` +A · `pasivos:creditos:participantes` −A — generator only                                                                      |
-| `credito_aplicado`        | Crédito aplicado (automático)  | `pasivos:creditos:participantes` +A · `ingresos:stands` −A — generator only                                                                        |
-| `stand_de_cortesia`       | Stand de cortesía              | `gastos:cortesias` +FV · `ingresos:stands` −FV — generator only (§7.3)                                                                             |
-| `prestamo_recibido`       | Préstamo recibido              | rail +A · `pasivos:prestamos:<p>` −A                                                                                                               |
-| `pago_prestamo`           | Pago de préstamo               | see below                                                                                                                                          |
-| `sueldo_devengado`        | Sueldo devengado               | `gastos:personal` +A · `pasivos:sueldos:<p>` −A                                                                                                    |
-| `pago_sueldo`             | Pago de sueldo                 | `pasivos:sueldos:<p>` +D · `gastos:personal` +(A−D) · rail −A, where D = min(A, saldo)                                                             |
-| `pago_sueldo_con_stand`   | Pago de sueldo con stand       | see below                                                                                                                                          |
-| `adelanto_a_persona`      | Adelanto                       | `activos:adelantos:<p>` +A · rail −A                                                                                                               |
-| `traspaso`                | Traspaso entre cuentas         | rail₁ −A · rail₂ +A                                                                                                                                |
-| `condonacion`             | Condonación                    | someone forgives Glitter: `pasivos:<p>` +A · `ingresos:condonaciones` −A; Glitter forgives: `activos:adelantos:<p>` −A · `gastos:condonaciones` +A |
-| `apertura`                | Saldo de apertura              | account ±A · `patrimonio:apertura` ∓A (BOB) or `patrimonio:apertura:usd` ∓A (USD)                                                                  |
-| `ajuste_de_caja`          | Ajuste de caja                 | rail +Δ · `gastos:ajustes_de_caja` −Δ (Δ<0) or `ingresos:ajustes_de_caja` −Δ (Δ>0)                                                                 |
-| `correccion`              | Corrección                     | every leg of the original, mirrored                                                                                                                |
+| Template                  | Nombre                         | Legs                                                                                                                                                                                                                                                                                                         |
+| ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gasto`                   | Gasto                          | `gastos:<cat>` +A · rail −A — or counterparty −A when someone else paid. **USD counterparty:** the §6.8 recording shape — `gastos:<cat>` BOB +Bs · `control:<p>_bob` BOB −Bs · `control:<p>_usd` USD +U · `pasivos:<p>_usd` USD −U (four legs; Bs from the statement, U from the invoice, rate derived §6.7) |
+| `ingreso`                 | Ingreso                        | rail +A · `ingresos:<cat>` −A                                                                                                                                                                                                                                                                                |
+| `ingreso_stands_derivado` | Ingreso de stands (automático) | `activos:mercantil` +A · `ingresos:stands` −A — generator only (§7.3)                                                                                                                                                                                                                                        |
+| `ingreso_tienda_derivado` | Ingreso de tienda (automático) | `activos:mercantil` +A · `ingresos:tienda` −A — generator only (§7.4)                                                                                                                                                                                                                                        |
+| `credito_recibido`        | Crédito recibido (automático)  | `activos:mercantil` +A · `pasivos:creditos:participantes` −A — generator only                                                                                                                                                                                                                                |
+| `credito_aplicado`        | Crédito aplicado (automático)  | `pasivos:creditos:participantes` +A · `ingresos:stands` −A — generator only                                                                                                                                                                                                                                  |
+| `stand_de_cortesia`       | Stand de cortesía              | `gastos:cortesias` +FV · `ingresos:stands` −FV — generator only (§7.3)                                                                                                                                                                                                                                       |
+| `prestamo_recibido`       | Préstamo recibido              | rail +A · `pasivos:prestamos:<p>` −A                                                                                                                                                                                                                                                                         |
+| `pago_prestamo`           | Pago de préstamo               | see below                                                                                                                                                                                                                                                                                                    |
+| `sueldo_devengado`        | Sueldo devengado               | `gastos:personal` +A · `pasivos:sueldos:<p>` −A                                                                                                                                                                                                                                                              |
+| `pago_sueldo`             | Pago de sueldo                 | `pasivos:sueldos:<p>` +D · `gastos:personal` +(A−D) · rail −A, where D = min(A, saldo)                                                                                                                                                                                                                       |
+| `pago_sueldo_con_stand`   | Pago de sueldo con stand       | see below — generator only, from a `finance_stand_grants` row (§7.3)                                                                                                                                                                                                                                         |
+| `adelanto_a_persona`      | Adelanto                       | `activos:adelantos:<p>` +A · rail −A                                                                                                                                                                                                                                                                         |
+| `traspaso`                | Traspaso entre cuentas         | rail₁ −A · rail₂ +A                                                                                                                                                                                                                                                                                          |
+| `condonacion`             | Condonación                    | someone forgives Glitter: `pasivos:<p>` +A · `ingresos:condonaciones` −A; Glitter forgives: `activos:adelantos:<p>` −A · `gastos:condonaciones` +A                                                                                                                                                           |
+| `apertura`                | Saldo de apertura              | account ±A · `patrimonio:apertura` ∓A (BOB) or `patrimonio:apertura:usd` ∓A (USD)                                                                                                                                                                                                                            |
+| `ajuste_de_caja`          | Ajuste de caja                 | rail +Δ · `gastos:ajustes_de_caja` −Δ (Δ<0) or `ingresos:ajustes_de_caja` −Δ (Δ>0)                                                                                                                                                                                                                           |
+| `correccion`              | Corrección                     | every leg of the original, mirrored                                                                                                                                                                                                                                                                          |
 
 #### Generator-only templates never appear on `/nuevo`
 
-The five templates marked _generator only_ exist so that automatic postings are distinguishable from typed
-ones in every list and filter. `/nuevo` offers the other thirteen. In particular `ingreso` must **not** offer
+The six templates marked _generator only_ (`ingreso_stands_derivado`, `ingreso_tienda_derivado`,
+`credito_recibido`, `credito_aplicado`, `stand_de_cortesia`, `pago_sueldo_con_stand`) exist so that automatic
+postings are distinguishable from typed ones in every list and filter; `postEntry()` rejects them from any
+caller but the generators with `TEMPLATE_IS_DERIVED`. Of the remaining twelve, `/nuevo` offers nine —
+`ajuste_de_caja`, `condonacion` and `correccion` are posted from `/caja`, the counterparty screen and the
+entry detail screen respectively (§9.7). In particular `ingreso` must **not** offer
 `ingresos:stands` or `ingresos:tienda` as a category: those two accounts are written only by §7.3/§7.4 and
 by `pago_sueldo_con_stand`, and a manual posting there double-counts the next generator run. The category
 picker filters them out; `postEntry()` rejects them for `ingreso` with `CATEGORY_IS_DERIVED`.
@@ -1698,10 +1749,14 @@ shown negated: `−(−12,510.52)` renders as _Glitter debe Bs 12.510,52_.
 SELECT a.id, a.code, a.type, a.role, a.currency, a.counterparty_id,
        COALESCE(SUM(l.amount), 0) AS balance
 FROM finance_accounts a
-LEFT JOIN finance_lines l ON l.account_id = a.id
-LEFT JOIN finance_entries e ON e.id = l.entry_id AND e.occurred_on <= $1   -- as-of date
+LEFT JOIN (
+  finance_lines l
+  JOIN finance_entries e ON e.id = l.entry_id AND e.occurred_on <= $1     -- as-of date
+) ON l.account_id = a.id
 WHERE a.archived_at IS NULL
 GROUP BY a.id;
+-- The date predicate sits inside the inner join on purpose: on the outer LEFT JOIN it would
+-- null the entry but still sum the line, so future-dated lines would leak into every balance.
 ```
 
 **`/personas` — one signed number per counterparty per currency** (the §9.2 acceptance screen):
@@ -1743,11 +1798,13 @@ due (§4.11); `sin asignar` (below).
 ```sql
 -- per envelope, current period or festival
 presupuestado = b.amount
-gastado       = -Σ finance_lines.amount WHERE budget_line_id = b.id AND account is expense   -- positive
+gastado       = Σ finance_lines.amount WHERE budget_line_id = b.id AND account is expense    -- expense legs are +, so already positive
 comprometido  = Σ greatest(c.amount - discharged(c), 0) WHERE c.budget_line_id = b.id AND c.status = 'open'
-disponible    = presupuestado - comprometido - gastado
--- org level
-sin_asignar   = Σ(cash rail balances) - Σ(disponible over envelopes with disponible > 0)
+disponible    = presupuestado - comprometido - gastado                                       -- may be negative (§5.4)
+-- org level: every envelope, deficits included, so Σ(disponible) + sin_asignar = Σ(rails) holds exactly (§5.1)
+sin_asignar   = Σ(cash rail balances) - Σ(disponible over all open envelopes)
+-- an overspent envelope therefore *raises* sin_asignar by its deficit; the screen shows the
+-- deficit in red on the envelope and a "sobregirado Bs N" line under sin_asignar, never hides it
 ```
 
 `discharged(c)` is the signed sum from §4.7, expressed once as the view `finance_commitment_discharge`.
@@ -1812,13 +1869,17 @@ blocks the save. Uses the `financeReceipt` uploadthing route (§9.9).
 `America/La_Paz`, `STORE_TIMEZONE` in [app/lib/formatters.ts](../app/lib/formatters.ts)). Guard with
 `isAuthorizedCronRequest`. Handler:
 
-1. `INSERT INTO finance_digest_sends (iso_week, recipient_count)` for the current ISO week; on unique
-   violation, return `{ skipped: 'already_sent' }` (§4.14).
+1. Claim the week (§4.14): `INSERT INTO finance_digest_sends (iso_week)`; on unique violation, re-read the
+   row — if `sent_at IS NOT NULL` return `{ skipped: 'already_sent' }`; if pending and `claimed_at` is under
+   10 minutes old return `{ skipped: 'in_flight' }`; otherwise `UPDATE … SET claimed_at = now(),
+attempts = attempts + 1` and continue (a retry of a failed send). After 5 attempts stop retrying and
+   surface the week on `/diagnostico`.
 2. Recipients: `users.role = 'admin'` (the pattern in [app/api/users/actions.ts:687](../app/api/users/actions.ts)).
 3. Render `app/emails/finance-weekly-digest.tsx` (house header/footer from `email-header.tsx` /
    `email-footer.tsx`) and send with `sendEmail` from [app/vendors/resend.ts](../app/vendors/resend.ts),
-   `from: "Equipo Glitter <equipo@productoraglitter.com>"`, subject _"Finanzas — semana {W}"_. Store the
-   Resend id on the row.
+   `from: "Equipo Glitter <equipo@productoraglitter.com>"`, subject _"Finanzas — semana {W}"_. Only when
+   Resend returns an id: `UPDATE … SET sent_at = now(), resend_id = $id, recipient_count = $n`. A throw
+   leaves the claim pending for the next invocation.
 
 Content, in this order, all read-only and all from §9.6: cash per rail with arqueo age (amber ≥ 14 days);
 _Debo / Me deben_ per person in the two-line form; chips due this week; commitments due in the next 14
@@ -1967,15 +2028,15 @@ numbers) and imported by the same button; the step-1 table shows only unposted r
 
 Each phase names its migrations and its **done criterion**; a phase is not done because its screens open.
 
-| Phase                        | Scope                                                                                                                                                                                                                     | Migrations                                                                                                | Done when                                                                                                                                                                                                         | Weeks |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| **0 — El libro**             | 13 tables + enums + CHECKs + composite FKs (§4); five triggers; 37 seeded accounts + 7 chips; `postEntry()` with all 18 templates (§9.5); `requireFinanzasAccess()`; the §9.6 queries as tested SQL.                      | **A** (tables, `drizzle-kit generate`), **B** (triggers, `--custom`), **C** (seed rows, `--custom`, §9.4) | Integration test asserts all five triggers via `pg_trigger`, the §6.8 settlement example round-trips to the centavo, a `correccion` zeroes both `saldo_fc` and `base_bob`, and the test is in `test:integration`. | 1     |
-| **1+2 — Capturar y saber**   | `/nuevo` with chips, draft and outbox (§9.7); `/movimientos`; `/personas`; `/recurrentes`; receipts + manifest (§9.9); the import fixture and `/importar` (§10.5); the Monday digest (§9.8). FX **storage** only (§11.1). | none                                                                                                      | Phone walk-through: a chip posts in ≤ 6 taps, a new `gasto` in ≤ 10, airplane-mode save replays on reconnect. `/importar` step 3 signed off by Dennis. First digest received.                                     | 3     |
-| **2.5 — FX display**         | `hoy_bob`, oficial/paralelo toggle, staleness caption, `/diagnostico` FX rows (§9.6).                                                                                                                                     | none                                                                                                      | `/personas` shows Dennis's USD line with basis, today's value at both sources, and the difference; equity accounts never appear (§6.9 test).                                                                      | 0.5   |
-| **3 — Sobres y compromisos** | `/festivales/[id]` and `/presupuesto`; budget lines, commitments, `sin asignar`; the `finance_commitment_discharge` view.                                                                                                 | none                                                                                                      | For a seeded festival, `disponible` equals the hand computation after a reversed payment (§4.7 signed-sum case).                                                                                                  | 1.5   |
-| **4 — Ingresos automáticos** | §7.3 generator + cron; P2 grant input; P4; P5 projection; `/diagnostico` tie-outs.                                                                                                                                        | **D**, **E** (P4)                                                                                         | All three §7.3 tie-outs read _cuadra_ on the seeded festival, and a full staff grant posts a `pago_sueldo_con_stand` whose stand leg equals the price.                                                            | 2     |
-| **5 — Tienda**               | §7.4 generator; P6; merch window editor on `/festivales/[id]`.                                                                                                                                                            | **F** (P6)                                                                                                | Σ items = order total for a `.x5` seeded order; a paid order inside a window shows on that festival and nowhere else.                                                                                             | 1     |
-| **6 — Arqueo**               | `/caja` with opening/closing counts and the visible `ajuste_de_caja` pad; arqueo age on Hoy and in the digest.                                                                                                            | none                                                                                                      | A count that differs from the ledger cannot be saved without its pad entry (§4.8 CHECK) and the pad appears on `/movimientos`.                                                                                    | 0.5   |
+| Phase                        | Scope                                                                                                                                                                                                                     | Migrations                                                                                                | Done when                                                                                                                                                                                                        | Weeks |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **0 — El libro**             | 13 tables + enums + CHECKs + composite FKs (§4); six triggers; 37 seeded accounts + 7 chips; `postEntry()` with all 18 templates (§9.5); `requireFinanzasAccess()`; the §9.6 queries as tested SQL.                       | **A** (tables, `drizzle-kit generate`), **B** (triggers, `--custom`), **C** (seed rows, `--custom`, §9.4) | Integration test asserts all six triggers via `pg_trigger`, the §6.8 settlement example round-trips to the centavo, a `correccion` zeroes both `saldo_fc` and `base_bob`, and the test is in `test:integration`. | 1     |
+| **1+2 — Capturar y saber**   | `/nuevo` with chips, draft and outbox (§9.7); `/movimientos`; `/personas`; `/recurrentes`; receipts + manifest (§9.9); the import fixture and `/importar` (§10.5); the Monday digest (§9.8). FX **storage** only (§11.1). | none                                                                                                      | Phone walk-through: a chip posts in ≤ 6 taps, a new `gasto` in ≤ 10, airplane-mode save replays on reconnect. `/importar` step 3 signed off by Dennis. First digest received.                                    | 3     |
+| **2.5 — FX display**         | `hoy_bob`, oficial/paralelo toggle, staleness caption, `/diagnostico` FX rows (§9.6).                                                                                                                                     | none                                                                                                      | `/personas` shows Dennis's USD line with basis, today's value at both sources, and the difference; equity accounts never appear (§6.9 test).                                                                     | 0.5   |
+| **3 — Sobres y compromisos** | `/festivales/[id]` and `/presupuesto`; budget lines, commitments, `sin asignar`; the `finance_commitment_discharge` view.                                                                                                 | none                                                                                                      | For a seeded festival, `disponible` equals the hand computation after a reversed payment (§4.7 signed-sum case).                                                                                                 | 1.5   |
+| **4 — Ingresos automáticos** | §7.3 generator + cron; P2 grant input; P4; P5 projection; `/diagnostico` tie-outs.                                                                                                                                        | **D**, **E** (P4)                                                                                         | All three §7.3 tie-outs read _cuadra_ on the seeded festival, and a full staff grant posts a `pago_sueldo_con_stand` whose stand leg equals the price.                                                           | 2     |
+| **5 — Tienda**               | §7.4 generator; P6; merch window editor on `/festivales/[id]`.                                                                                                                                                            | **F** (P6)                                                                                                | Σ items = order total for a `.x5` seeded order; a paid order inside a window shows on that festival and nowhere else.                                                                                            | 1     |
+| **6 — Arqueo**               | `/caja` with opening/closing counts and the visible `ajuste_de_caja` pad; arqueo age on Hoy and in the digest.                                                                                                            | none                                                                                                      | A count that differs from the ledger cannot be saved without its pad entry (§4.8 CHECK) and the pad appears on `/movimientos`.                                                                                   | 0.5   |
 
 Order is fixed: 0 → 1+2 → 2.5 → 3 → 6 → 4 → 5. Phase 6 moves ahead of 4 because it is half a week and
 closes the weekly ritual; 4 and 5 are the ones to cut if the schedule slips.
