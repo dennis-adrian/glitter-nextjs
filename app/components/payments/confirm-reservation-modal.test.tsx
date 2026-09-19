@@ -54,6 +54,28 @@ function renderModal() {
 }
 
 describe("ConfirmReservationModal", () => {
+  it("shows the new balance without presenting the old approved voucher as its proof", () => {
+    render(
+      <ConfirmReservationModal
+        invoice={
+          {
+            ...invoice,
+            status: "pending",
+            amount: 390,
+            tender: { coveredAmount: 350, outstandingAmount: 40 },
+          } as never
+        }
+        show
+        onOpenChange={() => {}}
+      />,
+    );
+    const summary = screen.getByRole("dialog").querySelector("dl")!.textContent;
+    expect(summary).toContain("Saldo por pagar");
+    expect(summary).toContain("Bs40");
+    expect(summary).toContain("−Bs350");
+    expect(screen.queryByAltText("Comprobante de pago")).toBeNull();
+  });
+
   it("says the cobro will be settled, because confirming always settles it", () => {
     renderModal();
 
