@@ -64,8 +64,8 @@ export type ReservationConsoleDetail = {
  * the reservation hardening work, and nothing has ever displayed it — an admin
  * asking "who confirmed this, and when" had no answer inside the product.
  *
- * The submissions are the other half: `payments` is overwritten in place on
- * every re-upload, so the sequence of what was sent and what was decided only
+ * The submissions are the other half: unapproved payments are reused on
+ * re-upload, so the sequence of what was sent and what was decided only
  * survives in `invoice_settlement_submissions`.
  */
 export async function fetchReservationConsoleDetail(

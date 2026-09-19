@@ -63,8 +63,8 @@ export type InvoiceWithParticipants = InvoiceWithPaymentsAndStandAndProfile & {
  * An invoice with its coverage resolved.
  *
  * `payments` alone cannot answer what an invoice is owed once credits exist,
- * and the row is overwritten in place on every re-upload, so the amount it
- * carries is only ever the current cash remainder.
+ * and only approved submissions count as cash. Reopened balances have their
+ * own payment rows; replacements reuse only unapproved rows.
  */
 export type InvoiceWithTender = InvoiceWithParticipants & {
   tender: InvoiceTender;

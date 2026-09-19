@@ -1,7 +1,7 @@
 import "server-only";
 import { activeReservationStandIds } from "@/app/lib/reservations/members";
 
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import { invoiceCreditPlan } from "@/app/lib/credits/balances";
@@ -333,6 +333,33 @@ async function rejectOlderSubmittedSettlements(
   }
 }
 
+/**
+ * Replacements may reuse an unsettled payment, but approved cash is immutable.
+ * A reopened invoice (for example after a stand upgrade) needs a new payment.
+ * Call only with the invoice aggregate locked, like every proof writer below.
+ */
+async function latestUnapprovedPaymentInTx(tx: DbTx, invoiceId: number) {
+  const [payment] = await tx
+    .select()
+    .from(payments)
+    .where(eq(payments.invoiceId, invoiceId))
+    .orderBy(desc(payments.createdAt), desc(payments.id))
+    .limit(1);
+  if (!payment) return null;
+
+  const [approval] = await tx
+    .select({ status: invoiceSettlementSubmissions.status })
+    .from(invoiceSettlementSubmissions)
+    .where(
+      and(
+        eq(invoiceSettlementSubmissions.paymentId, payment.id),
+        eq(invoiceSettlementSubmissions.status, "approved"),
+      ),
+    )
+    .limit(1);
+  return approval?.status === "approved" ? null : payment;
+}
+
 export async function submitPaymentProof(
   input: unknown,
   actorOverride?: Actor,
@@ -432,12 +459,7 @@ export async function submitPaymentProof(
         });
       }
 
-      const [currentPayment] = await tx
-        .select()
-        .from(payments)
-        .where(eq(payments.invoiceId, invoice.id))
-        .orderBy(desc(payments.createdAt), desc(payments.id))
-        .limit(1);
+      const currentPayment = await latestUnapprovedPaymentInTx(tx, invoice.id);
 
       let paymentId = currentPayment?.id;
       if (currentPayment) {
@@ -1761,12 +1783,10 @@ async function insertPaymentProofSubmissionInTx(
   if (tender.outstandingAmount <= 0) {
     throw new Error("invoice_has_no_outstanding_balance");
   }
-  const [currentPayment] = await tx
-    .select()
-    .from(payments)
-    .where(eq(payments.invoiceId, input.invoice.id))
-    .orderBy(desc(payments.createdAt), desc(payments.id))
-    .limit(1);
+  const currentPayment = await latestUnapprovedPaymentInTx(
+    tx,
+    input.invoice.id,
+  );
 
   let paymentId = currentPayment?.id;
   if (currentPayment) {
@@ -1941,20 +1961,10 @@ export async function adminConfirmReservation(
       }
 
       if (!submission) {
-        const [currentPayment] = await tx
-          .select({
-            voucherUrl: payments.voucherUrl,
-            fileKey: payments.fileKey,
-          })
-          .from(payments)
-          .where(
-            and(
-              eq(payments.invoiceId, invoice.id),
-              isNotNull(payments.fileKey),
-            ),
-          )
-          .orderBy(desc(payments.createdAt), desc(payments.id))
-          .limit(1);
+        const currentPayment = await latestUnapprovedPaymentInTx(
+          tx,
+          invoice.id,
+        );
         const proofUrl = currentPayment?.voucherUrl ?? null;
         const fileKey = currentPayment?.fileKey ?? null;
         if (proofUrl) {
@@ -2091,12 +2101,7 @@ export async function correctSettlementProof(
             eq(invoiceSettlementSubmissions.status, "submitted"),
           ),
         );
-      const [latestPayment] = await tx
-        .select()
-        .from(payments)
-        .where(eq(payments.invoiceId, invoice.id))
-        .orderBy(desc(payments.createdAt), desc(payments.id))
-        .limit(1);
+      const latestPayment = await latestUnapprovedPaymentInTx(tx, invoice.id);
 
       if (
         submitted.length === 0 &&
