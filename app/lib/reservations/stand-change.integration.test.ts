@@ -35,6 +35,7 @@ import {
 } from "@/db/schema";
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
+const cleanupMock = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/users/helpers", () => ({
@@ -42,6 +43,18 @@ vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentBaseProfile: currentProfileMock,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/app/lib/reservations/notification-outbox", () => ({
+  enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
+  enqueueReservationNotification: vi.fn().mockResolvedValue(null),
+  scheduleReservationNotificationJobs: vi.fn(),
+}));
+vi.mock("@/app/lib/uploadthing/actions", () => ({
+  enqueueStorageCleanupJob: cleanupMock,
+}));
+vi.mock("@/app/api/users/actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/api/users/actions")>()),
+  fetchAdminUsers: vi.fn().mockResolvedValue([]),
+}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -70,6 +83,7 @@ type Fixture = { festivalId: number; userIds: number[] };
 const fixtures: Fixture[] = [];
 
 let changeReservationStand: (typeof import("@/app/lib/reservations/stand-change-service"))["changeReservationStand"];
+let paymentService: typeof import("@/app/lib/reservations/payment-service");
 
 const ADMIN = { id: 0, role: "admin", status: "verified", category: "none" };
 
@@ -81,10 +95,12 @@ describeDatabase("admin stand switch and exchange", () => {
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
     ({ changeReservationStand } =
       await import("@/app/lib/reservations/stand-change-service"));
+    paymentService = await import("@/app/lib/reservations/payment-service");
   }, 60_000);
 
   afterEach(async () => {
     currentProfileMock.mockReset();
+    cleanupMock.mockReset();
     const db = integrationDb!;
     for (const fixture of fixtures.splice(0)) {
       const reservationRows = await db
@@ -594,6 +610,177 @@ describeDatabase("admin stand switch and exchange", () => {
       // Nothing was overpaid, so nothing is handed back.
       expect(await readLedger(seeded.participants[0].id)).toHaveLength(0);
     });
+
+    it.each(["review", "admin"] as const)(
+      "preserves approved cash through upgrade, replacement, rejection and %s approval",
+      async (approvalPath) => {
+        const db = integrationDb!;
+        const seeded = await seedFestival({
+          standPrices: [
+            { individual: 350 },
+            { individual: 390 },
+            { individual: 420 },
+          ],
+          userCount: 1,
+        });
+        const owner = seeded.participants[0];
+        const { reservation, invoice } = await seedReservation({
+          festivalId: seeded.festival.id,
+          standId: seeded.standRows[0].id,
+          ownerUserId: owner.id,
+          status: "accepted",
+          price: 350,
+          standStatus: "confirmed",
+        });
+        const original = await payInvoice({
+          invoiceId: invoice.id,
+          amount: 350,
+          userId: owner.id,
+        });
+        // A real approved upload still has its storage key.
+        const originalKey = randomUUID();
+        await db
+          .update(payments)
+          .set({ fileKey: originalKey })
+          .where(eq(payments.id, original.id));
+
+        expect(
+          await changeReservationStand({
+            reservationId: reservation.id,
+            destinationStandId: seeded.standRows[1].id,
+            idempotencyKey: randomUUID(),
+          }),
+        ).toMatchObject({ success: true });
+        // Confirmation cannot turn the old Bs350 proof into a new Bs40 payment.
+        expect(
+          await paymentService.adminConfirmReservation({
+            invoiceId: invoice.id,
+            idempotencyKey: randomUUID(),
+          }),
+        ).toMatchObject({ success: false, code: "INVOICE_NOT_PENDING" });
+
+        const upload = () =>
+          paymentService.submitPaymentProof(
+            {
+              source: "uploadthing",
+              invoiceId: invoice.id,
+              fileKey: randomUUID(),
+              voucherUrl: `https://files.example.com/${randomUUID()}`,
+              idempotencyKey: randomUUID(),
+            },
+            { id: owner.id, role: "user" },
+          );
+        const tender = () =>
+          db.transaction((tx) =>
+            paymentService.getInvoiceTenderTotalsInTx(tx, {
+              id: invoice.id,
+              amount: 390,
+            }),
+          );
+        const first = await upload();
+        expect(first).toMatchObject({ success: true });
+        expect(cleanupMock).not.toHaveBeenCalled();
+        expect(await tender()).toMatchObject({
+          approvedCashAmount: 350,
+          submittedCashAmount: 40,
+          outstandingAmount: 40,
+        });
+        const replacement = await upload();
+        expect(replacement.success).toBe(true);
+        expect(cleanupMock).toHaveBeenCalledTimes(1);
+        if (!replacement.success) throw new Error("replacement failed");
+        expect(
+          await paymentService.rejectInvoiceSettlement({
+            submissionId: replacement.data.submissionId,
+            reason: "Wrong voucher",
+            correction: { type: "keep_amount" },
+          }),
+        ).toMatchObject({ success: true });
+        expect(await tender()).toMatchObject({
+          approvedCashAmount: 350,
+          submittedCashAmount: 0,
+          outstandingAmount: 40,
+        });
+
+        expect((await upload()).success).toBe(true);
+        expect(
+          await paymentService.correctSettlementProof({
+            invoiceId: invoice.id,
+            reason: "Replace proof",
+            idempotencyKey: randomUUID(),
+          }),
+        ).toMatchObject({ success: true });
+        expect(await tender()).toMatchObject({
+          approvedCashAmount: 350,
+          submittedCashAmount: 0,
+          outstandingAmount: 40,
+        });
+        const last = await upload();
+        if (!last.success) throw new Error("final upload failed");
+        const confirmInput = {
+          invoiceId: invoice.id,
+          idempotencyKey: randomUUID(),
+        };
+        const approve = () =>
+          approvalPath === "review"
+            ? paymentService.approveInvoiceSettlement({
+                submissionId: last.data.submissionId,
+              })
+            : paymentService.adminConfirmReservation(confirmInput);
+        expect(await approve()).toMatchObject({ success: true });
+        expect(await approve()).toMatchObject({ success: true });
+        expect(await tender()).toMatchObject({
+          approvedCashAmount: 390,
+          submittedCashAmount: 0,
+          outstandingAmount: 0,
+        });
+        expect((await readInvoice(invoice.id)).status).toBe("paid");
+        expect((await readReservation(reservation.id)).status).toBe("accepted");
+        expect((await readStand(seeded.standRows[1].id)).status).toBe(
+          "confirmed",
+        );
+        const rows = await db
+          .select()
+          .from(payments)
+          .where(eq(payments.invoiceId, invoice.id));
+        expect(rows).toHaveLength(2);
+        expect(rows.find((row) => row.id === original.id)).toMatchObject({
+          amount: 350,
+          voucherUrl: original.voucherUrl,
+          fileKey: originalKey,
+        });
+
+        // A second upgrade must preserve both earlier approved payments.
+        expect(
+          await changeReservationStand({
+            reservationId: reservation.id,
+            destinationStandId: seeded.standRows[2].id,
+            idempotencyKey: randomUUID(),
+          }),
+        ).toMatchObject({ success: true });
+        const next = await upload();
+        if (!next.success) throw new Error("second upgrade upload failed");
+        expect(
+          await paymentService.approveInvoiceSettlement({
+            submissionId: next.data.submissionId,
+          }),
+        ).toMatchObject({ success: true });
+        expect(
+          await db.transaction((tx) =>
+            paymentService.getInvoiceTenderTotalsInTx(tx, {
+              id: invoice.id,
+              amount: 420,
+            }),
+          ),
+        ).toMatchObject({ approvedCashAmount: 420, outstandingAmount: 0 });
+        expect(
+          await db
+            .select()
+            .from(payments)
+            .where(eq(payments.invoiceId, invoice.id)),
+        ).toHaveLength(3);
+      },
+    );
 
     it("refunds the surplus as credits when the new stand costs less", async () => {
       const seeded = await seedFestival({

@@ -21,6 +21,7 @@ import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import { roundMoney } from "@/app/lib/reservations/money";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
+import type { InvoiceTender } from "@/app/lib/payments/tender";
 
 function ownerName(user: InvoiceWithParticipants["user"]): string {
   return (
@@ -32,7 +33,7 @@ function ownerName(user: InvoiceWithParticipants["user"]): string {
 }
 
 type ConfirmReservationModalProps = {
-  invoice: InvoiceWithParticipants;
+  invoice: InvoiceWithParticipants & { tender?: InvoiceTender };
   /**
    * Credits the reservation spent on extras, when the caller knows them.
    *
@@ -60,15 +61,22 @@ export default function ConfirmReservationModal({
   const standLabel = reservationStandLabel(invoice.reservation);
   // The same payment whose image is shown below, so the figure and the picture
   // can never describe different uploads.
-  const proof = findLatestActivePaymentProof(invoice.payments);
+  // Pending invoices may retain vouchers from earlier, already paid balances.
+  const proof =
+    invoice.status === "pending"
+      ? undefined
+      : findLatestActivePaymentProof(invoice.payments);
   const voucherUrl = proof?.voucherUrl;
 
   const total = roundMoney(Number(invoice.amount));
   // submitPaymentProof stamps the outstanding balance onto the payment row, so
   // this is what the comprobante was raised for — not the whole cobro, once
   // credits or an earlier payment covered part of it.
-  const expected = proof ? roundMoney(Number(proof.amount)) : total;
-  const alreadyCovered = roundMoney(total - expected);
+  const expected = proof
+    ? roundMoney(Number(proof.amount))
+    : (invoice.tender?.outstandingAmount ?? total);
+  const alreadyCovered =
+    invoice.tender?.coveredAmount ?? roundMoney(total - expected);
   const extras =
     featureCredits && featureCredits.total > 0 ? featureCredits : null;
 
@@ -110,7 +118,7 @@ export default function ConfirmReservationModal({
               </div>
             )}
             <div className="flex justify-between gap-4 border-t pt-1 font-medium">
-              <dt>Monto en el comprobante</dt>
+              <dt>{proof ? "Monto en el comprobante" : "Saldo por pagar"}</dt>
               <dd className="tabular-nums">Bs{expected}</dd>
             </div>
             {proof && (

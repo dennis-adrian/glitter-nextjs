@@ -84,8 +84,8 @@ function sumPaymentsForSubmissionStatus(
   if (paymentIds.size === 0) return 0;
 
   // A payment is counted once even when several submissions point at it: the
-  // row is mutated in place across re-uploads, so its history is a chain of
-  // submissions over one payment, not one payment per submission.
+  // row is reused across unapproved re-uploads. Once approved it is preserved;
+  // paying a reopened balance creates a separate payment and submission.
   const counted = new Set<number>();
   let total = 0;
   for (const payment of payments) {

@@ -91,9 +91,12 @@ export function ConsoleActionsCell({
   const tender = reservation.tender ?? EMPTY_TENDER;
   const featureCredits = reservation.featureCredits;
   const writeOff = shortfallWriteOff(tender);
-  const hasProof = invoice?.payments.some(isActivePaymentProof) ?? false;
   const settled = invoice?.status === "paid" || invoice?.status === "cancelled";
   const underReview = invoice?.status === "verification_payment";
+  // A reopened invoice retains its approved vouchers. Those are history, not
+  // evidence for the new balance: keep the upload action available.
+  const hasProof =
+    underReview && (invoice?.payments.some(isActivePaymentProof) ?? false);
 
   const notAdmin = canMutate
     ? undefined
