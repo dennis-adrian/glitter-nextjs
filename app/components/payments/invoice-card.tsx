@@ -20,7 +20,7 @@ import {
   InvoiceWithPaymentsAndOwner,
   ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { cn } from "@/app/lib/utils";
 
@@ -77,7 +77,7 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
-            Creada el {createdAt.toLocaleString(DateTime.DATE_MED)}
+            Creada el {formatDisplayDate(createdAt, DateTime.DATE_MED)}
           </span>
           {isPending && dueDate && (
             <span
@@ -88,8 +88,8 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
             >
               <ClockIcon className="w-3.5 h-3.5 shrink-0" />
               {isOverdue ? "Vencida el" : "Vence el"}{" "}
-              {dueDate.toLocaleString(DateTime.DATE_MED)} a las{" "}
-              {dueDate.toLocaleString(DateTime.TIME_SIMPLE)}
+              {formatDisplayDate(dueDate, DateTime.DATE_MED)} a las{" "}
+              {formatDisplayDate(dueDate, DateTime.TIME_SIMPLE)}
             </span>
           )}
         </div>

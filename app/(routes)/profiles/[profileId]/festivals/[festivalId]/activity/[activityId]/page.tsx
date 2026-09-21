@@ -9,6 +9,8 @@ import PassportActivityPage from "@/app/components/pages/festival_activities/pas
 import StickerHuntActivityPage from "@/app/components/pages/festival_activities/sticker-hunt-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import UpcomingRegistrationNotice from "@/app/components/festivals/festival_activities/upcoming-registration-notice";
+import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -50,6 +52,41 @@ export default async function ParticipantsActivityPage({
 
   if (!activity) return notFound();
 
+  const isEnrolled = activity.details.some((detail) =>
+    detail.participants.some(
+      (participant) => participant.userId === forProfile.id,
+    ),
+  );
+
+  return (
+    <>
+      {!isEnrolled && (
+        <UpcomingRegistrationNotice
+          startDate={activity.registrationStartDate}
+          endDate={activity.registrationEndDate}
+        />
+      )}
+      <ActivityContent
+        activity={activity}
+        currentProfile={currentProfile}
+        forProfile={forProfile}
+        festivalId={festivalId}
+      />
+    </>
+  );
+}
+
+function ActivityContent({
+  activity,
+  currentProfile,
+  forProfile,
+  festivalId,
+}: {
+  activity: FestivalActivityWithDetailsAndParticipants;
+  currentProfile: BaseProfile;
+  forProfile: BaseProfile;
+  festivalId: number;
+}) {
   if (activity.type === "stamp_passport") {
     return (
       <div className="container p-3 md:p-6">
@@ -227,7 +264,7 @@ export default async function ParticipantsActivityPage({
           <li>
             El ilustrador deberá subir el diseño de su sticker al sitio web en
             formato PNG con un tamaño máximo de 2MB hasta el miércoles 9 de
-            abril a las 18:00hs. (Esta opción no se encuentra disponible en este
+            abril a las 6:00 PM. (Esta opción no se encuentra disponible en este
             momento pero se comunicará los ilustradores cuando esté disponible).
           </li>
           <li>
@@ -251,7 +288,7 @@ export default async function ParticipantsActivityPage({
           </li>
           <li>
             La fecha límite para inscribirse a la actividad es el domingo 6 de
-            abril a las 18:00hs.
+            abril a las 6:00 PM.
           </li>
           <li>
             En caso de que un diseño de Sticker-Print no cumpla con la cantidad

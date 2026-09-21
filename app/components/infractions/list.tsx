@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { ALLOWED_INFRACTION_PAGE_SIZES } from "@/app/lib/infractions/constants";
 import {
   getPriorNoticeLabel,
@@ -131,7 +131,8 @@ export default function InfractionsList({
                       )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-sm">
-                      {formatDate(infraction.createdAt).toLocaleString(
+                      {formatDisplayDate(
+                        infraction.createdAt,
                         DateTime.DATE_MED,
                       )}
                     </TableCell>
@@ -204,9 +205,7 @@ export default function InfractionsList({
                   </dd>
                 </dl>
                 <p className="text-xs text-muted-foreground">
-                  {formatDate(infraction.createdAt).toLocaleString(
-                    DateTime.DATE_MED,
-                  )}
+                  {formatDisplayDate(infraction.createdAt, DateTime.DATE_MED)}
                 </p>
               </Link>
             );

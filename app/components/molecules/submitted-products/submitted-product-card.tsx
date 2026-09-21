@@ -3,7 +3,7 @@
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Label } from "@/app/components/ui/label";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDateTime } from "@/app/lib/formatters";
 import { ParticipantProduct } from "@/app/lib/participant_products/definitions";
 import { Loader2Icon, MessageSquareIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
@@ -73,8 +73,7 @@ export default function SubmittedProductCard({
                 {product.name}
               </h3>
               <p className="text-xs text-gray-500">
-                Guardado el{" "}
-                {formatDate(product.createdAt).toFormat("dd/MM/yyyy HH:mm")}
+                Guardado el {formatDateTime(product.createdAt)}
               </p>
             </div>
             <Badge

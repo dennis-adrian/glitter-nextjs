@@ -1,7 +1,7 @@
 import { Participation } from "@/app/api/users/definitions";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
-import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
+import { getFestivalDateString, formatDisplayDate } from "@/app/lib/formatters";
 import { CalendarIcon, LandPlotIcon } from "lucide-react";
 import Image from "next/image";
 
@@ -17,7 +17,7 @@ export default function UserParticipationCard({
   ).length;
   const startDate =
     festivalDates?.length && festivalDates[0]?.startDate
-      ? formatDate(festivalDates[0].startDate).toLocaleString({
+      ? formatDisplayDate(festivalDates[0].startDate, {
           day: "numeric",
           month: "short",
         })
@@ -27,9 +27,7 @@ export default function UserParticipationCard({
     festivalDates?.length &&
     festivalDates.length > 1 &&
     festivalDates[festivalDates.length - 1]?.endDate
-      ? formatDate(
-          festivalDates[festivalDates.length - 1].endDate,
-        ).toLocaleString({
+      ? formatDisplayDate(festivalDates[festivalDates.length - 1].endDate, {
           day: "numeric",
           month: "short",
         })

@@ -1,7 +1,7 @@
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   Body,
   Button,
@@ -30,7 +30,7 @@ export default function OrderPaymentWarningTemplate({
   ctaUrl,
 }: OrderPaymentWarningTemplateProps) {
   const userName = customerName || "Cliente";
-  const dueDateWithTime = formatDate(paymentDueDate).toLocaleString({
+  const dueDateWithTime = formatDisplayDate(paymentDueDate, {
     ...DateTime.DATETIME_MED,
     timeZoneName: "short",
   });

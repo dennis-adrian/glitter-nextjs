@@ -8,7 +8,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
 
 import { Toaster } from "@/components/ui/sonner";
-import { figtree, gabarito, inter, spaceGrotesk } from "@/ui/fonts";
+import { figtree, gabarito } from "@/ui/fonts";
 
 import Navbar from "@/app/components/navbar/navbar";
 import FooterServer from "@/app/components/footer-server";
@@ -39,11 +39,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body
-        className={`${figtree.variable} ${gabarito.variable} ${inter.variable} ${spaceGrotesk.variable} font-sans`}
-      >
+      <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
         <Suspense fallback={<div className="min-h-screen" />}>
-          <ClerkProvider localization={esMX}>
+          <ClerkProvider
+            localization={esMX}
+            appearance={{
+              variables: { fontFamily: "var(--font-figtree), sans-serif" },
+              elements: { headerTitle: "font-display" },
+            }}
+          >
             <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
               <Navbar />
             </Suspense>

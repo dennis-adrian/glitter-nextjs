@@ -45,8 +45,7 @@ export default function CouponBookCardPrint({
         minWidth: 0,
         minHeight: 0,
         overflow: "hidden",
-        fontFamily:
-          'Arial, Helvetica, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+        fontFamily: "var(--font-figtree), sans-serif",
       }}
     >
       <div

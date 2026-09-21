@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DateTime } from "luxon";
 
 import { Badge } from "@/app/components/ui/badge";
-import { formatDate, formatDateWithTime } from "@/app/lib/formatters";
+import { formatDateWithTime, formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TICKET_STATUS_LABELS } from "@/app/lib/programs/definitions";
 import type { SessionTicketStatus } from "@/app/lib/programs/definitions";
 import { formatMoney } from "@/app/lib/programs/pricing";
@@ -74,7 +74,8 @@ export default function EnrollmentLines({ lines }: Props) {
                 {line.ticket.checkedInAt ? (
                   <Badge variant="green">
                     Ingresó{" "}
-                    {formatDate(line.ticket.checkedInAt).toLocaleString(
+                    {formatDisplayDate(
+                      line.ticket.checkedInAt,
                       DateTime.TIME_SIMPLE,
                     )}
                   </Badge>

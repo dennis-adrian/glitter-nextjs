@@ -58,7 +58,7 @@ function DetailCard({
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Total
                 </p>
-                <p className="font-space-grotesk text-2xl font-bold leading-none">
+                <p className="font-display text-2xl font-bold leading-none">
                   Bs370
                 </p>
               </div>

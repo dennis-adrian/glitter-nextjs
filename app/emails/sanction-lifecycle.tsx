@@ -3,7 +3,7 @@ import DisciplinaryHistoryDetails from "@/app/emails/disciplinary-history-detail
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { PARTICIPANT_SUPPORT_EMAIL } from "@/app/lib/participants/helpers";
 import { getUserName } from "@/app/lib/users/utils";
 import {
@@ -151,7 +151,8 @@ export default function SanctionLifecycleEmail(
     isCurrentSanction,
   );
   const formattedReservationDate = props.reservationEligibleAt
-    ? formatDate(new Date(props.reservationEligibleAt)).toLocaleString(
+    ? formatDisplayDate(
+        new Date(props.reservationEligibleAt),
         DateTime.DATETIME_MED,
       )
     : null;

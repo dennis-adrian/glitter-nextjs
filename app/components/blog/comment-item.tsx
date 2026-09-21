@@ -1,11 +1,12 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import CommentForm from "@/app/components/blog/comment-form";
-import { Button } from "@/app/components/ui/button";
+
 import { deleteOwnComment, hideComment } from "@/app/lib/posts/comment-actions";
 import type { CommentNode } from "@/app/lib/posts/definitions";
 import { postAuthorName } from "@/app/lib/posts/helpers";
@@ -75,7 +76,7 @@ export default function CommentItem({
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <time dateTime={new Date(comment.createdAt).toISOString()}>
-              {new Date(comment.createdAt).toLocaleDateString("es-BO", {
+              {formatDisplayDate(new Date(comment.createdAt), {
                 day: "numeric",
                 month: "long",
                 year: "numeric",

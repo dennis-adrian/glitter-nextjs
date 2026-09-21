@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { DateTime } from "luxon";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BaseProfile } from "@/app/api/users/definitions";
@@ -191,9 +192,10 @@ function buildOpenActivity(
 function getOpenRegistrationMessage(
   activity: FestivalActivityWithDetailsAndParticipants,
 ) {
-  return `Registro abierto hasta ${DateTime.fromJSDate(
+  return `Inscripciones abiertas hasta el ${formatDisplayDate(
     activity.registrationEndDate,
-  ).toLocaleString(DateTime.DATETIME_MED)}`;
+    DateTime.DATETIME_MED,
+  )} (hora de Bolivia).`;
 }
 
 async function renderPage(
@@ -293,4 +295,55 @@ it("shows Best Stand's specialized enrollment CTA and consent copy", async () =>
   expect(screen.getByText(CONSENT_LABEL)).toBeTruthy();
   expect(screen.getByText(CONSENT_DESCRIPTION)).toBeTruthy();
   expect(screen.queryByText("Registro no disponible")).toBeNull();
+});
+
+describe.each(ACTIVITY_TYPES)("%s upcoming enrollment", (type) => {
+  it("shows the opening date above the content and beside a disabled enrollment button", async () => {
+    const activity = buildOpenActivity(type);
+    activity.registrationStartDate = new Date(Date.now() + 86_400_000);
+    activity.registrationEndDate = new Date(Date.now() + 7 * 86_400_000);
+    await renderPage(activity);
+
+    const notice = screen
+      .getByText("Las inscripciones aún no están abiertas")
+      .closest("[role=alert]")!;
+    expect(notice.textContent).toContain(
+      "Las inscripciones aún no están abiertas",
+    );
+    expect(notice.textContent).toContain(
+      formatDisplayDate(activity.registrationStartDate, DateTime.DATETIME_MED),
+    );
+    expect(notice.textContent).toContain("hora de Bolivia");
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(
+      notice.compareDocumentPosition(heading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain(
+      "Inscripciones desde el",
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Inscripciones próximamente",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(screen.queryByText(CONSENT_LABEL)).toBeNull();
+  });
+});
+
+it("preserves admin enrollment before registration opens", async () => {
+  mocks.getCurrentUserProfile.mockResolvedValue({
+    ...currentProfile,
+    role: "admin",
+  });
+  const activity = buildOpenActivity("coupon_book");
+  activity.registrationStartDate = new Date(Date.now() + 86_400_000);
+  await renderPage(activity);
+  expect(
+    (screen.getByRole("button", { name: "Inscribirme" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
+  expect(screen.getByText(CONSENT_LABEL)).toBeTruthy();
 });

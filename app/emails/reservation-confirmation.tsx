@@ -1,7 +1,11 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
-import { formatDate, formatFullDate } from "@/app/lib/formatters";
+import {
+  formatDate,
+  formatFullDate,
+  formatDisplayDate,
+} from "@/app/lib/formatters";
 import { getUserName } from "@/app/lib/users/utils";
 import {
   Body,
@@ -58,9 +62,12 @@ export default function ReservationConfirmationEmailTemplate(
               Te esperamos el{" "}
               {formatFullDate(props.festival.festivalDates[0].startDate)} en{" "}
               {props.festival.locationLabel} a las{" "}
-              {formatDate(props.festival.festivalDates[0].startDate)
-                .minus({ hour: 1 })
-                .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+              {formatDisplayDate(
+                formatDate(props.festival.festivalDates[0].startDate).minus({
+                  hour: 1,
+                }),
+                DateTime.TIME_SIMPLE,
+              )}{" "}
               para el armado de tu espacio.
             </Text>
             <Text style={styles.text}>

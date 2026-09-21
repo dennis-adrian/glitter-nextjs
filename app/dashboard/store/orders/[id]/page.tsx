@@ -10,7 +10,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import {
+  formatDate,
+  STORE_TIMEZONE,
+  formatDisplayDate,
+} from "@/app/lib/formatters";
 import {
   fetchOrder,
   fetchOrderActivity,
@@ -55,7 +59,11 @@ function getNoteAddedText(payload: unknown): string | null {
 }
 
 function getCategoryCorrectionText(payload: unknown): string | null {
-  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
+  if (
+    payload == null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
     return null;
   }
   const reason =
@@ -315,7 +323,8 @@ export default async function OrderDetailPage({
                       </p>
                       {log.notes && <p>{log.notes}</p>}
                       <p>
-                        {formatDate(log.createdAt).toLocaleString(
+                        {formatDisplayDate(
+                          log.createdAt,
                           DateTime.DATETIME_MED,
                         )}
                       </p>
@@ -341,14 +350,16 @@ export default async function OrderDetailPage({
                       <p>{returnRecord.reason}</p>
                       <p>
                         Recibida:{" "}
-                        {formatDate(returnRecord.receivedAt).toLocaleString(
+                        {formatDisplayDate(
+                          returnRecord.receivedAt,
                           DateTime.DATETIME_MED,
                         )}
                       </p>
                       {returnRecord.refundedAt && (
                         <p>
                           Reembolsada:{" "}
-                          {formatDate(returnRecord.refundedAt).toLocaleString(
+                          {formatDisplayDate(
+                            returnRecord.refundedAt,
                             DateTime.DATETIME_MED,
                           )}
                         </p>
@@ -404,7 +415,8 @@ export default async function OrderDetailPage({
                       <div className="flex flex-wrap justify-between gap-1">
                         <p className="font-medium">{title}</p>
                         <time className="text-xs text-muted-foreground">
-                          {formatDate(event.createdAt).toLocaleString(
+                          {formatDisplayDate(
+                            event.createdAt,
                             DateTime.DATETIME_MED,
                           )}
                         </time>
@@ -469,9 +481,7 @@ export default async function OrderDetailPage({
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">Creado</span>
                 <span className="text-right capitalize">
-                  {formatDate(order.createdAt).toLocaleString(
-                    DateTime.DATETIME_MED,
-                  )}
+                  {formatDisplayDate(order.createdAt, DateTime.DATETIME_MED)}
                 </span>
               </div>
               {order.paymentDueDate && (
@@ -485,7 +495,8 @@ export default async function OrderDetailPage({
                     {isOverdue && (
                       <AlertTriangleIcon className="h-3 w-3 shrink-0" />
                     )}
-                    {formatDate(order.paymentDueDate).toLocaleString(
+                    {formatDisplayDate(
+                      order.paymentDueDate,
                       DateTime.DATETIME_MED,
                     )}
                   </span>
@@ -497,7 +508,8 @@ export default async function OrderDetailPage({
                     Comprobante subido
                   </span>
                   <span className="text-right capitalize">
-                    {formatDate(order.voucherSubmittedAt).toLocaleString(
+                    {formatDisplayDate(
+                      order.voucherSubmittedAt,
                       DateTime.DATETIME_MED,
                     )}
                   </span>

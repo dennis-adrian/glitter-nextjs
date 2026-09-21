@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import {
   fetchOccurrenceDashboard,
@@ -66,11 +66,9 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold">
-            {formatDate(occurrence.startsAt).toLocaleString(
-              DateTime.DATETIME_MED,
-            )}
+            {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
             {" — "}
-            {formatDate(occurrence.endsAt).toLocaleString(DateTime.TIME_SIMPLE)}
+            {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
           </h1>
           <ProgramStatusBadge
             state={resolved.state}

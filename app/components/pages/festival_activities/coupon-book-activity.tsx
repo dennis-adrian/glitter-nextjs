@@ -7,7 +7,7 @@ import {
   FestivalActivityWithDetailsAndParticipants,
   FestivalBase,
 } from "@/app/lib/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import VariantImagesDisplay from "@/app/components/pages/festival_activities/variant-images-display";
 import CouponBookCardPreview from "../../festivals/festival_activities/coupon-book-card-preview";
 
@@ -172,14 +172,14 @@ export default function CouponBookActivityPage({
             <li>
               Cargar los detalles de tu promoción al sitio web hasta el{" "}
               <strong>
-                {proofUploadLimitDate.toLocaleString({
+                {formatDisplayDate(proofUploadLimitDate, {
                   month: "long",
                   day: "numeric",
                 })}
               </strong>{" "}
               a las{" "}
               <strong>
-                {proofUploadLimitDate.toLocaleString({
+                {formatDisplayDate(proofUploadLimitDate, {
                   hour: "numeric",
                   minute: "numeric",
                 })}

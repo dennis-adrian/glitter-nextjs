@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
+import { formatDateTime } from "@/app/lib/formatters";
 import {
   closestCenter,
   DndContext,
@@ -1035,9 +1036,7 @@ function LandingEditorForm({
           </h1>
           <p className="text-sm text-muted-foreground">
             Borrador v{version} · {dirty ? "cambios sin guardar" : "guardado"}
-            {updatedAt
-              ? " · " + new Date(updatedAt).toLocaleString("es-BO")
-              : ""}
+            {updatedAt ? " · " + formatDateTime(new Date(updatedAt)) : ""}
           </p>
         </div>
         <input
@@ -2133,7 +2132,7 @@ function LandingEditorForm({
                         <span className="font-medium">#{item.id}</span>
                         <span className="text-muted-foreground">
                           Borrador v{item.sourceDraftVersion} ·{" "}
-                          {new Date(item.publishedAt).toLocaleString("es-BO")}
+                          {formatDateTime(new Date(item.publishedAt))}
                         </span>
                         <Button
                           type="button"

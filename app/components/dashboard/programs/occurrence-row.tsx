@@ -8,7 +8,7 @@ import OccurrenceForm from "@/app/components/dashboard/programs/occurrence-form"
 import OccurrenceSeatSummary from "@/app/components/dashboard/programs/occurrence-seat-summary";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { Button } from "@/app/components/ui/button";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type {
   ProgramStatus,
   SessionOccurrence,
@@ -66,11 +66,9 @@ export default function OccurrenceRow({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-0.5">
           <p className="font-medium">
-            {formatDate(occurrence.startsAt).toLocaleString(
-              DateTime.DATETIME_MED,
-            )}
+            {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
             {" — "}
-            {formatDate(occurrence.endsAt).toLocaleString(DateTime.TIME_SIMPLE)}
+            {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
           </p>
           <p className="text-xs text-muted-foreground">
             {venue ? venue.name : "Sin lugar asignado"}

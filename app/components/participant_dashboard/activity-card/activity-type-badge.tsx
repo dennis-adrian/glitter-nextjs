@@ -15,24 +15,19 @@ export default function ActivityTypeBadge({
 
   return (
     <div
-      className="inline-flex items-center gap-2 px-3 py-1.5"
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1"
       style={{
         backgroundColor: theme.accent,
-        clipPath:
-          "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px))",
       }}
     >
       <Icon
-        className="w-4 h-4"
-        strokeWidth={2.5}
+        className="w-3.5 h-3.5 shrink-0"
+        aria-hidden="true"
         style={{
           color: theme.accentText,
         }}
       />
-      <span
-        className="text-xs font-bold uppercase tracking-widest"
-        style={{ color: theme.accentText }}
-      >
+      <span className="text-xs font-medium" style={{ color: theme.accentText }}>
         {ACTIVITY_LABELS[activityType]}
       </span>
     </div>

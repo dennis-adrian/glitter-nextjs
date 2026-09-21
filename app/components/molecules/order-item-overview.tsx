@@ -1,6 +1,6 @@
 import { Badge } from "@/app/components/ui/badge";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
@@ -42,9 +42,7 @@ export default function OrderItemOverview({
         {item.product.status === "presale" && (
           <p className="text-xs text-amber-600">
             {item.product.availableDate
-              ? `Disponible el ${formatDate(
-                  item.product.availableDate,
-                ).toLocaleString()}`
+              ? `Disponible el ${formatDisplayDate(item.product.availableDate)}`
               : "Disponible próximamente"}
           </p>
         )}

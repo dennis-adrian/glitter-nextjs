@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -11,7 +11,7 @@ import {
   Loader2Icon,
   Trash2Icon,
 } from "lucide-react";
-import { DateTime } from "luxon";
+import useActivityRegistration from "@/app/hooks/use-activity-registration";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -78,67 +78,15 @@ export default function EnrollBestStandForm({
       consent: false,
     },
   });
-  const [isRegistrationOpen, setIsRegistrationOpen] = useState(false);
+  const registration = useActivityRegistration(
+    activity.registrationStartDate,
+    activity.registrationEndDate,
+  );
+  const isRegistrationOpen = registration.isOpen;
   const [deletingProofId, setDeletingProofId] = useState<number | null>(null);
   const [confirmDeleteProofId, setConfirmDeleteProofId] = useState<
     number | null
   >(null);
-
-  const [statusMessage, setStatusMessage] = useState("");
-
-  useEffect(() => {
-    // Function to check if current date is within registration period
-    const checkRegistrationPeriod = () => {
-      const now = DateTime.now();
-      // Convert Date objects to Luxon DateTime objects
-      const startDate = DateTime.fromJSDate(activity.registrationStartDate);
-      const endDate = DateTime.fromJSDate(activity.registrationEndDate);
-
-      if (now < startDate) {
-        setIsRegistrationOpen(false);
-        setStatusMessage(
-          `El registro comenzará el ${startDate.toLocaleString({
-            month: "long",
-            day: "numeric",
-          })} a las ${startDate.toLocaleString({
-            hour: "numeric",
-            minute: "numeric",
-          })}`,
-        );
-      } else if (now > endDate) {
-        setIsRegistrationOpen(false);
-        setStatusMessage(
-          `El registro finalizó el ${endDate.toLocaleString({
-            month: "long",
-            day: "numeric",
-          })} a las ${endDate.toLocaleString({
-            hour: "numeric",
-            minute: "numeric",
-          })}`,
-        );
-      } else {
-        setIsRegistrationOpen(true);
-        setStatusMessage(
-          `Registro abierto hasta el ${endDate.toLocaleString({
-            month: "long",
-            day: "numeric",
-          })} a las ${endDate.toLocaleString({
-            hour: "numeric",
-            minute: "numeric",
-          })}`,
-        );
-      }
-    };
-
-    // Check immediately
-    checkRegistrationPeriod();
-
-    // Set up interval to check every 5 seconds
-    const intervalId = setInterval(checkRegistrationPeriod, 5000);
-
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [activity.registrationStartDate, activity.registrationEndDate]);
 
   const action: () => void = form.handleSubmit(async (data) => {
     const result = await enrollInBestStandActivity(
@@ -157,7 +105,7 @@ export default function EnrollBestStandForm({
 
   const buttonLabel = isRegistrationOpen
     ? "Quiero participar en la actividad"
-    : "Registro no disponible";
+    : registration.unavailableLabel;
 
   if (!activityVariantForProfile) {
     return (
@@ -359,9 +307,11 @@ export default function EnrollBestStandForm({
     return (
       <div className="w-full flex flex-col gap-2">
         <Button className="w-full" disabled>
-          Registro no disponible
+          {registration.unavailableLabel}
         </Button>
-        <p className="text-sm text-muted-foreground italic">{statusMessage}</p>
+        <p className="text-sm font-medium" role="status">
+          {registration.message}
+        </p>
       </div>
     );
   }

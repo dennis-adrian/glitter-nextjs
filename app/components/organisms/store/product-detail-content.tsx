@@ -7,7 +7,7 @@ import Heading from "@/app/components/atoms/heading";
 import StoreItemQuantityInput from "@/app/components/molecules/store-item-quantity-input";
 import StoreProductImages from "@/app/components/molecules/store-product-images";
 import { useCartContext } from "@/app/components/providers/cart-provider";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
@@ -156,9 +156,7 @@ export default function ProductDetailContent({
           <p className="text-sm text-muted-foreground flex items-center gap-1">
             <ClockIcon className="w-4 h-4" />
             {product.availableDate
-              ? `Disponible el ${formatDate(
-                  product.availableDate,
-                ).toLocaleString({
+              ? `Disponible el ${formatDisplayDate(product.availableDate, {
                   month: "long",
                   day: "numeric",
                   year: "numeric",

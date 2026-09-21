@@ -444,7 +444,7 @@ function ProfitabilityTrend({ data }: { data: TrendPoint[] }) {
                       {chartConfig[name as keyof typeof chartConfig]?.label ??
                         name}
                     </span>
-                    <span className="font-mono font-medium">
+                    <span className="font-sans tabular-nums font-medium">
                       {money.format(Number(value))}
                     </span>
                   </div>

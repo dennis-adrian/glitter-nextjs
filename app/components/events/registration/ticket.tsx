@@ -1,5 +1,5 @@
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { TicketBase } from "@/app/data/tickets/actions";
 import { Separator } from "@/app/components/ui/separator";
 import { DateTime } from "luxon";
@@ -52,7 +52,7 @@ export default function Ticket(props: TicketProps) {
         </div>
         <div className="text-muted-foreground text-sm flex flex-col text-right">
           <span className="text-lg text-foreground">
-            {date.toLocaleString(DateTime.DATE_MED)}
+            {formatDisplayDate(date, DateTime.DATE_MED)}
           </span>
           <span>{props.festival.locationLabel}</span>
           <span>{props.festival.address}</span>

@@ -1,3 +1,4 @@
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   Body,
   Button,
@@ -40,9 +41,10 @@ export default function ActivityWaitlistInvitationEmail({
     `${userFirstName ?? ""} ${userLastName ?? ""}`.trim() ||
     "";
 
-  const expiryFormatted = DateTime.fromJSDate(expiresAt)
-    .setLocale("es")
-    .toLocaleString(DateTime.DATETIME_MED);
+  const expiryFormatted = formatDisplayDate(
+    DateTime.fromJSDate(expiresAt).setLocale("es"),
+    DateTime.DATETIME_MED,
+  );
 
   return (
     <Html>

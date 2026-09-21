@@ -1,7 +1,7 @@
 import { getStatusBadgePresentation } from "@/app/components/infractions/status-badge";
 import { Badge } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   getInfractionStatusLabel,
   infractionSeverityLabel,
@@ -89,7 +89,7 @@ export default function UserInfractionCard({
         <Separator className="my-1" />
         <span className="text-xs text-muted-foreground">
           Registrada el{" "}
-          {formatDate(infraction.createdAt).toLocaleString(DateTime.DATE_MED)}
+          {formatDisplayDate(infraction.createdAt, DateTime.DATE_MED)}
         </span>
         <span className="text-xs text-muted-foreground">
           {infraction.festival?.name ?? "Ámbito global"}

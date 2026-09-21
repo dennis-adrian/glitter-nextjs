@@ -6,7 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import { Participation, ProfileType } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
 import Image from "next/image";
-import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
+import { getFestivalDateString, formatDisplayDate } from "@/app/lib/formatters";
 
 type Props = {
   profile: ProfileType;
@@ -99,18 +99,18 @@ export default function ParticipationHistoryPreview({
                 >
                   {festivalType}
                 </Badge>
-                <h3 className="font-space-grotesk text-lg font-bold">
+                <h3 className="font-display text-lg font-bold">
                   {festival.name}
                 </h3>
                 {startDate && endDate && (
                   <p className="flex text-sm text-muted-foreground mt-1">
                     <CalendarIcon className="w-4 h-4 mr-1" />
                     {getFestivalDateString(
-                      formatDate(startDate).toLocaleString({
+                      formatDisplayDate(startDate, {
                         day: "numeric",
                         month: "short",
                       }),
-                      formatDate(endDate).toLocaleString({
+                      formatDisplayDate(endDate, {
                         day: "numeric",
                         month: "short",
                         year: "numeric",

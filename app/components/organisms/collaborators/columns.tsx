@@ -102,7 +102,7 @@ export const columns: ColumnDef<ReservationCollaborationWithRelations>[] = [
         festivalDateDateDayTwo.id,
       );
       if (!arrivedAt) return <span className="text-muted-foreground">--</span>;
-      return formatFullDate(arrivedAt, DateTime.TIME_24_WITH_SHORT_OFFSET);
+      return formatFullDate(arrivedAt, DateTime.TIME_WITH_SHORT_OFFSET);
     },
   },
   {

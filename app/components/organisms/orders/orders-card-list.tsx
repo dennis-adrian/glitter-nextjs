@@ -7,7 +7,11 @@ import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actio
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Badge } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import {
+  formatDate,
+  STORE_TIMEZONE,
+  formatDisplayDate,
+} from "@/app/lib/formatters";
 import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
 import type { OrderStatusCounts } from "@/app/lib/orders/actions";
 import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
@@ -130,9 +134,7 @@ function OrderCard({
   ]
     .filter(Boolean)
     .join(" · ");
-  const createdLabel = formatDate(order.createdAt).toLocaleString(
-    DateTime.DATE_MED,
-  );
+  const createdLabel = formatDisplayDate(order.createdAt, DateTime.DATE_MED);
 
   return (
     <Card

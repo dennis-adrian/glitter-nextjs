@@ -85,7 +85,7 @@ export default function MobileSearchScreen<T extends string | number>({
         <DrawerHeader className="border-b px-4 py-3 text-left space-y-0">
           <div className="flex items-center justify-between gap-2 pr-8">
             <DrawerTitle>
-              <span className="font-semibold font-space-grotesk text-lg">
+              <span className="font-semibold font-display text-lg">
                 {title}
               </span>
             </DrawerTitle>

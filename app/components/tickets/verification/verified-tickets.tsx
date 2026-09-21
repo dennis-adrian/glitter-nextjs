@@ -2,7 +2,7 @@ import {
   fetchTicketsByFestival,
   fetchVerifiedTicketsByFestivalTotal,
 } from "@/app/data/tickets/actions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import {
   Table,
@@ -64,7 +64,8 @@ export default async function VerifiedTickets({
                   }`}</TableCell>
                   <TableCell>
                     {ticket.checkedInAt
-                      ? formatDate(ticket.checkedInAt).toLocaleString(
+                      ? formatDisplayDate(
+                          ticket.checkedInAt,
                           DateTime.DATETIME_MED,
                         )
                       : "--"}

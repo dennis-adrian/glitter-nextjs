@@ -44,7 +44,7 @@ export default function ReservationAvailableActions({
     <section className="space-y-3" aria-labelledby="available-actions">
       <h2
         id="available-actions"
-        className="font-space-grotesk text-base font-semibold"
+        className="font-display text-base font-semibold"
       >
         Acciones disponibles
       </h2>

@@ -1,3 +1,4 @@
+import { formatDisplayDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
 export function getMaxDateNumber(month: number, year: number) {
@@ -33,17 +34,20 @@ export function getMonthsOptions() {
   return Array.from({ length: 12 }, (_, i) => ({
     value: (i + 1).toString(),
     label:
-      DateTime.fromObject({ month: i + 1 })
-        .toLocaleString({
+      formatDisplayDate(
+        DateTime.fromObject({ month: i + 1 }, { zone: STORE_TIMEZONE }),
+        {
           month: "short",
-        })
+        },
+      )
         .charAt(0)
         .toUpperCase() +
-      DateTime.fromObject({ month: i + 1 })
-        .toLocaleString({
+      formatDisplayDate(
+        DateTime.fromObject({ month: i + 1 }, { zone: STORE_TIMEZONE }),
+        {
           month: "short",
-        })
-        .slice(1),
+        },
+      ).slice(1),
   }));
 }
 

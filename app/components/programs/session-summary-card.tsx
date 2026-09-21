@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { cn } from "@/app/lib/utils";
 import {
   SESSION_TYPE_LABELS,
@@ -17,7 +17,6 @@ import {
 } from "@/app/lib/programs/pricing";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import type { ProgramStatus } from "@/app/lib/programs/definitions";
-import { citrusGothicSolid } from "@/app/ui/fonts";
 import { DateTime } from "luxon";
 
 type Props = {
@@ -130,7 +129,7 @@ export default function SessionSummaryCard({
         ) : (
           <span className="absolute inset-0 flex flex-col justify-end bg-[#dff8f4] p-6 text-[#4b255f]">
             <span
-              className={`${citrusGothicSolid.className} text-5xl uppercase leading-none sm:text-6xl`}
+              className={`font-display font-bold text-5xl uppercase leading-none sm:text-6xl`}
             >
               {SESSION_TYPE_LABELS[session.type]}
             </span>
@@ -158,7 +157,7 @@ export default function SessionSummaryCard({
                 session.type === "talk" ? "text-[#7b3b76]" : "text-[#e5d5ff]",
               )}
             >
-              {formatDate(nextOccurrence.startsAt).toLocaleString({
+              {formatDisplayDate(nextOccurrence.startsAt, {
                 weekday: "short",
                 day: "2-digit",
                 month: "short",
@@ -175,7 +174,7 @@ export default function SessionSummaryCard({
 
         <h3
           className={cn(
-            citrusGothicSolid.className,
+            "font-display font-bold",
             "text-balance text-3xl uppercase leading-[0.98] sm:text-4xl",
             featured && "lg:text-5xl",
           )}
@@ -208,7 +207,8 @@ export default function SessionSummaryCard({
           <div>
             {nextOccurrence ? (
               <p className="text-sm font-semibold">
-                {formatDate(nextOccurrence.startsAt).toLocaleString(
+                {formatDisplayDate(
+                  nextOccurrence.startsAt,
                   DateTime.TIME_SIMPLE,
                 )}
               </p>

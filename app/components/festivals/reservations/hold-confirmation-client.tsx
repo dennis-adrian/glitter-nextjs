@@ -465,7 +465,7 @@ export default function HoldConfirmationClient({
               )}
             >
               <TimerIcon className={`h-5 w-5`} />
-              <span className={`text-xl font-bold font-mono`}>
+              <span className={`text-xl font-bold font-sans tabular-nums`}>
                 {formatTime(remainingSeconds)}
               </span>
             </div>

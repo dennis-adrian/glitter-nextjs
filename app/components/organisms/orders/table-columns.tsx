@@ -4,7 +4,11 @@ import OrderVoucherDialog from "@/app/components/organisms/orders/order-voucher-
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
-import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import {
+  formatDate,
+  STORE_TIMEZONE,
+  formatDisplayDate,
+} from "@/app/lib/formatters";
 import { AdminOrderListRow } from "@/app/lib/orders/definitions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
@@ -179,7 +183,8 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
     cell: ({ row }) => {
       return (
         <span className="capitalize">
-          {formatDate(row.original.createdAt).toLocaleString(
+          {formatDisplayDate(
+            row.original.createdAt,
             DateTime.DATETIME_MED_WITH_WEEKDAY,
           )}
         </span>
@@ -212,7 +217,7 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
           )}
         >
           {isOverdue && <AlertTriangleIcon className="h-3 w-3 shrink-0" />}
-          {formatDate(paymentDueDate).toLocaleString(DateTime.DATETIME_MED)}
+          {formatDisplayDate(paymentDueDate, DateTime.DATETIME_MED)}
         </span>
       );
     },

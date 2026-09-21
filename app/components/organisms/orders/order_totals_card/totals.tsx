@@ -202,7 +202,7 @@ function ProductRow({ product }: { product: ProductTotal }) {
         <span className="text-xs text-muted-foreground sm:hidden">
           Unidades
         </span>
-        <span className="font-mono text-base font-semibold tabular-nums">
+        <span className="font-sans tabular-nums text-base font-semibold tabular-nums">
           {product.allTotalsSum}
         </span>
       </div>

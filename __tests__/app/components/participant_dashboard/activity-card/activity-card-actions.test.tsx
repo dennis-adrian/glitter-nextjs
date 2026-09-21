@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type { BaseProfile } from "@/app/api/users/definitions";
 import ActivityCardActions from "@/app/components/participant_dashboard/activity-card/activity-card-actions";
 import type {
@@ -221,7 +222,7 @@ describe("ActivityCardActions", () => {
 
   it("shows the exact voting deadline for an enrolled voting action", () => {
     const deadlineDate = new Date(Date.now() + 2 * 60 * 60 * 1000);
-    const deadlineText = `Hasta: ${deadlineDate.toLocaleString("es-ES", {
+    const deadlineText = `Hasta: ${formatDisplayDate(deadlineDate, {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -256,8 +257,8 @@ describe("ActivityCardActions", () => {
 
   it('shows the registration deadline and exact "Participar" CTA when enrollment is open', () => {
     const activity = buildActivity();
-    const deadlineText = `Hasta: ${activity.registrationEndDate.toLocaleString(
-      "es-ES",
+    const deadlineText = `Hasta: ${formatDisplayDate(
+      activity.registrationEndDate,
       {
         day: "numeric",
         month: "short",
@@ -319,22 +320,62 @@ describe("ActivityCardActions", () => {
     expect(screen.queryByText("Participar")).toBeNull();
   });
 
-  it("shows the available-slot message for an active waitlist invitation", () => {
-    const now = new Date();
-    const waitlistEntry = buildWaitlistEntry({
-      notifiedAt: now,
-      expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
-      notifiedForDetailId: 84,
-    });
+  it.each([true, false])(
+    "shows an invitation CTA and its own deadline (registration open: %s)",
+    (enrollmentIsOpen) => {
+      const now = new Date();
+      const waitlistEntry = buildWaitlistEntry({
+        notifiedAt: now,
+        expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
+        notifiedForDetailId: 84,
+      });
 
-    renderActions({
-      enrollment: buildUnenrolledEnrollment(waitlistEntry),
-    });
+      renderActions({
+        enrollment: buildUnenrolledEnrollment(waitlistEntry),
+        enrollmentIsOpen,
+        isInVotingWindow: !enrollmentIsOpen,
+      });
 
-    expect(screen.getByText("¡Tenés un cupo disponible!")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Ver detalles" })).toBeTruthy();
-    expect(
-      screen.queryByText(/Estás en la lista de espera en la posición/),
-    ).toBeNull();
-  });
+      expect(screen.getByText("¡Tenés un cupo disponible!")).toBeTruthy();
+      expect(
+        screen
+          .getByRole("link", { name: "Inscribirme ahora" })
+          .getAttribute("href"),
+      ).toBe("/profiles/101/festivals/7/activity/42");
+      expect(screen.getByText(/^Inscribite hasta:/)).toBeTruthy();
+      expect(screen.queryByText(/^Hasta:/)).toBeNull();
+      expect(screen.queryByRole("link", { name: "Ver detalles" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Votar ahora" })).toBeNull();
+      expect(
+        screen.queryByText(/Estás en la lista de espera en la posición/),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
+    { expiresAt: new Date(0) },
+    { expiresAt: null },
+    { notifiedAt: null },
+    { notifiedForDetailId: null },
+  ])(
+    "does not offer an invitation CTA for an expired or incomplete invitation: %j",
+    (overrides) => {
+      renderActions({
+        enrollment: buildUnenrolledEnrollment(
+          buildWaitlistEntry({
+            notifiedAt: new Date(),
+            expiresAt: new Date(Date.now() + 60_000),
+            notifiedForDetailId: 84,
+            ...overrides,
+          }),
+        ),
+      });
+
+      expect(
+        screen.queryByRole("link", { name: "Inscribirme ahora" }),
+      ).toBeNull();
+      expect(screen.queryByText("¡Tenés un cupo disponible!")).toBeNull();
+      expect(screen.getByRole("link", { name: "Ver detalles" })).toBeTruthy();
+    },
+  );
 });

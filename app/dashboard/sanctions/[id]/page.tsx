@@ -6,7 +6,7 @@ import {
   InfractionSeverityBadge,
   InfractionStatusBadge,
 } from "@/app/components/infractions/status-badge";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { participantDisplayName } from "@/app/lib/infractions/mappers";
 import {
   formatSanctionValidity,
@@ -53,7 +53,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function formatAuditDate(value: Date | string): string {
   const dateTime = formatDate(value);
   if (!dateTime.isValid) return String(value);
-  return dateTime.toLocaleString(DateTime.DATETIME_MED);
+  return formatDisplayDate(dateTime, DateTime.DATETIME_MED);
 }
 
 function formatAuditValue(value: unknown, fieldKey?: string): string {
@@ -157,16 +157,12 @@ export default async function SanctionDetailPage({
           </p>
           <p>
             <span className="text-muted-foreground">Inicio: </span>
-            {formatDate(sanction.startsAt).toLocaleString(
-              DateTime.DATETIME_MED,
-            )}
+            {formatDisplayDate(sanction.startsAt, DateTime.DATETIME_MED)}
           </p>
           <p>
             <span className="text-muted-foreground">Fin: </span>
             {sanction.endsAt
-              ? formatDate(sanction.endsAt).toLocaleString(
-                  DateTime.DATETIME_MED,
-                )
+              ? formatDisplayDate(sanction.endsAt, DateTime.DATETIME_MED)
               : "—"}
           </p>
           {sanction.type === "reservation_delay" && (
@@ -191,18 +187,14 @@ export default async function SanctionDetailPage({
           <div className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
             <p>
               Creada el{" "}
-              {formatDate(sanction.createdAt).toLocaleString(
-                DateTime.DATETIME_MED,
-              )}
+              {formatDisplayDate(sanction.createdAt, DateTime.DATETIME_MED)}
               {sanction.createdBy
                 ? ` por ${participantDisplayName(sanction.createdBy)}`
                 : ""}
             </p>
             <p>
               Aprobada el{" "}
-              {formatDate(sanction.approvedAt).toLocaleString(
-                DateTime.DATETIME_MED,
-              )}
+              {formatDisplayDate(sanction.approvedAt, DateTime.DATETIME_MED)}
               {sanction.approvedBy
                 ? ` por ${participantDisplayName(sanction.approvedBy)}`
                 : ""}
@@ -210,9 +202,7 @@ export default async function SanctionDetailPage({
             {sanction.revokedAt && (
               <p>
                 Revocada el{" "}
-                {formatDate(sanction.revokedAt).toLocaleString(
-                  DateTime.DATETIME_MED,
-                )}
+                {formatDisplayDate(sanction.revokedAt, DateTime.DATETIME_MED)}
                 {sanction.revokedBy
                   ? ` por ${participantDisplayName(sanction.revokedBy)}`
                   : ""}
@@ -289,14 +279,13 @@ export default async function SanctionDetailPage({
                 </div>
                 <p className="text-muted-foreground">
                   Calificado:{" "}
-                  {formatDate(item.qualifiedAt).toLocaleString(
-                    DateTime.DATETIME_MED,
-                  )}
+                  {formatDisplayDate(item.qualifiedAt, DateTime.DATETIME_MED)}
                 </p>
                 {item.reservationEligibleAt && (
                   <p className="text-muted-foreground">
                     Elegible para reservar:{" "}
-                    {formatDate(item.reservationEligibleAt).toLocaleString(
+                    {formatDisplayDate(
+                      item.reservationEligibleAt,
                       DateTime.DATETIME_MED,
                     )}
                   </p>
@@ -304,7 +293,8 @@ export default async function SanctionDetailPage({
                 {item.festivalEndAt && (
                   <p className="text-muted-foreground">
                     Fecha final usada para el conteo:{" "}
-                    {formatDate(item.festivalEndAt).toLocaleString(
+                    {formatDisplayDate(
+                      item.festivalEndAt,
                       DateTime.DATETIME_MED,
                     )}
                   </p>
@@ -312,7 +302,7 @@ export default async function SanctionDetailPage({
                 <p className="text-muted-foreground">
                   {item.countsTowardDuration
                     ? item.countedAt
-                      ? `Contado el ${formatDate(item.countedAt).toLocaleString(DateTime.DATETIME_MED)}`
+                      ? `Contado el ${formatDisplayDate(item.countedAt, DateTime.DATETIME_MED)}`
                       : "Pendiente de conteo"
                     : `Excluido${item.excludedReason ? `: ${item.excludedReason}` : ""}`}
                 </p>
@@ -358,9 +348,7 @@ export default async function SanctionDetailPage({
                     {sanctionEventTypeLabel[event.eventType]}
                   </p>
                   <p className="text-muted-foreground">
-                    {formatDate(event.createdAt).toLocaleString(
-                      DateTime.DATETIME_MED,
-                    )}
+                    {formatDisplayDate(event.createdAt, DateTime.DATETIME_MED)}
                     {event.actor
                       ? ` · ${participantDisplayName(event.actor)}`
                       : ""}

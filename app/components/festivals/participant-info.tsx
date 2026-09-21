@@ -1,7 +1,7 @@
 import type { StandBase } from "@/app/api/stands/definitions";
 import type { UserCategory } from "@/app/api/users/definitions";
 import ProfileAvatar from "@/app/components/common/profile-avatar";
-import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
+import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
   getCategoryBadgeVariant,
@@ -76,7 +76,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
         sizes="72px"
       />
       <div className="mt-4 flex flex-1 flex-col items-center">
-        <h3 className="line-clamp-2 font-space-grotesk font-bold leading-tight">
+        <h3 className="line-clamp-2 font-display font-bold leading-tight">
           {props.profile.displayName}
         </h3>
         {categoryText ? (

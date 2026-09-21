@@ -17,7 +17,7 @@ import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import {
   isAllowedProgramArtworkUrl,
   resolveProgramArtwork,
@@ -38,7 +38,6 @@ import {
   programDiscountFrom,
   resolvePrice,
 } from "@/app/lib/programs/pricing";
-import { citrusGothicSolid } from "@/app/ui/fonts";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -135,7 +134,7 @@ export default async function ProgramPage({ params }: Props) {
 
   const dateRange = [program.startDate, program.endDate]
     .filter((date): date is Date => date !== null)
-    .map((date) => formatDate(date).toLocaleString(DateTime.DATE_MED))
+    .map((date) => formatDisplayDate(date, DateTime.DATE_MED))
     .join(" al ");
   const agendaDays = buildAgendaDays(program.sessions);
   const artwork = resolveProgramArtwork(program.bannerUrl);
@@ -219,7 +218,7 @@ export default async function ProgramPage({ params }: Props) {
         <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
           <div className="mb-8 max-w-3xl text-[#4b255f]">
             <h2
-              className={`${citrusGothicSolid.className} text-balance text-5xl uppercase leading-[0.9] sm:text-7xl`}
+              className={`font-display font-bold text-balance text-5xl uppercase leading-[0.9] sm:text-7xl`}
             >
               Arma tu ruta de aprendizaje
             </h2>
@@ -257,7 +256,7 @@ export default async function ProgramPage({ params }: Props) {
                     <div className="flex items-center gap-5 bg-[#9347f5] px-6 py-6 text-white sm:px-8">
                       <div className="grid shrink-0 justify-items-center">
                         <span
-                          className={`${citrusGothicSolid.className} text-6xl leading-none text-[#ffbe57] sm:text-7xl`}
+                          className={`font-display font-bold text-6xl leading-none text-[#ffbe57] sm:text-7xl`}
                         >
                           {formatDate(day.date).toFormat("dd")}
                         </span>
@@ -316,7 +315,8 @@ export default async function ProgramPage({ params }: Props) {
                             <div className="col-start-1 row-start-1 flex items-center gap-3 sm:block">
                               <p className="flex items-center gap-2 text-lg font-black text-[#9347f5]">
                                 <Clock3Icon className="size-4" />
-                                {formatDate(occurrence.startsAt).toLocaleString(
+                                {formatDisplayDate(
+                                  occurrence.startsAt,
                                   DateTime.TIME_SIMPLE,
                                 )}
                               </p>

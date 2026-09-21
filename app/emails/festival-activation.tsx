@@ -1,7 +1,7 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { getUserName } from "@/app/lib/users/utils";
 import {
   Body,
@@ -29,11 +29,13 @@ export default function FestivalActivationEmailTemplate({
 }: FestivalActivationTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(profile);
-  const fullDate = formatDate(festival.reservationsStartDate).toLocaleString(
+  const fullDate = formatDisplayDate(
+    festival.reservationsStartDate,
     DateTime.DATE_FULL,
   );
-  const hour = formatDate(festival.reservationsStartDate).toLocaleString(
-    DateTime.TIME_24_SIMPLE,
+  const hour = formatDisplayDate(
+    festival.reservationsStartDate,
+    DateTime.TIME_SIMPLE,
   );
 
   return (

@@ -10,7 +10,7 @@ import SessionRollupRow from "@/app/components/dashboard/programs/enrollments/se
 import OccurrenceRosterTable, {
   type RosterOccurrenceContext,
 } from "@/app/components/dashboard/programs/occurrence-roster-table";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type { ProgramRoster } from "@/app/lib/programs/occurrence-queries";
 import {
   buildOccurrenceRollups,
@@ -38,9 +38,7 @@ type Props = {
  */
 export default function ProgramRosterView({ roster }: Props) {
   const [sessionFilter, setSessionFilter] = useState<number | null>(null);
-  const [occurrenceFilter, setOccurrenceFilter] = useState<number | null>(
-    null,
-  );
+  const [occurrenceFilter, setOccurrenceFilter] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [showReleased, setShowReleased] = useState(false);
 
@@ -92,7 +90,8 @@ export default function ProgramRosterView({ roster }: Props) {
     for (const occurrence of roster.occurrences) {
       context.set(occurrence.occurrenceId, {
         sessionTitle: sessionTitleById.get(occurrence.sessionId) ?? "—",
-        occurrenceLabel: formatDate(occurrence.startsAt).toLocaleString(
+        occurrenceLabel: formatDisplayDate(
+          occurrence.startsAt,
           DateTime.DATETIME_MED,
         ),
       });

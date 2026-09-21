@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   useCallback,
   useEffect,
@@ -156,12 +157,12 @@ export default function AdminOverviewMapTooltip({
             <span>
               {isOverdue ? "Venció el " : "Vence el "}
               <span className="font-medium text-foreground">
-                {new Intl.DateTimeFormat("es-BO", {
+                {formatDisplayDate(dueDate, {
                   day: "numeric",
                   month: "short",
                   hour: "2-digit",
                   minute: "2-digit",
-                }).format(dueDate)}
+                })}
               </span>
             </span>
           </div>

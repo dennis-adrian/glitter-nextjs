@@ -12,8 +12,8 @@ import {
   CardFooter,
   CardHeader,
 } from "@/app/components/ui/card";
-import { APP_LOCALE } from "@/app/lib/constants";
-import { formatDate } from "@/app/lib/formatters";
+
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderItemCount, hasPreorders } from "@/app/lib/orders/utils";
 import OrderItemOverview from "./order-item-overview";
@@ -27,11 +27,11 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
             <Heading level={3}>Pedido #{order.id}</Heading>
             <CardDescription>
               Realizado en{" "}
-              {new Intl.DateTimeFormat(APP_LOCALE, {
+              {formatDisplayDate(formatDate(order.createdAt).toJSDate(), {
                 day: "numeric",
                 month: "short",
                 year: "numeric",
-              }).format(formatDate(order.createdAt).toJSDate())}
+              })}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -68,11 +68,11 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
             <p className="text-xs text-amber-700 flex items-center gap-1 w-full">
               <CalendarClockIcon className="h-3 w-3 shrink-0" />
               Vence el{" "}
-              {new Intl.DateTimeFormat(APP_LOCALE, {
+              {formatDisplayDate(formatDate(order.paymentDueDate).toJSDate(), {
                 day: "numeric",
                 month: "short",
                 year: "numeric",
-              }).format(formatDate(order.paymentDueDate).toJSDate())}
+              })}
             </p>
           )}
           <Button asChild className="w-full bg-purple-600 hover:bg-purple-700">

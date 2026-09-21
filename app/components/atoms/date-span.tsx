@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime, DateTimeFormatOptions } from "luxon";
 
 export default function DateSpan({
@@ -13,9 +14,10 @@ export default function DateSpan({
 }) {
   return (
     <span className={className}>
-      {DateTime.fromJSDate(new Date(date))
-        .setLocale("es")
-        .toLocaleString(format)}
+      {formatDisplayDate(
+        DateTime.fromJSDate(new Date(date)).setLocale("es"),
+        format,
+      )}
     </span>
   );
 }

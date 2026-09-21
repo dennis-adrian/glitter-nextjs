@@ -1,8 +1,7 @@
 export const main = {
   backgroundColor: "#ffffff",
   color: "#24292e",
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"',
+  fontFamily: "Figtree, sans-serif",
 };
 
 export const container = {

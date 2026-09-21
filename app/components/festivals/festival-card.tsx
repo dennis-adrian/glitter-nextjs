@@ -9,7 +9,7 @@ import {
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import FestivalSwitches from "./festival-switches";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import FestivalCardDropdown from "./festival-card-dropdown";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
@@ -77,7 +77,7 @@ export default function FestivalCard({
             {festival.festivalDates.map((date) => (
               <span className="flex gap-2 items-center" key={date.id}>
                 <CalendarDaysIcon className="w-5 h-5" />{" "}
-                {formatDate(date.startDate).toLocaleString({
+                {formatDisplayDate(date.startDate, {
                   day: "numeric",
                   month: "long",
                   year: "numeric",

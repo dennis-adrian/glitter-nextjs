@@ -10,7 +10,7 @@ import {
   FestivalActivityWithDetailsAndParticipants,
   FestivalBase,
 } from "@/app/lib/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 
 type StickerHuntActivityPageProps = {
   currentProfile: BaseProfile;
@@ -156,15 +156,16 @@ export default function StickerHuntActivityPage({
           <div>
             <dt className="font-semibold">Inscripción a la actividad</dt>
             <dd>
-              Del {registrationStart.toLocaleString(dateTimeFormat)} al{" "}
-              {registrationEnd.toLocaleString(dateTimeFormat)}
+              Del {formatDisplayDate(registrationStart, dateTimeFormat)} al{" "}
+              {formatDisplayDate(registrationEnd, dateTimeFormat)}
             </dd>
           </div>
           {proofUploadLimitDate && (
             <div>
               <dt className="font-semibold">Subida del diseño del sticker</dt>
               <dd>
-                Hasta el {proofUploadLimitDate.toLocaleString(dateTimeFormat)}
+                Hasta el{" "}
+                {formatDisplayDate(proofUploadLimitDate, dateTimeFormat)}
               </dd>
             </div>
           )}

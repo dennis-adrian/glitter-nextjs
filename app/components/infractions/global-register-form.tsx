@@ -22,7 +22,7 @@ import {
 } from "@/app/lib/infractions/actions";
 import type { DuplicateInfractionCandidate } from "@/app/lib/infractions/definitions";
 import { InfractionType } from "@/app/lib/infractions/definitions";
-import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import { STORE_TIMEZONE, formatDisplayDate } from "@/app/lib/formatters";
 import { participantDisplayName } from "@/app/lib/infractions/mappers";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
@@ -328,7 +328,8 @@ export default function GlobalRegisterInfractionForm({
               {duplicates.map((duplicate) => (
                 <li key={duplicate.id}>
                   #{duplicate.id} · {duplicate.type.label} ·{" "}
-                  {formatDate(duplicate.createdAt).toLocaleString(
+                  {formatDisplayDate(
+                    duplicate.createdAt,
                     DateTime.DATETIME_MED,
                   )}
                 </li>

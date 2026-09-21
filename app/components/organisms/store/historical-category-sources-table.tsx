@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   correctHistoricalLineCategoriesAction,
   type HistoricalLineCategorySource,
@@ -186,9 +186,7 @@ export default function HistoricalCategorySourcesTable({
                       #{source.orderId}
                     </Link>
                     <p className="text-xs text-muted-foreground">
-                      {formatDate(source.orderDate).toLocaleString(
-                        DateTime.DATE_MED,
-                      )}
+                      {formatDisplayDate(source.orderDate, DateTime.DATE_MED)}
                     </p>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">

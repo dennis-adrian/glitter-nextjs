@@ -2,13 +2,8 @@
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
-import { useEffect, useState, useTransition } from "react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { useState, useTransition } from "react";
+import useActivityRegistration from "@/app/hooks/use-activity-registration";
 import { DateTime } from "luxon";
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import { useForm } from "react-hook-form";
@@ -45,7 +40,7 @@ import {
   getProofUploadReminderMessage,
   isProofUploadExpired,
 } from "@/app/lib/festival_activites/helpers";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
   consent: z
@@ -71,8 +66,11 @@ export default function EnrollRedirectButton({
   activity,
   acceptedUserCategories = [],
 }: EnrollRedirectButtonProps) {
-  const [isEnabled, setIsEnabled] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
+  const registration = useActivityRegistration(
+    activity.registrationStartDate,
+    activity.registrationEndDate,
+  );
+  const isEnabled = registration.isOpen;
   const [isPending, startTransition] = useTransition();
   const [justEnrolled, setJustEnrolled] = useState(false);
   const [newParticipationId, setNewParticipationId] = useState<number | null>(
@@ -85,48 +83,6 @@ export default function EnrollRedirectButton({
       consent: false,
     },
   });
-
-  useEffect(() => {
-    // Function to check if current date is within registration period
-    const checkRegistrationPeriod = () => {
-      const now = DateTime.now();
-      // Convert Date objects to Luxon DateTime objects
-      const startDate = DateTime.fromJSDate(activity.registrationStartDate);
-      const endDate = DateTime.fromJSDate(activity.registrationEndDate);
-
-      if (now < startDate) {
-        setIsEnabled(false);
-        setStatusMessage(
-          `El registro comenzará en ${startDate.toLocaleString(
-            DateTime.DATETIME_MED,
-          )}`,
-        );
-      } else if (now > endDate) {
-        setIsEnabled(false);
-        setStatusMessage(
-          `El registro finalizó en ${endDate.toLocaleString(
-            DateTime.DATETIME_MED,
-          )}`,
-        );
-      } else {
-        setIsEnabled(true);
-        setStatusMessage(
-          `Registro abierto hasta ${endDate.toLocaleString(
-            DateTime.DATETIME_MED,
-          )}`,
-        );
-      }
-    };
-
-    // Check immediately
-    checkRegistrationPeriod();
-
-    // Set up interval to check every 5 seconds
-    const intervalId = setInterval(checkRegistrationPeriod, 5000);
-
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [activity.registrationStartDate, activity.registrationEndDate]);
 
   if (!activity.details?.length) {
     return (
@@ -234,22 +190,23 @@ export default function EnrollRedirectButton({
   const allVariantsFull =
     activity.type !== "sticker_print" &&
     activity.details.every((d) => isActivityDetailFull(d));
+  const waitlistEntry = getUserWaitlistEntry(forProfile.id, activity);
+  const hasActiveInvite =
+    waitlistEntry?.notifiedAt &&
+    waitlistEntry.expiresAt &&
+    new Date() < new Date(waitlistEntry.expiresAt) &&
+    waitlistEntry.notifiedForDetailId;
 
   if (
-    allVariantsFull &&
+    (allVariantsFull || hasActiveInvite) &&
     !isProfileEnrolledInActivity(forProfile.id, activity)
   ) {
-    const waitlistEntry = getUserWaitlistEntry(forProfile.id, activity);
     const waitlistEnabled = !!activity.waitlistWindowMinutes;
 
     // Active invitation window
-    if (
-      waitlistEntry?.notifiedAt &&
-      waitlistEntry.expiresAt &&
-      new Date() < new Date(waitlistEntry.expiresAt) &&
-      waitlistEntry.notifiedForDetailId
-    ) {
-      const expiresAt = formatDate(waitlistEntry.expiresAt).toLocaleString(
+    if (hasActiveInvite && waitlistEntry.expiresAt) {
+      const expiresAt = formatDisplayDate(
+        waitlistEntry.expiresAt,
         DateTime.DATETIME_MED,
       );
 
@@ -553,54 +510,37 @@ export default function EnrollRedirectButton({
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex justify-end w-full">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="w-full flex flex-col gap-1 justify-center items-center">
-                {activity.type !== "sticker_print" &&
-                (isEnabled || currentProfile.role === "admin") ? (
-                  <Form {...form}>
-                    <form
-                      className="w-full flex flex-col gap-2"
-                      onSubmit={action}
-                    >
-                      <ConsentFormField
-                        name="consent"
-                        label="Confirmo que leí y estoy de acuerdo con las condiciones de la actividad."
-                        description="Entiendo que incumplir las condiciones de la actividad, podría excluirme de futuros eventos o actividades."
-                      />
-
-                      <SubmitButton
-                        disabled={isPending}
-                        submittingLabel="Inscribiendo"
-                        label="Inscribirme"
-                      />
-                    </form>
-                  </Form>
-                ) : (
-                  <RedirectButton
-                    className="w-full self-end"
-                    href={`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll`}
-                    disabled={!isEnabled && currentProfile.role !== "admin"}
-                  >
-                    {isEnabled || currentProfile.role === "admin"
-                      ? "Inscribirme"
-                      : "Registro no disponible"}
-                  </RedirectButton>
-                )}
-                <span className="text-xs text-center text-muted-foreground lg:hidden">
-                  {statusMessage}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{statusMessage}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
+    <div className="flex w-full flex-col gap-3">
+      <p className="text-sm font-medium text-center" role="status">
+        {registration.message}
+      </p>
+      {activity.type !== "sticker_print" &&
+      (isEnabled || currentProfile.role === "admin") ? (
+        <Form {...form}>
+          <form className="w-full flex flex-col gap-2" onSubmit={action}>
+            <ConsentFormField
+              name="consent"
+              label="Confirmo que leí y estoy de acuerdo con las condiciones de la actividad."
+              description="Entiendo que incumplir las condiciones de la actividad, podría excluirme de futuros eventos o actividades."
+            />
+            <SubmitButton
+              disabled={isPending}
+              submittingLabel="Inscribiendo"
+              label="Inscribirme"
+            />
+          </form>
+        </Form>
+      ) : (
+        <RedirectButton
+          className="w-full self-end"
+          href={`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll`}
+          disabled={!isEnabled && currentProfile.role !== "admin"}
+        >
+          {isEnabled || currentProfile.role === "admin"
+            ? "Inscribirme"
+            : registration.unavailableLabel}
+        </RedirectButton>
+      )}
     </div>
   );
 }

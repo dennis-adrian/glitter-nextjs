@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { Button } from "@/app/components/ui/button";
 import DeleteQrCodeModal from "@/app/components/organisms/qr_codes/delete-qr-code-modal";
 import QrCodeImagePreview from "@/app/components/organisms/qr_codes/qr-code-image-preview";
@@ -22,7 +23,7 @@ export const columnTitles: Record<string, string> = {
 
 function formatExpiration(date: Date) {
   const dt = DateTime.fromJSDate(new Date(date)).setLocale("es");
-  const absolute = dt.toFormat("dd/MM/yyyy");
+  const absolute = formatDisplayDate(dt);
   const relative = dt.toRelative({ base: DateTime.now() }) ?? "";
   return { absolute, relative };
 }

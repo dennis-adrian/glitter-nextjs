@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { toast } from "sonner";
 
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   CHECK_IN_OUTCOME_LABELS,
   type CheckInResult,
@@ -33,13 +33,9 @@ const options = {
 function detail(result: CheckInResult): string | undefined {
   switch (result.outcome) {
     case "checked_in":
-      return `${result.attendeeName} · ${formatDate(
-        result.checkedInAt,
-      ).toLocaleString(DateTime.TIME_SIMPLE)}`;
+      return `${result.attendeeName} · ${formatDisplayDate(result.checkedInAt, DateTime.TIME_SIMPLE)}`;
     case "already_used":
-      return `${result.attendeeName} · ingresó a las ${formatDate(
-        result.checkedInAt,
-      ).toLocaleString(DateTime.TIME_SIMPLE)}`;
+      return `${result.attendeeName} · ingresó a las ${formatDisplayDate(result.checkedInAt, DateTime.TIME_SIMPLE)}`;
     case "wrong_occurrence":
       return `Corresponde a: ${result.sessionTitle}`;
     case "cancelled":

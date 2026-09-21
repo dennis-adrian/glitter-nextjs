@@ -3,7 +3,7 @@ import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { getUserName } from "@/app/lib/users/utils";
 import {
   Body,
@@ -61,13 +61,17 @@ export default function ReservationPaymentExtensionTemplate(
             <Text style={styles.text}>
               Extendimos la fecha límite de pago de tu reserva para{" "}
               {standCount > 1 ? "los espacios" : "el espacio"}{" "}
-              <strong>{standLabel}</strong>{" "}
-              en el festival <strong>{reservation.festival.name}</strong>.
+              <strong>{standLabel}</strong> en el festival{" "}
+              <strong>{reservation.festival.name}</strong>.
             </Text>
             <Text style={styles.text}>
               La nueva fecha límite es el{" "}
-              <strong>{dueDate.toLocaleString(DateTime.DATE_MED)}</strong> a las{" "}
-              <strong>{dueDate.toLocaleString(DateTime.TIME_SIMPLE)}</strong>.
+              <strong>{formatDisplayDate(dueDate, DateTime.DATE_MED)}</strong> a
+              las{" "}
+              <strong>
+                {formatDisplayDate(dueDate, DateTime.TIME_SIMPLE)}
+              </strong>
+              .
             </Text>
             <Text style={styles.text}>
               Recordá subir el comprobante de pago antes de esa fecha para

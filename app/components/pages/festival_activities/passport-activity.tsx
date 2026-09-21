@@ -7,7 +7,7 @@ import {
   FestivalActivityWithDetailsAndParticipants,
   FestivalBase,
 } from "@/app/lib/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 
 type PassportActivityPageProps = {
   currentProfile: BaseProfile;
@@ -102,14 +102,14 @@ export default function PassportActivityPage({
             <li>
               Subir el diseño del sello al sitio web hasta el{" "}
               <strong>
-                {proofUploadLimitDate.toLocaleString({
+                {formatDisplayDate(proofUploadLimitDate, {
                   month: "long",
                   day: "numeric",
                 })}
               </strong>{" "}
               a las{" "}
               <strong>
-                {proofUploadLimitDate.toLocaleString({
+                {formatDisplayDate(proofUploadLimitDate, {
                   hour: "numeric",
                   minute: "numeric",
                 })}

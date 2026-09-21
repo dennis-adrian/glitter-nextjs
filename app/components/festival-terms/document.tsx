@@ -24,9 +24,7 @@ type RenderGroup =
   | { type: "card"; section: FestivalTermsSection }
   | { type: "accordion"; sections: FestivalTermsSection[] };
 
-function groupVisibleSections(
-  sections: FestivalTermsSection[],
-): RenderGroup[] {
+function groupVisibleSections(sections: FestivalTermsSection[]): RenderGroup[] {
   const groups: RenderGroup[] = [];
   for (const section of sections) {
     if (section.layout === "accordion") {
@@ -67,9 +65,7 @@ function SectionBody({
         </p>
       );
     }
-    return (
-      <FestivalTermsSchedule festival={festival} category={category} />
-    );
+    return <FestivalTermsSchedule festival={festival} category={category} />;
   }
   return (
     <RichTextHtml
@@ -111,7 +107,7 @@ export default function FestivalTermsDocument({
                   key={section.id ?? `acc-item-${groupIndex}-${index}`}
                   value={`terms-acc-${groupIndex}-${index}`}
                 >
-                  <AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
+                  <AccordionTrigger className="text-lg md:text-xl font-semibold font-display tracking-wide">
                     {section.title || "Sección"}
                   </AccordionTrigger>
                   <AccordionContent>
@@ -155,7 +151,7 @@ export default function FestivalTermsDocument({
             className="flex flex-col gap-1 md:gap-2"
           >
             {group.section.title ? (
-              <h2 className="text-lg font-semibold tracking-wide font-space-grotesk md:text-xl">
+              <h2 className="text-lg font-semibold tracking-wide font-display md:text-xl">
                 {group.section.title}
               </h2>
             ) : null}

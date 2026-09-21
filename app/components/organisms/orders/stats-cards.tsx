@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/app/components/ui/card";
 import { OrdersStats, OrdersStatsComparison } from "@/app/lib/orders/actions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import type { ProfitabilityQuery } from "@/app/lib/orders/profitability-query-schema";
 import {
   withStoreCategoryScope,
@@ -51,7 +51,7 @@ function formatBaseline(baseline: { from: Date; to: Date }) {
   const from = formatDate(baseline.from);
   const to = formatDate(baseline.to);
   if (from.hasSame(to, "month")) {
-    return `vs ${from.day}–${to.toLocaleString({
+    return `vs ${from.day}–${formatDisplayDate(to, {
       day: "numeric",
       month: "short",
     })}`;
@@ -60,7 +60,7 @@ function formatBaseline(baseline: { from: Date; to: Date }) {
   const format: Intl.DateTimeFormatOptions = from.hasSame(to, "year")
     ? { day: "numeric", month: "short" }
     : { day: "numeric", month: "short", year: "2-digit" };
-  return `vs ${from.toLocaleString(format)} – ${to.toLocaleString(format)}`;
+  return `vs ${formatDisplayDate(from, format)} – ${formatDisplayDate(to, format)}`;
 }
 
 function Delta({
@@ -170,7 +170,7 @@ export default function OrdersStatsCards({
               </span>
               <p
                 className={cn(
-                  "font-space-grotesk text-2xl font-semibold tabular-nums leading-tight",
+                  "font-display text-2xl font-semibold tabular-nums leading-tight",
                   metric.accent && value > 0 && "text-amber-600",
                 )}
               >

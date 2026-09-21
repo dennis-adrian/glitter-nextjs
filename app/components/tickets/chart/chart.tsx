@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTime } from "@/app/lib/formatters";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   ChartConfig,
@@ -12,6 +13,11 @@ import { TicketIcon } from "lucide-react";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import ChartDayLegend from "@/app/components/tickets/chart/chart-day-legend";
 import { generateChartData } from "@/app/components/tickets/chart/helpers";
+
+// Keep sortable 24-hour bucket keys separate from their displayed labels.
+function formatChartHour(value: string) {
+  return formatTime(`2000-01-01T${value.slice(0, 2)}:00:00`);
+}
 
 const chartConfig = {
   day1: {
@@ -59,12 +65,19 @@ export default function TicketsChart(props: TicketsChartProps) {
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="hour"
+              tickFormatter={formatChartHour}
               tickLine={false}
               tickMargin={10}
               axisLine={false}
             />
             <YAxis tickLine={false} axisLine={false} width={32} />
-            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(label) => formatChartHour(String(label))}
+                />
+              }
+            />
             {isMultiDay && (
               <ChartLegend
                 content={() => (

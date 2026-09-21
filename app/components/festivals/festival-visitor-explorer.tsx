@@ -298,7 +298,7 @@ export default function FestivalVisitorExplorer({
   return (
     <div className="relative" ref={rootRef}>
       <div className="max-w-2xl">
-        <h2 className="font-space-grotesk text-3xl font-bold tracking-tight sm:text-4xl">
+        <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
           Mapa y participantes
         </h2>
         <p className="mt-2 text-sm text-muted-foreground sm:text-base">
@@ -378,7 +378,7 @@ export default function FestivalVisitorExplorer({
         className="mt-16 scroll-mt-56 space-y-6 sm:mt-20"
       >
         <div className="max-w-2xl">
-          <h2 className="font-space-grotesk text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Participantes
           </h2>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">

@@ -28,7 +28,7 @@ import {
   validityUnitLabel,
 } from "@/app/lib/sanctions/mappers";
 import type { EligibleInfractionOption } from "@/app/lib/sanctions/queries";
-import { STORE_TIMEZONE } from "@/app/lib/formatters";
+import { STORE_TIMEZONE, formatDisplayDate } from "@/app/lib/formatters";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   durationUnitEnum,
@@ -489,7 +489,9 @@ export default function CreateSanctionForm({
               </div>
               <div>
                 <dt className="text-muted-foreground">Inicio</dt>
-                <dd>{reviewStartsAt.toLocaleString(DateTime.DATETIME_MED)}</dd>
+                <dd>
+                  {formatDisplayDate(reviewStartsAt, DateTime.DATETIME_MED)}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Validez</dt>
@@ -499,7 +501,7 @@ export default function CreateSanctionForm({
                     validityUnit: reviewValues.validityUnit,
                   })}
                   {reviewEndsAt?.isValid
-                    ? ` · hasta ${reviewEndsAt.toLocaleString(DateTime.DATETIME_MED)}`
+                    ? ` · hasta ${formatDisplayDate(reviewEndsAt, DateTime.DATETIME_MED)}`
                     : ""}
                 </dd>
               </div>

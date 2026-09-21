@@ -173,7 +173,7 @@ export default async function Page({ params }: EnrollPageProps) {
             <li>
               El ilustrador deberá subir el diseño de su sticker al sitio web en
               formato PNG con un tamaño máximo de 2MB hasta el miércoles 9 de
-              abril a las 18:00hs. (Esta opción no se encuentra disponible en
+              abril a las 6:00 PM. (Esta opción no se encuentra disponible en
               este momento pero se comunicará los ilustradores cuando esté
               disponible).
             </li>

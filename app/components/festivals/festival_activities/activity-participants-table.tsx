@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/app/components/ui/badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
@@ -177,7 +178,7 @@ function buildColumns(
       header: "Inscrito el",
       accessorFn: (row) => row.createdAt,
       cell: ({ row }) =>
-        new Date(row.original.createdAt).toLocaleDateString("es-ES", {
+        formatDisplayDate(new Date(row.original.createdAt), {
           day: "numeric",
           month: "short",
           year: "numeric",

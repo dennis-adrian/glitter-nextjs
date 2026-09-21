@@ -13,7 +13,7 @@ import {
 import { ScheduledTaskWithProfileAndReservation } from "@/app/lib/profile_tasks/definitions";
 import EmailHeader from "@/app/emails/email-header";
 import { getUserName } from "@/app/lib/users/utils";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
 type ReservationReminderTemplateProps = {
@@ -46,19 +46,18 @@ export default function ReservationReminderTemplate(
             <Text style={styles.text}>
               Te recordamos que tu reserva para{" "}
               {standCount > 1 ? "los espacios" : "el espacio"}{" "}
-              <strong>{standLabel}</strong>{" "}
-              para nuestro próximo festival{" "}
+              <strong>{standLabel}</strong> para nuestro próximo festival{" "}
               <strong>{task.reservation.festival.name}</strong> aún está
               pendiente de pago.
             </Text>
             <Text style={styles.text}>
               Tu fecha límite de pago es el{" "}
               <strong>
-                {formatDate(task.dueDate).toLocaleString(DateTime.DATE_MED)}
+                {formatDisplayDate(task.dueDate, DateTime.DATE_MED)}
               </strong>{" "}
               a las{" "}
               <strong>
-                {formatDate(task.dueDate).toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(task.dueDate, DateTime.TIME_SIMPLE)}
               </strong>
               .
             </Text>

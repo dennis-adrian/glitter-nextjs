@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   SESSION_TICKET_STATUS_LABELS,
   SESSION_TYPE_LABELS,
@@ -63,9 +63,9 @@ export default function PurchaseTicketCard({
       <CardContent className="space-y-4">
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>
-            {formatDate(startsAt).toLocaleString(DateTime.DATETIME_MED)}
+            {formatDisplayDate(startsAt, DateTime.DATETIME_MED)}
             {" — "}
-            {formatDate(endsAt).toLocaleString(DateTime.TIME_SIMPLE)}
+            {formatDisplayDate(endsAt, DateTime.TIME_SIMPLE)}
           </p>
           {venueLabel ? <p>{venueLabel}</p> : null}
         </div>
@@ -82,7 +82,9 @@ export default function PurchaseTicketCard({
                 className="block bg-white"
               />
             </div>
-            <p className="font-mono text-sm font-semibold">{ticketCode}</p>
+            <p className="font-sans tabular-nums text-sm font-semibold">
+              {ticketCode}
+            </p>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">

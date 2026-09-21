@@ -10,7 +10,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { Button } from "@/app/components/ui/button";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatTime } from "@/app/lib/formatters";
 import type { PublicFestivalPage } from "@/app/lib/festivals/definitions";
 
 type FestivalPageHeroProps = {
@@ -63,7 +63,7 @@ function formatFestivalDay(date: Date) {
   const startDate = formatDate(date);
   return {
     day: startDate.toFormat("cccc d 'de' LLLL"),
-    time: startDate.toFormat("HH:mm"),
+    time: formatTime(startDate),
   };
 }
 
@@ -144,7 +144,7 @@ export default function FestivalPageHero({
               <FestivalArtwork festival={festival} />
 
               <div className="min-w-0 self-start">
-                <h1 className="text-balance font-space-grotesk text-3xl font-bold leading-none tracking-tight sm:text-4xl">
+                <h1 className="text-balance font-display text-3xl font-bold leading-none tracking-tight sm:text-4xl">
                   {festival.name}
                 </h1>
                 <div className="mt-4 space-y-2 text-sm">

@@ -15,7 +15,7 @@ import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 import UserInfoCell from "@/app/components/users/cells/user-info";
 import { HeaderCell } from "@/app/components/users/header-cell";
 import UsersTablePagination from "@/app/components/users/users-table-pagination";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { useSearchParams } from "next/navigation";
 import { use } from "react";
@@ -93,18 +93,21 @@ export default function UsersTable({
                   </TableCell>
                   <TableCell>
                     {user.verifiedAt
-                      ? formatDate(user.verifiedAt).toLocaleString(
+                      ? formatDisplayDate(
+                          user.verifiedAt,
                           DateTime.DATETIME_MED_WITH_SECONDS,
                         )
                       : "--"}
                   </TableCell>
                   <TableCell>
-                    {formatDate(user.createdAt).toLocaleString(
+                    {formatDisplayDate(
+                      user.createdAt,
                       DateTime.DATETIME_MED_WITH_SECONDS,
                     )}
                   </TableCell>
                   <TableCell>
-                    {formatDate(user.updatedAt).toLocaleString(
+                    {formatDisplayDate(
+                      user.updatedAt,
                       DateTime.DATETIME_MED_WITH_SECONDS,
                     )}
                   </TableCell>

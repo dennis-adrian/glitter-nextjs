@@ -1,4 +1,4 @@
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
 export type ReservationEligibility =
@@ -69,6 +69,6 @@ export function resolveReservationEligibility(
     reason: "reservation_delay",
     eligibleAt: latestEligibleAt,
     sanctionIds: delays.map((row) => row.id),
-    message: `Podrás reservar a partir del ${formatDate(latestEligibleAt).toLocaleString(DateTime.DATETIME_MED)}.`,
+    message: `Podrás reservar a partir del ${formatDisplayDate(latestEligibleAt, DateTime.DATETIME_MED)}.`,
   };
 }

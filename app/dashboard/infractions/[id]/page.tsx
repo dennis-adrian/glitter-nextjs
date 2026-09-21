@@ -23,7 +23,7 @@ import {
   fetchParticipantOtherInfractions,
 } from "@/app/lib/infractions/queries";
 import { sanctionTypeLabel } from "@/app/lib/sanctions/mappers";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { ArrowLeftIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Link from "next/link";
@@ -112,13 +112,11 @@ export default async function InfractionDetailPage({
               gaveNoticeAt: infraction.gaveNoticeAt,
             })}
             {infraction.gaveNoticeAt &&
-              ` · ${formatDate(infraction.gaveNoticeAt).toLocaleString(DateTime.DATETIME_MED)}`}
+              ` · ${formatDisplayDate(infraction.gaveNoticeAt, DateTime.DATETIME_MED)}`}
           </p>
           <p>
             <span className="text-muted-foreground">Registrada: </span>
-            {formatDate(infraction.createdAt).toLocaleString(
-              DateTime.DATETIME_MED,
-            )}
+            {formatDisplayDate(infraction.createdAt, DateTime.DATETIME_MED)}
           </p>
           {infraction.description && (
             <p className="text-sm whitespace-pre-wrap">
