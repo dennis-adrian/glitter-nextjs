@@ -7,7 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { genderOptions, stateOptions } from "@/app/lib/utils";
 
 import { Form } from "@/app/components/ui/form";
-import { ProfileType, UpdateUser } from "@/app/api/users/definitions";
+import { ProfileType } from "@/app/api/users/definitions";
+import type { SelfEditableProfile } from "@/app/lib/users/profile-fields";
 import { genderEnum } from "@/db/schema";
 import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
@@ -94,7 +95,7 @@ export default function PrivateProfileForm({
     const { dirtyFields } = form.formState;
     const dirtyFieldsKeys = Object.keys(dirtyFields) as (keyof typeof data)[];
 
-    const fieldsToUpdate: UpdateUser = {};
+    const fieldsToUpdate: SelfEditableProfile = {};
     for (const key of dirtyFieldsKeys) {
       let value = undefined;
       if (key === "birthdate") {

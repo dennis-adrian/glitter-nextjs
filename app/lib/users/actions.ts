@@ -11,7 +11,6 @@ import {
   NewUser,
   Participation,
   ProfileType,
-  UpdateUser,
   UserCategory,
   UsersAggregates,
   UserSocial,
@@ -19,7 +18,16 @@ import {
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
 import { UserInfraction } from "@/app/lib/users/definitions";
-import { buildWhereClauseForProfileFetching } from "@/app/lib/users/helpers";
+import {
+  buildWhereClauseForProfileFetching,
+  getCurrentUserProfile,
+  requireProfileOwnerOrAdmin,
+  requireProfileOwnerOrStaff,
+} from "@/app/lib/users/helpers";
+import {
+  pickSelfEditableProfileFields,
+  SelfEditableProfile,
+} from "@/app/lib/users/profile-fields";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
@@ -158,12 +166,25 @@ export async function createUserProfile(user: NewUser) {
   }
 }
 
-export async function updateProfile(userId: number, profile: UpdateUser) {
+export async function updateProfile(
+  userId: number,
+  profile: SelfEditableProfile,
+) {
+  const actor = await requireProfileOwnerOrAdmin(userId);
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
+  // The payload reaches the server as plain JSON, so the allow-list has to be
+  // re-applied here: `status`, `role`, `category` and the rest of the
+  // privileged columns are dropped rather than written.
+  const fields = pickSelfEditableProfileFields(profile);
+
   try {
     await db
       .update(users)
       .set({
-        ...profile,
+        ...fields,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
@@ -190,6 +211,11 @@ export async function updateProfileCategories(
   subcategoryIds: number[],
   options?: { sendUserEmail?: boolean },
 ) {
+  const actor = await requireProfileOwnerOrStaff(profileId);
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -240,6 +266,14 @@ export async function upsertUserSocialProfiles(
   profileId: number,
   socials: { type: UserSocial["type"]; username: string }[],
 ) {
+  const actor = await requireProfileOwnerOrAdmin(profileId);
+  if (!actor) {
+    return {
+      success: false,
+      message: "No autorizado",
+    };
+  }
+
   try {
     const socialsTypesToInsert = socials.map((social) => social.type);
 
@@ -287,7 +321,9 @@ export async function upsertUserSocialProfiles(
   };
 }
 
-export async function verifyProfileCompletion(userId: number) {
+// Not exported: every export of a "use server" module is a server action, and
+// this one fans out admin email from a bare profile id.
+async function verifyProfileCompletion(userId: number) {
   const fullProfile = await fetchUserProfileById(userId);
   if (fullProfile && isProfileComplete(fullProfile)) {
     await db
@@ -318,18 +354,33 @@ export async function verifyProfileCompletion(userId: number) {
 }
 
 export async function updateProfilePicture(
-  profile: BaseProfile,
+  profileId: number,
   imageUrl: string,
 ) {
-  const oldImageUrl = profile.imageUrl;
+  const actor = await requireProfileOwnerOrAdmin(profileId);
+  if (!actor) {
+    return {
+      success: false,
+      message: "No autorizado",
+    };
+  }
+
   try {
+    // The previous URL is read back from the row instead of being taken from
+    // the caller: it decides which uploaded file gets deleted.
+    const existingProfile = await db.query.users.findFirst({
+      columns: { imageUrl: true },
+      where: eq(users.id, profileId),
+    });
+    const oldImageUrl = existingProfile?.imageUrl;
+
     await db
       .update(users)
       .set({
         imageUrl,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, profile.id));
+      .where(eq(users.id, profileId));
 
     if (oldImageUrl && oldImageUrl.includes("utfs")) {
       const [, key] = oldImageUrl.split("/f/");
@@ -469,7 +520,23 @@ export async function deleteUserSocial(
   socialId: number,
   pathToRevalidate?: string,
 ) {
+  const actor = await getCurrentUserProfile();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
+    const social = await db.query.userSocials.findFirst({
+      columns: { userId: true },
+      where: eq(userSocials.id, socialId),
+    });
+
+    // A missing social and somebody else's social answer the same way, so the
+    // action never confirms which ids exist.
+    if (!social || (social.userId !== actor.id && actor.role !== "admin")) {
+      return { success: false, message: "No autorizado" };
+    }
+
     await db.delete(userSocials).where(eq(userSocials.id, socialId));
   } catch (error) {
     console.error("Error deleting user social", error);

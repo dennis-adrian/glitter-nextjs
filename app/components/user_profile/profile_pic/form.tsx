@@ -23,7 +23,7 @@ export default function ProfilePictureForm(props: ProfilePictureFormProps) {
   const action: () => void = form.handleSubmit(async () => {
     if (!uploadedImageUrl) return;
 
-    const res = await updateProfilePicture(props.profile, uploadedImageUrl);
+    const res = await updateProfilePicture(props.profile.id, uploadedImageUrl);
     if (res.success) {
       toast.success(res.message);
       if (props.onSuccess) props.onSuccess();
