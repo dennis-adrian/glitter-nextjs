@@ -11,7 +11,7 @@ import {
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import { ShowField } from "@/app/components/user_profile/show-field";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { genderLabels } from "@/app/lib/utils";
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { DateTime } from "luxon";
@@ -59,9 +59,7 @@ export default function PrivateProfileOverview({
           />
           <ShowField
             label="Fecha de nacimiento"
-            value={`${formatDate(
-              profile.birthdate!,
-            ).toLocaleString()} (${age} años)`}
+            value={`${formatDisplayDate(profile.birthdate!)} (${age} años)`}
           />
           <ShowField label="Correo electrónico" value={profile.email} />
           <h3 className="font-bold">Número de teléfono</h3>

@@ -15,7 +15,7 @@ import {
 import RosterCheckInButton from "@/app/components/dashboard/programs/checkin/roster-check-in-button";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type { RosterEntry } from "@/app/lib/programs/occurrence-queries";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import {
@@ -152,7 +152,8 @@ export default function OccurrenceRosterTable({
                     {entry.state === "holding" && entry.holdExpiresAt ? (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Vence{" "}
-                        {formatDate(entry.holdExpiresAt).toLocaleString(
+                        {formatDisplayDate(
+                          entry.holdExpiresAt,
                           DateTime.TIME_SIMPLE,
                         )}
                       </p>
@@ -172,7 +173,8 @@ export default function OccurrenceRosterTable({
                   <td className="px-2 py-3 whitespace-nowrap">
                     {entry.checkedInAt ? (
                       <Badge variant="green">
-                        {formatDate(entry.checkedInAt).toLocaleString(
+                        {formatDisplayDate(
+                          entry.checkedInAt,
                           DateTime.TIME_SIMPLE,
                         )}
                       </Badge>
@@ -205,9 +207,7 @@ export default function OccurrenceRosterTable({
                     </div>
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs text-muted-foreground">
-                    {formatDate(entry.createdAt).toLocaleString(
-                      DateTime.DATETIME_MED,
-                    )}
+                    {formatDisplayDate(entry.createdAt, DateTime.DATETIME_MED)}
                   </td>
                   {/* Points at the admin detail page, never at
                       `/programs/purchases/[id]` — that one is the buyer's, and

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
@@ -189,7 +190,7 @@ function buildColumns(
           return <span className="text-muted-foreground text-sm">—</span>;
         return (
           <span className="text-sm">
-            {new Date(date).toLocaleDateString("es-ES", {
+            {formatDisplayDate(new Date(date), {
               day: "numeric",
               month: "short",
               year: "numeric",

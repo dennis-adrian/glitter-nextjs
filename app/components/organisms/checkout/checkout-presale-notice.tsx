@@ -5,7 +5,7 @@ import { DateTime } from "luxon";
 
 import Heading from "@/app/components/atoms/heading";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 
 import type { CheckoutLineItem } from "./checkout-line-item";
 
@@ -35,9 +35,7 @@ export function CheckoutPresaleNotice({ items }: CheckoutPresaleNoticeProps) {
                 {" "}
                 -{" "}
                 {item.product.availableDate
-                  ? `disponible desde el ${formatDate(
-                      item.product.availableDate,
-                    ).toLocaleString(DateTime.DATE_FULL)}`
+                  ? `disponible desde el ${formatDisplayDate(item.product.availableDate, DateTime.DATE_FULL)}`
                   : "disponible próximamente"}
               </span>
             </li>

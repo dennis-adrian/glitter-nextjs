@@ -1,3 +1,4 @@
+import { formatDisplayDate } from "@/app/lib/formatters";
 import Image from "next/image";
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import {
@@ -102,33 +103,41 @@ export default function InfoTabContent({
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Ingreso de participantes - armado</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].startDate)
-                  .minus({ hours: 1 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(
+                    festival.festivalDates[0].startDate,
+                  ).minus({ hours: 1 }),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Ingreso del público</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].startDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].startDate),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Cierre de puertas al público</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].endDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].endDate),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Cierre del recinto</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].endDate)
-                  .plus({ minutes: 30 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].endDate).plus({
+                    minutes: 30,
+                  }),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
           </ul>
@@ -137,45 +146,57 @@ export default function InfoTabContent({
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Ingreso de participantes - armado</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].startDate)
-                  .minus({ hours: 1 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(
+                    festival.festivalDates[0].startDate,
+                  ).minus({ hours: 1 }),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Ingreso del público</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].startDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].startDate),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Cierre de puertas al público</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].endDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].endDate),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Desarmado</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].endDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}{" "}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].endDate),
+                  DateTime.TIME_SIMPLE,
+                )}{" "}
                 -{" "}
-                {DateTime.fromJSDate(festival.festivalDates[0].endDate)
-                  .plus({ minutes: 45 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].endDate).plus({
+                    minutes: 45,
+                  }),
+                  DateTime.TIME_SIMPLE,
+                )}
               </span>
             </li>
             <li className="flex justify-between items-center ml-2">
               <span className="text-sm">Cierre del recinto</span>
               <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].endDate)
-                  .plus({ minutes: 45 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}{" "}
+                {formatDisplayDate(
+                  DateTime.fromJSDate(festival.festivalDates[0].endDate).plus({
+                    minutes: 45,
+                  }),
+                  DateTime.TIME_SIMPLE,
+                )}{" "}
               </span>
             </li>
           </ul>

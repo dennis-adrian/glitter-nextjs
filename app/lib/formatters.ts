@@ -3,6 +3,45 @@ import { DateTime } from "luxon";
 /** Store timezone used for display and overdue logic (e.g. orders table). */
 export const STORE_TIMEZONE = "America/La_Paz";
 
+type DisplayDate = Date | string | DateTime;
+
+/** Spanish dates, Bolivia time, and explicit AM/PM on every displayed time. */
+export function formatDisplayDate(
+  value: DisplayDate,
+  options: Intl.DateTimeFormatOptions = DateTime.DATE_MED,
+): string {
+  const date = DateTime.isDateTime(value)
+    ? value.setZone(STORE_TIMEZONE).setLocale("es")
+    : formatDate(value);
+  if (!date.isValid) return "—";
+
+  return new Intl.DateTimeFormat("es", {
+    ...options,
+    timeZone: STORE_TIMEZONE,
+    hour12: true,
+  })
+    .formatToParts(date.toJSDate())
+    .map((part) => {
+      if (part.type === "dayPeriod") return date.hour < 12 ? "AM" : "PM";
+      return part.value.replace(/[\u00a0\u202f]/g, " ");
+    })
+    .join("");
+}
+
+export function formatDateTime(
+  value: DisplayDate,
+  options: Intl.DateTimeFormatOptions = DateTime.DATETIME_MED,
+): string {
+  return formatDisplayDate(value, options);
+}
+
+export function formatTime(
+  value: DisplayDate,
+  options: Intl.DateTimeFormatOptions = DateTime.TIME_SIMPLE,
+): string {
+  return formatDisplayDate(value, options);
+}
+
 export function formatDate(date: Date | string): DateTime {
   if (date instanceof Date) {
     return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).setLocale("es");
@@ -33,11 +72,11 @@ export function formatFullDate(
 ): string {
   if (!date) return "";
 
-  return formatDate(date).toLocaleString(format);
+  return formatDisplayDate(date, format);
 }
 
 export function formatDateWithTime(date: Date): string {
-  return formatDate(date).toFormat("ff");
+  return formatDateTime(date);
 }
 
 export function getWeekdayFromDate(

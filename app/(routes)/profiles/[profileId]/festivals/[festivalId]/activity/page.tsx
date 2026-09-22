@@ -191,7 +191,7 @@ export default async function ParticipantsActivityPage({
             <li>
               El ilustrador deberá subir el diseño de su sticker al sitio web en
               formato PNG con un tamaño máximo de 2MB hasta el miércoles 9 de
-              abril a las 18:00hs. (Esta opción no se encuentra disponible en
+              abril a las 6:00 PM. (Esta opción no se encuentra disponible en
               este momento pero se comunicará los ilustradores cuando esté
               disponible).
             </li>
@@ -216,7 +216,7 @@ export default async function ParticipantsActivityPage({
             </li>
             <li>
               La fecha límite para inscribirse a la actividad es el domingo 6 de
-              abril a las 18:00hs.
+              abril a las 6:00 PM.
             </li>
             <li>
               En caso de que un diseño de Sticker-Print no cumpla con la

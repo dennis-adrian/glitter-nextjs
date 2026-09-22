@@ -10,7 +10,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import EmailFooter from "@/app/emails/email-footer";
 
@@ -97,9 +97,7 @@ export default function OrderConfirmationForUsersEmailTemplate(
                       {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>
                           {p.availableDate
-                            ? `(Disponible el ${formatDate(
-                                p.availableDate,
-                              ).toLocaleString(DateTime.DATE_MED)})`
+                            ? `(Disponible el ${formatDisplayDate(p.availableDate, DateTime.DATE_MED)})`
                             : "(Disponible próximamente)"}
                         </div>
                       )}

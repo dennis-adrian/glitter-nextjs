@@ -10,7 +10,7 @@ import ReservationSpaceSummary from "@/app/components/festivals/reservations/res
 import ReservationStatusPanel from "@/app/components/festivals/reservations/reservation-status-panel";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate, formatDateTime } from "@/app/lib/formatters";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { participantStatusCopy } from "@/app/lib/reservations/participant-status";
 import { fetchReservationForParticipant } from "@/app/lib/reservations/queries";
@@ -101,7 +101,7 @@ export default async function ReservationDetailPage({
   // date, and naming it would promise a door that is not there.
   const partnerDeadline =
     creditsEnabled && latePartnerOffer?.offered && latePartnerOffer.deadlineAt
-      ? formatDate(latePartnerOffer.deadlineAt).toFormat("dd/MM/yyyy")
+      ? formatDisplayDate(latePartnerOffer.deadlineAt)
       : null;
 
   const invoice =
@@ -111,9 +111,7 @@ export default async function ReservationDetailPage({
     invoice != null &&
     (invoice.status === "pending" || invoice.status === "verification_payment");
   const paymentDeadline =
-    owesPayment && invoice.dueAt
-      ? formatDate(invoice.dueAt).toFormat("dd/MM/yyyy HH:mm")
-      : null;
+    owesPayment && invoice.dueAt ? formatDateTime(invoice.dueAt) : null;
 
   // The owner who owes money reads the price as the amount to pay, so it is
   // set beside the button that pays it. For everyone else it is one more fact
@@ -197,7 +195,7 @@ export default async function ReservationDetailPage({
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Total
                 </p>
-                <p className="font-space-grotesk text-2xl font-bold leading-none">
+                <p className="font-display text-2xl font-bold leading-none">
                   Bs{invoice.amount}
                 </p>
               </div>

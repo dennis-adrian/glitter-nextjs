@@ -1,28 +1,25 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ClockIcon } from "lucide-react";
+import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
 
-import { ActivityTheme } from "@/app/components/participant_dashboard/activity-card/types";
+export default function EnrolledBadge({
+  proofDisplayState,
+}: {
+  proofDisplayState: ProofDisplayState;
+}) {
+  const inReview = proofDisplayState === "pending_review";
+  const Icon = inReview ? ClockIcon : CheckIcon;
+  const label = inReview
+    ? "En revisión"
+    : proofDisplayState === "approved"
+      ? "Aprobado"
+      : "Inscrito";
 
-type EnrolledBadgeProps = {
-  theme: ActivityTheme;
-};
-
-export default function EnrolledBadge({ theme }: EnrolledBadgeProps) {
   return (
     <div
-      className="inline-flex items-center gap-1.5 rounded-full border-2 px-3 py-1"
-      style={{ borderColor: theme.border }}
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 ${inReview ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-700"}`}
     >
-      <CheckIcon
-        className="w-3.5 h-3.5"
-        strokeWidth={3}
-        style={{ color: theme.border }}
-      />
-      <span
-        className="text-xs font-bold uppercase tracking-wide"
-        style={{ color: theme.border }}
-      >
-        Inscrito
-      </span>
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span className="text-xs font-medium">{label}</span>
     </div>
   );
 }

@@ -12,7 +12,7 @@ import {
   deriveRentalStatus,
   getRentalStatusLabel,
 } from "@/app/lib/rentals/status";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 
 export default async function CurrentRentalsPage() {
   const rentals = await fetchCurrentRentals();
@@ -75,7 +75,7 @@ export default async function CurrentRentalsPage() {
                           : "Usuario desconocido")}
                     </p>
                     <p>
-                      {formatDate(rental.rentedAt).toLocaleString({
+                      {formatDisplayDate(rental.rentedAt, {
                         dateStyle: "medium",
                       })}
                     </p>

@@ -1,5 +1,4 @@
 import { cn } from "@/app/lib/utils";
-import { citrusGothicInline, citrusGothicSolid } from "@/app/ui/fonts";
 
 type Props = {
   className?: string;
@@ -46,7 +45,7 @@ export default function GlitterWeekLockup({
       <span
         aria-hidden="true"
         className={cn(
-          citrusGothicSolid.className,
+          "font-display font-bold",
           "max-w-[12ch] text-balance tracking-[0.01em]",
           sizeClass,
           "leading-[0.82]",
@@ -59,7 +58,7 @@ export default function GlitterWeekLockup({
         <span
           aria-hidden="true"
           className={cn(
-            citrusGothicInline.className,
+            "font-display font-bold",
             "max-w-[12ch] text-balance tracking-[0.015em]",
             sizeClass,
             "leading-[0.82]",

@@ -10,7 +10,6 @@ import { BlockNoteView } from "@blocknote/shadcn";
 import { es } from "@blocknote/core/locales";
 import type { Block } from "@blocknote/core";
 
-import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 
 import {
@@ -34,7 +33,9 @@ function allowSlashItem(
   item: { title: string; aliases?: string[] },
   variant: EditorVariant,
 ) {
-  const aliases = new Set((item.aliases ?? []).map((alias) => alias.toLowerCase()));
+  const aliases = new Set(
+    (item.aliases ?? []).map((alias) => alias.toLowerCase()),
+  );
   if (aliases.has("collapsable")) return false;
 
   const headingLevel = aliases.has("h1")

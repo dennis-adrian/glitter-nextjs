@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "@/app/lib/formatters";
 import { useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
@@ -142,7 +143,7 @@ function buildColumns(festivalId: number): ColumnDef<WaitlistEntryWithUser>[] {
           return <span className="text-muted-foreground">—</span>;
         return (
           <span className="text-sm text-muted-foreground">
-            {new Date(expiresAt).toLocaleString("es-ES", {
+            {formatDateTime(new Date(expiresAt), {
               day: "numeric",
               month: "short",
               hour: "2-digit",

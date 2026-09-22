@@ -90,7 +90,7 @@ export default function CouponBookPrintPage({
         display: "grid",
         gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
         gridTemplateRows: `repeat(${totalRows}, minmax(0, 1fr))`,
-        fontFamily: "Arial, Helvetica, sans-serif",
+        fontFamily: "var(--font-figtree), sans-serif",
         isolation: "isolate",
       }}
     >

@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import CheckInPanel from "@/app/components/dashboard/programs/checkin/checkin-panel";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import { fetchOccurrenceForAdmin } from "@/app/lib/programs/occurrence-queries";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -51,11 +51,9 @@ export default async function OccurrenceCheckInPage({ params }: Props) {
         </Link>
         <h1 className="text-2xl font-bold">{session.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {formatDate(occurrence.startsAt).toLocaleString(
-            DateTime.DATETIME_MED,
-          )}
+          {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
           {" — "}
-          {formatDate(occurrence.endsAt).toLocaleString(DateTime.TIME_SIMPLE)}
+          {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
           {" · "}
           {program.name} · {SESSION_TYPE_LABELS[session.type]}
           {occurrence.venue ? ` · ${occurrence.venue.name}` : ""}

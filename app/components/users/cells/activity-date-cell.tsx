@@ -4,7 +4,7 @@ import { InfoIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useCallback, useRef, useState } from "react";
 
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
   Popover,
@@ -99,8 +99,8 @@ export default function ActivityDateCell({
     formattedDate.toRelative({ base: DateTime.now() }) ?? emptyLabel;
   const exactDate =
     exactDateStyle === "date"
-      ? formattedDate.toLocaleString(DateTime.DATE_MED)
-      : formattedDate.toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS);
+      ? formatDisplayDate(formattedDate, DateTime.DATE_MED)
+      : formatDisplayDate(formattedDate, DateTime.DATETIME_MED_WITH_SECONDS);
 
   const details = (
     <ActivityDateDetails

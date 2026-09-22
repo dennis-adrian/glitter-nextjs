@@ -11,7 +11,7 @@ import {
 } from "@/app/components/ui/card";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { fetchPublishedPrograms } from "@/app/lib/programs/data";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
@@ -63,7 +63,7 @@ export default async function ProgramsIndexPage() {
           {programs.map((program) => {
             const dateRange = [program.startDate, program.endDate]
               .filter((date): date is Date => date !== null)
-              .map((date) => formatDate(date).toLocaleString(DateTime.DATE_MED))
+              .map((date) => formatDisplayDate(date, DateTime.DATE_MED))
               .join(" — ");
 
             return (

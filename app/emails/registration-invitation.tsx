@@ -10,7 +10,11 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import { formatDate, formatFullDate } from "@/app/lib/formatters";
+import {
+  formatDate,
+  formatFullDate,
+  formatDisplayDate,
+} from "@/app/lib/formatters";
 import { Interval } from "luxon";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { getFestivalLogo } from "@/app/lib/utils";
@@ -64,7 +68,7 @@ export default function RegistrationInvitationEmailTemplate(
             <Text style={styles.text}>
               El ingreso al público es desde las{" "}
               <strong>
-                {formatDate(dates[0].startDate).toLocaleString({
+                {formatDisplayDate(dates[0].startDate, {
                   hour: "numeric",
                   minute: "numeric",
                 })}

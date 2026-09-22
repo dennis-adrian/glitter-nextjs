@@ -1,6 +1,10 @@
 import { DateTime } from "luxon";
 
-import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import {
+  formatDate,
+  STORE_TIMEZONE,
+  formatDisplayDate,
+} from "@/app/lib/formatters";
 
 /**
  * Sample dates for `PreviewProps`, always anchored to now.
@@ -33,12 +37,10 @@ export function previewScheduleLabel(startsAt: Date, endsAt: Date): string {
   const start = formatDate(startsAt);
   const end = formatDate(endsAt);
 
-  return `${start.toLocaleString(DateTime.DATETIME_MED)} — ${end.toLocaleString(
-    DateTime.TIME_SIMPLE,
-  )}`;
+  return `${formatDisplayDate(start, DateTime.DATETIME_MED)} — ${formatDisplayDate(end, DateTime.TIME_SIMPLE)}`;
 }
 
 /** The single-instant form, as the waitlist deadline uses. */
 export function previewDateTimeLabel(date: Date): string {
-  return formatDate(date).toLocaleString(DateTime.DATETIME_MED);
+  return formatDisplayDate(date, DateTime.DATETIME_MED);
 }

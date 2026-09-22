@@ -1,5 +1,5 @@
 import DateBadge from "@/app/components/date-badge";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import Image from "next/image";
 import { ArrowUpRightIcon, MapPinIcon, TicketIcon } from "lucide-react";
 import Link from "next/link";
@@ -17,14 +17,15 @@ function DateLabel({ date }: { date: FestivalDate }) {
     <div className="flex gap-2 items-center">
       <DateBadge date={startDate} />
       <div className="flex flex-col">
-        {startDate.toLocaleString({
+        {formatDisplayDate(startDate, {
           day: "numeric",
           month: "long",
           year: "numeric",
         })}
         <span className="text-muted-foreground text-sm">
-          {startDate.toLocaleString({ hour: "numeric", minute: "numeric" })}
-          hrs a {endDate.toLocaleString({ hour: "numeric", minute: "numeric" })}
+          {formatDisplayDate(startDate, { hour: "numeric", minute: "numeric" })}
+          hrs a{" "}
+          {formatDisplayDate(endDate, { hour: "numeric", minute: "numeric" })}
           hrs
         </span>
       </div>

@@ -30,11 +30,7 @@ export default function Heading({
   return React.createElement(
     Tag,
     {
-      className: cn(
-        baseStyles,
-        "text-foreground font-space-grotesk",
-        className,
-      ),
+      className: cn(baseStyles, "text-foreground font-display", className),
       style,
     },
     children,

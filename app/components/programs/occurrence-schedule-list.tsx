@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import FreeRegistrationForm from "@/app/components/programs/free-registration-form";
 import PaidRegistrationForm from "@/app/components/programs/paid-registration-form";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import type {
   ProgramStatus,
   SessionOccurrence,
@@ -132,11 +132,7 @@ export default function OccurrenceScheduleList({
         const availability = availabilityByOccurrence.get(occurrence.id);
         const remaining = availability?.remaining;
 
-        const scheduleLabel = `${formatDate(occurrence.startsAt).toLocaleString(
-          DateTime.DATETIME_MED,
-        )} a ${formatDate(occurrence.endsAt).toLocaleString(
-          DateTime.TIME_SIMPLE,
-        )}`;
+        const scheduleLabel = `${formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)} a ${formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}`;
 
         const canRegister =
           resolved.isPurchasable &&
@@ -161,13 +157,11 @@ export default function OccurrenceScheduleList({
             <div className="min-w-0 space-y-2">
               <p className="flex items-center gap-2 font-black text-[#4b255f]">
                 <Clock3Icon className="size-4 text-[#9347f5]" />
-                {formatDate(occurrence.startsAt).toLocaleString(
+                {formatDisplayDate(
+                  occurrence.startsAt,
                   DateTime.TIME_SIMPLE,
-                )}{" "}
-                a{" "}
-                {formatDate(occurrence.endsAt).toLocaleString(
-                  DateTime.TIME_SIMPLE,
-                )}
+                )} a{" "}
+                {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
               </p>
               {venue ? (
                 <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">

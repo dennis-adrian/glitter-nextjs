@@ -66,7 +66,8 @@ export default function InfractionTypeForm({
         />
         {type && (
           <p className="text-xs text-muted-foreground">
-            Código interno: <span className="font-mono">{type.code}</span>. El
+            Código interno:{" "}
+            <span className="font-sans tabular-nums">{type.code}</span>. El
             código permanece estable para preservar referencias históricas.
           </p>
         )}

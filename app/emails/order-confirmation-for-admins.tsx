@@ -11,7 +11,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
 interface AdminOrderNotificationEmailProps {
@@ -98,9 +98,7 @@ export default function OrderConfirmationForAdminsEmailTemplate(
                       {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>
                           {p.availableDate
-                            ? `(Disponible el ${formatDate(
-                                p.availableDate,
-                              ).toLocaleString(DateTime.DATE_MED)})`
+                            ? `(Disponible el ${formatDisplayDate(p.availableDate, DateTime.DATE_MED)})`
                             : "(Disponible próximamente)"}
                         </div>
                       )}

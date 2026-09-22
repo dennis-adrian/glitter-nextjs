@@ -12,6 +12,7 @@ import {
 } from "@/app/components/participant_dashboard/activity-card/types";
 import { getEnrollmentInfo } from "@/app/components/participant_dashboard/activity-card/utils";
 import { Button } from "@/app/components/ui/button";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import type {
   FestivalActivityWithDetailsAndParticipants,
   WaitlistEntryWithUser,
@@ -30,6 +31,7 @@ type ActivityCardActionsProps = {
   activityHref: string;
   isInVotingWindow: boolean;
   enrollmentIsOpen: boolean;
+  enrollmentIsUpcoming?: boolean;
 };
 
 function RemovedNotice({
@@ -41,7 +43,7 @@ function RemovedNotice({
 }) {
   return (
     <>
-      <div className="mt-2 border-2 border-dashed p-3 text-red-600 bg-red-50 border-red-500">
+      <div className="rounded-lg border p-3 text-red-700 bg-red-50 border-red-200">
         <p className="text-xs">
           No podés volver a inscribirte en esta actividad
         </p>
@@ -49,7 +51,7 @@ function RemovedNotice({
       <Link
         href={activityHref}
         className="flex items-center justify-center gap-1 text-sm font-semibold transition-opacity hover:opacity-80"
-        style={{ color: theme.textPrimary }}
+        style={{ color: theme.accentText }}
       >
         Ver detalles
         <ChevronRight className="w-4 h-4" />
@@ -71,8 +73,20 @@ function EnrolledActions({
   enrollment: EnrolledInfo;
   enrolledConfig: EnrolledConfig;
 }) {
+  const material = getMaterialConfig(activity.type);
+
   return (
     <>
+      {enrollment.proofDisplayState === "pending_review" && (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Estamos revisando tu {material.label}.
+        </p>
+      )}
+      {enrollment.proofDisplayState === "approved" && (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Tu {material.label} fue {material.pastParticiple} para el festival.
+        </p>
+      )}
       {enrolledConfig.isPending && (
         <PendingActionNotice enrolledConfig={enrolledConfig} />
       )}
@@ -105,14 +119,11 @@ function EnrolledActions({
 
 function WaitlistStatusBadge({
   waitlistEntry,
+  hasActiveInvite = false,
 }: {
   waitlistEntry: WaitlistEntryWithUser;
+  hasActiveInvite?: boolean;
 }) {
-  const hasActiveInvite =
-    waitlistEntry.notifiedAt &&
-    waitlistEntry.expiresAt &&
-    new Date() < new Date(waitlistEntry.expiresAt);
-
   return (
     <div className="flex items-center gap-2 text-sm rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
       <Hourglass className="w-3 h-3 shrink-0" />
@@ -143,15 +154,7 @@ function UnenrolledCta({
 }) {
   if (isInVotingWindow) {
     return (
-      <Button
-        className="w-full font-bold border-0 hover:opacity-90 transition-opacity bg-amber-500 hover:bg-amber-600 text-white"
-        style={{
-          clipPath:
-            "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
-        }}
-        size="lg"
-        asChild
-      >
+      <Button className="w-full" size="sm" asChild>
         <Link href={`${activityHref}/voting`}>
           <VoteIcon className="w-5 h-5 mr-1" />
           Votar ahora
@@ -163,14 +166,12 @@ function UnenrolledCta({
   if (!waitlistEntry && enrollmentIsOpen) {
     return (
       <Button
-        className="w-full font-bold border-0 hover:opacity-90 transition-opacity"
+        className="w-full"
         style={{
           backgroundColor: theme.buttonBg,
           color: theme.buttonText,
-          clipPath:
-            "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
         }}
-        size="lg"
+        size="sm"
         asChild
       >
         <Link href={activityHref}>
@@ -184,11 +185,10 @@ function UnenrolledCta({
   return (
     <Link
       href={activityHref}
-      className="flex items-center justify-center gap-1 text-sm font-semibold transition-opacity hover:opacity-80"
-      style={{ color: theme.textPrimary }}
+      className="inline-flex min-h-8 shrink-0 items-center gap-0.5 rounded-md text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       Ver detalles
-      <ChevronRight className="w-4 h-4" />
+      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
     </Link>
   );
 }
@@ -200,6 +200,7 @@ function UnenrolledActions({
   activityHref,
   isInVotingWindow,
   enrollmentIsOpen,
+  enrollmentIsUpcoming,
 }: {
   activity: FestivalActivityWithDetailsAndParticipants;
   theme: ActivityTheme;
@@ -207,22 +208,78 @@ function UnenrolledActions({
   activityHref: string;
   isInVotingWindow: boolean;
   enrollmentIsOpen: boolean;
+  enrollmentIsUpcoming?: boolean;
 }) {
-  return (
-    <>
-      {activity.registrationEndDate && (
+  const { waitlistEntry } = enrollment;
+  const hasActiveInvite =
+    waitlistEntry?.notifiedAt &&
+    waitlistEntry.notifiedForDetailId &&
+    waitlistEntry.expiresAt &&
+    new Date() < new Date(waitlistEntry.expiresAt);
+
+  // An invitation has its own deadline, independent of general registration.
+  if (hasActiveInvite) {
+    return (
+      <>
+        <WaitlistStatusBadge waitlistEntry={waitlistEntry} hasActiveInvite />
         <DeadlineStamp
           theme={theme}
-          label="Hasta:"
-          date={activity.registrationEndDate}
+          label="Inscribite hasta:"
+          date={waitlistEntry.expiresAt!}
         />
+        <Button className="w-full" size="sm" asChild>
+          <Link href={activityHref}>
+            Inscribirme ahora
+            <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" />
+          </Link>
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {enrollmentIsUpcoming && (
+        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Inscripciones próximamente
+            </p>
+            <DeadlineStamp
+              theme={theme}
+              label="Desde:"
+              date={activity.registrationStartDate}
+            />
+          </div>
+          <UnenrolledCta
+            theme={theme}
+            activityHref={activityHref}
+            isInVotingWindow={isInVotingWindow}
+            enrollmentIsOpen={enrollmentIsOpen}
+            waitlistEntry={enrollment.waitlistEntry}
+          />
+        </div>
+      )}
+      {!enrollmentIsUpcoming && activity.registrationEndDate && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            {enrollmentIsOpen
+              ? "Inscripciones abiertas"
+              : "Inscripciones cerradas"}
+          </p>
+          <DeadlineStamp
+            theme={theme}
+            label={enrollmentIsOpen ? "Hasta:" : "Finalizaron:"}
+            date={activity.registrationEndDate}
+          />
+        </div>
       )}
 
       {enrollment.waitlistEntry && (
         <WaitlistStatusBadge waitlistEntry={enrollment.waitlistEntry} />
       )}
 
-      <div className="pt-2">
+      {!enrollmentIsUpcoming && (
         <UnenrolledCta
           theme={theme}
           activityHref={activityHref}
@@ -230,7 +287,7 @@ function UnenrolledActions({
           enrollmentIsOpen={enrollmentIsOpen}
           waitlistEntry={enrollment.waitlistEntry}
         />
-      </div>
+      )}
     </>
   );
 }
@@ -248,6 +305,7 @@ export default function ActivityCardActions({
   activityHref,
   isInVotingWindow,
   enrollmentIsOpen,
+  enrollmentIsUpcoming,
 }: ActivityCardActionsProps) {
   if (enrollment.isEnrolled && enrollment.isRemoved) {
     return <RemovedNotice activityHref={activityHref} theme={theme} />;
@@ -274,6 +332,7 @@ export default function ActivityCardActions({
         activityHref={activityHref}
         isInVotingWindow={isInVotingWindow}
         enrollmentIsOpen={enrollmentIsOpen}
+        enrollmentIsUpcoming={enrollmentIsUpcoming}
       />
     );
   }

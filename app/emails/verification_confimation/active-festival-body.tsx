@@ -1,6 +1,6 @@
 import * as styles from "@/app/emails/styles";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { Button, Link, Text } from "@react-email/components";
 import { DateTime } from "luxon";
 
@@ -10,9 +10,10 @@ type ActiveFestivalBodyProps = {
 };
 
 export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
-  const fullDate = formatDate(
+  const fullDate = formatDisplayDate(
     props.festival.reservationsStartDate,
-  ).toLocaleString(DateTime.DATE_FULL);
+    DateTime.DATE_FULL,
+  );
 
   return (
     <>

@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import {
   RESERVATION_ERROR_MESSAGES,
   type ReservationErrorCode,
@@ -83,14 +83,15 @@ export default function ReservationNotAllowed(
                 Habilitación de reservas
               </span>
               <span className="font-semibold text-3xl">
-                {formatDate(
+                {formatDisplayDate(
                   props.festival.reservationsStartDate,
-                ).toLocaleString(DateTime.DATE_SHORT)}
+                  DateTime.DATE_SHORT,
+                )}
               </span>
               {/* The date alone left people guessing whether to be here at
                   midnight; reservations open at an hour, not on a day. */}
               <span className="font-semibold text-lg">
-                {formattedStartDate.toLocaleString(DateTime.TIME_SIMPLE)}
+                {formatDisplayDate(formattedStartDate, DateTime.TIME_SIMPLE)}
               </span>
             </div>
             {formattedStartDate.startOf("day").toMillis() !==
@@ -150,9 +151,7 @@ function SanctionReservationBlocked({
                   Podrás reservar desde
                 </span>
                 <span className="font-semibold text-2xl">
-                  {formatDate(block.eligibleAt).toLocaleString(
-                    DateTime.DATETIME_MED,
-                  )}
+                  {formatDisplayDate(block.eligibleAt, DateTime.DATETIME_MED)}
                 </span>
               </div>
             )}

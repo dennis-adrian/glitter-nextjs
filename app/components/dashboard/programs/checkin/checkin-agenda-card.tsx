@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import OccurrenceSeatSummary from "@/app/components/dashboard/programs/occurrence-seat-summary";
 import { Button } from "@/app/components/ui/button";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import type { CheckInAgendaEntry } from "@/app/lib/programs/occurrence-queries";
 
@@ -31,10 +31,10 @@ export default function CheckInAgendaCard({ entry, showDate }: Props) {
           <p className="font-medium break-words">{entry.sessionTitle}</p>
           <p className="text-sm text-muted-foreground">
             {showDate
-              ? starts.toLocaleString(DateTime.DATETIME_MED)
-              : starts.toLocaleString(DateTime.TIME_SIMPLE)}
+              ? formatDisplayDate(starts, DateTime.DATETIME_MED)
+              : formatDisplayDate(starts, DateTime.TIME_SIMPLE)}
             {" — "}
-            {ends.toLocaleString(DateTime.TIME_SIMPLE)}
+            {formatDisplayDate(ends, DateTime.TIME_SIMPLE)}
           </p>
           <p className="text-xs text-muted-foreground break-words">
             {entry.programName} · {SESSION_TYPE_LABELS[entry.sessionType]}

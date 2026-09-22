@@ -10,7 +10,7 @@ import ProgramSignupForAdminsEmailTemplate from "@/app/emails/program-signup-for
 import ProgramVoucherChangesEmailTemplate from "@/app/emails/program-voucher-changes";
 import ProgramVoucherReceivedEmailTemplate from "@/app/emails/program-voucher-received";
 import ProgramWaitlistInvitationEmailTemplate from "@/app/emails/program-waitlist-invitation";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import type { SessionType } from "@/app/lib/programs/definitions";
 import { formatMoney } from "@/app/lib/programs/pricing";
@@ -91,9 +91,7 @@ function buildScheduleLabel(startsAt: Date, endsAt: Date): string {
   const start = formatDate(startsAt);
   const end = formatDate(endsAt);
 
-  return `${start.toLocaleString(DateTime.DATETIME_MED)} — ${end.toLocaleString(
-    DateTime.TIME_SIMPLE,
-  )}`;
+  return `${formatDisplayDate(start, DateTime.DATETIME_MED)} — ${formatDisplayDate(end, DateTime.TIME_SIMPLE)}`;
 }
 
 function buildVenueLabel(
@@ -497,7 +495,8 @@ export async function sendWaitlistInvitationEmail(
           buyerName: input.buyerName,
           sessionTitle: input.sessionTitle,
           scheduleLabel: buildScheduleLabel(input.startsAt, input.endsAt),
-          deadlineLabel: formatDate(input.expiresAt).toLocaleString(
+          deadlineLabel: formatDisplayDate(
+            input.expiresAt,
             DateTime.DATETIME_MED,
           ),
           invitationUrl: buildWaitlistInvitationUrl(

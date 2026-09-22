@@ -48,7 +48,7 @@ export default function EnrolledUsersCta({
   existingPromoDescription,
   existingPromoConditions,
 }: EnrolledUsersCtaProps) {
-  const uploadTriggerClassName = `md:max-w-full border-0 text-white [clip-path:polygon(0_0,calc(100%-8px)_0,100%_8px,100%_100%,8px_100%,0_calc(100%-8px))] ${enrolledConfig.isDestructive ? "bg-red-600 hover:bg-red-700" : "bg-amber-500 hover:bg-amber-600"}`;
+  const uploadTriggerClassName = `w-full md:max-w-full rounded-full border-0 text-primary-foreground ${enrolledConfig.isDestructive ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary/90"}`;
 
   return (
     <div className="pt-2 flex flex-col gap-3">
@@ -103,11 +103,7 @@ export default function EnrolledUsersCta({
             />
           )
         ) : (
-          <Button
-            className="w-full font-bold border-0 hover:opacity-90 transition-opacity bg-amber-500 hover:bg-amber-600 text-white"
-            size="lg"
-            asChild
-          >
+          <Button className="w-full" size="sm" asChild>
             <Link
               href={`/profiles/${forProfile.id}/festivals/${festivalId}/activity/${activityId}/voting`}
             >
@@ -119,9 +115,9 @@ export default function EnrolledUsersCta({
       <Link
         href={`/profiles/${forProfile.id}/festivals/${festivalId}/activity/${activityId}`}
         className="flex items-center justify-center gap-1 text-sm font-semibold transition-opacity hover:opacity-80"
-        style={{ color: theme.textPrimary }}
+        style={{ color: theme.accentText }}
       >
-        Ver Detalles
+        Ver detalles
         <ChevronRightIcon className="w-4 h-4" />
       </Link>
     </div>

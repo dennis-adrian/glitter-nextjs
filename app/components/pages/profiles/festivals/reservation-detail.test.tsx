@@ -295,7 +295,7 @@ describe("ReservationDetailPage", () => {
 
       expect(html).toContain("Agregar compañero");
       // A deadline nobody mentions is a deadline somebody misses (PRD §5).
-      expect(html).toContain("15/10/2026");
+      expect(html).toContain("15 oct 2026");
     });
 
     it("shows nothing when the offer is withheld", async () => {
@@ -314,7 +314,7 @@ describe("ReservationDetailPage", () => {
       // The deadline went out with the button. It once outlived it, leaving a
       // date telling people to add a partner "usando créditos" on a page with
       // no way to buy or spend any.
-      expect(html).not.toContain("15/10/2026");
+      expect(html).not.toContain("15 oct 2026");
       expect(html).not.toContain("usando créditos");
     });
 

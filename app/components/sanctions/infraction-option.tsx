@@ -2,7 +2,7 @@ import {
   InfractionSeverityBadge,
   InfractionStatusBadge,
 } from "@/app/components/infractions/status-badge";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type { EligibleInfractionOption } from "@/app/lib/sanctions/queries";
 import { DateTime } from "luxon";
 
@@ -26,7 +26,7 @@ export default function SanctionInfractionOption({
         <InfractionSeverityBadge severity={infraction.type.severity} />
         <span className="text-xs text-muted-foreground">
           {infraction.festival?.name ?? "Global"} ·{" "}
-          {formatDate(infraction.createdAt).toLocaleString(DateTime.DATE_MED)}
+          {formatDisplayDate(infraction.createdAt, DateTime.DATE_MED)}
         </span>
       </div>
     </div>

@@ -11,7 +11,7 @@ import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 import UserInfoCell from "@/app/components/users/cells/user-info";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 
@@ -154,7 +154,8 @@ export const columns: ColumnDef<ProfileType>[] = [
     cell: ({ row }) => {
       if (!row.original.verifiedAt) return "--";
 
-      return formatDate(row.original.verifiedAt).toLocaleString(
+      return formatDisplayDate(
+        row.original.verifiedAt,
         DateTime.DATETIME_SHORT,
       );
     },
@@ -165,9 +166,7 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.createdAt} />
     ),
     cell: ({ row }) =>
-      formatDate(row.original.createdAt).toLocaleString(
-        DateTime.DATETIME_SHORT,
-      ),
+      formatDisplayDate(row.original.createdAt, DateTime.DATETIME_SHORT),
   },
   {
     id: "actions",

@@ -2,7 +2,7 @@
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { Festival } from "@/app/lib/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/components/redirect-button";
 
 import BaseCard from "@/components/user_profile/announcements_cards/base-card";
@@ -24,7 +24,7 @@ export function ReserveStandCard(props: ReserveStandCardProps) {
         content={
           <p className="text-center">
             Podrás hacer tu reserva la noche del{" "}
-            {reservationsStartDate.toLocaleString(DateTime.DATE_SHORT)}. De
+            {formatDisplayDate(reservationsStartDate, DateTime.DATE_SHORT)}. De
             momento podés leer los términos y condiciones nuevamente.
           </p>
         }

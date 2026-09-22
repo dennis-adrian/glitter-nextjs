@@ -76,7 +76,7 @@ export default function PublicFestivalActivities({
   return (
     <section id="actividades" tabIndex={-1} className="scroll-mt-24 space-y-7">
       <div className="max-w-2xl">
-        <h2 className="font-space-grotesk text-3xl font-bold tracking-tight sm:text-4xl">
+        <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
           Actividades para visitantes
         </h2>
         <p className="mt-2 text-sm text-muted-foreground sm:text-base">
@@ -115,7 +115,7 @@ export default function PublicFestivalActivities({
                 </span>
 
                 <div className="min-w-0">
-                  <h3 className="font-space-grotesk text-lg font-bold leading-tight">
+                  <h3 className="font-display text-lg font-bold leading-tight">
                     {activity.name}
                   </h3>
                   <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">

@@ -10,7 +10,7 @@ import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { Badge } from "@/app/components/ui/badge";
 import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
 import { fetchOrder } from "@/app/lib/orders/actions";
@@ -63,7 +63,7 @@ export default async function UserOrderPage(props: {
         <Heading>Detalles del Pedido</Heading>
         <p className="text-gray-500">
           Orden #{order.id} • Pedido realizado el{" "}
-          {formatDate(order.createdAt).toLocaleString({
+          {formatDisplayDate(order.createdAt, {
             month: "long",
             day: "numeric",
             year: "numeric",

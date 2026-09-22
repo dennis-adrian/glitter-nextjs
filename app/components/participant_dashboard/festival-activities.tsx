@@ -20,13 +20,12 @@ export default async function FestivalActivities({
     <section className="w-full">
       <Heading level={2}>Actividades del festival</Heading>
       <div className="mt-4 grid">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {activities.map((activity, index) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {activities.map((activity) => (
             <FestivalActivityCard
               key={activity.id}
               activity={activity}
               forProfile={forProfile}
-              index={index}
             />
           ))}
         </div>

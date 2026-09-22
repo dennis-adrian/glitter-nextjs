@@ -11,7 +11,7 @@ import OrderPaymentSection from "@/app/components/organisms/orders/order-payment
 import { Card, CardContent } from "@/app/components/ui/card";
 import { fetchOrder, fetchGuestOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -92,7 +92,7 @@ export default async function OrderPaymentPage(props: {
             <span>
               Fecha límite de pago:{" "}
               <strong>
-                {formatDate(order.paymentDueDate).toLocaleString({
+                {formatDisplayDate(order.paymentDueDate, {
                   day: "numeric",
                   month: "long",
                   year: "numeric",

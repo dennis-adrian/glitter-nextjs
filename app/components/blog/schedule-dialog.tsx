@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -86,7 +87,7 @@ export default function ScheduleDialog({
         return;
       }
       toast.success(
-        `Se publicará el ${parsed.setLocale("es").toFormat("d 'de' LLLL 'a las' HH:mm")}`,
+        `Se publicará el ${formatDateTime(parsed.setLocale("es"))}`,
       );
       onOpenChange(false);
       router.refresh();

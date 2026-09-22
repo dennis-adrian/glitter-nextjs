@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { ColumnDef } from "@tanstack/react-table";
 
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
@@ -151,8 +152,7 @@ export const columns: ColumnDef<LiveAct>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.createdAt} />
     ),
-    cell: ({ row }) =>
-      new Date(row.original.createdAt).toLocaleDateString("es-AR"),
+    cell: ({ row }) => formatDisplayDate(new Date(row.original.createdAt)),
   },
   {
     id: "actions",

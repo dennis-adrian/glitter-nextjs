@@ -14,7 +14,7 @@ import {
   Text,
 } from "@react-email/components";
 
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { VisitorBase } from "../data/visitors/actions";
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
@@ -40,7 +40,7 @@ export default function TicketEmailTemplate({
     ticket.ticketNumber || 0,
   );
   const numberOfCompanions = ticket.numberOfVisitors - 1;
-  const ticketDate = formatDate(ticket.date).toLocaleString(DateTime.DATE_MED);
+  const ticketDate = formatDisplayDate(ticket.date, DateTime.DATE_MED);
   return (
     <Html>
       <Head>

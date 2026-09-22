@@ -25,7 +25,7 @@ import {
 } from "@/app/components/users/participant-pause-eligibility";
 import UsersTablePagination from "@/app/components/users/users-table-pagination";
 import { cn } from "@/lib/utils";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { useSearchParams } from "next/navigation";
 import { use } from "react";
@@ -138,7 +138,8 @@ export default function ParticipantsTable({
                     </TableCell>
                     <TableCell>
                       {participant.verifiedAt
-                        ? formatDate(participant.verifiedAt).toLocaleString(
+                        ? formatDisplayDate(
+                            participant.verifiedAt,
                             DateTime.DATETIME_MED_WITH_SECONDS,
                           )
                         : "--"}

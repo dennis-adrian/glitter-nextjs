@@ -258,7 +258,7 @@ describe("OccurrenceRosterTable", () => {
       />,
     );
 
-    expect(screen.getByText("14:05")).toBeTruthy();
+    expect(screen.getByText("2:05 PM")).toBeTruthy();
     // The time replaces the offer to create one — there is no un-check-in.
     expect(screen.queryByText("Marcar ingreso")).toBeNull();
   });

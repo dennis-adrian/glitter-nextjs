@@ -2,7 +2,7 @@ import { UserCategory } from "@/app/api/users/definitions";
 import { haveSameClockTimes } from "@/app/components/festival-terms/public-hours";
 import { Highlight } from "@/app/components/ui/highlight";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
-import { formatDateOrNull } from "@/app/lib/formatters";
+import { formatDateOrNull, formatDisplayDate } from "@/app/lib/formatters";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { DateTime } from "luxon";
 
@@ -11,22 +11,16 @@ type FestivalTermsScheduleProps = {
   category: Exclude<UserCategory, "none">;
 };
 
-function PublicHoursCopy({
-  start,
-  end,
-}: {
-  start: DateTime;
-  end: DateTime;
-}) {
+function PublicHoursCopy({ start, end }: { start: DateTime; end: DateTime }) {
   return (
     <>
       Las puertas al público se abrirán a las{" "}
       <span className="font-semibold">
-        {start.toLocaleString(DateTime.TIME_24_SIMPLE)}
+        {formatDisplayDate(start, DateTime.TIME_SIMPLE)}
       </span>{" "}
       y se cerrarán a las{" "}
       <span className="font-semibold">
-        {end.toLocaleString(DateTime.TIME_24_SIMPLE)}
+        {formatDisplayDate(end, DateTime.TIME_SIMPLE)}
       </span>
     </>
   );
@@ -37,7 +31,7 @@ function DayHoursHeading({ date }: { date: DateTime }) {
     <h4 className="font-semibold my-2">
       <span className="capitalize">{date.weekdayLong}</span>{" "}
       <span>
-        {date.toLocaleString({
+        {formatDisplayDate(date, {
           month: "long",
           day: "numeric",
         })}
@@ -61,8 +55,8 @@ function GenericEntryHours({ start }: { start: DateTime }) {
     <p>
       El ingreso de los expositores será desde las{" "}
       <Highlight>
-        {start.minus({ hour: 1 }).toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-        hasta las {start.toLocaleString(DateTime.TIME_24_SIMPLE)}
+        {formatDisplayDate(start.minus({ hour: 1 }), DateTime.TIME_SIMPLE)}{" "}
+        hasta las {formatDisplayDate(start, DateTime.TIME_SIMPLE)}
       </Highlight>
       . Cualquier expositor que llegue después del horario marcado, tendrá que{" "}
       <Highlight>hacer cola junto con el público</Highlight> para ingresar. No
@@ -78,13 +72,9 @@ export default function FestivalTermsSchedule({
   const festivalDates = festival.festivalDates;
   const dayOne = festivalDates[0];
   const dayTwo = festivalDates[1];
-  const dayOneStartDate = dayOne
-    ? formatDateOrNull(dayOne.startDate)
-    : null;
+  const dayOneStartDate = dayOne ? formatDateOrNull(dayOne.startDate) : null;
   const dayOneEndDate = dayOne ? formatDateOrNull(dayOne.endDate) : null;
-  const dayTwoStartDate = dayTwo
-    ? formatDateOrNull(dayTwo.startDate)
-    : null;
+  const dayTwoStartDate = dayTwo ? formatDateOrNull(dayTwo.startDate) : null;
   const dayTwoEndDate = dayTwo ? formatDateOrNull(dayTwo.endDate) : null;
   const samePublicHours = haveSameClockTimes(
     dayOneStartDate,
@@ -96,17 +86,15 @@ export default function FestivalTermsSchedule({
   return (
     <div className="flex flex-col gap-2">
       <section>
-        <h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+        <h3 className="text-base md:text-lg font-semibold text-foreground font-display tracking-wide">
           <Highlight>4.1. Horario de ingreso</Highlight>
         </h3>
         {dayOneStartDate ? (
           <section className="text-sm">
             <h4 className="font-semibold my-2">
-              <span className="capitalize">
-                {dayOneStartDate.weekdayLong}
-              </span>{" "}
+              <span className="capitalize">{dayOneStartDate.weekdayLong}</span>{" "}
               <span>
-                {dayOneStartDate.toLocaleString({
+                {formatDisplayDate(dayOneStartDate, {
                   month: "long",
                   day: "numeric",
                 })}
@@ -116,54 +104,52 @@ export default function FestivalTermsSchedule({
               {category === "entrepreneurship" && (
                 <>
                   <p>
-                    Dependiendo del sector en el que hagás tu reserva,
-                    tomá en cuenta el siguiente horario:
+                    Dependiendo del sector en el que hagás tu reserva, tomá en
+                    cuenta el siguiente horario:
                   </p>
                   <section className="flex flex-col gap-2">
                     <p>
                       <Highlight>Galería:</Highlight>
                     </p>
                     <p>
-                      Los expositores de este sector ingresarán al
-                      recinto únicamente{" "}
+                      Los expositores de este sector ingresarán al recinto
+                      únicamente{" "}
                       <Highlight>
                         de{" "}
-                        {dayOneStartDate
-                          .minus({ hour: 1, minutes: 30 })
-                          .toLocaleString(
-                            DateTime.TIME_24_SIMPLE,
-                          )}{" "}
+                        {formatDisplayDate(
+                          dayOneStartDate.minus({ hour: 1, minutes: 30 }),
+                          DateTime.TIME_SIMPLE,
+                        )}{" "}
                         a{" "}
-                        {dayOneStartDate
-                          .minus({ hour: 1 })
-                          .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                        {formatDisplayDate(
+                          dayOneStartDate.minus({ hour: 1 }),
+                          DateTime.TIME_SIMPLE,
+                        )}
                       </Highlight>
                     </p>
                     <p>
                       A las{" "}
                       <span className="font-semibold">
-                        {dayOneStartDate
-                          .minus({ hour: 1 })
-                          .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                        {formatDisplayDate(
+                          dayOneStartDate.minus({ hour: 1 }),
+                          DateTime.TIME_SIMPLE,
+                        )}
                       </span>{" "}
-                      se cerrarán las puertas de ingreso y cualquier
-                      expositor que llegue después del horario
-                      marcado, tendrá que{" "}
-                      <Highlight>
-                        hacer cola junto con el público
-                      </Highlight>{" "}
+                      se cerrarán las puertas de ingreso y cualquier expositor
+                      que llegue después del horario marcado, tendrá que{" "}
+                      <Highlight>hacer cola junto con el público</Highlight>{" "}
                       para ingresar a partir de las{" "}
                       <span className="font-semibold">
-                        {dayOneStartDate.toLocaleString(
-                          DateTime.TIME_24_SIMPLE,
+                        {formatDisplayDate(
+                          dayOneStartDate,
+                          DateTime.TIME_SIMPLE,
                         )}
                       </span>
                       . No se harán excepciones.
                     </p>
                     <p>
-                      El ingreso será por la puerta del Teatro CBA en
-                      la calle Sucre entre calle Cochabamba y calle
-                      Potosí
+                      El ingreso será por la puerta del Teatro CBA en la calle
+                      Sucre entre calle Cochabamba y calle Potosí
                     </p>
                   </section>
                   <section className="flex flex-col gap-2">
@@ -171,42 +157,44 @@ export default function FestivalTermsSchedule({
                       <Highlight>Big Apple:</Highlight>
                     </p>
                     <p>
-                      Los expositores de este sector ingresarán al
-                      recinto únicamente{" "}
+                      Los expositores de este sector ingresarán al recinto
+                      únicamente{" "}
                       <Highlight>
                         de{" "}
-                        {dayOneStartDate
-                          .minus({ hour: 1, minutes: 10 })
-                          .toLocaleString(
-                            DateTime.TIME_24_SIMPLE,
-                          )}{" "}
+                        {formatDisplayDate(
+                          dayOneStartDate.minus({ hour: 1, minutes: 10 }),
+                          DateTime.TIME_SIMPLE,
+                        )}{" "}
                         a{" "}
-                        {dayOneStartDate
-                          .minus({ minutes: 30 })
-                          .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                        {formatDisplayDate(
+                          dayOneStartDate.minus({ minutes: 30 }),
+                          DateTime.TIME_SIMPLE,
+                        )}
                       </Highlight>
                     </p>
                     <p>
                       A las{" "}
                       <span className="font-semibold">
-                        {dayOneStartDate
-                          .minus({ minutes: 30 })
-                          .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                        {formatDisplayDate(
+                          dayOneStartDate.minus({ minutes: 30 }),
+                          DateTime.TIME_SIMPLE,
+                        )}
                       </span>{" "}
-                      se cerrarán las puertas de ingreso y cualquier
-                      expositor que llegue después del horario
-                      marcado, tendrá que esperar a que se abran las
-                      puertas nuevamente para ingresar a partir de las{" "}
+                      se cerrarán las puertas de ingreso y cualquier expositor
+                      que llegue después del horario marcado, tendrá que esperar
+                      a que se abran las puertas nuevamente para ingresar a
+                      partir de las{" "}
                       <span className="font-semibold">
-                        {dayOneStartDate.toLocaleString(
-                          DateTime.TIME_24_SIMPLE,
+                        {formatDisplayDate(
+                          dayOneStartDate,
+                          DateTime.TIME_SIMPLE,
                         )}
                       </span>
                       . No se harán excepciones.
                     </p>
                     <p>
-                      El ingreso será por la puerta de la calle
-                      Ballivián entre calle Cochabamba y calle Potosí
+                      El ingreso será por la puerta de la calle Ballivián entre
+                      calle Cochabamba y calle Potosí
                     </p>
                   </section>
                 </>
@@ -221,39 +209,37 @@ export default function FestivalTermsSchedule({
                     ingresarán al recinto únicamente{" "}
                     <Highlight>
                       de{" "}
-                      {dayOneStartDate
-                        .minus({ hour: 2 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                      {formatDisplayDate(
+                        dayOneStartDate.minus({ hour: 2 }),
+                        DateTime.TIME_SIMPLE,
+                      )}{" "}
                       a{" "}
-                      {dayOneStartDate
-                        .minus({ hour: 1 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                      {formatDisplayDate(
+                        dayOneStartDate.minus({ hour: 1 }),
+                        DateTime.TIME_SIMPLE,
+                      )}
                     </Highlight>
                   </p>
                   <p>
                     A las{" "}
                     <span className="font-semibold">
-                      {dayOneStartDate
-                        .minus({ hour: 1 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}
-                    </span>{" "}
-                    se cerrarán las puertas de ingreso y cualquier
-                    expositor que llegue después del horario marcado,
-                    tendrá que{" "}
-                    <Highlight>
-                      hacer cola junto con el público
-                    </Highlight>{" "}
-                    para ingresar a partir de las{" "}
-                    <span className="font-semibold">
-                      {dayOneStartDate.toLocaleString(
-                        DateTime.TIME_24_SIMPLE,
+                      {formatDisplayDate(
+                        dayOneStartDate.minus({ hour: 1 }),
+                        DateTime.TIME_SIMPLE,
                       )}
+                    </span>{" "}
+                    se cerrarán las puertas de ingreso y cualquier expositor que
+                    llegue después del horario marcado, tendrá que{" "}
+                    <Highlight>hacer cola junto con el público</Highlight> para
+                    ingresar a partir de las{" "}
+                    <span className="font-semibold">
+                      {formatDisplayDate(dayOneStartDate, DateTime.TIME_SIMPLE)}
                     </span>
                     . No se harán excepciones.
                   </p>
                   <p>
-                    El ingreso será por la puerta del Teatro CBA en la
-                    calle Sucre entre calle Cochabamba y calle Potosí
+                    El ingreso será por la puerta del Teatro CBA en la calle
+                    Sucre entre calle Cochabamba y calle Potosí
                   </p>
                 </section>
               )}
@@ -267,36 +253,36 @@ export default function FestivalTermsSchedule({
                     ingresarán al recinto únicamente{" "}
                     <Highlight>
                       de{" "}
-                      {dayOneStartDate
-                        .minus({ hour: 1, minutes: 10 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                      {formatDisplayDate(
+                        dayOneStartDate.minus({ hour: 1, minutes: 10 }),
+                        DateTime.TIME_SIMPLE,
+                      )}{" "}
                       a{" "}
-                      {dayOneStartDate
-                        .minus({ minutes: 30 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                      {formatDisplayDate(
+                        dayOneStartDate.minus({ minutes: 30 }),
+                        DateTime.TIME_SIMPLE,
+                      )}
                     </Highlight>
                   </p>
                   <p>
                     A las{" "}
                     <span className="font-semibold">
-                      {dayOneStartDate
-                        .minus({ minutes: 30 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}
-                    </span>{" "}
-                    se cerrarán las puertas de ingreso y cualquier
-                    expositor que llegue después del horario marcado,
-                    tendrá que esperar a que se abran las puertas
-                    nuevamente para ingresar a las{" "}
-                    <span className="font-semibold">
-                      {dayOneStartDate.toLocaleString(
-                        DateTime.TIME_24_SIMPLE,
+                      {formatDisplayDate(
+                        dayOneStartDate.minus({ minutes: 30 }),
+                        DateTime.TIME_SIMPLE,
                       )}
+                    </span>{" "}
+                    se cerrarán las puertas de ingreso y cualquier expositor que
+                    llegue después del horario marcado, tendrá que esperar a que
+                    se abran las puertas nuevamente para ingresar a las{" "}
+                    <span className="font-semibold">
+                      {formatDisplayDate(dayOneStartDate, DateTime.TIME_SIMPLE)}
                     </span>
                     . No se harán excepciones.
                   </p>
                   <p>
-                    El ingreso será por la puerta de la calle
-                    Ballivián entre calle Cochabamba y calle Potosí
+                    El ingreso será por la puerta de la calle Ballivián entre
+                    calle Cochabamba y calle Potosí
                   </p>
                 </section>
               )}
@@ -309,11 +295,9 @@ export default function FestivalTermsSchedule({
         {dayTwoStartDate ? (
           <section>
             <h4 className="font-semibold text-sm my-2">
-              <span className="capitalize">
-                {dayTwoStartDate.weekdayLong}
-              </span>{" "}
+              <span className="capitalize">{dayTwoStartDate.weekdayLong}</span>{" "}
               <span>
-                {dayTwoStartDate.toLocaleString({
+                {formatDisplayDate(dayTwoStartDate, {
                   month: "long",
                   day: "numeric",
                 })}
@@ -325,73 +309,65 @@ export default function FestivalTermsSchedule({
                   <p>
                     El ingreso de los expositores será desde las{" "}
                     <Highlight>
-                      {dayTwoStartDate
-                        .minus({ hour: 1 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                      {formatDisplayDate(
+                        dayTwoStartDate.minus({ hour: 1 }),
+                        DateTime.TIME_SIMPLE,
+                      )}{" "}
                       hasta las{" "}
-                      {dayTwoStartDate.toLocaleString(
-                        DateTime.TIME_24_SIMPLE,
-                      )}
+                      {formatDisplayDate(dayTwoStartDate, DateTime.TIME_SIMPLE)}
                     </Highlight>
-                    . Cualquier expositor que llegue después del
-                    horario marcado, tendrá que{" "}
-                    <Highlight>
-                      hacer cola junto con el público
-                    </Highlight>{" "}
-                    para ingresar. No se harán excepciones.
+                    . Cualquier expositor que llegue después del horario
+                    marcado, tendrá que{" "}
+                    <Highlight>hacer cola junto con el público</Highlight> para
+                    ingresar. No se harán excepciones.
                   </p>
                   <p>
                     <Highlight>Galería:</Highlight>
                   </p>
                   <p>
-                    El ingreso será por la puerta del Teatro CBA en la
-                    calle Sucre entre calle Cochabamba y calle Potosí
+                    El ingreso será por la puerta del Teatro CBA en la calle
+                    Sucre entre calle Cochabamba y calle Potosí
                   </p>
                   <p>
                     <Highlight>Big Apple:</Highlight>
                   </p>
                   <p>
-                    El ingreso será por la puerta de la calle
-                    Ballivián entre calle Cochabamba y calle Potosí
+                    El ingreso será por la puerta de la calle Ballivián entre
+                    calle Cochabamba y calle Potosí
                   </p>
                 </section>
               )}
-              {(category === "illustration" ||
-                category === "gastronomy") && (
+              {(category === "illustration" || category === "gastronomy") && (
                 <section className="flex flex-col gap-2">
                   <p>
                     El ingreso de los expositores será desde las{" "}
                     <Highlight>
-                      {dayTwoStartDate
-                        .minus({ hour: 1 })
-                        .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                      {formatDisplayDate(
+                        dayTwoStartDate.minus({ hour: 1 }),
+                        DateTime.TIME_SIMPLE,
+                      )}{" "}
                       hasta las{" "}
-                      {dayTwoStartDate.toLocaleString(
-                        DateTime.TIME_24_SIMPLE,
-                      )}
+                      {formatDisplayDate(dayTwoStartDate, DateTime.TIME_SIMPLE)}
                     </Highlight>
                     .{" "}
                     {category === "illustration" && (
                       <span>
-                        Cualquier expositor que llegue después del
-                        horario marcado, tendrá que{" "}
-                        <Highlight>
-                          hacer cola junto con el público
-                        </Highlight>{" "}
+                        Cualquier expositor que llegue después del horario
+                        marcado, tendrá que{" "}
+                        <Highlight>hacer cola junto con el público</Highlight>{" "}
                         para ingresar. No se harán excepciones.
                       </span>
                     )}
                   </p>
                   {category === "illustration" ? (
                     <p>
-                      El ingreso será por la puerta del Teatro CBA en
-                      la calle Sucre entre calle Cochabamba y calle
-                      Potosí
+                      El ingreso será por la puerta del Teatro CBA en la calle
+                      Sucre entre calle Cochabamba y calle Potosí
                     </p>
                   ) : (
                     <p>
-                      El ingreso será por la puerta de la calle
-                      Ballivián entre calle Cochabamba y calle Potosí
+                      El ingreso será por la puerta de la calle Ballivián entre
+                      calle Cochabamba y calle Potosí
                     </p>
                   )}
                 </section>
@@ -404,17 +380,15 @@ export default function FestivalTermsSchedule({
         ) : null}
       </section>
       <section>
-        <h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+        <h3 className="text-base md:text-lg font-semibold text-foreground font-display tracking-wide">
           <Highlight>4.2. Horario de montaje</Highlight>
         </h3>
         {dayOneStartDate ? (
           <section className="text-sm">
             <h4 className="font-semibold my-2">
-              <span className="capitalize">
-                {dayOneStartDate.weekdayLong}
-              </span>{" "}
+              <span className="capitalize">{dayOneStartDate.weekdayLong}</span>{" "}
               <span>
-                {dayOneStartDate.toLocaleString({
+                {formatDisplayDate(dayOneStartDate, {
                   month: "long",
                   day: "numeric",
                 })}
@@ -422,13 +396,11 @@ export default function FestivalTermsSchedule({
             </h4>
             <div className="ml-2 flex flex-col gap-2">
               <p>
-                El montaje de stands deberá hacerse desde que el
-                expositor ingrese al recinto. Y deberá completarse{" "}
+                El montaje de stands deberá hacerse desde que el expositor
+                ingrese al recinto. Y deberá completarse{" "}
                 <Highlight>
                   antes de las{" "}
-                  {dayOneStartDate.toLocaleString(
-                    DateTime.TIME_24_SIMPLE,
-                  )}
+                  {formatDisplayDate(dayOneStartDate, DateTime.TIME_SIMPLE)}
                 </Highlight>
                 . Sin excepción.
               </p>
@@ -438,11 +410,9 @@ export default function FestivalTermsSchedule({
         {dayTwoStartDate ? (
           <section className="text-sm">
             <h4 className="font-semibold my-2">
-              <span className="capitalize">
-                {dayTwoStartDate.weekdayLong}
-              </span>{" "}
+              <span className="capitalize">{dayTwoStartDate.weekdayLong}</span>{" "}
               <span>
-                {dayTwoStartDate.toLocaleString({
+                {formatDisplayDate(dayTwoStartDate, {
                   month: "long",
                   day: "numeric",
                 })}
@@ -454,9 +424,7 @@ export default function FestivalTermsSchedule({
                 condiciones para recibir al público{" "}
                 <Highlight>
                   antes de las{" "}
-                  {dayTwoStartDate.toLocaleString(
-                    DateTime.TIME_24_SIMPLE,
-                  )}
+                  {formatDisplayDate(dayTwoStartDate, DateTime.TIME_SIMPLE)}
                 </Highlight>
                 . Sin excepción.
               </p>
@@ -465,16 +433,13 @@ export default function FestivalTermsSchedule({
         ) : null}
       </section>
       <section>
-        <h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+        <h3 className="text-base md:text-lg font-semibold text-foreground font-display tracking-wide">
           4.3. Horario de apertura y cierre de puertas al público
         </h3>
         {samePublicHours && dayOneStartDate && dayOneEndDate ? (
           <p className="mt-1">
             Ambos días del evento tienen el mismo horario.{" "}
-            <PublicHoursCopy
-              start={dayOneStartDate}
-              end={dayOneEndDate}
-            />
+            <PublicHoursCopy start={dayOneStartDate} end={dayOneEndDate} />
           </p>
         ) : (
           <>
@@ -504,17 +469,15 @@ export default function FestivalTermsSchedule({
         )}
       </section>
       <section>
-        <h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+        <h3 className="text-base md:text-lg font-semibold text-foreground font-display tracking-wide">
           4.4. Horario de desmontaje
         </h3>
         {dayOneStartDate && dayOneEndDate ? (
           <section>
             <h4 className="font-semibold my-2">
-              <span className="capitalize">
-                {dayOneStartDate.weekdayLong}
-              </span>{" "}
+              <span className="capitalize">{dayOneStartDate.weekdayLong}</span>{" "}
               <span>
-                {dayOneStartDate.toLocaleString({
+                {formatDisplayDate(dayOneStartDate, {
                   month: "long",
                   day: "numeric",
                 })}
@@ -523,30 +486,29 @@ export default function FestivalTermsSchedule({
             <div className="ml-2 flex flex-col gap-2">
               {dayTwo ? (
                 <p>
-                  Los expositores tienen permitido dejar sus estructuras
-                  armadas para facilitar acomodarse el segundo día del
-                  festival.
+                  Los expositores tienen permitido dejar sus estructuras armadas
+                  para facilitar acomodarse el segundo día del festival.
                 </p>
               ) : null}
               <p>
-                El horario en que los expositores tienen permitido
-                retirarse este día es desde las{" "}
-                {dayOneEndDate.toLocaleString(
-                  DateTime.TIME_24_SIMPLE,
-                )}{" "}
-                hasta las{" "}
-                {dayOneEndDate
-                  .plus({ minutes: 30 })
-                  .toLocaleString(DateTime.TIME_24_SIMPLE)}
-                . Cualquier excepción a este horario debe ser
-                previamente autorizado por la organización.
+                El horario en que los expositores tienen permitido retirarse
+                este día es desde las{" "}
+                {formatDisplayDate(dayOneEndDate, DateTime.TIME_SIMPLE)} hasta
+                las{" "}
+                {formatDisplayDate(
+                  dayOneEndDate.plus({ minutes: 30 }),
+                  DateTime.TIME_SIMPLE,
+                )}
+                . Cualquier excepción a este horario debe ser previamente
+                autorizado por la organización.
               </p>
               <p>
                 El recinto se cerrará a las{" "}
                 <span className="font-semibold">
-                  {dayOneEndDate
-                    .plus({ minutes: 45 })
-                    .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                  {formatDisplayDate(
+                    dayOneEndDate.plus({ minutes: 45 }),
+                    DateTime.TIME_SIMPLE,
+                  )}
                 </span>
                 .
               </p>
@@ -556,11 +518,9 @@ export default function FestivalTermsSchedule({
         {dayTwoStartDate && dayTwoEndDate ? (
           <section>
             <h4 className="font-semibold my-2">
-              <span className="capitalize">
-                {dayTwoStartDate.weekdayLong}
-              </span>{" "}
+              <span className="capitalize">{dayTwoStartDate.weekdayLong}</span>{" "}
               <span>
-                {dayTwoStartDate.toLocaleString({
+                {formatDisplayDate(dayTwoStartDate, {
                   month: "long",
                   day: "numeric",
                 })}
@@ -568,23 +528,26 @@ export default function FestivalTermsSchedule({
             </h4>
             <div className="ml-2 flex flex-col gap-2">
               <p>
-                Los expositores tienen permitido desmontar sus stands
-                este día desde las{" "}
-                {dayTwoEndDate
-                  .minus({ minutes: 15 })
-                  .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                Los expositores tienen permitido desmontar sus stands este día
+                desde las{" "}
+                {formatDisplayDate(
+                  dayTwoEndDate.minus({ minutes: 15 }),
+                  DateTime.TIME_SIMPLE,
+                )}{" "}
                 hasta las{" "}
-                {dayTwoEndDate
-                  .plus({ minutes: 30 })
-                  .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                {formatDisplayDate(
+                  dayTwoEndDate.plus({ minutes: 30 }),
+                  DateTime.TIME_SIMPLE,
+                )}
                 . Sin excepción.
               </p>
               <p>
                 El recinto se cerrará a las{" "}
                 <span className="font-semibold">
-                  {dayTwoEndDate
-                    .plus({ minutes: 45 })
-                    .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                  {formatDisplayDate(
+                    dayTwoEndDate.plus({ minutes: 45 }),
+                    DateTime.TIME_SIMPLE,
+                  )}
                 </span>
                 .
               </p>
@@ -594,8 +557,8 @@ export default function FestivalTermsSchedule({
       </section>
       <div className="flex flex-col gap-2 text-sm">
         <p>
-          Cualquier infracción a estos horarios será registrada en el
-          historial del participante
+          Cualquier infracción a estos horarios será registrada en el historial
+          del participante
         </p>
       </div>
     </div>

@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { CalendarClockIcon } from "lucide-react";
 import { DateTime } from "luxon";
 
@@ -50,9 +50,7 @@ export function ExtendDeadlineModal({
                 <p className="text-sm text-muted-foreground">
                   Fecha límite actual:{" "}
                   <strong>
-                    {formatDate(currentDueDate).toLocaleString(
-                      DateTime.DATETIME_MED,
-                    )}
+                    {formatDisplayDate(currentDueDate, DateTime.DATETIME_MED)}
                   </strong>
                 </p>
               )}

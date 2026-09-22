@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import CategoryBadge from "@/app/components/category-badge";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
@@ -82,7 +83,7 @@ export const columns: ColumnDef<UserRequest>[] = [
     ),
     cell: ({ row }) =>
       row.original.createdAt
-        ? new Date(row.original.createdAt).toLocaleDateString("es-GT")
+        ? formatDisplayDate(new Date(row.original.createdAt))
         : "—",
   },
   {

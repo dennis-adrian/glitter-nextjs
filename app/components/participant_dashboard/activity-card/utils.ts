@@ -1,7 +1,6 @@
 import {
   FestivalActivity,
   FestivalActivityWithDetailsAndParticipants,
-  WaitlistEntryWithUser,
 } from "@/app/lib/festivals/definitions";
 import {
   ActivityTheme,
@@ -171,30 +170,16 @@ export function getEnrollmentInfo(
 const PRIMARY = "hsl(var(--primary))";
 const PRIMARY_FG = "hsl(var(--primary-foreground))";
 
-export function getActivityTheme(index: number): ActivityTheme {
-  if (index % 2 !== 0) {
-    return {
-      bg: PRIMARY_FG,
-      border: PRIMARY,
-      accent: PRIMARY,
-      accentText: PRIMARY_FG,
-      textPrimary: PRIMARY,
-      textSecondary: PRIMARY,
-      buttonBg: PRIMARY,
-      buttonText: PRIMARY_FG,
-      isPrimary: false,
-    };
-  }
-
+export function getActivityTheme(): ActivityTheme {
   return {
-    bg: PRIMARY,
-    border: PRIMARY_FG,
-    accent: PRIMARY_FG,
-    accentText: PRIMARY,
-    textPrimary: PRIMARY_FG,
-    textSecondary: PRIMARY_FG,
-    buttonBg: PRIMARY_FG,
-    buttonText: PRIMARY,
-    isPrimary: true,
+    bg: "hsl(var(--card))",
+    border: "hsl(var(--border))",
+    accent: "hsl(var(--accent))",
+    accentText: "hsl(var(--accent-foreground))",
+    textPrimary: "hsl(var(--card-foreground))",
+    textSecondary: "hsl(var(--muted-foreground))",
+    buttonBg: PRIMARY,
+    buttonText: PRIMARY_FG,
+    isPrimary: false,
   };
 }

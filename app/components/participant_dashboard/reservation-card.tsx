@@ -19,7 +19,7 @@ import { Participation, ProfileType } from "@/app/api/users/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import FestivalPosterThumb from "@/app/components/participant_dashboard/festival-poster-thumb";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { Banner, BannerVariant } from "@/app/components/ui/banner";
 import Heading from "@/app/components/atoms/heading";
@@ -175,12 +175,13 @@ const getCardConfig = (
       ...STATUS_CONFIG[cardStatus],
       banner: {
         title: "Habilitación de reservas",
-        description: `Las reservas se habilitarán el ${formatDate(
+        description: `Las reservas se habilitarán el ${formatDisplayDate(
           reservationsStartDate,
-        ).toLocaleString({
-          day: "2-digit",
-          month: "long",
-        })} a las ${formatDate(reservationsStartDate).toLocaleString(DateTime.TIME_SIMPLE)}.`,
+          {
+            day: "2-digit",
+            month: "long",
+          },
+        )} a las ${formatDisplayDate(reservationsStartDate, DateTime.TIME_SIMPLE)}.`,
         variant: "primary",
       },
     };
@@ -242,8 +243,9 @@ const getCardConfig = (
       const paymentDueDate = formatDate(reservation.createdAt).plus({
         days: 5,
       });
-      const dueDateLabel = paymentDueDate.toLocaleString(DateTime.DATE_MED);
-      const dueDateTimeLabel = paymentDueDate.toLocaleString(
+      const dueDateLabel = formatDisplayDate(paymentDueDate, DateTime.DATE_MED);
+      const dueDateTimeLabel = formatDisplayDate(
+        paymentDueDate,
         DateTime.TIME_SIMPLE,
       );
 

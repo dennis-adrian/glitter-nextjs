@@ -20,7 +20,7 @@ import {
 } from "@/app/components/ui/accordion";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import ParticipationsCell from "../users/cells/participations-cell";
 import ProfileQuickActions from "../user_profile/public_profile/quick-actions";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
@@ -177,7 +177,8 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
                     verificado
                   </p>
                   <p>
-                    {formatDate(verifiedAt).toLocaleString(
+                    {formatDisplayDate(
+                      verifiedAt,
                       DateTime.DATETIME_MED_WITH_SECONDS,
                     )}
                   </p>
@@ -188,7 +189,8 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
                   actualizado
                 </p>
                 <p>
-                  {formatDate(updatedAt).toLocaleString(
+                  {formatDisplayDate(
+                    updatedAt,
                     DateTime.DATETIME_MED_WITH_SECONDS,
                   )}
                 </p>
@@ -198,7 +200,8 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
                   creado
                 </p>
                 <p>
-                  {formatDate(createdAt).toLocaleString(
+                  {formatDisplayDate(
+                    createdAt,
                     DateTime.DATETIME_MED_WITH_SECONDS,
                   )}
                 </p>

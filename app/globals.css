@@ -8,7 +8,6 @@
 @theme inline {
   --font-sans: var(--font-figtree), sans-serif;
   --font-display: var(--font-gabarito), sans-serif;
-  --font-space-grotesk: var(--font-space-grotesk), sans-serif;
 }
 
 @theme {
@@ -241,6 +240,15 @@
 }
 
 @layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-gabarito), sans-serif;
+  }
+
   :root {
     --background: 36 50% 96.1%;
     --foreground: 222.2 47.4% 11.2%;
@@ -703,4 +711,12 @@
 }
 .blog-article :is(th, td) > p {
   margin: 0;
+}
+
+/* Keep editor content on the same two font families as the app. */
+.bn-container .bn-default-styles {
+  font-family: var(--font-figtree), sans-serif;
+}
+.bn-container .bn-default-styles :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-gabarito), sans-serif;
 }

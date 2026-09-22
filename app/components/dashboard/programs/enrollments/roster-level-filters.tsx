@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 
 const ALL_SESSIONS = "all";
 const ALL_OCCURRENCES = "all";
@@ -81,7 +81,9 @@ export default function RosterLevelFilters({
         </label>
         <Select
           value={
-            occurrenceFilter === null ? ALL_OCCURRENCES : String(occurrenceFilter)
+            occurrenceFilter === null
+              ? ALL_OCCURRENCES
+              : String(occurrenceFilter)
           }
           onValueChange={(value) =>
             onOccurrenceChange(value === ALL_OCCURRENCES ? null : Number(value))
@@ -98,9 +100,7 @@ export default function RosterLevelFilters({
                 key={occurrence.occurrenceId}
                 value={String(occurrence.occurrenceId)}
               >
-                {formatDate(occurrence.startsAt).toLocaleString(
-                  DateTime.DATETIME_MED,
-                )}
+                {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
               </SelectItem>
             ))}
           </SelectContent>

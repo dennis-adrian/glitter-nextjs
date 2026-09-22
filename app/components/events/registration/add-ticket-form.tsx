@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
 import { createTicket } from "@/app/data/tickets/actions";
 import { VisitorBase } from "@/app/data/visitors/actions";
 import { FestivalBase, FestivalDate } from "@/app/lib/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
 import { useForm } from "react-hook-form";
@@ -96,7 +96,10 @@ export default function AddTicketForm({
                               {formattedDate.weekdayLong}
                             </span>
                             <span className="text-base">
-                              {formattedDate.toLocaleString(DateTime.DATE_FULL)}
+                              {formatDisplayDate(
+                                formattedDate,
+                                DateTime.DATE_FULL,
+                              )}
                             </span>
                           </span>
                           <span className="text-muted-foreground text-xs">

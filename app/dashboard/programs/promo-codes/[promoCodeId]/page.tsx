@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   fetchProgramPromoCodeForAdmin,
   fetchProgramsForPromoCodeForm,
@@ -187,7 +187,8 @@ export default async function ProgramPromoCodeDetailPage({ params }: Props) {
                             ) : null}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                            {formatDate(redemption.createdAt).toLocaleString(
+                            {formatDisplayDate(
+                              redemption.createdAt,
                               DateTime.DATETIME_MED,
                             )}
                           </TableCell>
@@ -218,7 +219,8 @@ export default async function ProgramPromoCodeDetailPage({ params }: Props) {
                         "Sistema"}
                     </span>
                     <span className="whitespace-nowrap text-xs text-muted-foreground">
-                      {formatDate(event.createdAt).toLocaleString(
+                      {formatDisplayDate(
+                        event.createdAt,
                         DateTime.DATETIME_MED,
                       )}
                     </span>

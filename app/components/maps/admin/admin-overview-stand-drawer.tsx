@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -278,14 +279,14 @@ export default function AdminOverviewStandDrawer({
                     <span
                       className={cn("", isOverdue ? "text-destructive" : "")}
                     >
-                      {new Intl.DateTimeFormat("es-BO", {
+                      {formatDisplayDate(dueDate, {
                         timeZone: "America/La_Paz",
                         day: "numeric",
                         month: "long",
                         year: "numeric",
                         hour: "2-digit",
                         minute: "2-digit",
-                      }).format(dueDate)}
+                      })}
                     </span>
                   </div>
                 )}
@@ -345,12 +346,15 @@ export default function AdminOverviewStandDrawer({
                           {cancelledInvoice.user.displayName}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Intl.DateTimeFormat("es-BO", {
-                            timeZone: "America/La_Paz",
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          }).format(cancelledInvoice.reservation.updatedAt)}
+                          {formatDisplayDate(
+                            cancelledInvoice.reservation.updatedAt,
+                            {
+                              timeZone: "America/La_Paz",
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            },
+                          )}
                         </p>
                       </div>
                       <Badge variant="destructive">Cancelada</Badge>

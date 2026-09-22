@@ -20,7 +20,7 @@ import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   DEFAULT_PROGRAM_ARTWORK,
   isAllowedProgramArtworkUrl,
@@ -39,7 +39,6 @@ import {
 } from "@/app/lib/programs/pricing";
 import { getAvailabilityForOccurrences } from "@/app/lib/programs/registration-actions";
 import { cn } from "@/app/lib/utils";
-import { citrusGothicSolid } from "@/app/ui/fonts";
 
 type Props = {
   params: Promise<{ slug: string; sessionSlug: string }>;
@@ -192,7 +191,7 @@ export default async function SessionPage({ params }: Props) {
             )}
           >
             <h1
-              className={`${citrusGothicSolid.className} max-w-[13ch] text-balance text-[clamp(3.5rem,12vw,6rem)] uppercase leading-[0.87] tracking-[0.01em] lg:text-[clamp(4.5rem,6.5vw,7rem)]`}
+              className={`font-display font-bold max-w-[13ch] text-balance text-[clamp(3.5rem,12vw,6rem)] uppercase leading-[0.87] tracking-[0.01em] lg:text-[clamp(4.5rem,6.5vw,7rem)]`}
             >
               {session.title}
             </h1>
@@ -227,7 +226,8 @@ export default async function SessionPage({ params }: Props) {
                 </dt>
                 <dd className="font-black">
                   {nextOccurrence
-                    ? formatDate(nextOccurrence.startsAt).toLocaleString(
+                    ? formatDisplayDate(
+                        nextOccurrence.startsAt,
                         DateTime.DATETIME_MED,
                       )
                     : "Por anunciar"}
@@ -350,7 +350,7 @@ export default async function SessionPage({ params }: Props) {
                   Sobre la sesión
                 </p>
                 <h2
-                  className={`${citrusGothicSolid.className} mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
+                  className={`font-display font-bold mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
                 >
                   Lo que vamos a explorar
                 </h2>
@@ -363,7 +363,7 @@ export default async function SessionPage({ params }: Props) {
             {outcomes.length > 0 ? (
               <section className="mt-14">
                 <h2
-                  className={`${citrusGothicSolid.className} mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
+                  className={`font-display font-bold mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
                 >
                   Lo que aprenderás
                 </h2>
@@ -396,7 +396,7 @@ export default async function SessionPage({ params }: Props) {
                 Reserva tu lugar
               </p>
               <h2
-                className={`${citrusGothicSolid.className} mb-6 text-5xl uppercase leading-[0.92]`}
+                className={`font-display font-bold mb-6 text-5xl uppercase leading-[0.92]`}
               >
                 Elige un horario
               </h2>
@@ -425,7 +425,7 @@ export default async function SessionPage({ params }: Props) {
         <section className="bg-[#72e5e7] py-16 sm:py-24">
           <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
             <h2
-              className={`${citrusGothicSolid.className} mb-10 text-5xl uppercase leading-none sm:text-7xl`}
+              className={`font-display font-bold mb-10 text-5xl uppercase leading-none sm:text-7xl`}
             >
               Detrás de la sesión
             </h2>
@@ -454,7 +454,7 @@ export default async function SessionPage({ params }: Props) {
                         />
                       ) : (
                         <span
-                          className={`${citrusGothicSolid.className} absolute inset-0 grid place-items-center text-5xl text-[#4b255f]`}
+                          className={`font-display font-bold absolute inset-0 grid place-items-center text-5xl text-[#4b255f]`}
                         >
                           {entry.speaker.publicName.slice(0, 1)}
                         </span>

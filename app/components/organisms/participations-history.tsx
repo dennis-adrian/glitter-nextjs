@@ -6,7 +6,7 @@ import Heading from "@/app/components/atoms/heading";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
-import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
+import { getFestivalDateString, formatDisplayDate } from "@/app/lib/formatters";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import {
   ArrowRightIcon,
@@ -49,7 +49,7 @@ export default function ParticipationsHistory({
 
   const festivalDates = activeFestival?.festivalDates;
   const startDate = festivalDates?.[0]?.startDate
-    ? formatDate(festivalDates[0].startDate).toLocaleString({
+    ? formatDisplayDate(festivalDates[0].startDate, {
         day: "numeric",
         month: "short",
         year: "2-digit",
@@ -60,9 +60,7 @@ export default function ParticipationsHistory({
     festivalDates?.length &&
     festivalDates.length > 1 &&
     festivalDates[festivalDates.length - 1]?.endDate
-      ? formatDate(
-          festivalDates[festivalDates.length - 1].endDate,
-        ).toLocaleString({
+      ? formatDisplayDate(festivalDates[festivalDates.length - 1].endDate, {
           day: "numeric",
           month: "short",
           year: "2-digit",

@@ -60,7 +60,7 @@ export default function InfractionTypesManager({
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="space-y-1">
                   <h2 className="font-semibold">{type.label}</h2>
-                  <p className="font-mono text-xs text-muted-foreground">
+                  <p className="font-sans tabular-nums text-xs text-muted-foreground">
                     {type.code}
                   </p>
                 </div>

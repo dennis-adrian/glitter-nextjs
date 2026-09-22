@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/app/lib/formatters";
 import { fetchRequestsByUserId } from "@/app/api/user_requests/actions";
 
 import { Badge } from "@/app/components/ui/badge";
@@ -42,7 +43,7 @@ export default async function Page(props: {
               </div>
             </CardTitle>
             <CardDescription>
-              Creación: {request.createdAt.toLocaleString()}
+              Creación: {formatDateTime(request.createdAt)}
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   SESSION_PURCHASE_STATUS_LABELS,
   SESSION_TYPE_LABELS,
@@ -101,7 +101,8 @@ export default function MyPurchaseCard({ purchase }: Props) {
                 className="flex flex-wrap justify-between gap-2"
               >
                 <span className="text-muted-foreground">
-                  {formatDate(line.occurrence.startsAt).toLocaleString(
+                  {formatDisplayDate(
+                    line.occurrence.startsAt,
                     DateTime.DATETIME_MED,
                   )}
                   {line.occurrence.venue

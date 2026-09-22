@@ -7,7 +7,7 @@ import { ChevronRight } from "lucide-react";
 
 import OccurrenceRosterTable from "@/app/components/dashboard/programs/occurrence-roster-table";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type {
   ProgramStatus,
   SessionStatus,
@@ -86,7 +86,7 @@ export default function OccurrenceRollupRow({
             onClick={onSelect}
             className="text-left font-medium hover:underline"
           >
-            {formatDate(rollup.startsAt).toLocaleString(DateTime.DATETIME_MED)}
+            {formatDisplayDate(rollup.startsAt, DateTime.DATETIME_MED)}
             {rollup.venueName ? ` · ${rollup.venueName}` : ""}
             {rollup.room ? ` · ${rollup.room}` : ""}
           </button>

@@ -17,7 +17,7 @@ import {
   addInfractionNote,
 } from "@/app/lib/infractions/actions";
 import { participantDisplayName } from "@/app/lib/infractions/mappers";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type { InfractionDetail } from "@/app/lib/infractions/queries";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
@@ -75,9 +75,7 @@ export function InfractionNotesPanel({
               <p>{note.content}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {participantDisplayName(note.author)} ·{" "}
-                {formatDate(note.createdAt).toLocaleString(
-                  DateTime.DATETIME_MED,
-                )}
+                {formatDisplayDate(note.createdAt, DateTime.DATETIME_MED)}
               </p>
             </li>
           ))
@@ -156,9 +154,7 @@ export function InfractionEvidencePanel({
               </a>
               <p className="text-xs text-muted-foreground">
                 {participantDisplayName(item.addedBy)} ·{" "}
-                {formatDate(item.createdAt).toLocaleString(
-                  DateTime.DATETIME_MED,
-                )}
+                {formatDisplayDate(item.createdAt, DateTime.DATETIME_MED)}
               </p>
             </li>
           ))
@@ -228,9 +224,7 @@ export function InfractionEventsPanel({
                 </p>
               ))}
               <p className="text-xs text-muted-foreground mt-1">
-                {formatDate(event.createdAt).toLocaleString(
-                  DateTime.DATETIME_MED,
-                )}
+                {formatDisplayDate(event.createdAt, DateTime.DATETIME_MED)}
               </p>
             </li>
           ))

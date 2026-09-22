@@ -1,6 +1,6 @@
 import { Badge } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type { ParticipantSanction } from "@/app/lib/infractions/participant-queries";
 import {
   formatSanctionValidity,
@@ -74,13 +74,11 @@ export default function UserSanctionCard({
           })}
         </dd>
         <dt className="text-muted-foreground">Inicio</dt>
-        <dd>
-          {formatDate(sanction.startsAt).toLocaleString(DateTime.DATETIME_MED)}
-        </dd>
+        <dd>{formatDisplayDate(sanction.startsAt, DateTime.DATETIME_MED)}</dd>
         <dt className="text-muted-foreground">Fin</dt>
         <dd>
           {sanction.endsAt
-            ? formatDate(sanction.endsAt).toLocaleString(DateTime.DATETIME_MED)
+            ? formatDisplayDate(sanction.endsAt, DateTime.DATETIME_MED)
             : "—"}
         </dd>
         {sanction.type === "reservation_delay" &&
@@ -107,7 +105,8 @@ export default function UserSanctionCard({
             Próxima elegibilidad de reserva ({upcomingEligibility.festivalName}
             ):{" "}
           </span>
-          {formatDate(upcomingEligibility.reservationEligibleAt).toLocaleString(
+          {formatDisplayDate(
+            upcomingEligibility.reservationEligibleAt,
             DateTime.DATETIME_MED,
           )}
         </p>
@@ -147,7 +146,7 @@ export default function UserSanctionCard({
               <li key={item.festivalId}>
                 {item.festivalName}
                 {item.reservationEligibleAt
-                  ? ` · elegible ${formatDate(item.reservationEligibleAt).toLocaleString(DateTime.DATETIME_MED)}`
+                  ? ` · elegible ${formatDisplayDate(item.reservationEligibleAt, DateTime.DATETIME_MED)}`
                   : ""}
                 {item.countedAt
                   ? " · contado"

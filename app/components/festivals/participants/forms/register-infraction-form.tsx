@@ -17,7 +17,7 @@ import { Input } from "@/app/components/ui/input";
 import { registerInfraction } from "@/app/lib/infractions/actions";
 import type { DuplicateInfractionCandidate } from "@/app/lib/infractions/definitions";
 import { InfractionType } from "@/app/lib/infractions/definitions";
-import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import { STORE_TIMEZONE, formatDisplayDate } from "@/app/lib/formatters";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
 import { useState } from "react";
@@ -227,7 +227,8 @@ export default function RegisterInfractionForm({
               {duplicates.map((duplicate) => (
                 <li key={duplicate.id}>
                   #{duplicate.id} · {duplicate.type.label} ·{" "}
-                  {formatDate(duplicate.createdAt).toLocaleString(
+                  {formatDisplayDate(
+                    duplicate.createdAt,
                     DateTime.DATETIME_MED,
                   )}
                 </li>

@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   CHECK_IN_OUTCOME_LABELS,
   isCheckInAccepted,
@@ -81,7 +81,7 @@ export default function CheckInRecentList({ items, onClear }: Props) {
                 {subject(item.result)}
               </p>
               <p className="text-xs text-muted-foreground">
-                {formatDate(item.at).toLocaleString(DateTime.TIME_WITH_SECONDS)}
+                {formatDisplayDate(item.at, DateTime.TIME_WITH_SECONDS)}
               </p>
             </div>
             <Badge

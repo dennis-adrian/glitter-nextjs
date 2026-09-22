@@ -7,7 +7,7 @@ import PassportActivityPage from "@/app/components/pages/festival_activities/pas
 import StickerHuntActivityPage from "@/app/components/pages/festival_activities/sticker-hunt-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, formatDateTime } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
@@ -25,7 +25,7 @@ type PageProps = {
 
 const formatSpanishDateTime = (date: Date | null | undefined) => {
   if (!date) return null;
-  return formatDate(date).toFormat("cccc d 'de' LLLL 'a las' HH:mm'hs'");
+  return formatDateTime(date);
 };
 
 const formatSpanishDate = (date: Date | null | undefined) => {

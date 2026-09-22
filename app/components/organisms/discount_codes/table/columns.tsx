@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { ColumnDef } from "@tanstack/react-table";
 import { DiscountCodeWithRelations } from "@/app/lib/discount_codes/definitions";
 import { Badge } from "@/app/components/ui/badge";
@@ -22,7 +23,7 @@ export const columns: ColumnDef<DiscountCodeWithRelations>[] = [
     id: "code",
     header: columnTitles.code,
     cell: ({ row }) => (
-      <span className="font-mono font-medium">
+      <span className="font-sans tabular-nums font-medium">
         {row.original.code.toUpperCase()}
       </span>
     ),
@@ -68,8 +69,7 @@ export const columns: ColumnDef<DiscountCodeWithRelations>[] = [
   {
     id: "expiresAt",
     header: columnTitles.expiresAt,
-    cell: ({ row }) =>
-      new Date(row.original.expiresAt).toLocaleDateString("es-BO"),
+    cell: ({ row }) => formatDisplayDate(new Date(row.original.expiresAt)),
   },
   {
     id: "status",

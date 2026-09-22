@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type { BaseProfile } from "@/app/api/users/definitions";
 import FestivalActivityCard from "@/app/components/participant_dashboard/activity-card/card";
 import type {
@@ -81,15 +82,16 @@ function buildOpenActivity(
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe.each(ACTIVITY_TYPES)(
   "%s card while registration is open",
-  (type, activityName, activityTypeLabel) => {
+  (type, activityName) => {
     it('shows the exact "Participar" CTA', () => {
       const activity = buildOpenActivity(type, activityName);
-      const registrationDeadline = `Hasta: ${activity.registrationEndDate.toLocaleString(
-        "es-ES",
+      const registrationDeadline = `Hasta: ${formatDisplayDate(
+        activity.registrationEndDate,
         {
           day: "numeric",
           month: "short",
@@ -100,19 +102,13 @@ describe.each(ACTIVITY_TYPES)(
       )}`;
 
       render(
-        <FestivalActivityCard
-          activity={activity}
-          forProfile={forProfile}
-          index={0}
-        />,
+        <FestivalActivityCard activity={activity} forProfile={forProfile} />,
       );
 
       expect(screen.getByRole("heading", { name: activityName })).toBeTruthy();
       expect(screen.getByText(`Descripción de ${activityName}`)).toBeTruthy();
-      expect(
-        screen.getByText(activityTypeLabel, { selector: "span" }),
-      ).toBeTruthy();
       expect(screen.getByText(registrationDeadline)).toBeTruthy();
+      expect(screen.getByText("Inscripciones abiertas")).toBeTruthy();
 
       const participateLink = screen.getByRole("link", {
         name: "Participar",
@@ -126,3 +122,39 @@ describe.each(ACTIVITY_TYPES)(
     });
   },
 );
+
+it("shows upcoming dates and changes to Participar when registration opens", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-19T14:47:00Z"));
+  const activity = buildOpenActivity("coupon_book", "Cuponera de Descuentos");
+  activity.registrationStartDate = new Date("2026-09-20T14:47:00Z");
+  activity.registrationEndDate = new Date("2026-09-26T14:47:00Z");
+  render(<FestivalActivityCard activity={activity} forProfile={forProfile} />);
+
+  expect(screen.getByText("Inscripciones próximamente")).toBeTruthy();
+  expect(screen.getByText("Desde: 20 sept 2026, 10:47 AM")).toBeTruthy();
+  expect(screen.queryByText("Hasta: 26 sept 2026, 10:47 AM")).toBeNull();
+  expect(
+    screen.getByRole("link", { name: "Ver detalles" }).getAttribute("href"),
+  ).toBe("/profiles/101/festivals/7/activity/42");
+  expect(screen.queryByRole("link", { name: "Participar" })).toBeNull();
+
+  act(() => {
+    vi.setSystemTime(new Date("2026-09-20T14:47:00Z"));
+    vi.advanceTimersByTime(5000);
+  });
+  expect(screen.getByRole("link", { name: "Participar" })).toBeTruthy();
+  expect(screen.getByText("Inscripciones abiertas")).toBeTruthy();
+  expect(screen.getByText("Hasta: 26 sept 2026, 10:47 AM")).toBeTruthy();
+  expect(screen.queryByText("Inscripciones próximamente")).toBeNull();
+
+  act(() => {
+    vi.setSystemTime(new Date("2026-09-26T14:47:01Z"));
+    vi.advanceTimersByTime(5000);
+  });
+  expect(screen.queryByRole("link", { name: "Participar" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Ver detalles" })).toBeTruthy();
+  expect(screen.getByText("Inscripciones cerradas")).toBeTruthy();
+  expect(screen.getByText("Finalizaron: 26 sept 2026, 10:47 AM")).toBeTruthy();
+  expect(screen.queryByText("Inscripciones abiertas")).toBeNull();
+});

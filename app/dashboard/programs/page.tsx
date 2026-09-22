@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { fetchProgramsForAdmin } from "@/app/lib/programs/data";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
@@ -85,9 +85,7 @@ export default async function ProgramsDashboardPage() {
                 <CardContent className="space-y-1 text-sm text-muted-foreground">
                   {program.startDate ? (
                     <p>
-                      {formatDate(program.startDate).toLocaleString(
-                        DateTime.DATE_MED,
-                      )}
+                      {formatDisplayDate(program.startDate, DateTime.DATE_MED)}
                     </p>
                   ) : null}
                   <p>

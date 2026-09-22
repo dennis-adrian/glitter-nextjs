@@ -1,26 +1,14 @@
-[08:54:04.962] [INFO] storybook v10.5.10
-[08:54:17.163] [DEBUG] Getting package.json info for /Users/dennisadrian/Documents/Dev/glitter/glitter-nextjs/.claude/worktrees/full-table-downgrade-and-prd-sync/package.json...
-[08:54:25.180] [DEBUG] Could not determine @babel/preset-env version in use. In case of runtime errors with @babel/preset-env, you may need to set the babelRemoveBugfixes feature flag in your `main.ts` file.
-[08:54:30.223] [DEBUG] Serving static files from public at /
-[08:54:30.681] [DEBUG] readDependencyManifest: could not resolve "tw-animate-css"
-[08:54:33.852] [DEBUG] Starting preview..
-[08:54:35.000] [ERROR] Failed to build the preview
-[08:54:35.005] [ERROR] [38;2;241;97;97mError: Cannot find module '../app/lib/images/remote-hosts'
-Require stack:
-- ./.storybook/next.config.compiled.js
-- ./node_modules/.pnpm/next@16.3.0_@babel+core@7.29.7_supports-color@7.2.0__@opentelemetry+api@1.9.1_@types+no_73a23d499cd443381356856a4d84519f/node_modules/next/dist/build/next-config-ts/transpile-config.js
-- ./node_modules/.pnpm/next@16.3.0_@babel+core@7.29.7_supports-color@7.2.0__@opentelemetry+api@1.9.1_@types+no_73a23d499cd443381356856a4d84519f/node_modules/next/dist/server/config.js
-- ./node_modules/.pnpm/vite-plugin-storybook-nextjs@3.3.2_next@16.3.0_@babel+core@7.29.7_supports-color@7.2.0__e94d2ed066c1aa3251260aec592bea90/node_modules/vite-plugin-storybook-nextjs/dist/index.cjs
-- ./node_modules/.pnpm/@storybook+nextjs-vite@10.5.10_@babel+core@7.29.7_supports-color@7.2.0__@types+react-do_9285a1f0cd54d28bfdfc1c8da4dd6194/node_modules/@storybook/nextjs-vite/dist/preset.js[39m
-    at Module.<anonymous> (node:internal/modules/cjs/loader:1569:15)
-    at ./node_modules/.pnpm/next@16.3.0_@babel+core@7.29.7_supports-color@7.2.0__@opentelemetry+api@1.9.1_@types+no_73a23d499cd443381356856a4d84519f/node_modules/next/dist/server/require-hook.js:68:36
-    at wrapResolveFilename (node:internal/modules/cjs/loader:1123:27)
-    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1147:10)
-    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1174:12)
-    at Module._load (node:internal/modules/cjs/loader:1346:5)
-    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
-    at Module.<anonymous> (node:internal/modules/cjs/loader:1679:12)
-    at mod.require (./node_modules/.pnpm/next@16.3.0_@babel+core@7.29.7_supports-color@7.2.0__@opentelemetry+api@1.9.1_@types+no_73a23d499cd443381356856a4d84519f/node_modules/next/dist/server/require-hook.js:79:28)
-    at require (node:internal/modules/helpers:196:16)
-[08:54:35.024] [WARN] Broken build, fix the error above.
+[15:28:23.458] [INFO] storybook v10.5.10
+[15:28:23.595] [ERROR] [38;2;241;97;97mSB_CORE-SERVER_0018 (NoFreePortError): Unable to find a free port for Storybook's dev server (requested port: 6006).
+Your environment appears to block Storybook from listening on network ports.
+If you are running Storybook in a sandboxed or restricted shell, allow binding to localhost ports and try again.[39m
+    at file://./node_modules/.pnpm/storybook@10.5.10_@types+react@19.2.14_prettier@3.8.4_react@19.2.4/node_modules/storybook/dist/core-server/index.js:11658:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Promise.all (index 0)
+    at async buildDevStandalone (file://./node_modules/.pnpm/storybook@10.5.10_@types+react@19.2.14_prettier@3.8.4_react@19.2.4/node_modules/storybook/dist/core-server/index.js:11885:30)
+    at async withTelemetry (file://./node_modules/.pnpm/storybook@10.5.10_@types+react@19.2.14_prettier@3.8.4_react@19.2.4/node_modules/storybook/dist/_node-chunks/chunk-QEFGZ2NZ.js:1889:12)
+    at async dev (file://./node_modules/.pnpm/storybook@10.5.10_@types+react@19.2.14_prettier@3.8.4_react@19.2.4/node_modules/storybook/dist/bin/core.js:3850:3)
+    at async _Command.<anonymous> (file://./node_modules/.pnpm/storybook@10.5.10_@types+react@19.2.14_prettier@3.8.4_react@19.2.4/node_modules/storybook/dist/bin/core.js:3958:3)
+[15:28:23.599] [WARN] Broken build, fix the error above.
 You may need to refresh the browser.
+[15:28:23.674] [INFO] Storybook collects completely anonymous usage telemetry. We use it to shape Storybook's roadmap and prioritize features. You can learn more, including how to opt out, at https://storybook.js.org/telemetry
