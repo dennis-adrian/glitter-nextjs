@@ -5,6 +5,7 @@ import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-ima
 import Image from "next/image";
 import { slugify } from "@/app/lib/formatters";
 import { ImageIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 export default function SectorImageUpload({
   imageUrl,
@@ -19,6 +20,16 @@ export default function SectorImageUpload({
   onUploading?: (isUploading: boolean) => void;
   compact?: boolean;
 }) {
+  const onUploadingRef = useRef(onUploading);
+
+  useEffect(() => {
+    onUploadingRef.current = onUploading;
+  }, [onUploading]);
+
+  useEffect(() => {
+    return () => onUploadingRef.current?.(false);
+  }, []);
+
   const fileName = `${slugify(sectorName)}_image`;
 
   return (
