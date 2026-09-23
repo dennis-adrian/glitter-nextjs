@@ -9,6 +9,9 @@ import { NewUser } from "@/app/api/users/definitions";
  * `participationType` / `shouldSubmitProducts` belong to the festival flows.
  * Those columns only move through the admin actions in
  * `app/api/users/actions.ts`.
+ *
+ * `imageUrl` is left out too: it only changes through `updateProfilePicture`,
+ * which also deletes the upload it replaces.
  */
 export const SELF_EDITABLE_PROFILE_FIELDS = [
   "firstName",
@@ -20,7 +23,6 @@ export const SELF_EDITABLE_PROFILE_FIELDS = [
   "country",
   "state",
   "phoneNumber",
-  "imageUrl",
 ] as const satisfies readonly (keyof NewUser)[];
 
 export type SelfEditableProfileField =

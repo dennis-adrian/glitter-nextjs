@@ -6,7 +6,7 @@ import {
 } from "@/app/lib/users/profile-fields";
 
 describe("pickSelfEditableProfileFields", () => {
-  it("keeps the fields a profile owner is allowed to edit", () => {
+  it("keeps the editable fields and leaves imageUrl to updateProfilePicture", () => {
     const birthdate = new Date("1998-04-12T00:00:00.000Z");
 
     expect(
@@ -21,7 +21,7 @@ describe("pickSelfEditableProfileFields", () => {
         state: "SC",
         phoneNumber: "70000000",
         imageUrl: "https://utfs.io/f/abc",
-      }),
+      } as never),
     ).toEqual({
       firstName: "Ana",
       lastName: "Quiroga",
@@ -32,7 +32,6 @@ describe("pickSelfEditableProfileFields", () => {
       country: "BO",
       state: "SC",
       phoneNumber: "70000000",
-      imageUrl: "https://utfs.io/f/abc",
     });
   });
 
