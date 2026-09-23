@@ -30,7 +30,7 @@ import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { deleteClerkUser } from "@/app/lib/users/clerk";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { requireAdmin } from "@/app/lib/users/helpers";
 import {
   logUserStatusEvent,
   updateUserStatusWithAudit,
@@ -387,6 +387,11 @@ function toPendingDeletionError(error: unknown): string {
 }
 
 export async function deleteProfile(profileId: number, prevState: FormState) {
+  const actor = await requireAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const preparation = await db.transaction(async (tx) => {
       const [lockedUser] = await tx
@@ -607,9 +612,12 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 }
 
 export async function verifyProfile(profileId: number, category: UserCategory) {
-  try {
-    const currentProfile = await getCurrentUserProfile();
+  const currentProfile = await requireAdmin();
+  if (!currentProfile) {
+    return { success: false, message: "No autorizado" };
+  }
 
+  try {
     const updatedUser = await db.transaction(async (tx) => {
       const existingProfile = await tx.query.users.findFirst({
         where: eq(users.id, profileId),
@@ -624,7 +632,7 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
         fromStatus: existingProfile.status,
         toStatus: "verified",
         reason: verificationReasonForStatus(existingProfile.status),
-        createdByUserId: currentProfile?.id,
+        createdByUserId: currentProfile.id,
         userUpdates: {
           verifiedAt: new Date(),
           category,
@@ -719,9 +727,12 @@ export async function fetchBaseProfileByClerkId(
 }
 
 export async function disableProfile(id: number) {
-  try {
-    const currentProfile = await getCurrentUserProfile();
+  const currentProfile = await requireAdmin();
+  if (!currentProfile) {
+    return { success: false, message: "No autorizado" };
+  }
 
+  try {
     const existingProfile = await db.transaction(async (tx) => {
       const profile = await tx.query.users.findFirst({
         where: eq(users.id, id),
@@ -736,7 +747,7 @@ export async function disableProfile(id: number) {
         fromStatus: profile.status,
         toStatus: "banned",
         reason: "Deshabilitación manual por administrador.",
-        createdByUserId: currentProfile?.id,
+        createdByUserId: currentProfile.id,
       });
 
       return profile;
@@ -762,32 +773,50 @@ export async function rejectProfile(
   profile: BaseProfile,
   rejectReason: string,
 ) {
-  try {
-    const currentProfile = await getCurrentUserProfile();
+  const currentProfile = await requireAdmin();
+  if (!currentProfile) {
+    return { success: false, message: "No autorizado" };
+  }
 
-    const existingProfile = await db.transaction(async (tx) => {
+  try {
+    const outcome = await db.transaction(async (tx) => {
       const freshProfile = await tx.query.users.findFirst({
         where: eq(users.id, profile.id),
       });
 
       if (!freshProfile) {
-        return null;
+        return { result: "not_found" as const };
       }
 
+      // Rejecting closes the pending review. Verified, paused and banned
+      // accounts have their own lifecycle actions and must not land here.
+      if (freshProfile.status !== "pending") {
+        return { result: "not_pending" as const };
+      }
+
+      // `fromStatus` is pinned rather than read back, so a status change
+      // between the read and the write fails instead of being overwritten.
       await updateUserStatusWithAudit(tx, {
         userId: profile.id,
-        fromStatus: freshProfile.status,
+        fromStatus: "pending",
         toStatus: "rejected",
         reason: rejectReason,
-        createdByUserId: currentProfile?.id,
+        createdByUserId: currentProfile.id,
       });
 
-      return freshProfile;
+      return { result: "rejected" as const, profile: freshProfile };
     });
 
-    if (!existingProfile) {
+    if (outcome.result === "not_found") {
       return { success: false, message: "Perfil no encontrado" };
     }
+    if (outcome.result === "not_pending") {
+      return {
+        success: false,
+        message: "Solo se pueden rechazar perfiles pendientes.",
+      };
+    }
+    const existingProfile = outcome.profile;
 
     await sendEmail({
       to: [existingProfile.email],

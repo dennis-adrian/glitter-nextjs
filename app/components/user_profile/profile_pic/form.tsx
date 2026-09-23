@@ -16,6 +16,7 @@ export default function ProfilePictureForm(props: ProfilePictureFormProps) {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(
     props.profile.imageUrl,
   );
+  const [uploadReceipt, setUploadReceipt] = useState<string | null>(null);
   const [uploadStarted, setUploadStarted] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const form = useForm();
@@ -23,7 +24,11 @@ export default function ProfilePictureForm(props: ProfilePictureFormProps) {
   const action: () => void = form.handleSubmit(async () => {
     if (!uploadedImageUrl) return;
 
-    const res = await updateProfilePicture(props.profile, uploadedImageUrl);
+    const res = await updateProfilePicture(
+      props.profile.id,
+      uploadedImageUrl,
+      uploadReceipt,
+    );
     if (res.success) {
       toast.success(res.message);
       if (props.onSuccess) props.onSuccess();
@@ -38,6 +43,7 @@ export default function ProfilePictureForm(props: ProfilePictureFormProps) {
         <ProfilePicUpload
           imageUrl={uploadedImageUrl}
           setImageUrl={setUploadedImageUrl}
+          setUploadReceipt={setUploadReceipt}
           profile={props.profile}
           onUploading={(isUploading) => {
             setIsUploading(isUploading);

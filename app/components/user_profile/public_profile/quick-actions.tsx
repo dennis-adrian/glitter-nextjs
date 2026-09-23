@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
+import { useCanManageProfiles } from "@/app/components/dashboard/dashboard-viewer-provider";
 import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-modal";
 import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
 import { DisableProfileModal } from "@/app/components/users/form/disable-profile-modal";
@@ -63,11 +64,19 @@ export default function ProfileQuickActions({
   const [openRejectModal, setOpenRejectModal] = useState(false);
   const [openPauseModal, setOpenPauseModal] = useState(false);
   const [openUnpauseModal, setOpenUnpauseModal] = useState(false);
+  // The lifecycle actions behind these entries are admin-only on the server.
+  // Festival admins reach this menu through the dashboard, so the entries are
+  // shown disabled with the reason instead of silently failing on click.
+  const canManageProfiles = useCanManageProfiles();
+  const adminOnlyTitle = canManageProfiles ? undefined : "Solo administradores";
+  // Kept separate from `canManageProfiles`: this one drives the label, which
+  // has to keep describing the profile's status for every viewer.
   const allowVerify =
     profile.status !== "verified" && profile.status !== "paused";
-  const canPause =
+  // Status decides whether these entries appear; the role only disables them.
+  const showPause =
     profile.status === "verified" && activitySummary?.isPauseEligible === true;
-  const canUnpause = profile.status === "paused";
+  const showUnpause = profile.status === "paused";
   const participantProfile =
     activitySummary !== undefined ? { ...profile, activitySummary } : undefined;
 
@@ -117,7 +126,8 @@ export default function ProfileQuickActions({
             ),
           )}
           <DropdownMenuItem
-            disabled={!allowVerify}
+            disabled={!canManageProfiles || !allowVerify}
+            title={adminOnlyTitle}
             onClick={() => setOpenVerifyModal(true)}
           >
             {allowVerify ? (
@@ -132,9 +142,13 @@ export default function ProfileQuickActions({
               </span>
             )}
           </DropdownMenuItem>
-          {profile.status !== "verified" && profile.status !== "banned" ? (
+          {/* Rejecting is part of the pending review only. A rejected profile
+              keeps the entry, disabled, as its status; every other status has
+              its own lifecycle actions and does not show it at all. */}
+          {profile.status === "pending" || profile.status === "rejected" ? (
             <DropdownMenuItem
-              disabled={profile.status === "rejected"}
+              disabled={!canManageProfiles || profile.status === "rejected"}
+              title={adminOnlyTitle}
               onClick={() => setOpenRejectModal(true)}
             >
               <XCircleIcon className="h-4 w-4 mr-1" />
@@ -143,7 +157,8 @@ export default function ProfileQuickActions({
           ) : null}
           {profile.status !== "pending" && profile.status !== "rejected" && (
             <DropdownMenuItem
-              disabled={profile.status === "banned"}
+              disabled={!canManageProfiles || profile.status === "banned"}
+              title={adminOnlyTitle}
               onClick={() => setOpenDisableModal(true)}
             >
               {profile.status === "banned" ? (
@@ -159,14 +174,22 @@ export default function ProfileQuickActions({
               )}
             </DropdownMenuItem>
           )}
-          {canPause && participantProfile ? (
-            <DropdownMenuItem onClick={() => setOpenPauseModal(true)}>
+          {showPause && participantProfile ? (
+            <DropdownMenuItem
+              disabled={!canManageProfiles}
+              title={adminOnlyTitle}
+              onClick={() => setOpenPauseModal(true)}
+            >
               <PauseCircleIcon className="h-4 w-4 mr-1" />
               Pausar cuenta
             </DropdownMenuItem>
           ) : null}
-          {canUnpause ? (
-            <DropdownMenuItem onClick={() => setOpenUnpauseModal(true)}>
+          {showUnpause ? (
+            <DropdownMenuItem
+              disabled={!canManageProfiles}
+              title={adminOnlyTitle}
+              onClick={() => setOpenUnpauseModal(true)}
+            >
               <CircleCheckBigIcon className="h-4 w-4 mr-1" />
               Reactivar cuenta
             </DropdownMenuItem>
@@ -184,6 +207,8 @@ export default function ProfileQuickActions({
           )}
           <DropdownMenuItem
             className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
+            disabled={!canManageProfiles}
+            title={adminOnlyTitle}
             onClick={() => setOpenDeleteModal(true)}
           >
             <Trash2Icon className="h-4 w-4 mr-1" />

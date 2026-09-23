@@ -1,3 +1,4 @@
+import DashboardViewerProvider from "@/app/components/dashboard/dashboard-viewer-provider";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -24,5 +25,9 @@ export default async function Layout({
     redirect("/");
   }
 
-  return <>{children}</>;
+  return (
+    <DashboardViewerProvider viewer={{ id: profile.id, role: profile.role }}>
+      {children}
+    </DashboardViewerProvider>
+  );
 }
