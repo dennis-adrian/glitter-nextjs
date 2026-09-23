@@ -46,24 +46,24 @@ Targeted collection, catalog and form tests, TypeScript and changed-file lint pa
 
 ## Bundle proposal: fixed contents, shared inventory
 
-A bundle is a separately merchandised offer referencing existing products. Admins select its contents, quantities, name, cover and price. It is not a duplicate product with separately maintained stock.
+A bundle is a separately purchasable offer referencing existing products. Admins select its contents, quantities, name, cover and fixed discounted price. It has its own identity in the storefront, cart and order, but no duplicate products or separately maintained stock.
 
 ### Admin workflow
 
 1. Create a bundle; enter name, description and cover (optional fallback collage of component images).
 2. Add at least two different purchasable merch products and positive integer quantities. No nested bundles or rentals in v1.
-3. For each component, select a fixed variant or allow the customer to choose from explicitly eligible variants.
-4. Choose an optional collection; require its component products to belong to that collection.
+3. For each component, select a fixed variant or allow the customer to choose from explicitly eligible variants. Selectable variants must have the same individual selling price in v1, so the bundle price and displayed saving do not change with size or color.
+4. Optionally assign the bundle to one or more collections. Bundle membership is independent of its components' collection memberships, allowing cross-collection offers.
 5. Enter a fixed total in Bs. Display the current separate-purchase total and savings preview.
 6. Publish only when the price is positive and strictly below the separate-purchase total for every allowed variant combination. Price changes require revalidation; unavailable or no-longer-discounted combinations cannot be checked out as bundles.
 
-Start with fixed prices, not stacked percentage rules. If size/color variants have different prices, either constrain eligible variants to a shared price or make separate bundles. This keeps the displayed bundle total stable.
+Start with fixed bundle prices, not stacked percentage rules. If size/color variants have different prices, use only same-price eligible variants or make separate bundles.
 
 Example: shirt Bs100 + tote Bs60 + stickers Bs20 = Bs180 separately; bundle Bs150; “Ahorrás Bs30”. Compare against the actual current individual selling prices, including existing discounts, never an inflated list price.
 
 ### Customer experience
 
-- Separate “Combos” storefront section when published bundles exist.
+- Separate “Combos” storefront section when published bundles exist. Assigned bundles also appear in their collections.
 - Bundle page: cover, total, separate total struck through, savings, included products/quantities, required size/color selectors, availability and one add-to-cart button.
 - Cart: one grouped offer with expandable components. Change quantity or remove the whole bundle. To buy fewer components, remove it and purchase separately at individual prices.
 - No automatic bundle conversion when shoppers add individual products; no additional coupon stacking in v1.
@@ -72,18 +72,26 @@ Example: shirt Bs100 + tote Bs60 + stickers Bs20 = Bs180 separately; bundle Bs15
 
 - No independent bundle stock. Availability is limited by the scarcest component: `min(floor(available component stock / required quantity))` for the selected variants.
 - Aggregate demand across bundles AND individual cart lines before checking stock. Two bundles sharing a shirt cannot both consume the same last shirt.
-- Reuse the existing stock reservation/deduction lifecycle. Lock component stock rows in deterministic order, revalidate visibility/variants/current prices, and reserve/deduct all components atomically. A failed component rejects the whole bundle.
-- Persist stable bundle identity in guest and authenticated carts; server resolves all contents and prices again at checkout. Do not trust totals or component lists from the browser.
+- Reuse the existing order-creation stock deduction and cancellation restoration. Lock product and variant stock rows in deterministic order, revalidate publication, merch category, purchase eligibility, variants, current individual prices and store availability, then deduct all components in one transaction. A failed component rejects the whole bundle.
+- Persist stable bundle identity and selected variants in guest and authenticated carts; server resolves all contents, price and stock again at checkout. Do not trust totals or component lists from the browser.
 - Preserve immutable order snapshots: bundle name/version, selected products/variants, quantities, component prices, allocated discount and final bundle total. Editing a bundle must never change an existing order.
-- Allocate the paid bundle price proportionally across component prices using integer cents and deterministic remainder allocation. Order totals, costs, margin reports and refunds must sum to the exact paid amount.
+- Allocate the paid bundle price proportionally across component prices using integer cents and deterministic remainder allocation, including when a component quantity exceeds one. Order totals, costs, margin reports and refunds must sum to the exact paid amount; the existing floating-point order-line price is insufficient as the source of truth for this allocation.
 - Full cancellation restores each component through existing lifecycle rules. Partial returns refund the component's paid allocation; never its undiscounted retail price. Extend admin adjustments, email receipts, exports and analytics to retain grouping and allocation.
 
 ### Suggested schema
 
-- `merch_bundles`: name, slug, cover, description, optional collection ID, price in fixed-precision money, publication status, version and timestamps.
+- `merch_bundles`: name, slug, cover, description, fixed-precision price, publication status, version and timestamps.
 - `merch_bundle_components`: bundle ID, product ID, optional fixed variant ID, quantity, display order. Explicit allowed-variant links for selectable components.
-- Cart bundle groups plus selected component variants; do not flatten away bundle identity.
-- Order bundle groups plus existing component order lines, immutable price/discount snapshots and per-component paid allocation.
+- `merch_bundle_collections`: bundle-to-collection membership, without requiring component products in those collections.
+- Authenticated cart bundle groups plus selected component variants; guest carts keep the same offer identity in local storage. Do not flatten away bundle identity.
+- Immutable order bundle groups linked to component order lines, with exact paid allocations in cents. Existing order totals, adjustment/return calculations and reporting must use those allocations.
+
+### Implementation sequence
+
+1. Add bundle and collection-membership tables, server validation and an admin editor with a searchable product picker. Keep new bundles unpublished until valid.
+2. Add the bundle storefront section and detail page, eligible-variant selection, and grouped guest/authenticated cart lines. Revalidate stale carts before checkout.
+3. Refactor order creation so identical product/variant components still retain bundle grouping; aggregate stock demand and lock rows in a stable order. Calculate bundle pricing and exact allocations on the server for both guest and authenticated checkout.
+4. Save immutable order snapshots and update order views, emails, exports, analytics, cancellation, adjustments and partial returns to show the bundle and use its paid allocations.
 
 ### Required verification for the bundle pass
 
