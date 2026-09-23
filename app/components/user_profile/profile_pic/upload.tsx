@@ -77,13 +77,17 @@ export default function ProfilePicUpload({
             });
           })
         }
-        onServerData={(serverData) => {
+        // An upload without a signed URL and receipt could never be saved, so
+        // it is reported as failed and the previous picture and receipt stay.
+        acceptServerData={(serverData) => {
           signedUpload.current = readSignedUpload(serverData);
+          return signedUpload.current !== null;
         }}
-        onUploadComplete={(uploadedUrl) => {
+        onUploadComplete={() => {
           const signed = signedUpload.current;
-          setImageUrl(signed?.imageUrl ?? uploadedUrl);
-          setUploadReceipt(signed?.receipt ?? null);
+          if (!signed) return;
+          setImageUrl(signed.imageUrl);
+          setUploadReceipt(signed.receipt);
         }}
         successMessage="La imagen se verá en un momento"
         tooLargeMessage="La imagen es demasiado grande. Máximo 4MB."
