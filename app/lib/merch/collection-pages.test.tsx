@@ -15,6 +15,9 @@ vi.mock("@/app/lib/merch/collections", () => ({
   fetchMerchCollections: async () => [collection],
 }));
 vi.mock("@/app/lib/products/actions", () => ({ fetchProducts: vi.fn() }));
+vi.mock("@/app/lib/merch/bundles", () => ({
+  fetchPublicBundles: async () => [],
+}));
 vi.mock("@/app/lib/rentals/eligibility", () => ({
   getRentalEligibilityForCurrentUser: vi.fn(),
 }));

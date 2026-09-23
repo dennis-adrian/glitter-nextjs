@@ -189,39 +189,37 @@ export async function fetchBundleEditorData(bundleId?: number) {
 }
 
 /** Published bundles that can currently be sold, in store order. */
-export const fetchPublicBundles = cache(
-  async (): Promise<PublicBundle[]> => {
-    const records = await loadBundleRecords(db, { visibleOnly: true });
-    const catalog = await loadBundleCatalog(db, componentProductIds(records));
-    return records.flatMap((record) => {
-      const evaluation = evaluateBundle(record, catalog, { mode: "sale" });
-      if (
-        evaluation.issues.length > 0 ||
-        evaluation.separateMinCents == null ||
-        evaluation.separateMaxCents == null
-      ) {
-        return [];
-      }
-      return [
-        {
-          id: record.id,
-          name: record.name,
-          slug: record.slug,
-          description: record.description,
-          imageUrl: record.imageUrl,
-          version: record.version,
-          sortOrder: record.sortOrder,
-          collectionIds: record.collectionIds,
-          priceCents: evaluation.priceCents,
-          separateMinCents: evaluation.separateMinCents,
-          separateMaxCents: evaluation.separateMaxCents,
-          components: evaluation.components,
-          inStock: bundleHasStock(evaluation.components),
-        },
-      ];
-    });
-  },
-);
+export const fetchPublicBundles = cache(async (): Promise<PublicBundle[]> => {
+  const records = await loadBundleRecords(db, { visibleOnly: true });
+  const catalog = await loadBundleCatalog(db, componentProductIds(records));
+  return records.flatMap((record) => {
+    const evaluation = evaluateBundle(record, catalog, { mode: "sale" });
+    if (
+      evaluation.issues.length > 0 ||
+      evaluation.separateMinCents == null ||
+      evaluation.separateMaxCents == null
+    ) {
+      return [];
+    }
+    return [
+      {
+        id: record.id,
+        name: record.name,
+        slug: record.slug,
+        description: record.description,
+        imageUrl: record.imageUrl,
+        version: record.version,
+        sortOrder: record.sortOrder,
+        collectionIds: record.collectionIds,
+        priceCents: evaluation.priceCents,
+        separateMinCents: evaluation.separateMinCents,
+        separateMaxCents: evaluation.separateMaxCents,
+        components: evaluation.components,
+        inStock: bundleHasStock(evaluation.components),
+      },
+    ];
+  });
+});
 
 export const fetchPublicBundle = cache(async (slug: string) => {
   const bundles = await fetchPublicBundles();
@@ -245,6 +243,13 @@ export type CartBundleRequest = {
 export async function resolveCartBundleLines(
   requests: readonly CartBundleRequest[],
   individualDemand: readonly StockDemandLine[],
+  options: {
+    /**
+     * Whether an unpublished bundle may show its name and price. Stored cart
+     * lines may; ids sent by anonymous clients must not expose drafts.
+     */
+    revealUnpublished?: boolean;
+  } = {},
 ): Promise<CartBundleLine[]> {
   if (requests.length === 0) return [];
   const records = await loadBundleRecords(db, {
@@ -260,8 +265,12 @@ export async function resolveCartBundleLines(
   );
 
   const resolved = requests.map((request) => {
-    const record = recordsById.get(request.bundleId);
-    const evaluation = evaluations.get(request.bundleId);
+    const found = recordsById.get(request.bundleId);
+    const record =
+      found && (found.isVisible || options.revealUnpublished)
+        ? found
+        : undefined;
+    const evaluation = record ? evaluations.get(request.bundleId) : undefined;
     const base: CartBundleLine = {
       key: request.key,
       cartBundleId: request.cartBundleId,
@@ -280,7 +289,12 @@ export async function resolveCartBundleLines(
       issue: null,
       message: null,
     };
-    if (!record || !evaluation || !record.isVisible || evaluation.issues.length) {
+    if (
+      !record ||
+      !evaluation ||
+      !record.isVisible ||
+      evaluation.issues.length
+    ) {
       return {
         ...base,
         issue: "unavailable" as const,
@@ -465,8 +479,10 @@ export async function findBundleProductReferences(
       bundleName: merchBundles.name,
     })
     .from(merchBundleComponents)
-    .innerJoin(merchBundles, eq(merchBundles.id, merchBundleComponents.bundleId))
+    .innerJoin(
+      merchBundles,
+      eq(merchBundles.id, merchBundleComponents.bundleId),
+    )
     .where(inArray(merchBundleComponents.productId, [...productIds]))
     .limit(1);
 }
-

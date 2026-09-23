@@ -2,7 +2,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getOrderLineLabel } from "@/app/lib/orders/utils";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import Image from "next/image";
 
@@ -34,7 +34,7 @@ export default function OrderItemOverview({
       </div>
       <div>
         <p className="text-card-foreground font-semibold text-sm">
-          {getOrderItemDisplayName(item)}
+          {getOrderLineLabel(item)}
         </p>
         <p className="text-card-foreground text-xs">
           Bs{item.priceAtPurchase.toFixed(2)}

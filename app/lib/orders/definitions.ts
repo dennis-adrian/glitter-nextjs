@@ -35,8 +35,14 @@ export type OrderItemWithRelations = BaseOrderItem & {
     | null;
 };
 
+export type OrderBundleWithItems = OrderBundleSnapshot & {
+  items: OrderBundleItemSnapshot[];
+};
+
 export type OrderWithRelations = BaseOrder & {
   orderItems: OrderItemWithRelations[];
+  /** Bundles bought in the order, with their component allocations. */
+  bundles?: OrderBundleWithItems[];
   // null for guest orders (userId is null)
   customer:
     | (BaseProfile & {

@@ -170,7 +170,8 @@ export function evaluateBundle(
       productSlug: product.slug,
       productStatus: product.status,
       productAvailableDate: product.availableDate,
-      imageUrl: options[0]?.imageUrl ?? getProductVariantImageUrl(product, null),
+      imageUrl:
+        options[0]?.imageUrl ?? getProductVariantImageUrl(product, null),
       quantity: component.quantity,
       choice: !hasVariants
         ? "none"
@@ -379,7 +380,9 @@ export function maxBundleQuantity(
 }
 
 /** Whether at least one bundle can be bought with some allowed combination. */
-export function bundleHasStock(components: readonly EvaluatedBundleComponent[]) {
+export function bundleHasStock(
+  components: readonly EvaluatedBundleComponent[],
+) {
   if (components.length === 0) return false;
   // Components sharing a product compete for the same pools; check every
   // pool against the combined demand of the options that could draw from it.
@@ -392,12 +395,17 @@ export function bundleHasStock(components: readonly EvaluatedBundleComponent[]) 
     if (component.options.length === 1) {
       const [option] = component.options;
       const key = stockResourceKey(component.productId, option.variantId);
-      const current = fixedDemand.get(key) ?? { stock: option.stock, demand: 0 };
+      const current = fixedDemand.get(key) ?? {
+        stock: option.stock,
+        demand: 0,
+      };
       current.demand += component.quantity;
       fixedDemand.set(key, current);
     }
   }
-  return [...fixedDemand.values()].every((entry) => entry.stock >= entry.demand);
+  return [...fixedDemand.values()].every(
+    (entry) => entry.stock >= entry.demand,
+  );
 }
 
 export type AllocationInput = {

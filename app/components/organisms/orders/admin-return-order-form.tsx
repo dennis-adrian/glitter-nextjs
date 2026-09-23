@@ -93,6 +93,8 @@ export default function AdminReturnOrderForm({
               <p className="text-sm text-muted-foreground">
                 Bs {item.priceAtPurchase.toFixed(2)} c/u · máximo{" "}
                 {item.quantity}
+                {item.bundleAllocation &&
+                  ` · combo ${item.bundleAllocation.orderBundle.nameSnapshot}: se reembolsa lo pagado dentro del combo`}
               </p>
             </div>
             <Input

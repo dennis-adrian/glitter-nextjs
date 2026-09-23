@@ -53,6 +53,6 @@ pnpm db:test:up && pnpm migrate:test
 
 - `pnpm seed` includes products and collections after users/festivals. `pnpm seed:merch` seeds only the merch fixtures, with the same development/local-database gate.
 - Run `pnpm env:sync` first and supply the isolated Docker `POSTGRES_URL` explicitly, as in `docs/testing-with-docker-postgres.md`.
-- Fixtures include sizes (one sold out), sale/presale/out-of-stock items, hidden merch, a supplies control item, independent collections and an optional festival association.
+- Fixtures include sizes (one sold out), sale/presale/out-of-stock items, hidden merch, a supplies control item, independent collections, an optional festival association, and bundles (one sellable with a size choice, one sold out, one draft).
 - Re-running adds only missing demo slugs; it preserves existing stock, admin edits, publication settings and product memberships.
 - Demo artwork lives under `public/img/seed-merch/`; these are illustrative fixtures, not real storefront inventory.

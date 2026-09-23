@@ -85,8 +85,7 @@ export async function saveMerchBundle(
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0].message };
   }
-  const { id, components: rawComponents, collectionIds, ...data } =
-    parsed.data;
+  const { id, components: rawComponents, collectionIds, ...data } = parsed.data;
   const components = rawComponents.map((component) => ({
     ...component,
     variantIds: [...new Set(component.variantIds)].sort((a, b) => a - b),
@@ -95,7 +94,10 @@ export async function saveMerchBundle(
     .map((component) => component.id)
     .filter((value): value is number => value != null);
   if (new Set(submittedIds).size !== submittedIds.length) {
-    return { success: false, message: "El combo contiene productos repetidos." };
+    return {
+      success: false,
+      message: "El combo contiene productos repetidos.",
+    };
   }
 
   try {
@@ -116,7 +118,9 @@ export async function saveMerchBundle(
           component,
         ]),
       );
-      if (submittedIds.some((componentId) => !existingComponents.has(componentId))) {
+      if (
+        submittedIds.some((componentId) => !existingComponents.has(componentId))
+      ) {
         throw new BundleSaveError(
           "El combo cambió en otra sesión. Recargá la página.",
         );
@@ -144,7 +148,9 @@ export async function saveMerchBundle(
         const variantIds = new Set(
           (product.variants ?? []).map((variant) => variant.id),
         );
-        if (component.variantIds.some((variantId) => !variantIds.has(variantId))) {
+        if (
+          component.variantIds.some((variantId) => !variantIds.has(variantId))
+        ) {
           throw new BundleSaveError(
             `Una variante elegida no pertenece a ${product.name}.`,
           );

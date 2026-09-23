@@ -3794,8 +3794,11 @@ export const merchBundles = pgTable(
     slug: text("slug").notNull().unique(),
     description: text("description"),
     imageUrl: text("image_url"),
-    price: numeric("price", { precision: 10, scale: 2, mode: "number" })
-      .notNull(),
+    price: numeric("price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
     isVisible: boolean("is_visible").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(1),
     version: integer("version").notNull().default(1),
@@ -4081,10 +4084,7 @@ export const orderBundleItems = pgTable(
       columns: [t.orderItemId, t.orderId],
       foreignColumns: [orderItems.id, orderItems.orderId],
     }).onDelete("cascade"),
-    check(
-      "order_bundle_items_units_positive",
-      sql`${t.unitsPerBundle} > 0`,
-    ),
+    check("order_bundle_items_units_positive", sql`${t.unitsPerBundle} > 0`),
     check(
       "order_bundle_items_paid_within_list",
       sql`${t.paidUnitPriceCents} >= 0 AND ${t.paidUnitPriceCents} <= ${t.listUnitPriceCents}`,

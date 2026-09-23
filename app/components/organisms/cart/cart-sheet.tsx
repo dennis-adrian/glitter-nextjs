@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { BundleCartRow } from "@/app/components/organisms/cart/bundle-cart-row";
 import CartItemRow from "@/app/components/organisms/cart/cart-item-row";
 import { CartSheetCheckoutFooter } from "@/app/components/organisms/cart/cart-sheet-checkout-footer";
 import { CartSheetEmptyState } from "@/app/components/organisms/cart/cart-sheet-empty-state";
@@ -12,22 +13,129 @@ import GuestCartItemRow from "@/app/components/organisms/cart/guest-cart-item-ro
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import {
+  acceptCartBundleChanges,
   fetchCartItemCount,
   fetchCartWithItems,
+  removeCartBundle,
+  resolveGuestCartBundles,
+  updateCartBundleQuantity,
   validateGuestCartStock,
+  type GuestBundleInput,
   type GuestStockValidationResult,
 } from "@/app/lib/cart/actions";
-import { CartWithItems } from "@/app/lib/cart/definitions";
-import { getCartItemWarnings } from "@/app/lib/cart/utils";
+import type {
+  CartWithItems,
+  GuestCartBundle,
+  GuestCartItem,
+} from "@/app/lib/cart/definitions";
+import {
+  getBundleDemandLines,
+  getCartItemWarnings,
+  toGuestCartBundle,
+} from "@/app/lib/cart/utils";
+import type { CartBundleLine } from "@/app/lib/merch/bundle-definitions";
 import {
   getLineUnitPrice,
   getProductPriceAtPurchase,
 } from "@/app/lib/orders/utils";
 import CartItemSkeleton from "./cart-item-skeleton";
 
+function toGuestBundleInputs(bundles: GuestCartBundle[]): GuestBundleInput[] {
+  return bundles.map((bundle) => ({
+    lineKey: bundle.lineKey,
+    bundleId: bundle.bundleId,
+    bundleVersion: bundle.bundleVersion,
+    quantity: bundle.quantity,
+    selections: bundle.selections,
+  }));
+}
+
+function toGuestItemInputs(items: GuestCartItem[]) {
+  return items.map((i) => ({
+    lineKey: i.lineKey,
+    productId: i.productId,
+    productVariantId: i.productVariantId,
+    quantity: i.quantity,
+  }));
+}
+
+function AuthBundleCartRow({
+  line,
+  onCartUpdate,
+}: {
+  line: CartBundleLine;
+  onCartUpdate: () => Promise<void>;
+}) {
+  const [pending, setPending] = useState(false);
+
+  async function run(
+    action: () => Promise<{ success: boolean; error?: string }>,
+    fallback: string,
+  ) {
+    setPending(true);
+    try {
+      const result = await action();
+      if (!result.success) {
+        toast.error(
+          result.error === "stock_insufficient"
+            ? "No hay stock suficiente para esa cantidad."
+            : (result.error ?? fallback),
+        );
+      }
+      await onCartUpdate();
+    } catch {
+      toast.error(fallback);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <BundleCartRow
+      name={line.name}
+      imageUrl={line.imageUrl}
+      unitPriceCents={line.unitPriceCents}
+      separateUnitPriceCents={line.separateUnitPriceCents}
+      quantity={line.quantity}
+      maxQuantity={line.maxQuantity}
+      components={line.components}
+      issue={line.issue}
+      message={line.message}
+      pending={pending}
+      onQuantityChange={(quantity) =>
+        run(
+          () => updateCartBundleQuantity(line.cartBundleId!, quantity),
+          "No se pudo actualizar la cantidad",
+        )
+      }
+      onRemove={() =>
+        run(
+          () => removeCartBundle(line.cartBundleId!),
+          "No se pudo eliminar el combo del carrito",
+        )
+      }
+      onAcceptChanges={() =>
+        run(
+          () => acceptCartBundleChanges(line.cartBundleId!),
+          "No se pudo actualizar el combo",
+        )
+      }
+    />
+  );
+}
+
 export default function CartSheet() {
-  const { isOpen, closeCart, setItemCount, isAuthenticated, guestItems } =
-    useCartContext();
+  const {
+    isOpen,
+    closeCart,
+    setItemCount,
+    isAuthenticated,
+    guestItems,
+    guestBundles,
+    removeGuestBundle,
+    updateGuestBundleQuantity,
+    replaceGuestBundle,
+  } = useCartContext();
   const router = useRouter();
   const [cartData, setCartData] = useState<CartWithItems | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,6 +146,10 @@ export default function CartSheet() {
   const [guestStockIssues, setGuestStockIssues] = useState<
     GuestStockValidationResult[]
   >([]);
+  const [guestBundleLines, setGuestBundleLines] = useState<
+    CartBundleLine[] | null
+  >(null);
+  const guestBundleGenerationRef = useRef(0);
 
   const loadCart = useCallback(
     async (silent = false) => {
@@ -54,10 +166,14 @@ export default function CartSheet() {
             setCartData(result.data);
             setFetchError(false);
             setItemCount(
-              result.data?.items.reduce(
+              (result.data?.items.reduce(
                 (sum, item) => sum + item.quantity,
                 0,
-              ) ?? 0,
+              ) ?? 0) +
+                (result.data?.bundles.reduce(
+                  (sum, bundle) => sum + bundle.quantity,
+                  0,
+                ) ?? 0),
             );
           } else {
             setFetchError(true);
@@ -93,35 +209,73 @@ export default function CartSheet() {
       });
   }, [setItemCount, isAuthenticated]);
 
+  // Guest bundles are re-priced and stock-checked on the server whenever the
+  // open cart changes; the stored snapshot is only a fallback while loading.
+  useEffect(() => {
+    if (isAuthenticated || !isOpen || guestBundles.length === 0) return;
+    const generation = ++guestBundleGenerationRef.current;
+    resolveGuestCartBundles(
+      toGuestBundleInputs(guestBundles),
+      toGuestItemInputs(guestItems),
+    )
+      .then((lines) => {
+        if (generation === guestBundleGenerationRef.current) {
+          setGuestBundleLines(lines);
+        }
+      })
+      .catch(() => {
+        if (generation === guestBundleGenerationRef.current) {
+          setGuestBundleLines(null);
+        }
+      });
+  }, [isAuthenticated, isOpen, guestBundles, guestItems]);
+
   // ── Guest cart ────────────────────────────────────────────────────────────
   if (!isAuthenticated) {
-    const guestTotal = guestItems.reduce(
-      (sum, item) =>
-        sum +
-        getProductPriceAtPurchase(item.product, item.variant) * item.quantity,
-      0,
+    const resolvedByKey = new Map(
+      (guestBundleLines ?? []).map((line) => [line.key, line]),
     );
+    const guestDisplayBundles = guestBundles.map((bundle) => ({
+      bundle,
+      line: resolvedByKey.get(bundle.lineKey) ?? null,
+    }));
+    const guestTotal =
+      guestItems.reduce(
+        (sum, item) =>
+          sum +
+          getProductPriceAtPurchase(item.product, item.variant) * item.quantity,
+        0,
+      ) +
+      guestDisplayBundles.reduce(
+        (sum, { bundle, line }) =>
+          sum +
+          ((line?.unitPriceCents || bundle.unitPriceCents) * bundle.quantity) /
+            100,
+        0,
+      );
     const stockIssuesMap = new Map(guestStockIssues.map((s) => [s.lineKey, s]));
-    const hasStockIssues = guestStockIssues.some(
-      (s) => s.isOutOfStock || s.quantityExceedsStock,
+    const hasBundleIssues = guestDisplayBundles.some(
+      ({ line }) => line?.issue != null,
     );
+    const hasStockIssues =
+      guestStockIssues.some((s) => s.isOutOfStock || s.quantityExceedsStock) ||
+      hasBundleIssues;
+    const isEmpty = guestItems.length === 0 && guestBundles.length === 0;
 
     async function handleGuestCheckout() {
       setGuestStockIssues([]);
       setGuestValidating(true);
       try {
-        const results = await validateGuestCartStock(
-          guestItems.map((i) => ({
-            lineKey: i.lineKey,
-            productId: i.productId,
-            productVariantId: i.productVariantId,
-            quantity: i.quantity,
-          })),
-        );
+        const bundleInputs = toGuestBundleInputs(guestBundles);
+        const [results, bundleLines] = await Promise.all([
+          validateGuestCartStock(toGuestItemInputs(guestItems), bundleInputs),
+          resolveGuestCartBundles(bundleInputs, toGuestItemInputs(guestItems)),
+        ]);
+        setGuestBundleLines(bundleLines);
         const issues = results.filter(
           (r) => r.isOutOfStock || r.quantityExceedsStock,
         );
-        if (issues.length > 0) {
+        if (issues.length > 0 || bundleLines.some((line) => line.issue)) {
           setGuestStockIssues(issues);
           return;
         }
@@ -140,10 +294,53 @@ export default function CartSheet() {
         onClose={closeCart}
         body={
           <>
-            {guestItems.length === 0 && <CartSheetEmptyState />}
+            {isEmpty && <CartSheetEmptyState />}
 
-            {guestItems.length > 0 && (
+            {!isEmpty && (
               <div>
+                {guestDisplayBundles.map(({ bundle, line }) => (
+                  <BundleCartRow
+                    key={bundle.lineKey}
+                    name={
+                      line && line.issue !== "unavailable"
+                        ? line.name
+                        : bundle.name
+                    }
+                    imageUrl={line?.imageUrl ?? bundle.imageUrl}
+                    unitPriceCents={
+                      line?.unitPriceCents || bundle.unitPriceCents
+                    }
+                    separateUnitPriceCents={
+                      line?.separateUnitPriceCents ||
+                      bundle.separateUnitPriceCents
+                    }
+                    quantity={bundle.quantity}
+                    maxQuantity={line ? line.maxQuantity : null}
+                    components={
+                      line?.components.length
+                        ? line.components
+                        : bundle.components
+                    }
+                    issue={line?.issue ?? null}
+                    message={line?.message ?? null}
+                    onQuantityChange={(quantity) =>
+                      updateGuestBundleQuantity(bundle.lineKey, quantity)
+                    }
+                    onRemove={() => removeGuestBundle(bundle.lineKey)}
+                    onAcceptChanges={
+                      line?.currentVersion != null
+                        ? () =>
+                            replaceGuestBundle(
+                              bundle.lineKey,
+                              toGuestCartBundle(line, {
+                                bundleVersion: line.currentVersion!,
+                                quantity: bundle.quantity,
+                              }),
+                            )
+                        : undefined
+                    }
+                  />
+                ))}
                 {guestItems.map((item) => (
                   <GuestCartItemRow
                     key={item.lineKey}
@@ -156,12 +353,12 @@ export default function CartSheet() {
           </>
         }
         footer={
-          guestItems.length > 0 ? (
+          !isEmpty ? (
             <CartSheetCheckoutFooter
               showStockWarning={hasStockIssues}
               total={guestTotal}
               onCheckout={handleGuestCheckout}
-              disabled={guestValidating}
+              disabled={guestValidating || hasBundleIssues}
               pending={guestValidating}
             />
           ) : undefined
@@ -171,22 +368,30 @@ export default function CartSheet() {
   }
 
   // ── Authenticated cart ────────────────────────────────────────────────────
-  const hasWarnings = cartData?.items.some((item) => {
-    const w = getCartItemWarnings(item, cartData.items);
-    return w.isOutOfStock || w.quantityExceedsStock;
-  });
+  const bundleLines = cartData?.bundles ?? [];
+  const bundleDemand = getBundleDemandLines(bundleLines);
+  const hasWarnings =
+    cartData?.items.some((item) => {
+      const w = getCartItemWarnings(item, cartData.items, bundleDemand);
+      return w.isOutOfStock || w.quantityExceedsStock;
+    }) || bundleLines.some((line) => line.issue != null);
 
   const total =
-    cartData?.items.reduce((sum, item) => {
+    (cartData?.items.reduce((sum, item) => {
       return (
         sum +
         getLineUnitPrice(item.product, item.variant, item.transactionType) *
           item.quantity
       );
-    }, 0) ?? 0;
+    }, 0) ?? 0) +
+    bundleLines.reduce(
+      (sum, line) => sum + (line.unitPriceCents * line.quantity) / 100,
+      0,
+    );
+  const isEmpty =
+    !cartData || (cartData.items.length === 0 && bundleLines.length === 0);
 
-  const showAuthFooter =
-    !loading && !fetchError && cartData && cartData.items.length > 0;
+  const showAuthFooter = !loading && !fetchError && !isEmpty;
 
   return (
     <CartSheetShell
@@ -211,18 +416,23 @@ export default function CartSheet() {
             </div>
           )}
 
-          {!loading &&
-            !fetchError &&
-            cartData &&
-            cartData.items.length === 0 && <CartSheetEmptyState />}
+          {!loading && !fetchError && isEmpty && <CartSheetEmptyState />}
 
-          {!loading && !fetchError && cartData && cartData.items.length > 0 && (
+          {!loading && !fetchError && cartData && !isEmpty && (
             <div>
+              {bundleLines.map((line) => (
+                <AuthBundleCartRow
+                  key={line.key}
+                  line={line}
+                  onCartUpdate={() => loadCart(true)}
+                />
+              ))}
               {cartData.items.map((item) => (
                 <CartItemRow
                   key={item.id}
                   item={item}
                   allItems={cartData.items}
+                  bundleDemand={bundleDemand}
                   onCartUpdate={() => loadCart(true)}
                 />
               ))}

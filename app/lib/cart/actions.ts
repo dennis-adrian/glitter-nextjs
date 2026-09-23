@@ -212,12 +212,12 @@ async function getCartStockLimit(
         variant,
         transactionType,
         cartItemsForProduct.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        productVariantId: item.productVariantId,
-        transactionType: item.transactionType,
-        quantity: item.quantity,
-      })),
+          id: item.id,
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          transactionType: item.transactionType,
+          quantity: item.quantity,
+        })),
         {
           id: excludeCartItemId,
           productId: product.id,
@@ -358,6 +358,7 @@ export async function fetchCartWithItems(): Promise<{
           rentalStockMode: item.product.rentalStockMode,
         })),
       ),
+      { revealUnpublished: true },
     );
     return { success: true, data: { ...cart, bundles } };
   } catch (error) {
@@ -380,7 +381,11 @@ function toSaleDemand(
     .filter(
       (item) =>
         getStockPoolForTransaction(
-          { stock: null, rentalStock: null, rentalStockMode: item.rentalStockMode },
+          {
+            stock: null,
+            rentalStock: null,
+            rentalStockMode: item.rentalStockMode,
+          },
           item.transactionType,
         ) === "sale",
     )
@@ -784,7 +789,9 @@ async function resolveUserCartBundles(
       ? { ...request, quantity: override.quantity }
       : request,
   );
-  return resolveCartBundleLines(requests, await loadCartSaleDemand(cartId));
+  return resolveCartBundleLines(requests, await loadCartSaleDemand(cartId), {
+    revealUnpublished: true,
+  });
 }
 
 export async function addBundleToCart(
@@ -938,7 +945,10 @@ export async function updateCartBundleQuantity(
     const cart = await findUserCart(user.id);
     if (!cart) return { success: true };
     const row = await db.query.cartBundles.findFirst({
-      where: and(eq(cartBundles.id, cartBundleId), eq(cartBundles.cartId, cart.id)),
+      where: and(
+        eq(cartBundles.id, cartBundleId),
+        eq(cartBundles.cartId, cart.id),
+      ),
     });
     if (!row) return { success: true };
 
@@ -1013,7 +1023,8 @@ export async function acceptCartBundleChanges(
     const line = (await resolveUserCartBundles(cart.id)).find(
       (entry) => entry.cartBundleId === cartBundleId,
     );
-    if (!line) return { success: false, error: "El combo ya no está en tu carrito." };
+    if (!line)
+      return { success: false, error: "El combo ya no está en tu carrito." };
     if (line.issue !== "stale" || line.currentVersion == null) {
       return {
         success: line.issue == null,

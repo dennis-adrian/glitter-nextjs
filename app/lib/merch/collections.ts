@@ -112,10 +112,8 @@ export async function fetchMerchCollections(): Promise<MerchCollection[]> {
         )
     : [];
 
-  const collections = new Map<
-    number,
-    MerchCollection & { sortOrder: number }
-  >();
+  const collections = new Map<number, MerchCollection>();
+  const sortOrders = new Map<number, number>();
   for (const row of [
     ...rows,
     ...bundleOnlyRows.map((row) => ({ ...row, productId: null })),
@@ -129,7 +127,6 @@ export async function fetchMerchCollections(): Promise<MerchCollection[]> {
       campaignImageUrl: row.campaignImageUrl,
       campaignTextTone: row.campaignTextTone,
       showInHero: row.showInHero,
-      sortOrder: row.sortOrder,
       productIds: [],
       bundleIds: bundles
         .filter((bundle) => bundle.collectionIds.includes(row.id))
@@ -137,10 +134,11 @@ export async function fetchMerchCollections(): Promise<MerchCollection[]> {
     };
     if (row.productId != null) collection.productIds.push(row.productId);
     collections.set(row.id, collection);
+    sortOrders.set(row.id, row.sortOrder);
   }
-  return [...collections.values()]
-    .sort((a, b) => a.sortOrder - b.sortOrder || b.id - a.id)
-    .map(({ sortOrder: _sortOrder, ...collection }) => collection);
+  return [...collections.values()].sort(
+    (a, b) => sortOrders.get(a.id)! - sortOrders.get(b.id)! || b.id - a.id,
+  );
 }
 
 export async function fetchCollectionManagement() {

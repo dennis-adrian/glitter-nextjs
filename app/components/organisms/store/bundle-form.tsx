@@ -11,7 +11,10 @@ import { Input } from "@/app/components/ui/input";
 import { Textarea } from "@/app/components/ui/textarea";
 import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
 import BundleCover from "./bundle-cover";
-import { deleteMerchBundle, saveMerchBundle } from "@/app/lib/merch/bundle-actions";
+import {
+  deleteMerchBundle,
+  saveMerchBundle,
+} from "@/app/lib/merch/bundle-actions";
 import type {
   BundleCatalogProduct,
   BundleRecord,
@@ -41,10 +44,7 @@ type EditableComponent = {
 };
 
 const normalize = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLocaleLowerCase("es");
+  value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("es");
 
 function productPriceLabel(product: BundleCatalogProduct) {
   const variants = (product.variants ?? []).filter((v) => v.isVisible);
@@ -78,14 +78,14 @@ export default function BundleForm({
   collectionOptions: CollectionOption[];
 }) {
   const router = useRouter();
-  const productsById = new Map(products.map((product) => [product.id, product]));
+  const productsById = new Map(
+    products.map((product) => [product.id, product]),
+  );
   const [name, setName] = useState(bundle?.name ?? "");
   const [description, setDescription] = useState(bundle?.description ?? "");
   const [imageUrl, setImageUrl] = useState(bundle?.imageUrl ?? "");
   const [isVisible, setIsVisible] = useState(bundle?.isVisible ?? false);
-  const [price, setPrice] = useState(
-    bundle ? String(bundle.price) : "",
-  );
+  const [price, setPrice] = useState(bundle ? String(bundle.price) : "");
   const [components, setComponents] = useState<EditableComponent[]>(
     () =>
       bundle?.components.map((component) => ({
@@ -244,7 +244,10 @@ export default function BundleForm({
               checked={isVisible}
               onCheckedChange={(checked) => setIsVisible(checked === true)}
             />
-            <label htmlFor="bundle-visible" className="cursor-pointer font-medium">
+            <label
+              htmlFor="bundle-visible"
+              className="cursor-pointer font-medium"
+            >
               Publicar en la tienda
             </label>
           </div>
@@ -279,7 +282,9 @@ export default function BundleForm({
           />
           <span className="block text-xs font-normal text-muted-foreground">
             Letras minúsculas, números y guiones. Enlace:{" "}
-            {bundle ? merchBundlePath(bundle.slug) : "/merch/combos/kit-clasicos"}
+            {bundle
+              ? merchBundlePath(bundle.slug)
+              : "/merch/combos/kit-clasicos"}
             . Cambiarlo modifica el enlace compartido.
           </span>
         </label>
@@ -324,7 +329,11 @@ export default function BundleForm({
             />
           </label>
           {imageUrl && (
-            <Button type="button" variant="ghost" onClick={() => setImageUrl("")}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setImageUrl("")}
+            >
               Quitar portada
             </Button>
           )}
@@ -347,17 +356,20 @@ export default function BundleForm({
             {components.map((component, index) => {
               const product = productsById.get(component.productId);
               const componentIssues = evaluation.issues.filter(
-                (issue) =>
-                  issue.componentId === (component.id ?? -(index + 1)),
+                (issue) => issue.componentId === (component.id ?? -(index + 1)),
               );
               const variants = product?.variants ?? [];
               return (
-                <li key={component.uid} className="space-y-3 rounded-xl border p-4">
+                <li
+                  key={component.uid}
+                  className="space-y-3 rounded-xl border p-4"
+                >
                   <div className="flex flex-wrap items-start gap-3">
                     <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted">
                       <Image
                         src={
-                          (product && getProductVariantImageUrl(product, null)) ??
+                          (product &&
+                            getProductVariantImageUrl(product, null)) ??
                           PLACEHOLDER_IMAGE_URLS["300"]
                         }
                         alt=""
@@ -366,7 +378,8 @@ export default function BundleForm({
                         className="object-cover"
                       />
                     </div>
-                    <div className="min-w-0 flex-1">
+                    {/* Wide enough that the controls wrap below on phones. */}
+                    <div className="min-w-48 flex-1">
                       <p className="break-words font-medium">
                         {product?.name ?? "Producto eliminado"}
                       </p>
@@ -405,7 +418,9 @@ export default function BundleForm({
                         aria-label={`Quitar ${product?.name ?? "producto"}`}
                         onClick={() =>
                           setComponents((current) =>
-                            current.filter((entry) => entry.uid !== component.uid),
+                            current.filter(
+                              (entry) => entry.uid !== component.uid,
+                            ),
                           )
                         }
                       >
@@ -444,7 +459,9 @@ export default function BundleForm({
                       </legend>
                       <div className="grid gap-1 sm:grid-cols-2">
                         {variants.map((variant) => {
-                          const checked = component.variantIds.includes(variant.id);
+                          const checked = component.variantIds.includes(
+                            variant.id,
+                          );
                           const inputId = `bundle-${component.uid}-variant-${variant.id}`;
                           return (
                             <div
@@ -466,14 +483,21 @@ export default function BundleForm({
                                   }))
                                 }
                               />
-                              <label htmlFor={inputId} className="cursor-pointer">
-                                {getVariantLabel(variant) ?? `Variante #${variant.id}`}
+                              <label
+                                htmlFor={inputId}
+                                className="cursor-pointer"
+                              >
+                                {getVariantLabel(variant) ??
+                                  `Variante #${variant.id}`}
                                 <span className="text-muted-foreground">
                                   {" "}
                                   ·{" "}
                                   {formatBundleMoney(
                                     toCents(
-                                      getProductPriceAtPurchase(product, variant),
+                                      getProductPriceAtPurchase(
+                                        product,
+                                        variant,
+                                      ),
                                     ),
                                   )}{" "}
                                   · stock {variant.stock}
@@ -577,7 +601,9 @@ export default function BundleForm({
             <div>
               <dt className="text-muted-foreground">Ahorro del cliente</dt>
               <dd className="font-medium">
-                {savingsCents != null && savingsCents > 0 && evaluation.priceCents > 0
+                {savingsCents != null &&
+                savingsCents > 0 &&
+                evaluation.priceCents > 0
                   ? `${formatBundleMoney(savingsCents)} (${Math.round(
                       (savingsCents / evaluation.separateMinCents!) * 100,
                     )}%)`
@@ -594,17 +620,19 @@ export default function BundleForm({
               className="list-disc space-y-1 pl-5 text-sm text-amber-700"
               aria-live="polite"
             >
-              {[...new Set(evaluation.issues.map((issue) => issue.message))].map(
-                (message) => (
-                  <li key={message}>{message}</li>
-                ),
-              )}
+              {[
+                ...new Set(evaluation.issues.map((issue) => issue.message)),
+              ].map((message) => (
+                <li key={message}>{message}</li>
+              ))}
             </ul>
           )}
         </div>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Colecciones (opcional)</legend>
+          <legend className="text-sm font-medium">
+            Colecciones (opcional)
+          </legend>
           <p className="text-xs text-muted-foreground">
             El combo aparece en estas colecciones aunque sus productos no
             pertenezcan a ellas.

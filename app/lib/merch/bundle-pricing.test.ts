@@ -297,8 +297,20 @@ describe("evaluateBundle", () => {
       evaluateBundle(
         bundle({
           components: [
-            { id: 101, productId: 1, quantity: 1, sortOrder: 0, variantIds: [] },
-            { id: 102, productId: 2, quantity: 1, sortOrder: 1, variantIds: [] },
+            {
+              id: 101,
+              productId: 1,
+              quantity: 1,
+              sortOrder: 0,
+              variantIds: [],
+            },
+            {
+              id: 102,
+              productId: 2,
+              quantity: 1,
+              sortOrder: 1,
+              variantIds: [],
+            },
           ],
         }),
         catalog,
@@ -318,7 +330,11 @@ describe("resolveBundleSelection", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(
-      result.components.map((c) => [c.productId, c.productVariantId, c.quantity]),
+      result.components.map((c) => [
+        c.productId,
+        c.productVariantId,
+        c.quantity,
+      ]),
     ).toEqual([
       [1, 12, 1],
       [2, null, 1],

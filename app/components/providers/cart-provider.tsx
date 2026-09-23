@@ -1,8 +1,16 @@
 "use client";
 
-import { GuestCartItem } from "@/app/lib/cart/definitions";
-import { GUEST_CART_KEY, MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
-import { buildCartLineKey } from "@/app/lib/cart/utils";
+import type {
+  GuestCartBundle,
+  GuestCartItem,
+} from "@/app/lib/cart/definitions";
+import {
+  GUEST_CART_BUNDLES_KEY,
+  GUEST_CART_KEY,
+  MAX_CART_LINE_QUANTITY,
+} from "@/app/lib/constants";
+import { buildBundleLineKey, buildCartLineKey } from "@/app/lib/cart/utils";
+import { MAX_CART_BUNDLE_QUANTITY } from "@/app/lib/merch/bundle-schema";
 import {
   createContext,
   useCallback,
@@ -24,6 +32,13 @@ type CartContextValue = {
   addGuestItem: (item: GuestCartItem) => void;
   removeGuestItem: (lineKey: string) => void;
   updateGuestItemQuantity: (lineKey: string, quantity: number) => void;
+  guestBundles: GuestCartBundle[];
+  /** Adds a bundle line, capped by `maxQuantity` and the per-line limit. */
+  addGuestBundle: (bundle: GuestCartBundle, maxQuantity: number) => void;
+  removeGuestBundle: (lineKey: string) => void;
+  updateGuestBundleQuantity: (lineKey: string, quantity: number) => void;
+  /** Replaces a bundle's snapshot (e.g. after the customer accepts changes). */
+  replaceGuestBundle: (lineKey: string, bundle: GuestCartBundle) => void;
   clearGuestCart: () => void;
 };
 
@@ -117,6 +132,68 @@ function writeGuestCart(items: GuestCartItem[]) {
   }
 }
 
+const isPositiveInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+
+function normalizeGuestCartBundle(
+  bundle: Partial<GuestCartBundle>,
+): GuestCartBundle | null {
+  if (
+    !isPositiveInteger(bundle.bundleId) ||
+    !isPositiveInteger(bundle.bundleVersion) ||
+    !isPositiveInteger(bundle.quantity) ||
+    !Array.isArray(bundle.selections) ||
+    !bundle.selections.every(
+      (selection) =>
+        isPositiveInteger(selection?.componentId) &&
+        isPositiveInteger(selection?.productVariantId),
+    ) ||
+    typeof bundle.name !== "string" ||
+    typeof bundle.unitPriceCents !== "number" ||
+    !Array.isArray(bundle.components)
+  ) {
+    return null;
+  }
+  return {
+    lineKey: buildBundleLineKey(bundle.bundleId, bundle.selections),
+    bundleId: bundle.bundleId,
+    bundleVersion: bundle.bundleVersion,
+    quantity: Math.min(bundle.quantity, MAX_CART_BUNDLE_QUANTITY),
+    selections: bundle.selections,
+    name: bundle.name,
+    slug: typeof bundle.slug === "string" ? bundle.slug : "",
+    imageUrl: typeof bundle.imageUrl === "string" ? bundle.imageUrl : null,
+    unitPriceCents: bundle.unitPriceCents,
+    separateUnitPriceCents:
+      typeof bundle.separateUnitPriceCents === "number"
+        ? bundle.separateUnitPriceCents
+        : bundle.unitPriceCents,
+    components: bundle.components,
+  };
+}
+
+function readGuestBundles(): GuestCartBundle[] {
+  try {
+    const stored = localStorage.getItem(GUEST_CART_BUNDLES_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as Partial<GuestCartBundle>[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(normalizeGuestCartBundle)
+      .filter((bundle): bundle is GuestCartBundle => bundle !== null);
+  } catch {
+    return [];
+  }
+}
+
+function writeGuestBundles(bundles: GuestCartBundle[]) {
+  try {
+    localStorage.setItem(GUEST_CART_BUNDLES_KEY, JSON.stringify(bundles));
+  } catch {
+    // localStorage unavailable (e.g. private mode quota exceeded) — ignore
+  }
+}
+
 export function CartProvider({
   initialItemCount,
   isAuthenticated,
@@ -129,18 +206,26 @@ export function CartProvider({
   const [itemCount, setItemCount] = useState(initialItemCount);
   const [isOpen, setIsOpen] = useState(false);
   const [guestItems, setGuestItems] = useState<GuestCartItem[]>([]);
+  const [guestBundles, setGuestBundles] = useState<GuestCartBundle[]>([]);
   const [guestCartHydrated, setGuestCartHydrated] = useState(false);
 
   // Hydrate guest cart from localStorage after mount (client only).
   // When authenticated, skip localStorage but still mark hydrated so consumers never wait forever.
   useEffect(() => {
     if (!isAuthenticated) {
-      const items = readGuestCart();
-      setGuestItems(items);
-      setItemCount(items.reduce((sum, i) => sum + i.quantity, 0));
+      setGuestItems(readGuestCart());
+      setGuestBundles(readGuestBundles());
     }
     setGuestCartHydrated(true);
   }, [isAuthenticated]);
+
+  // Guest counts derive from both line kinds; authenticated counts come from
+  // the server through setItemCount.
+  const cartItemCount =
+    !isAuthenticated && guestCartHydrated
+      ? guestItems.reduce((sum, i) => sum + i.quantity, 0) +
+        guestBundles.reduce((sum, b) => sum + b.quantity, 0)
+      : itemCount;
 
   const openCart = useCallback(() => setIsOpen(true), []);
   const closeCart = useCallback(() => setIsOpen(false), []);
@@ -174,7 +259,6 @@ export function CartProvider({
         updatedGuestItems = [...prev, { ...incoming, quantity: cappedQty }];
       }
       writeGuestCart(updatedGuestItems);
-      setItemCount(updatedGuestItems.reduce((sum, i) => sum + i.quantity, 0));
       return updatedGuestItems;
     });
   }, []);
@@ -183,7 +267,6 @@ export function CartProvider({
     setGuestItems((prev) => {
       const updatedGuestItems = prev.filter((i) => i.lineKey !== lineKey);
       writeGuestCart(updatedGuestItems);
-      setItemCount(updatedGuestItems.reduce((sum, i) => sum + i.quantity, 0));
       return updatedGuestItems;
     });
   }, []);
@@ -217,8 +300,70 @@ export function CartProvider({
           }
         }
         writeGuestCart(updatedGuestItems);
-        setItemCount(updatedGuestItems.reduce((sum, i) => sum + i.quantity, 0));
         return updatedGuestItems;
+      });
+    },
+    [],
+  );
+
+  const addGuestBundle = useCallback(
+    (incoming: GuestCartBundle, maxQuantity: number) => {
+      setGuestBundles((prev) => {
+        const existing = prev.find((b) => b.lineKey === incoming.lineKey);
+        const quantity = Math.min(
+          (existing?.quantity ?? 0) + incoming.quantity,
+          MAX_CART_BUNDLE_QUANTITY,
+          Math.max(existing?.quantity ?? 0, maxQuantity),
+        );
+        const updated = existing
+          ? prev.map((b) =>
+              b.lineKey === incoming.lineKey ? { ...incoming, quantity } : b,
+            )
+          : quantity > 0
+            ? [...prev, { ...incoming, quantity }]
+            : prev;
+        writeGuestBundles(updated);
+        return updated;
+      });
+    },
+    [],
+  );
+
+  const removeGuestBundle = useCallback((lineKey: string) => {
+    setGuestBundles((prev) => {
+      const updated = prev.filter((b) => b.lineKey !== lineKey);
+      writeGuestBundles(updated);
+      return updated;
+    });
+  }, []);
+
+  const updateGuestBundleQuantity = useCallback(
+    (lineKey: string, quantity: number) => {
+      setGuestBundles((prev) => {
+        const updated =
+          quantity <= 0
+            ? prev.filter((b) => b.lineKey !== lineKey)
+            : prev.map((b) =>
+                b.lineKey === lineKey
+                  ? {
+                      ...b,
+                      quantity: Math.min(quantity, MAX_CART_BUNDLE_QUANTITY),
+                    }
+                  : b,
+              );
+        writeGuestBundles(updated);
+        return updated;
+      });
+    },
+    [],
+  );
+
+  const replaceGuestBundle = useCallback(
+    (lineKey: string, bundle: GuestCartBundle) => {
+      setGuestBundles((prev) => {
+        const updated = prev.map((b) => (b.lineKey === lineKey ? bundle : b));
+        writeGuestBundles(updated);
+        return updated;
       });
     },
     [],
@@ -227,13 +372,15 @@ export function CartProvider({
   const clearGuestCart = useCallback(() => {
     setGuestItems([]);
     writeGuestCart([]);
+    setGuestBundles([]);
+    writeGuestBundles([]);
     setItemCount(0);
   }, []);
 
   return (
     <CartContext.Provider
       value={{
-        itemCount,
+        itemCount: cartItemCount,
         setItemCount,
         isOpen,
         openCart,
@@ -244,6 +391,11 @@ export function CartProvider({
         addGuestItem,
         removeGuestItem,
         updateGuestItemQuantity,
+        guestBundles,
+        addGuestBundle,
+        removeGuestBundle,
+        updateGuestBundleQuantity,
+        replaceGuestBundle,
         clearGuestCart,
       }}
     >

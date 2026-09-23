@@ -89,6 +89,7 @@ import {
   getOrderStatusLabel,
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
+  splitOrderItemsByBundle,
   toAdminOrderListRow,
 } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -305,6 +306,11 @@ const orderRelations = {
           orderBundle: true,
         },
       },
+    },
+  },
+  bundles: {
+    with: {
+      items: true,
     },
   },
 } as const;
@@ -608,7 +614,9 @@ async function resolveOrderLines(
         component.productVariantId != null
           ? (variantMap.get(component.productVariantId) ?? null)
           : null;
-      if (validateCombinedSharedStockDemand(demandLines, product, variant) < 0) {
+      if (
+        validateCombinedSharedStockDemand(demandLines, product, variant) < 0
+      ) {
         const label = component.variantLabel
           ? `${product.name} (${component.variantLabel})`
           : product.name;
@@ -2705,6 +2713,12 @@ export type UpdateOrderItemInput = {
   quantity: number; // 0 = remove
 };
 
+/** Whole-bundle change: customers can only keep fewer complete bundles. */
+export type UpdateOrderBundleInput = {
+  orderBundleId: number;
+  quantity: number; // 0 = remove
+};
+
 export type UpdateOrderResult = {
   success: boolean;
   message: string;
@@ -2717,6 +2731,7 @@ export async function updateOrder(
   profileId: number,
   items: UpdateOrderItemInput[],
   clientUpdatedAt: string,
+  bundles: UpdateOrderBundleInput[] = [],
 ): Promise<UpdateOrderResult> {
   const currentUser = await getCurrentUserProfile();
   const order = await fetchOrder(orderId);
@@ -2765,6 +2780,49 @@ export async function updateOrder(
       quantityDelta: (requested.get(item.id) ?? item.quantity) - item.quantity,
     }))
     .filter(({ quantityDelta }) => quantityDelta !== 0);
+  if (changedItems.some(({ item }) => item.bundleAllocation != null)) {
+    return {
+      success: false,
+      cause: "forbidden",
+      message:
+        "Los productos de un combo solo se pueden quitar junto con el combo completo.",
+    };
+  }
+  const bundleGroups = new Map(
+    splitOrderItemsByBundle(order).bundles.map((group) => [
+      group.bundle.id,
+      group,
+    ]),
+  );
+  for (const change of bundles) {
+    const group = bundleGroups.get(change.orderBundleId);
+    if (
+      !group ||
+      group.wholeQuantity == null ||
+      !Number.isInteger(change.quantity) ||
+      change.quantity < 0 ||
+      change.quantity > group.wholeQuantity
+    ) {
+      return {
+        success: false,
+        cause: "forbidden",
+        message: "Solo podés reducir o quitar combos completos.",
+      };
+    }
+    const removed = group.wholeQuantity - change.quantity;
+    if (removed === 0) continue;
+    for (const allocation of group.bundle.items) {
+      const item = group.items.find(
+        (entry) => entry.id === allocation.orderItemId,
+      );
+      if (item) {
+        changedItems.push({
+          item,
+          quantityDelta: -removed * allocation.unitsPerBundle,
+        });
+      }
+    }
+  }
   try {
     const adjustment = await applyOrderAdjustment({
       orderId,
@@ -2935,6 +2993,21 @@ export async function adminAdjustOrder(rawInput: AdminAdjustOrderInput) {
       quantityDelta: (requested.get(item.id) ?? item.quantity) - item.quantity,
     }))
     .filter(({ quantityDelta }) => quantityDelta !== 0);
+  // Bundle components were paid at a bundle allocation; extra units must be
+  // added as individual products at their own price.
+  if (
+    changedItems.some(
+      ({ item, quantityDelta }) =>
+        item.bundleAllocation != null && quantityDelta > 0,
+    )
+  ) {
+    return {
+      success: false,
+      cause: "invalid_quantity",
+      message:
+        "No se puede aumentar un artículo de un combo. Agregalo como producto individual.",
+    };
+  }
   try {
     const adjustment = await applyOrderAdjustment({
       orderId: input.orderId,

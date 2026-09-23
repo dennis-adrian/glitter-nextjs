@@ -1,4 +1,5 @@
 import { fetchPublicMerchCollection } from "./collections";
+import type { MerchCollection } from "./definitions";
 import { merchCollectionPath } from "./paths";
 
 type ReturnLink = { href: string; label: string };
@@ -15,6 +16,28 @@ const sorts = new Set(["featured", "newest", "price-asc", "price-desc"]);
 export async function resolveMerchProductReturn(
   productId: number,
   rawReturnTo: string | string[] | undefined,
+): Promise<ReturnLink> {
+  return resolveMerchReturn(rawReturnTo, "#catalogo", (collection) =>
+    collection.productIds.includes(productId),
+  );
+}
+
+/** Bundle pages return to the store or to a collection that lists them. */
+export async function resolveMerchBundleReturn(
+  bundleId: number,
+  rawReturnTo: string | string[] | undefined,
+): Promise<ReturnLink> {
+  return resolveMerchReturn(
+    rawReturnTo,
+    "#combos",
+    (collection) => !!collection.bundleIds?.includes(bundleId),
+  );
+}
+
+async function resolveMerchReturn(
+  rawReturnTo: string | string[] | undefined,
+  anchor: string,
+  belongsTo: (collection: MerchCollection) => boolean,
 ): Promise<ReturnLink> {
   if (
     typeof rawReturnTo !== "string" ||
@@ -37,7 +60,7 @@ export async function resolveMerchProductReturn(
   if (query && query.length <= 200) filters.set("q", query);
   if (sort && sorts.has(sort)) filters.set("sort", sort);
   if (url.searchParams.get("available") === "1") filters.set("available", "1");
-  const suffix = `${filters.size ? `?${filters}` : ""}#catalogo`;
+  const suffix = `${filters.size ? `?${filters}` : ""}${anchor}`;
 
   if (url.pathname === "/merch")
     return { href: `/merch${suffix}`, label: fallback.label };
@@ -45,7 +68,7 @@ export async function resolveMerchProductReturn(
   const slug = collectionPath.exec(url.pathname)?.[1];
   if (!slug) return fallback;
   const collection = await fetchPublicMerchCollection(slug);
-  if (!collection?.productIds.includes(productId)) return fallback;
+  if (!collection || !belongsTo(collection)) return fallback;
   return {
     href: `${merchCollectionPath(collection.slug)}${suffix}`,
     label: `Volver a ${collection.name}`,

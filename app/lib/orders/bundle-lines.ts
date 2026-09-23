@@ -104,7 +104,10 @@ export function resolveOrderBundles(
     }
     const record = recordsById.get(request.bundleId);
     if (!record || !record.isVisible) {
-      fail("Un combo de tu carrito ya no está disponible.", "bundle_unavailable");
+      fail(
+        "Un combo de tu carrito ya no está disponible.",
+        "bundle_unavailable",
+      );
     }
     const evaluation = evaluateBundle(record, catalog, { mode: "sale" });
     if (evaluation.issues.length > 0) {
