@@ -374,6 +374,9 @@ export default function CollectionForm({
               type="search"
               value={productSearch}
               onChange={(event) => setProductSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.preventDefault();
+              }}
               placeholder="Nombre del producto"
             />
           </label>

@@ -112,7 +112,7 @@ export default function MerchStorefront({
             Merch de Glitter
           </h1>
           <p className="mt-4">
-            Descubrí nuestros festivals y ediciones especiales.
+            Descubrí nuestros festivales y ediciones especiales.
           </p>
           <Button asChild size="sm" className="mt-6">
             <Link href="#catalogo">Explorar merch</Link>
