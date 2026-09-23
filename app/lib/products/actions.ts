@@ -8,6 +8,10 @@ import { revalidatePath } from "next/cache";
 
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
 import { syncMerchCollections } from "@/app/lib/merch/collections";
+import {
+  findBundleProductReferences,
+  findBundleVariantReferences,
+} from "@/app/lib/merch/bundles";
 import { isLowStockLevel } from "@/app/lib/products/low-stock";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
@@ -15,6 +19,7 @@ import type { StoreCategory } from "@/app/lib/store/category";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  cartBundleSelections,
   cartItems,
   orderItems,
   productImages,
@@ -301,10 +306,23 @@ async function assertVariantsCanBeDeleted(tx: ProductTx, variantIds: number[]) {
     .where(inArray(cartItems.productVariantId, variantIds))
     .limit(1);
 
-  if (referencedCartItem.length > 0) {
+  const referencedCartBundle = await tx
+    .select({ variantId: cartBundleSelections.productVariantId })
+    .from(cartBundleSelections)
+    .where(inArray(cartBundleSelections.productVariantId, variantIds))
+    .limit(1);
+
+  if (referencedCartItem.length > 0 || referencedCartBundle.length > 0) {
     throw new Error(
       "No se pueden eliminar variantes que todavía están en carritos activos.",
       { cause: "variant_in_active_cart" },
+    );
+  }
+
+  if ((await findBundleVariantReferences(tx, variantIds)).length > 0) {
+    throw new Error(
+      "No se pueden eliminar variantes que forman parte de un combo. Quitalas del combo primero.",
+      { cause: "variant_in_bundle" },
     );
   }
 
@@ -791,7 +809,8 @@ export async function updateProduct(id: number, data: NewProductData) {
     if (
       error instanceof Error &&
       (error.cause === "variant_in_active_cart" ||
-        error.cause === "variant_in_order")
+        error.cause === "variant_in_order" ||
+        error.cause === "variant_in_bundle")
     ) {
       return { success: false, message: error.message };
     }
@@ -816,6 +835,14 @@ export async function deleteProduct(id: number) {
     return {
       success: false,
       message: "No tienes permisos para realizar esta acción.",
+    };
+  }
+
+  const [bundleReference] = await findBundleProductReferences(db, [id]);
+  if (bundleReference) {
+    return {
+      success: false,
+      message: `Este producto forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`,
     };
   }
 
@@ -1091,6 +1118,14 @@ export async function bulkDeleteProducts(
     return {
       success: false,
       message: "No tienes permisos para realizar esta acción.",
+    };
+  }
+
+  const [bundleReference] = await findBundleProductReferences(db, ids);
+  if (bundleReference) {
+    return {
+      success: false,
+      message: `Un producto seleccionado forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`,
     };
   }
 

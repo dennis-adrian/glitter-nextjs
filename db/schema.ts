@@ -3221,6 +3221,7 @@ export const orders = pgTable(
 );
 export const ordersRelations = relations(orders, ({ many, one }) => ({
   orderItems: many(orderItems),
+  bundles: many(orderBundles),
   events: many(orderEvents),
   adjustments: many(orderAdjustments),
   returns: many(orderReturns),
@@ -3658,6 +3659,7 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
     references: [standReservations.id],
   }),
   rentalReturnLogs: many(rentalReturnLogs),
+  bundleAllocation: one(orderBundleItems),
 }));
 
 export const carts = pgTable("carts", {
@@ -3672,6 +3674,7 @@ export const carts = pgTable("carts", {
 export const cartsRelations = relations(carts, ({ one, many }) => ({
   user: one(users, { fields: [carts.userId], references: [users.id] }),
   items: many(cartItems),
+  bundles: many(cartBundles),
 }));
 
 export const cartItems = pgTable(
@@ -3777,6 +3780,346 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
     references: [standReservations.id],
   }),
 }));
+
+/**
+ * A fixed-price offer made of existing merch products. It owns no stock: every
+ * checkout deducts the component products/variants. `version` changes whenever
+ * the price or contents change so carts and orders can detect stale offers.
+ */
+export const merchBundles = pgTable(
+  "merch_bundles",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    description: text("description"),
+    imageUrl: text("image_url"),
+    price: numeric("price", { precision: 10, scale: 2, mode: "number" })
+      .notNull(),
+    isVisible: boolean("is_visible").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(1),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check("merch_bundles_price_positive", sql`${t.price} > 0`),
+    check("merch_bundles_version_positive", sql`${t.version} >= 1`),
+  ],
+);
+
+export const merchBundleComponents = pgTable(
+  "merch_bundle_components",
+  {
+    id: serial("id").primaryKey(),
+    bundleId: integer("bundle_id")
+      .notNull()
+      .references(() => merchBundles.id, { onDelete: "cascade" }),
+    // Products in a bundle cannot be deleted until they leave the bundle.
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("merch_bundle_components_bundle_idx").on(t.bundleId),
+    index("merch_bundle_components_product_idx").on(t.productId),
+    unique("merch_bundle_components_id_product_unique").on(t.id, t.productId),
+    check(
+      "merch_bundle_components_quantity_positive",
+      sql`${t.quantity} > 0 AND ${t.quantity} <= 99`,
+    ),
+  ],
+);
+
+/**
+ * Eligible variants of a component. One row fixes the variant; several let the
+ * customer choose. Components of products without variants have no rows.
+ */
+export const merchBundleComponentVariants = pgTable(
+  "merch_bundle_component_variants",
+  {
+    componentId: integer("component_id").notNull(),
+    productId: integer("product_id").notNull(),
+    variantId: integer("variant_id").notNull(),
+  },
+  (t) => [
+    uniqueIndex("merch_bundle_component_variants_unique").on(
+      t.componentId,
+      t.variantId,
+    ),
+    index("merch_bundle_component_variants_variant_idx").on(t.variantId),
+    foreignKey({
+      name: "merch_bundle_component_variants_component_fk",
+      columns: [t.componentId, t.productId],
+      foreignColumns: [
+        merchBundleComponents.id,
+        merchBundleComponents.productId,
+      ],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "merch_bundle_component_variants_variant_fk",
+      columns: [t.variantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+  ],
+);
+
+// Bundle membership is independent of the components' own collections.
+export const merchBundleCollections = pgTable(
+  "merch_bundle_collections",
+  {
+    bundleId: integer("bundle_id")
+      .notNull()
+      .references(() => merchBundles.id, { onDelete: "cascade" }),
+    collectionId: integer("collection_id")
+      .notNull()
+      .references(() => merchCollections.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    uniqueIndex("merch_bundle_collections_unique").on(
+      t.bundleId,
+      t.collectionId,
+    ),
+    index("merch_bundle_collections_collection_idx").on(t.collectionId),
+  ],
+);
+
+export const merchBundlesRelations = relations(merchBundles, ({ many }) => ({
+  components: many(merchBundleComponents),
+  collections: many(merchBundleCollections),
+}));
+
+export const merchBundleComponentsRelations = relations(
+  merchBundleComponents,
+  ({ one, many }) => ({
+    bundle: one(merchBundles, {
+      fields: [merchBundleComponents.bundleId],
+      references: [merchBundles.id],
+    }),
+    product: one(products, {
+      fields: [merchBundleComponents.productId],
+      references: [products.id],
+    }),
+    variants: many(merchBundleComponentVariants),
+  }),
+);
+
+export const merchBundleComponentVariantsRelations = relations(
+  merchBundleComponentVariants,
+  ({ one }) => ({
+    component: one(merchBundleComponents, {
+      fields: [merchBundleComponentVariants.componentId],
+      references: [merchBundleComponents.id],
+    }),
+    variant: one(productVariants, {
+      fields: [merchBundleComponentVariants.variantId],
+      references: [productVariants.id],
+    }),
+  }),
+);
+
+export const merchBundleCollectionsRelations = relations(
+  merchBundleCollections,
+  ({ one }) => ({
+    bundle: one(merchBundles, {
+      fields: [merchBundleCollections.bundleId],
+      references: [merchBundles.id],
+    }),
+    collection: one(merchCollections, {
+      fields: [merchBundleCollections.collectionId],
+      references: [merchCollections.id],
+    }),
+  }),
+);
+
+/**
+ * A bundle offer in an authenticated cart. Only its identity is stored; price,
+ * contents and stock are resolved again whenever the cart is read or checked
+ * out. `selectionKey` is the canonical component→variant choice so repeated
+ * adds of the same configuration merge into one line.
+ */
+export const cartBundles = pgTable(
+  "cart_bundles",
+  {
+    id: serial("id").primaryKey(),
+    cartId: integer("cart_id")
+      .notNull()
+      .references(() => carts.id, { onDelete: "cascade" }),
+    bundleId: integer("bundle_id")
+      .notNull()
+      .references(() => merchBundles.id, { onDelete: "cascade" }),
+    bundleVersion: integer("bundle_version").notNull(),
+    selectionKey: text("selection_key").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("cart_bundles_cart_bundle_selection_unique").on(
+      t.cartId,
+      t.bundleId,
+      t.selectionKey,
+    ),
+    index("cart_bundles_bundle_idx").on(t.bundleId),
+    check("cart_bundles_quantity_positive", sql`${t.quantity} > 0`),
+  ],
+);
+
+export const cartBundleSelections = pgTable(
+  "cart_bundle_selections",
+  {
+    cartBundleId: integer("cart_bundle_id")
+      .notNull()
+      .references(() => cartBundles.id, { onDelete: "cascade" }),
+    componentId: integer("component_id")
+      .notNull()
+      .references(() => merchBundleComponents.id, { onDelete: "cascade" }),
+    productVariantId: integer("product_variant_id")
+      .notNull()
+      .references(() => productVariants.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    uniqueIndex("cart_bundle_selections_unique").on(
+      t.cartBundleId,
+      t.componentId,
+    ),
+    index("cart_bundle_selections_variant_idx").on(t.productVariantId),
+  ],
+);
+
+export const cartBundlesRelations = relations(cartBundles, ({ one, many }) => ({
+  cart: one(carts, { fields: [cartBundles.cartId], references: [carts.id] }),
+  bundle: one(merchBundles, {
+    fields: [cartBundles.bundleId],
+    references: [merchBundles.id],
+  }),
+  selections: many(cartBundleSelections),
+}));
+
+export const cartBundleSelectionsRelations = relations(
+  cartBundleSelections,
+  ({ one }) => ({
+    cartBundle: one(cartBundles, {
+      fields: [cartBundleSelections.cartBundleId],
+      references: [cartBundles.id],
+    }),
+  }),
+);
+
+/**
+ * Immutable snapshot of a bundle bought in an order. Amounts are integer
+ * cents: `totalCents` is exactly what the customer paid for the group and the
+ * linked `order_bundle_items` allocations add up to it.
+ */
+export const orderBundles = pgTable(
+  "order_bundles",
+  {
+    id: serial("id").primaryKey(),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    bundleId: integer("bundle_id").references(() => merchBundles.id, {
+      onDelete: "set null",
+    }),
+    bundleVersion: integer("bundle_version").notNull(),
+    nameSnapshot: text("name_snapshot").notNull(),
+    slugSnapshot: text("slug_snapshot").notNull(),
+    imageUrlSnapshot: text("image_url_snapshot"),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    separateUnitPriceCents: integer("separate_unit_price_cents").notNull(),
+    totalCents: integer("total_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("order_bundles_id_order_id_unique").on(t.id, t.orderId),
+    index("order_bundles_order_idx").on(t.orderId),
+    index("order_bundles_bundle_idx").on(t.bundleId),
+    check("order_bundles_quantity_positive", sql`${t.quantity} > 0`),
+    check(
+      "order_bundles_price_discounted",
+      sql`${t.unitPriceCents} > 0 AND ${t.unitPriceCents} < ${t.separateUnitPriceCents}`,
+    ),
+    check(
+      "order_bundles_total_matches",
+      sql`${t.totalCents} = ${t.unitPriceCents} * ${t.quantity}`,
+    ),
+  ],
+);
+
+/**
+ * Links a component order line to its bundle. `paidUnitPriceCents` is the
+ * exact allocation of the bundle price to one unit of that line (the line's
+ * `price_at_purchase` mirrors it); `listUnitPriceCents` is the individual
+ * selling price the allocation was proportional to.
+ */
+export const orderBundleItems = pgTable(
+  "order_bundle_items",
+  {
+    id: serial("id").primaryKey(),
+    orderBundleId: integer("order_bundle_id").notNull(),
+    orderId: integer("order_id").notNull(),
+    orderItemId: integer("order_item_id").notNull().unique(),
+    unitsPerBundle: integer("units_per_bundle").notNull(),
+    listUnitPriceCents: integer("list_unit_price_cents").notNull(),
+    paidUnitPriceCents: integer("paid_unit_price_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("order_bundle_items_order_bundle_idx").on(t.orderBundleId),
+    foreignKey({
+      name: "order_bundle_items_order_bundle_fk",
+      columns: [t.orderBundleId, t.orderId],
+      foreignColumns: [orderBundles.id, orderBundles.orderId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "order_bundle_items_order_item_fk",
+      columns: [t.orderItemId, t.orderId],
+      foreignColumns: [orderItems.id, orderItems.orderId],
+    }).onDelete("cascade"),
+    check(
+      "order_bundle_items_units_positive",
+      sql`${t.unitsPerBundle} > 0`,
+    ),
+    check(
+      "order_bundle_items_paid_within_list",
+      sql`${t.paidUnitPriceCents} >= 0 AND ${t.paidUnitPriceCents} <= ${t.listUnitPriceCents}`,
+    ),
+  ],
+);
+
+export const orderBundlesRelations = relations(
+  orderBundles,
+  ({ one, many }) => ({
+    order: one(orders, {
+      fields: [orderBundles.orderId],
+      references: [orders.id],
+    }),
+    bundle: one(merchBundles, {
+      fields: [orderBundles.bundleId],
+      references: [merchBundles.id],
+    }),
+    items: many(orderBundleItems),
+  }),
+);
+
+export const orderBundleItemsRelations = relations(
+  orderBundleItems,
+  ({ one }) => ({
+    orderBundle: one(orderBundles, {
+      fields: [orderBundleItems.orderBundleId],
+      references: [orderBundles.id],
+    }),
+    orderItem: one(orderItems, {
+      fields: [orderBundleItems.orderItemId],
+      references: [orderItems.id],
+    }),
+  }),
+);
 
 export const infractionSeverityEnum = pgEnum("infraction_severity", [
   "low", // Minor issue, may result in a warning or soft sanction

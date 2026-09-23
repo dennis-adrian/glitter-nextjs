@@ -3,6 +3,8 @@
 import { cookies } from "next/headers";
 import { after } from "next/server";
 import {
+  orderBundleItems,
+  orderBundles,
   orderEvents,
   orderAdjustmentItems,
   orderAdjustments,
@@ -51,6 +53,17 @@ import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmat
 import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import { getVariantLabel } from "@/app/lib/products/variants";
+import { loadBundleCatalog } from "@/app/lib/merch/bundles";
+import {
+  bundleDemandLines,
+  bundleLockTargets,
+  describeOrderBundle,
+  lockBundleRecordsForCheckout,
+  planBundleOrderItems,
+  resolveOrderBundles,
+  type BundleOrderRequest,
+  type ResolvedOrderBundle,
+} from "@/app/lib/orders/bundle-lines";
 import { assertRentalEligibility } from "@/app/lib/rentals/eligibility";
 import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
 import {
@@ -177,6 +190,7 @@ export async function sendOrderEmails(emailData: {
     status: "available" | "presale" | "sale";
     availableDate: Date | null;
     transactionType?: ProductTransactionType;
+    components?: string[];
   }[];
   total: number;
 }) {
@@ -225,9 +239,13 @@ export type CreateOrderInTxResult = {
     status: "available" | "presale" | "sale";
     availableDate: Date | null;
     transactionType: ProductTransactionType;
+    /** Contents of a bundle entry, one "2 × Producto (Talla: M)" per line. */
+    components?: string[];
   }[];
   totalAmount: number;
 };
+
+export type { BundleOrderRequest };
 
 type OrderTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -282,6 +300,11 @@ const orderRelations = {
           },
         },
       },
+      bundleAllocation: {
+        with: {
+          orderBundle: true,
+        },
+      },
     },
   },
 } as const;
@@ -310,11 +333,26 @@ function mergeOrderLines(lines: OrderLineInput[]): OrderLineInput[] {
   return Array.from(merged.values());
 }
 
+type ProductRow = typeof products.$inferSelect;
+type VariantRow = typeof productVariants.$inferSelect;
+
+type ResolvedOrder = {
+  lines: ResolvedOrderLine[];
+  bundles: ResolvedOrderBundle[];
+  productMap: Map<number, ProductRow>;
+  variantMap: Map<number, VariantRow>;
+};
+
+function sortedUnique(values: readonly number[]) {
+  return [...new Set(values)].sort((a, b) => a - b);
+}
+
 async function resolveOrderLines(
   tx: OrderTx,
   lines: OrderLineInput[],
-): Promise<ResolvedOrderLine[]> {
-  if (lines.length === 0) {
+  bundleRequests: readonly BundleOrderRequest[] = [],
+): Promise<ResolvedOrder> {
+  if (lines.length === 0 && bundleRequests.length === 0) {
     throw new Error("No order items provided");
   }
 
@@ -327,22 +365,33 @@ async function resolveOrderLines(
     }
   }
 
-  const productIds = Array.from(
-    new Set(normalizedLines.map((line) => line.productId)),
+  // Bundles first (share lock), then every product and variant row in id
+  // order, so concurrent checkouts and adjustments cannot deadlock.
+  const bundleRecords = await lockBundleRecordsForCheckout(tx, bundleRequests);
+  const bundleTargets = bundleLockTargets(bundleRecords);
+  const lineProductIds = sortedUnique(
+    normalizedLines.map((line) => line.productId),
   );
-  const variantIds = Array.from(
-    new Set(
-      normalizedLines
-        .map((line) => line.productVariantId)
-        .filter((value): value is number => value != null),
-    ),
-  );
+  const productIds = sortedUnique([
+    ...lineProductIds,
+    ...bundleTargets.productIds,
+  ]);
+  const variantIds = sortedUnique([
+    ...normalizedLines
+      .map((line) => line.productVariantId)
+      .filter((value): value is number => value != null),
+    ...bundleTargets.variantIds,
+  ]);
 
-  const lockedProducts = await tx
-    .select()
-    .from(products)
-    .where(inArray(products.id, productIds))
-    .for("update");
+  const lockedProducts =
+    productIds.length > 0
+      ? await tx
+          .select()
+          .from(products)
+          .where(inArray(products.id, productIds))
+          .orderBy(asc(products.id))
+          .for("update")
+      : [];
 
   if (lockedProducts.length !== productIds.length) {
     const foundIds = new Set(lockedProducts.map((product) => product.id));
@@ -356,16 +405,19 @@ async function resolveOrderLines(
           .select()
           .from(productVariants)
           .where(inArray(productVariants.id, variantIds))
+          .orderBy(asc(productVariants.id))
           .for("update")
       : [];
 
   const productsWithVariants = new Set(
-    (
-      await tx
-        .select({ productId: productVariants.productId })
-        .from(productVariants)
-        .where(inArray(productVariants.productId, productIds))
-    ).map((row) => row.productId),
+    lineProductIds.length > 0
+      ? (
+          await tx
+            .select({ productId: productVariants.productId })
+            .from(productVariants)
+            .where(inArray(productVariants.productId, lineProductIds))
+        ).map((row) => row.productId)
+      : [],
   );
 
   if (lockedVariants.length !== variantIds.length) {
@@ -399,6 +451,26 @@ async function resolveOrderLines(
     selectionsByVariantId.set(selection.variantId, entries);
   }
 
+  // The rows are locked, so this read reflects exactly what will be sold.
+  const resolvedBundles =
+    bundleRecords.length > 0 || bundleRequests.length > 0
+      ? resolveOrderBundles(
+          bundleRequests,
+          bundleRecords,
+          await loadBundleCatalog(tx, bundleTargets.productIds),
+        )
+      : [];
+  // Individual lines and bundle components compete for the same stock.
+  const demandLines = [
+    ...normalizedLines.map((entry) => ({
+      productId: entry.productId,
+      productVariantId: entry.productVariantId ?? null,
+      quantity: entry.quantity,
+      transactionType: entry.transactionType ?? "purchase",
+    })),
+    ...bundleDemandLines(resolvedBundles),
+  ];
+
   const stockValidationErrors: string[] = [];
   const resolvedLines: ResolvedOrderLine[] = [];
   const contentSectionsByProductId = new Map<
@@ -406,7 +478,7 @@ async function resolveOrderLines(
     (typeof productContentSections)["$inferSelect"][]
   >();
 
-  for (const productId of productIds) {
+  for (const productId of lineProductIds) {
     const sections = await tx.query.productContentSections.findMany({
       where: eq(productContentSections.productId, productId),
     });
@@ -465,12 +537,7 @@ async function resolveOrderLines(
     }
 
     const sharedRemaining = validateCombinedSharedStockDemand(
-      normalizedLines.map((entry) => ({
-        productId: entry.productId,
-        productVariantId: entry.productVariantId ?? null,
-        quantity: entry.quantity,
-        transactionType: entry.transactionType ?? "purchase",
-      })),
+      demandLines,
       product,
       variant,
     );
@@ -523,13 +590,47 @@ async function resolveOrderLines(
     });
   }
 
+  const reported = new Set(
+    normalizedLines.map((line) =>
+      JSON.stringify([line.productId, line.productVariantId ?? null]),
+    ),
+  );
+  for (const bundle of resolvedBundles) {
+    for (const component of bundle.components) {
+      const key = JSON.stringify([
+        component.productId,
+        component.productVariantId,
+      ]);
+      if (reported.has(key)) continue;
+      reported.add(key);
+      const product = productMap.get(component.productId)!;
+      const variant =
+        component.productVariantId != null
+          ? (variantMap.get(component.productVariantId) ?? null)
+          : null;
+      if (validateCombinedSharedStockDemand(demandLines, product, variant) < 0) {
+        const label = component.variantLabel
+          ? `${product.name} (${component.variantLabel})`
+          : product.name;
+        stockValidationErrors.push(
+          `${label} del combo ${bundle.name} - stock insuficiente`,
+        );
+      }
+    }
+  }
+
   if (stockValidationErrors.length > 0) {
     throw new Error(`Stock insuficiente: ${stockValidationErrors.join(", ")}`, {
       cause: "stock_insufficient",
     });
   }
 
-  return resolvedLines;
+  return {
+    lines: resolvedLines,
+    bundles: resolvedBundles,
+    productMap,
+    variantMap,
+  };
 }
 
 async function consumeOrderItemStock(
@@ -571,12 +672,157 @@ async function consumeResolvedOrderLineStock(
   );
 }
 
+/**
+ * The order total: individual lines at their unit price plus each bundle's
+ * exact paid amount in cents.
+ */
+function resolvedOrderTotal(resolved: ResolvedOrder) {
+  const lineTotal = resolved.lines.reduce(
+    (sum, line) => sum + line.unitPrice * line.quantity,
+    0,
+  );
+  const bundleCents = resolved.bundles.reduce(
+    (sum, bundle) => sum + bundle.unitPriceCents * bundle.quantity,
+    0,
+  );
+  return lineTotal + bundleCents / 100;
+}
+
+/**
+ * Writes the order lines and deducts stock. Bundle components become regular
+ * order lines priced at their allocated share of the bundle, linked to an
+ * immutable bundle snapshot, so totals, adjustments, returns and reports all
+ * use what was actually paid.
+ */
+async function persistResolvedOrderLines(
+  tx: OrderTx,
+  orderId: number,
+  resolved: ResolvedOrder,
+  options: { rentalContext: boolean },
+) {
+  const { variantMap, productMap } = resolved;
+  for (const line of resolved.lines) {
+    await tx.insert(orderItems).values({
+      productId: line.product.id,
+      productVariantId: line.productVariantId,
+      productVariantLabel: line.productVariantLabel,
+      quantity: line.quantity,
+      priceAtPurchase: line.unitPrice,
+      unitCostAtPurchase: resolveUnitCost(
+        line.product.unitCost,
+        line.productVariantId != null
+          ? variantMap.get(line.productVariantId)?.unitCost
+          : null,
+      ),
+      productNameAtPurchase: line.product.name,
+      transactionType: line.transactionType,
+      storeCategoryAtPurchase: line.product.storeCategory,
+      ...(options.rentalContext
+        ? {
+            rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
+            rentalStockModeSnapshot: line.rentalStockModeSnapshot,
+            rentalFestivalId: line.rentalFestivalId,
+            rentalReservationId: line.rentalReservationId,
+          }
+        : {}),
+      orderId,
+    });
+  }
+
+  for (const bundle of resolved.bundles) {
+    const [orderBundle] = await tx
+      .insert(orderBundles)
+      .values({
+        orderId,
+        bundleId: bundle.bundleId,
+        bundleVersion: bundle.bundleVersion,
+        nameSnapshot: bundle.name,
+        slugSnapshot: bundle.slug,
+        imageUrlSnapshot: bundle.imageUrl,
+        quantity: bundle.quantity,
+        unitPriceCents: bundle.unitPriceCents,
+        separateUnitPriceCents: bundle.separateUnitPriceCents,
+        totalCents: bundle.unitPriceCents * bundle.quantity,
+      })
+      .returning({ id: orderBundles.id });
+    for (const planned of planBundleOrderItems(bundle)) {
+      const { component } = planned;
+      const product = productMap.get(component.productId)!;
+      const [orderItem] = await tx
+        .insert(orderItems)
+        .values({
+          orderId,
+          productId: component.productId,
+          productVariantId: component.productVariantId,
+          productVariantLabel: component.variantLabel,
+          quantity: planned.unitsPerBundle * bundle.quantity,
+          priceAtPurchase: planned.paidUnitCents / 100,
+          unitCostAtPurchase: resolveUnitCost(
+            product.unitCost,
+            component.productVariantId != null
+              ? variantMap.get(component.productVariantId)?.unitCost
+              : null,
+          ),
+          productNameAtPurchase: product.name,
+          transactionType: "purchase",
+          storeCategoryAtPurchase: product.storeCategory,
+        })
+        .returning({ id: orderItems.id });
+      await tx.insert(orderBundleItems).values({
+        orderBundleId: orderBundle.id,
+        orderId,
+        orderItemId: orderItem.id,
+        unitsPerBundle: planned.unitsPerBundle,
+        listUnitPriceCents: planned.unitListCents,
+        paidUnitPriceCents: planned.paidUnitCents,
+      });
+    }
+  }
+
+  for (const line of resolved.lines) {
+    await consumeResolvedOrderLineStock(tx, line, variantMap);
+  }
+  // Any failing component rejects the whole order, bundle included.
+  for (const bundle of resolved.bundles) {
+    for (const component of bundle.components) {
+      await consumeOrderItemStock(
+        tx,
+        productMap.get(component.productId)!,
+        component.productVariantId,
+        component.quantity * bundle.quantity,
+        "purchase",
+        variantMap,
+        null,
+      );
+    }
+  }
+}
+
+function mapResolvedOrderForEmail(resolved: ResolvedOrder) {
+  return [
+    ...resolved.lines.map((line) => ({
+      id: line.product.id,
+      name: getOrderItemDisplayName({
+        product: line.product,
+        productVariantLabel: line.productVariantLabel,
+      }),
+      quantity: line.quantity,
+      price: line.unitPrice,
+      status: line.product.status,
+      availableDate: line.product.availableDate || null,
+      transactionType: line.transactionType,
+    })),
+    ...resolved.bundles.map(describeOrderBundle),
+  ];
+}
+
 export async function createOrderInTx(
   tx: OrderTx,
   lines: OrderLineInput[],
   userId: number,
   _customerEmail: string,
   _customerName: string,
+  bundles: readonly BundleOrderRequest[] = [],
 ): Promise<CreateOrderInTxResult> {
   // Kept in the transaction API for callers that already have customer
   // snapshots; order ownership is derived from the persisted user profile.
@@ -628,29 +874,8 @@ export async function createOrderInTx(
     });
   }
 
-  const resolvedLines = await resolveOrderLines(tx, orderLines);
-  const totalAmount = resolvedLines.reduce(
-    (sum, line) => sum + line.unitPrice * line.quantity,
-    0,
-  );
-
-  const variantIds = Array.from(
-    new Set(
-      resolvedLines
-        .map((line) => line.productVariantId)
-        .filter((value): value is number => value != null),
-    ),
-  );
-  const lockedVariants =
-    variantIds.length > 0
-      ? await tx
-          .select()
-          .from(productVariants)
-          .where(inArray(productVariants.id, variantIds))
-      : [];
-  const variantMap = new Map(
-    lockedVariants.map((variant) => [variant.id, variant]),
-  );
+  const resolved = await resolveOrderLines(tx, orderLines, bundles);
+  const totalAmount = resolvedOrderTotal(resolved);
 
   const [order] = await tx
     .insert(orders)
@@ -669,50 +894,13 @@ export async function createOrderInTx(
     payload: { legacy: false },
   });
 
-  for (const line of resolvedLines) {
-    await tx.insert(orderItems).values({
-      productId: line.product.id,
-      productVariantId: line.productVariantId,
-      productVariantLabel: line.productVariantLabel,
-      quantity: line.quantity,
-      priceAtPurchase: line.unitPrice,
-      unitCostAtPurchase: resolveUnitCost(
-        line.product.unitCost,
-        line.productVariantId != null
-          ? variantMap.get(line.productVariantId)?.unitCost
-          : null,
-      ),
-      productNameAtPurchase: line.product.name,
-      transactionType: line.transactionType,
-      storeCategoryAtPurchase: line.product.storeCategory,
-      rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
-      rentalStockModeSnapshot: line.rentalStockModeSnapshot,
-      rentalFestivalId: line.rentalFestivalId,
-      rentalReservationId: line.rentalReservationId,
-      orderId: order.id,
-    });
-  }
-
-  for (const line of resolvedLines) {
-    await consumeResolvedOrderLineStock(tx, line, variantMap);
-  }
-
-  const mappedProducts = resolvedLines.map((line) => ({
-    id: line.product.id,
-    name: getOrderItemDisplayName({
-      product: line.product,
-      productVariantLabel: line.productVariantLabel,
-    }),
-    quantity: line.quantity,
-    price: line.unitPrice,
-    status: line.product.status,
-    availableDate: line.product.availableDate || null,
-    transactionType: line.transactionType,
-  }));
+  await persistResolvedOrderLines(tx, order.id, resolved, {
+    rentalContext: true,
+  });
 
   return {
     orderId: order.id,
-    mappedProducts,
+    mappedProducts: mapResolvedOrderForEmail(resolved),
     totalAmount,
   };
 }
@@ -727,6 +915,7 @@ export async function createGuestOrderInTx(
   guestName: string,
   guestEmail: string,
   guestPhone: string,
+  bundles: readonly BundleOrderRequest[] = [],
 ): Promise<CreateGuestOrderInTxResult> {
   if (lines.some((line) => (line.transactionType ?? "purchase") === "rental")) {
     throw new Error(
@@ -737,36 +926,17 @@ export async function createGuestOrderInTx(
     );
   }
 
-  const resolvedLines = await resolveOrderLines(tx, lines);
+  const resolved = await resolveOrderLines(tx, lines, bundles);
   // Authoritative supplies gate: guests are never verified accounts. The
   // storefront check is only early feedback; direct callers land here.
-  if (resolvedLines.some((line) => line.product.storeCategory === "supplies")) {
+  if (
+    resolved.lines.some((line) => line.product.storeCategory === "supplies")
+  ) {
     throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
       cause: SUPPLIES_UNVERIFIED_CAUSE,
     });
   }
-  const totalAmount = resolvedLines.reduce(
-    (sum, line) => sum + line.unitPrice * line.quantity,
-    0,
-  );
-
-  const variantIds = Array.from(
-    new Set(
-      resolvedLines
-        .map((line) => line.productVariantId)
-        .filter((value): value is number => value != null),
-    ),
-  );
-  const lockedVariants =
-    variantIds.length > 0
-      ? await tx
-          .select()
-          .from(productVariants)
-          .where(inArray(productVariants.id, variantIds))
-      : [];
-  const variantMap = new Map(
-    lockedVariants.map((variant) => [variant.id, variant]),
-  );
+  const totalAmount = resolvedOrderTotal(resolved);
 
   // Generate a cryptographically random token for guest order tracking
   const { randomBytes } = await import("crypto");
@@ -793,46 +963,13 @@ export async function createGuestOrderInTx(
     payload: { legacy: false, guest: true },
   });
 
-  for (const line of resolvedLines) {
-    await tx.insert(orderItems).values({
-      productId: line.product.id,
-      productVariantId: line.productVariantId,
-      productVariantLabel: line.productVariantLabel,
-      quantity: line.quantity,
-      priceAtPurchase: line.unitPrice,
-      unitCostAtPurchase: resolveUnitCost(
-        line.product.unitCost,
-        line.productVariantId != null
-          ? variantMap.get(line.productVariantId)?.unitCost
-          : null,
-      ),
-      productNameAtPurchase: line.product.name,
-      transactionType: line.transactionType,
-      storeCategoryAtPurchase: line.product.storeCategory,
-      orderId: order.id,
-    });
-  }
-
-  for (const line of resolvedLines) {
-    await consumeResolvedOrderLineStock(tx, line, variantMap);
-  }
-
-  const mappedProducts = resolvedLines.map((line) => ({
-    id: line.product.id,
-    name: getOrderItemDisplayName({
-      product: line.product,
-      productVariantLabel: line.productVariantLabel,
-    }),
-    quantity: line.quantity,
-    price: line.unitPrice,
-    status: line.product.status,
-    availableDate: line.product.availableDate || null,
-    transactionType: line.transactionType,
-  }));
+  await persistResolvedOrderLines(tx, order.id, resolved, {
+    rentalContext: false,
+  });
 
   return {
     orderId: order.id,
-    mappedProducts,
+    mappedProducts: mapResolvedOrderForEmail(resolved),
     totalAmount,
     guestOrderToken,
   };
@@ -1098,6 +1235,7 @@ async function withEffectiveOrders(
           product: source.product,
           variant: source.variant,
           adjustmentItemId: source.id,
+          bundleAllocation: null,
         };
       }),
     };

@@ -1,5 +1,10 @@
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { orderItems, orders } from "@/db/schema";
+import {
+  orderBundleItems,
+  orderBundles,
+  orderItems,
+  orders,
+} from "@/db/schema";
 import {
   BaseProductWithImages,
   ProductVariantWithSelections,
@@ -16,11 +21,18 @@ export type BaseOrder = InferSelectModel<typeof orders>;
 
 export type BaseOrderItem = InferSelectModel<typeof orderItems>;
 
+export type OrderBundleSnapshot = InferSelectModel<typeof orderBundles>;
+export type OrderBundleItemSnapshot = InferSelectModel<typeof orderBundleItems>;
+
 export type OrderItemWithRelations = BaseOrderItem & {
   product: BaseProductWithImages;
   variant: ProductVariantWithSelections | null;
   /** Present when this effective line originated from an additive adjustment. */
   adjustmentItemId?: number | null;
+  /** Present when the line is a component of a bundle bought in the order. */
+  bundleAllocation?:
+    | (OrderBundleItemSnapshot & { orderBundle: OrderBundleSnapshot })
+    | null;
 };
 
 export type OrderWithRelations = BaseOrder & {

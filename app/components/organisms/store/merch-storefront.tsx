@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Search, ShoppingBag, X } from "lucide-react";
+import BundleCard from "./bundle-card";
 import CollectionBanner from "./collection-banner";
 import FeaturedCollectionCarousel from "./featured-collection-carousel";
 import StoreItemCard from "@/app/components/molecules/store-item-card";
@@ -18,6 +19,7 @@ import {
 } from "@/app/components/ui/select";
 import type { BaseProductWithImages } from "@/app/lib/products/definitions";
 import type { MerchCollection } from "@/app/lib/merch/definitions";
+import type { PublicBundle } from "@/app/lib/merch/bundle-definitions";
 import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
 import { filterMerchCatalog } from "@/app/lib/merch/catalog";
 import { merchCollectionPath } from "@/app/lib/merch/paths";
@@ -33,6 +35,8 @@ export type MerchStorefrontProps = {
   products: BaseProductWithImages[];
   collections: MerchCollection[];
   collection?: MerchCollection;
+  /** Sellable bundles for this page (the collection's own on its page). */
+  bundles?: PublicBundle[];
   rentalEligible?: boolean;
   rentalContexts?: RentalEligibilityContext[];
 };
@@ -41,6 +45,7 @@ export default function MerchStorefront({
   products,
   collections,
   collection: pageCollection,
+  bundles = [],
   rentalEligible,
   rentalContexts,
 }: MerchStorefrontProps) {
@@ -72,7 +77,10 @@ export default function MerchStorefront({
     sort,
     available,
   });
-  const showHero = !pageCollection && products.length > 0;
+  const showHero =
+    !pageCollection && (products.length > 0 || bundles.length > 0);
+  // A collection made only of bundles has no product catalog to browse.
+  const showCatalog = !pageCollection || products.length > 0 || !bundles.length;
   const featuredIds = new Set(featured.map((collection) => collection.id));
   const listedCollections = showHero
     ? collections.filter((collection) => !featuredIds.has(collection.id))
@@ -178,162 +186,197 @@ export default function MerchStorefront({
         </section>
       )}
 
-      <section
-        id="catalogo"
-        aria-labelledby="catalog-title"
-        className="scroll-mt-44 pt-8"
-      >
-        <div className="mb-6">
-          <CatalogHeading
-            id="catalog-title"
-            className="font-display text-3xl sm:text-4xl"
-          >
-            {pageCollection
-              ? "Productos de la colección"
-              : (selectedCollection?.name ??
-                (collectionId ? "Colección no disponible" : "Toda la merch"))}
-          </CatalogHeading>
-        </div>
-        {!pageCollection && selectedCollection?.description && (
-          <p className="mb-6 max-w-2xl whitespace-pre-line text-muted-foreground">
-            {selectedCollection.description}
-          </p>
-        )}
-        <div className="flex flex-col gap-4 border-y py-4 lg:flex-row lg:items-center lg:justify-between">
-          <form
-            className="flex w-full items-center gap-2 rounded-full border bg-background pl-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 lg:max-w-sm"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.currentTarget);
-              router.push(
-                catalogUrl({ q: String(data.get("q") ?? "").trim() }),
-                { scroll: false },
-              );
-            }}
-            role="search"
-          >
-            <Search
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <input
-              key={query}
-              defaultValue={query}
-              name="q"
-              type="search"
-              aria-label="Buscar merch"
-              placeholder="Buscá tu merch favorita"
-              className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none"
-            />
-            <button
-              type="submit"
-              className="min-h-11 rounded-full px-4 text-sm font-medium hover:bg-muted"
+      {bundles.length > 0 && (
+        <section
+          id="combos"
+          aria-labelledby="bundles-title"
+          className="scroll-mt-44 py-9 sm:py-12"
+        >
+          <div className="mb-5">
+            <h2
+              id="bundles-title"
+              className="font-display text-2xl sm:text-3xl"
             >
-              Buscar
-            </button>
-          </form>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <label
-              htmlFor="merch-available"
-              className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"
-            >
-              <Checkbox
-                id="merch-available"
-                checked={available}
-                onCheckedChange={(checked) =>
-                  router.push(
-                    catalogUrl({ available: checked === true ? "1" : "" }),
-                    { scroll: false },
-                  )
-                }
-              />
-              Solo disponibles
-            </label>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Ordenar:</span>
-              <Select
-                value={sort}
-                onValueChange={(value) =>
-                  router.push(catalogUrl({ sort: value }), {
-                    scroll: false,
-                  })
-                }
-              >
-                <SelectTrigger aria-label="Ordenar productos" className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SORT_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              {pageCollection ? "Combos de la colección" : "Combos"}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Productos que van juntos, a un precio menor que comprarlos por
+              separado.
+            </p>
           </div>
-        </div>
-        {((!pageCollection && collectionId) ||
-          query ||
-          available ||
-          sort !== "featured") && (
-          <div className="flex flex-wrap items-center gap-3 pt-4 text-sm">
-            <span>
-              {[
-                !pageCollection && selectedCollection?.name,
-                query && `“${query}”`,
-                available && "Disponibles",
-                sort !== "featured" && SORT_LABELS[sort],
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-            <Link
-              href={`${basePath}#catalogo`}
-              className="inline-flex min-h-11 items-center gap-1 rounded-full bg-muted px-3"
-            >
-              Limpiar filtros
-              <X className="size-3" aria-hidden="true" />
-            </Link>
-          </div>
-        )}
-        {filtered.length > 0 ? (
-          <div className="grid grid-cols-2 items-start gap-x-4 gap-y-8 pt-7 md:grid-cols-3 lg:grid-cols-4 sm:gap-x-6">
-            {filtered.map((product) => (
-              <StoreItemCard
-                key={product.id}
-                product={product}
-                rentalEligible={rentalEligible}
-                rentalContexts={rentalContexts}
-                presentation="merch"
-                returnTo={returnTo}
+          <div className="grid grid-cols-2 items-start gap-x-4 gap-y-8 md:grid-cols-3 lg:grid-cols-4 sm:gap-x-6">
+            {bundles.map((bundle) => (
+              <BundleCard
+                key={bundle.id}
+                bundle={bundle}
+                returnTo={`${basePath}#combos`}
               />
             ))}
           </div>
-        ) : (
-          <div className="flex flex-col items-center py-16 text-center">
-            <ShoppingBag
-              className="mb-4 size-8 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <h3 className="font-display text-2xl">
-              {products.length
-                ? "No encontramos esa merch"
-                : "La próxima colección está en camino"}
-            </h3>
-            <p className="mt-2 max-w-md text-sm text-muted-foreground">
-              {products.length
-                ? "Probá con otro nombre o explorá todos los productos."
-                : "Volvé pronto para descubrir nuestras próximas colecciones."}
-            </p>
-            {products.length > 0 && (
-              <Button asChild className="mt-5 rounded-full">
-                <Link href="/merch#catalogo">Ver toda la merch</Link>
-              </Button>
-            )}
+        </section>
+      )}
+
+      {showCatalog && (
+        <section
+          id="catalogo"
+          aria-labelledby="catalog-title"
+          className="scroll-mt-44 pt-8"
+        >
+          <div className="mb-6">
+            <CatalogHeading
+              id="catalog-title"
+              className="font-display text-3xl sm:text-4xl"
+            >
+              {pageCollection
+                ? "Productos de la colección"
+                : (selectedCollection?.name ??
+                  (collectionId ? "Colección no disponible" : "Toda la merch"))}
+            </CatalogHeading>
           </div>
-        )}
-      </section>
+          {!pageCollection && selectedCollection?.description && (
+            <p className="mb-6 max-w-2xl whitespace-pre-line text-muted-foreground">
+              {selectedCollection.description}
+            </p>
+          )}
+          <div className="flex flex-col gap-4 border-y py-4 lg:flex-row lg:items-center lg:justify-between">
+            <form
+              className="flex w-full items-center gap-2 rounded-full border bg-background pl-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 lg:max-w-sm"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const data = new FormData(event.currentTarget);
+                router.push(
+                  catalogUrl({ q: String(data.get("q") ?? "").trim() }),
+                  { scroll: false },
+                );
+              }}
+              role="search"
+            >
+              <Search
+                className="size-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                key={query}
+                defaultValue={query}
+                name="q"
+                type="search"
+                aria-label="Buscar merch"
+                placeholder="Buscá tu merch favorita"
+                className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none"
+              />
+              <button
+                type="submit"
+                className="min-h-11 rounded-full px-4 text-sm font-medium hover:bg-muted"
+              >
+                Buscar
+              </button>
+            </form>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <label
+                htmlFor="merch-available"
+                className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"
+              >
+                <Checkbox
+                  id="merch-available"
+                  checked={available}
+                  onCheckedChange={(checked) =>
+                    router.push(
+                      catalogUrl({ available: checked === true ? "1" : "" }),
+                      { scroll: false },
+                    )
+                  }
+                />
+                Solo disponibles
+              </label>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Ordenar:</span>
+                <Select
+                  value={sort}
+                  onValueChange={(value) =>
+                    router.push(catalogUrl({ sort: value }), {
+                      scroll: false,
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    aria-label="Ordenar productos"
+                    className="w-40"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(SORT_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          {((!pageCollection && collectionId) ||
+            query ||
+            available ||
+            sort !== "featured") && (
+            <div className="flex flex-wrap items-center gap-3 pt-4 text-sm">
+              <span>
+                {[
+                  !pageCollection && selectedCollection?.name,
+                  query && `“${query}”`,
+                  available && "Disponibles",
+                  sort !== "featured" && SORT_LABELS[sort],
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <Link
+                href={`${basePath}#catalogo`}
+                className="inline-flex min-h-11 items-center gap-1 rounded-full bg-muted px-3"
+              >
+                Limpiar filtros
+                <X className="size-3" aria-hidden="true" />
+              </Link>
+            </div>
+          )}
+          {filtered.length > 0 ? (
+            <div className="grid grid-cols-2 items-start gap-x-4 gap-y-8 pt-7 md:grid-cols-3 lg:grid-cols-4 sm:gap-x-6">
+              {filtered.map((product) => (
+                <StoreItemCard
+                  key={product.id}
+                  product={product}
+                  rentalEligible={rentalEligible}
+                  rentalContexts={rentalContexts}
+                  presentation="merch"
+                  returnTo={returnTo}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center py-16 text-center">
+              <ShoppingBag
+                className="mb-4 size-8 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <h3 className="font-display text-2xl">
+                {products.length
+                  ? "No encontramos esa merch"
+                  : "La próxima colección está en camino"}
+              </h3>
+              <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                {products.length
+                  ? "Probá con otro nombre o explorá todos los productos."
+                  : "Volvé pronto para descubrir nuestras próximas colecciones."}
+              </p>
+              {products.length > 0 && (
+                <Button asChild className="mt-5 rounded-full">
+                  <Link href="/merch#catalogo">Ver toda la merch</Link>
+                </Button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

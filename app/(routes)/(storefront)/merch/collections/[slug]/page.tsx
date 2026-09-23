@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import MerchStorefront from "@/app/components/organisms/store/merch-storefront";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import { fetchPublicMerchCollection } from "@/app/lib/merch/collections";
+import { fetchPublicBundles } from "@/app/lib/merch/bundles";
 import { merchCollectionPath } from "@/app/lib/merch/paths";
 import { fetchProducts } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
@@ -49,8 +50,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 async function CollectionCatalog({ slug }: { slug: string }) {
   const collection = await fetchPublicMerchCollection(slug);
   if (!collection) notFound();
-  const [products, eligibility] = await Promise.all([
+  const [products, bundles, eligibility] = await Promise.all([
     fetchProducts("default", { visibleOnly: true, storeCategory: "merch" }),
+    fetchPublicBundles(),
     getRentalEligibilityForCurrentUser().catch(() => null),
   ]);
   return (
@@ -60,6 +62,9 @@ async function CollectionCatalog({ slug }: { slug: string }) {
       )}
       collections={[collection]}
       collection={collection}
+      bundles={bundles.filter((bundle) =>
+        bundle.collectionIds.includes(collection.id),
+      )}
       rentalEligible={eligibility?.eligible ?? false}
       rentalContexts={eligibility?.eligible ? eligibility.contexts : []}
     />

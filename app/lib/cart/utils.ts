@@ -1,4 +1,12 @@
-import { CartItemWithProduct } from "@/app/lib/cart/definitions";
+import type {
+  CartItemWithProduct,
+  GuestCartBundle,
+} from "@/app/lib/cart/definitions";
+import type {
+  BundleSelectionInput,
+  CartBundleLine,
+} from "@/app/lib/merch/bundle-definitions";
+import { buildBundleSelectionKey } from "@/app/lib/merch/bundle-pricing";
 import {
   getAvailableStockForTransaction,
   getTransactionPoolRemainingStock,
@@ -28,9 +36,63 @@ function isInvalidCartVariantLine(item: CartItemWithProduct): boolean {
   return !item.variant.isVisible;
 }
 
+/** Purchase demand of bundle lines, shaped like sibling cart lines. */
+export type BundleDemandLine = {
+  productId: number;
+  productVariantId: number | null;
+  transactionType: "purchase";
+  quantity: number;
+};
+
+export function getBundleDemandLines(
+  bundles: readonly Pick<CartBundleLine, "components" | "quantity">[],
+): BundleDemandLine[] {
+  return bundles.flatMap((bundle) =>
+    bundle.components.map((component) => ({
+      productId: component.productId,
+      productVariantId: component.productVariantId,
+      transactionType: "purchase" as const,
+      quantity: component.quantity * bundle.quantity,
+    })),
+  );
+}
+
+export function buildBundleLineKey(
+  bundleId: number,
+  selections: readonly BundleSelectionInput[],
+): string {
+  return `bundle:${bundleId}:${buildBundleSelectionKey(selections)}`;
+}
+
+/** Guest cart snapshot of a resolved bundle line. */
+export function toGuestCartBundle(
+  line: CartBundleLine,
+  overrides: Partial<Pick<GuestCartBundle, "quantity" | "bundleVersion">> = {},
+): GuestCartBundle {
+  return {
+    lineKey: buildBundleLineKey(line.bundleId, line.selections),
+    bundleId: line.bundleId,
+    bundleVersion: overrides.bundleVersion ?? line.bundleVersion,
+    quantity: overrides.quantity ?? line.quantity,
+    selections: line.selections,
+    name: line.name,
+    slug: line.slug,
+    imageUrl: line.imageUrl,
+    unitPriceCents: line.unitPriceCents,
+    separateUnitPriceCents: line.separateUnitPriceCents,
+    components: line.components.map((component) => ({
+      productName: component.productName,
+      variantLabel: component.variantLabel,
+      quantity: component.quantity,
+      imageUrl: component.imageUrl,
+    })),
+  };
+}
+
 export function getCartItemAvailableStock(
   item: CartItemWithProduct,
   allItems: CartItemWithProduct[],
+  bundleDemand: readonly BundleDemandLine[] = [],
 ): number {
   if (isInvalidCartVariantLine(item)) {
     return 0;
@@ -40,13 +102,16 @@ export function getCartItemAvailableStock(
     item.product,
     item.variant,
     item.transactionType,
-    allItems.map((entry) => ({
-      id: entry.id,
-      productId: entry.productId,
-      productVariantId: entry.productVariantId,
-      transactionType: entry.transactionType,
-      quantity: entry.quantity,
-    })),
+    [
+      ...allItems.map((entry) => ({
+        id: entry.id,
+        productId: entry.productId,
+        productVariantId: entry.productVariantId,
+        transactionType: entry.transactionType,
+        quantity: entry.quantity,
+      })),
+      ...bundleDemand,
+    ],
     {
       id: item.id,
       productId: item.productId,
@@ -58,6 +123,7 @@ export function getCartItemAvailableStock(
 export function getCartItemWarnings(
   item: CartItemWithProduct,
   allItems: CartItemWithProduct[] = [item],
+  bundleDemand: readonly BundleDemandLine[] = [],
 ): {
   isOutOfStock: boolean;
   quantityExceedsStock: boolean;
@@ -71,7 +137,7 @@ export function getCartItemWarnings(
     };
   }
 
-  const stock = getCartItemAvailableStock(item, allItems);
+  const stock = getCartItemAvailableStock(item, allItems, bundleDemand);
   return {
     isOutOfStock: stock === 0,
     quantityExceedsStock: stock > 0 && item.quantity > stock,
