@@ -73,11 +73,10 @@ export default function ProfileQuickActions({
   // has to keep describing the profile's status for every viewer.
   const allowVerify =
     profile.status !== "verified" && profile.status !== "paused";
-  const canPause =
-    canManageProfiles &&
-    profile.status === "verified" &&
-    activitySummary?.isPauseEligible === true;
-  const canUnpause = canManageProfiles && profile.status === "paused";
+  // Status decides whether these entries appear; the role only disables them.
+  const showPause =
+    profile.status === "verified" && activitySummary?.isPauseEligible === true;
+  const showUnpause = profile.status === "paused";
   const participantProfile =
     activitySummary !== undefined ? { ...profile, activitySummary } : undefined;
 
@@ -172,14 +171,22 @@ export default function ProfileQuickActions({
               )}
             </DropdownMenuItem>
           )}
-          {canPause && participantProfile ? (
-            <DropdownMenuItem onClick={() => setOpenPauseModal(true)}>
+          {showPause && participantProfile ? (
+            <DropdownMenuItem
+              disabled={!canManageProfiles}
+              title={adminOnlyTitle}
+              onClick={() => setOpenPauseModal(true)}
+            >
               <PauseCircleIcon className="h-4 w-4 mr-1" />
               Pausar cuenta
             </DropdownMenuItem>
           ) : null}
-          {canUnpause ? (
-            <DropdownMenuItem onClick={() => setOpenUnpauseModal(true)}>
+          {showUnpause ? (
+            <DropdownMenuItem
+              disabled={!canManageProfiles}
+              title={adminOnlyTitle}
+              onClick={() => setOpenUnpauseModal(true)}
+            >
               <CircleCheckBigIcon className="h-4 w-4 mr-1" />
               Reactivar cuenta
             </DropdownMenuItem>
