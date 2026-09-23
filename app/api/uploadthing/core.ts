@@ -21,6 +21,7 @@ import {
   VOUCHER_BLOCKER_LABELS,
 } from "@/app/lib/programs/vouchers";
 import { submitPaymentProof } from "@/app/lib/reservations/payment-service";
+import { signProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import { db } from "@/db";
 import { invoices, orders, productImages, sessionPurchases } from "@/db/schema";
 
@@ -77,10 +78,14 @@ export const ourFileRouter = {
       return { profile };
     })
     .onUploadComplete(async ({ metadata, file }) => {
+      const imageUrl = (file as { url: string }).url;
       return {
         results: {
           profileId: metadata.profile.id,
-          imageUrl: (file as { url: string }).url,
+          imageUrl,
+          // `updateProfilePicture` only accepts a new URL with this receipt,
+          // which binds it to the authenticated uploader.
+          receipt: signProfilePictureUpload(metadata.profile.id, imageUrl),
         },
       };
     }),

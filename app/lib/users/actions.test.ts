@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -50,6 +50,7 @@ vi.mock("@/app/lib/posthog-server", () => ({
   POSTHOG_SHUTDOWN_TIMEOUT_MS: 1,
 }));
 
+import { signProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import {
   deleteUserSocial,
   updateProfile,
@@ -171,38 +172,89 @@ describe("upsertUserSocialProfiles", () => {
 });
 
 describe("updateProfilePicture", () => {
+  const STORED_URL = "https://utfs.io/f/stored-key";
+  const NEW_URL = "https://utfs.io/f/new-key";
+
+  beforeEach(() => {
+    vi.stubEnv("UPLOADTHING_TOKEN", "test-uploadthing-token");
+    findFirstUserMock.mockResolvedValue({ imageUrl: STORED_URL });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("refuses an unauthorized caller", async () => {
     ownerOrAdminMock.mockResolvedValue(null);
 
     await expect(
-      updateProfilePicture(99, "https://utfs.io/f/new"),
+      updateProfilePicture(99, NEW_URL, signProfilePictureUpload(99, NEW_URL)),
     ).resolves.toEqual({ success: false, message: "No autorizado" });
     expect(updateMock).not.toHaveBeenCalled();
     expect(deleteFilesMock).not.toHaveBeenCalled();
   });
 
-  it("deletes the previous upload read from the row, not one the caller named", async () => {
+  it("refuses a URL the caller did not upload, such as someone else's avatar", async () => {
     ownerOrAdminMock.mockResolvedValue(OWNER);
-    findFirstUserMock.mockResolvedValue({
-      imageUrl: "https://utfs.io/f/stored-key",
-    });
     captureUpdate();
 
     await expect(
-      updateProfilePicture(OWNER.id, "https://utfs.io/f/new-key"),
+      updateProfilePicture(OWNER.id, "https://utfs.io/f/someone-elses-key"),
+    ).resolves.toMatchObject({ success: false });
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(deleteFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a receipt that was minted for a different uploader", async () => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    captureUpdate();
+
+    await expect(
+      updateProfilePicture(
+        OWNER.id,
+        NEW_URL,
+        signProfilePictureUpload(99, NEW_URL),
+      ),
+    ).resolves.toMatchObject({ success: false });
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(deleteFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("saves the caller's own upload and deletes the previous one read from the row", async () => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    const { set } = captureUpdate();
+
+    await expect(
+      updateProfilePicture(
+        OWNER.id,
+        NEW_URL,
+        signProfilePictureUpload(OWNER.id, NEW_URL),
+      ),
     ).resolves.toMatchObject({ success: true });
+    expect(set.mock.calls[0][0]).toHaveProperty("imageUrl", NEW_URL);
     expect(deleteFilesMock).toHaveBeenCalledWith("stored-key");
   });
 
-  it("keeps the upload when the same picture is saved again", async () => {
+  it("lets an admin set a picture the admin uploaded onto another profile", async () => {
+    ownerOrAdminMock.mockResolvedValue(ADMIN);
+    const { set } = captureUpdate();
+
+    await expect(
+      updateProfilePicture(
+        OWNER.id,
+        NEW_URL,
+        signProfilePictureUpload(ADMIN.id, NEW_URL),
+      ),
+    ).resolves.toMatchObject({ success: true });
+    expect(set.mock.calls[0][0]).toHaveProperty("imageUrl", NEW_URL);
+  });
+
+  it("keeps the upload when the same picture is saved again, receipt or not", async () => {
     ownerOrAdminMock.mockResolvedValue(OWNER);
-    findFirstUserMock.mockResolvedValue({
-      imageUrl: "https://utfs.io/f/stored-key",
-    });
     captureUpdate();
 
     await expect(
-      updateProfilePicture(OWNER.id, "https://utfs.io/f/stored-key"),
+      updateProfilePicture(OWNER.id, STORED_URL),
     ).resolves.toMatchObject({ success: true });
     expect(deleteFilesMock).not.toHaveBeenCalled();
   });

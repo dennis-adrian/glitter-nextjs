@@ -28,6 +28,7 @@ import {
   pickSelfEditableProfileFields,
   SelfEditableProfile,
 } from "@/app/lib/users/profile-fields";
+import { verifyProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
@@ -356,6 +357,7 @@ async function verifyProfileCompletion(userId: number) {
 export async function updateProfilePicture(
   profileId: number,
   imageUrl: string,
+  uploadReceipt?: string | null,
 ) {
   const actor = await requireProfileOwnerOrAdmin(profileId);
   if (!actor) {
@@ -373,6 +375,24 @@ export async function updateProfilePicture(
       where: eq(users.id, profileId),
     });
     const oldImageUrl = existingProfile?.imageUrl;
+
+    // A new URL must be one the caller uploaded. Otherwise a user could point
+    // their row at someone else's public avatar and have it deleted on their
+    // next change. Re-saving the current URL changes nothing, so it needs no
+    // receipt.
+    if (
+      imageUrl !== oldImageUrl &&
+      !verifyProfilePictureUpload({
+        uploaderId: actor.id,
+        imageUrl,
+        receipt: uploadReceipt,
+      })
+    ) {
+      return {
+        success: false,
+        message: "No pudimos verificar la imagen. Vuelve a subirla.",
+      };
+    }
 
     await db
       .update(users)
