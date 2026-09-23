@@ -1,0 +1,1 @@
+ALTER TABLE "merch_collections" ADD COLUMN "show_in_hero" boolean DEFAULT false NOT NULL;

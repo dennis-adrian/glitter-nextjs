@@ -8,6 +8,7 @@ import ProductDetailContent from "@/app/components/organisms/store/product-detai
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import SuppliesAccessNotice from "@/app/components/organisms/store/supplies-access-notice";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
+import { resolveMerchProductReturn } from "@/app/lib/merch/product-return";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
@@ -90,6 +91,7 @@ export async function generateMetadata(props: {
 
 export default async function ProductDetailPage(props: {
   params: Promise<ProductDetailParams>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await props.params;
   const validatedParams = ParamsSchema.safeParse(params);
@@ -125,17 +127,24 @@ export default async function ProductDetailPage(props: {
     );
   }
 
-  const rentalEligibility = await getRentalEligibilityForCurrentUser();
+  const [rentalEligibility, returnLink] = await Promise.all([
+    getRentalEligibilityForCurrentUser(),
+    product.storeCategory === "merch"
+      ? props.searchParams.then((searchParams) =>
+          resolveMerchProductReturn(product.id, searchParams.returnTo),
+        )
+      : Promise.resolve({ href: "/supplies", label: "Volver a la tienda" }),
+  ]);
 
   return (
     <StoreSectionGate section={product.storeCategory}>
       <div className="container px-3 py-6">
         <Link
-          href={product.storeCategory === "supplies" ? "/supplies" : "/merch"}
+          href={returnLink.href}
           className="text-sm text-muted-foreground flex items-center gap-1 mb-6 hover:text-foreground transition-colors"
         >
           <ArrowLeftIcon className="h-3.5 w-3.5" />
-          Volver a la tienda
+          {returnLink.label}
         </Link>
 
         <ProductDetailContent

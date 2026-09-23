@@ -6,6 +6,7 @@ import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -37,6 +38,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import type { CollectionOption } from "@/app/lib/merch/definitions";
 
 const VARIANT_KEY_SEPARATOR = "\u001f";
 
@@ -342,6 +344,8 @@ type UploadingItem = {
 
 type ProductFormProps = {
   product?: BaseProductWithImages;
+  collectionOptions?: CollectionOption[];
+  initialCollectionIds?: number[];
 };
 
 type ProductFormValues = z.infer<typeof FormSchema>;
@@ -483,7 +487,15 @@ function buildProductFormValues(
   };
 }
 
-export default function ProductForm({ product }: ProductFormProps) {
+export default function ProductForm({
+  product,
+  collectionOptions = [],
+  initialCollectionIds = [],
+}: ProductFormProps) {
+  const [collectionIds, setCollectionIds] = useState(initialCollectionIds);
+  const hasCollectionChanges =
+    collectionIds.length !== initialCollectionIds.length ||
+    collectionIds.some((id) => !initialCollectionIds.includes(id));
   const router = useRouter();
   const isEditing = !!product;
 
@@ -762,6 +774,7 @@ export default function ProductForm({ product }: ProductFormProps) {
         ? Number(data.lowStockThreshold)
         : null,
       storeCategory: data.storeCategory,
+      collectionIds: data.storeCategory === "merch" ? collectionIds : [],
       status: data.status,
       discount: data.discount?.trim() ? Number(data.discount) : 0,
       discountUnit: data.discountUnit,
@@ -1503,6 +1516,45 @@ export default function ProductForm({ product }: ProductFormProps) {
 
             <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
               <h3 className="text-sm font-medium">Organización</h3>
+              {form.watch("storeCategory") === "merch" && (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium">Colecciones</legend>
+                  <p className="text-xs text-muted-foreground">
+                    Elige las colecciones a las que pertenece este producto.
+                  </p>
+                  <div className="max-h-48 space-y-2 overflow-y-auto">
+                    {collectionOptions.map((collection) => (
+                      <div
+                        key={collection.id}
+                        className="flex items-center gap-2 py-1 text-sm"
+                      >
+                        <Checkbox
+                          id={`product-collection-${collection.id}`}
+                          checked={collectionIds.includes(collection.id)}
+                          onCheckedChange={(checked) =>
+                            setCollectionIds((ids) =>
+                              checked === true
+                                ? [...ids, collection.id]
+                                : ids.filter((id) => id !== collection.id),
+                            )
+                          }
+                        />
+                        <Label
+                          htmlFor={`product-collection-${collection.id}`}
+                          className="cursor-pointer font-normal"
+                        >
+                          {collection.name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  {collectionOptions.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Crea una colección en Tienda → Colecciones.
+                    </p>
+                  )}
+                </fieldset>
+              )}
               <SelectInput
                 formControl={form.control}
                 label="Categoría de tienda"
@@ -1556,7 +1608,9 @@ export default function ProductForm({ product }: ProductFormProps) {
           <div className="mx-auto flex max-w-7xl items-center gap-2">
             {/* The form already tracks this to gate Save; saying it out loud
                 is what tells you the draft is worth keeping. */}
-            {(form.formState.isDirty || hasImageChanges) &&
+            {(form.formState.isDirty ||
+              hasImageChanges ||
+              hasCollectionChanges) &&
               !form.formState.isSubmitting && (
                 <span className="mr-auto hidden text-sm text-muted-foreground md:inline">
                   Cambios sin guardar
@@ -1576,7 +1630,9 @@ export default function ProductForm({ product }: ProductFormProps) {
                 form.formState.isSubmitting ||
                 currentlyUploading !== null ||
                 uploadQueue.length > 0 ||
-                (!form.formState.isDirty && !hasImageChanges)
+                (!form.formState.isDirty &&
+                  !hasImageChanges &&
+                  !hasCollectionChanges)
               }
               loading={form.formState.isSubmitting}
               loadingLabel="Guardando..."

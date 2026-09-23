@@ -35,7 +35,7 @@ pnpm db:test:up && pnpm migrate:test
 
 - **`scripts/migrate.ts` has no test/ci name guard of its own** — it migrates whatever `POSTGRES_URL` resolves to, and applying is one-way. Only `pnpm migrate:test` is safe to run unattended; `pnpm migrate` targets whatever `.env.local` currently points at, which is not fixed and has been Railway. Check before running it.
 
-- After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Storefront products and other domain fixtures are not seeded yet.
+- After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Merch products, variants, and independent collections are seeded with local demo artwork.
 - Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (needs the migrated Docker Postgres from `pnpm db:test:up` + `pnpm migrate:test`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
 - `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file and `CLAUDE.md`; commit that change rather than fighting it.
 
@@ -48,3 +48,11 @@ pnpm db:test:up && pnpm migrate:test
 - Notification mail: `SEED_DEMO_EMAIL_BASE` is subaddressed per role (`base+admin@…`); unset it defaults to the undeliverable `glitter-demo@example.test`, so set it to a real inbox when you need to read seed mail.
 - Accounts: `admin+clerk_test@example.com` (admin), `festival-admin+clerk_test@example.com`, verified participants (role `user`) `illustration+clerk_test@example.com` / `gastronomy+clerk_test@example.com` / `entrepreneurship+clerk_test@example.com`, and `pending+clerk_test@example.com`. The unused `artist` role and deprecated `new_artist` category are not seeded.
 - OTP for `+clerk_test` addresses on Clerk development instances is `424242`.
+
+## Merch development fixtures
+
+- `pnpm seed` includes products and collections after users/festivals. `pnpm seed:merch` seeds only the merch fixtures, with the same development/local-database gate.
+- Run `pnpm env:sync` first and supply the isolated Docker `POSTGRES_URL` explicitly, as in `docs/testing-with-docker-postgres.md`.
+- Fixtures include sizes (one sold out), sale/presale/out-of-stock items, hidden merch, a supplies control item, independent collections and an optional festival association.
+- Re-running adds only missing demo slugs; it preserves existing stock, admin edits, publication settings and product memberships.
+- Demo artwork lives under `public/img/seed-merch/`; these are illustrative fixtures, not real storefront inventory.

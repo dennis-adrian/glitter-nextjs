@@ -7,6 +7,7 @@ import type { SQLWrapper } from "drizzle-orm/sql/sql";
 import { revalidatePath } from "next/cache";
 
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
+import { syncMerchCollections } from "@/app/lib/merch/collections";
 import { isLowStockLevel } from "@/app/lib/products/low-stock";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
@@ -50,6 +51,7 @@ type ProductOptionInput = {
 };
 
 type NewProductData = {
+  collectionIds?: number[];
   name: string;
   description?: string | null;
   price: number;
@@ -86,7 +88,7 @@ type ProductTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 function revalidateStorefrontPaths() {
   revalidatePath("/store");
-  revalidatePath("/merch");
+  revalidatePath("/merch", "layout");
   revalidatePath("/supplies");
 }
 
@@ -592,7 +594,13 @@ export async function createProduct(data: NewProductData) {
     };
   }
 
-  const { imagePayloads = [], variantOptions, variants, ...productData } = data;
+  const {
+    imagePayloads = [],
+    variantOptions,
+    variants,
+    collectionIds,
+    ...productData
+  } = data;
   const normalizedVariants = normalizeVariantInputs(variantOptions, variants);
   const costValidationError = validateProductCostData(
     productData,
@@ -645,6 +653,13 @@ export async function createProduct(data: NewProductData) {
       createdSlug = product.slug;
       createdProductId = product.id;
 
+      await syncMerchCollections(
+        tx,
+        product.id,
+        collectionIds,
+        product.storeCategory,
+      );
+
       await syncProductImages(tx, product.id, imagePayloads);
       await syncProductVariants(
         tx,
@@ -687,7 +702,13 @@ export async function updateProduct(id: number, data: NewProductData) {
     };
   }
 
-  const { imagePayloads = [], variantOptions, variants, ...productData } = data;
+  const {
+    imagePayloads = [],
+    variantOptions,
+    variants,
+    collectionIds,
+    ...productData
+  } = data;
   const normalizedVariants = normalizeVariantInputs(variantOptions, variants);
   const costValidationError = validateProductCostData(
     productData,
@@ -751,6 +772,12 @@ export async function updateProduct(id: number, data: NewProductData) {
       }
 
       await tx.update(products).set(updateData).where(eq(products.id, id));
+      await syncMerchCollections(
+        tx,
+        id,
+        collectionIds,
+        productData.storeCategory ?? existing.storeCategory,
+      );
       await syncProductImages(tx, id, imagePayloads);
       await syncProductVariants(
         tx,

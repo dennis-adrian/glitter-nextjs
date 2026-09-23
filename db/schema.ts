@@ -2913,6 +2913,48 @@ export const productsRelations = relations(products, ({ many }) => ({
   contentSections: many(productContentSections),
 }));
 
+export const merchCollections = pgTable("merch_collections", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  campaignImageUrl: text("campaign_image_url"),
+  campaignTextTone: text("campaign_text_tone", {
+    enum: ["dark", "light"],
+  })
+    .notNull()
+    .default("dark"),
+  showInHero: boolean("show_in_hero").notNull().default(false),
+  festivalId: integer("festival_id").references(() => festivals.id, {
+    onDelete: "set null",
+  }),
+  isVisible: boolean("is_visible").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Products can appear in multiple independently managed collections.
+export const merchCollectionProducts = pgTable(
+  "merch_collection_products",
+  {
+    collectionId: integer("collection_id")
+      .notNull()
+      .references(() => merchCollections.id, { onDelete: "cascade" }),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    uniqueIndex("merch_collection_products_unique").on(
+      t.collectionId,
+      t.productId,
+    ),
+    index("merch_collection_products_product_idx").on(t.productId),
+  ],
+);
+
 export const productOptions = pgTable(
   "product_options",
   {
