@@ -193,6 +193,19 @@ describe("updateProfilePicture", () => {
     ).resolves.toMatchObject({ success: true });
     expect(deleteFilesMock).toHaveBeenCalledWith("stored-key");
   });
+
+  it("keeps the upload when the same picture is saved again", async () => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    findFirstUserMock.mockResolvedValue({
+      imageUrl: "https://utfs.io/f/stored-key",
+    });
+    captureUpdate();
+
+    await expect(
+      updateProfilePicture(OWNER.id, "https://utfs.io/f/stored-key"),
+    ).resolves.toMatchObject({ success: true });
+    expect(deleteFilesMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("deleteUserSocial", () => {

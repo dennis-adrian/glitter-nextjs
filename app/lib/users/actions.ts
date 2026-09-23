@@ -382,7 +382,13 @@ export async function updateProfilePicture(
       })
       .where(eq(users.id, profileId));
 
-    if (oldImageUrl && oldImageUrl.includes("utfs")) {
+    // Re-saving the current picture must not delete the file the row still
+    // points at.
+    if (
+      oldImageUrl &&
+      oldImageUrl !== imageUrl &&
+      oldImageUrl.includes("utfs")
+    ) {
       const [, key] = oldImageUrl.split("/f/");
       await utapi.deleteFiles(key);
     }
