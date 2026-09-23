@@ -22,6 +22,13 @@ import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
 import { filterMerchCatalog } from "@/app/lib/merch/catalog";
 import { merchCollectionPath } from "@/app/lib/merch/paths";
 
+const SORT_LABELS: Record<string, string> = {
+  featured: "Destacados",
+  newest: "Más recientes",
+  "price-asc": "Menor precio",
+  "price-desc": "Mayor precio",
+};
+
 export type MerchStorefrontProps = {
   products: BaseProductWithImages[];
   collections: MerchCollection[];
@@ -256,10 +263,11 @@ export default function MerchStorefront({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="featured">Destacados</SelectItem>
-                  <SelectItem value="newest">Más recientes</SelectItem>
-                  <SelectItem value="price-asc">Menor precio</SelectItem>
-                  <SelectItem value="price-desc">Mayor precio</SelectItem>
+                  {Object.entries(SORT_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -275,6 +283,7 @@ export default function MerchStorefront({
                 !pageCollection && selectedCollection?.name,
                 query && `“${query}”`,
                 available && "Disponibles",
+                sort !== "featured" && SORT_LABELS[sort],
               ]
                 .filter(Boolean)
                 .join(" · ")}
