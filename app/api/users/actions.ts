@@ -779,29 +779,44 @@ export async function rejectProfile(
   }
 
   try {
-    const existingProfile = await db.transaction(async (tx) => {
+    const outcome = await db.transaction(async (tx) => {
       const freshProfile = await tx.query.users.findFirst({
         where: eq(users.id, profile.id),
       });
 
       if (!freshProfile) {
-        return null;
+        return { result: "not_found" as const };
       }
 
+      // Rejecting closes the pending review. Verified, paused and banned
+      // accounts have their own lifecycle actions and must not land here.
+      if (freshProfile.status !== "pending") {
+        return { result: "not_pending" as const };
+      }
+
+      // `fromStatus` is pinned rather than read back, so a status change
+      // between the read and the write fails instead of being overwritten.
       await updateUserStatusWithAudit(tx, {
         userId: profile.id,
-        fromStatus: freshProfile.status,
+        fromStatus: "pending",
         toStatus: "rejected",
         reason: rejectReason,
         createdByUserId: currentProfile.id,
       });
 
-      return freshProfile;
+      return { result: "rejected" as const, profile: freshProfile };
     });
 
-    if (!existingProfile) {
+    if (outcome.result === "not_found") {
       return { success: false, message: "Perfil no encontrado" };
     }
+    if (outcome.result === "not_pending") {
+      return {
+        success: false,
+        message: "Solo se pueden rechazar perfiles pendientes.",
+      };
+    }
+    const existingProfile = outcome.profile;
 
     await sendEmail({
       to: [existingProfile.email],

@@ -26,7 +26,7 @@ import ProfileQuickActions from "@/app/components/user_profile/public_profile/qu
 
 function openMenuFor(
   role: "admin" | "festival_admin",
-  status: "pending" | "verified" | "paused" | "banned",
+  status: "pending" | "verified" | "paused" | "banned" | "rejected",
 ) {
   render(
     <DashboardViewerProvider viewer={{ id: 1, role }}>
@@ -88,5 +88,22 @@ describe("ProfileQuickActions lifecycle entries", () => {
     openMenuFor("festival_admin", "banned");
 
     expect(item("Habilitar").hasAttribute("data-disabled")).toBe(true);
+  });
+});
+
+describe("ProfileQuickActions reject entry", () => {
+  it.each(["verified", "paused", "banned"] as const)(
+    "is not offered for a %s profile, even to an admin",
+    (status) => {
+      openMenuFor("admin", status);
+
+      expect(screen.queryByRole("menuitem", { name: /Rechaz/ })).toBeNull();
+    },
+  );
+
+  it("shows a rejected profile's status, disabled, even to an admin", () => {
+    openMenuFor("admin", "rejected");
+
+    expect(item("Rechazado").hasAttribute("data-disabled")).toBe(true);
   });
 });

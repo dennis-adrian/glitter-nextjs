@@ -193,10 +193,37 @@ describe("rejectProfile as an admin", () => {
     expect(updateStatusWithAuditMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
+        fromStatus: "pending",
         toStatus: "rejected",
         reason: "Perfil incompleto",
         createdByUserId: ADMIN.id,
       }),
     );
   });
+
+  it.each(["verified", "paused", "banned", "rejected"] as const)(
+    "refuses a %s profile without touching it or emailing it",
+    async (status) => {
+      signedInAs(ADMIN);
+      transactionMock.mockImplementation(
+        async (callback: (tx: unknown) => unknown) =>
+          callback({
+            query: {
+              users: {
+                findFirst: vi.fn().mockResolvedValue({ ...TARGET, status }),
+              },
+            },
+          }),
+      );
+
+      await expect(
+        rejectProfile(TARGET as never, "Perfil incompleto"),
+      ).resolves.toEqual({
+        success: false,
+        message: "Solo se pueden rechazar perfiles pendientes.",
+      });
+      expect(updateStatusWithAuditMock).not.toHaveBeenCalled();
+      expect(sendEmailMock).not.toHaveBeenCalled();
+    },
+  );
 });

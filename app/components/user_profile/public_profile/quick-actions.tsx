@@ -142,7 +142,10 @@ export default function ProfileQuickActions({
               </span>
             )}
           </DropdownMenuItem>
-          {profile.status !== "verified" && profile.status !== "banned" ? (
+          {/* Rejecting is part of the pending review only. A rejected profile
+              keeps the entry, disabled, as its status; every other status has
+              its own lifecycle actions and does not show it at all. */}
+          {profile.status === "pending" || profile.status === "rejected" ? (
             <DropdownMenuItem
               disabled={!canManageProfiles || profile.status === "rejected"}
               title={adminOnlyTitle}
