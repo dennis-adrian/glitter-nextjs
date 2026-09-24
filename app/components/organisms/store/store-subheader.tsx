@@ -10,19 +10,20 @@ export default function StoreSubheader() {
   const pathname = usePathname();
   const isListingPage = pathname === "/merch" || pathname === "/supplies";
   const isSupplies = pathname === "/supplies";
+  const Title = pathname.startsWith("/merch") ? "p" : "h1";
 
   return (
-    <div className="sticky top-16 md:top-20 z-40 bg-background border-b">
-      <div className="container px-3 py-3 flex items-center justify-between">
+    <div className="sticky top-[calc(77px+var(--announcement-strip-height,0px))] lg:top-[calc(85px+var(--announcement-strip-height,0px))] z-40 bg-background border-b">
+      <div className="container min-w-0 px-3 py-3 flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+          <Title className="text-xl md:text-2xl font-bold tracking-tight">
             Tiendita Glitter
-          </h1>
+          </Title>
           {isListingPage && (
             <p className="text-xs text-muted-foreground hidden sm:block">
               {isSupplies
                 ? "El Mercadito de Insumos: todo para mejorar la presentación de tu stand"
-                : "Conseguí mercha oficial de nuestros festivales"}
+                : "Descubrí la merch y las colecciones oficiales de Glitter"}
             </p>
           )}
         </div>

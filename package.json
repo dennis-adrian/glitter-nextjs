@@ -19,6 +19,7 @@
     "db:test:logs": "sh -c 'docker compose -p \"glitter-test-${GLITTER_TEST_DB_PORT:-55432}\" -f compose.test.yml logs --tail=100 postgres'",
     "push": "drizzle-kit push:pg",
     "seed": "tsx scripts/sync-env-local.ts --exec tsx scripts/seed.ts",
+    "seed:merch": "tsx scripts/sync-env-local.ts --exec tsx scripts/seed-merch.ts",
     "db:setup": "pnpm generate && pnpm migrate && pnpm seed",
     "vercel-build": "pnpm generate && pnpm migrate && next build",
     "email": "email dev --dir app/emails",

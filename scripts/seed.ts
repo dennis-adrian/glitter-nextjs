@@ -36,6 +36,11 @@ async function main() {
     );
 
     const festivalResult = await seedFestivals(db);
+    const { seedMerch } = await import("@/scripts/seed/merch");
+    const merchResult = await seedMerch(db);
+    console.info(
+      `[seed] merch: ${merchResult.createdProducts} products, ${merchResult.createdCollections} collections created; existing fixtures preserved.`,
+    );
     for (const festival of festivalResult.festivals) {
       console.info(
         festival.reservations === 0
