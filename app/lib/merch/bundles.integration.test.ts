@@ -598,9 +598,21 @@ describeDatabase("bundle checkout", () => {
       ),
     ).rejects.toMatchObject({ cause: "bundle_unavailable" });
 
+    // Every rule below is the only one broken when it is checked, and the
+    // bundle sells before it, so no other rule can produce the rejection.
     await db()
       .update(products)
-      .set({ discount: 0, isVisible: false })
+      .set({ discount: 0 })
+      .where(eq(products.id, fixture.shirtId));
+    await buy(
+      fixture,
+      [],
+      [bundleRequest(fixture, { variantId: fixture.shirtSmallId })],
+    );
+
+    await db()
+      .update(products)
+      .set({ isVisible: false })
       .where(eq(products.id, fixture.toteId));
     await expect(
       buy(
@@ -608,8 +620,33 @@ describeDatabase("bundle checkout", () => {
         [],
         [bundleRequest(fixture, { variantId: fixture.shirtSmallId })],
       ),
-    ).rejects.toMatchObject({ cause: "bundle_unavailable" });
+    ).rejects.toMatchObject({
+      cause: "bundle_unavailable",
+      message: expect.stringMatching(/^El combo ".+" ya no está disponible\.$/),
+    });
+    // Checkout reports every catalog issue the same way; the evaluation it
+    // runs names the one that failed.
+    const { loadBundleCatalog, loadBundleRecords } =
+      await import("@/app/lib/merch/bundles");
+    const { evaluateBundle } = await import("@/app/lib/merch/bundle-pricing");
+    const [record] = await loadBundleRecords(db(), { ids: [fixture.bundleId] });
+    const evaluation = evaluateBundle(
+      record,
+      await loadBundleCatalog(db(), [
+        fixture.shirtId,
+        fixture.toteId,
+        fixture.stickersId,
+      ]),
+      { mode: "sale" },
+    );
+    expect(evaluation.issues.map((issue) => issue.code)).toEqual([
+      "product_hidden",
+    ]);
 
+    await db()
+      .update(products)
+      .set({ isVisible: true })
+      .where(eq(products.id, fixture.toteId));
     await db()
       .update(merchBundles)
       .set({ isVisible: false })
@@ -620,7 +657,11 @@ describeDatabase("bundle checkout", () => {
         [],
         [bundleRequest(fixture, { variantId: fixture.shirtSmallId })],
       ),
-    ).rejects.toMatchObject({ cause: "bundle_unavailable" });
+    ).rejects.toMatchObject({
+      cause: "bundle_unavailable",
+      // The unpublished-bundle branch, not a catalog issue.
+      message: "Un combo de tu carrito ya no está disponible.",
+    });
   });
 
   it("creates guest orders with the same snapshots", async () => {
