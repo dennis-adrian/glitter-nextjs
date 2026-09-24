@@ -1626,6 +1626,7 @@ describeDatabase("bundle checkout", () => {
       message: expect.stringContaining("mismo precio"),
     });
   });
+
   it("rejects a save from an editor that loaded an older copy", async () => {
     const fixture = await createFixture();
     signIn(fixture, "admin");
@@ -1691,5 +1692,103 @@ describeDatabase("bundle checkout", () => {
     expect((await row()).evaluation.issues.map((issue) => issue.code)).toEqual([
       "variant_price_mismatch",
     ]);
+  });
+
+  it("removes a deleted bundle from carts and keeps it in past orders", async () => {
+    const fixture = await createFixture();
+    const order = await buy(fixture, [], [bundleRequest(fixture)]);
+    signIn(fixture);
+    expect(
+      await cartActions.addBundleToCart(bundleRequest(fixture)),
+    ).toMatchObject({ success: true });
+
+    signIn(fixture, "admin");
+    const { deleteMerchBundle } =
+      await import("@/app/lib/merch/bundle-actions");
+    expect(await deleteMerchBundle(fixture.bundleId)).toEqual({
+      success: true,
+      message: "Combo eliminado.",
+    });
+    expect(await deleteMerchBundle(fixture.bundleId)).toMatchObject({
+      success: false,
+      message: "El combo ya no existe.",
+    });
+
+    const [userCart] = await db()
+      .select()
+      .from(carts)
+      .where(eq(carts.userId, fixture.userId));
+    expect(
+      await db()
+        .select()
+        .from(cartBundles)
+        .where(eq(cartBundles.cartId, userCart.id)),
+    ).toEqual([]);
+    const snapshot = await orderSnapshot(order.orderId);
+    expect(snapshot.order.totalAmount).toBe(150);
+    expect(snapshot.bundles).toEqual([
+      expect.objectContaining({
+        bundleId: null,
+        nameSnapshot: expect.stringContaining("Kit"),
+        unitPriceCents: 15000,
+        totalCents: 15000,
+      }),
+    ]);
+    expect(snapshot.items).toHaveLength(3);
+    expect(snapshot.items.every((row) => row.allocation != null)).toBe(true);
+  });
+
+  it("deletes a bundle without deadlocking a checkout that holds its cart line", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    expect(
+      await cartActions.addBundleToCart(bundleRequest(fixture)),
+    ).toMatchObject({ success: true });
+    signIn(fixture, "admin");
+    const { deleteMerchBundle } =
+      await import("@/app/lib/merch/bundle-actions");
+
+    const checkout = await pool!.connect();
+    try {
+      await checkout.query("BEGIN");
+      const {
+        rows: [{ pid }],
+      } = await checkout.query<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      );
+      // In checkoutCart's order: the cart's bundle lines first...
+      await checkout.query(
+        "SELECT id FROM cart_bundles WHERE bundle_id = $1 FOR UPDATE",
+        [fixture.bundleId],
+      );
+      const deleting = deleteMerchBundle(fixture.bundleId);
+      for (let attempt = 0; ; attempt += 1) {
+        const { rows } = await pool!.query<{ waiting: number }>(
+          "SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))",
+          [pid],
+        );
+        if (rows[0].waiting > 0) break;
+        if (attempt > 250) throw new Error("The delete never waited.");
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      // ...then the bundle, before clearing the cart.
+      await checkout.query(
+        "SELECT id FROM merch_bundles WHERE id = $1 FOR SHARE",
+        [fixture.bundleId],
+      );
+      await checkout.query("DELETE FROM cart_bundles WHERE bundle_id = $1", [
+        fixture.bundleId,
+      ]);
+      await checkout.query("COMMIT");
+      expect(await deleting).toEqual({
+        success: true,
+        message: "Combo eliminado.",
+      });
+    } catch (error) {
+      await checkout.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      checkout.release();
+    }
   });
 });

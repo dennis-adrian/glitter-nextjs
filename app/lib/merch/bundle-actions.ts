@@ -1,9 +1,10 @@
 "use server";
 
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
+  cartBundles,
   merchBundleCollections,
   merchBundleComponents,
   merchBundleComponentVariants,
@@ -42,6 +43,18 @@ function isUniqueViolation(error: unknown, constraint: string): boolean {
     if (candidate.code === "23505" && candidate.constraint === constraint) {
       return true;
     }
+  }
+  return false;
+}
+
+/** Postgres `lock_not_available`, raised by a NOWAIT lock. */
+function isLockNotAvailable(error: unknown): boolean {
+  for (
+    let current: unknown = error;
+    current && typeof current === "object";
+    current = (current as { cause?: unknown }).cause
+  ) {
+    if ((current as { code?: unknown }).code === "55P03") return true;
   }
   return false;
 }
@@ -371,15 +384,47 @@ export async function deleteMerchBundle(
     return { success: false, message: "Combo inválido." };
   }
   try {
-    // Carts holding it cascade away; past orders keep their snapshots.
-    const deleted = await db
-      .delete(merchBundles)
-      .where(eq(merchBundles.id, bundleId))
-      .returning({ id: merchBundles.id });
-    if (deleted.length === 0) {
+    const deleted = await db.transaction(async (tx) => {
+      // Lock in checkout's order: a cart's bundle lines, then the bundle.
+      // A bare DELETE locks the bundle first and only then reaches the lines
+      // through its cascade, which deadlocks with a checkout in between.
+      // Lines are locked, not deleted, here: deleting would reach their
+      // selections before the bundle, the reverse of saveMerchBundle.
+      await tx
+        .select({ id: cartBundles.id })
+        .from(cartBundles)
+        .where(eq(cartBundles.bundleId, bundleId))
+        .orderBy(asc(cartBundles.id))
+        .for("update");
+      const [bundle] = await tx
+        .select({ id: merchBundles.id })
+        .from(merchBundles)
+        .where(eq(merchBundles.id, bundleId))
+        .for("update");
+      if (!bundle) return false;
+      // The bundle lock stops new lines. Lines added since the first lock
+      // are taken without waiting: a checkout holding one fails this delete
+      // instead of deadlocking with it.
+      await tx
+        .select({ id: cartBundles.id })
+        .from(cartBundles)
+        .where(eq(cartBundles.bundleId, bundleId))
+        .for("update", { noWait: true });
+      // Carts holding it cascade away; past orders keep their snapshots.
+      await tx.delete(merchBundles).where(eq(merchBundles.id, bundleId));
+      return true;
+    });
+    if (!deleted) {
       return { success: false, message: "El combo ya no existe." };
     }
   } catch (error) {
+    if (isLockNotAvailable(error)) {
+      return {
+        success: false,
+        message:
+          "Alguien está comprando este combo en este momento. Intentá eliminarlo de nuevo.",
+      };
+    }
     console.error("deleteMerchBundle error", error);
     return { success: false, message: "No se pudo eliminar el combo." };
   }
