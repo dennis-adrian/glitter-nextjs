@@ -1,0 +1,1 @@
+CREATE INDEX "cart_bundle_selections_component_idx" ON "cart_bundle_selections" USING btree ("component_id");

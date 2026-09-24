@@ -1221,4 +1221,32 @@ describeDatabase("bundle checkout", () => {
       vi.unstubAllEnvs();
     }
   });
+
+  it("indexes every bundle foreign key by its leading column", async () => {
+    // Postgres does not index referencing columns. Without one, every delete
+    // of a parent row scans the child table to cascade or restrict it.
+    const { rows } = await pool!.query<{ name: string }>(
+      `select c.conname as name
+         from pg_constraint c
+        where c.contype = 'f'
+          and c.conrelid::regclass::text = any($1)
+          and not exists (
+            select 1 from pg_index i
+             where i.indrelid = c.conrelid and i.indkey[0] = c.conkey[1]
+          )`,
+      [
+        [
+          "merch_bundles",
+          "merch_bundle_components",
+          "merch_bundle_component_variants",
+          "merch_bundle_collections",
+          "cart_bundles",
+          "cart_bundle_selections",
+          "order_bundles",
+          "order_bundle_items",
+        ],
+      ],
+    );
+    expect(rows).toEqual([]);
+  });
 });

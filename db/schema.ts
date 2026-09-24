@@ -3991,6 +3991,9 @@ export const cartBundleSelections = pgTable(
       t.componentId,
     ),
     index("cart_bundle_selections_variant_idx").on(t.productVariantId),
+    // The unique index leads with the cart line, so without this every
+    // component a bundle save drops would cascade through a sequential scan.
+    index("cart_bundle_selections_component_idx").on(t.componentId),
   ],
 );
 
