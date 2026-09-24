@@ -1055,9 +1055,13 @@ async function planBundleAdd(
     quantity,
     added,
     message:
-      added < request.quantity
-        ? `Agregamos ${added} por el stock disponible.`
-        : undefined,
+      added >= request.quantity
+        ? undefined
+        : // Name whichever limit actually held the add back.
+          quantity === MAX_CART_BUNDLE_QUANTITY &&
+            limit >= MAX_CART_BUNDLE_QUANTITY
+          ? `Agregamos ${added}: podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades de este combo.`
+          : `Agregamos ${added} por el stock disponible.`,
   };
 }
 

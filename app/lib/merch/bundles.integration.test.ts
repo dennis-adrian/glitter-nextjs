@@ -2127,4 +2127,32 @@ describeDatabase("bundle checkout", () => {
       message: expect.stringContaining("Confirmá su precio actual"),
     });
   });
+  it("says the per-line cap, not stock, held back a guest add", async () => {
+    const fixture = await createFixture({ medium: 20, tote: 20, stickers: 40 });
+    const first = await cartActions.planGuestBundleAdd(
+      bundleRequest(fixture, { quantity: 1 }),
+      [],
+      [],
+    );
+    if (!first.success) throw new Error(first.message);
+    const line = {
+      lineKey: first.bundle.lineKey,
+      bundleId: fixture.bundleId,
+      bundleVersion: 1,
+      quantity: 1,
+      selections: first.bundle.selections,
+    };
+    expect(
+      await cartActions.planGuestBundleAdd(
+        bundleRequest(fixture, { quantity: 5 }),
+        [line],
+        [],
+      ),
+    ).toMatchObject({
+      success: true,
+      added: 4,
+      bundle: { quantity: 5 },
+      message: "Agregamos 4: podés llevar hasta 5 unidades de este combo.",
+    });
+  });
 });
