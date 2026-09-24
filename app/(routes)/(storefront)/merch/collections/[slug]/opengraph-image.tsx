@@ -151,7 +151,7 @@ export default async function CollectionOpenGraphImage({
             </div>
           </div>
           <div style={{ display: "flex", fontSize: 20, opacity: 0.8 }}>
-            productoraglitter.com
+            glitter.com.bo
           </div>
         </div>
       </div>,
@@ -210,7 +210,7 @@ export default async function CollectionOpenGraphImage({
           </div>
         </div>
         <div style={{ display: "flex", fontSize: 20, color: "#d8c8ff" }}>
-          productoraglitter.com
+          glitter.com.bo
         </div>
       </div>
       <div
