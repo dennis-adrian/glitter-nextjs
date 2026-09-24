@@ -1176,4 +1176,49 @@ describeDatabase("bundle checkout", () => {
       ),
     ).toBe(false);
   });
+
+  it("seeds combos with visible sizes only", async () => {
+    const { seedMerch } = await import("@/scripts/seed/merch");
+    // The seed refuses anything but a development Clerk key.
+    vi.stubEnv("CLERK_SECRET_KEY", "sk_test_integration");
+    const rollback = new Error("rollback");
+    try {
+      // Rolled back: the seed's fixtures must not outlive this test.
+      await db().transaction(async (tx) => {
+        // A database seeded before combos existed keeps its polera, reused
+        // unchanged, and an admin has since hidden one of its sizes.
+        const [polera] = await tx
+          .insert(products)
+          .values({
+            name: "Polera Glitter Club",
+            slug: "demo-merch-polera",
+            price: 100,
+            stock: 0,
+            storeCategory: "merch",
+          })
+          .returning();
+        const [visible] = await tx
+          .insert(productVariants)
+          .values([
+            { productId: polera.id, stock: 8, sortOrder: 0 },
+            { productId: polera.id, stock: 8, sortOrder: 1, isVisible: false },
+          ])
+          .returning();
+
+        await seedMerch(tx as unknown as Parameters<typeof seedMerch>[0]);
+
+        // Only the Kit Clásicos combo holds the polera.
+        const eligible = await tx
+          .select({ variantId: merchBundleComponentVariants.variantId })
+          .from(merchBundleComponentVariants)
+          .where(eq(merchBundleComponentVariants.productId, polera.id));
+        expect(eligible).toEqual([{ variantId: visible.id }]);
+        throw rollback;
+      });
+    } catch (error) {
+      if (error !== rollback) throw error;
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { db as Database } from "@/db";
 import {
   festivals,
@@ -292,11 +292,17 @@ export async function seedMerch(database: typeof Database) {
             sortOrder: index,
           })
           .returning({ id: merchBundleComponents.id });
-        // Every visible size is eligible; the customer picks one.
+        // Every visible size is eligible; the customer picks one. A hidden
+        // size stays out, or unhiding it later would add it to the combo.
         const variants = await tx
           .select({ id: productVariants.id })
           .from(productVariants)
-          .where(eq(productVariants.productId, productId));
+          .where(
+            and(
+              eq(productVariants.productId, productId),
+              eq(productVariants.isVisible, true),
+            ),
+          );
         if (variants.length) {
           await tx.insert(merchBundleComponentVariants).values(
             variants.map((variant) => ({
