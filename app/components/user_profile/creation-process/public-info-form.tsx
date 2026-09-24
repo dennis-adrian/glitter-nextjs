@@ -35,10 +35,11 @@ export default function PublicInfoForm(props: PublicInfoFormProps) {
 
   const action = form.handleSubmit(async (data) => {
     try {
+      // `email` is deliberately left out: it is the address Clerk
+      // authenticates against, so it is not self-editable.
       const res = await updateProfile(props.profile.id, {
         firstName: data.firstName,
         lastName: data.lastName,
-        email: data.email,
       });
       if (res.success) {
         toast.success(res.message);
@@ -70,9 +71,10 @@ export default function PublicInfoForm(props: PublicInfoFormProps) {
         />
         <TextInput
           bottomBorderOnly
+          disabled
           label="Correo electrónico"
           name="email"
-          placeholder="Ingresa tu correo electrónico"
+          description="Es el correo de tu cuenta. Escribinos si necesitás cambiarlo."
           type="email"
         />
         <div className="flex gap-2 my-2 col-span-1 sm:col-span-2">

@@ -98,3 +98,16 @@ To permanently discard it, run `docker compose -p "glitter-test-${GLITTER_TEST_D
 - Inspect logs: `pnpm db:test:logs`.
 - Do not put the Docker URL in a committed `.env` file. It is shell-local by
   design, so each worktree can select its own database.
+
+## Seed merchandise for storefront testing
+
+`pnpm seed` now includes demo merch and collections. To seed only these fixtures after migrations, without reseeding Clerk users or festival reservations:
+
+```bash
+pnpm env:sync
+POSTGRES_URL="postgres://glitter:glitter@127.0.0.1:${GLITTER_TEST_DB_PORT}/glitter_test" pnpm seed:merch
+```
+
+The same development-key and local-database guards apply. Demo products include sizes, a discount, presale, sold-out and hidden items, plus a supplies item to verify category separation. Collections include generic themes, an optional festival link and an unpublished draft. Local SVG artwork requires no uploads. Reruns preserve existing fixture edits and stock.
+
+Start a separate server with `pnpm dev --port 3017` and explicit `POSTGRES_URL` / `NEXT_PUBLIC_BASE_URL=http://localhost:3017`; retain the application-name tag described above to verify its database connection.

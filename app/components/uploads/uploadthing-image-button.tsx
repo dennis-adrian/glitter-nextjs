@@ -24,6 +24,12 @@ type UploadedFile = {
 type UploadThingImageButtonProps = {
   endpoint: ImageUploadEndpoint;
   onUploadComplete: (imageUrl: string) => void;
+  /**
+   * Sees the route's raw `onUploadComplete` return before completion, for
+   * callers that need more than the URL. Returning false treats the upload as
+   * an invalid response: error toast, and `onUploadComplete` is not called.
+   */
+  acceptServerData?: (serverData: unknown) => boolean;
   onUploading?: (isUploading: boolean) => void;
   transformFiles?: (files: File[]) => File[];
   buttonLabel?: string;
@@ -91,6 +97,7 @@ function buttonContent({
 export function UploadThingImageButton({
   endpoint,
   onUploadComplete,
+  acceptServerData,
   onUploading,
   transformFiles,
   buttonLabel = "Subir imagen",
@@ -143,7 +150,10 @@ export function UploadThingImageButton({
       onClientUploadComplete={(results) => {
         onUploading?.(false);
         const imageUrl = readImageUrl(results[0]);
-        if (!imageUrl) {
+        if (
+          !imageUrl ||
+          (acceptServerData && !acceptServerData(results[0]?.serverData))
+        ) {
           toast.error(invalidResponseMessage);
           return;
         }

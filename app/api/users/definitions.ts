@@ -54,7 +54,6 @@ export type ParticipationWithParticipantWithInfractionsAndReservations =
   };
 
 export type NewUser = typeof users.$inferInsert;
-export type UpdateUser = Partial<NewUser>;
 export type BaseProfile = typeof users.$inferSelect;
 export type ProfileWithSocials = BaseProfile & {
   userSocials: UserSocial[];

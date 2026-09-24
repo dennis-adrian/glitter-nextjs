@@ -77,6 +77,34 @@ export async function requireAdmin() {
   return profile;
 }
 
+/**
+ * Gate for a write against `profileId`'s own row: the owner may act on itself
+ * and an admin may act on anyone. Returns null when unauthenticated, or when a
+ * signed-in user aims at somebody else's row.
+ */
+export async function requireProfileOwnerOrAdmin(profileId: number) {
+  const profile = await getCurrentUserProfile();
+  if (!profile) return null;
+  if (profile.id === profileId || profile.role === "admin") {
+    return profile;
+  }
+  return null;
+}
+
+/**
+ * Same as `requireProfileOwnerOrAdmin`, but festival admins pass too. Only for
+ * festival-domain fields a festival admin already curates (categories and the
+ * subcategories that follow from them), never for the profile's own lifecycle.
+ */
+export async function requireProfileOwnerOrStaff(profileId: number) {
+  const profile = await getCurrentUserProfile();
+  if (!profile) return null;
+  if (profile.id === profileId || isAdminOrFestivalAdmin(profile.role)) {
+    return profile;
+  }
+  return null;
+}
+
 type ProtectRouteOptions = {
   allowedStatuses?: BaseProfile["status"][];
 };

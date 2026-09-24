@@ -1,0 +1,1 @@
+ALTER TABLE "merch_collections" ADD COLUMN "campaign_text_tone" text DEFAULT 'dark' NOT NULL;

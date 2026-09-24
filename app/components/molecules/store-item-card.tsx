@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ClockIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -19,7 +18,6 @@ import { Button } from "@/app/components/ui/button";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { addToCart } from "@/app/lib/cart/actions";
 import { buildCartLineKey } from "@/app/lib/cart/utils";
-import { formatDate } from "@/app/lib/formatters";
 import {
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
@@ -35,7 +33,9 @@ import {
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
 
 type StoreItemCardProps = {
+  presentation?: "default" | "merch";
   product: BaseProductWithImages;
+  returnTo?: string;
   rentalEligible?: boolean;
   rentalContexts?: RentalEligibilityContext[];
 };
@@ -49,7 +49,10 @@ export default function StoreItemCard({
   product,
   rentalEligible = false,
   rentalContexts = [],
+  presentation = "default",
+  returnTo,
 }: StoreItemCardProps) {
+  const productHref = `/store/products/${encodeURIComponent(product.slug)}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`;
   const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -231,11 +234,14 @@ export default function StoreItemCard({
 
   return (
     <>
-      <Card className="group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col">
-        <Link
-          href={`/store/products/${encodeURIComponent(product.slug)}`}
-          className="flex-1 block"
-        >
+      <Card
+        className={
+          presentation === "merch"
+            ? "group relative overflow-hidden rounded-xl border border-border bg-card shadow-none h-full flex flex-col"
+            : "group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col"
+        }
+      >
+        <Link href={productHref} className="flex-1 block">
           <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
             <ProductStatusBadge
               status={product.status}
@@ -258,7 +264,13 @@ export default function StoreItemCard({
             interactive={false}
           />
 
-          <CardContent className="p-3 flex flex-col gap-2">
+          <CardContent
+            className={
+              presentation === "merch"
+                ? "px-3 py-4 flex flex-col gap-2"
+                : "p-3 flex flex-col gap-2"
+            }
+          >
             <p className="font-medium text-sm leading-tight line-clamp-2">
               {product.name}
             </p>
@@ -301,22 +313,22 @@ export default function StoreItemCard({
               size="sm"
               className="w-full bg-primary hover:bg-primary/90"
             >
-              <Link
-                href={`/store/products/${encodeURIComponent(product.slug)}`}
-                aria-label={`Alquilar ${product.name}`}
-              >
+              <Link href={productHref} aria-label={`Alquilar ${product.name}`}>
                 <span className="text-xs md:text-sm">Alquilar</span>
               </Link>
             </Button>
           ) : (
             <Button
               size="sm"
+              variant={presentation === "merch" ? "outline" : "default"}
               className={
-                inStock
-                  ? isPresale
-                    ? "w-full bg-amber-600 hover:bg-amber-700"
-                    : "w-full bg-primary hover:bg-primary/90"
-                  : "w-full bg-muted text-muted-foreground hover:bg-muted"
+                presentation === "merch"
+                  ? "w-fit max-w-full"
+                  : inStock
+                    ? isPresale
+                      ? "w-full bg-amber-600 hover:bg-amber-700"
+                      : "w-full bg-primary hover:bg-primary/90"
+                    : "w-full bg-muted text-muted-foreground hover:bg-muted"
               }
               disabled={!inStock || submitting}
               onClick={handleQuickAdd}

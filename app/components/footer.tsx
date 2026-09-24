@@ -27,7 +27,7 @@ export default function Footer({
         hidden: shouldHide,
       })}
     >
-      <div className="container">
+      <div className="container min-w-0">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
             <GlitterLogo height={60} width={60} variant="dark" />

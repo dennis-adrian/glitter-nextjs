@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { ProfileType, UpdateUser } from "@/app/api/users/definitions";
+import { ProfileType } from "@/app/api/users/definitions";
+import type { SelfEditableProfile } from "@/app/lib/users/profile-fields";
 
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Input } from "@/app/components/ui/input";
@@ -48,11 +49,11 @@ export default function PublicProfileForm({
     const { dirtyFields } = form.formState;
     const dirtyFieldsKeys = Object.keys(dirtyFields) as (keyof typeof data)[];
 
-    const fieldsToUpdate: UpdateUser = {};
+    const fieldsToUpdate: SelfEditableProfile = {};
     for (const key of dirtyFieldsKeys) {
       const value = data[key as keyof typeof data];
       if (value !== undefined) {
-        fieldsToUpdate[key as keyof UpdateUser] = value as any;
+        Object.assign(fieldsToUpdate, { [key]: value });
       }
     }
 

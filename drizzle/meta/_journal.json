@@ -1982,6 +1982,48 @@
       "when": 1788930560453,
       "tag": "0283_settle_invoice_shortfall_operation",
       "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1790112800809,
+      "tag": "0284_merch_festival_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 285,
+      "version": "7",
+      "when": 1790114553431,
+      "tag": "0285_independent_merch_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 286,
+      "version": "7",
+      "when": 1790173451202,
+      "tag": "0286_merch_campaign_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 287,
+      "version": "7",
+      "when": 1790183459172,
+      "tag": "0287_merch_campaign_text_tone",
+      "breakpoints": true
+    },
+    {
+      "idx": 288,
+      "version": "7",
+      "when": 1790184339982,
+      "tag": "0288_merch_featured_banner_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1790185449076,
+      "tag": "0289_merch_collection_one_based_order",
+      "breakpoints": true
     }
   ]
 }
