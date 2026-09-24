@@ -10,8 +10,11 @@ import type {
 } from "@/app/lib/merch/bundle-definitions";
 import {
   buildBundleLineKey,
+  bundleLineCapNotice,
   getBundleDemandLines,
   getGuestItemStockCap,
+  guestBundleSignature,
+  productLineCapNotice,
   reconcileGuestBundleLines,
   replaceGuestBundleLine,
   toGuestCartBundle,
@@ -164,6 +167,86 @@ describe("getGuestItemStockCap", () => {
       ] as GuestCartBundle["components"],
     });
     expect(getGuestItemStockCap(tote(3), [legacy])).toBe(3);
+  });
+
+  it("frees the stock of lines the server found unbuyable until they resolve again", () => {
+    const kit = bundle([], { quantity: 1, components: [toteComponent] });
+    expect(getGuestItemStockCap(tote(1), [kit])).toBe(0);
+
+    for (const issue of ["unavailable", "selection_invalid"] as const) {
+      const {
+        bundles: [blocked],
+      } = reconcileGuestBundleLines([kit], {
+        bundles: [resolved(kit, { issue, message: "No disponible." })],
+        removedBundleKeys: [],
+      });
+      expect(blocked).toEqual({ ...kit, blocked: true });
+      // The server reserves nothing for it either.
+      expect(getGuestItemStockCap(tote(1), [blocked])).toBe(1);
+
+      // Resolved lines count again; a line awaiting confirmation still
+      // reserves, as on the server.
+      for (const next of [null, "stale"] as const) {
+        const {
+          bundles: [clean],
+        } = reconcileGuestBundleLines([blocked], {
+          bundles: [resolved(blocked, { issue: next })],
+          removedBundleKeys: [],
+        });
+        expect(clean.blocked).toBeUndefined();
+        expect(getGuestItemStockCap(tote(1), [clean])).toBe(0);
+      }
+
+      // A resolution that does not cover the line leaves it as it was.
+      const untouched = [blocked];
+      expect(
+        reconcileGuestBundleLines(untouched, {
+          bundles: [],
+          removedBundleKeys: [],
+        }).bundles,
+      ).toBe(untouched);
+    }
+  });
+});
+
+describe("productLineCapNotice", () => {
+  it("names the per-line cap, with the units that still went in", () => {
+    expect(productLineCapNotice(0)).toBe(
+      "Podés llevar hasta 5 unidades de este producto.",
+    );
+    expect(productLineCapNotice(1)).toBe(
+      "Agregamos 1: podés llevar hasta 5 unidades de este producto.",
+    );
+  });
+});
+
+describe("bundleLineCapNotice", () => {
+  it("names the per-line cap, with the units that still went in", () => {
+    expect(bundleLineCapNotice(0)).toBe(
+      "Podés llevar hasta 5 unidades de este combo.",
+    );
+    expect(bundleLineCapNotice(2)).toBe(
+      "Agregamos 2: podés llevar hasta 5 unidades de este combo.",
+    );
+  });
+});
+
+describe("guestBundleSignature", () => {
+  it("matches equal lines in a new array and tells changed ones apart", () => {
+    const lines = [bundle([], { quantity: 2 }), bundle(shirtM)];
+    expect(guestBundleSignature(lines.map((line) => ({ ...line })))).toBe(
+      guestBundleSignature(lines),
+    );
+    expect(guestBundleSignature([])).toBe("");
+    for (const changed of [
+      [{ ...lines[0], quantity: 3 }, lines[1]],
+      [{ ...lines[0], bundleVersion: 3 }, lines[1]],
+      [lines[0]],
+    ]) {
+      expect(guestBundleSignature(changed)).not.toBe(
+        guestBundleSignature(lines),
+      );
+    }
   });
 });
 

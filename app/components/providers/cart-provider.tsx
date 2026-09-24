@@ -16,6 +16,7 @@ import {
 import {
   buildBundleLineKey,
   buildCartLineKey,
+  bundleLineCapNotice,
   getGuestItemStockCap,
   reconcileGuestBundleLines,
   replaceGuestBundleLine,
@@ -31,15 +32,24 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
 /** What a guest add-to-cart did, mirroring the signed-in action's answer. */
 export type GuestBundleAddOutcome = {
   success: boolean;
-  /** Units actually added (0 when nothing changed). */
+  /** Units that landed in the cart (0 when nothing changed). */
   added: number;
   message?: string;
+};
+
+/** What a guest product add did, and which limit held it back. */
+export type GuestItemAddOutcome = {
+  /** Units actually added (0 when nothing changed). */
+  added: number;
+  /** The per-line cap, not stock, kept units out. */
+  lineCapped: boolean;
 };
 
 /** What applying a server resolution changed in the guest cart. */
@@ -61,10 +71,11 @@ type CartContextValue = {
   guestItems: GuestCartItem[];
   guestCartHydrated: boolean;
   /**
-   * Caps the line by its stock snapshot, net of the cart's bundle lines, and
-   * returns how many units were added (0 when the cap left no room).
+   * Caps the line by the per-line limit and its stock snapshot, net of the
+   * cart's bundle lines, and says how many units were added and which limit
+   * held the rest back.
    */
-  addGuestItem: (item: GuestCartItem) => number;
+  addGuestItem: (item: GuestCartItem) => GuestItemAddOutcome;
   removeGuestItem: (lineKey: string) => void;
   /**
    * `maxQuantity` is the server's limit for the line when known; without it
@@ -78,7 +89,8 @@ type CartContextValue = {
   guestBundles: GuestCartBundle[];
   /**
    * Adds a bundle after the server checks it against the whole guest cart
-   * (shared stock, per-line cap, changed versions, line limit).
+   * (shared stock, per-line cap, changed versions, line limit), and reports
+   * the units that landed on the lines as they are once it answers.
    */
   addGuestBundle: (
     request: BundleLineRequest,
@@ -228,6 +240,7 @@ function normalizeGuestCartBundle(
         ? bundle.separateUnitPriceCents
         : bundle.unitPriceCents,
     components: bundle.components,
+    ...(bundle.blocked === true ? { blocked: true } : {}),
   };
 }
 
@@ -279,17 +292,40 @@ export function CartProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [guestItems, setGuestItems] = useState<GuestCartItem[]>([]);
   const [guestBundles, setGuestBundles] = useState<GuestCartBundle[]>([]);
+  // The latest bundle lines, ahead of the render that shows them. Every
+  // change starts from them, so one that lands after waiting on the server
+  // (an add) builds on changes made meanwhile and can say what it did.
+  const guestBundlesRef = useRef<GuestCartBundle[]>([]);
   const [guestCartHydrated, setGuestCartHydrated] = useState(false);
+
+  const showGuestBundles = useCallback((bundles: GuestCartBundle[]) => {
+    guestBundlesRef.current = bundles;
+    setGuestBundles(bundles);
+  }, []);
+
+  /** Applies a change to the latest lines and persists it. */
+  const changeGuestBundles = useCallback(
+    (change: (current: GuestCartBundle[]) => GuestCartBundle[]) => {
+      const current = guestBundlesRef.current;
+      const next = change(current);
+      // Unchanged lines keep their identity, so they trigger no other
+      // resolution.
+      if (next === current) return;
+      writeGuestBundles(next);
+      showGuestBundles(next);
+    },
+    [showGuestBundles],
+  );
 
   // Hydrate guest cart from localStorage after mount (client only).
   // When authenticated, skip localStorage but still mark hydrated so consumers never wait forever.
   useEffect(() => {
     if (!isAuthenticated) {
       setGuestItems(readGuestCart());
-      setGuestBundles(readGuestBundles());
+      showGuestBundles(readGuestBundles());
     }
     setGuestCartHydrated(true);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, showGuestBundles]);
 
   // Another tab (or the payment page) may change or empty the stored cart;
   // re-read it so a stale copy here never writes purchased lines back.
@@ -297,7 +333,7 @@ export function CartProvider({
     if (isAuthenticated) return;
     const reload = () => {
       setGuestItems(readGuestCart());
-      setGuestBundles(readGuestBundles());
+      showGuestBundles(readGuestBundles());
     };
     const onStorage = (event: StorageEvent) => {
       if (
@@ -314,7 +350,7 @@ export function CartProvider({
       window.removeEventListener(GUEST_CART_CLEARED_EVENT, reload);
       window.removeEventListener("storage", onStorage);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, showGuestBundles]);
 
   // Guest counts derive from both line kinds; authenticated counts come from
   // the server through setItemCount.
@@ -328,22 +364,22 @@ export function CartProvider({
   const closeCart = useCallback(() => setIsOpen(false), []);
 
   const addGuestItem = useCallback(
-    (incoming: GuestCartItem) => {
+    (incoming: GuestCartItem): GuestItemAddOutcome => {
       if (incoming.lineKey.endsWith(":rental")) {
-        return 0;
+        return { added: 0, lineCapped: false };
       }
       // Bundles in the cart draw from the same stock as individual lines.
       const stockCap = getGuestItemStockCap(incoming, guestBundles);
       const currentQty =
         guestItems.find((i) => i.lineKey === incoming.lineKey)?.quantity ?? 0;
+      const wanted = currentQty + incoming.quantity;
       const added = Math.max(
         0,
-        Math.min(
-          currentQty + incoming.quantity,
-          MAX_CART_LINE_QUANTITY,
-          stockCap,
-        ) - currentQty,
+        Math.min(wanted, MAX_CART_LINE_QUANTITY, stockCap) - currentQty,
       );
+      // Name the per-line cap whenever it binds, as bundle adds do.
+      const lineCapped =
+        wanted > MAX_CART_LINE_QUANTITY && stockCap >= MAX_CART_LINE_QUANTITY;
       setGuestItems((prev) => {
         const existing = prev.find((i) => i.lineKey === incoming.lineKey);
         const existingQty = existing?.quantity ?? 0;
@@ -363,7 +399,7 @@ export function CartProvider({
         writeGuestCart(updatedGuestItems);
         return updatedGuestItems;
       });
-      return added;
+      return { added, lineCapped };
     },
     [guestBundles, guestItems],
   );
@@ -412,111 +448,117 @@ export function CartProvider({
     async (request: BundleLineRequest): Promise<GuestBundleAddOutcome> => {
       const result = await planGuestBundleAdd(
         request,
-        toGuestBundleInputs(guestBundles),
+        toGuestBundleInputs(guestBundlesRef.current),
         toGuestItemInputs(guestItems),
       );
       if (!result.success) {
         return { success: false, added: 0, message: result.message };
       }
-      setGuestBundles((prev) => {
-        // The planned line takes the place of every line it merges.
+      let added = 0;
+      changeGuestBundles((current) => {
+        // The planned line takes the place of every line it merges. The
+        // plan's quantity counts those lines as they were sent; another tab
+        // or the cart sheet may have changed them since, so only the units
+        // added land on top of what they hold now, up to the per-line cap.
         const replaced = new Set([...result.replaces, result.bundle.lineKey]);
+        const held = current.reduce(
+          (sum, bundle) =>
+            replaced.has(bundle.lineKey) ? sum + bundle.quantity : sum,
+          0,
+        );
+        const quantity = Math.min(
+          held + result.added,
+          MAX_CART_BUNDLE_QUANTITY,
+        );
+        added = quantity - held;
+        // Nothing fits any more: an add never lowers the lines it merges.
+        if (added <= 0) return current;
+        const merged: GuestCartBundle = { ...result.bundle, quantity };
         const updated: GuestCartBundle[] = [];
-        for (const bundle of prev) {
+        for (const bundle of current) {
           if (!replaced.has(bundle.lineKey)) updated.push(bundle);
-          else if (!updated.includes(result.bundle)) {
-            updated.push(result.bundle);
-          }
+          else if (!updated.includes(merged)) updated.push(merged);
         }
-        if (!updated.includes(result.bundle)) updated.push(result.bundle);
-        writeGuestBundles(updated);
+        if (!updated.includes(merged)) updated.push(merged);
         return updated;
       });
-      return { success: true, added: result.added, message: result.message };
+      // Report what landed, not what the plan expected to add.
+      if (added <= 0) {
+        return { success: false, added: 0, message: bundleLineCapNotice(0) };
+      }
+      return {
+        success: true,
+        added,
+        message:
+          added < result.added ? bundleLineCapNotice(added) : result.message,
+      };
     },
-    [guestBundles, guestItems],
+    [changeGuestBundles, guestItems],
   );
 
-  const removeGuestBundle = useCallback((lineKey: string) => {
-    setGuestBundles((prev) => {
-      const updated = prev.filter((b) => b.lineKey !== lineKey);
-      writeGuestBundles(updated);
-      return updated;
-    });
-  }, []);
+  const removeGuestBundle = useCallback(
+    (lineKey: string) => {
+      changeGuestBundles((current) =>
+        current.filter((b) => b.lineKey !== lineKey),
+      );
+    },
+    [changeGuestBundles],
+  );
 
   const updateGuestBundleQuantity = useCallback(
     (lineKey: string, quantity: number) => {
-      setGuestBundles((prev) => {
-        const updated =
-          quantity <= 0
-            ? prev.filter((b) => b.lineKey !== lineKey)
-            : prev.map((b) =>
-                b.lineKey === lineKey
-                  ? {
-                      ...b,
-                      quantity: Math.min(quantity, MAX_CART_BUNDLE_QUANTITY),
-                    }
-                  : b,
-              );
-        writeGuestBundles(updated);
-        return updated;
-      });
+      changeGuestBundles((current) =>
+        quantity <= 0
+          ? current.filter((b) => b.lineKey !== lineKey)
+          : current.map((b) =>
+              b.lineKey === lineKey
+                ? {
+                    ...b,
+                    quantity: Math.min(quantity, MAX_CART_BUNDLE_QUANTITY),
+                  }
+                : b,
+            ),
+      );
     },
-    [],
+    [changeGuestBundles],
   );
 
   const replaceGuestBundle = useCallback(
     (lineKey: string, bundle: GuestCartBundle) => {
-      setGuestBundles((prev) => {
-        const { bundles: updated } = replaceGuestBundleLine(
-          prev,
-          lineKey,
-          bundle,
-        );
-        writeGuestBundles(updated);
-        return updated;
+      let droppedUnits = 0;
+      changeGuestBundles((current) => {
+        const replaced = replaceGuestBundleLine(current, lineKey, bundle);
+        droppedUnits = replaced.droppedUnits;
+        return replaced.bundles;
       });
-      return replaceGuestBundleLine(guestBundles, lineKey, bundle).droppedUnits;
+      return droppedUnits;
     },
-    [guestBundles],
+    [changeGuestBundles],
   );
 
   const reconcileGuestBundles = useCallback(
     (resolution: GuestCartResolution): GuestBundleReconcileOutcome => {
-      // Judged on the lines the resolution was made for.
-      const { bundles: next, droppedUnits } = reconcileGuestBundleLines(
-        guestBundles,
-        resolution,
-      );
-      if (next !== guestBundles) {
-        setGuestBundles((prev) => {
-          const { bundles: updated } = reconcileGuestBundleLines(
-            prev,
-            resolution,
-          );
-          // Unchanged state keeps its identity, so it does not trigger
-          // another resolution.
-          if (updated === prev) return prev;
-          writeGuestBundles(updated);
-          return updated;
-        });
-      }
+      let droppedUnits = 0;
+      changeGuestBundles((current) => {
+        const reconciled = reconcileGuestBundleLines(current, resolution);
+        droppedUnits = reconciled.droppedUnits;
+        return reconciled.bundles;
+      });
       return {
         removed: new Set(resolution.removedBundleKeys).size,
         droppedUnits,
       };
     },
-    [guestBundles],
+    [changeGuestBundles],
   );
 
   const clearGuestCart = useCallback(() => {
     setGuestItems([]);
     writeGuestCart([]);
-    setGuestBundles([]);
     writeGuestBundles([]);
+    showGuestBundles([]);
     setItemCount(0);
-  }, []);
+  }, [showGuestBundles]);
 
   return (
     <CartContext.Provider

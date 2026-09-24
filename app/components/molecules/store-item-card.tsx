@@ -17,7 +17,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { addToCart } from "@/app/lib/cart/actions";
-import { buildCartLineKey } from "@/app/lib/cart/utils";
+import { buildCartLineKey, productLineCapNotice } from "@/app/lib/cart/utils";
 import {
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
@@ -182,7 +182,7 @@ export default function StoreItemCard({
 
           setItemCount(newCount);
         } else {
-          const added = addGuestItem({
+          const { added, lineCapped } = addGuestItem({
             lineKey: buildCartLineKey(product.id, productVariantId),
             productId: product.id,
             productVariantId,
@@ -194,7 +194,9 @@ export default function StoreItemCard({
             variant: singleVariant,
           });
           if (added === 0) {
-            toast.error("No hay stock disponible.");
+            toast.error(
+              lineCapped ? productLineCapNotice(0) : "No hay stock disponible.",
+            );
             return;
           }
         }

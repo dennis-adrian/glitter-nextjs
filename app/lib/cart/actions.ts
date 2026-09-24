@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -15,6 +15,7 @@ import {
   type GuestCartBundle,
 } from "@/app/lib/cart/definitions";
 import {
+  bundleLineCapNotice,
   MERGED_BUNDLE_LINES_NOTICE,
   toGuestCartBundle,
 } from "@/app/lib/cart/utils";
@@ -79,6 +80,7 @@ import {
   cartBundles,
   cartItems,
   carts,
+  merchBundles,
   products,
 } from "@/db/schema";
 
@@ -1043,7 +1045,7 @@ async function planBundleAdd(
         limit === 0
           ? "No hay stock disponible para este combo."
           : existingQuantity >= MAX_CART_BUNDLE_QUANTITY
-            ? `Podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades de este combo.`
+            ? bundleLineCapNotice(0)
             : "No hay más stock disponible para este combo.",
     };
   }
@@ -1060,7 +1062,7 @@ async function planBundleAdd(
         : // Name whichever limit actually held the add back.
           quantity === MAX_CART_BUNDLE_QUANTITY &&
             limit >= MAX_CART_BUNDLE_QUANTITY
-          ? `Agregamos ${added}: podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades de este combo.`
+          ? bundleLineCapNotice(added)
           : `Agregamos ${added} por el stock disponible.`,
   };
 }
@@ -1075,6 +1077,79 @@ async function lockCart(tx: CartTx, cartId: number) {
     .from(carts)
     .where(eq(carts.id, cartId))
     .for("update");
+}
+
+type CartBundleWriteLock =
+  | "ok"
+  | "bundle_gone"
+  | "bundle_changed"
+  | "lines_changed";
+
+/**
+ * Takes checkout's lock order before a write to a cart's bundle lines: the
+ * cart, its bundle lines by id, then the bundle (shared, as checkout takes
+ * it). An admin save or delete of the bundle then waits for the write, or
+ * the write for it, instead of deadlocking with it.
+ *
+ * The write was planned before these locks, so it only holds while the
+ * bundle stays published at the planned version and its lines in the cart
+ * are the ones the plan counted; otherwise this says what changed and
+ * nothing is written. Unpublishing keeps the version, so it is checked on
+ * its own.
+ */
+async function lockCartBundleWrite(
+  tx: CartTx,
+  cartId: number,
+  bundleId: number,
+  planned: {
+    version: number;
+    lines: readonly Pick<
+      CartBundleRequest,
+      "cartBundleId" | "bundleId" | "bundleVersion" | "quantity"
+    >[];
+  },
+): Promise<CartBundleWriteLock> {
+  await lockCart(tx, cartId);
+  const locked = await tx
+    .select({
+      id: cartBundles.id,
+      bundleId: cartBundles.bundleId,
+      bundleVersion: cartBundles.bundleVersion,
+      quantity: cartBundles.quantity,
+    })
+    .from(cartBundles)
+    .where(eq(cartBundles.cartId, cartId))
+    .orderBy(asc(cartBundles.id))
+    .for("update");
+  const [bundle] = await tx
+    .select({
+      version: merchBundles.version,
+      isVisible: merchBundles.isVisible,
+    })
+    .from(merchBundles)
+    .where(eq(merchBundles.id, bundleId))
+    .for("share");
+  if (!bundle || !bundle.isVisible) return "bundle_gone";
+  if (bundle.version !== planned.version) return "bundle_changed";
+  const fingerprint = (
+    lines: readonly {
+      id: number | null;
+      bundleId: number;
+      bundleVersion: number;
+      quantity: number;
+    }[],
+  ) =>
+    lines
+      .filter((line) => line.bundleId === bundleId)
+      .map((line) => `${line.id}:${line.bundleVersion}:${line.quantity}`)
+      .sort()
+      .join(",");
+  return fingerprint(locked) ===
+    fingerprint(
+      planned.lines.map((line) => ({ ...line, id: line.cartBundleId })),
+    )
+    ? "ok"
+    : "lines_changed";
 }
 
 /** Rewrites a stored line's choices to the canonical ones. */
@@ -1122,9 +1197,10 @@ export async function addBundleToCart(
     }
 
     const cart = await getOrCreateCart(user.id);
+    const cartRequests = await loadCartBundleRequests(db, cart.id);
     const plan = await planBundleAdd(
       request,
-      await loadCartBundleRequests(db, cart.id),
+      cartRequests,
       await loadCartSaleDemand(cart.id),
     );
     if (!plan.ok) {
@@ -1137,8 +1213,12 @@ export async function addBundleToCart(
 
     const selectionKey = buildBundleSelectionKey(plan.line.selections);
     const [target, ...duplicates] = plan.matches;
-    await db.transaction(async (tx) => {
-      await lockCart(tx, cart.id);
+    const lock = await db.transaction(async (tx) => {
+      const lock = await lockCartBundleWrite(tx, cart.id, request.bundleId, {
+        version: request.bundleVersion,
+        lines: cartRequests,
+      });
+      if (lock !== "ok") return lock;
       if (duplicates.length) {
         await tx.delete(cartBundles).where(
           and(
@@ -1161,7 +1241,7 @@ export async function addBundleToCart(
           target.cartBundleId!,
           plan.line.selections,
         );
-        return;
+        return lock;
       }
       const [saved] = await tx
         .insert(cartBundles)
@@ -1193,7 +1273,20 @@ export async function addBundleToCart(
           )
           .onConflictDoNothing();
       }
+      return lock;
     });
+    if (lock !== "ok") {
+      return {
+        success: false,
+        newCount: await fetchCartItemCount(),
+        message:
+          lock === "bundle_gone"
+            ? "Este combo ya no está disponible."
+            : lock === "bundle_changed"
+              ? "El combo cambió. Recargá la página para ver su precio y contenido actualizados."
+              : "Tu carrito cambió mientras agregábamos el combo. Intentá de nuevo.",
+      };
+    }
 
     revalidateCartViews();
     const newCount = await fetchCartItemCount();
@@ -1329,8 +1422,12 @@ export async function acceptCartBundleChanges(
       line.quantity,
     );
     const quantity = Math.min(combined, MAX_CART_BUNDLE_QUANTITY);
-    await db.transaction(async (tx) => {
-      await lockCart(tx, cart.id);
+    const lock = await db.transaction(async (tx) => {
+      const lock = await lockCartBundleWrite(tx, cart.id, line.bundleId, {
+        version: currentVersion,
+        lines,
+      });
+      if (lock !== "ok") return lock;
       if (matches.length) {
         await tx.delete(cartBundles).where(
           and(
@@ -1372,7 +1469,19 @@ export async function acceptCartBundleChanges(
       if (!holder) {
         await replaceCartBundleSelections(tx, cartBundleId, line.selections);
       }
+      return lock;
     });
+    if (lock !== "ok") {
+      return {
+        success: false,
+        error:
+          lock === "bundle_gone"
+            ? "Este combo ya no está disponible."
+            : lock === "bundle_changed"
+              ? "El combo volvió a cambiar. Revisá el nuevo precio."
+              : "Tu carrito cambió mientras actualizábamos el combo. Intentá de nuevo.",
+      };
+    }
     revalidateCartViews();
     return {
       success: true,

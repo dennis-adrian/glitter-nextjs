@@ -58,4 +58,10 @@ export type GuestCartBundle = {
     quantity: number;
     imageUrl: string | null;
   }[];
+  /**
+   * Set when the last server resolution found the line cannot be bought
+   * (unavailable, or its choices no longer resolve): like on the server, it
+   * then takes no stock from the guest's individual adds.
+   */
+  blocked?: boolean;
 };

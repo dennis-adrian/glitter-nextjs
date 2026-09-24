@@ -30,7 +30,9 @@ import type { CartWithItems, GuestCartItem } from "@/app/lib/cart/definitions";
 import {
   getBundleDemandLines,
   getCartItemWarnings,
+  guestBundleSignature,
   MERGED_BUNDLE_LINES_NOTICE,
+  reconcileGuestBundleLines,
   removedBundlesNotice,
   toGuestBundleInputs,
   toGuestCartBundle,
@@ -146,9 +148,15 @@ export default function CartSheet() {
   const [fetchError, setFetchError] = useState(false);
   const fetchGenerationRef = useRef(0);
   const [guestValidating, setGuestValidating] = useState(false);
-  // A checkout attempt's findings hold only for the lines it checked.
+  // A checkout attempt's findings hold only for the lines it checked: its
+  // individual lines and the bundles that took their share of the stock.
   const [guestStockCheck, setGuestStockCheck] = useState<{
     items: GuestCartItem[];
+    /**
+     * The bundles as the attempt left them (`guestBundleSignature`): applying
+     * its resolution replaces the array, so identity would never match.
+     */
+    bundles: string;
     issues: GuestStockValidationResult[];
   } | null>(null);
   const [guestResolution, setGuestResolution] =
@@ -274,7 +282,10 @@ export default function CartSheet() {
     // (bundles present) are fresher and win.
     const liveItemChecks = liveResolution?.items ?? [];
     const checkoutItemChecks =
-      guestStockCheck?.items === guestItems ? guestStockCheck.issues : [];
+      guestStockCheck?.items === guestItems &&
+      guestStockCheck.bundles === guestBundleSignature(guestBundles)
+        ? guestStockCheck.issues
+        : [];
     const stockIssuesMap = new Map(
       [...checkoutItemChecks, ...liveItemChecks].map((s) => [s.lineKey, s]),
     );
@@ -292,6 +303,7 @@ export default function CartSheet() {
       try {
         const items = toGuestItemInputs(guestItems);
         let itemChecks: GuestStockValidationResult[];
+        let checkedBundles = guestBundles;
         let blocked = false;
         if (guestBundles.length === 0) {
           // One round trip: only individual lines to check.
@@ -308,13 +320,23 @@ export default function CartSheet() {
           const { removed } = notifyReconcile(
             reconcileGuestBundles(resolution),
           );
+          // What the cart holds once the resolution applies, e.g. no bundles
+          // at all when the only one was deleted.
+          checkedBundles = reconcileGuestBundleLines(
+            guestBundles,
+            resolution,
+          ).bundles;
           itemChecks = resolution.items;
           blocked =
             removed > 0 || resolution.bundles.some((line) => line.issue);
         }
         const issues = itemChecks.filter(hasStockProblem);
         if (issues.length > 0 || blocked) {
-          setGuestStockCheck({ items: guestItems, issues });
+          setGuestStockCheck({
+            items: guestItems,
+            bundles: guestBundleSignature(checkedBundles),
+            issues,
+          });
           return;
         }
         closeCart();

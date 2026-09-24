@@ -2155,4 +2155,273 @@ describeDatabase("bundle checkout", () => {
       message: "Agregamos 4: podés llevar hasta 5 unidades de este combo.",
     });
   });
+
+  /** Waits until another session is blocked by the one with this pid. */
+  async function waitUntilBlockedBy(pid: number) {
+    for (let attempt = 0; ; attempt += 1) {
+      const { rows } = await pool!.query<{ waiting: number }>(
+        "SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))",
+        [pid],
+      );
+      if (rows[0].waiting > 0) return;
+      if (attempt > 250) throw new Error("Nothing ever waited.");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
+  it("rewrites a cart line's choices without deadlocking an admin save", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    expect(
+      await cartActions.addBundleToCart(bundleRequest(fixture)),
+    ).toMatchObject({ success: true });
+
+    const admin = await pool!.connect();
+    try {
+      await admin.query("BEGIN");
+      const {
+        rows: [{ pid }],
+      } = await admin.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      // saveMerchBundle locks the bundle, then deletes a component the
+      // customer chose. Locking the component first holds the save at the
+      // moment its delete reaches it.
+      await admin.query(
+        "SELECT id FROM merch_bundles WHERE id = $1 FOR UPDATE",
+        [fixture.bundleId],
+      );
+      await admin.query(
+        "SELECT id FROM merch_bundle_components WHERE id = $1 FOR UPDATE",
+        [fixture.shirtComponentId],
+      );
+      // Merges into the stored line, rewriting its choices.
+      const adding = cartActions.addBundleToCart(bundleRequest(fixture));
+      await waitUntilBlockedBy(pid);
+      await admin.query("DELETE FROM merch_bundle_components WHERE id = $1", [
+        fixture.shirtComponentId,
+      ]);
+      await admin.query("UPDATE merch_bundles SET version = 2 WHERE id = $1", [
+        fixture.bundleId,
+      ]);
+      await admin.query("COMMIT");
+      // The add waited for the save, then saw the combo it planned is gone.
+      expect(await adding).toMatchObject({
+        success: false,
+        message:
+          "El combo cambió. Recargá la página para ver su precio y contenido actualizados.",
+      });
+    } catch (error) {
+      await admin.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      admin.release();
+    }
+    expect(await cartBundleRows(fixture)).toEqual([
+      expect.objectContaining({ bundleVersion: 1, quantity: 1 }),
+    ]);
+  });
+
+  it("merges duplicate cart lines without deadlocking a bundle delete", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    await cartActions.addBundleToCart(bundleRequest(fixture));
+    // The size became fixed, and both lines were saved at the new version:
+    // one while the size was still a choice, one after.
+    await narrowShirtToMedium(fixture, 2);
+    const [chosen] = await cartBundleRows(fixture);
+    await db()
+      .update(cartBundles)
+      .set({ bundleVersion: 2 })
+      .where(eq(cartBundles.id, chosen.id));
+    await db().insert(cartBundles).values({
+      cartId: chosen.cartId,
+      bundleId: fixture.bundleId,
+      bundleVersion: 2,
+      selectionKey: "-",
+      quantity: 1,
+    });
+    const [first, second] = await cartBundleRows(fixture);
+
+    const deleting = await pool!.connect();
+    try {
+      await deleting.query("BEGIN");
+      const {
+        rows: [{ pid }],
+      } = await deleting.query<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      );
+      // deleteMerchBundle locks the bundle's cart lines by id: hold it
+      // between the first line and the second.
+      await deleting.query(
+        "SELECT id FROM cart_bundles WHERE id = $1 FOR UPDATE",
+        [first.id],
+      );
+      const adding = cartActions.addBundleToCart({
+        ...bundleRequest(fixture, { bundleVersion: 2 }),
+        selections: [],
+      });
+      await waitUntilBlockedBy(pid);
+      await deleting.query(
+        "SELECT id FROM cart_bundles WHERE id = $1 FOR UPDATE",
+        [second.id],
+      );
+      await deleting.query(
+        "SELECT id FROM merch_bundles WHERE id = $1 FOR UPDATE",
+        [fixture.bundleId],
+      );
+      await deleting.query("DELETE FROM merch_bundles WHERE id = $1", [
+        fixture.bundleId,
+      ]);
+      await deleting.query("COMMIT");
+      expect(await adding).toMatchObject({
+        success: false,
+        message: "Este combo ya no está disponible.",
+      });
+    } catch (error) {
+      await deleting.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      deleting.release();
+    }
+    expect(await cartBundleRows(fixture)).toEqual([]);
+  });
+
+  it("refuses to write a cart merge planned on lines that changed since", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    await cartActions.addBundleToCart(bundleRequest(fixture));
+    const [line] = await cartBundleRows(fixture);
+
+    const other = await pool!.connect();
+    try {
+      await other.query("BEGIN");
+      const {
+        rows: [{ pid }],
+      } = await other.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      // Another request is removing the line the add will plan on.
+      await other.query(
+        "SELECT id FROM cart_bundles WHERE id = $1 FOR UPDATE",
+        [line.id],
+      );
+      const adding = cartActions.addBundleToCart(bundleRequest(fixture));
+      await waitUntilBlockedBy(pid);
+      await other.query("DELETE FROM cart_bundles WHERE id = $1", [line.id]);
+      await other.query("COMMIT");
+      expect(await adding).toMatchObject({
+        success: false,
+        message:
+          "Tu carrito cambió mientras agregábamos el combo. Intentá de nuevo.",
+      });
+    } catch (error) {
+      await other.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      other.release();
+    }
+    expect(await cartBundleRows(fixture)).toEqual([]);
+  });
+
+  it("refuses to add a bundle unpublished between the plan and the write", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+
+    const admin = await pool!.connect();
+    try {
+      await admin.query("BEGIN");
+      const {
+        rows: [{ pid }],
+      } = await admin.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      await admin.query(
+        "SELECT id FROM merch_bundles WHERE id = $1 FOR UPDATE",
+        [fixture.bundleId],
+      );
+      // The add plans on the published bundle, then waits for its lock.
+      const adding = cartActions.addBundleToCart(bundleRequest(fixture));
+      await waitUntilBlockedBy(pid);
+      // Unpublishing keeps the version.
+      await admin.query(
+        "UPDATE merch_bundles SET is_visible = false WHERE id = $1",
+        [fixture.bundleId],
+      );
+      await admin.query("COMMIT");
+      expect(await adding).toMatchObject({
+        success: false,
+        message: "Este combo ya no está disponible.",
+      });
+    } catch (error) {
+      await admin.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      admin.release();
+    }
+    expect(await cartBundleRows(fixture)).toEqual([]);
+  });
+
+  it("refuses to confirm a bundle's changes once the bundle or the cart moved on", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    await cartActions.addBundleToCart(bundleRequest(fixture));
+    await narrowShirtToMedium(fixture, 2);
+    const [line] = await cartBundleRows(fixture);
+
+    /**
+     * Holds `lockSql`'s row while the confirmation of version 2 waits on it,
+     * applies `changeSql`, and returns the confirmation's answer.
+     */
+    async function acceptWhile(lockSql: string, changeSql: string) {
+      const other = await pool!.connect();
+      try {
+        await other.query("BEGIN");
+        const {
+          rows: [{ pid }],
+        } = await other.query<{ pid: number }>(
+          "SELECT pg_backend_pid() AS pid",
+        );
+        await other.query(lockSql);
+        const accepting = cartActions.acceptCartBundleChanges(line.id, 2);
+        await waitUntilBlockedBy(pid);
+        await other.query(changeSql);
+        await other.query("COMMIT");
+        return await accepting;
+      } catch (error) {
+        await other.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        other.release();
+      }
+    }
+
+    // The admin saves version 3 while the confirmation waits for the bundle.
+    expect(
+      await acceptWhile(
+        `SELECT id FROM merch_bundles WHERE id = ${fixture.bundleId} FOR UPDATE`,
+        `UPDATE merch_bundles SET version = 3 WHERE id = ${fixture.bundleId}`,
+      ),
+    ).toEqual({
+      success: false,
+      error: "El combo volvió a cambiar. Revisá el nuevo precio.",
+    });
+    expect(await cartBundleRows(fixture)).toEqual([
+      expect.objectContaining({ id: line.id, bundleVersion: 1, quantity: 1 }),
+    ]);
+
+    // Back at version 2, another request changes the line's quantity while
+    // the confirmation waits for the cart's lines.
+    await db()
+      .update(merchBundles)
+      .set({ version: 2 })
+      .where(eq(merchBundles.id, fixture.bundleId));
+    expect(
+      await acceptWhile(
+        `SELECT id FROM cart_bundles WHERE id = ${line.id} FOR UPDATE`,
+        `UPDATE cart_bundles SET quantity = 2 WHERE id = ${line.id}`,
+      ),
+    ).toEqual({
+      success: false,
+      error:
+        "Tu carrito cambió mientras actualizábamos el combo. Intentá de nuevo.",
+    });
+    expect(await cartBundleRows(fixture)).toEqual([
+      expect.objectContaining({ id: line.id, bundleVersion: 1, quantity: 2 }),
+    ]);
+  });
 });

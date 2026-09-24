@@ -330,3 +330,105 @@ it("leaves a signed-in bundle it shows no price for out of the total", async () 
   await screen.findByText("Este combo ya no está disponible.");
   expect(screen.getByText("Bs 0.00")).toBeTruthy();
 });
+
+it("drops a checkout attempt's stock flag once the guest removes the bundle that took the stock", async () => {
+  const lines = [{ ...guestItem, quantity: 2 }];
+  setCart({ guestItems: lines, guestBundles: [guestBundle] });
+  // The live check fails, so the checkout attempt is what finds the limit.
+  actions.resolveGuestCart.mockRejectedValueOnce(new Error("offline"));
+  actions.resolveGuestCart.mockResolvedValueOnce({
+    bundles: [line()],
+    items: [
+      {
+        lineKey: guestItem.lineKey,
+        productId: 7,
+        productVariantId: null,
+        // The kit holds the other totes.
+        stock: 1,
+        isOutOfStock: false,
+        quantityExceedsStock: true,
+      },
+    ],
+    removedBundleKeys: [],
+  });
+  const { rerender } = render(<CartSheet />);
+  await waitFor(() => expect(actions.resolveGuestCart).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole("button", { name: "Proceder al pago" }));
+  await screen.findByText("Solo queda 1 disponible");
+  expect(mocks.push).not.toHaveBeenCalled();
+
+  // Same individual lines, but the bundle that took the stock is gone.
+  setCart({ guestItems: lines, guestBundles: [] });
+  rerender(<CartSheet />);
+  expect(screen.queryByText("Solo queda 1 disponible")).toBeNull();
+  expect(
+    screen.queryByText(
+      "Revisá tu carrito, algunos productos cambiaron de disponibilidad.",
+    ),
+  ).toBeNull();
+});
+
+it("flags the stock a checkout attempt found when it drops the guest's only bundle", async () => {
+  const lines = [{ ...guestItem, quantity: 2 }];
+  // Applying a resolution replaces the provider's lines, as the real one does.
+  const reconcileGuestBundles = vi.fn(
+    (resolution: { removedBundleKeys: string[] }) => {
+      const removed = new Set(resolution.removedBundleKeys);
+      const bundles = mocks.cart.guestBundles as GuestCartBundle[];
+      if (removed.size) {
+        mocks.cart = {
+          ...mocks.cart,
+          guestBundles: bundles.filter((entry) => !removed.has(entry.lineKey)),
+        };
+      }
+      return { removed: removed.size, droppedUnits: 0 };
+    },
+  );
+  setCart({
+    guestItems: lines,
+    guestBundles: [guestBundle],
+    reconcileGuestBundles,
+  });
+  actions.resolveGuestCart.mockResolvedValueOnce({
+    bundles: [line()],
+    items: [
+      {
+        lineKey: guestItem.lineKey,
+        productId: 7,
+        productVariantId: null,
+        stock: 3,
+        isOutOfStock: false,
+        quantityExceedsStock: false,
+      },
+    ],
+    removedBundleKeys: [],
+  });
+  // The admin deletes the kit after the sheet opened, and the totes sell.
+  actions.resolveGuestCart.mockResolvedValueOnce({
+    bundles: [],
+    items: [
+      {
+        lineKey: guestItem.lineKey,
+        productId: 7,
+        productVariantId: null,
+        stock: 1,
+        isOutOfStock: false,
+        quantityExceedsStock: true,
+      },
+    ],
+    removedBundleKeys: [guestBundle.lineKey],
+  });
+  render(<CartSheet />);
+  await waitFor(() => expect(reconcileGuestBundles).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole("button", { name: "Proceder al pago" }));
+
+  // One click shows both the dropped bundle and the tote's limit.
+  await screen.findByText("Solo queda 1 disponible");
+  expect(
+    screen.getByText(
+      "Revisá tu carrito, algunos productos cambiaron de disponibilidad.",
+    ),
+  ).toBeTruthy();
+  expect(mocks.push).not.toHaveBeenCalled();
+  expect(mocks.cart.guestBundles).toEqual([]);
+});

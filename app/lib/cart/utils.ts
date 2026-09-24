@@ -146,26 +146,44 @@ export function replaceGuestBundleLine(
   };
 }
 
+/** Whether a resolved line cannot be bought, so it reserves no stock. */
+const isUnbuyableLine = (line: Pick<CartBundleLine, "issue">) =>
+  line.issue === "unavailable" || line.issue === "selection_invalid";
+
 /**
  * Applies a server resolution to guest bundle lines: drops lines whose bundle
- * was deleted and re-keys resolved lines canonically, merging equal ones.
- * Unchanged lines come back as the same array, so state keeps its identity.
+ * was deleted, marks the ones that cannot be bought (`blocked`) and re-keys
+ * resolved lines canonically, merging equal ones. Unchanged lines come back
+ * as the same array, so state keeps its identity.
  */
 export function reconcileGuestBundleLines(
   bundles: GuestCartBundle[],
   resolution: Pick<GuestCartResolution, "bundles" | "removedBundleKeys">,
 ): { bundles: GuestCartBundle[]; droppedUnits: number } {
   const removed = new Set(resolution.removedBundleKeys);
+  const resolvedByKey = new Map(
+    resolution.bundles.map((line) => [line.key, line]),
+  );
   // Lines waiting for a price confirmation keep their key until accepted.
   const rekeys = resolution.bundles.filter(
     (line) =>
       line.issue !== "stale" &&
-      line.issue !== "unavailable" &&
-      line.issue !== "selection_invalid" &&
+      !isUnbuyableLine(line) &&
       buildBundleLineKey(line.bundleId, line.selections) !== line.key,
   );
-  let updated = bundles.filter((bundle) => !removed.has(bundle.lineKey));
-  let changed = updated.length !== bundles.length;
+  let changed = false;
+  let updated = bundles.flatMap((bundle) => {
+    if (removed.has(bundle.lineKey)) {
+      changed = true;
+      return [];
+    }
+    // Lines the resolution did not cover keep what they last knew.
+    const line = resolvedByKey.get(bundle.lineKey);
+    const blocked = line ? isUnbuyableLine(line) : bundle.blocked === true;
+    if (blocked === (bundle.blocked === true)) return [bundle];
+    changed = true;
+    return [{ ...bundle, blocked: blocked || undefined }];
+  });
   let droppedUnits = 0;
   for (const line of rekeys) {
     const current = updated.find((bundle) => bundle.lineKey === line.key);
@@ -187,6 +205,25 @@ export function reconcileGuestBundleLines(
   return { bundles: changed ? updated : bundles, droppedUnits };
 }
 
+/**
+ * What guest bundle lines claim from stock, as text: equal for equal lines
+ * whatever their array's identity, so a finding made for some lines can be
+ * matched against the state that replaced them.
+ */
+export function guestBundleSignature(
+  bundles: readonly Pick<
+    GuestCartBundle,
+    "lineKey" | "bundleVersion" | "quantity"
+  >[],
+): string {
+  return bundles
+    .map(
+      (bundle) =>
+        `${bundle.lineKey}@${bundle.bundleVersion}:${bundle.quantity}`,
+    )
+    .join("|");
+}
+
 /** Units of one product (or variant) the guest's bundle lines take. */
 export function getGuestBundleUnits(
   bundles: readonly GuestCartBundle[],
@@ -194,18 +231,21 @@ export function getGuestBundleUnits(
   productVariantId: number | null,
 ): number {
   // Snapshots saved before components carried their ids count nothing here;
-  // the server's resolution still counts them.
+  // the server's resolution still counts them. Lines last found unbuyable
+  // reserve nothing, as on the server; checkout re-checks both.
   return bundles.reduce(
     (sum, bundle) =>
-      sum +
-      bundle.components.reduce(
-        (units, component) =>
-          component.productId === productId &&
-          (component.productVariantId ?? null) === productVariantId
-            ? units + component.quantity * bundle.quantity
-            : units,
-        0,
-      ),
+      bundle.blocked
+        ? sum
+        : sum +
+          bundle.components.reduce(
+            (units, component) =>
+              component.productId === productId &&
+              (component.productVariantId ?? null) === productVariantId
+                ? units + component.quantity * bundle.quantity
+                : units,
+            0,
+          ),
     0,
   );
 }
@@ -227,6 +267,26 @@ export function getGuestItemStockCap(
     0,
     stock - getGuestBundleUnits(bundles, item.productId, item.productVariantId),
   );
+}
+
+/**
+ * Told when the per-line cap, not stock, held back a guest product add;
+ * `added` is how many units still went in.
+ */
+export function productLineCapNotice(added: number): string {
+  return added > 0
+    ? `Agregamos ${added}: podés llevar hasta ${MAX_CART_LINE_QUANTITY} unidades de este producto.`
+    : `Podés llevar hasta ${MAX_CART_LINE_QUANTITY} unidades de este producto.`;
+}
+
+/**
+ * Told when the per-line cap held back a bundle add; `added` is how many
+ * units still went in.
+ */
+export function bundleLineCapNotice(added: number): string {
+  return added > 0
+    ? `Agregamos ${added}: podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades de este combo.`
+    : `Podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades de este combo.`;
 }
 
 /** Notice shown after bundles the admin deleted leave a guest cart. */

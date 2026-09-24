@@ -87,19 +87,26 @@ export default function GuestCheckoutView() {
   );
   const bundleItems: CheckoutBundleItem[] = guestBundles.map((bundle) => {
     const line = resolvedByKey.get(bundle.lineKey);
-    return line && line.components.length > 0
-      ? toCheckoutBundleItem({ ...line, quantity: bundle.quantity })
-      : {
-          key: bundle.lineKey,
-          name: bundle.name,
-          imageUrl: bundle.imageUrl,
-          quantity: bundle.quantity,
-          unitPriceCents:
-            line?.issue === "unavailable" ? null : bundle.unitPriceCents,
-          separateUnitPriceCents: bundle.separateUnitPriceCents,
-          components: bundle.components,
-          issue: line?.message ?? null,
-        };
+    if (line && line.components.length > 0) {
+      return toCheckoutBundleItem({ ...line, quantity: bundle.quantity });
+    }
+    // A published bundle whose choices no longer resolve still has a current
+    // name and price, as the cart shows; an unavailable one shows neither.
+    const live = line && line.issue !== "unavailable" ? line : null;
+    return {
+      key: bundle.lineKey,
+      name: live?.name ?? bundle.name,
+      imageUrl: live?.imageUrl ?? bundle.imageUrl,
+      quantity: bundle.quantity,
+      unitPriceCents:
+        line?.issue === "unavailable"
+          ? null
+          : live?.unitPriceCents || bundle.unitPriceCents,
+      separateUnitPriceCents:
+        live?.separateUnitPriceCents || bundle.separateUnitPriceCents,
+      components: bundle.components,
+      issue: line?.message ?? null,
+    };
   });
   const checksByKey = new Map(
     (resolution?.items ?? []).map((check) => [check.lineKey, check]),

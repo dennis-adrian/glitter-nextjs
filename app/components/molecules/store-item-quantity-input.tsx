@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 import { addToCart, fetchCartWithItems } from "@/app/lib/cart/actions";
-import { buildCartLineKey } from "@/app/lib/cart/utils";
+import { buildCartLineKey, productLineCapNotice } from "@/app/lib/cart/utils";
 import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
 import {
   getProductPriceAtPurchase,
@@ -415,7 +415,7 @@ export default function StoreItemQuantityInput({
           toast.error(message ?? "No se pudo agregar al carrito");
         }
       } else {
-        const added = addGuestItem({
+        const { added, lineCapped } = addGuestItem({
           lineKey: buildCartLineKey(
             product.id,
             selectedVariant?.id ?? null,
@@ -429,12 +429,16 @@ export default function StoreItemQuantityInput({
           variant: selectedVariant,
         });
         if (added === 0) {
-          toast.error("No hay stock disponible.");
+          toast.error(
+            lineCapped ? productLineCapNotice(0) : "No hay stock disponible.",
+          );
         } else {
           toast.success(
-            added < safeQuantity
-              ? `Agregamos ${added} por el stock disponible.`
-              : "Producto agregado al carrito",
+            added >= safeQuantity
+              ? "Producto agregado al carrito"
+              : lineCapped
+                ? productLineCapNotice(added)
+                : `Agregamos ${added} por el stock disponible.`,
           );
           onAdded?.();
         }
