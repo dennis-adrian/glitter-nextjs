@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "playwright/test";
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
+// `next dev` blocks its dev chunks for any host other than the one it serves
+// (`localhost`), so a 127.0.0.1 page never hydrates.
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
 const storageState = process.env.PLAYWRIGHT_ADMIN_STORAGE_STATE || undefined;
 
 export default defineConfig({
