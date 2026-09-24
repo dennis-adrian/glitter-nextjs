@@ -95,8 +95,12 @@ export default async function CheckoutPage() {
         getLineUnitPrice(i.product, i.variant, i.transactionType) * i.quantity,
       0,
     ) +
-    cart.bundles.reduce(
-      (sum, line) => sum + (line.unitPriceCents * line.quantity) / 100,
+    bundleItems.reduce(
+      (sum, bundle) =>
+        // A bundle that cannot be bought shows no price, so it adds none.
+        bundle.unitPriceCents === null
+          ? sum
+          : sum + (bundle.unitPriceCents * bundle.quantity) / 100,
       0,
     );
 

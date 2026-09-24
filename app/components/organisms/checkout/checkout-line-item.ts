@@ -22,7 +22,8 @@ export type CheckoutBundleItem = {
   name: string;
   imageUrl: string | null;
   quantity: number;
-  unitPriceCents: number;
+  /** Null when the bundle can no longer be bought, so no price is shown. */
+  unitPriceCents: number | null;
   separateUnitPriceCents: number;
   components: {
     productName: string;
@@ -42,7 +43,7 @@ export function toCheckoutBundleItem(line: CartBundleLine): CheckoutBundleItem {
     name: line.name,
     imageUrl: line.imageUrl,
     quantity: line.quantity,
-    unitPriceCents: line.unitPriceCents,
+    unitPriceCents: line.issue === "unavailable" ? null : line.unitPriceCents,
     separateUnitPriceCents: line.separateUnitPriceCents,
     components: line.components.map((component) => ({
       productName: component.productName,

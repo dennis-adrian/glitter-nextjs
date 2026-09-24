@@ -94,7 +94,8 @@ export default function GuestCheckoutView() {
           name: bundle.name,
           imageUrl: bundle.imageUrl,
           quantity: bundle.quantity,
-          unitPriceCents: bundle.unitPriceCents,
+          unitPriceCents:
+            line?.issue === "unavailable" ? null : bundle.unitPriceCents,
           separateUnitPriceCents: bundle.separateUnitPriceCents,
           components: bundle.components,
           issue: line?.message ?? null,
@@ -128,7 +129,11 @@ export default function GuestCheckoutView() {
       0,
     ) +
     bundleItems.reduce(
-      (sum, bundle) => sum + (bundle.unitPriceCents * bundle.quantity) / 100,
+      (sum, bundle) =>
+        // A bundle that cannot be bought shows no price, so it adds none.
+        bundle.unitPriceCents === null
+          ? sum
+          : sum + (bundle.unitPriceCents * bundle.quantity) / 100,
       0,
     );
 

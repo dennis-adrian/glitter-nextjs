@@ -52,15 +52,18 @@ export function CheckoutOrderSummary({
                   </span>
                   {bundle.name}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {bundle.quantity} × {formatBundleMoney(bundle.unitPriceCents)}
-                  {bundle.separateUnitPriceCents > bundle.unitPriceCents && (
-                    <span className="ml-1 line-through">
-                      <span className="sr-only">Por separado </span>
-                      {formatBundleMoney(bundle.separateUnitPriceCents)}
-                    </span>
-                  )}
-                </p>
+                {bundle.unitPriceCents !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    {bundle.quantity} ×{" "}
+                    {formatBundleMoney(bundle.unitPriceCents)}
+                    {bundle.separateUnitPriceCents > bundle.unitPriceCents && (
+                      <span className="ml-1 line-through">
+                        <span className="sr-only">Por separado </span>
+                        {formatBundleMoney(bundle.separateUnitPriceCents)}
+                      </span>
+                    )}
+                  </p>
+                )}
                 <ul className="mt-1 text-xs text-muted-foreground">
                   {bundle.components.map((component, index) => (
                     <li key={`${component.productName}-${index}`}>
@@ -79,9 +82,11 @@ export function CheckoutOrderSummary({
                   </p>
                 )}
               </div>
-              <p className="text-sm font-semibold shrink-0">
-                {formatBundleMoney(bundle.unitPriceCents * bundle.quantity)}
-              </p>
+              {bundle.unitPriceCents !== null && (
+                <p className="text-sm font-semibold shrink-0">
+                  {formatBundleMoney(bundle.unitPriceCents * bundle.quantity)}
+                </p>
+              )}
             </div>
           ))}
           {items.map((item) => {
