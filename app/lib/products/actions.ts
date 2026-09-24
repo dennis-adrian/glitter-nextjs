@@ -839,33 +839,37 @@ export async function deleteProduct(id: number) {
     };
   }
 
-  const [bundleReference] = await findBundleProductReferences(db, [id]);
-  if (bundleReference) {
-    return {
-      success: false,
-      message: `Este producto forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`,
-    };
-  }
-  // Its order lines would cascade away while their bundle keeps its total.
-  const [bundleOrderReference] = await findBundleOrderProductReferences(db, [
-    id,
-  ]);
-  if (bundleOrderReference) {
-    return {
-      success: false,
-      message:
-        "Este producto se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.",
-    };
-  }
-
   let deletedSlug: string | undefined;
   try {
-    const row = await db.query.products.findFirst({
-      where: eq(products.id, id),
-      columns: { slug: true },
+    const blockedMessage = await db.transaction(async (tx) => {
+      // Locked before the checks, so a bundle edit or checkout that references
+      // this product either commits first (and is seen) or waits for the delete.
+      const [row] = await tx
+        .select({ slug: products.slug })
+        .from(products)
+        .where(eq(products.id, id))
+        .for("update");
+
+      const [bundleReference] = await findBundleProductReferences(tx, [id]);
+      if (bundleReference) {
+        return `Este producto forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`;
+      }
+      // Its order lines would cascade away while their bundle keeps its total.
+      const [bundleOrderReference] = await findBundleOrderProductReferences(
+        tx,
+        [id],
+      );
+      if (bundleOrderReference) {
+        return "Este producto se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.";
+      }
+
+      await tx.delete(products).where(eq(products.id, id));
+      deletedSlug = row?.slug;
+      return null;
     });
-    deletedSlug = row?.slug;
-    await db.delete(products).where(eq(products.id, id));
+    if (blockedMessage) {
+      return { success: false, message: blockedMessage };
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "No se pudo eliminar el producto." };
@@ -1133,34 +1137,42 @@ export async function bulkDeleteProducts(
     };
   }
 
-  const [bundleReference] = await findBundleProductReferences(db, ids);
-  if (bundleReference) {
-    return {
-      success: false,
-      message: `Un producto seleccionado forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`,
-    };
-  }
-  const [bundleOrderReference] = await findBundleOrderProductReferences(
-    db,
-    ids,
-  );
-  if (bundleOrderReference) {
-    return {
-      success: false,
-      message:
-        "Un producto seleccionado se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.",
-    };
-  }
-
   let deletedSlugs: string[] = [];
   let deletedCount = 0;
   try {
-    const deletedRows = await db
-      .delete(products)
-      .where(inArray(products.id, ids))
-      .returning({ slug: products.slug });
-    deletedSlugs = deletedRows.map((row) => row.slug);
-    deletedCount = deletedRows.length;
+    const blockedMessage = await db.transaction(async (tx) => {
+      // Same lock-then-check as deleteProduct; id order keeps overlapping bulk
+      // deletes from deadlocking.
+      await tx
+        .select({ id: products.id })
+        .from(products)
+        .where(inArray(products.id, ids))
+        .orderBy(asc(products.id))
+        .for("update");
+
+      const [bundleReference] = await findBundleProductReferences(tx, ids);
+      if (bundleReference) {
+        return `Un producto seleccionado forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`;
+      }
+      const [bundleOrderReference] = await findBundleOrderProductReferences(
+        tx,
+        ids,
+      );
+      if (bundleOrderReference) {
+        return "Un producto seleccionado se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.";
+      }
+
+      const deletedRows = await tx
+        .delete(products)
+        .where(inArray(products.id, ids))
+        .returning({ slug: products.slug });
+      deletedSlugs = deletedRows.map((row) => row.slug);
+      deletedCount = deletedRows.length;
+      return null;
+    });
+    if (blockedMessage) {
+      return { success: false, message: blockedMessage };
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "No se pudo eliminar los productos." };
