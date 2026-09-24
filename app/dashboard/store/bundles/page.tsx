@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { Button } from "@/app/components/ui/button";
 import { fetchBundleManagement } from "@/app/lib/merch/bundles";
-import { formatBundleMoney } from "@/app/lib/merch/bundle-pricing";
+import {
+  formatBundleMoney,
+  formatBundleProductCount,
+} from "@/app/lib/merch/bundle-pricing";
 import { merchBundlePath } from "@/app/lib/merch/paths";
 
 export default async function BundlesPage() {
@@ -55,7 +58,7 @@ export default async function BundlesPage() {
                     {savings != null &&
                       savings > 0 &&
                       ` · Ahorro ${formatBundleMoney(savings)}`}
-                    {` · ${bundle.components.length} productos · Orden ${bundle.sortOrder}`}
+                    {` · ${formatBundleProductCount(bundle.components)} · Orden ${bundle.sortOrder}`}
                   </p>
                   {evaluation.issues.length > 0 && (
                     <p

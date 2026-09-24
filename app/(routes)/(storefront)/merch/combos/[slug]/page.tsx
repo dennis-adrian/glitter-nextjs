@@ -6,7 +6,10 @@ import BundleDetail from "@/app/components/organisms/store/bundle-detail";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchPublicBundle } from "@/app/lib/merch/bundles";
-import { formatBundleMoneyShort } from "@/app/lib/merch/bundle-pricing";
+import {
+  formatBundleMoneyShort,
+  formatBundleProductCount,
+} from "@/app/lib/merch/bundle-pricing";
 import { merchBundlePath } from "@/app/lib/merch/paths";
 import { resolveMerchBundleReturn } from "@/app/lib/merch/product-return";
 
@@ -28,7 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `${bundle.name} | Combos Glitter`;
   const description =
     bundle.description ||
-    `Combo de ${bundle.components.length} productos por ${formatBundleMoneyShort(bundle.priceCents)}.`;
+    `Combo de ${formatBundleProductCount(bundle.components)} por ${formatBundleMoneyShort(bundle.priceCents)}.`;
   const url = merchBundlePath(bundle.slug);
   const image = absoluteUrl(
     bundle.imageUrl ??

@@ -15,6 +15,7 @@ import {
   bundleSaveEvaluationOptions,
   evaluateBundle,
   findStockedCombination,
+  formatBundleProductCount,
   maxBundleQuantity,
   resolveBundleSelection,
   toCents,
@@ -594,6 +595,17 @@ describe("helpers", () => {
         { componentId: 3, productVariantId: 7 },
       ]),
     ).toBe("3:7|9:2");
+  });
+
+  it("counts distinct products, not components", () => {
+    expect(
+      formatBundleProductCount([
+        { productId: 1 },
+        { productId: 1 },
+        { productId: 2 },
+      ]),
+    ).toBe("2 productos");
+    expect(formatBundleProductCount([{ productId: 1 }])).toBe("1 producto");
   });
 
   it("rounds prices to cents", () => {

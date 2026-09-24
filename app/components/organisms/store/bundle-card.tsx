@@ -1,7 +1,10 @@
 import Link from "next/link";
 import BundleCover from "./bundle-cover";
 import type { PublicBundle } from "@/app/lib/merch/bundle-definitions";
-import { formatBundleMoneyShort } from "@/app/lib/merch/bundle-pricing";
+import {
+  formatBundleMoneyShort,
+  formatBundleProductCount,
+} from "@/app/lib/merch/bundle-pricing";
 import { merchBundlePath } from "@/app/lib/merch/paths";
 
 export function bundleSavingsLabel(bundle: PublicBundle) {
@@ -54,7 +57,7 @@ export default function BundleCard({
         </p>
         <p className="text-xs text-muted-foreground">
           {unitCount} {unitCount === 1 ? "artículo" : "artículos"} ·{" "}
-          {bundle.components.length} productos
+          {formatBundleProductCount(bundle.components)}
         </p>
         <div className="flex flex-wrap items-baseline gap-x-1.5">
           <span className="text-base font-semibold">

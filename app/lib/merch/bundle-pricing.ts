@@ -35,6 +35,15 @@ export function formatBundleMoneyShort(cents: number): string {
     : `Bs${fromCents(cents).toFixed(2)}`;
 }
 
+/** "1 producto", "3 productos": distinct products, however many components. */
+export function formatBundleProductCount(
+  components: readonly { productId: number }[],
+): string {
+  const count = new Set(components.map((component) => component.productId))
+    .size;
+  return `${count} ${count === 1 ? "producto" : "productos"}`;
+}
+
 /** Stable identity of a stock pool: one product, or one of its variants. */
 export function stockResourceKey(
   productId: number,
