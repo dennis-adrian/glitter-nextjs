@@ -11,6 +11,8 @@ import {
   merchBundleComponentVariants,
   merchBundles,
   merchCollections,
+  orderBundleItems,
+  orderItems,
   products,
 } from "@/db/schema";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -511,5 +513,26 @@ export async function findBundleProductReferences(
       eq(merchBundles.id, merchBundleComponents.bundleId),
     )
     .where(inArray(merchBundleComponents.productId, [...productIds]))
+    .limit(1);
+}
+
+/**
+ * Products sold inside a bundle in some order. Deleting such a product would
+ * cascade away its order lines and their allocations while the order and its
+ * bundle totals stay, so those products must be hidden rather than deleted.
+ */
+export async function findBundleOrderProductReferences(
+  database: BundleDatabase,
+  productIds: readonly number[],
+) {
+  if (productIds.length === 0) return [];
+  return database
+    .select({ productId: orderItems.productId })
+    .from(orderItems)
+    .innerJoin(
+      orderBundleItems,
+      eq(orderBundleItems.orderItemId, orderItems.id),
+    )
+    .where(inArray(orderItems.productId, [...productIds]))
     .limit(1);
 }

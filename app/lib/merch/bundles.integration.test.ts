@@ -1791,4 +1791,32 @@ describeDatabase("bundle checkout", () => {
       checkout.release();
     }
   });
+
+  it("refuses to delete products sold inside a bundle once they leave it", async () => {
+    const fixture = await createFixture();
+    const order = await buy(fixture, [], [bundleRequest(fixture)]);
+    // The tote leaves the bundle: only the past order still uses it.
+    await db()
+      .delete(merchBundleComponents)
+      .where(eq(merchBundleComponents.productId, fixture.toteId));
+    signIn(fixture, "admin");
+    const { bulkDeleteProducts } = await import("@/app/lib/products/actions");
+
+    const refusal = {
+      success: false,
+      message: expect.stringContaining("se vendió dentro de un combo"),
+    };
+    expect(await deleteProduct(fixture.toteId)).toMatchObject(refusal);
+    expect(await bulkDeleteProducts([fixture.toteId])).toMatchObject(refusal);
+    const snapshot = await orderSnapshot(order.orderId);
+    expect(
+      snapshot.items.filter((row) => row.item.productId === fixture.toteId),
+    ).toHaveLength(1);
+    expect(
+      await db()
+        .select({ id: products.id })
+        .from(products)
+        .where(eq(products.id, fixture.toteId)),
+    ).toHaveLength(1);
+  });
 });

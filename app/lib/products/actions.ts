@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
 import { syncMerchCollections } from "@/app/lib/merch/collections";
 import {
+  findBundleOrderProductReferences,
   findBundleProductReferences,
   findBundleVariantReferences,
 } from "@/app/lib/merch/bundles";
@@ -845,6 +846,17 @@ export async function deleteProduct(id: number) {
       message: `Este producto forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`,
     };
   }
+  // Its order lines would cascade away while their bundle keeps its total.
+  const [bundleOrderReference] = await findBundleOrderProductReferences(db, [
+    id,
+  ]);
+  if (bundleOrderReference) {
+    return {
+      success: false,
+      message:
+        "Este producto se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.",
+    };
+  }
 
   let deletedSlug: string | undefined;
   try {
@@ -1126,6 +1138,17 @@ export async function bulkDeleteProducts(
     return {
       success: false,
       message: `Un producto seleccionado forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`,
+    };
+  }
+  const [bundleOrderReference] = await findBundleOrderProductReferences(
+    db,
+    ids,
+  );
+  if (bundleOrderReference) {
+    return {
+      success: false,
+      message:
+        "Un producto seleccionado se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.",
     };
   }
 
