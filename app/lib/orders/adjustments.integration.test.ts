@@ -229,6 +229,17 @@ function baseAdjustment(fixture: Fixture, quantityDelta: number) {
   };
 }
 
+/** A line the customer got for free, such as a 100% off product. */
+async function addFreeLine(fixture: Fixture) {
+  await integrationDb!.insert(orderItems).values({
+    orderId: fixture.orderId,
+    productId: fixture.baseProductId,
+    quantity: 1,
+    priceAtPurchase: 0,
+    transactionType: "purchase",
+  });
+}
+
 describeDatabase("applyOrderAdjustment database transaction", () => {
   beforeAll(async () => {
     // Load application modules only after a dedicated, safely named test DB is
@@ -726,9 +737,7 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
         reason: "Return one supply",
         allowedStatuses: ["pending"],
         items: [],
-        addedItems: [
-          { adjustmentItemId: addedLine.id, quantityDelta: -1 },
-        ],
+        addedItems: [{ adjustmentItemId: addedLine.id, quantityDelta: -1 }],
       },
     );
     const [editDelta] = await integrationDb!
@@ -804,6 +813,240 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
       totalDelta: -50,
       newTotal: 0,
     });
+  });
+
+  it.each([
+    // 12.50 at 15% off; rounding each unit would take back 21.26.
+    {
+      quantity: 2,
+      unitPrice: 12.5 * (1 - 15 / 100),
+      paid: 61.25,
+      delta: -21.25,
+    },
+    {
+      quantity: 1,
+      unitPrice: 99.9 * (1 - 15 / 100),
+      paid: 124.92,
+      delta: -84.92,
+    },
+    // 1.50 at 15% off; `Math.round(1.275 * 100)` would take back 1.27.
+    { quantity: 1, unitPrice: 1.5 * (1 - 15 / 100), paid: 41.28, delta: -1.28 },
+  ])(
+    "takes back exactly what checkout charged for $quantity × $unitPrice",
+    async ({ quantity, unitPrice, paid, delta }) => {
+      const fixture = await createFixture();
+      const [line] = await integrationDb!
+        .insert(orderItems)
+        .values({
+          orderId: fixture.orderId,
+          productId: fixture.baseProductId,
+          quantity,
+          priceAtPurchase: unitPrice,
+          transactionType: "purchase",
+        })
+        .returning();
+      // Checkout stores its float sum and the numeric column rounds it once.
+      await integrationDb!
+        .update(orders)
+        .set({ totalAmount: 20 * 2 + unitPrice * quantity })
+        .where(eq(orders.id, fixture.orderId));
+
+      const result = await applyOrderAdjustmentWithDatabase(
+        adjustmentDatabase(),
+        {
+          ...baseAdjustment(fixture, 0),
+          items: [{ baseOrderItemId: line.id, quantityDelta: -quantity }],
+        },
+      );
+
+      expect(result).toMatchObject({
+        previousTotal: paid,
+        totalDelta: delta,
+        newTotal: 40,
+      });
+      const [order] = await integrationDb!
+        .select()
+        .from(orders)
+        .where(eq(orders.id, fixture.orderId));
+      expect(order.totalAmount).toBe(40);
+    },
+  );
+
+  it.each([
+    { freeLine: false, cancelled: true, status: "cancelled" },
+    // A remaining free line leaves nothing to pay, so the order still lands
+    // on zero; it keeps a line, so it is not cancelled.
+    { freeLine: true, cancelled: false, status: "pending" },
+  ])(
+    "lands on exactly zero when sub-cent units are removed one at a time (free line: $freeLine)",
+    async ({ freeLine, cancelled, status }) => {
+      const fixture = await createFixture();
+      // 12.50 at 15% off, twice: checkout charged 21.25.
+      await integrationDb!
+        .update(orderItems)
+        .set({ priceAtPurchase: 12.5 * (1 - 15 / 100) })
+        .where(eq(orderItems.id, fixture.baseItemId));
+      await integrationDb!
+        .update(orders)
+        .set({ totalAmount: 2 * 12.5 * (1 - 15 / 100) })
+        .where(eq(orders.id, fixture.orderId));
+      if (freeLine) await addFreeLine(fixture);
+
+      const first = await applyOrderAdjustmentWithDatabase(
+        adjustmentDatabase(),
+        { ...baseAdjustment(fixture, -1), cancelWhenEmpty: true },
+      );
+      // Half a cent each way: 21.25 - 10.63 leaves 10.62, and the last unit
+      // then takes the order to zero rather than to -0.01.
+      const last = await applyOrderAdjustmentWithDatabase(
+        adjustmentDatabase(),
+        {
+          ...baseAdjustment(fixture, -1),
+          expectedRevision: 2,
+          cancelWhenEmpty: true,
+        },
+      );
+
+      expect(first).toMatchObject({
+        previousTotal: 21.25,
+        totalDelta: -10.63,
+        newTotal: 10.62,
+        cancelled: false,
+      });
+      expect(last).toMatchObject({
+        previousTotal: 10.62,
+        totalDelta: -10.62,
+        newTotal: 0,
+        cancelled,
+      });
+      const [order] = await integrationDb!
+        .select()
+        .from(orders)
+        .where(eq(orders.id, fixture.orderId));
+      expect(order).toMatchObject({ status, totalAmount: 0 });
+    },
+  );
+
+  it.each([{ freeLine: false }, { freeLine: true }])(
+    "refunds exactly what was paid when a return leaves nothing to pay (free line: $freeLine)",
+    async ({ freeLine }) => {
+      const fixture = await createFixture();
+      // 33.30 at 15% off is 28.304999999999996, so checkout charged 28.30;
+      // the float column reads the unit back as 28.305, which on its own
+      // would take back 28.31 and leave the order at -0.01.
+      const unitPrice = 33.3 * (1 - 15 / 100);
+      await integrationDb!
+        .update(orderItems)
+        .set({ quantity: 1, priceAtPurchase: unitPrice })
+        .where(eq(orderItems.id, fixture.baseItemId));
+      await integrationDb!
+        .update(orders)
+        .set({ totalAmount: unitPrice })
+        .where(eq(orders.id, fixture.orderId));
+      if (freeLine) await addFreeLine(fixture);
+      const [line] = await integrationDb!
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.id, fixture.baseItemId));
+      expect(line.priceAtPurchase).toBe(28.305);
+
+      const result = await applyOrderAdjustmentWithDatabase(
+        adjustmentDatabase(),
+        {
+          ...baseAdjustment(fixture, -1),
+          orderReturn: {
+            status: "received",
+            reason: "Customer return",
+            items: [
+              {
+                orderItemId: fixture.baseItemId,
+                productId: fixture.baseProductId,
+                productVariantId: null,
+                productNameSnapshot: "Returned product snapshot",
+                variantLabelSnapshot: null,
+                quantity: 1,
+                unitPriceSnapshot: line.priceAtPurchase,
+                unitCostSnapshot: 7,
+              },
+            ],
+          },
+        },
+      );
+
+      expect(result).toMatchObject({
+        previousTotal: 28.3,
+        totalDelta: -28.3,
+        newTotal: 0,
+      });
+      const [returnRecord] = await integrationDb!
+        .select()
+        .from(orderReturns)
+        .where(eq(orderReturns.adjustmentId, result.adjustmentId));
+      expect(returnRecord.refundAmount).toBe(28.3);
+    },
+  );
+
+  it("never reports a negative zero change on an order with nothing to pay", async () => {
+    const fixture = await createFixture();
+    await integrationDb!
+      .update(orderItems)
+      .set({ priceAtPurchase: 0 })
+      .where(eq(orderItems.id, fixture.baseItemId));
+    await integrationDb!
+      .update(orders)
+      .set({ totalAmount: 0 })
+      .where(eq(orders.id, fixture.orderId));
+
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      baseAdjustment(fixture, -2),
+    );
+
+    expect(Object.is(result.totalDelta, 0)).toBe(true);
+    expect(Object.is(result.newTotal, 0)).toBe(true);
+  });
+
+  it("prices an added sub-cent line at its stored snapshot", async () => {
+    const fixture = await createFixture();
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const [discounted] = await integrationDb!
+      .insert(products)
+      .values({
+        name: `Discounted ${suffix}`,
+        slug: `integration-discounted-${suffix}`,
+        price: 12.5,
+        discount: 15,
+        discountUnit: "percentage",
+        stock: 5,
+        isPurchasable: true,
+      })
+      .returning();
+    fixture.extraProductIds.push(discounted.id);
+
+    const added = await applyOrderAdjustmentWithDatabase(adjustmentDatabase(), {
+      ...baseAdjustment(fixture, 0),
+      items: [],
+      additions: [
+        { productId: discounted.id, productVariantId: null, quantity: 2 },
+      ],
+    });
+    const [addedLine] = await integrationDb!
+      .select()
+      .from(orderAdjustmentItems)
+      .where(eq(orderAdjustmentItems.adjustmentId, added.adjustmentId));
+    const removed = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      {
+        ...baseAdjustment(fixture, 0),
+        expectedRevision: 2,
+        items: [],
+        addedItems: [{ adjustmentItemId: addedLine.id, quantityDelta: -2 }],
+      },
+    );
+
+    expect(addedLine.unitPriceSnapshot).toBe(10.63);
+    expect(added).toMatchObject({ totalDelta: 21.26, newTotal: 61.26 });
+    expect(removed).toMatchObject({ totalDelta: -21.26, newTotal: 40 });
   });
 
   it("cancels an emptied order in the same transaction when asked", async () => {
