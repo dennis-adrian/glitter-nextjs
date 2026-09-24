@@ -20,6 +20,7 @@ import type {
   BundleRecord,
 } from "@/app/lib/merch/bundle-definitions";
 import {
+  bundleSaveEvaluationOptions,
   evaluateBundle,
   formatBundleMoney,
   toCents,
@@ -133,7 +134,8 @@ export default function BundleForm({
       })),
     },
     productsById,
-    { mode: "publish" },
+    // Same rule as the server: judged against the bundle as it was loaded.
+    bundleSaveEvaluationOptions(bundle, isVisible),
   );
   const savingsCents =
     evaluation.separateMinCents != null
@@ -348,8 +350,9 @@ export default function BundleForm({
           <p className="text-xs text-muted-foreground">
             Elegí cuántas unidades incluye el combo. En productos con tallas o
             colores, marcá una sola variante para dejarla fija o varias para que
-            el cliente elija. Las variantes elegibles deben tener el mismo
-            precio individual.
+            el cliente elija. Al publicar el combo, y en los productos que
+            agregues o cambies en un combo publicado, las variantes elegibles
+            deben tener el mismo precio individual.
           </p>
           {components.length === 0 && (
             <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">

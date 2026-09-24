@@ -12,7 +12,11 @@ import {
 } from "@/db/schema";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import type { BundleRecord } from "./bundle-definitions";
-import { evaluateBundle, toCents } from "./bundle-pricing";
+import {
+  bundleSaveEvaluationOptions,
+  evaluateBundle,
+  toCents,
+} from "./bundle-pricing";
 import { bundleInputSchema, type BundleInput } from "./bundle-schema";
 import {
   bundleRevisionSql,
@@ -207,7 +211,7 @@ export async function saveMerchBundle(
           })),
         },
         catalog,
-        { mode: "publish" },
+        bundleSaveEvaluationOptions(existing, data.isVisible),
       );
       if (data.isVisible && evaluation.issues.length > 0) {
         throw new BundleSaveError(

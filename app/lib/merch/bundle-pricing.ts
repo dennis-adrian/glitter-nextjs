@@ -6,6 +6,7 @@ import {
 import type {
   BundleCatalogProduct,
   BundleComponentOption,
+  BundleComponentRecord,
   BundleEvaluation,
   BundleIssue,
   BundleRecord,
@@ -59,6 +60,14 @@ type EvaluateOptions = {
    * share one price, so the advertised saving never depends on a choice.
    */
   mode: "publish" | "sale";
+  /**
+   * Publish mode, for a bundle that is already published: its stored
+   * components. Only components added or changed (product, quantity or
+   * eligible variants) must then have same-price variants; the others only
+   * need the sale rules, so prices that diverged after publishing never block
+   * an unrelated edit. See `bundleSaveEvaluationOptions`.
+   */
+  publishedComponents?: readonly BundleComponentRecord[];
 };
 
 function componentOptions(
@@ -91,13 +100,57 @@ function componentOptions(
 }
 
 /**
+ * How a save of `stored` is evaluated. Publishing a draft (or a new bundle)
+ * applies every publish rule; a bundle that stays published holds only the
+ * components this save adds or changes to the same-price rule. The editor
+ * preview and the server both use it, so they always agree.
+ */
+export function bundleSaveEvaluationOptions(
+  stored: Pick<BundleRecord, "isVisible" | "components"> | null | undefined,
+  publish: boolean,
+): EvaluateOptions {
+  return {
+    mode: "publish",
+    publishedComponents:
+      stored?.isVisible && publish ? stored.components : undefined,
+  };
+}
+
+function sameVariantSet(a: readonly number[], b: readonly number[]) {
+  const left = new Set(a);
+  const right = new Set(b);
+  return left.size === right.size && [...left].every((id) => right.has(id));
+}
+
+/** Ids of components a save leaves exactly as they were published. */
+function unchangedComponentIds(
+  published: readonly BundleComponentRecord[],
+  next: readonly BundleComponentRecord[],
+): Set<number> {
+  const byId = new Map(published.map((component) => [component.id, component]));
+  return new Set(
+    next
+      .filter((component) => {
+        const before = byId.get(component.id);
+        return (
+          before != null &&
+          before.productId === component.productId &&
+          before.quantity === component.quantity &&
+          sameVariantSet(before.variantIds, component.variantIds)
+        );
+      })
+      .map((component) => component.id),
+  );
+}
+
+/**
  * Evaluates a bundle definition against the current catalog. Every issue is
  * blocking: a bundle with issues can be neither published nor sold.
  */
 export function evaluateBundle(
   bundle: Pick<BundleRecord, "price" | "components">,
   productsById: ReadonlyMap<number, BundleCatalogProduct>,
-  { mode }: EvaluateOptions,
+  { mode, publishedComponents }: EvaluateOptions,
 ): BundleEvaluation {
   const issues: BundleIssue[] = [];
   const priceCents = toCents(bundle.price);
@@ -105,6 +158,9 @@ export function evaluateBundle(
   const sortedComponents = [...bundle.components].sort(
     (a, b) => a.sortOrder - b.sortOrder || a.id - b.id,
   );
+  const priceRuleExempt = publishedComponents
+    ? unchangedComponentIds(publishedComponents, bundle.components)
+    : new Set<number>();
 
   for (const component of sortedComponents) {
     const product = productsById.get(component.productId);
@@ -155,6 +211,7 @@ export function evaluateBundle(
     }
     if (
       mode === "publish" &&
+      !priceRuleExempt.has(component.id) &&
       new Set(options.map((option) => option.unitPriceCents)).size > 1
     ) {
       issues.push({

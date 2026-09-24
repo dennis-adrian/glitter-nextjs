@@ -189,3 +189,68 @@ it("shows the current error from the server and keeps the form", async () => {
   ).toBeTruthy();
   expect(push).not.toHaveBeenCalled();
 });
+
+it("keeps a published bundle editable after its variant prices diverge", async () => {
+  // M went up to Bs110 after the bundle was published at Bs140.
+  const diverged = [
+    product(1, "Polera", {
+      variants: [variant(11, "S"), variant(12, "M", 110)],
+    } as unknown as Partial<BundleCatalogProduct>),
+    product(2, "Tote", { price: 60 }),
+  ];
+  render(
+    <BundleForm
+      bundle={{
+        id: 5,
+        name: "Kit",
+        slug: "kit",
+        description: null,
+        imageUrl: null,
+        price: 140,
+        isVisible: true,
+        sortOrder: 1,
+        version: 2,
+        collectionIds: [],
+        components: [
+          {
+            id: 50,
+            productId: 1,
+            quantity: 1,
+            sortOrder: 0,
+            variantIds: [11, 12],
+          },
+          { id: 51, productId: 2, quantity: 1, sortOrder: 1, variantIds: [] },
+        ],
+      }}
+      revision="2026-09-20 10:00:00.123456"
+      products={diverged}
+      collectionOptions={[]}
+    />,
+  );
+  const mismatch =
+    "Las variantes elegibles de Polera deben tener el mismo precio.";
+  expect(screen.queryByText(mismatch)).toBeNull();
+  // As a draft it would need the rule again to be republished.
+  fireEvent.click(screen.getByLabelText("Publicar en la tienda"));
+  expect(screen.getAllByText(mismatch).length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByLabelText("Publicar en la tienda"));
+  expect(screen.queryByText(mismatch)).toBeNull();
+
+  fireEvent.change(screen.getByRole("textbox", { name: "Nombre" }), {
+    target: { value: "Kit nuevo" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Guardar combo" }));
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  expect(save.mock.calls[0][0]).toMatchObject({
+    id: 5,
+    revision: "2026-09-20 10:00:00.123456",
+    name: "Kit nuevo",
+    isVisible: true,
+  });
+
+  // Changing the shirt itself holds it to the rule, as the server does.
+  fireEvent.change(screen.getAllByRole("spinbutton", { name: "Cantidad" })[0], {
+    target: { value: "2" },
+  });
+  expect(screen.getAllByText(mismatch).length).toBeGreaterThan(0);
+});

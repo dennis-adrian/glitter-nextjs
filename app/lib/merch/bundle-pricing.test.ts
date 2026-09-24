@@ -9,6 +9,7 @@ import {
   allocateBundlePrice,
   buildBundleSelectionKey,
   bundleHasStock,
+  bundleSaveEvaluationOptions,
   evaluateBundle,
   maxBundleQuantity,
   resolveBundleSelection,
@@ -278,6 +279,67 @@ describe("evaluateBundle", () => {
     expect(sale.issues).toEqual([]);
     expect(sale.separateMinCents).toBe(18000);
     expect(sale.separateMaxCents).toBe(20000);
+  });
+
+  it("holds only added or changed components of a published bundle to the same-price rule", () => {
+    // M went up after publishing: the bundle keeps selling (sale rules).
+    const diverged = new Map([
+      ...catalog,
+      [
+        1,
+        {
+          ...shirt,
+          variants: [
+            variant(11, 1, "S"),
+            variant(12, 1, "M", { price: 120, stock: 1 }),
+          ],
+        },
+      ],
+    ]);
+    const stored = { isVisible: true, components: bundle().components };
+    const codes = (
+      next: ReturnType<typeof bundle>,
+      options: ReturnType<typeof bundleSaveEvaluationOptions>,
+    ) => evaluateBundle(next, diverged, options).issues.map((i) => i.code);
+    const staysPublished = bundleSaveEvaluationOptions(stored, true);
+
+    // Price, name or order edits (eligible variants in any order) still save.
+    expect(codes(bundle({ price: 140 }), staysPublished)).toEqual([]);
+    expect(
+      codes(
+        bundle({
+          components: bundle().components.map((c) =>
+            c.id === 101 ? { ...c, sortOrder: 5, variantIds: [12, 11] } : c,
+          ),
+        }),
+        staysPublished,
+      ),
+    ).toEqual([]);
+    // Changing the shirt's quantity or sizes, or adding it anew, does not.
+    for (const change of [
+      { quantity: 2 },
+      { variantIds: [11, 12, 13] },
+      { id: -1 },
+    ]) {
+      expect(
+        codes(
+          bundle({
+            components: bundle().components.map((c) =>
+              c.id === 101 ? { ...c, ...change } : c,
+            ),
+          }),
+          staysPublished,
+        ),
+      ).toEqual(["variant_price_mismatch"]);
+    }
+    // Publishing a draft, or saving one, applies it to every component.
+    for (const options of [
+      bundleSaveEvaluationOptions({ ...stored, isVisible: false }, true),
+      bundleSaveEvaluationOptions(null, true),
+      bundleSaveEvaluationOptions(stored, false),
+    ]) {
+      expect(codes(bundle(), options)).toEqual(["variant_price_mismatch"]);
+    }
   });
 
   it("drops hidden variants and flags components left without options", () => {

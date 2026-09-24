@@ -151,7 +151,11 @@ export async function fetchBundleManagement(): Promise<BundleManagementRow[]> {
   const records = await loadBundleRecords(db);
   const catalog = await loadBundleCatalog(db, componentProductIds(records));
   return records.map((record) => {
-    const evaluation = evaluateBundle(record, catalog, { mode: "sale" });
+    // A draft lists what blocks publishing it; a published bundle, what
+    // keeps it from selling.
+    const evaluation = evaluateBundle(record, catalog, {
+      mode: record.isVisible ? "sale" : "publish",
+    });
     return {
       ...record,
       evaluation,

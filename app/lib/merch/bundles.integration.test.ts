@@ -1581,6 +1581,51 @@ describeDatabase("bundle checkout", () => {
     };
   }
 
+  it("keeps a published bundle editable after its variant prices diverge", async () => {
+    const fixture = await createFixture();
+    signIn(fixture, "admin");
+    // M goes up after publishing; every combination is still discounted.
+    await db()
+      .update(productVariants)
+      .set({ price: 110 })
+      .where(eq(productVariants.id, fixture.shirtMediumId));
+
+    expect(
+      await saveMerchBundle(
+        await fixtureInput(fixture, { name: "Kit renombrado" }),
+      ),
+    ).toMatchObject({ success: true });
+    expect(await bundleRow(fixture.bundleId)).toMatchObject({
+      name: "Kit renombrado",
+      isVisible: true,
+      version: 1,
+    });
+
+    // Changing the shirt itself applies the same-price rule again...
+    const input = await fixtureInput(fixture);
+    expect(
+      await saveMerchBundle({
+        ...input,
+        components: input.components.map((component) =>
+          component.id === fixture.shirtComponentId
+            ? { ...component, quantity: 2 }
+            : component,
+        ),
+      }),
+    ).toMatchObject({
+      success: false,
+      message: expect.stringContaining("mismo precio"),
+    });
+    // ...and so does publishing it again once it is a draft.
+    expect(
+      (await saveMerchBundle(await fixtureInput(fixture, { isVisible: false })))
+        .success,
+    ).toBe(true);
+    expect(await saveMerchBundle(await fixtureInput(fixture))).toMatchObject({
+      success: false,
+      message: expect.stringContaining("mismo precio"),
+    });
+  });
   it("rejects a save from an editor that loaded an older copy", async () => {
     const fixture = await createFixture();
     signIn(fixture, "admin");
@@ -1622,5 +1667,29 @@ describeDatabase("bundle checkout", () => {
         })
       ).success,
     ).toBe(true);
+  });
+
+  it("lists what blocks publishing a draft", async () => {
+    const fixture = await createFixture();
+    signIn(fixture, "admin");
+    await db()
+      .update(productVariants)
+      .set({ price: 110 })
+      .where(eq(productVariants.id, fixture.shirtMediumId));
+    const { fetchBundleManagement } = await import("@/app/lib/merch/bundles");
+    const row = async () =>
+      (await fetchBundleManagement()).find(
+        (bundle) => bundle.id === fixture.bundleId,
+      )!;
+
+    // Published, diverged variant prices are tolerated.
+    expect((await row()).evaluation.issues).toEqual([]);
+    await db()
+      .update(merchBundles)
+      .set({ isVisible: false })
+      .where(eq(merchBundles.id, fixture.bundleId));
+    expect((await row()).evaluation.issues.map((issue) => issue.code)).toEqual([
+      "variant_price_mismatch",
+    ]);
   });
 });
