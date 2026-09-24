@@ -320,9 +320,11 @@ export default function BundleDetail({ bundle }: { bundle: PublicBundle }) {
                 ? bundle.inStock
                   ? "Sin stock para esta combinación. Probá con otra opción."
                   : "Este combo está agotado."
-                : available <= 3
-                  ? `Últimas ${available} unidades disponibles.`
-                  : "Disponible."}
+                : available === 1
+                  ? "Última unidad disponible."
+                  : available <= 3
+                    ? `Últimas ${available} unidades disponibles.`
+                    : "Disponible."}
           </p>
           <div className="flex items-center gap-3">
             <label htmlFor="bundle-quantity" className="text-sm">

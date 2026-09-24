@@ -124,6 +124,23 @@ it("starts on the first size in stock and disables sold-out sizes", () => {
   expect(screen.getByText("Últimas 2 unidades disponibles.")).toBeTruthy();
 });
 
+it("uses the singular when one bundle is left", () => {
+  const [shirt, tote, stickers] = bundle.components;
+  render(
+    <BundleDetail
+      bundle={{
+        ...bundle,
+        components: [
+          shirt,
+          { ...tote, options: [option(null, null, 1, 6000)] },
+          stickers,
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByText("Última unidad disponible.")).toBeTruthy();
+});
+
 it("adds the chosen configuration to a guest cart through the server's rules", async () => {
   cart.addGuestBundle.mockResolvedValue({ success: true, added: 1 });
   render(<BundleDetail bundle={bundle} />);
