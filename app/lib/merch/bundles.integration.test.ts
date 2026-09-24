@@ -1290,6 +1290,56 @@ describeDatabase("bundle checkout", () => {
     return fixture;
   }
 
+  it("cancels the order when the customer removes its only bundle", async () => {
+    const fixture = await createUnevenFixture();
+    const before = await stockOf(fixture);
+    const result = await buy(fixture, [], [bundleRequest(fixture)]);
+    const bought = await orderSnapshot(result.orderId);
+    expect(bought.order.totalAmount).toBe(50);
+    expect(
+      bought.items.map((row) => row.allocation!.paidUnitPriceCents),
+    ).toEqual([1923, 1539, 769]);
+
+    signIn(fixture);
+    const order = (await fetchOrder(result.orderId))!;
+    const removal = await updateOrder(
+      result.orderId,
+      fixture.userId,
+      [],
+      order.updatedAt.toISOString(),
+      [{ orderBundleId: order.bundles![0].id, quantity: 0 }],
+    );
+
+    expect(removal).toMatchObject({ success: true, wasCancelled: true });
+    const after = await orderSnapshot(result.orderId);
+    expect(after.order).toMatchObject({
+      status: "cancelled",
+      totalAmount: 0,
+      revision: 3,
+    });
+    const [adjustment] = await db()
+      .select()
+      .from(orderAdjustments)
+      .where(eq(orderAdjustments.orderId, result.orderId));
+    expect(adjustment).toMatchObject({
+      previousTotal: 50,
+      totalDelta: -50,
+      newTotal: 0,
+    });
+    const events = await db()
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, result.orderId))
+      .orderBy(orderEvents.id);
+    expect(events.map(({ type, revision }) => [type, revision])).toEqual([
+      ["created", 1],
+      ["adjusted", 2],
+      ["cancelled", 3],
+    ]);
+    // Removing the bundle returned its stock; cancelling returns none again.
+    expect(await stockOf(fixture)).toEqual(before);
+  });
+
   it("returns every component of a bundle-only order with an exact refund", async () => {
     const fixture = await createUnevenFixture();
     const result = await buy(fixture, [], [bundleRequest(fixture)]);

@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
+import { cancelEmptyOrderInTx } from "@/app/lib/orders/cancellation";
 import {
   getAddedLineGroupKey,
   type ProjectionAdjustmentLine,
@@ -74,6 +75,11 @@ export type ApplyOrderAdjustmentInput = {
   addedItems?: readonly AddedOrderItemAdjustment[];
   additions?: readonly NewOrderItemAddition[];
   orderReturn?: OrderReturnCreation;
+  /**
+   * Cancel the order in the same transaction when the adjustment leaves it
+   * without lines. Customer edits use it; admins decide for themselves.
+   */
+  cancelWhenEmpty?: boolean;
 };
 
 export type ApplyOrderAdjustmentResult = {
@@ -82,6 +88,8 @@ export type ApplyOrderAdjustmentResult = {
   previousTotal: number;
   totalDelta: number;
   newTotal: number;
+  /** The adjustment emptied the order and `cancelWhenEmpty` cancelled it. */
+  cancelled: boolean;
 };
 
 type ResolvedChange = {
@@ -626,12 +634,23 @@ export async function applyOrderAdjustmentWithDatabase(
       );
     }
 
+    const cancelledRevision = input.cancelWhenEmpty
+      ? await cancelEmptyOrderInTx(tx, {
+          orderId: order.id,
+          status: order.status,
+          revision,
+          actorId: input.actorUserId,
+          reason: "emptied_by_adjustment",
+        })
+      : null;
+
     return {
       adjustmentId: adjustment.id,
-      revision,
+      revision: cancelledRevision ?? revision,
       previousTotal,
       totalDelta,
       newTotal,
+      cancelled: cancelledRevision != null,
     };
   });
 }

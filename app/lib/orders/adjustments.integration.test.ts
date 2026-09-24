@@ -805,4 +805,61 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
       newTotal: 0,
     });
   });
+
+  it("cancels an emptied order in the same transaction when asked", async () => {
+    const fixture = await createFixture();
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      { ...baseAdjustment(fixture, -2), cancelWhenEmpty: true },
+    );
+
+    expect(result).toMatchObject({ cancelled: true, revision: 3, newTotal: 0 });
+    const [order] = await integrationDb!
+      .select()
+      .from(orders)
+      .where(eq(orders.id, fixture.orderId));
+    const [product] = await integrationDb!
+      .select()
+      .from(products)
+      .where(eq(products.id, fixture.baseProductId));
+    const events = await integrationDb!
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, fixture.orderId))
+      .orderBy(orderEvents.id);
+    expect(order).toMatchObject({
+      status: "cancelled",
+      totalAmount: 0,
+      revision: 3,
+    });
+    // The adjustment returned both units; the cancellation returns none again.
+    expect(product.stock).toBe(12);
+    expect(events.map(({ type, revision }) => [type, revision])).toEqual([
+      ["adjusted", 2],
+      ["cancelled", 3],
+    ]);
+    expect(events[1]).toMatchObject({
+      actorId: fixture.actorId,
+      payload: {
+        previousStatus: "pending",
+        status: "cancelled",
+        reason: "emptied_by_adjustment",
+      },
+    });
+  });
+
+  it("keeps the order open when the adjustment leaves lines", async () => {
+    const fixture = await createFixture();
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      { ...baseAdjustment(fixture, -1), cancelWhenEmpty: true },
+    );
+
+    expect(result).toMatchObject({ cancelled: false, revision: 2 });
+    const [order] = await integrationDb!
+      .select()
+      .from(orders)
+      .where(eq(orders.id, fixture.orderId));
+    expect(order).toMatchObject({ status: "pending", totalAmount: 20 });
+  });
 });

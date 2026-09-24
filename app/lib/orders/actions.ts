@@ -2823,6 +2823,7 @@ export async function updateOrder(
       }
     }
   }
+  let wasCancelled = false;
   try {
     const adjustment = await applyOrderAdjustment({
       orderId,
@@ -2831,6 +2832,8 @@ export async function updateOrder(
       expectedRevision: order.revision,
       reason: "Ajuste solicitado por cliente",
       allowedStatuses: ["pending"],
+      // The edit form warns that removing everything cancels the order.
+      cancelWhenEmpty: true,
       items: changedItems
         .filter(({ item }) => item.adjustmentItemId == null)
         .map(({ item, quantityDelta }) => ({
@@ -2854,8 +2857,10 @@ export async function updateOrder(
         total_delta: adjustment.totalDelta,
         revision: adjustment.revision,
         adjustment_id: adjustment.adjustmentId,
+        order_cancelled: adjustment.cancelled,
       },
     });
+    wasCancelled = adjustment.cancelled;
   } catch (error) {
     const cause = error instanceof Error ? error.cause : undefined;
     captureOrderAdjustmentResult({
@@ -2887,6 +2892,13 @@ export async function updateOrder(
   revalidatePath(`/profiles/${profileId}/orders/${orderId}/edit`);
   revalidatePath("/my_orders");
   revalidateStoreOrderViews();
+  if (wasCancelled) {
+    return {
+      success: true,
+      wasCancelled: true,
+      message: "Quitaste todos los artículos, así que cancelamos tu pedido.",
+    };
+  }
   return { success: true, message: "Tu pedido fue actualizado correctamente." };
 }
 
