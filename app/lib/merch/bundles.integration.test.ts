@@ -2,7 +2,7 @@
 
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool, type PoolConfig } from "pg";
+import { Pool } from "pg";
 import {
   afterAll,
   afterEach,
@@ -389,8 +389,9 @@ describeDatabase("bundle checkout", () => {
     // `@/db` keeps its pool on `globalThis` and reads the URL once, so a pool
     // or env parse from before the assignment above would still win.
     const { pool: appPool } = await import("@/db");
-    const appPoolUrl = (appPool as Pool & { options: PoolConfig }).options
-      .connectionString;
+    const appPoolUrl = (
+      appPool as unknown as { options: { connectionString?: string } }
+    ).options.connectionString;
     if (appPoolUrl !== testDatabaseUrl) {
       throw new Error(
         "The app's database pool does not target TEST_DATABASE_URL; refusing to run production modules against it.",
@@ -417,6 +418,8 @@ describeDatabase("bundle checkout", () => {
 
   afterAll(async () => {
     await pool?.end();
+    // The production modules' pool, opened by the guard in beforeAll.
+    await (await import("@/db")).pool.end();
   });
 
   it("charges the fixed price and stores exact allocations that sum to it", async () => {
@@ -662,6 +665,94 @@ describeDatabase("bundle checkout", () => {
       // The unpublished-bundle branch, not a catalog issue.
       message: "Un combo de tu carrito ya no está disponible.",
     });
+  });
+
+  it("seeds combos with visible sizes only", async () => {
+    const { seedMerch } = await import("@/scripts/seed/merch");
+    // The seed skips fixtures that already exist, so a seeded test database
+    // would test nothing (or collide on the polera's slug below).
+    const { rows: seeded } = await pool!.query(
+      `select 1 from products where slug like 'demo-merch-%'
+       union all
+       select 1 from merch_bundles where slug = 'demo-kit-clasicos'`,
+    );
+    if (seeded.length) {
+      throw new Error(
+        "The test database holds demo merch from `pnpm seed`; recreate it before running this suite.",
+      );
+    }
+    // The seed refuses anything but a development Clerk key, and whatever
+    // .env.local says about production or opting out.
+    vi.stubEnv("CLERK_SECRET_KEY", "sk_test_integration");
+    vi.stubEnv("ALLOW_DEV_SEED", "true");
+    vi.stubEnv("VERCEL_ENV", "development");
+    const rollback = new Error("rollback");
+    try {
+      // Rolled back: the seed's fixtures must not outlive this test.
+      await db().transaction(async (tx) => {
+        // A database seeded before combos existed keeps its polera, reused
+        // unchanged, and an admin has since hidden one of its sizes.
+        const [polera] = await tx
+          .insert(products)
+          .values({
+            name: "Polera Glitter Club",
+            slug: "demo-merch-polera",
+            price: 100,
+            stock: 0,
+            storeCategory: "merch",
+          })
+          .returning();
+        const [visible] = await tx
+          .insert(productVariants)
+          .values([
+            { productId: polera.id, stock: 8, sortOrder: 0 },
+            { productId: polera.id, stock: 8, sortOrder: 1, isVisible: false },
+          ])
+          .returning();
+
+        await seedMerch(tx as unknown as Parameters<typeof seedMerch>[0]);
+
+        // Only the Kit Clásicos combo holds the polera.
+        const eligible = await tx
+          .select({ variantId: merchBundleComponentVariants.variantId })
+          .from(merchBundleComponentVariants)
+          .where(eq(merchBundleComponentVariants.productId, polera.id));
+        expect(eligible).toEqual([{ variantId: visible.id }]);
+        throw rollback;
+      });
+    } catch (error) {
+      if (error !== rollback) throw error;
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("indexes every bundle foreign key by its leading column", async () => {
+    // Postgres does not index referencing columns. Without one, every delete
+    // of a parent row scans the child table to cascade or restrict it.
+    const { rows } = await pool!.query<{ name: string }>(
+      `select c.conname as name
+         from pg_constraint c
+        where c.contype = 'f'
+          and c.conrelid::regclass::text = any($1)
+          and not exists (
+            select 1 from pg_index i
+             where i.indrelid = c.conrelid and i.indkey[0] = c.conkey[1]
+          )`,
+      [
+        [
+          "merch_bundles",
+          "merch_bundle_components",
+          "merch_bundle_component_variants",
+          "merch_bundle_collections",
+          "cart_bundles",
+          "cart_bundle_selections",
+          "order_bundles",
+          "order_bundle_items",
+        ],
+      ],
+    );
+    expect(rows).toEqual([]);
   });
 
   it("creates guest orders with the same snapshots", async () => {
@@ -1175,78 +1266,5 @@ describeDatabase("bundle checkout", () => {
         (entry) => entry.id === collection.id,
       ),
     ).toBe(false);
-  });
-
-  it("seeds combos with visible sizes only", async () => {
-    const { seedMerch } = await import("@/scripts/seed/merch");
-    // The seed refuses anything but a development Clerk key.
-    vi.stubEnv("CLERK_SECRET_KEY", "sk_test_integration");
-    const rollback = new Error("rollback");
-    try {
-      // Rolled back: the seed's fixtures must not outlive this test.
-      await db().transaction(async (tx) => {
-        // A database seeded before combos existed keeps its polera, reused
-        // unchanged, and an admin has since hidden one of its sizes.
-        const [polera] = await tx
-          .insert(products)
-          .values({
-            name: "Polera Glitter Club",
-            slug: "demo-merch-polera",
-            price: 100,
-            stock: 0,
-            storeCategory: "merch",
-          })
-          .returning();
-        const [visible] = await tx
-          .insert(productVariants)
-          .values([
-            { productId: polera.id, stock: 8, sortOrder: 0 },
-            { productId: polera.id, stock: 8, sortOrder: 1, isVisible: false },
-          ])
-          .returning();
-
-        await seedMerch(tx as unknown as Parameters<typeof seedMerch>[0]);
-
-        // Only the Kit Clásicos combo holds the polera.
-        const eligible = await tx
-          .select({ variantId: merchBundleComponentVariants.variantId })
-          .from(merchBundleComponentVariants)
-          .where(eq(merchBundleComponentVariants.productId, polera.id));
-        expect(eligible).toEqual([{ variantId: visible.id }]);
-        throw rollback;
-      });
-    } catch (error) {
-      if (error !== rollback) throw error;
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
-  it("indexes every bundle foreign key by its leading column", async () => {
-    // Postgres does not index referencing columns. Without one, every delete
-    // of a parent row scans the child table to cascade or restrict it.
-    const { rows } = await pool!.query<{ name: string }>(
-      `select c.conname as name
-         from pg_constraint c
-        where c.contype = 'f'
-          and c.conrelid::regclass::text = any($1)
-          and not exists (
-            select 1 from pg_index i
-             where i.indrelid = c.conrelid and i.indkey[0] = c.conkey[1]
-          )`,
-      [
-        [
-          "merch_bundles",
-          "merch_bundle_components",
-          "merch_bundle_component_variants",
-          "merch_bundle_collections",
-          "cart_bundles",
-          "cart_bundle_selections",
-          "order_bundles",
-          "order_bundle_items",
-        ],
-      ],
-    );
-    expect(rows).toEqual([]);
   });
 });
