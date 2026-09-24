@@ -2726,6 +2726,21 @@ export type UpdateOrderResult = {
   cause?: "conflict" | "stock_insufficient" | "not_found" | "forbidden";
 };
 
+/** One entry per bundle, so duplicates cannot stack their removals. */
+const updateOrderBundlesSchema = z
+  .array(
+    z.object({
+      orderBundleId: z.number().int().positive(),
+      quantity: z.number().int().nonnegative(),
+    }),
+  )
+  .max(100)
+  .refine(
+    (entries) =>
+      new Set(entries.map((entry) => entry.orderBundleId)).size ===
+      entries.length,
+  );
+
 export async function updateOrder(
   orderId: number,
   profileId: number,
@@ -2754,6 +2769,15 @@ export async function updateOrder(
       cause: "conflict",
       message:
         "El pedido fue modificado en otra sesión. Por favor recargá la página.",
+    };
+  }
+
+  const parsedBundles = updateOrderBundlesSchema.safeParse(bundles);
+  if (!parsedBundles.success) {
+    return {
+      success: false,
+      cause: "forbidden",
+      message: "El ajuste contiene combos inválidos.",
     };
   }
 
@@ -2794,13 +2818,11 @@ export async function updateOrder(
       group,
     ]),
   );
-  for (const change of bundles) {
+  for (const change of parsedBundles.data) {
     const group = bundleGroups.get(change.orderBundleId);
     if (
       !group ||
       group.wholeQuantity == null ||
-      !Number.isInteger(change.quantity) ||
-      change.quantity < 0 ||
       change.quantity > group.wholeQuantity
     ) {
       return {

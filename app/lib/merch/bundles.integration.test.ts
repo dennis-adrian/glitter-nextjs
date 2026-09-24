@@ -1401,4 +1401,50 @@ describeDatabase("bundle checkout", () => {
     expect(adjustment).toMatchObject({ totalDelta: -50, newTotal: 0 });
     expect(await stockOf(fixture)).toEqual(before);
   });
+
+  it("rejects duplicate or fractional bundle entries in a customer edit", async () => {
+    const fixture = await createFixture();
+    const result = await buy(
+      fixture,
+      [],
+      [bundleRequest(fixture, { quantity: 2 })],
+    );
+    signIn(fixture);
+    const order = (await fetchOrder(result.orderId))!;
+    const orderBundleId = order.bundles![0].id;
+    const edit = (bundles: { orderBundleId: number; quantity: number }[]) =>
+      updateOrder(
+        result.orderId,
+        fixture.userId,
+        [],
+        order.updatedAt.toISOString(),
+        bundles,
+      );
+
+    // Each entry asks to keep one bundle; together they must not remove both.
+    expect(
+      await edit([
+        { orderBundleId, quantity: 1 },
+        { orderBundleId, quantity: 1 },
+      ]),
+    ).toMatchObject({ success: false, cause: "forbidden" });
+    expect(await edit([{ orderBundleId, quantity: 0.5 }])).toMatchObject({
+      success: false,
+      cause: "forbidden",
+    });
+    expect(
+      await edit([{ orderBundleId: orderBundleId + 0.5, quantity: 1 }]),
+    ).toMatchObject({ success: false, cause: "forbidden" });
+
+    expect((await orderSnapshot(result.orderId)).order).toMatchObject({
+      status: "pending",
+      totalAmount: 300,
+      revision: 1,
+    });
+    expect(await stockOf(fixture)).toMatchObject({
+      medium: 3,
+      tote: 3,
+      stickers: 6,
+    });
+  });
 });
