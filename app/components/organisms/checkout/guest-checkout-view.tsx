@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { CheckoutEmptyCart } from "@/app/components/organisms/checkout/checkout-empty-cart";
 import { CheckoutPageLayout } from "@/app/components/organisms/checkout/checkout-page-layout";
@@ -11,47 +12,56 @@ import {
 } from "@/app/components/organisms/checkout/checkout-line-item";
 import { GuestCheckoutForm } from "@/app/components/organisms/checkout/guest-checkout-form";
 import { useCartContext } from "@/app/components/providers/cart-provider";
-import { resolveGuestCartBundles } from "@/app/lib/cart/actions";
-import type { CartBundleLine } from "@/app/lib/merch/bundle-definitions";
+import {
+  resolveGuestCart,
+  validateGuestCartStock,
+  type GuestCartResolution,
+} from "@/app/lib/cart/actions";
+import {
+  removedBundlesNotice,
+  toGuestBundleInputs,
+  toGuestItemInputs,
+} from "@/app/lib/cart/utils";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getVariantLabel } from "@/app/lib/products/variants";
 
 export default function GuestCheckoutView() {
-  const { guestItems, guestBundles, guestCartHydrated } = useCartContext();
-  const [resolvedBundles, setResolvedBundles] = useState<
-    CartBundleLine[] | null
-  >(null);
+  const { guestItems, guestBundles, guestCartHydrated, reconcileGuestBundles } =
+    useCartContext();
+  const [resolution, setResolution] = useState<GuestCartResolution | null>(
+    null,
+  );
 
-  // Show current bundle prices and contents; the stored snapshot is only a
-  // placeholder until the server answers.
+  // Show current bundle prices and contents, and check every line's stock
+  // (bundles and individual lines share it) before the guest confirms; the
+  // stored snapshot is only a placeholder until the server answers.
   useEffect(() => {
-    if (!guestCartHydrated || guestBundles.length === 0) return;
+    if (!guestCartHydrated) return;
+    if (guestItems.length === 0 && guestBundles.length === 0) return;
     let cancelled = false;
-    resolveGuestCartBundles(
-      guestBundles.map((bundle) => ({
-        lineKey: bundle.lineKey,
-        bundleId: bundle.bundleId,
-        bundleVersion: bundle.bundleVersion,
-        quantity: bundle.quantity,
-        selections: bundle.selections,
-      })),
-      guestItems.map((item) => ({
-        lineKey: item.lineKey,
-        productId: item.productId,
-        productVariantId: item.productVariantId,
-        quantity: item.quantity,
-      })),
-    )
-      .then((lines) => {
-        if (!cancelled) setResolvedBundles(lines);
+    const items = toGuestItemInputs(guestItems);
+    const request: Promise<GuestCartResolution> =
+      guestBundles.length > 0
+        ? resolveGuestCart(toGuestBundleInputs(guestBundles), items)
+        : validateGuestCartStock(items).then((checks) => ({
+            bundles: [],
+            items: checks,
+            removedBundleKeys: [],
+          }));
+    request
+      .then((result) => {
+        if (cancelled) return;
+        setResolution(result);
+        const removed = reconcileGuestBundles(result);
+        if (removed > 0) toast.info(removedBundlesNotice(removed));
       })
       .catch(() => {
-        if (!cancelled) setResolvedBundles(null);
+        if (!cancelled) setResolution(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [guestCartHydrated, guestBundles, guestItems]);
+  }, [guestCartHydrated, guestBundles, guestItems, reconcileGuestBundles]);
 
   if (!guestCartHydrated) {
     return null;
@@ -71,7 +81,7 @@ export default function GuestCheckoutView() {
   const presaleLines = orderLines.filter((l) => l.product.status === "presale");
 
   const resolvedByKey = new Map(
-    (resolvedBundles ?? []).map((line) => [line.key, line]),
+    (resolution?.bundles ?? []).map((line) => [line.key, line]),
   );
   const bundleItems: CheckoutBundleItem[] = guestBundles.map((bundle) => {
     const line = resolvedByKey.get(bundle.lineKey);
@@ -88,8 +98,24 @@ export default function GuestCheckoutView() {
           issue: line?.message ?? null,
         };
   });
+  const checksByKey = new Map(
+    (resolution?.items ?? []).map((check) => [check.lineKey, check]),
+  );
+  const itemIssue = guestItems.flatMap((item) => {
+    const check = checksByKey.get(item.lineKey);
+    if (!check || (!check.isOutOfStock && !check.quantityExceedsStock)) {
+      return [];
+    }
+    const label = item.productVariantLabel ?? getVariantLabel(item.variant);
+    const name = label ? `${item.product.name} (${label})` : item.product.name;
+    return [
+      check.isOutOfStock
+        ? `${name} ya no tiene stock.`
+        : `Solo quedan ${check.stock} unidades de ${name}.`,
+    ];
+  })[0];
   const blockingMessage =
-    bundleItems.find((bundle) => bundle.issue)?.issue ?? null;
+    bundleItems.find((bundle) => bundle.issue)?.issue ?? itemIssue ?? null;
 
   const total =
     guestItems.reduce(

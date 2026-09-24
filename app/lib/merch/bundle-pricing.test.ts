@@ -13,6 +13,7 @@ import {
   buildBundleSelectionKey,
   bundleHasStock,
   bundleSaveEvaluationOptions,
+  canonicalBundleSelections,
   evaluateBundle,
   findStockedCombination,
   formatBundleProductCount,
@@ -635,6 +636,31 @@ describe("helpers", () => {
       ]),
     ).toBe("2 productos");
     expect(formatBundleProductCount([{ productId: 1 }])).toBe("1 producto");
+  });
+
+  it("keys a configuration by the components that are still a choice", () => {
+    const components = [
+      { componentId: 3, choice: "choice" as const },
+      { componentId: 5, choice: "fixed" as const },
+      { componentId: 9, choice: "none" as const },
+    ];
+    const canonical = canonicalBundleSelections(
+      [
+        { componentId: 5, productVariantId: 12 },
+        { componentId: 3, productVariantId: 7 },
+      ],
+      components,
+    );
+    expect(canonical).toEqual([{ componentId: 3, productVariantId: 7 }]);
+    // A choice that became fixed names the same line as no pick at all.
+    expect(
+      buildBundleSelectionKey(
+        canonicalBundleSelections(
+          [{ componentId: 5, productVariantId: 12 }],
+          [{ componentId: 5, choice: "fixed" }],
+        ),
+      ),
+    ).toBe(buildBundleSelectionKey([]));
   });
 
   it("rounds prices to cents", () => {

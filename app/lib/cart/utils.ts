@@ -1,12 +1,18 @@
 import type {
+  GuestBundleInput,
+  GuestCartItemInput,
+} from "@/app/lib/cart/actions";
+import type {
   CartItemWithProduct,
   GuestCartBundle,
+  GuestCartItem,
 } from "@/app/lib/cart/definitions";
 import type {
   BundleSelectionInput,
   CartBundleLine,
 } from "@/app/lib/merch/bundle-definitions";
 import { buildBundleSelectionKey } from "@/app/lib/merch/bundle-pricing";
+import { MAX_CART_BUNDLE_QUANTITY } from "@/app/lib/merch/bundle-schema";
 import {
   getAvailableStockForTransaction,
   getTransactionPoolRemainingStock,
@@ -62,6 +68,77 @@ export function buildBundleLineKey(
   selections: readonly BundleSelectionInput[],
 ): string {
   return `bundle:${bundleId}:${buildBundleSelectionKey(selections)}`;
+}
+
+/** What the server needs from guest bundle lines: identity and choices. */
+export function toGuestBundleInputs(
+  bundles: readonly GuestCartBundle[],
+): GuestBundleInput[] {
+  return bundles.map((bundle) => ({
+    lineKey: bundle.lineKey,
+    bundleId: bundle.bundleId,
+    bundleVersion: bundle.bundleVersion,
+    quantity: bundle.quantity,
+    selections: bundle.selections,
+  }));
+}
+
+export function toGuestItemInputs(
+  items: readonly GuestCartItem[],
+): GuestCartItemInput[] {
+  return items.map((item) => ({
+    lineKey: item.lineKey,
+    productId: item.productId,
+    productVariantId: item.productVariantId,
+    quantity: item.quantity,
+  }));
+}
+
+/**
+ * Replaces one guest bundle line with `next`, whose key may differ (a line is
+ * re-keyed once its choices are known to be canonical). A line already under
+ * that key at the same version absorbs it, up to the per-line limit; one that
+ * still waits for a price confirmation stays apart, so a merge never confirms
+ * a version on the customer's behalf.
+ */
+export function replaceGuestBundleLine(
+  bundles: readonly GuestCartBundle[],
+  lineKey: string,
+  next: GuestCartBundle,
+): GuestCartBundle[] {
+  const current = bundles.find((bundle) => bundle.lineKey === lineKey);
+  if (!current) return [...bundles];
+  const holder = bundles.find(
+    (bundle) => bundle.lineKey === next.lineKey && bundle !== current,
+  );
+  if (!holder) {
+    return bundles.map((bundle) => (bundle === current ? next : bundle));
+  }
+  if (holder.bundleVersion !== next.bundleVersion) {
+    return bundles.map((bundle) =>
+      bundle === current
+        ? { ...next, lineKey, selections: current.selections }
+        : bundle,
+    );
+  }
+  const quantity = Math.min(
+    holder.quantity + next.quantity,
+    MAX_CART_BUNDLE_QUANTITY,
+  );
+  return bundles.flatMap((bundle) =>
+    bundle === current
+      ? []
+      : bundle === holder
+        ? [{ ...next, quantity }]
+        : [bundle],
+  );
+}
+
+/** Notice shown after bundles the admin deleted leave a guest cart. */
+export function removedBundlesNotice(count: number): string {
+  return count === 1
+    ? "Quitamos de tu carrito un combo que ya no existe."
+    : `Quitamos de tu carrito ${count} combos que ya no existen.`;
 }
 
 /** Guest cart snapshot of a resolved bundle line. */

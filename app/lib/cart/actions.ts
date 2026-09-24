@@ -1,12 +1,20 @@
 "use server";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { guestCheckoutContactSchema } from "@/app/components/form/input-validators";
-import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
-import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
+import {
+  MAX_CART_LINE_QUANTITY,
+  MAX_GUEST_CART_BUNDLE_LINES,
+} from "@/app/lib/constants";
+import {
+  BaseCart,
+  CartWithItems,
+  type GuestCartBundle,
+} from "@/app/lib/cart/definitions";
+import { toGuestCartBundle } from "@/app/lib/cart/utils";
 import type { CartBundleLine } from "@/app/lib/merch/bundle-definitions";
 import {
   buildBundleSelectionKey,
@@ -19,11 +27,12 @@ import {
   type BundleLineRequest,
 } from "@/app/lib/merch/bundle-schema";
 import {
-  estimateBundleDemand,
-  loadBundleRecords,
+  cartBundleDemand,
+  findExistingBundleIds,
   loadCartBundleDemand,
   loadCartBundleRequests,
   resolveCartBundleLines,
+  type CartBundleRequest,
 } from "@/app/lib/merch/bundles";
 import {
   BaseProduct,
@@ -79,18 +88,45 @@ export type GuestCartItemInput = {
 
 export type GuestBundleInput = BundleLineRequest & { lineKey: string };
 
+const guestBundleLineSchema = bundleLineRequestSchema.extend({
+  lineKey: z.string().max(400),
+});
+
 const guestBundleInputSchema = z
-  .array(bundleLineRequestSchema.extend({ lineKey: z.string().max(400) }))
-  .max(20);
+  .array(guestBundleLineSchema)
+  .max(MAX_GUEST_CART_BUNDLE_LINES);
 
 export type GuestStockValidationResult = {
   lineKey: string;
   productId: number;
   productVariantId: number | null;
+  /** Units this line may hold once the cart's bundles are served. */
   stock: number;
   isOutOfStock: boolean;
   quantityExceedsStock: boolean;
 };
+
+/** A guest cart as the server sees it: current prices, limits and flags. */
+export type GuestCartResolution = {
+  /** Every submitted bundle line whose bundle still exists. */
+  bundles: CartBundleLine[];
+  /** Individual lines' limits once the cart's bundles are served. */
+  items: GuestStockValidationResult[];
+  /** Lines whose bundle was deleted; the client drops them. */
+  removedBundleKeys: string[];
+};
+
+export type GuestBundleAddResult =
+  | { success: false; message: string }
+  | {
+      success: true;
+      /** The line to keep, under its canonical key. */
+      bundle: GuestCartBundle;
+      /** Guest lines naming the same configuration, which it replaces. */
+      replaces: string[];
+      added: number;
+      message?: string;
+    };
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -251,12 +287,137 @@ async function getCartStockLimit(
   return Math.max(0, poolStock - sharedDemand);
 }
 
-async function loadGuestBundleDemand(bundles: readonly GuestBundleInput[]) {
-  if (bundles.length === 0) return new Map<string, number>();
-  const records = await loadBundleRecords(db, {
-    ids: [...new Set(bundles.map((bundle) => bundle.bundleId))],
-  });
-  return estimateBundleDemand(bundles, records);
+const GUEST_BUNDLE_INVALID_MESSAGE =
+  "Este combo no es válido. Quitalo del carrito.";
+const GUEST_BUNDLE_LIMIT_MESSAGE = `Tu carrito admite hasta ${MAX_GUEST_CART_BUNDLE_LINES} combos distintos. Quitá alguno para continuar.`;
+/** Submitted guest bundle lines looked at at all, resolved or flagged. */
+const MAX_GUEST_BUNDLE_INPUTS = 100;
+
+const positiveIntegerOrZero = (value: unknown) =>
+  typeof value === "number" && Number.isSafeInteger(value) && value > 0
+    ? value
+    : 0;
+
+/**
+ * A guest line the server will not resolve. It reveals nothing about the
+ * bundle and blocks checkout until the guest removes it.
+ */
+function flaggedGuestBundleLine(
+  entry: unknown,
+  message: string,
+): CartBundleLine | null {
+  const candidate = (
+    typeof entry === "object" && entry !== null ? entry : {}
+  ) as Record<string, unknown>;
+  // Without a usable key the client could not match the flag to its line.
+  if (typeof candidate.lineKey !== "string" || candidate.lineKey.length > 400) {
+    return null;
+  }
+  return {
+    key: candidate.lineKey,
+    cartBundleId: null,
+    bundleId: positiveIntegerOrZero(candidate.bundleId),
+    bundleVersion: positiveIntegerOrZero(candidate.bundleVersion),
+    currentVersion: null,
+    name: "Combo no disponible",
+    slug: "",
+    imageUrl: null,
+    quantity: positiveIntegerOrZero(candidate.quantity),
+    selections: [],
+    unitPriceCents: 0,
+    separateUnitPriceCents: 0,
+    components: [],
+    maxQuantity: 0,
+    issue: "unavailable",
+    message,
+  };
+}
+
+/**
+ * Validates guest bundle lines one by one, so a malformed line, or one past
+ * the line limit, is flagged on its own while the rest still resolve.
+ */
+function parseGuestBundles(bundles: unknown): {
+  requests: CartBundleRequest[];
+  flagged: CartBundleLine[];
+} {
+  const entries = Array.isArray(bundles)
+    ? bundles.slice(0, MAX_GUEST_BUNDLE_INPUTS)
+    : [];
+  const requests: CartBundleRequest[] = [];
+  const flagged: CartBundleLine[] = [];
+  for (const entry of entries) {
+    const parsed = guestBundleLineSchema.safeParse(entry);
+    if (parsed.success && requests.length < MAX_GUEST_CART_BUNDLE_LINES) {
+      requests.push({
+        key: parsed.data.lineKey,
+        cartBundleId: null,
+        bundleId: parsed.data.bundleId,
+        bundleVersion: parsed.data.bundleVersion,
+        quantity: parsed.data.quantity,
+        selections: parsed.data.selections,
+      });
+      continue;
+    }
+    const line = flaggedGuestBundleLine(
+      entry,
+      parsed.success
+        ? GUEST_BUNDLE_LIMIT_MESSAGE
+        : GUEST_BUNDLE_INVALID_MESSAGE,
+    );
+    if (line) flagged.push(line);
+  }
+  return { requests, flagged };
+}
+
+/** Guest individual lines as bundle stock demand (guests cannot rent). */
+function parseGuestItemDemand(
+  items: readonly GuestCartItemInput[],
+): StockDemandLine[] {
+  const parsed = z
+    .array(
+      z.object({
+        productId: z.number().int().positive(),
+        productVariantId: z.number().int().positive().nullable(),
+        quantity: z.number().int().positive(),
+      }),
+    )
+    .max(100)
+    .safeParse(
+      items.map((item) => ({
+        productId: item.productId,
+        productVariantId: item.productVariantId,
+        quantity: item.quantity,
+      })),
+    );
+  return parsed.success ? parsed.data : [];
+}
+
+/**
+ * Resolves a guest cart on the server: bundle lines with current prices,
+ * stock limits and flags, and each individual line's limit once the bundles
+ * that can be checked out are served (and vice versa).
+ */
+export async function resolveGuestCart(
+  bundles: GuestBundleInput[],
+  items: GuestCartItemInput[],
+): Promise<GuestCartResolution> {
+  const { requests, flagged } = parseGuestBundles(bundles);
+  const [lines, existing] = await Promise.all([
+    resolveCartBundleLines(requests, parseGuestItemDemand(items)),
+    findExistingBundleIds(
+      db,
+      requests.map((request) => request.bundleId),
+    ),
+  ]);
+  const kept = lines.filter((line) => existing.has(line.bundleId));
+  return {
+    bundles: [...kept, ...flagged],
+    items: await checkGuestItemStock(items, cartBundleDemand(kept)),
+    removedBundleKeys: lines
+      .filter((line) => !existing.has(line.bundleId))
+      .map((line) => line.key),
+  };
 }
 
 export async function validateGuestCartStock(
@@ -264,11 +425,14 @@ export async function validateGuestCartStock(
   bundles: GuestBundleInput[] = [],
 ): Promise<GuestStockValidationResult[]> {
   if (!items.length) return [];
-  const parsedBundles = guestBundleInputSchema.safeParse(bundles);
-  const bundleDemand = await loadGuestBundleDemand(
-    parsedBundles.success ? parsedBundles.data : [],
-  );
+  return (await resolveGuestCart(bundles, items)).items;
+}
 
+async function checkGuestItemStock(
+  items: GuestCartItemInput[],
+  bundleDemand: ReadonlyMap<string, number>,
+): Promise<GuestStockValidationResult[]> {
+  if (!items.length) return [];
   const results = await Promise.all(
     items.map(async (item) => {
       const resolved = await resolveProductLine({
@@ -358,7 +522,6 @@ export async function fetchCartWithItems(): Promise<{
           rentalStockMode: item.product.rentalStockMode,
         })),
       ),
-      { revealUnpublished: true },
     );
     return { success: true, data: { ...cart, bundles } };
   } catch (error) {
@@ -789,9 +952,130 @@ async function resolveUserCartBundles(
       ? { ...request, quantity: override.quantity }
       : request,
   );
-  return resolveCartBundleLines(requests, await loadCartSaleDemand(cartId), {
-    revealUnpublished: true,
-  });
+  return resolveCartBundleLines(requests, await loadCartSaleDemand(cartId));
+}
+
+const INCOMING_BUNDLE_KEY = "incoming";
+
+type BundleAddPlan =
+  | { ok: false; message: string }
+  | {
+      ok: true;
+      /** The incoming configuration, resolved; its choices are canonical. */
+      line: CartBundleLine;
+      /** Cart lines naming the same configuration; they become one line. */
+      matches: CartBundleLine[];
+      /** Quantity of the merged line. */
+      quantity: number;
+      added: number;
+      message?: string;
+    };
+
+/** Whether two resolved lines name the same configuration of one bundle. */
+function sameConfiguration(a: CartBundleLine, b: CartBundleLine) {
+  return (
+    a.bundleId === b.bundleId &&
+    b.issue !== "unavailable" &&
+    b.issue !== "selection_invalid" &&
+    buildBundleSelectionKey(a.selections) ===
+      buildBundleSelectionKey(b.selections)
+  );
+}
+
+/**
+ * Decides how an add-to-cart lands in a cart, authenticated or guest: which
+ * lines it merges with (by canonical configuration, not by how the choices
+ * were sent) and how many units the per-line cap and shared stock allow.
+ */
+async function planBundleAdd(
+  request: BundleLineRequest,
+  cartRequests: readonly CartBundleRequest[],
+  individualDemand: readonly StockDemandLine[],
+): Promise<BundleAddPlan> {
+  const [line, ...current] = await resolveCartBundleLines(
+    [
+      { key: INCOMING_BUNDLE_KEY, cartBundleId: null, ...request },
+      ...cartRequests,
+    ],
+    individualDemand,
+  );
+  if (line.issue === "unavailable" || line.issue === "selection_invalid") {
+    return {
+      ok: false,
+      message: line.message ?? "Este combo ya no está disponible.",
+    };
+  }
+  if (line.currentVersion !== request.bundleVersion) {
+    return {
+      ok: false,
+      message:
+        "El combo cambió. Recargá la página para ver su precio y contenido actualizados.",
+    };
+  }
+  const matches = current.filter((entry) => sameConfiguration(line, entry));
+  // Adding units never confirms a new price for the ones already there.
+  if (matches.some((entry) => entry.bundleVersion !== entry.currentVersion)) {
+    return {
+      ok: false,
+      message:
+        "Este combo cambió desde que lo agregaste. Confirmá su precio actual en el carrito antes de agregar más.",
+    };
+  }
+  const existingQuantity = matches.reduce(
+    (sum, entry) => sum + entry.quantity,
+    0,
+  );
+  // Matches hold the same components, so what stock leaves for the incoming
+  // line (which counted them as other demand) is what the merged line adds.
+  const limit = existingQuantity + line.maxQuantity;
+  const quantity = Math.min(
+    existingQuantity + request.quantity,
+    MAX_CART_BUNDLE_QUANTITY,
+    limit,
+  );
+  if (quantity <= existingQuantity) {
+    return {
+      ok: false,
+      message:
+        limit === 0
+          ? "No hay stock disponible para este combo."
+          : existingQuantity >= MAX_CART_BUNDLE_QUANTITY
+            ? `Podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades de este combo.`
+            : "No hay más stock disponible para este combo.",
+    };
+  }
+  const added = quantity - existingQuantity;
+  return {
+    ok: true,
+    line,
+    matches,
+    quantity,
+    added,
+    message:
+      added < request.quantity
+        ? `Agregamos ${added} por el stock disponible.`
+        : undefined,
+  };
+}
+
+/** Rewrites a stored line's choices to the canonical ones. */
+async function replaceCartBundleSelections(
+  tx: CartTx,
+  cartBundleId: number,
+  selections: CartBundleLine["selections"],
+) {
+  await tx
+    .delete(cartBundleSelections)
+    .where(eq(cartBundleSelections.cartBundleId, cartBundleId));
+  if (selections.length) {
+    await tx.insert(cartBundleSelections).values(
+      selections.map((selection) => ({
+        cartBundleId,
+        componentId: selection.componentId,
+        productVariantId: selection.productVariantId,
+      })),
+    );
+  }
 }
 
 export async function addBundleToCart(
@@ -819,66 +1103,46 @@ export async function addBundleToCart(
     }
 
     const cart = await getOrCreateCart(user.id);
-    const selectionKey = buildBundleSelectionKey(request.selections);
-    const existing = await db.query.cartBundles.findFirst({
-      where: and(
-        eq(cartBundles.cartId, cart.id),
-        eq(cartBundles.bundleId, request.bundleId),
-        eq(cartBundles.selectionKey, selectionKey),
-      ),
-    });
-    const existingQuantity = existing?.quantity ?? 0;
-    const others = (await loadCartBundleRequests(db, cart.id)).filter(
-      (entry) => entry.cartBundleId !== existing?.id,
-    );
-    const [line] = await resolveCartBundleLines(
-      [
-        {
-          key: "incoming",
-          cartBundleId: existing?.id ?? null,
-          bundleId: request.bundleId,
-          bundleVersion: request.bundleVersion,
-          quantity: existingQuantity + request.quantity,
-          selections: request.selections,
-        },
-        ...others,
-      ],
+    const plan = await planBundleAdd(
+      request,
+      await loadCartBundleRequests(db, cart.id),
       await loadCartSaleDemand(cart.id),
     );
-    if (line.issue === "unavailable" || line.issue === "selection_invalid") {
+    if (!plan.ok) {
       return {
         success: false,
         newCount: await fetchCartItemCount(),
-        message: line.message ?? "Este combo ya no está disponible.",
-      };
-    }
-    if (line.currentVersion !== request.bundleVersion) {
-      return {
-        success: false,
-        newCount: await fetchCartItemCount(),
-        message:
-          "El combo cambió. Recargá la página para ver su precio y contenido actualizados.",
-      };
-    }
-    const nextQuantity = Math.min(
-      existingQuantity + request.quantity,
-      MAX_CART_BUNDLE_QUANTITY,
-      line.maxQuantity,
-    );
-    if (nextQuantity <= existingQuantity) {
-      return {
-        success: false,
-        newCount: await fetchCartItemCount(),
-        message:
-          line.maxQuantity === 0
-            ? "No hay stock disponible para este combo."
-            : existingQuantity >= MAX_CART_BUNDLE_QUANTITY
-              ? `Podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades de este combo.`
-              : "No hay más stock disponible para este combo.",
+        message: plan.message,
       };
     }
 
+    const selectionKey = buildBundleSelectionKey(plan.line.selections);
+    const [target, ...duplicates] = plan.matches;
     await db.transaction(async (tx) => {
+      if (duplicates.length) {
+        await tx.delete(cartBundles).where(
+          and(
+            eq(cartBundles.cartId, cart.id),
+            inArray(
+              cartBundles.id,
+              duplicates.map((entry) => entry.cartBundleId!),
+            ),
+          ),
+        );
+      }
+      if (target) {
+        // Also re-keys a line stored under a non-canonical key.
+        await tx
+          .update(cartBundles)
+          .set({ quantity: plan.quantity, selectionKey, updatedAt: new Date() })
+          .where(eq(cartBundles.id, target.cartBundleId!));
+        await replaceCartBundleSelections(
+          tx,
+          target.cartBundleId!,
+          plan.line.selections,
+        );
+        return;
+      }
       const [saved] = await tx
         .insert(cartBundles)
         .values({
@@ -886,7 +1150,7 @@ export async function addBundleToCart(
           bundleId: request.bundleId,
           bundleVersion: request.bundleVersion,
           selectionKey,
-          quantity: nextQuantity,
+          quantity: plan.quantity,
         })
         .onConflictDoUpdate({
           target: [
@@ -894,18 +1158,14 @@ export async function addBundleToCart(
             cartBundles.bundleId,
             cartBundles.selectionKey,
           ],
-          set: {
-            quantity: nextQuantity,
-            bundleVersion: request.bundleVersion,
-            updatedAt: new Date(),
-          },
+          set: { quantity: plan.quantity, updatedAt: new Date() },
         })
         .returning({ id: cartBundles.id });
-      if (request.selections.length) {
+      if (plan.line.selections.length) {
         await tx
           .insert(cartBundleSelections)
           .values(
-            request.selections.map((selection) => ({
+            plan.line.selections.map((selection) => ({
               cartBundleId: saved.id,
               componentId: selection.componentId,
               productVariantId: selection.productVariantId,
@@ -917,14 +1177,7 @@ export async function addBundleToCart(
 
     revalidateCartViews();
     const newCount = await fetchCartItemCount();
-    return {
-      success: true,
-      newCount,
-      message:
-        nextQuantity < existingQuantity + request.quantity
-          ? `Agregamos ${nextQuantity - existingQuantity} por el stock disponible.`
-          : undefined,
-    };
+    return { success: true, newCount, message: plan.message };
   } catch (error) {
     console.error(error);
     return {
@@ -1011,18 +1264,23 @@ export async function removeCartBundle(
   }
 }
 
-/** Confirms the current price and contents of a bundle that changed. */
+/**
+ * Confirms the current price and contents of a bundle that changed, but only
+ * the version the customer was shown: if it changed again since, nothing is
+ * confirmed. A line that now names the same configuration as another current
+ * line (e.g. a choice became fixed) merges into one.
+ */
 export async function acceptCartBundleChanges(
   cartBundleId: number,
-): Promise<{ success: boolean; error?: string }> {
+  shownVersion: number,
+): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     const user = await getCurrentBaseProfile();
     if (!user) return { success: false, error: "Usuario no autenticado." };
     const cart = await findUserCart(user.id);
     if (!cart) return { success: false, error: "El carrito está vacío." };
-    const line = (await resolveUserCartBundles(cart.id)).find(
-      (entry) => entry.cartBundleId === cartBundleId,
-    );
+    const lines = await resolveUserCartBundles(cart.id);
+    const line = lines.find((entry) => entry.cartBundleId === cartBundleId);
     if (!line)
       return { success: false, error: "El combo ya no está en tu carrito." };
     if (line.issue !== "stale" || line.currentVersion == null) {
@@ -1031,54 +1289,130 @@ export async function acceptCartBundleChanges(
         error: line.message ?? undefined,
       };
     }
-    await db
-      .update(cartBundles)
-      .set({ bundleVersion: line.currentVersion, updatedAt: new Date() })
-      .where(
-        and(eq(cartBundles.id, cartBundleId), eq(cartBundles.cartId, cart.id)),
-      );
+    const currentVersion = line.currentVersion;
+    if (currentVersion !== shownVersion) {
+      return {
+        success: false,
+        error: "El combo volvió a cambiar. Revisá el nuevo precio.",
+      };
+    }
+
+    const selectionKey = buildBundleSelectionKey(line.selections);
+    const matches = lines.filter(
+      (entry) =>
+        entry !== line &&
+        entry.bundleVersion === currentVersion &&
+        sameConfiguration(line, entry),
+    );
+    const combined = matches.reduce(
+      (sum, entry) => sum + entry.quantity,
+      line.quantity,
+    );
+    const quantity = Math.min(combined, MAX_CART_BUNDLE_QUANTITY);
+    await db.transaction(async (tx) => {
+      if (matches.length) {
+        await tx.delete(cartBundles).where(
+          and(
+            eq(cartBundles.cartId, cart.id),
+            inArray(
+              cartBundles.id,
+              matches.map((entry) => entry.cartBundleId!),
+            ),
+          ),
+        );
+      }
+      // A line that still waits for its own confirmation may hold the
+      // canonical key; this one keeps its key until they merge.
+      const [holder] = await tx
+        .select({ id: cartBundles.id })
+        .from(cartBundles)
+        .where(
+          and(
+            eq(cartBundles.cartId, cart.id),
+            eq(cartBundles.bundleId, line.bundleId),
+            eq(cartBundles.selectionKey, selectionKey),
+            ne(cartBundles.id, cartBundleId),
+          ),
+        );
+      await tx
+        .update(cartBundles)
+        .set({
+          bundleVersion: currentVersion,
+          quantity,
+          ...(holder ? {} : { selectionKey }),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(cartBundles.id, cartBundleId),
+            eq(cartBundles.cartId, cart.id),
+          ),
+        );
+      if (!holder) {
+        await replaceCartBundleSelections(tx, cartBundleId, line.selections);
+      }
+    });
     revalidateCartViews();
-    return { success: true };
+    return {
+      success: true,
+      message:
+        combined > quantity
+          ? `Juntamos las líneas iguales de este combo. Podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades.`
+          : undefined,
+    };
   } catch (error) {
     console.error(error);
     return { success: false, error: "No se pudo actualizar el combo." };
   }
 }
 
-/** Resolves a guest cart's bundle lines with current prices and stock. */
-export async function resolveGuestCartBundles(
+/**
+ * Plans a guest add-to-cart with the same rules as `addBundleToCart`: the
+ * client stores the returned line and drops the lines it replaces.
+ */
+export async function planGuestBundleAdd(
+  input: BundleLineRequest,
   bundles: GuestBundleInput[],
   items: GuestCartItemInput[],
-): Promise<CartBundleLine[]> {
-  const parsed = guestBundleInputSchema.safeParse(bundles);
-  if (!parsed.success || parsed.data.length === 0) return [];
-  const itemDemand = z
-    .array(
-      z.object({
-        productId: z.number().int().positive(),
-        productVariantId: z.number().int().positive().nullable(),
-        quantity: z.number().int().positive(),
-      }),
-    )
-    .max(100)
-    .safeParse(
-      items.map((item) => ({
-        productId: item.productId,
-        productVariantId: item.productVariantId,
-        quantity: item.quantity,
-      })),
+): Promise<GuestBundleAddResult> {
+  try {
+    const parsed = bundleLineRequestSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, message: "Revisá las opciones del combo." };
+    }
+    const closure = await resolveSectionClosure("merch");
+    if (closure.closed) {
+      return { success: false, message: storeClosureMessage(closure) };
+    }
+    const plan = await planBundleAdd(
+      parsed.data,
+      parseGuestBundles(bundles).requests,
+      parseGuestItemDemand(items),
     );
-  return resolveCartBundleLines(
-    parsed.data.map((bundle) => ({
-      key: bundle.lineKey,
-      cartBundleId: null,
-      bundleId: bundle.bundleId,
-      bundleVersion: bundle.bundleVersion,
-      quantity: bundle.quantity,
-      selections: bundle.selections,
-    })),
-    itemDemand.success ? itemDemand.data : [],
-  );
+    if (!plan.ok) return { success: false, message: plan.message };
+    if (
+      plan.matches.length === 0 &&
+      bundles.length >= MAX_GUEST_CART_BUNDLE_LINES
+    ) {
+      return {
+        success: false,
+        message: `Podés tener hasta ${MAX_GUEST_CART_BUNDLE_LINES} combos distintos en el carrito.`,
+      };
+    }
+    return {
+      success: true,
+      bundle: toGuestCartBundle(plan.line, { quantity: plan.quantity }),
+      replaces: plan.matches.map((entry) => entry.key),
+      added: plan.added,
+      message: plan.message,
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "No se pudo agregar el combo al carrito.",
+    };
+  }
 }
 
 export async function fetchCartWithItemsForCheckout(

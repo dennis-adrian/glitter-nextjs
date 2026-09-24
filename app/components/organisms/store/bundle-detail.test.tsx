@@ -24,6 +24,7 @@ vi.mock("@/app/lib/cart/actions", () => ({
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
+import { toast } from "sonner";
 import BundleDetail from "./bundle-detail";
 
 beforeAll(() => {
@@ -123,7 +124,8 @@ it("starts on the first size in stock and disables sold-out sizes", () => {
   expect(screen.getByText("Últimas 2 unidades disponibles.")).toBeTruthy();
 });
 
-it("adds the chosen configuration to a guest cart, capped by stock", async () => {
+it("adds the chosen configuration to a guest cart through the server's rules", async () => {
+  cart.addGuestBundle.mockResolvedValue({ success: true, added: 1 });
   render(<BundleDetail bundle={bundle} />);
   fireEvent.click(screen.getByLabelText("L"));
   // L has 5, but only 3 totes remain: three bundles at most.
@@ -131,21 +133,48 @@ it("adds the chosen configuration to a guest cart, capped by stock", async () =>
   fireEvent.click(
     screen.getByRole("button", { name: "Agregar combo al carrito" }),
   );
-  await waitFor(() => expect(cart.addGuestBundle).toHaveBeenCalledTimes(1));
-  const [line, maxQuantity] = cart.addGuestBundle.mock.calls[0];
-  expect(maxQuantity).toBe(3);
-  expect(line).toMatchObject({
-    lineKey: "bundle:4:10:103",
+  await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+  expect(cart.addGuestBundle).toHaveBeenCalledWith({
     bundleId: 4,
     bundleVersion: 3,
     quantity: 1,
     selections: [{ componentId: 10, productVariantId: 103 }],
-    unitPriceCents: 15000,
-    separateUnitPriceCents: 18000,
   });
-  expect(
-    line.components.map((c: { productName: string }) => c.productName),
-  ).toEqual(["Polera", "Tote", "Stickers"]);
+  expect(toast.info).not.toHaveBeenCalled();
+});
+
+it("tells a guest when nothing was added, like a signed-in customer", async () => {
+  cart.addGuestBundle.mockResolvedValue({
+    success: false,
+    added: 0,
+    message: "Podés llevar hasta 5 unidades de este combo.",
+  });
+  render(<BundleDetail bundle={bundle} />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Agregar combo al carrito" }),
+  );
+  await waitFor(() =>
+    expect(toast.error).toHaveBeenCalledWith(
+      "Podés llevar hasta 5 unidades de este combo.",
+    ),
+  );
+  expect(toast.success).not.toHaveBeenCalled();
+});
+
+it("tells a guest how many units stock allowed", async () => {
+  cart.addGuestBundle.mockResolvedValue({
+    success: true,
+    added: 1,
+    message: "Agregamos 1 por el stock disponible.",
+  });
+  render(<BundleDetail bundle={bundle} />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Agregar combo al carrito" }),
+  );
+  await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+  expect(toast.info).toHaveBeenCalledWith(
+    "Agregamos 1 por el stock disponible.",
+  );
 });
 
 it("sends only the bundle identity and choices for signed-in customers", async () => {

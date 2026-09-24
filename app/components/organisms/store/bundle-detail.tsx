@@ -16,7 +16,6 @@ import {
 } from "@/app/components/ui/select";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { addBundleToCart } from "@/app/lib/cart/actions";
-import { buildBundleLineKey } from "@/app/lib/cart/utils";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import type {
@@ -119,15 +118,17 @@ export default function BundleDetail({ bundle }: { bundle: PublicBundle }) {
   async function handleAdd() {
     if (!resolution.ok || available === 0) return;
     const count = Math.min(quantity, maxSelectable);
+    const request = {
+      bundleId: bundle.id,
+      bundleVersion: bundle.version,
+      quantity: count,
+      selections,
+    };
     setSubmitting(true);
     try {
+      // Both carts answer with the same rules and messages.
       if (isAuthenticated) {
-        const result = await addBundleToCart({
-          bundleId: bundle.id,
-          bundleVersion: bundle.version,
-          quantity: count,
-          selections,
-        });
+        const result = await addBundleToCart(request);
         if (!result.success) {
           toast.error(result.message ?? "No se pudo agregar el combo.");
           return;
@@ -135,28 +136,12 @@ export default function BundleDetail({ bundle }: { bundle: PublicBundle }) {
         setItemCount(result.newCount);
         if (result.message) toast.info(result.message);
       } else {
-        addGuestBundle(
-          {
-            lineKey: buildBundleLineKey(bundle.id, selections),
-            bundleId: bundle.id,
-            bundleVersion: bundle.version,
-            quantity: count,
-            selections,
-            name: bundle.name,
-            slug: bundle.slug,
-            imageUrl:
-              bundle.imageUrl ?? resolution.components[0]?.imageUrl ?? null,
-            unitPriceCents: bundle.priceCents,
-            separateUnitPriceCents: separateCents,
-            components: resolution.components.map((component) => ({
-              productName: component.productName,
-              variantLabel: component.variantLabel,
-              quantity: component.quantity,
-              imageUrl: component.imageUrl,
-            })),
-          },
-          available,
-        );
+        const result = await addGuestBundle(request);
+        if (!result.success) {
+          toast.error(result.message ?? "No se pudo agregar el combo.");
+          return;
+        }
+        if (result.message) toast.info(result.message);
       }
       toast.success("Combo agregado al carrito", {
         action: { label: "Ver carrito", onClick: openCart },

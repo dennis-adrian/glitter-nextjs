@@ -1,12 +1,27 @@
 import { render, screen, act, cleanup } from "@testing-library/react";
+import { useEffect } from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+const actions = vi.hoisted(() => ({ planGuestBundleAdd: vi.fn() }));
+vi.mock("@/app/lib/cart/actions", () => actions);
+
 import {
   CartProvider,
   useCartContext,
+  type GuestBundleAddOutcome,
 } from "@/app/components/providers/cart-provider";
-import { GuestCartItem } from "@/app/lib/cart/definitions";
-import { buildCartLineKey } from "@/app/lib/cart/utils";
-import { GUEST_CART_KEY, MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
+import type { GuestCartResolution } from "@/app/lib/cart/actions";
+import { GuestCartBundle, GuestCartItem } from "@/app/lib/cart/definitions";
+import { buildBundleLineKey, buildCartLineKey } from "@/app/lib/cart/utils";
+import {
+  GUEST_CART_BUNDLES_KEY,
+  GUEST_CART_KEY,
+  MAX_CART_LINE_QUANTITY,
+} from "@/app/lib/constants";
+import type {
+  BundleSelectionInput,
+  CartBundleLine,
+} from "@/app/lib/merch/bundle-definitions";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -556,5 +571,257 @@ describe("CartProvider — clearGuestCart", () => {
     // ASSERT
     const stored = JSON.parse(localStorage.getItem(GUEST_CART_KEY)!);
     expect(stored).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Guest bundles
+// ---------------------------------------------------------------------------
+
+function buildGuestBundle(
+  selections: BundleSelectionInput[],
+  overrides: Partial<GuestCartBundle> = {},
+): GuestCartBundle {
+  const bundleId = overrides.bundleId ?? 4;
+  return {
+    lineKey: buildBundleLineKey(bundleId, selections),
+    bundleId,
+    bundleVersion: 2,
+    quantity: 1,
+    selections,
+    name: "Kit Clásicos",
+    slug: "kit-clasicos",
+    imageUrl: null,
+    unitPriceCents: 15000,
+    separateUnitPriceCents: 18000,
+    components: [],
+    ...overrides,
+  };
+}
+
+function resolvedLine(
+  bundle: GuestCartBundle,
+  overrides: Partial<CartBundleLine> = {},
+): CartBundleLine {
+  return {
+    key: bundle.lineKey,
+    cartBundleId: null,
+    bundleId: bundle.bundleId,
+    bundleVersion: bundle.bundleVersion,
+    currentVersion: bundle.bundleVersion,
+    name: bundle.name,
+    slug: bundle.slug,
+    imageUrl: null,
+    quantity: bundle.quantity,
+    selections: bundle.selections,
+    unitPriceCents: bundle.unitPriceCents,
+    separateUnitPriceCents: bundle.separateUnitPriceCents,
+    components: [],
+    maxQuantity: 5,
+    issue: null,
+    message: null,
+    ...overrides,
+  };
+}
+
+const shirtM = [{ componentId: 10, productVariantId: 102 }];
+
+function storeBundles(bundles: GuestCartBundle[]) {
+  localStorage.setItem(GUEST_CART_BUNDLES_KEY, JSON.stringify(bundles));
+}
+
+type CartContext = ReturnType<typeof useCartContext>;
+let bundleContext: CartContext;
+
+function BundleConsumer({
+  onContext,
+}: {
+  onContext: (context: CartContext) => void;
+}) {
+  const context = useCartContext();
+  useEffect(() => onContext(context));
+  return (
+    <span data-testid="guest-bundles">
+      {JSON.stringify(
+        context.guestBundles.map((bundle) => [bundle.lineKey, bundle.quantity]),
+      )}
+    </span>
+  );
+}
+
+function renderBundles() {
+  render(
+    <CartProvider initialItemCount={0} isAuthenticated={false}>
+      <BundleConsumer
+        onContext={(context) => {
+          bundleContext = context;
+        }}
+      />
+    </CartProvider>,
+  );
+}
+
+const shownBundles = () =>
+  JSON.parse(screen.getByTestId("guest-bundles").textContent!);
+
+describe("CartProvider — addGuestBundle", () => {
+  afterEach(() => actions.planGuestBundleAdd.mockReset());
+
+  it("stores the server's merged line in place of the lines it replaces", async () => {
+    const legacy = buildGuestBundle(shirtM, { quantity: 1 });
+    storeBundles([legacy]);
+    renderBundles();
+    const merged = buildGuestBundle([], { quantity: 3 });
+    actions.planGuestBundleAdd.mockResolvedValue({
+      success: true,
+      bundle: merged,
+      replaces: [legacy.lineKey],
+      added: 2,
+      message: "Agregamos 2 por el stock disponible.",
+    });
+
+    let outcome: GuestBundleAddOutcome | undefined;
+    await act(async () => {
+      outcome = await bundleContext.addGuestBundle({
+        bundleId: 4,
+        bundleVersion: 2,
+        quantity: 4,
+        selections: [],
+      });
+    });
+
+    expect(actions.planGuestBundleAdd).toHaveBeenCalledWith(
+      { bundleId: 4, bundleVersion: 2, quantity: 4, selections: [] },
+      [expect.objectContaining({ lineKey: legacy.lineKey, quantity: 1 })],
+      [],
+    );
+    expect(outcome).toEqual({
+      success: true,
+      added: 2,
+      message: "Agregamos 2 por el stock disponible.",
+    });
+    expect(shownBundles()).toEqual([["bundle:4:-", 3]]);
+    expect(
+      JSON.parse(localStorage.getItem(GUEST_CART_BUNDLES_KEY)!),
+    ).toHaveLength(1);
+  });
+
+  it("reports why nothing was added and leaves the cart alone", async () => {
+    const line = buildGuestBundle(shirtM, { quantity: 5 });
+    storeBundles([line]);
+    renderBundles();
+    actions.planGuestBundleAdd.mockResolvedValue({
+      success: false,
+      message: "Podés llevar hasta 5 unidades de este combo.",
+    });
+
+    let outcome: GuestBundleAddOutcome | undefined;
+    await act(async () => {
+      outcome = await bundleContext.addGuestBundle({
+        bundleId: 4,
+        bundleVersion: 2,
+        quantity: 1,
+        selections: shirtM,
+      });
+    });
+
+    expect(outcome).toEqual({
+      success: false,
+      added: 0,
+      message: "Podés llevar hasta 5 unidades de este combo.",
+    });
+    expect(shownBundles()).toEqual([[line.lineKey, 5]]);
+  });
+});
+
+describe("CartProvider — reconcileGuestBundles", () => {
+  const resolution = (
+    bundles: CartBundleLine[],
+    removedBundleKeys: string[] = [],
+  ): GuestCartResolution => ({ bundles, items: [], removedBundleKeys });
+
+  it("drops lines whose bundle was deleted and merges canonical duplicates", () => {
+    const deleted = buildGuestBundle([], { bundleId: 7 });
+    const legacy = buildGuestBundle(shirtM, { quantity: 3 });
+    const current = buildGuestBundle([], { quantity: 4 });
+    storeBundles([deleted, legacy, current]);
+    renderBundles();
+
+    let removed = 0;
+    act(() => {
+      removed = bundleContext.reconcileGuestBundles(
+        resolution(
+          [
+            // The shirt choice became fixed: the line resolves without it.
+            resolvedLine(legacy, { selections: [] }),
+            resolvedLine(current),
+          ],
+          [deleted.lineKey],
+        ),
+      );
+    });
+
+    expect(removed).toBe(1);
+    expect(shownBundles()).toEqual([["bundle:4:-", 5]]);
+    expect(JSON.parse(localStorage.getItem(GUEST_CART_BUNDLES_KEY)!)).toEqual([
+      expect.objectContaining({ lineKey: "bundle:4:-", selections: [] }),
+    ]);
+  });
+
+  it("keeps a line that awaits a price confirmation under its own key", () => {
+    const stale = buildGuestBundle(shirtM, { bundleVersion: 1 });
+    storeBundles([stale]);
+    renderBundles();
+
+    act(() => {
+      bundleContext.reconcileGuestBundles(
+        resolution([
+          resolvedLine(stale, {
+            selections: [],
+            currentVersion: 2,
+            issue: "stale",
+          }),
+        ]),
+      );
+    });
+
+    expect(shownBundles()).toEqual([[stale.lineKey, 1]]);
+  });
+
+  it("leaves the cart untouched while the canonical key awaits a confirmation", () => {
+    const legacy = buildGuestBundle(shirtM, { bundleVersion: 2 });
+    const stale = buildGuestBundle([], { bundleVersion: 1 });
+    storeBundles([legacy, stale]);
+    renderBundles();
+    const before = bundleContext.guestBundles;
+
+    act(() => {
+      bundleContext.reconcileGuestBundles(
+        resolution([
+          resolvedLine(legacy, { selections: [] }),
+          resolvedLine(stale, { currentVersion: 2, issue: "stale" }),
+        ]),
+      );
+    });
+
+    // Same state object: no new resolution is triggered.
+    expect(bundleContext.guestBundles).toBe(before);
+  });
+});
+
+describe("CartProvider — shared guest cart", () => {
+  it("re-reads the cart when another tab changes it", () => {
+    storeBundles([buildGuestBundle(shirtM)]);
+    renderBundles();
+    expect(shownBundles()).toHaveLength(1);
+
+    act(() => {
+      localStorage.setItem(GUEST_CART_BUNDLES_KEY, "[]");
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: GUEST_CART_BUNDLES_KEY }),
+      );
+    });
+
+    expect(shownBundles()).toEqual([]);
   });
 });

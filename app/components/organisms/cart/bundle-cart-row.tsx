@@ -19,7 +19,8 @@ import { MAX_CART_BUNDLE_QUANTITY } from "@/app/lib/merch/bundle-schema";
 export type BundleCartRowProps = {
   name: string;
   imageUrl: string | null;
-  unitPriceCents: number;
+  /** Null when there is no price to show (an unpublished bundle). */
+  unitPriceCents: number | null;
   separateUnitPriceCents: number;
   quantity: number;
   /** Stock limit for this line; null while it is still being checked. */
@@ -82,15 +83,17 @@ export function BundleCartRow({
             Combo
           </span>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {formatBundleMoney(unitPriceCents)}
-          {separateUnitPriceCents > unitPriceCents && (
-            <span className="ml-1.5 text-xs line-through">
-              <span className="sr-only">Por separado </span>
-              {formatBundleMoney(separateUnitPriceCents)}
-            </span>
-          )}
-        </p>
+        {unitPriceCents != null && (
+          <p className="text-sm text-muted-foreground">
+            {formatBundleMoney(unitPriceCents)}
+            {separateUnitPriceCents > unitPriceCents && (
+              <span className="ml-1.5 text-xs line-through">
+                <span className="sr-only">Por separado </span>
+                {formatBundleMoney(separateUnitPriceCents)}
+              </span>
+            )}
+          </p>
+        )}
 
         {components.length > 0 && (
           <details className="group mt-1 text-xs">
@@ -168,9 +171,11 @@ export function BundleCartRow({
       </div>
 
       <div className="flex shrink-0 flex-col items-end justify-between">
-        <p className="text-sm font-semibold">
-          {formatBundleMoney(unitPriceCents * quantity)}
-        </p>
+        {unitPriceCents != null && (
+          <p className="text-sm font-semibold">
+            {formatBundleMoney(unitPriceCents * quantity)}
+          </p>
+        )}
         <Button
           variant="ghost"
           size="icon"

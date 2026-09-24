@@ -85,3 +85,23 @@ it("locks quantity for unavailable bundles", () => {
     screen.queryByRole("button", { name: "Aceptar precio actual" }),
   ).toBeNull();
 });
+
+it("shows no price for a bundle that is no longer published", () => {
+  render(
+    <BundleCartRow
+      {...props({
+        name: "Combo no disponible",
+        unitPriceCents: null,
+        issue: "unavailable",
+        message: "Este combo ya no está disponible.",
+        components: [],
+      })}
+    />,
+  );
+  expect(screen.queryByText(/Bs/)).toBeNull();
+  expect(
+    screen.getByRole("button", {
+      name: "Eliminar el combo Combo no disponible del carrito",
+    }),
+  ).toBeTruthy();
+});

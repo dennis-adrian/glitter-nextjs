@@ -24,6 +24,7 @@ import {
 
 type GuestCartItemRowProps = {
   item: GuestCartItem;
+  /** The server's check of this line; its stock already nets out bundles. */
   stockIssue?: GuestStockValidationResult;
 };
 
@@ -38,11 +39,13 @@ export default function GuestCartItemRow({
     ? `${item.product.name} (${variantLabel})`
     : item.product.name;
 
+  // The stored snapshot's stock is only a fallback until the server answers.
   const stockCap = Math.max(
     1,
     Math.min(
       MAX_CART_LINE_QUANTITY,
-      getProductVariantStock(item.product, item.variant) ??
+      stockIssue?.stock ??
+        getProductVariantStock(item.product, item.variant) ??
         MAX_CART_LINE_QUANTITY,
     ),
   );

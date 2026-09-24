@@ -1108,18 +1108,9 @@ describeDatabase("bundle checkout", () => {
     );
     expect(unpublished).toMatchObject({
       issue: "unavailable",
-      // Anonymous ids never expose a draft's name or price.
+      // Carts never expose a draft's name or price.
       name: "Combo no disponible",
       unitPriceCents: 0,
-    });
-    const [stored] = await resolveCartBundleLines(
-      [request("a", { bundleVersion: 2, variantId: fixture.shirtSmallId })],
-      [],
-      { revealUnpublished: true },
-    );
-    expect(stored).toMatchObject({
-      issue: "unavailable",
-      name: expect.stringContaining("Kit"),
     });
   });
 
@@ -1818,5 +1809,322 @@ describeDatabase("bundle checkout", () => {
         .from(products)
         .where(eq(products.id, fixture.toteId)),
     ).toHaveLength(1);
+  });
+
+  /** The admin narrows the shirt to size M: same component, new version. */
+  async function narrowShirtToMedium(fixture: Fixture, version: number) {
+    await db()
+      .delete(merchBundleComponentVariants)
+      .where(eq(merchBundleComponentVariants.variantId, fixture.shirtSmallId));
+    await db()
+      .update(merchBundles)
+      .set({ version })
+      .where(eq(merchBundles.id, fixture.bundleId));
+  }
+
+  async function cartBundleRows(fixture: Fixture) {
+    const [userCart] = await db()
+      .select()
+      .from(carts)
+      .where(eq(carts.userId, fixture.userId));
+    return db()
+      .select()
+      .from(cartBundles)
+      .where(eq(cartBundles.cartId, userCart.id))
+      .orderBy(cartBundles.id);
+  }
+
+  it("keeps one cart line per configuration after a choice becomes fixed", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    const add = (overrides: Partial<ReturnType<typeof bundleRequest>> = {}) =>
+      cartActions.addBundleToCart({ ...bundleRequest(fixture), ...overrides });
+    expect(await add()).toMatchObject({ success: true, newCount: 1 });
+
+    await narrowShirtToMedium(fixture, 2);
+    // Adding more never confirms the new price for the units already there.
+    expect(await add({ bundleVersion: 2, selections: [] })).toMatchObject({
+      success: false,
+      message: expect.stringContaining("Confirmá su precio actual"),
+    });
+    const [row] = await cartBundleRows(fixture);
+    expect(row).toMatchObject({
+      bundleVersion: 1,
+      quantity: 1,
+      selectionKey: `${fixture.shirtComponentId}:${fixture.shirtMediumId}`,
+    });
+
+    // The customer confirms version 2, but the admin saved version 3 since.
+    await db()
+      .update(merchBundles)
+      .set({ version: 3 })
+      .where(eq(merchBundles.id, fixture.bundleId));
+    expect(await cartActions.acceptCartBundleChanges(row.id, 2)).toMatchObject({
+      success: false,
+      error: expect.stringContaining("volvió a cambiar"),
+    });
+    expect((await cartBundleRows(fixture))[0].bundleVersion).toBe(1);
+
+    expect(await cartActions.acceptCartBundleChanges(row.id, 3)).toMatchObject({
+      success: true,
+    });
+    expect(await cartBundleRows(fixture)).toEqual([
+      expect.objectContaining({
+        id: row.id,
+        bundleVersion: 3,
+        selectionKey: "-",
+      }),
+    ]);
+    expect(
+      await db()
+        .select()
+        .from(schema.cartBundleSelections)
+        .where(eq(schema.cartBundleSelections.cartBundleId, row.id)),
+    ).toEqual([]);
+
+    // The page sends no choice for a fixed component and a crafted request
+    // sends one: both name the same line.
+    expect(await add({ bundleVersion: 3, selections: [] })).toMatchObject({
+      success: true,
+      newCount: 2,
+    });
+    expect(await add({ bundleVersion: 3 })).toMatchObject({
+      success: true,
+      newCount: 3,
+    });
+    expect(await cartBundleRows(fixture)).toEqual([
+      expect.objectContaining({ id: row.id, quantity: 3, selectionKey: "-" }),
+    ]);
+  });
+
+  it("merges a confirmed line into the current line with the same configuration", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    await cartActions.addBundleToCart(bundleRequest(fixture, { quantity: 2 }));
+    await narrowShirtToMedium(fixture, 2);
+    const [stale] = await cartBundleRows(fixture);
+    const [userCart] = await db()
+      .select()
+      .from(carts)
+      .where(eq(carts.userId, fixture.userId));
+    await db().insert(cartBundles).values({
+      cartId: userCart.id,
+      bundleId: fixture.bundleId,
+      bundleVersion: 2,
+      selectionKey: "-",
+      quantity: 4,
+    });
+
+    expect(
+      await cartActions.acceptCartBundleChanges(stale.id, 2),
+    ).toMatchObject({ success: true, message: expect.stringContaining("5") });
+    expect(await cartBundleRows(fixture)).toEqual([
+      expect.objectContaining({
+        id: stale.id,
+        bundleVersion: 2,
+        quantity: 5,
+        selectionKey: "-",
+      }),
+    ]);
+  });
+
+  it("reserves no stock for bundle lines that cannot be checked out", async () => {
+    const fixture = await createFixture({ tote: 2 });
+    signIn(fixture);
+    const tote = {
+      productId: fixture.toteId,
+      productVariantId: null,
+      quantity: 1,
+    };
+    await cartActions.addBundleToCart(bundleRequest(fixture, { quantity: 2 }));
+    expect(await cartActions.addToCart(tote)).toMatchObject({ success: false });
+
+    await db()
+      .update(products)
+      .set({ isVisible: false })
+      .where(eq(products.id, fixture.shirtId));
+    expect(await cartActions.addToCart(tote)).toMatchObject({ success: true });
+    const cart = await cartActions.fetchCartWithItems();
+    expect(cart.data?.bundles).toEqual([
+      expect.objectContaining({ issue: "unavailable", components: [] }),
+    ]);
+    expect(
+      await cartActions.updateCartItemQuantity(cart.data!.items[0].id, 2),
+    ).toEqual({ success: true });
+
+    const [check] = await cartActions.validateGuestCartStock(
+      [{ lineKey: "tote", ...tote, quantity: 2 }],
+      [{ lineKey: "kit", ...bundleRequest(fixture, { quantity: 2 }) }],
+    );
+    expect(check).toMatchObject({ stock: 2, quantityExceedsStock: false });
+  });
+
+  it("never shows an unpublished bundle's draft in a signed-in cart", async () => {
+    const fixture = await createFixture();
+    signIn(fixture);
+    await cartActions.addBundleToCart(bundleRequest(fixture));
+    await db()
+      .update(merchBundles)
+      .set({ isVisible: false, name: "Kit Navidad", price: 120 })
+      .where(eq(merchBundles.id, fixture.bundleId));
+
+    const cart = await cartActions.fetchCartWithItems();
+    expect(cart.data?.bundles).toEqual([
+      expect.objectContaining({
+        name: "Combo no disponible",
+        unitPriceCents: 0,
+        components: [],
+        issue: "unavailable",
+      }),
+    ]);
+    expect(
+      await cartActions.removeCartBundle(cart.data!.bundles[0].cartBundleId!),
+    ).toEqual({ success: true });
+  });
+
+  it("resolves guest lines one by one and drops deleted bundles", async () => {
+    const fixture = await createFixture({ tote: 3 });
+    const [gone] = await db()
+      .insert(merchBundles)
+      .values({
+        name: `Borrado ${fixture.userId}`,
+        slug: `borrado-${fixture.userId}`,
+        price: 10,
+        isVisible: true,
+      })
+      .returning();
+    await db().delete(merchBundles).where(eq(merchBundles.id, gone.id));
+
+    const resolution = await cartActions.resolveGuestCart(
+      [
+        { lineKey: "kit", ...bundleRequest(fixture, { quantity: 2 }) },
+        {
+          lineKey: "gone",
+          bundleId: gone.id,
+          bundleVersion: 1,
+          quantity: 1,
+          selections: [],
+        },
+        // Tampered: above the per-line cap.
+        { lineKey: "broken", ...bundleRequest(fixture, { quantity: 9 }) },
+      ],
+      [
+        {
+          lineKey: "tote",
+          productId: fixture.toteId,
+          productVariantId: null,
+          quantity: 2,
+        },
+      ],
+    );
+    expect(resolution.removedBundleKeys).toEqual(["gone"]);
+    expect(resolution.bundles).toEqual([
+      // Two totes for the individual line leave one for the bundles...
+      expect.objectContaining({
+        key: "kit",
+        issue: "stock_insufficient",
+        maxQuantity: 1,
+      }),
+      expect.objectContaining({
+        key: "broken",
+        issue: "unavailable",
+        name: "Combo no disponible",
+      }),
+    ]);
+    // ...and the two bundles leave one for the individual line.
+    expect(resolution.items).toEqual([
+      expect.objectContaining({
+        lineKey: "tote",
+        stock: 1,
+        quantityExceedsStock: true,
+      }),
+    ]);
+
+    const capped = await cartActions.resolveGuestCart(
+      Array.from({ length: 21 }, (_, index) => ({
+        lineKey: `line-${index}`,
+        ...bundleRequest(fixture),
+      })),
+      [],
+    );
+    expect(capped.bundles).toHaveLength(21);
+    expect(
+      capped.bundles.filter((line) => line.message?.includes("hasta 20")),
+    ).toEqual([expect.objectContaining({ key: "line-20" })]);
+  });
+
+  it("plans guest adds with the signed-in rules", async () => {
+    const fixture = await createFixture({ tote: 3 });
+    const first = await cartActions.planGuestBundleAdd(
+      bundleRequest(fixture, { quantity: 2 }),
+      [],
+      [],
+    );
+    if (!first.success) throw new Error(first.message);
+    expect(first).toMatchObject({ added: 2, replaces: [] });
+    expect(first.bundle).toMatchObject({
+      lineKey: `bundle:${fixture.bundleId}:${fixture.shirtComponentId}:${fixture.shirtMediumId}`,
+      bundleVersion: 1,
+      quantity: 2,
+      unitPriceCents: 15000,
+    });
+    const line = {
+      lineKey: first.bundle.lineKey,
+      bundleId: fixture.bundleId,
+      bundleVersion: 1,
+      quantity: 2,
+      selections: first.bundle.selections,
+    };
+
+    expect(
+      await cartActions.planGuestBundleAdd(
+        bundleRequest(fixture, { quantity: 2 }),
+        [line],
+        [],
+      ),
+    ).toMatchObject({
+      success: true,
+      added: 1,
+      replaces: [line.lineKey],
+      bundle: { quantity: 3 },
+      message: "Agregamos 1 por el stock disponible.",
+    });
+    const full = { ...line, quantity: 3 };
+    expect(
+      await cartActions.planGuestBundleAdd(bundleRequest(fixture), [full], []),
+    ).toMatchObject({
+      success: false,
+      message: "No hay más stock disponible para este combo.",
+    });
+
+    const otherLines = Array.from({ length: 20 }, (_, index) => ({
+      lineKey: `other-${index}`,
+      bundleId: 2_000_000_000 + index,
+      bundleVersion: 1,
+      quantity: 1,
+      selections: [],
+    }));
+    expect(
+      await cartActions.planGuestBundleAdd(
+        bundleRequest(fixture, { variantId: fixture.shirtSmallId }),
+        otherLines,
+        [],
+      ),
+    ).toMatchObject({
+      success: false,
+      message: expect.stringContaining("hasta 20 combos"),
+    });
+
+    await narrowShirtToMedium(fixture, 2);
+    expect(
+      await cartActions.planGuestBundleAdd(
+        { ...bundleRequest(fixture, { bundleVersion: 2 }), selections: [] },
+        [full],
+        [],
+      ),
+    ).toMatchObject({
+      success: false,
+      message: expect.stringContaining("Confirmá su precio actual"),
+    });
   });
 });

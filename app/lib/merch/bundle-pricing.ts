@@ -63,6 +63,33 @@ export function buildBundleSelectionKey(
     .join("|");
 }
 
+/**
+ * The choices that identify a configuration under the bundle's current
+ * definition. Only components that are still a choice count: a pick for a
+ * fixed component (sent explicitly, or kept from when it offered a choice)
+ * names the same configuration as no pick at all.
+ */
+export function canonicalBundleSelections(
+  selections: readonly BundleSelectionInput[],
+  components: readonly Pick<
+    EvaluatedBundleComponent,
+    "componentId" | "choice"
+  >[],
+): BundleSelectionInput[] {
+  const choices = new Set(
+    components
+      .filter((component) => component.choice === "choice")
+      .map((component) => component.componentId),
+  );
+  return selections
+    .filter((selection) => choices.has(selection.componentId))
+    .map(({ componentId, productVariantId }) => ({
+      componentId,
+      productVariantId,
+    }))
+    .sort((a, b) => a.componentId - b.componentId);
+}
+
 type EvaluateOptions = {
   /**
    * Publishing additionally requires selectable variants of a component to

@@ -28,10 +28,10 @@ import {
   aggregateStockDemand,
   bundleHasStock,
   bundleUnitDemand,
+  canonicalBundleSelections,
   evaluateBundle,
   maxBundleQuantity,
   resolveBundleSelection,
-  stockResourceKey,
   type StockDemandLine,
 } from "./bundle-pricing";
 
@@ -268,17 +268,15 @@ export type CartBundleRequest = {
  * Resolves cart bundle lines against the current catalog. Stock is shared:
  * each line's limit subtracts the individual lines and every other bundle
  * line, so two bundles cannot both count on the same last unit.
+ *
+ * An unpublished bundle never shows its name, price or contents, whether the
+ * line is stored or sent by a guest. Lines whose choices resolve report them
+ * canonically (`canonicalBundleSelections`), so callers can merge lines that
+ * name the same configuration.
  */
 export async function resolveCartBundleLines(
   requests: readonly CartBundleRequest[],
   individualDemand: readonly StockDemandLine[],
-  options: {
-    /**
-     * Whether an unpublished bundle may show its name and price. Stored cart
-     * lines may; ids sent by anonymous clients must not expose drafts.
-     */
-    revealUnpublished?: boolean;
-  } = {},
 ): Promise<CartBundleLine[]> {
   if (requests.length === 0) return [];
   const records = await loadBundleRecords(db, {
@@ -295,10 +293,7 @@ export async function resolveCartBundleLines(
 
   const resolved = requests.map((request) => {
     const found = recordsById.get(request.bundleId);
-    const record =
-      found && (found.isVisible || options.revealUnpublished)
-        ? found
-        : undefined;
+    const record = found?.isVisible ? found : undefined;
     const evaluation = record ? evaluations.get(request.bundleId) : undefined;
     const base: CartBundleLine = {
       key: request.key,
@@ -318,12 +313,7 @@ export async function resolveCartBundleLines(
       issue: null,
       message: null,
     };
-    if (
-      !record ||
-      !evaluation ||
-      !record.isVisible ||
-      evaluation.issues.length
-    ) {
+    if (!record || !evaluation || evaluation.issues.length) {
       return {
         ...base,
         issue: "unavailable" as const,
@@ -340,6 +330,10 @@ export async function resolveCartBundleLines(
     }
     return {
       ...base,
+      selections: canonicalBundleSelections(
+        request.selections,
+        evaluation.components,
+      ),
       imageUrl: record.imageUrl ?? selection.components[0]?.imageUrl ?? null,
       separateUnitPriceCents: selection.separateCents,
       components: selection.components,
@@ -433,40 +427,23 @@ export async function loadCartBundleRequests(
 }
 
 /**
- * Sale-stock units a set of bundle lines would take, read from their stored
- * definitions without pricing them. Used to cap individual cart lines.
+ * Sale-stock units that resolved bundle lines take. Used to cap individual
+ * cart lines. Lines that cannot be checked out (unavailable, or with choices
+ * that no longer resolve) carry no components and so reserve nothing, the
+ * same way the cart UI counts them (`getBundleDemandLines`).
  */
-export function estimateBundleDemand(
-  requests: readonly Pick<
-    CartBundleRequest,
-    "bundleId" | "quantity" | "selections"
-  >[],
-  records: readonly BundleRecord[],
+export function cartBundleDemand(
+  lines: readonly Pick<CartBundleLine, "components" | "quantity">[],
 ): Map<string, number> {
-  const recordsById = new Map(records.map((record) => [record.id, record]));
-  const demand = new Map<string, number>();
-  for (const request of requests) {
-    const record = recordsById.get(request.bundleId);
-    if (!record) continue;
-    const chosen = new Map(
-      request.selections.map((selection) => [
-        selection.componentId,
-        selection.productVariantId,
-      ]),
-    );
-    for (const component of record.components) {
-      const variantId =
-        chosen.get(component.id) ??
-        (component.variantIds.length === 1 ? component.variantIds[0] : null);
-      if (variantId == null && component.variantIds.length > 1) continue;
-      const key = stockResourceKey(component.productId, variantId);
-      demand.set(
-        key,
-        (demand.get(key) ?? 0) + component.quantity * request.quantity,
-      );
-    }
-  }
-  return demand;
+  return aggregateStockDemand(
+    lines.flatMap((line) =>
+      line.components.map((component) => ({
+        productId: component.productId,
+        productVariantId: component.productVariantId,
+        quantity: component.quantity * line.quantity,
+      })),
+    ),
+  );
 }
 
 export async function loadCartBundleDemand(
@@ -478,10 +455,20 @@ export async function loadCartBundleDemand(
     (request) => request.cartBundleId !== excludeCartBundleId,
   );
   if (requests.length === 0) return new Map();
-  const records = await loadBundleRecords(database, {
-    ids: [...new Set(requests.map((request) => request.bundleId))],
-  });
-  return estimateBundleDemand(requests, records);
+  return cartBundleDemand(await resolveCartBundleLines(requests, []));
+}
+
+/** Which of the given bundle ids still exist, published or not. */
+export async function findExistingBundleIds(
+  database: BundleDatabase,
+  ids: readonly number[],
+): Promise<Set<number>> {
+  if (ids.length === 0) return new Set();
+  const rows = await database
+    .select({ id: merchBundles.id })
+    .from(merchBundles)
+    .where(inArray(merchBundles.id, [...new Set(ids)]));
+  return new Set(rows.map((row) => row.id));
 }
 
 /** Variant ids referenced by bundles or by carts holding bundles. */
