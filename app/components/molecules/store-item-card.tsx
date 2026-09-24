@@ -182,7 +182,7 @@ export default function StoreItemCard({
 
           setItemCount(newCount);
         } else {
-          addGuestItem({
+          const added = addGuestItem({
             lineKey: buildCartLineKey(product.id, productVariantId),
             productId: product.id,
             productVariantId,
@@ -193,6 +193,10 @@ export default function StoreItemCard({
             product,
             variant: singleVariant,
           });
+          if (added === 0) {
+            toast.error("No hay stock disponible.");
+            return;
+          }
         }
 
         toast.success("Producto agregado al carrito");

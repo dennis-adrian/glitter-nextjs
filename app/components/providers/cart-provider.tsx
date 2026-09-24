@@ -60,8 +60,11 @@ type CartContextValue = {
   // Guest cart (only populated when isAuthenticated is false)
   guestItems: GuestCartItem[];
   guestCartHydrated: boolean;
-  /** Caps the line by its stock snapshot, net of the cart's bundle lines. */
-  addGuestItem: (item: GuestCartItem) => void;
+  /**
+   * Caps the line by its stock snapshot, net of the cart's bundle lines, and
+   * returns how many units were added (0 when the cap left no room).
+   */
+  addGuestItem: (item: GuestCartItem) => number;
   removeGuestItem: (lineKey: string) => void;
   /**
    * `maxQuantity` is the server's limit for the line when known; without it
@@ -327,10 +330,20 @@ export function CartProvider({
   const addGuestItem = useCallback(
     (incoming: GuestCartItem) => {
       if (incoming.lineKey.endsWith(":rental")) {
-        return;
+        return 0;
       }
       // Bundles in the cart draw from the same stock as individual lines.
       const stockCap = getGuestItemStockCap(incoming, guestBundles);
+      const currentQty =
+        guestItems.find((i) => i.lineKey === incoming.lineKey)?.quantity ?? 0;
+      const added = Math.max(
+        0,
+        Math.min(
+          currentQty + incoming.quantity,
+          MAX_CART_LINE_QUANTITY,
+          stockCap,
+        ) - currentQty,
+      );
       setGuestItems((prev) => {
         const existing = prev.find((i) => i.lineKey === incoming.lineKey);
         const existingQty = existing?.quantity ?? 0;
@@ -350,8 +363,9 @@ export function CartProvider({
         writeGuestCart(updatedGuestItems);
         return updatedGuestItems;
       });
+      return added;
     },
-    [guestBundles],
+    [guestBundles, guestItems],
   );
 
   const removeGuestItem = useCallback((lineKey: string) => {

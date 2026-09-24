@@ -415,7 +415,7 @@ export default function StoreItemQuantityInput({
           toast.error(message ?? "No se pudo agregar al carrito");
         }
       } else {
-        addGuestItem({
+        const added = addGuestItem({
           lineKey: buildCartLineKey(
             product.id,
             selectedVariant?.id ?? null,
@@ -428,8 +428,16 @@ export default function StoreItemQuantityInput({
           product,
           variant: selectedVariant,
         });
-        toast.success("Producto agregado al carrito");
-        onAdded?.();
+        if (added === 0) {
+          toast.error("No hay stock disponible.");
+        } else {
+          toast.success(
+            added < safeQuantity
+              ? `Agregamos ${added} por el stock disponible.`
+              : "Producto agregado al carrito",
+          );
+          onAdded?.();
+        }
       }
 
       setQuantity(1);
