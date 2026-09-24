@@ -58,9 +58,6 @@ export default async function CollectionOpenGraphImage({
   const collection = await fetchPublicMerchCollection(slug);
   if (!collection) notFound();
 
-  const artwork = await artworkDataUrl(
-    collection.imageUrl || collection.campaignImageUrl,
-  );
   const title =
     collection.name.length > 64
       ? `${collection.name.slice(0, 61).trimEnd()}…`
@@ -71,6 +68,98 @@ export default async function CollectionOpenGraphImage({
     rawDescription.length > 110
       ? `${rawDescription.slice(0, 107).trimEnd()}…`
       : rawDescription;
+
+  // A collection with a campaign banner shares that banner, laid out like the
+  // storefront hero: the art cropped from the left, the copy over its empty
+  // side in the tone the admin chose.
+  const banner = await artworkDataUrl(collection.campaignImageUrl);
+  if (banner) {
+    const light = collection.campaignTextTone === "light";
+    return new ImageResponse(
+      <div
+        style={{
+          display: "flex",
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          backgroundColor: light ? "#29005c" : "#ffffff",
+        }}
+      >
+        <img
+          src={banner}
+          alt=""
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "right",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundImage: light
+              ? "linear-gradient(to right, rgba(0,0,0,0.9), rgba(0,0,0,0.6) 45%, rgba(0,0,0,0) 70%)"
+              : "linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.6) 45%, rgba(255,255,255,0) 70%)",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            position: "relative",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            width: 600,
+            height: "100%",
+            padding: "58px 60px",
+            color: light ? "#ffffff" : "#29005c",
+          }}
+        >
+          <div style={{ display: "flex", fontSize: 25, fontWeight: 700 }}>
+            GLITTER · MERCH
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div
+              style={{
+                display: "flex",
+                fontSize: title.length > 38 ? 52 : 64,
+                fontWeight: 800,
+                lineHeight: 1.05,
+                letterSpacing: "-0.04em",
+              }}
+            >
+              {title}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                marginTop: 24,
+                fontSize: 25,
+                lineHeight: 1.3,
+                opacity: 0.85,
+              }}
+            >
+              {description}
+            </div>
+          </div>
+          <div style={{ display: "flex", fontSize: 20, opacity: 0.8 }}>
+            glitter.com.bo
+          </div>
+        </div>
+      </div>,
+      size,
+    );
+  }
+
+  const artwork = await artworkDataUrl(collection.imageUrl);
 
   return new ImageResponse(
     <div
@@ -121,7 +210,7 @@ export default async function CollectionOpenGraphImage({
           </div>
         </div>
         <div style={{ display: "flex", fontSize: 20, color: "#d8c8ff" }}>
-          productoraglitter.com
+          glitter.com.bo
         </div>
       </div>
       <div

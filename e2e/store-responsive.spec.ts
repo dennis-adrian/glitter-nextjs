@@ -123,6 +123,8 @@ test.describe("store administration responsive layout", () => {
   test("category scope keeps other order filters and follows store navigation", async ({
     page,
   }) => {
+    // Room for the cold products-route compile awaited below.
+    test.slow();
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(
       "/dashboard/store/orders?statuses=paid&rental=has_rental&period=custom&from=2026-08-01&to=2026-08-31&q=Antonieta&view=compact",
@@ -141,7 +143,12 @@ test.describe("store administration responsive layout", () => {
     await expect(page).toHaveURL(/q=Antonieta/);
 
     // Page-specific filters are dropped between sections; the scope is not.
+    // A cold `next dev` compiles the products route on first visit, which
+    // outlasts the default 5s expect timeout.
     await page.getByRole("link", { name: "Productos" }).click();
-    await expect(page).toHaveURL(/\/dashboard\/store\/products\?category=supplies$/);
+    await expect(page).toHaveURL(
+      /\/dashboard\/store\/products\?category=supplies$/,
+      { timeout: 30_000 },
+    );
   });
 });

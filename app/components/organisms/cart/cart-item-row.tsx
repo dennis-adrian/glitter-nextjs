@@ -16,6 +16,7 @@ import { CartItemWithProduct } from "@/app/lib/cart/definitions";
 import {
   getCartItemAvailableStock,
   getCartItemWarnings,
+  type BundleDemandLine,
 } from "@/app/lib/cart/utils";
 import {
   MAX_CART_LINE_QUANTITY,
@@ -30,12 +31,15 @@ import {
 type CartItemRowProps = {
   item: CartItemWithProduct;
   allItems: CartItemWithProduct[];
+  /** Stock taken by bundles in the same cart. */
+  bundleDemand?: BundleDemandLine[];
   onCartUpdate: () => Promise<void>;
 };
 
 export default function CartItemRow({
   item,
   allItems,
+  bundleDemand = [],
   onCartUpdate,
 }: CartItemRowProps) {
   const [pending, setPending] = useState(false);
@@ -48,12 +52,16 @@ export default function CartItemRow({
     previousCommittedQtyRef.current = item.quantity;
   }, [item.quantity]);
 
-  const warnings = getCartItemWarnings(item, allItems);
+  const warnings = getCartItemWarnings(item, allItems, bundleDemand);
   const variantLabel = getVariantLabel(item.variant);
   const productName = variantLabel
     ? `${item.product.name} (${variantLabel})`
     : item.product.name;
-  const availableStock = getCartItemAvailableStock(item, allItems);
+  const availableStock = getCartItemAvailableStock(
+    item,
+    allItems,
+    bundleDemand,
+  );
   const stockCap = Math.max(
     1,
     Math.min(MAX_CART_LINE_QUANTITY, availableStock),

@@ -22,6 +22,8 @@ interface Product {
   status: "available" | "presale" | "sale";
   availableDate: Date | null;
   transactionType?: "purchase" | "rental";
+  /** Contents of a bundle, e.g. "2 × Stickers". */
+  components?: string[];
 }
 interface OrderConfirmationForUsersEmailTemplateProps {
   customerName: string;
@@ -82,8 +84,8 @@ export default function OrderConfirmationForUsersEmailTemplate(
                 </tr>
               </thead>
               <tbody>
-                {props.products.map((p) => (
-                  <tr key={p.id}>
+                {props.products.map((p, index) => (
+                  <tr key={`${p.id}-${index}`}>
                     <td>
                       <div
                         style={{
@@ -94,6 +96,11 @@ export default function OrderConfirmationForUsersEmailTemplate(
                         {p.name}
                         {p.transactionType === "rental" && " (Alquiler)"}{" "}
                       </div>
+                      {p.components?.map((component) => (
+                        <div key={component} style={{ ...styles.textSmall }}>
+                          {component}
+                        </div>
+                      ))}
                       {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>
                           {p.availableDate

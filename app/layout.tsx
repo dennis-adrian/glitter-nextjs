@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   },
   description: "Creamos festivales para que los artistas brillen",
   keywords: ["festival", "glitter", "artistas", "ilustración", "arte"],
-  metadataBase: new URL(baseUrl || "https://www.productoraglitter.com"),
+  metadataBase: new URL(baseUrl || "https://www.glitter.com.bo"),
   openGraph: {
     title: "Productora Glitter",
     description: "Creamos festivales para que los artistas brillen",

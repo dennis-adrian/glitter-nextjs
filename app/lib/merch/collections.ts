@@ -10,6 +10,7 @@ import {
   products,
 } from "@/db/schema";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { fetchPublicBundles } from "./bundles";
 import type { MerchCollection } from "./definitions";
 
 type ProductTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -61,20 +62,23 @@ export async function fetchCollectionEditorData(productId?: number) {
   return { options, selectedIds: assigned.map(({ id }) => id) };
 }
 
+const collectionColumns = {
+  id: merchCollections.id,
+  name: merchCollections.name,
+  slug: merchCollections.slug,
+  description: merchCollections.description,
+  imageUrl: merchCollections.imageUrl,
+  campaignImageUrl: merchCollections.campaignImageUrl,
+  campaignTextTone: merchCollections.campaignTextTone,
+  showInHero: merchCollections.showInHero,
+  sortOrder: merchCollections.sortOrder,
+};
+
 export async function fetchMerchCollections(): Promise<MerchCollection[]> {
   // Publication and ordering belong to the collection, independently of festivals.
+  const bundlesPromise = fetchPublicBundles();
   const rows = await db
-    .select({
-      id: merchCollections.id,
-      name: merchCollections.name,
-      slug: merchCollections.slug,
-      description: merchCollections.description,
-      imageUrl: merchCollections.imageUrl,
-      campaignImageUrl: merchCollections.campaignImageUrl,
-      campaignTextTone: merchCollections.campaignTextTone,
-      showInHero: merchCollections.showInHero,
-      productId: products.id,
-    })
+    .select({ ...collectionColumns, productId: products.id })
     .from(merchCollectionProducts)
     .innerJoin(
       merchCollections,
@@ -89,8 +93,31 @@ export async function fetchMerchCollections(): Promise<MerchCollection[]> {
       ),
     )
     .orderBy(asc(merchCollections.sortOrder), desc(merchCollections.id));
+  const bundles = await bundlesPromise;
+  // Bundles make a collection nonempty even without visible products.
+  const bundleCollectionIds = [
+    ...new Set(bundles.flatMap((bundle) => bundle.collectionIds)),
+  ];
+  const listedIds = new Set(rows.map((row) => row.id));
+  const bundleOnlyIds = bundleCollectionIds.filter((id) => !listedIds.has(id));
+  const bundleOnlyRows = bundleOnlyIds.length
+    ? await db
+        .select(collectionColumns)
+        .from(merchCollections)
+        .where(
+          and(
+            eq(merchCollections.isVisible, true),
+            inArray(merchCollections.id, bundleOnlyIds),
+          ),
+        )
+    : [];
+
   const collections = new Map<number, MerchCollection>();
-  for (const row of rows) {
+  const sortOrders = new Map<number, number>();
+  for (const row of [
+    ...rows,
+    ...bundleOnlyRows.map((row) => ({ ...row, productId: null })),
+  ]) {
     const collection = collections.get(row.id) ?? {
       id: row.id,
       name: row.name,
@@ -101,11 +128,17 @@ export async function fetchMerchCollections(): Promise<MerchCollection[]> {
       campaignTextTone: row.campaignTextTone,
       showInHero: row.showInHero,
       productIds: [],
+      bundleIds: bundles
+        .filter((bundle) => bundle.collectionIds.includes(row.id))
+        .map((bundle) => bundle.id),
     };
-    collection.productIds.push(row.productId);
+    if (row.productId != null) collection.productIds.push(row.productId);
     collections.set(row.id, collection);
+    sortOrders.set(row.id, row.sortOrder);
   }
-  return [...collections.values()];
+  return [...collections.values()].sort(
+    (a, b) => sortOrders.get(a.id)! - sortOrders.get(b.id)! || b.id - a.id,
+  );
 }
 
 export async function fetchCollectionManagement() {

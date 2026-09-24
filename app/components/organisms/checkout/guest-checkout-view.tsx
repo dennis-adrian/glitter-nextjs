@@ -1,21 +1,75 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
 import { CheckoutEmptyCart } from "@/app/components/organisms/checkout/checkout-empty-cart";
 import { CheckoutPageLayout } from "@/app/components/organisms/checkout/checkout-page-layout";
-import type { CheckoutLineItem } from "@/app/components/organisms/checkout/checkout-line-item";
+import {
+  toCheckoutBundleItem,
+  type CheckoutBundleItem,
+  type CheckoutLineItem,
+} from "@/app/components/organisms/checkout/checkout-line-item";
 import { GuestCheckoutForm } from "@/app/components/organisms/checkout/guest-checkout-form";
 import { useCartContext } from "@/app/components/providers/cart-provider";
+import {
+  resolveGuestCart,
+  validateGuestCartStock,
+  type GuestCartResolution,
+} from "@/app/lib/cart/actions";
+import {
+  MERGED_BUNDLE_LINES_NOTICE,
+  removedBundlesNotice,
+  toGuestBundleInputs,
+  toGuestItemInputs,
+} from "@/app/lib/cart/utils";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getVariantLabel } from "@/app/lib/products/variants";
 
 export default function GuestCheckoutView() {
-  const { guestItems, guestCartHydrated } = useCartContext();
+  const { guestItems, guestBundles, guestCartHydrated, reconcileGuestBundles } =
+    useCartContext();
+  const [resolution, setResolution] = useState<GuestCartResolution | null>(
+    null,
+  );
+
+  // Show current bundle prices and contents, and check every line's stock
+  // (bundles and individual lines share it) before the guest confirms; the
+  // stored snapshot is only a placeholder until the server answers.
+  useEffect(() => {
+    if (!guestCartHydrated) return;
+    if (guestItems.length === 0 && guestBundles.length === 0) return;
+    let cancelled = false;
+    const items = toGuestItemInputs(guestItems);
+    const request: Promise<GuestCartResolution> =
+      guestBundles.length > 0
+        ? resolveGuestCart(toGuestBundleInputs(guestBundles), items)
+        : validateGuestCartStock(items).then((checks) => ({
+            bundles: [],
+            items: checks,
+            removedBundleKeys: [],
+          }));
+    request
+      .then((result) => {
+        if (cancelled) return;
+        setResolution(result);
+        const { removed, droppedUnits } = reconcileGuestBundles(result);
+        if (removed > 0) toast.info(removedBundlesNotice(removed));
+        if (droppedUnits > 0) toast.info(MERGED_BUNDLE_LINES_NOTICE);
+      })
+      .catch(() => {
+        if (!cancelled) setResolution(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [guestCartHydrated, guestBundles, guestItems, reconcileGuestBundles]);
 
   if (!guestCartHydrated) {
     return null;
   }
 
-  if (guestItems.length === 0) {
+  if (guestItems.length === 0 && guestBundles.length === 0) {
     return <CheckoutEmptyCart />;
   }
 
@@ -28,19 +82,80 @@ export default function GuestCheckoutView() {
   }));
   const presaleLines = orderLines.filter((l) => l.product.status === "presale");
 
-  const total = guestItems.reduce(
-    (sum, i) =>
-      sum + getProductPriceAtPurchase(i.product, i.variant) * i.quantity,
-    0,
+  const resolvedByKey = new Map(
+    (resolution?.bundles ?? []).map((line) => [line.key, line]),
   );
+  const bundleItems: CheckoutBundleItem[] = guestBundles.map((bundle) => {
+    const line = resolvedByKey.get(bundle.lineKey);
+    if (line && line.components.length > 0) {
+      return toCheckoutBundleItem({ ...line, quantity: bundle.quantity });
+    }
+    // A published bundle whose choices no longer resolve still has a current
+    // name and price, as the cart shows; an unavailable one shows neither.
+    const live = line && line.issue !== "unavailable" ? line : null;
+    return {
+      key: bundle.lineKey,
+      name: live?.name ?? bundle.name,
+      imageUrl: live?.imageUrl ?? bundle.imageUrl,
+      quantity: bundle.quantity,
+      unitPriceCents:
+        line?.issue === "unavailable"
+          ? null
+          : live?.unitPriceCents || bundle.unitPriceCents,
+      separateUnitPriceCents:
+        live?.separateUnitPriceCents || bundle.separateUnitPriceCents,
+      components: bundle.components,
+      issue: line?.message ?? null,
+    };
+  });
+  const checksByKey = new Map(
+    (resolution?.items ?? []).map((check) => [check.lineKey, check]),
+  );
+  const itemIssue = guestItems.flatMap((item) => {
+    const check = checksByKey.get(item.lineKey);
+    if (!check || (!check.isOutOfStock && !check.quantityExceedsStock)) {
+      return [];
+    }
+    const label = item.productVariantLabel ?? getVariantLabel(item.variant);
+    const name = label ? `${item.product.name} (${label})` : item.product.name;
+    return [
+      check.isOutOfStock
+        ? `${name} ya no tiene stock.`
+        : check.stock === 1
+          ? `Solo queda 1 unidad de ${name}.`
+          : `Solo quedan ${check.stock} unidades de ${name}.`,
+    ];
+  })[0];
+  const blockingMessage =
+    bundleItems.find((bundle) => bundle.issue)?.issue ?? itemIssue ?? null;
+
+  const total =
+    guestItems.reduce(
+      (sum, i) =>
+        sum + getProductPriceAtPurchase(i.product, i.variant) * i.quantity,
+      0,
+    ) +
+    bundleItems.reduce(
+      (sum, bundle) =>
+        // A bundle that cannot be bought shows no price, so it adds none.
+        bundle.unitPriceCents === null
+          ? sum
+          : sum + (bundle.unitPriceCents * bundle.quantity) / 100,
+      0,
+    );
 
   return (
     <CheckoutPageLayout
       orderSummaryItems={orderLines}
+      bundleItems={bundleItems}
       total={total}
       presaleItems={presaleLines}
     >
-      <GuestCheckoutForm guestItems={guestItems} />
+      <GuestCheckoutForm
+        guestItems={guestItems}
+        guestBundles={guestBundles}
+        blockingMessage={blockingMessage}
+      />
     </CheckoutPageLayout>
   );
 }

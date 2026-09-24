@@ -27,6 +27,9 @@ vi.mock("@/db", () => ({
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: async () => ({ role: state.role }),
 }));
+// This isolated schema has no bundle tables; bundle membership is covered by
+// the bundle integration tests.
+vi.mock("./bundles", () => ({ fetchPublicBundles: async () => [] }));
 import {
   fetchCollectionEditorData,
   fetchMerchCollections,

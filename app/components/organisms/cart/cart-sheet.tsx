@@ -4,30 +4,143 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { BundleCartRow } from "@/app/components/organisms/cart/bundle-cart-row";
 import CartItemRow from "@/app/components/organisms/cart/cart-item-row";
 import { CartSheetCheckoutFooter } from "@/app/components/organisms/cart/cart-sheet-checkout-footer";
 import { CartSheetEmptyState } from "@/app/components/organisms/cart/cart-sheet-empty-state";
 import { CartSheetShell } from "@/app/components/organisms/cart/cart-sheet-shell";
 import GuestCartItemRow from "@/app/components/organisms/cart/guest-cart-item-row";
-import { useCartContext } from "@/app/components/providers/cart-provider";
+import {
+  useCartContext,
+  type GuestBundleReconcileOutcome,
+} from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import {
+  acceptCartBundleChanges,
   fetchCartItemCount,
   fetchCartWithItems,
+  removeCartBundle,
+  resolveGuestCart,
+  updateCartBundleQuantity,
   validateGuestCartStock,
+  type GuestCartResolution,
   type GuestStockValidationResult,
 } from "@/app/lib/cart/actions";
-import { CartWithItems } from "@/app/lib/cart/definitions";
-import { getCartItemWarnings } from "@/app/lib/cart/utils";
+import type { CartWithItems, GuestCartItem } from "@/app/lib/cart/definitions";
+import {
+  getBundleDemandLines,
+  getCartItemWarnings,
+  guestBundleSignature,
+  MERGED_BUNDLE_LINES_NOTICE,
+  reconcileGuestBundleLines,
+  removedBundlesNotice,
+  toGuestBundleInputs,
+  toGuestCartBundle,
+  toGuestItemInputs,
+} from "@/app/lib/cart/utils";
+import type { CartBundleLine } from "@/app/lib/merch/bundle-definitions";
 import {
   getLineUnitPrice,
   getProductPriceAtPurchase,
 } from "@/app/lib/orders/utils";
 import CartItemSkeleton from "./cart-item-skeleton";
 
+const hasStockProblem = (check: GuestStockValidationResult) =>
+  check.isOutOfStock || check.quantityExceedsStock;
+
+/** Tells the guest what applying a resolution changed in their cart. */
+function notifyReconcile(outcome: GuestBundleReconcileOutcome) {
+  if (outcome.removed > 0) toast.info(removedBundlesNotice(outcome.removed));
+  if (outcome.droppedUnits > 0) toast.info(MERGED_BUNDLE_LINES_NOTICE);
+  return outcome;
+}
+
+function AuthBundleCartRow({
+  line,
+  onCartUpdate,
+}: {
+  line: CartBundleLine;
+  onCartUpdate: () => Promise<void>;
+}) {
+  const [pending, setPending] = useState(false);
+
+  async function run(
+    action: () => Promise<{
+      success: boolean;
+      error?: string;
+      message?: string;
+    }>,
+    fallback: string,
+  ) {
+    setPending(true);
+    try {
+      const result = await action();
+      if (!result.success) {
+        toast.error(
+          result.error === "stock_insufficient"
+            ? "No hay stock suficiente para esa cantidad."
+            : (result.error ?? fallback),
+        );
+      } else if (result.message) {
+        toast.info(result.message);
+      }
+      await onCartUpdate();
+    } catch {
+      toast.error(fallback);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <BundleCartRow
+      name={line.name}
+      imageUrl={line.imageUrl}
+      unitPriceCents={line.issue === "unavailable" ? null : line.unitPriceCents}
+      separateUnitPriceCents={line.separateUnitPriceCents}
+      quantity={line.quantity}
+      maxQuantity={line.maxQuantity}
+      components={line.components}
+      issue={line.issue}
+      message={line.message}
+      pending={pending}
+      onQuantityChange={(quantity) =>
+        run(
+          () => updateCartBundleQuantity(line.cartBundleId!, quantity),
+          "No se pudo actualizar la cantidad",
+        )
+      }
+      onRemove={() =>
+        run(
+          () => removeCartBundle(line.cartBundleId!),
+          "No se pudo eliminar el combo del carrito",
+        )
+      }
+      onAcceptChanges={() =>
+        run(
+          // Confirms the version this row shows, never a newer one.
+          () =>
+            acceptCartBundleChanges(line.cartBundleId!, line.currentVersion!),
+          "No se pudo actualizar el combo",
+        )
+      }
+    />
+  );
+}
+
 export default function CartSheet() {
-  const { isOpen, closeCart, setItemCount, isAuthenticated, guestItems } =
-    useCartContext();
+  const {
+    isOpen,
+    closeCart,
+    setItemCount,
+    isAuthenticated,
+    guestItems,
+    guestBundles,
+    removeGuestBundle,
+    updateGuestBundleQuantity,
+    replaceGuestBundle,
+    reconcileGuestBundles,
+  } = useCartContext();
   const router = useRouter();
   const [cartData, setCartData] = useState<CartWithItems | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,9 +148,20 @@ export default function CartSheet() {
   const [fetchError, setFetchError] = useState(false);
   const fetchGenerationRef = useRef(0);
   const [guestValidating, setGuestValidating] = useState(false);
-  const [guestStockIssues, setGuestStockIssues] = useState<
-    GuestStockValidationResult[]
-  >([]);
+  // A checkout attempt's findings hold only for the lines it checked: its
+  // individual lines and the bundles that took their share of the stock.
+  const [guestStockCheck, setGuestStockCheck] = useState<{
+    items: GuestCartItem[];
+    /**
+     * The bundles as the attempt left them (`guestBundleSignature`): applying
+     * its resolution replaces the array, so identity would never match.
+     */
+    bundles: string;
+    issues: GuestStockValidationResult[];
+  } | null>(null);
+  const [guestResolution, setGuestResolution] =
+    useState<GuestCartResolution | null>(null);
+  const guestBundleGenerationRef = useRef(0);
 
   const loadCart = useCallback(
     async (silent = false) => {
@@ -54,10 +178,14 @@ export default function CartSheet() {
             setCartData(result.data);
             setFetchError(false);
             setItemCount(
-              result.data?.items.reduce(
+              (result.data?.items.reduce(
                 (sum, item) => sum + item.quantity,
                 0,
-              ) ?? 0,
+              ) ?? 0) +
+                (result.data?.bundles.reduce(
+                  (sum, bundle) => sum + bundle.quantity,
+                  0,
+                ) ?? 0),
             );
           } else {
             setFetchError(true);
@@ -93,36 +221,122 @@ export default function CartSheet() {
       });
   }, [setItemCount, isAuthenticated]);
 
+  // Guest bundles are re-priced and stock-checked on the server whenever the
+  // open cart changes, together with the limits they leave for individual
+  // lines; the stored snapshot is only a fallback while loading.
+  useEffect(() => {
+    if (isAuthenticated || !isOpen || guestBundles.length === 0) return;
+    const generation = ++guestBundleGenerationRef.current;
+    resolveGuestCart(
+      toGuestBundleInputs(guestBundles),
+      toGuestItemInputs(guestItems),
+    )
+      .then((resolution) => {
+        if (generation !== guestBundleGenerationRef.current) return;
+        setGuestResolution(resolution);
+        notifyReconcile(reconcileGuestBundles(resolution));
+      })
+      .catch(() => {
+        if (generation === guestBundleGenerationRef.current) {
+          setGuestResolution(null);
+        }
+      });
+  }, [
+    isAuthenticated,
+    isOpen,
+    guestBundles,
+    guestItems,
+    reconcileGuestBundles,
+  ]);
+
   // ── Guest cart ────────────────────────────────────────────────────────────
   if (!isAuthenticated) {
-    const guestTotal = guestItems.reduce(
-      (sum, item) =>
-        sum +
-        getProductPriceAtPurchase(item.product, item.variant) * item.quantity,
-      0,
+    // Without bundles nothing shares stock, so there is nothing to resolve.
+    const liveResolution = guestBundles.length > 0 ? guestResolution : null;
+    const resolvedByKey = new Map(
+      (liveResolution?.bundles ?? []).map((line) => [line.key, line]),
     );
-    const stockIssuesMap = new Map(guestStockIssues.map((s) => [s.lineKey, s]));
-    const hasStockIssues = guestStockIssues.some(
-      (s) => s.isOutOfStock || s.quantityExceedsStock,
+    const guestDisplayBundles = guestBundles.map((bundle) => ({
+      bundle,
+      line: resolvedByKey.get(bundle.lineKey) ?? null,
+    }));
+    const guestTotal =
+      guestItems.reduce(
+        (sum, item) =>
+          sum +
+          getProductPriceAtPurchase(item.product, item.variant) * item.quantity,
+        0,
+      ) +
+      guestDisplayBundles.reduce(
+        (sum, { bundle, line }) =>
+          // Rows show no price for a bundle that cannot be bought.
+          line?.issue === "unavailable"
+            ? sum
+            : sum +
+              ((line?.unitPriceCents || bundle.unitPriceCents) *
+                bundle.quantity) /
+                100,
+        0,
+      );
+    // A checkout attempt's findings last until the lines change; live limits
+    // (bundles present) are fresher and win.
+    const liveItemChecks = liveResolution?.items ?? [];
+    const checkoutItemChecks =
+      guestStockCheck?.items === guestItems &&
+      guestStockCheck.bundles === guestBundleSignature(guestBundles)
+        ? guestStockCheck.issues
+        : [];
+    const stockIssuesMap = new Map(
+      [...checkoutItemChecks, ...liveItemChecks].map((s) => [s.lineKey, s]),
     );
+    const hasBundleIssues = guestDisplayBundles.some(
+      ({ line }) => line?.issue != null,
+    );
+    const hasLiveItemIssues = liveItemChecks.some(hasStockProblem);
+    const hasStockIssues =
+      [...stockIssuesMap.values()].some(hasStockProblem) || hasBundleIssues;
+    const isEmpty = guestItems.length === 0 && guestBundles.length === 0;
 
     async function handleGuestCheckout() {
-      setGuestStockIssues([]);
+      setGuestStockCheck(null);
       setGuestValidating(true);
       try {
-        const results = await validateGuestCartStock(
-          guestItems.map((i) => ({
-            lineKey: i.lineKey,
-            productId: i.productId,
-            productVariantId: i.productVariantId,
-            quantity: i.quantity,
-          })),
-        );
-        const issues = results.filter(
-          (r) => r.isOutOfStock || r.quantityExceedsStock,
-        );
-        if (issues.length > 0) {
-          setGuestStockIssues(issues);
+        const items = toGuestItemInputs(guestItems);
+        let itemChecks: GuestStockValidationResult[];
+        let checkedBundles = guestBundles;
+        let blocked = false;
+        if (guestBundles.length === 0) {
+          // One round trip: only individual lines to check.
+          itemChecks = await validateGuestCartStock(items);
+        } else {
+          const generation = ++guestBundleGenerationRef.current;
+          const resolution = await resolveGuestCart(
+            toGuestBundleInputs(guestBundles),
+            items,
+          );
+          if (generation === guestBundleGenerationRef.current) {
+            setGuestResolution(resolution);
+          }
+          const { removed } = notifyReconcile(
+            reconcileGuestBundles(resolution),
+          );
+          // What the cart holds once the resolution applies, e.g. no bundles
+          // at all when the only one was deleted.
+          checkedBundles = reconcileGuestBundleLines(
+            guestBundles,
+            resolution,
+          ).bundles;
+          itemChecks = resolution.items;
+          blocked =
+            removed > 0 || resolution.bundles.some((line) => line.issue);
+        }
+        const issues = itemChecks.filter(hasStockProblem);
+        if (issues.length > 0 || blocked) {
+          setGuestStockCheck({
+            items: guestItems,
+            bundles: guestBundleSignature(checkedBundles),
+            issues,
+          });
           return;
         }
         closeCart();
@@ -140,10 +354,59 @@ export default function CartSheet() {
         onClose={closeCart}
         body={
           <>
-            {guestItems.length === 0 && <CartSheetEmptyState />}
+            {isEmpty && <CartSheetEmptyState />}
 
-            {guestItems.length > 0 && (
+            {!isEmpty && (
               <div>
+                {guestDisplayBundles.map(({ bundle, line }) => (
+                  <BundleCartRow
+                    key={bundle.lineKey}
+                    name={
+                      line && line.issue !== "unavailable"
+                        ? line.name
+                        : bundle.name
+                    }
+                    imageUrl={line?.imageUrl ?? bundle.imageUrl}
+                    unitPriceCents={
+                      line?.issue === "unavailable"
+                        ? null
+                        : line?.unitPriceCents || bundle.unitPriceCents
+                    }
+                    separateUnitPriceCents={
+                      line?.separateUnitPriceCents ||
+                      bundle.separateUnitPriceCents
+                    }
+                    quantity={bundle.quantity}
+                    maxQuantity={line ? line.maxQuantity : null}
+                    components={
+                      line?.components.length
+                        ? line.components
+                        : bundle.components
+                    }
+                    issue={line?.issue ?? null}
+                    message={line?.message ?? null}
+                    onQuantityChange={(quantity) =>
+                      updateGuestBundleQuantity(bundle.lineKey, quantity)
+                    }
+                    onRemove={() => removeGuestBundle(bundle.lineKey)}
+                    onAcceptChanges={
+                      line?.currentVersion != null
+                        ? () => {
+                            const droppedUnits = replaceGuestBundle(
+                              bundle.lineKey,
+                              toGuestCartBundle(line, {
+                                bundleVersion: line.currentVersion!,
+                                quantity: bundle.quantity,
+                              }),
+                            );
+                            if (droppedUnits > 0) {
+                              toast.info(MERGED_BUNDLE_LINES_NOTICE);
+                            }
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
                 {guestItems.map((item) => (
                   <GuestCartItemRow
                     key={item.lineKey}
@@ -156,12 +419,12 @@ export default function CartSheet() {
           </>
         }
         footer={
-          guestItems.length > 0 ? (
+          !isEmpty ? (
             <CartSheetCheckoutFooter
               showStockWarning={hasStockIssues}
               total={guestTotal}
               onCheckout={handleGuestCheckout}
-              disabled={guestValidating}
+              disabled={guestValidating || hasBundleIssues || hasLiveItemIssues}
               pending={guestValidating}
             />
           ) : undefined
@@ -171,22 +434,34 @@ export default function CartSheet() {
   }
 
   // ── Authenticated cart ────────────────────────────────────────────────────
-  const hasWarnings = cartData?.items.some((item) => {
-    const w = getCartItemWarnings(item, cartData.items);
-    return w.isOutOfStock || w.quantityExceedsStock;
-  });
+  const bundleLines = cartData?.bundles ?? [];
+  const bundleDemand = getBundleDemandLines(bundleLines);
+  const hasWarnings =
+    cartData?.items.some((item) => {
+      const w = getCartItemWarnings(item, cartData.items, bundleDemand);
+      return w.isOutOfStock || w.quantityExceedsStock;
+    }) || bundleLines.some((line) => line.issue != null);
 
   const total =
-    cartData?.items.reduce((sum, item) => {
+    (cartData?.items.reduce((sum, item) => {
       return (
         sum +
         getLineUnitPrice(item.product, item.variant, item.transactionType) *
           item.quantity
       );
-    }, 0) ?? 0;
+    }, 0) ?? 0) +
+    bundleLines.reduce(
+      (sum, line) =>
+        // Rows show no price for a bundle that cannot be bought.
+        line.issue === "unavailable"
+          ? sum
+          : sum + (line.unitPriceCents * line.quantity) / 100,
+      0,
+    );
+  const isEmpty =
+    !cartData || (cartData.items.length === 0 && bundleLines.length === 0);
 
-  const showAuthFooter =
-    !loading && !fetchError && cartData && cartData.items.length > 0;
+  const showAuthFooter = !loading && !fetchError && !isEmpty;
 
   return (
     <CartSheetShell
@@ -211,18 +486,23 @@ export default function CartSheet() {
             </div>
           )}
 
-          {!loading &&
-            !fetchError &&
-            cartData &&
-            cartData.items.length === 0 && <CartSheetEmptyState />}
+          {!loading && !fetchError && isEmpty && <CartSheetEmptyState />}
 
-          {!loading && !fetchError && cartData && cartData.items.length > 0 && (
+          {!loading && !fetchError && cartData && !isEmpty && (
             <div>
+              {bundleLines.map((line) => (
+                <AuthBundleCartRow
+                  key={line.key}
+                  line={line}
+                  onCartUpdate={() => loadCart(true)}
+                />
+              ))}
               {cartData.items.map((item) => (
                 <CartItemRow
                   key={item.id}
                   item={item}
                   allItems={cartData.items}
+                  bundleDemand={bundleDemand}
                   onCartUpdate={() => loadCart(true)}
                 />
               ))}

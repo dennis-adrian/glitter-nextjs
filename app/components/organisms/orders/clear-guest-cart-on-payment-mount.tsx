@@ -2,16 +2,15 @@
 
 import { useEffect } from "react";
 
-import { GUEST_CART_KEY } from "@/app/lib/constants";
+import { clearPersistedGuestCart } from "@/app/components/providers/cart-provider";
 
-/** Clears persisted guest cart once the guest payment route has mounted. */
+/**
+ * Clears the persisted guest cart (products and bundles) once the guest
+ * payment route has mounted, so a reload never brings back what was ordered.
+ */
 export function ClearGuestCartOnPaymentMount() {
   useEffect(() => {
-    try {
-      localStorage.setItem(GUEST_CART_KEY, JSON.stringify([]));
-    } catch {
-      // localStorage unavailable — ignore (matches CartProvider)
-    }
+    clearPersistedGuestCart();
   }, []);
 
   return null;

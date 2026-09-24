@@ -14,6 +14,8 @@ type CheckoutActionsProps = {
   hasPresaleItems: boolean;
   rentalContexts: RentalEligibilityContext[];
   initialReservationId?: number | null;
+  /** A cart problem that must be fixed before confirming (e.g. a changed bundle). */
+  blockingMessage?: string | null;
 };
 
 export default function CheckoutActions({
@@ -22,6 +24,7 @@ export default function CheckoutActions({
   hasPresaleItems,
   rentalContexts,
   initialReservationId = null,
+  blockingMessage = null,
 }: CheckoutActionsProps) {
   const defaultReservationId =
     initialReservationId ?? rentalContexts[0]?.reservationId ?? null;
@@ -58,11 +61,21 @@ export default function CheckoutActions({
         />
       )}
 
+      {blockingMessage && (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"
+        >
+          {blockingMessage} Revisalo en el carrito antes de confirmar.
+        </p>
+      )}
+
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 z-40 md:static md:border-0 md:px-0 md:py-0 md:bg-transparent">
         <CheckoutConfirmButton
           hasRentalItems={hasRentalItems}
           rentalFestivalId={selectedContext?.festivalId ?? null}
           rentalReservationId={selectedContext?.reservationId ?? null}
+          disabled={!!blockingMessage}
         />
       </div>
     </>

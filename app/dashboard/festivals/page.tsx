@@ -9,9 +9,9 @@ export default async function Page() {
 
   return (
     <div className="container p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold md:text-3xl">Festivales</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ImportFestivalButton />
           <RedirectButton href="/dashboard/festivals/add">
             <PlusIcon className="mr-2 h-4 w-4" />

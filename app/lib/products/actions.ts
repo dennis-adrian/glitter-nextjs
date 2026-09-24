@@ -8,6 +8,11 @@ import { revalidatePath } from "next/cache";
 
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
 import { syncMerchCollections } from "@/app/lib/merch/collections";
+import {
+  findBundleOrderProductReferences,
+  findBundleProductReferences,
+  findBundleVariantReferences,
+} from "@/app/lib/merch/bundles";
 import { isLowStockLevel } from "@/app/lib/products/low-stock";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
@@ -15,6 +20,7 @@ import type { StoreCategory } from "@/app/lib/store/category";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  cartBundleSelections,
   cartItems,
   orderItems,
   productImages,
@@ -301,10 +307,23 @@ async function assertVariantsCanBeDeleted(tx: ProductTx, variantIds: number[]) {
     .where(inArray(cartItems.productVariantId, variantIds))
     .limit(1);
 
-  if (referencedCartItem.length > 0) {
+  const referencedCartBundle = await tx
+    .select({ variantId: cartBundleSelections.productVariantId })
+    .from(cartBundleSelections)
+    .where(inArray(cartBundleSelections.productVariantId, variantIds))
+    .limit(1);
+
+  if (referencedCartItem.length > 0 || referencedCartBundle.length > 0) {
     throw new Error(
       "No se pueden eliminar variantes que todavía están en carritos activos.",
       { cause: "variant_in_active_cart" },
+    );
+  }
+
+  if ((await findBundleVariantReferences(tx, variantIds)).length > 0) {
+    throw new Error(
+      "No se pueden eliminar variantes que forman parte de un combo. Quitalas del combo primero.",
+      { cause: "variant_in_bundle" },
     );
   }
 
@@ -791,7 +810,8 @@ export async function updateProduct(id: number, data: NewProductData) {
     if (
       error instanceof Error &&
       (error.cause === "variant_in_active_cart" ||
-        error.cause === "variant_in_order")
+        error.cause === "variant_in_order" ||
+        error.cause === "variant_in_bundle")
     ) {
       return { success: false, message: error.message };
     }
@@ -821,12 +841,35 @@ export async function deleteProduct(id: number) {
 
   let deletedSlug: string | undefined;
   try {
-    const row = await db.query.products.findFirst({
-      where: eq(products.id, id),
-      columns: { slug: true },
+    const blockedMessage = await db.transaction(async (tx) => {
+      // Locked before the checks, so a bundle edit or checkout that references
+      // this product either commits first (and is seen) or waits for the delete.
+      const [row] = await tx
+        .select({ slug: products.slug })
+        .from(products)
+        .where(eq(products.id, id))
+        .for("update");
+
+      const [bundleReference] = await findBundleProductReferences(tx, [id]);
+      if (bundleReference) {
+        return `Este producto forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`;
+      }
+      // Its order lines would cascade away while their bundle keeps its total.
+      const [bundleOrderReference] = await findBundleOrderProductReferences(
+        tx,
+        [id],
+      );
+      if (bundleOrderReference) {
+        return "Este producto se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.";
+      }
+
+      await tx.delete(products).where(eq(products.id, id));
+      deletedSlug = row?.slug;
+      return null;
     });
-    deletedSlug = row?.slug;
-    await db.delete(products).where(eq(products.id, id));
+    if (blockedMessage) {
+      return { success: false, message: blockedMessage };
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "No se pudo eliminar el producto." };
@@ -1097,12 +1140,39 @@ export async function bulkDeleteProducts(
   let deletedSlugs: string[] = [];
   let deletedCount = 0;
   try {
-    const deletedRows = await db
-      .delete(products)
-      .where(inArray(products.id, ids))
-      .returning({ slug: products.slug });
-    deletedSlugs = deletedRows.map((row) => row.slug);
-    deletedCount = deletedRows.length;
+    const blockedMessage = await db.transaction(async (tx) => {
+      // Same lock-then-check as deleteProduct; id order keeps overlapping bulk
+      // deletes from deadlocking.
+      await tx
+        .select({ id: products.id })
+        .from(products)
+        .where(inArray(products.id, ids))
+        .orderBy(asc(products.id))
+        .for("update");
+
+      const [bundleReference] = await findBundleProductReferences(tx, ids);
+      if (bundleReference) {
+        return `Un producto seleccionado forma parte del combo "${bundleReference.bundleName}". Quitalo del combo antes de eliminarlo.`;
+      }
+      const [bundleOrderReference] = await findBundleOrderProductReferences(
+        tx,
+        ids,
+      );
+      if (bundleOrderReference) {
+        return "Un producto seleccionado se vendió dentro de un combo y esos pedidos lo necesitan. Ocultalo de la tienda en lugar de eliminarlo.";
+      }
+
+      const deletedRows = await tx
+        .delete(products)
+        .where(inArray(products.id, ids))
+        .returning({ slug: products.slug });
+      deletedSlugs = deletedRows.map((row) => row.slug);
+      deletedCount = deletedRows.length;
+      return null;
+    });
+    if (blockedMessage) {
+      return { success: false, message: blockedMessage };
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "No se pudo eliminar los productos." };

@@ -14,6 +14,10 @@ export const RESERVATION_EXPIRATION_HOURS = 120;
 /** Max units of a single product allowed on one cart line (store + guest cart). */
 export const MAX_CART_LINE_QUANTITY = 5;
 export const GUEST_CART_KEY = "glitter_guest_cart";
+/** Guest bundle lines live apart so older guest carts keep parsing. */
+export const GUEST_CART_BUNDLES_KEY = "glitter_guest_cart_bundles";
+/** Distinct bundle configurations a guest cart may hold (server-enforced). */
+export const MAX_GUEST_CART_BUNDLE_LINES = 20;
 
 export const PLACEHOLDER_IMAGE_URLS = {
   "1200": "/img/placeholders/placeholder-1200x1200.png",

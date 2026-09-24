@@ -14,12 +14,14 @@ type CheckoutConfirmButtonProps = {
   hasRentalItems?: boolean;
   rentalFestivalId?: number | null;
   rentalReservationId?: number | null;
+  disabled?: boolean;
 };
 
 export default function CheckoutConfirmButton({
   hasRentalItems = false,
   rentalFestivalId = null,
   rentalReservationId = null,
+  disabled = false,
 }: CheckoutConfirmButtonProps) {
   const [loading, setLoading] = useState(false);
   const isSubmittingRef = useRef(false);
@@ -64,7 +66,7 @@ export default function CheckoutConfirmButton({
   return (
     <Button
       onClick={handleConfirm}
-      disabled={loading}
+      disabled={loading || disabled}
       className="w-full bg-primary hover:bg-primary/90"
       size="lg"
     >

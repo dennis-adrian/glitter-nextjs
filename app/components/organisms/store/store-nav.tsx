@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   BarChart3Icon,
+  GiftIcon,
   PackageIcon,
   LayersIcon,
   ReceiptTextIcon,
@@ -52,6 +53,12 @@ const storeSections = [
     icon: LayersIcon,
   },
   {
+    value: "bundles",
+    label: "Combos",
+    href: "/dashboard/store/bundles",
+    icon: GiftIcon,
+  },
+  {
     value: "rentals",
     label: "Alquileres",
     href: "/dashboard/store/rentals",
@@ -70,6 +77,7 @@ const SCOPED_SECTIONS = ["products", "orders", "analytics"];
 
 function getActiveStoreSection(pathname: string) {
   if (pathname.startsWith("/dashboard/store/collections")) return "collections";
+  if (pathname.startsWith("/dashboard/store/bundles")) return "bundles";
   if (pathname.startsWith("/dashboard/store/products")) return "products";
   if (pathname.startsWith("/dashboard/store/rentals")) return "rentals";
   if (pathname.startsWith("/dashboard/store/payments")) return "payments";
@@ -90,7 +98,8 @@ export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
   const activeRef = useRef<HTMLAnchorElement>(null);
   const sections = storeSections.filter(
     (section) =>
-      !["settings", "collections"].includes(section.value) || isAdmin,
+      !["settings", "collections", "bundles"].includes(section.value) ||
+      isAdmin,
   );
   const category = normalizeStoreCategoryScope(
     searchParams.get(STORE_CATEGORY_SCOPE_PARAM),

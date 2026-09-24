@@ -377,7 +377,6 @@
 
 @utility container {
   margin-inline: auto;
-  min-width: 320px;
   max-width: 100%;
 
   @media (min-width: 768px) {

@@ -2024,6 +2024,20 @@
       "when": 1790185449076,
       "tag": "0289_merch_collection_one_based_order",
       "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1790194581908,
+      "tag": "0290_merch_bundles",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1790222883830,
+      "tag": "0291_merch_bundle_selection_component_idx",
+      "breakpoints": true
     }
   ]
 }

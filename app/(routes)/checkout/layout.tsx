@@ -25,12 +25,14 @@ export default async function CheckoutLayout({
   // Block checkout when any section present in the (server-side) cart is closed.
   // Guest carts live in localStorage and aren't visible here; their closure is
   // enforced in checkoutGuestCart.
-  const sections = items
-    .map((item) => item.product?.storeCategory)
-    .filter(
-      (category): category is StoreSection =>
-        category === "merch" || category === "supplies",
-    );
+  const sections = [
+    ...items.map((item) => item.product?.storeCategory),
+    // Bundles only contain merch.
+    ...(cart?.bundles.length ? ["merch" as const] : []),
+  ].filter(
+    (category): category is StoreSection =>
+      category === "merch" || category === "supplies",
+  );
   const closedSection = await findClosedSection(sections);
 
   if (closedSection) {
@@ -42,7 +44,9 @@ export default async function CheckoutLayout({
     );
   }
 
-  const initialItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const initialItemCount =
+    items.reduce((sum, item) => sum + item.quantity, 0) +
+    (cart?.bundles ?? []).reduce((sum, bundle) => sum + bundle.quantity, 0);
 
   return (
     <CartProvider initialItemCount={initialItemCount} isAuthenticated={!!user}>

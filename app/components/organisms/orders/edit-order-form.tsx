@@ -7,9 +7,17 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
-import { updateOrder, UpdateOrderItemInput } from "@/app/lib/orders/actions";
+import {
+  updateOrder,
+  UpdateOrderBundleInput,
+  UpdateOrderItemInput,
+} from "@/app/lib/orders/actions";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import {
+  getOrderBundleContents,
+  getOrderItemDisplayName,
+  splitOrderItemsByBundle,
+} from "@/app/lib/orders/utils";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 
@@ -18,6 +26,10 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { BaseModal } from "@/app/components/modals/base-modal";
+import EditOrderBundleRow, {
+  bundleTotal,
+  type EditableBundle,
+} from "@/app/components/organisms/orders/edit-order-bundle-row";
 import Heading from "@/app/components/atoms/heading";
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
@@ -37,8 +49,30 @@ type EditableItem = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function initBundles(order: OrderWithRelations): EditableBundle[] {
+  return splitOrderItemsByBundle(order).bundles.map((group) => ({
+    orderBundleId: group.bundle.id,
+    name: group.bundle.nameSnapshot,
+    imageUrl:
+      group.bundle.imageUrlSnapshot ??
+      getProductVariantImageUrl(
+        group.items[0].product,
+        group.items[0].variant,
+      ) ??
+      PLACEHOLDER_IMAGE_URLS["300"],
+    unitPrice: group.bundle.unitPriceCents / 100,
+    originalQuantity: group.wholeQuantity,
+    quantity: group.wholeQuantity ?? 0,
+    paidTotal: group.paidTotal,
+    contents: getOrderBundleContents(group)
+      .map((entry) => `${entry.quantity} × ${entry.label}`)
+      .join(", "),
+    isRemoved: false,
+  }));
+}
+
 function initItems(order: OrderWithRelations): EditableItem[] {
-  return order.orderItems.map((item) => {
+  return splitOrderItemsByBundle(order).items.map((item) => {
     const imageUrl =
       getProductVariantImageUrl(item.product, item.variant) ??
       PLACEHOLDER_IMAGE_URLS["300"];
@@ -193,19 +227,25 @@ export default function EditOrderForm({
   const router = useRouter();
 
   const [items, setItems] = useState<EditableItem[]>(() => initItems(order));
+  const [bundles, setBundles] = useState<EditableBundle[]>(() =>
+    initBundles(order),
+  );
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [conflictError, setConflictError] = useState(false);
 
   // Derived state
-  const isDirty = items.some(
-    (i) => i.isRemoved || i.quantity !== i.originalQuantity,
-  );
+  const isDirty =
+    items.some((i) => i.isRemoved || i.quantity !== i.originalQuantity) ||
+    bundles.some(
+      (b) =>
+        b.isRemoved ||
+        (b.originalQuantity != null && b.quantity !== b.originalQuantity),
+    );
   const activeItems = items.filter((i) => !i.isRemoved);
-  const newTotal = activeItems.reduce(
-    (acc, i) => acc + i.priceAtPurchase * i.quantity,
-    0,
-  );
+  const newTotal =
+    activeItems.reduce((acc, i) => acc + i.priceAtPurchase * i.quantity, 0) +
+    bundles.reduce((acc, b) => acc + bundleTotal(b), 0);
 
   const orderDetailUrl = `/profiles/${profileId}/orders/${order.id}`;
 
@@ -231,17 +271,56 @@ export default function EditOrderForm({
     );
   };
 
+  const promptIfEmpty = (
+    nextItems: EditableItem[],
+    nextBundles: EditableBundle[],
+  ) => {
+    if (
+      nextItems.every((i) => i.isRemoved) &&
+      nextBundles.every((b) => b.isRemoved)
+    ) {
+      setTimeout(() => setShowCancelModal(true), 0);
+    }
+  };
+
   const handleRemoveItem = (id: number) => {
-    setItems((prev) => {
-      const next = prev.map((item) =>
-        item.orderItemId === id ? { ...item, isRemoved: true } : item,
-      );
-      const remaining = next.filter((i) => !i.isRemoved);
-      if (remaining.length === 0) {
-        setTimeout(() => setShowCancelModal(true), 0);
-      }
-      return next;
-    });
+    const next = items.map((item) =>
+      item.orderItemId === id ? { ...item, isRemoved: true } : item,
+    );
+    setItems(next);
+    promptIfEmpty(next, bundles);
+  };
+
+  const handleBundleQuantityChange = (id: number, value: number) => {
+    setBundles((prev) =>
+      prev.map((bundle) =>
+        bundle.orderBundleId === id
+          ? {
+              ...bundle,
+              quantity: Math.min(
+                Math.max(1, value || 1),
+                bundle.originalQuantity ?? 1,
+              ),
+            }
+          : bundle,
+      ),
+    );
+  };
+
+  const handleRemoveBundle = (id: number) => {
+    const next = bundles.map((bundle) =>
+      bundle.orderBundleId === id ? { ...bundle, isRemoved: true } : bundle,
+    );
+    setBundles(next);
+    promptIfEmpty(items, next);
+  };
+
+  const handleUndoRemoveBundle = (id: number) => {
+    setBundles((prev) =>
+      prev.map((bundle) =>
+        bundle.orderBundleId === id ? { ...bundle, isRemoved: false } : bundle,
+      ),
+    );
   };
 
   const handleUndoRemove = (id: number) => {
@@ -270,12 +349,23 @@ export default function EditOrderForm({
       orderItemId: item.orderItemId,
       quantity: item.isRemoved ? 0 : item.quantity,
     }));
+    const bundlePayload: UpdateOrderBundleInput[] = bundles
+      .filter((bundle) => bundle.originalQuantity != null)
+      .map((bundle) => ({
+        orderBundleId: bundle.orderBundleId,
+        quantity: bundle.isRemoved ? 0 : bundle.quantity,
+      }));
     captureClientEvent(POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_STARTED, {
       order_id: order.id,
       actor_role: "customer",
-      changed_line_count: items.filter(
-        (item) => item.isRemoved || item.quantity !== item.originalQuantity,
-      ).length,
+      changed_line_count:
+        items.filter(
+          (item) => item.isRemoved || item.quantity !== item.originalQuantity,
+        ).length +
+        bundles.filter(
+          (bundle) =>
+            bundle.isRemoved || bundle.quantity !== bundle.originalQuantity,
+        ).length,
       has_additions: false,
     });
 
@@ -284,6 +374,7 @@ export default function EditOrderForm({
       profileId,
       payload,
       order.updatedAt.toISOString(),
+      bundlePayload,
     );
 
     setIsSubmitting(false);
@@ -312,6 +403,7 @@ export default function EditOrderForm({
     setShowCancelModal(false);
     // Restore all items so the user is back to a non-empty state
     setItems((prev) => prev.map((i) => ({ ...i, isRemoved: false })));
+    setBundles((prev) => prev.map((b) => ({ ...b, isRemoved: false })));
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -356,6 +448,15 @@ export default function EditOrderForm({
             agregar nuevos productos a un pedido existente.
           </p>
           <div>
+            {bundles.map((bundle) => (
+              <EditOrderBundleRow
+                key={`bundle-${bundle.orderBundleId}`}
+                bundle={bundle}
+                onQuantityChange={handleBundleQuantityChange}
+                onRemove={handleRemoveBundle}
+                onUndoRemove={handleUndoRemoveBundle}
+              />
+            ))}
             {items.map((item) => (
               <EditOrderItemRow
                 key={item.orderItemId}

@@ -22,15 +22,25 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { Form } from "@/app/components/ui/form";
 import { checkoutGuestCart } from "@/app/lib/cart/actions";
 import { storeGuestOrderToken } from "@/app/lib/orders/actions";
-import type { GuestCartItem } from "@/app/lib/cart/definitions";
+import type {
+  GuestCartBundle,
+  GuestCartItem,
+} from "@/app/lib/cart/definitions";
 
 type GuestFormValues = GuestCheckoutContactInput;
 
 type GuestCheckoutFormProps = {
   guestItems: GuestCartItem[];
+  guestBundles?: GuestCartBundle[];
+  /** A cart problem that must be fixed before confirming. */
+  blockingMessage?: string | null;
 };
 
-export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
+export function GuestCheckoutForm({
+  guestItems,
+  guestBundles = [],
+  blockingMessage = null,
+}: GuestCheckoutFormProps) {
   const router = useRouter();
   const isSubmittingRef = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -56,6 +66,13 @@ export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
         values.name,
         values.email,
         values.phone,
+        guestBundles.map((bundle) => ({
+          lineKey: bundle.lineKey,
+          bundleId: bundle.bundleId,
+          bundleVersion: bundle.bundleVersion,
+          quantity: bundle.quantity,
+          selections: bundle.selections,
+        })),
       );
 
       if (result.success && result.orderId && result.guestOrderToken) {
@@ -105,10 +122,19 @@ export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
             />
             <PhoneInput name="phone" label="Número de teléfono" />
 
+            {blockingMessage && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"
+              >
+                {blockingMessage} Revisalo en el carrito antes de confirmar.
+              </p>
+            )}
+
             <div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 z-40 md:static md:border-0 md:px-0 md:py-0 md:bg-transparent">
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !!blockingMessage}
                 className="w-full bg-primary hover:bg-primary/90"
                 size="lg"
               >

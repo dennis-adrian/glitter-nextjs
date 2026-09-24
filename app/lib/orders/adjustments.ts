@@ -1,7 +1,8 @@
 import "server-only";
 
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
+import { cancelEmptyOrderInTx } from "@/app/lib/orders/cancellation";
 import {
   getAddedLineGroupKey,
   type ProjectionAdjustmentLine,
@@ -74,6 +75,11 @@ export type ApplyOrderAdjustmentInput = {
   addedItems?: readonly AddedOrderItemAdjustment[];
   additions?: readonly NewOrderItemAddition[];
   orderReturn?: OrderReturnCreation;
+  /**
+   * Cancel the order in the same transaction when the adjustment leaves it
+   * without lines. Customer edits use it; admins decide for themselves.
+   */
+  cancelWhenEmpty?: boolean;
 };
 
 export type ApplyOrderAdjustmentResult = {
@@ -82,6 +88,8 @@ export type ApplyOrderAdjustmentResult = {
   previousTotal: number;
   totalDelta: number;
   newTotal: number;
+  /** The adjustment emptied the order and `cancelWhenEmpty` cancelled it. */
+  cancelled: boolean;
 };
 
 type ResolvedChange = {
@@ -101,6 +109,30 @@ type ResolvedChange = {
 
 function fail(message: string, cause: string): never {
   throw Object.assign(new Error(message), { cause });
+}
+
+/**
+ * Integer cents of an amount, rounded the way a numeric(10, 2) column stores
+ * it: drizzle sends the number's shortest decimal text and Postgres rounds
+ * that text half away from zero. Checkout stores its float total this way, so
+ * a delta rounded the same way reconciles with it. 50.00000000000001 becomes
+ * 5000, 84.915 becomes 8492, and 1.275 becomes 128 where
+ * `Math.round(1.275 * 100)` gives 127.
+ */
+export function toStoredCents(amount: number): number {
+  if (!Number.isFinite(amount)) {
+    fail("El monto del ajuste es inválido.", "invalid_input");
+  }
+  const text = Math.abs(amount).toString();
+  // Exponent notation only appears below a millionth, which rounds to zero,
+  // or far above what numeric(10, 2) can hold.
+  if (text.includes("e")) return Math.round(amount * 100) || 0;
+  const [whole, fraction = ""] = text.split(".");
+  const cents =
+    Number(whole) * 100 +
+    Number(fraction.slice(0, 2).padEnd(2, "0")) +
+    (Number(fraction[2] ?? 0) >= 5 ? 1 : 0);
+  return amount < 0 && cents > 0 ? -cents : cents;
 }
 
 function aggregateIntegerDeltas<T>(
@@ -204,18 +236,13 @@ export async function applyOrderAdjustmentWithDatabase(
     }
 
     const baseItemIds = [...baseDeltas.keys()];
-    const baseLines: BaseLine[] =
-      baseItemIds.length === 0
-        ? []
-        : await tx
-            .select()
-            .from(orderItems)
-            .where(
-              and(
-                eq(orderItems.orderId, order.id),
-                inArray(orderItems.id, baseItemIds),
-              ),
-            );
+    // Every line of the order, not only the adjusted ones: the new total
+    // depends on whether anything is left to pay.
+    const orderLines: BaseLine[] = await tx
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.id));
+    const baseLines = orderLines.filter((line) => baseDeltas.has(line.id));
     if (baseLines.length !== baseItemIds.length) {
       fail(
         "El ajuste incluye un artículo que no pertenece al pedido.",
@@ -223,26 +250,23 @@ export async function applyOrderAdjustmentWithDatabase(
       );
     }
 
-    const priorBaseRows =
-      baseItemIds.length === 0
-        ? []
-        : await tx
-            .select({
-              baseOrderItemId: orderAdjustmentItems.baseOrderItemId,
-              quantityDelta: sql<number>`cast(coalesce(sum(${orderAdjustmentItems.quantityDelta}), 0) as integer)`,
-            })
-            .from(orderAdjustmentItems)
-            .innerJoin(
-              orderAdjustments,
-              eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
-            )
-            .where(
-              and(
-                eq(orderAdjustments.orderId, order.id),
-                inArray(orderAdjustmentItems.baseOrderItemId, baseItemIds),
-              ),
-            )
-            .groupBy(orderAdjustmentItems.baseOrderItemId);
+    const priorBaseRows = await tx
+      .select({
+        baseOrderItemId: orderAdjustmentItems.baseOrderItemId,
+        quantityDelta: sql<number>`cast(coalesce(sum(${orderAdjustmentItems.quantityDelta}), 0) as integer)`,
+      })
+      .from(orderAdjustmentItems)
+      .innerJoin(
+        orderAdjustments,
+        eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
+      )
+      .where(
+        and(
+          eq(orderAdjustments.orderId, order.id),
+          isNotNull(orderAdjustmentItems.baseOrderItemId),
+        ),
+      )
+      .groupBy(orderAdjustmentItems.baseOrderItemId);
     const priorBaseDeltas = new Map(
       priorBaseRows
         .filter((row) => row.baseOrderItemId != null)
@@ -297,12 +321,15 @@ export async function applyOrderAdjustmentWithDatabase(
       );
     }
     const currentAddedQuantities = new Map<string, number>();
+    // The group key includes the unit price, so each group has exactly one.
+    const addedGroupUnitPrices = new Map<string, number>();
     for (const line of allAddedLines) {
       const key = getAddedLineGroupKey(toProjectionLine(line));
       currentAddedQuantities.set(
         key,
         (currentAddedQuantities.get(key) ?? 0) + line.quantityDelta,
       );
+      addedGroupUnitPrices.set(key, line.unitPriceSnapshot);
     }
     const addedGroupChanges = new Map<
       string,
@@ -479,7 +506,10 @@ export async function applyOrderAdjustmentWithDatabase(
         transactionType: "purchase",
         storeCategorySnapshot: product.storeCategory,
         quantityDelta: addition.quantity,
-        unitPriceSnapshot: getProductPriceAtPurchase(product, variant),
+        // The snapshot column holds cents, so the total uses the price it
+        // stores; removing the line later then takes back exactly what it added.
+        unitPriceSnapshot:
+          toStoredCents(getProductPriceAtPurchase(product, variant)) / 100,
         unitCostSnapshot: resolveUnitCost(product.unitCost, variant?.unitCost),
         rentalStockModeSnapshot: null,
         rentalReturnedQuantity: 0,
@@ -488,14 +518,43 @@ export async function applyOrderAdjustmentWithDatabase(
     if (changes.length === 0)
       fail("No hay cambios para aplicar.", "invalid_input");
 
-    const totalDelta = changes.reduce(
+    // Checkout rounds its float total once, so the float delta is rounded
+    // once too, not per unit: 2 × 10.625 is 21.25 on both sides, where per
+    // unit it would be 21.26 against 21.25 paid. Rounding is not additive
+    // (nor is a float4 unit price exactly checkout's), so a partial change
+    // can still drift a cent; an adjustment that leaves nothing to pay
+    // therefore takes the order to exactly zero, even when free lines remain.
+    const changeAmount = changes.reduce(
       (total, line) => total + line.quantityDelta * line.unitPriceSnapshot,
       0,
     );
+    // What the remaining lines charge for: every line before this change at
+    // its unit price, plus the change itself (lines it adds included).
+    const remainingAmount =
+      orderLines.reduce(
+        (total, line) =>
+          total +
+          (line.quantity + (priorBaseDeltas.get(line.id) ?? 0)) *
+            line.priceAtPurchase,
+        0,
+      ) +
+      [...currentAddedQuantities].reduce(
+        (total, [key, quantity]) =>
+          total + quantity * addedGroupUnitPrices.get(key)!,
+        0,
+      ) +
+      changeAmount;
+    const leavesNothingToPay = toStoredCents(remainingAmount) === 0;
     const previousTotal = order.totalAmount;
-    const newTotal = previousTotal + totalDelta;
-    if (newTotal < 0)
+    const previousTotalCents = toStoredCents(previousTotal);
+    const totalDeltaCents = leavesNothingToPay
+      ? -previousTotalCents || 0
+      : toStoredCents(changeAmount);
+    const newTotalCents = previousTotalCents + totalDeltaCents;
+    if (newTotalCents < 0)
       fail("El total del pedido no puede ser negativo.", "invalid_input");
+    const totalDelta = totalDeltaCents / 100;
+    const newTotal = newTotalCents / 100;
     const [adjustment] = await tx
       .insert(orderAdjustments)
       .values({
@@ -614,12 +673,23 @@ export async function applyOrderAdjustmentWithDatabase(
       );
     }
 
+    const cancelledRevision = input.cancelWhenEmpty
+      ? await cancelEmptyOrderInTx(tx, {
+          orderId: order.id,
+          status: order.status,
+          revision,
+          actorId: input.actorUserId,
+          reason: "emptied_by_adjustment",
+        })
+      : null;
+
     return {
       adjustmentId: adjustment.id,
-      revision,
+      revision: cancelledRevision ?? revision,
       previousTotal,
       totalDelta,
       newTotal,
+      cancelled: cancelledRevision != null,
     };
   });
 }
