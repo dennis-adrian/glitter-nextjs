@@ -233,7 +233,7 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
   beforeAll(async () => {
     // Load application modules only after a dedicated, safely named test DB is
     // present. These values satisfy unrelated app-env validation in isolation.
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";

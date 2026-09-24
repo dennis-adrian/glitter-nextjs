@@ -23,8 +23,14 @@ database names as a safety check.
 
 Keep `GLITTER_TEST_DB_PORT` exported in the same shell. Both commands build the
 connection string from it and `compose.test.yml`'s fixed credentials, so there
-is nothing else to set — and no value in `.env.local` can redirect them at a
-real database.
+is nothing else to set.
+
+`test:integration` also loads `.env.local`, whose `POSTGRES_URL` is what the
+app code under test would use through `@/db`. The script therefore sets both
+`TEST_DATABASE_URL` and `POSTGRES_URL` to the test database, because a variable
+already in the environment wins over the env file. `vitest.integration.setup.ts`
+fails every suite before its imports if the two ever differ. When running a
+suite by hand, set both.
 
 ```bash
 pnpm migrate:test

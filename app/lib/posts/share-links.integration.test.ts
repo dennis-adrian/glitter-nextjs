@@ -110,7 +110,7 @@ async function createOk(postId: number, expiresAt?: unknown) {
 
 describeDatabase("blog share links", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     dbHolder.current = integrationDb as never;
 
     const probe = await pool!.query<{ table: string | null }>(

@@ -9,6 +9,7 @@ export default defineConfig({
     // without this the stale copy runs against the same test database.
     exclude: [...configDefaults.exclude, ".claude/worktrees/**", "e2e/**"],
     environment: "node",
+    setupFiles: ["./vitest.integration.setup.ts"],
     fileParallelism: false,
     maxWorkers: "50%",
     testTimeout: 15_000,

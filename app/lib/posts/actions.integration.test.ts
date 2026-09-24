@@ -119,7 +119,7 @@ async function read(id: number) {
 
 describeDatabase("blog editorial actions", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";

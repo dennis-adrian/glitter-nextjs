@@ -10,7 +10,9 @@
 
 # Integration tests
 
-- `migrate:test` and `test:integration` build their own connection string from `compose.test.yml`'s fixed credentials and `GLITTER_TEST_DB_PORT`. Nothing to export, and `.env.local` cannot redirect them at a real database.
+- `migrate:test` and `test:integration` build their own connection string from `compose.test.yml`'s fixed credentials and `GLITTER_TEST_DB_PORT`. Nothing to export.
+- `test:integration` still loads `.env.local` into the process. Suites write fixtures through `TEST_DATABASE_URL`, but the app code they call uses `@/db`, which reads `POSTGRES_URL`. So the script sets both variables to the test DB, because a variable already in the environment beats the env file. `vitest.integration.setup.ts` fails every suite, before its imports, if the two differ.
+- The guard only runs under `vitest.integration.config.mts` and `vitest.reservations.integration.config.mts`. When running a suite by hand under any other config, set `POSTGRES_URL` to the test DB as well as `TEST_DATABASE_URL`.
 - On a local machine, spin up a disposable Postgres per worktree with Docker. Full procedure: [docs/testing-with-docker-postgres.md](docs/testing-with-docker-postgres.md).
 
 ```bash
