@@ -80,7 +80,7 @@ let seedPublishedIdToRestore: number | null = null;
 
 describeDatabase("festival terms draft save concurrency", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";

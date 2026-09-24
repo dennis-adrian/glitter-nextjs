@@ -105,7 +105,7 @@ async function makePost(audience: PostAudience = "public") {
 
 describeDatabase("blog comments", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     dbHolder.current = integrationDb as never;
 
     const probe = await pool!.query<{ table: string | null }>(

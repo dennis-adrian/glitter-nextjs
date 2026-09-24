@@ -92,7 +92,7 @@ async function makePost(authorId: number, status: PostStatus) {
 
 describeDatabase("detachPostsForDeletedUser", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     dbHolder.current = integrationDb as never;
 
     const probe = await pool!.query<{ posts: string | null }>(

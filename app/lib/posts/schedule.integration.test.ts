@@ -114,7 +114,7 @@ async function read(id: number) {
 
 describeDatabase("scheduled publishing", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     dbHolder.current = integrationDb as never;
 
     const probe = await pool!.query<{ col: string | null }>(
