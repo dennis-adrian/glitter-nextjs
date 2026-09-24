@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { and, asc, desc, eq, inArray, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   cartBundleSelections,
@@ -160,8 +160,26 @@ export async function fetchBundleManagement(): Promise<BundleManagementRow[]> {
   });
 }
 
+/**
+ * A bundle's save token: `updated_at` as text, at the database's microsecond
+ * precision (a JS Date would truncate it to milliseconds), so the value the
+ * editor loads compares exactly with the stored one.
+ */
+export function bundleRevisionSql() {
+  return sql<string>`${merchBundles.updatedAt}::text`;
+}
+
 export async function fetchBundleEditorData(bundleId?: number) {
   await assertAdmin();
+  // The token is read before the definition: a save landing in between makes
+  // this editor's save fail instead of silently undoing that save.
+  const [saved] =
+    bundleId === undefined
+      ? []
+      : await db
+          .select({ revision: bundleRevisionSql() })
+          .from(merchBundles)
+          .where(eq(merchBundles.id, bundleId));
   const [record] =
     bundleId === undefined
       ? [undefined]
@@ -185,7 +203,12 @@ export async function fetchBundleEditorData(bundleId?: number) {
       .from(merchCollections)
       .orderBy(asc(merchCollections.sortOrder), desc(merchCollections.id)),
   ]);
-  return { bundle: record ?? null, products: catalog, collectionOptions };
+  return {
+    bundle: record ?? null,
+    revision: saved?.revision ?? null,
+    products: catalog,
+    collectionOptions,
+  };
 }
 
 /** Published bundles that can currently be sold, in store order. */

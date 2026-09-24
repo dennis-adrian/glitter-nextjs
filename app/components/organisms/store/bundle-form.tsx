@@ -70,10 +70,13 @@ function productFlags(product: BundleCatalogProduct) {
 
 export default function BundleForm({
   bundle,
+  revision,
   products,
   collectionOptions,
 }: {
   bundle?: BundleRecord;
+  /** Save token loaded with `bundle`; the server rejects a stale one. */
+  revision?: string | null;
   products: BundleCatalogProduct[];
   collectionOptions: CollectionOption[];
 }) {
@@ -208,6 +211,7 @@ export default function BundleForm({
         try {
           const result = await saveMerchBundle({
             id: bundle?.id,
+            revision: revision ?? undefined,
             name,
             slug: String(form.get("slug") ?? ""),
             description,

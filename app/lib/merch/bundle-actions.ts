@@ -14,7 +14,11 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import type { BundleRecord } from "./bundle-definitions";
 import { evaluateBundle, toCents } from "./bundle-pricing";
 import { bundleInputSchema, type BundleInput } from "./bundle-schema";
-import { loadBundleCatalog, loadBundleRecords } from "./bundles";
+import {
+  bundleRevisionSql,
+  loadBundleCatalog,
+  loadBundleRecords,
+} from "./bundles";
 
 class BundleSaveError extends Error {}
 
@@ -85,7 +89,13 @@ export async function saveMerchBundle(
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0].message };
   }
-  const { id, components: rawComponents, collectionIds, ...data } = parsed.data;
+  const {
+    id,
+    revision,
+    components: rawComponents,
+    collectionIds,
+    ...data
+  } = parsed.data;
   const components = rawComponents.map((component) => ({
     ...component,
     variantIds: [...new Set(component.variantIds)].sort((a, b) => a - b),
@@ -105,11 +115,18 @@ export async function saveMerchBundle(
       let existing: BundleRecord | undefined;
       if (id !== undefined) {
         const [locked] = await tx
-          .select({ id: merchBundles.id })
+          .select({ id: merchBundles.id, revision: bundleRevisionSql() })
           .from(merchBundles)
           .where(eq(merchBundles.id, id))
           .for("update");
         if (!locked) throw new BundleSaveError("El combo ya no existe.");
+        // Checked under the lock: of two editors holding the same copy, only
+        // the first save lands; the second would silently undo it.
+        if (locked.revision !== revision) {
+          throw new BundleSaveError(
+            "Otra persona guardó este combo mientras lo editabas. Recargá la página para ver sus cambios.",
+          );
+        }
         [existing] = await loadBundleRecords(tx, { ids: [id] });
       }
       const existingComponents = new Map(

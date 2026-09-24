@@ -865,6 +865,16 @@ describeDatabase("bundle checkout", () => {
     return row;
   }
 
+  /** The save token an editor opened now would send back. */
+  async function revisionOf(id: number) {
+    const { bundleRevisionSql } = await import("@/app/lib/merch/bundles");
+    const [row] = await db()
+      .select({ revision: bundleRevisionSql() })
+      .from(merchBundles)
+      .where(eq(merchBundles.id, id));
+    return row.revision;
+  }
+
   it("publishes only valid bundles and versions commercial changes", async () => {
     const fixture = await createFixture();
     signIn(fixture, "admin");
@@ -916,7 +926,9 @@ describeDatabase("bundle checkout", () => {
         ...overrides,
       });
 
-    const published = await saveMerchBundle(withIds({ price: 150 }));
+    const published = await saveMerchBundle(
+      withIds({ price: 150, revision: await revisionOf(draft.bundleId!) }),
+    );
     expect(published.success).toBe(true);
     const afterPrice = await bundleRow(draft.bundleId!);
     expect(afterPrice).toMatchObject({ isVisible: true, price: 150 });
@@ -948,12 +960,26 @@ describeDatabase("bundle checkout", () => {
         ...overrides,
       });
     expect(
-      (await saveMerchBundle(stableInput({ name: "Otro nombre" }))).success,
+      (
+        await saveMerchBundle(
+          stableInput({
+            name: "Otro nombre",
+            revision: await revisionOf(draft.bundleId!),
+          }),
+        )
+      ).success,
     ).toBe(true);
     expect((await bundleRow(draft.bundleId!)).version).toBe(2);
-    expect((await saveMerchBundle(stableInput({ price: 140 }))).success).toBe(
-      true,
-    );
+    expect(
+      (
+        await saveMerchBundle(
+          stableInput({
+            price: 140,
+            revision: await revisionOf(draft.bundleId!),
+          }),
+        )
+      ).success,
+    ).toBe(true);
     expect((await bundleRow(draft.bundleId!)).version).toBe(3);
 
     const foreignVariant = await saveMerchBundle(
@@ -1519,5 +1545,82 @@ describeDatabase("bundle checkout", () => {
       tote: 3,
       stickers: 6,
     });
+  });
+
+  /** The fixture bundle as the editor submits it, with its component ids. */
+  async function fixtureInput(
+    fixture: Fixture,
+    overrides: Record<string, unknown> = {},
+  ) {
+    const components = await db()
+      .select()
+      .from(merchBundleComponents)
+      .where(eq(merchBundleComponents.bundleId, fixture.bundleId))
+      .orderBy(merchBundleComponents.sortOrder);
+    return {
+      id: fixture.bundleId,
+      revision: await revisionOf(fixture.bundleId),
+      name: "Kit fixture",
+      slug: `kit-fixture-${fixture.bundleId}`,
+      description: "",
+      imageUrl: "",
+      price: 150,
+      isVisible: true,
+      sortOrder: 1,
+      collectionIds: [],
+      components: components.map((component) => ({
+        id: component.id,
+        productId: component.productId,
+        quantity: component.quantity,
+        variantIds:
+          component.id === fixture.shirtComponentId
+            ? [fixture.shirtSmallId, fixture.shirtMediumId]
+            : [],
+      })),
+      ...overrides,
+    };
+  }
+
+  it("rejects a save from an editor that loaded an older copy", async () => {
+    const fixture = await createFixture();
+    signIn(fixture, "admin");
+    const { fetchBundleEditorData } = await import("@/app/lib/merch/bundles");
+    // The fixture's updated_at comes from the database clock, in
+    // microseconds: the token must survive the round trip exactly.
+    const loaded = await fetchBundleEditorData(fixture.bundleId);
+    const input = await fixtureInput(fixture, {
+      revision: loaded.revision ?? undefined,
+    });
+    expect((await saveMerchBundle({ ...input, price: 140 })).success).toBe(
+      true,
+    );
+
+    // A second tab opened before that save only edits the description.
+    expect(
+      await saveMerchBundle({ ...input, description: "Otra descripción" }),
+    ).toMatchObject({
+      success: false,
+      message: expect.stringContaining("Otra persona guardó este combo"),
+    });
+    expect(await bundleRow(fixture.bundleId)).toMatchObject({
+      price: 140,
+      description: null,
+      version: 2,
+    });
+    expect(
+      (await saveMerchBundle({ ...input, revision: undefined })).success,
+    ).toBe(false);
+
+    const reloaded = await fetchBundleEditorData(fixture.bundleId);
+    expect(
+      (
+        await saveMerchBundle({
+          ...input,
+          revision: reloaded.revision ?? undefined,
+          price: 140,
+          description: "Otra descripción",
+        })
+      ).success,
+    ).toBe(true);
   });
 });

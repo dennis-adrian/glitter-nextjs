@@ -22,6 +22,8 @@ export const bundleComponentInputSchema = z.object({
 
 export const bundleInputSchema = z.object({
   id: z.number().int().positive().optional(),
+  /** Save token the editor loaded with the bundle; required to update one. */
+  revision: z.string().max(64).optional(),
   name: z.string().trim().min(1, "Escribe un nombre.").max(120),
   slug: z
     .string()
