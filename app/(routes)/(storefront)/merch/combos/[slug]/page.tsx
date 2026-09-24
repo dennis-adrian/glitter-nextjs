@@ -18,12 +18,6 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function absoluteUrl(url: string) {
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  return `${baseUrl}${url}`;
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const bundle = await fetchPublicBundle(decodeURIComponent(slug));
@@ -33,11 +27,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     bundle.description ||
     `Combo de ${formatBundleProductCount(bundle.components)} por ${formatBundleMoneyShort(bundle.priceCents)}.`;
   const url = merchBundlePath(bundle.slug);
-  const image = absoluteUrl(
+  // Relative URLs resolve against the root layout's metadataBase.
+  const image =
     bundle.imageUrl ??
-      bundle.components[0]?.imageUrl ??
-      PLACEHOLDER_IMAGE_URLS["1200"],
-  );
+    bundle.components[0]?.imageUrl ??
+    PLACEHOLDER_IMAGE_URLS["1200"];
   return {
     title,
     description,
