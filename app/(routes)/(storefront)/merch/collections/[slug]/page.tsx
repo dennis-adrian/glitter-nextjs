@@ -19,7 +19,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     collection.description ||
     `Explorá la colección ${collection.name} de Glitter.`;
   const url = merchCollectionPath(collection.slug);
-  const shareImageUrl = `${url}/opengraph-image`;
+  // The share image comes from ./opengraph-image.tsx. Next serves it under a
+  // hashed name because the route sits in route groups, so listing images
+  // here would point crawlers at a URL that does not exist.
   return {
     title,
     description,
@@ -29,20 +31,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       url,
       type: "website",
-      images: [
-        {
-          url: shareImageUrl,
-          width: 1200,
-          height: 630,
-          alt: `Colección ${collection.name} de Glitter`,
-        },
-      ],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [shareImageUrl],
     },
   };
 }
