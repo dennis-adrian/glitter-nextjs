@@ -129,7 +129,36 @@ const bundle = (
 });
 
 describe("allocateBundlePrice", () => {
-  it("allocates the PRD example exactly with deterministic remainders", () => {
+  it("allocates the PRD example exactly, the earlier component winning a tie", () => {
+    // Shirt Bs100 + tote Bs60 + 2 × stickers Bs10 = Bs180, sold for Bs150:
+    // shirt and each sticker both floor with remainder 6000 of 18000.
+    const tiers = allocateBundlePrice(15000, [
+      { key: "shirt", unitListCents: 10000, units: 1 },
+      { key: "tote", unitListCents: 6000, units: 1 },
+      { key: "stickers", unitListCents: 1000, units: 2 },
+    ]);
+    expect(tiers).toEqual([
+      { key: "shirt", unitListCents: 10000, paidUnitCents: 8334, units: 1 },
+      { key: "tote", unitListCents: 6000, paidUnitCents: 5000, units: 1 },
+      { key: "stickers", unitListCents: 1000, paidUnitCents: 833, units: 2 },
+    ]);
+    // Listed first, the stickers win the same tie instead.
+    expect(
+      allocateBundlePrice(15000, [
+        { key: "stickers", unitListCents: 1000, units: 2 },
+        { key: "shirt", unitListCents: 10000, units: 1 },
+        { key: "tote", unitListCents: 6000, units: 1 },
+      ]),
+    ).toEqual([
+      { key: "stickers", unitListCents: 1000, paidUnitCents: 834, units: 1 },
+      { key: "stickers", unitListCents: 1000, paidUnitCents: 833, units: 1 },
+      { key: "shirt", unitListCents: 10000, paidUnitCents: 8333, units: 1 },
+      { key: "tote", unitListCents: 6000, paidUnitCents: 5000, units: 1 },
+    ]);
+  });
+
+  it("gives the leftover cent to the largest remainder", () => {
+    // One Bs20 sticker pack instead: remainders 6000, 0 and 12000.
     const tiers = allocateBundlePrice(15000, [
       { key: "shirt", unitListCents: 10000, units: 1 },
       { key: "tote", unitListCents: 6000, units: 1 },
