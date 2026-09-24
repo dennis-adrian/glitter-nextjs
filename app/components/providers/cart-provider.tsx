@@ -194,6 +194,19 @@ function writeGuestBundles(bundles: GuestCartBundle[]) {
   }
 }
 
+const GUEST_CART_CLEARED_EVENT = "glitter:guest-cart-cleared";
+
+/**
+ * Empties the persisted guest cart (products and bundles) once an order took
+ * it, and tells providers mounted in this page to drop their copy; other tabs
+ * follow through the `storage` event.
+ */
+export function clearPersistedGuestCart() {
+  writeGuestCart([]);
+  writeGuestBundles([]);
+  window.dispatchEvent(new Event(GUEST_CART_CLEARED_EVENT));
+}
+
 export function CartProvider({
   initialItemCount,
   isAuthenticated,
@@ -217,6 +230,31 @@ export function CartProvider({
       setGuestBundles(readGuestBundles());
     }
     setGuestCartHydrated(true);
+  }, [isAuthenticated]);
+
+  // Another tab (or the payment page) may change or empty the stored cart;
+  // re-read it so a stale copy here never writes purchased lines back.
+  useEffect(() => {
+    if (isAuthenticated) return;
+    const reload = () => {
+      setGuestItems(readGuestCart());
+      setGuestBundles(readGuestBundles());
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (
+        event.key === null ||
+        event.key === GUEST_CART_KEY ||
+        event.key === GUEST_CART_BUNDLES_KEY
+      ) {
+        reload();
+      }
+    };
+    window.addEventListener(GUEST_CART_CLEARED_EVENT, reload);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(GUEST_CART_CLEARED_EVENT, reload);
+      window.removeEventListener("storage", onStorage);
+    };
   }, [isAuthenticated]);
 
   // Guest counts derive from both line kinds; authenticated counts come from
