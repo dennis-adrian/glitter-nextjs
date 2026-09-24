@@ -1402,6 +1402,79 @@ describeDatabase("bundle checkout", () => {
     expect(await stockOf(fixture)).toEqual(before);
   });
 
+  it("records returned bundle components at their paid allocation", async () => {
+    const fixture = await createFixture();
+    const result = await buy(fixture, [], [bundleRequest(fixture)]);
+    await db()
+      .update(orders)
+      .set({ status: "delivered" })
+      .where(eq(orders.id, result.orderId));
+    signIn(fixture, "admin");
+    const { adminReturnOrder } = await import("@/app/lib/orders/actions");
+    const order = (await fetchOrder(result.orderId))!;
+    const shirt = order.orderItems.find(
+      (item) => item.productId === fixture.shirtId,
+    )!;
+    const stickers = order.orderItems.find(
+      (item) => item.productId === fixture.stickersId,
+    )!;
+
+    const returned = await adminReturnOrder({
+      orderId: result.orderId,
+      items: [
+        { orderItemId: shirt.id, quantity: 1 },
+        { orderItemId: stickers.id, quantity: 1 },
+      ],
+      reason: "Talla equivocada",
+      expectedRevision: order.revision,
+    });
+
+    // 83.34 for the shirt plus 8.33 for one sticker, not their list prices.
+    expect(returned).toMatchObject({ success: true, refundAmount: 91.67 });
+    const [returnRecord] = await db()
+      .select()
+      .from(orderReturns)
+      .where(eq(orderReturns.orderId, result.orderId));
+    expect(returnRecord).toMatchObject({
+      status: "received",
+      reason: "Talla equivocada",
+      refundAmount: 91.67,
+    });
+    const returnItems = await db()
+      .select()
+      .from(schema.orderReturnItems)
+      .where(eq(schema.orderReturnItems.returnId, returnRecord.id))
+      .orderBy(schema.orderReturnItems.id);
+    const allocations = new Map(
+      (await orderSnapshot(result.orderId)).items.map((row) => [
+        row.item.id,
+        row.allocation!.paidUnitPriceCents,
+      ]),
+    );
+    expect(
+      returnItems.map((item) => [
+        item.orderItemId,
+        item.productId,
+        item.quantity,
+        Math.round(item.unitPriceSnapshot * 100),
+      ]),
+    ).toEqual([
+      [shirt.id, fixture.shirtId, 1, allocations.get(shirt.id)],
+      [stickers.id, fixture.stickersId, 1, allocations.get(stickers.id)],
+    ]);
+    expect(
+      returnItems.reduce(
+        (sum, item) =>
+          sum + Math.round(item.unitPriceSnapshot * 100) * item.quantity,
+        0,
+      ),
+    ).toBe(Math.round(returnRecord.refundAmount * 100));
+    expect((await orderSnapshot(result.orderId)).order.totalAmount).toBe(
+      58.33,
+    );
+    expect(await stockOf(fixture)).toMatchObject({ medium: 5, stickers: 9 });
+  });
+
   it("rejects duplicate or fractional bundle entries in a customer edit", async () => {
     const fixture = await createFixture();
     const result = await buy(
