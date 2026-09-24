@@ -8,6 +8,8 @@ export type MerchCollection = {
   campaignTextTone?: "dark" | "light";
   showInHero?: boolean;
   productIds: number[];
+  /** Sellable bundles assigned to the collection. */
+  bundleIds?: number[];
 };
 
 export type CollectionOption = { id: number; name: string };

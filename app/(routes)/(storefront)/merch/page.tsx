@@ -2,6 +2,7 @@ import MerchStorefront from "@/app/components/organisms/store/merch-storefront";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import { fetchProducts } from "@/app/lib/products/actions";
 import { fetchMerchCollections } from "@/app/lib/merch/collections";
+import { fetchPublicBundles } from "@/app/lib/merch/bundles";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { notFound, redirect } from "next/navigation";
 import { merchCollectionPath } from "@/app/lib/merch/paths";
@@ -38,15 +39,17 @@ async function MerchCatalog({
       `${merchCollectionPath(collection.slug)}${filters.size ? `?${filters}` : ""}`,
     );
   }
-  const [products, collections, eligibility] = await Promise.all([
+  const [products, collections, bundles, eligibility] = await Promise.all([
     fetchProducts("default", { visibleOnly: true, storeCategory: "merch" }),
     fetchMerchCollections(),
+    fetchPublicBundles(),
     getRentalEligibilityForCurrentUser().catch(() => null),
   ]);
   return (
     <MerchStorefront
       products={products}
       collections={collections}
+      bundles={bundles}
       rentalEligible={eligibility?.eligible ?? false}
       rentalContexts={eligibility?.eligible ? eligibility.contexts : []}
     />

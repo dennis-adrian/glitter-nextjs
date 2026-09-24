@@ -19,10 +19,7 @@ import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
 } from "@/app/lib/orders/query-schema";
-import {
-  getOrderItemDisplayName,
-  getOrderStatusLabel,
-} from "@/app/lib/orders/utils";
+import { getOrderLineLabel, getOrderStatusLabel } from "@/app/lib/orders/utils";
 import {
   getStoreCategoryBadgeLabel,
   type StoreCategoryScope,
@@ -119,7 +116,7 @@ function OrderCard({
 
   const itemsPreview = order.orderItems
     .slice(0, 2)
-    .map((item) => `${item.quantity}× ${getOrderItemDisplayName(item)}`)
+    .map((item) => `${item.quantity}× ${getOrderLineLabel(item)}`)
     .join(", ");
   const extraItems =
     order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";

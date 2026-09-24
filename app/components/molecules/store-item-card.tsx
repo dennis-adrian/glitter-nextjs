@@ -17,7 +17,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { addToCart } from "@/app/lib/cart/actions";
-import { buildCartLineKey } from "@/app/lib/cart/utils";
+import { buildCartLineKey, productLineCapNotice } from "@/app/lib/cart/utils";
 import {
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
@@ -182,7 +182,7 @@ export default function StoreItemCard({
 
           setItemCount(newCount);
         } else {
-          addGuestItem({
+          const { added, lineCapped } = addGuestItem({
             lineKey: buildCartLineKey(product.id, productVariantId),
             productId: product.id,
             productVariantId,
@@ -193,6 +193,12 @@ export default function StoreItemCard({
             product,
             variant: singleVariant,
           });
+          if (added === 0) {
+            toast.error(
+              lineCapped ? productLineCapNotice(0) : "No hay stock disponible.",
+            );
+            return;
+          }
         }
 
         toast.success("Producto agregado al carrito");

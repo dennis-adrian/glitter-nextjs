@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import MerchStorefront from "@/app/components/organisms/store/merch-storefront";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import { fetchPublicMerchCollection } from "@/app/lib/merch/collections";
+import { fetchPublicBundles } from "@/app/lib/merch/bundles";
 import { merchCollectionPath } from "@/app/lib/merch/paths";
 import { fetchProducts } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
@@ -18,7 +19,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     collection.description ||
     `Explorá la colección ${collection.name} de Glitter.`;
   const url = merchCollectionPath(collection.slug);
-  const shareImageUrl = `${url}/opengraph-image`;
+  // The share image comes from ./opengraph-image.tsx. Next serves it under a
+  // hashed name because the route sits in route groups, so listing images
+  // here would point crawlers at a URL that does not exist.
   return {
     title,
     description,
@@ -28,20 +31,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       url,
       type: "website",
-      images: [
-        {
-          url: shareImageUrl,
-          width: 1200,
-          height: 630,
-          alt: `Colección ${collection.name} de Glitter`,
-        },
-      ],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [shareImageUrl],
     },
   };
 }
@@ -49,8 +43,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 async function CollectionCatalog({ slug }: { slug: string }) {
   const collection = await fetchPublicMerchCollection(slug);
   if (!collection) notFound();
-  const [products, eligibility] = await Promise.all([
+  const [products, bundles, eligibility] = await Promise.all([
     fetchProducts("default", { visibleOnly: true, storeCategory: "merch" }),
+    fetchPublicBundles(),
     getRentalEligibilityForCurrentUser().catch(() => null),
   ]);
   return (
@@ -60,6 +55,9 @@ async function CollectionCatalog({ slug }: { slug: string }) {
       )}
       collections={[collection]}
       collection={collection}
+      bundles={bundles.filter((bundle) =>
+        bundle.collectionIds.includes(collection.id),
+      )}
       rentalEligible={eligibility?.eligible ?? false}
       rentalContexts={eligibility?.eligible ? eligibility.contexts : []}
     />

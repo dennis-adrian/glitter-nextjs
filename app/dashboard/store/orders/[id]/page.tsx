@@ -20,7 +20,11 @@ import {
   fetchOrderActivity,
   fetchOrderReturns,
 } from "@/app/lib/orders/actions";
-import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import OrderBundleGroupRow from "@/app/components/molecules/order-bundle-group";
+import {
+  getOrderItemDisplayName,
+  splitOrderItemsByBundle,
+} from "@/app/lib/orders/utils";
 import { STORE_CATEGORY_BADGE_LABELS } from "@/app/lib/store/category";
 import { fetchRentalReturnLogs } from "@/app/lib/rentals/return-actions";
 import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
@@ -230,7 +234,15 @@ export default async function OrderDetailPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {order.orderItems.map((item) => {
+              {splitOrderItemsByBundle(order).bundles.map((group) => (
+                <div
+                  key={`bundle-${group.bundle.id}`}
+                  className="border-b pb-1 last:border-b-0"
+                >
+                  <OrderBundleGroupRow group={group} showListPrices />
+                </div>
+              ))}
+              {splitOrderItemsByBundle(order).items.map((item) => {
                 const imageUrl = getProductVariantImageUrl(
                   item.product,
                   item.variant,

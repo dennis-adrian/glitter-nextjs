@@ -1,14 +1,18 @@
 import "server-only";
 
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
+import type { OrderStatus } from "@/app/lib/orders/definitions";
 import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
+import { canCancelOrderStatus } from "@/app/lib/orders/status-transitions";
 import { restoreLineStockInTx } from "@/app/lib/rentals/order-stock";
 import { db } from "@/db";
 import {
   orderAdjustmentItems,
   orderAdjustments,
+  orderEvents,
   orderItems,
+  orders,
   products,
   productVariants,
 } from "@/db/schema";
@@ -82,11 +86,10 @@ export async function restoreEffectiveOrderStockInTx(
   await restoreEffectiveOrdersStockInTx(tx, [orderId]);
 }
 
-export async function restoreEffectiveOrdersStockInTx(
+async function loadRestorableOrderLines(
   tx: OrderTx,
   orderIds: readonly number[],
 ) {
-  if (orderIds.length === 0) return;
   const baseItems = await tx
     .select()
     .from(orderItems)
@@ -102,11 +105,15 @@ export async function restoreEffectiveOrdersStockInTx(
       eq(orderAdjustmentItems.adjustmentId, orderAdjustments.id),
     )
     .where(inArray(orderAdjustments.orderId, orderIds));
-  const effectiveItems = projectRestorableOrderLines(
-    orderIds,
-    baseItems,
-    adjustmentRows,
-  );
+  return projectRestorableOrderLines(orderIds, baseItems, adjustmentRows);
+}
+
+export async function restoreEffectiveOrdersStockInTx(
+  tx: OrderTx,
+  orderIds: readonly number[],
+) {
+  if (orderIds.length === 0) return;
+  const effectiveItems = await loadRestorableOrderLines(tx, orderIds);
 
   const productIds = [
     ...new Set(effectiveItems.map((item) => item.productId)),
@@ -136,4 +143,45 @@ export async function restoreEffectiveOrdersStockInTx(
   }
 
   for (const item of effectiveItems) await restoreLineStockInTx(tx, item);
+}
+
+/**
+ * Cancels an order that has no effective lines left, the way an admin
+ * cancellation does: status, a new revision and a `cancelled` event. It
+ * checks the same projection a cancellation restores stock from, so an empty
+ * order has nothing to restore: the adjustments that emptied it already
+ * returned every unit. Returns the new revision, or null when lines remain or
+ * the status cannot be cancelled. The caller holds the order row lock.
+ */
+export async function cancelEmptyOrderInTx(
+  tx: OrderTx,
+  input: {
+    orderId: number;
+    status: OrderStatus;
+    revision: number;
+    actorId: number | null;
+    reason: string;
+  },
+): Promise<number | null> {
+  if (!canCancelOrderStatus(input.status)) return null;
+  const remaining = await loadRestorableOrderLines(tx, [input.orderId]);
+  if (remaining.length > 0) return null;
+
+  const revision = input.revision + 1;
+  await tx
+    .update(orders)
+    .set({ status: "cancelled", revision, updatedAt: sql`now()` })
+    .where(eq(orders.id, input.orderId));
+  await tx.insert(orderEvents).values({
+    orderId: input.orderId,
+    type: "cancelled",
+    revision,
+    actorId: input.actorId,
+    payload: {
+      previousStatus: input.status,
+      status: "cancelled",
+      reason: input.reason,
+    },
+  });
+  return revision;
 }

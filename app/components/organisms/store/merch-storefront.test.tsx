@@ -64,7 +64,7 @@ it("links featured and remaining collections without repeating the hero card", (
     screen
       .getByRole("link", { name: "Explorar colección" })
       .getAttribute("href"),
-  ).toBe("/merch/collections/clasicos");
+  ).toBe("/merch/collections/clasicos#catalogo");
   expect(
     screen
       .getByRole("link", { name: "Pequeñas alegrías" })
@@ -230,4 +230,59 @@ it("keeps store filters as the product return context without showing counts", (
   );
   expect(screen.queryByText("1 colección")).toBeNull();
   expect(screen.queryByText("2 productos")).toBeNull();
+});
+
+const bundle = {
+  id: 9,
+  name: "Kit Clásicos",
+  slug: "kit-clasicos",
+  description: null,
+  imageUrl: "/img/seed-merch/clasicos-cover.png",
+  version: 1,
+  sortOrder: 1,
+  collectionIds: [1],
+  priceCents: 15000,
+  separateMinCents: 18000,
+  separateMaxCents: 18000,
+  inStock: true,
+  components: [],
+};
+
+it("shows a Combos section linking each bundle with its saving", () => {
+  render(
+    <MerchStorefront
+      products={products}
+      collections={[collection]}
+      bundles={[bundle]}
+    />,
+  );
+  const section = screen.getByRole("region", { name: "Combos" });
+  const link = section.querySelector("a")!;
+  expect(link.getAttribute("href")).toBe(
+    "/merch/combos/kit-clasicos?returnTo=%2Fmerch%23combos",
+  );
+  expect(link.textContent).toContain("Bs150");
+  expect(link.textContent).toContain("Ahorrás Bs30");
+});
+
+it("omits the Combos section when no bundle can be sold", () => {
+  render(<MerchStorefront products={products} collections={[collection]} />);
+  expect(screen.queryByRole("region", { name: "Combos" })).toBeNull();
+});
+
+it("shows only bundles on a collection page without products", () => {
+  render(
+    <MerchStorefront
+      products={[]}
+      collections={[collection]}
+      collection={collection}
+      bundles={[bundle]}
+    />,
+  );
+  expect(
+    screen.getByRole("region", { name: "Combos de la colección" }),
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole("heading", { name: "Productos de la colección" }),
+  ).toBeNull();
 });

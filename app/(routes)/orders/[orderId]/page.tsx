@@ -4,9 +4,11 @@ import Link from "next/link";
 import { z } from "zod";
 import { BoxIcon, ClockIcon, CreditCardIcon } from "lucide-react";
 import { fetchGuestOrder } from "@/app/lib/orders/actions";
+import OrderBundleGroupRow from "@/app/components/molecules/order-bundle-group";
 import {
   getOrderItemDisplayName,
   getOrderStatusLabel,
+  splitOrderItemsByBundle,
 } from "@/app/lib/orders/utils";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
@@ -76,7 +78,13 @@ export default async function GuestOrderPage(props: {
               Artículos
             </Heading>
             <div className="divide-y">
-              {order.orderItems.map((item) => {
+              {splitOrderItemsByBundle(order).bundles.map((group) => (
+                <OrderBundleGroupRow
+                  key={`bundle-${group.bundle.id}`}
+                  group={group}
+                />
+              ))}
+              {splitOrderItemsByBundle(order).items.map((item) => {
                 const imageUrl =
                   getProductVariantImageUrl(item.product, item.variant) ??
                   PLACEHOLDER_IMAGE_URLS["300"];

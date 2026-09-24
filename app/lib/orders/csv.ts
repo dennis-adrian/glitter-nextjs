@@ -44,6 +44,11 @@ type CsvOrderItem = {
   unitCostAtPurchase: number | null;
   transactionType: "purchase" | "rental";
   storeCategoryAtPurchase: StoreCategory;
+  /** Set on bundle component lines; their price is the paid allocation. */
+  bundleAllocation?: {
+    listUnitPriceCents: number;
+    orderBundle: { id: number; nameSnapshot: string };
+  } | null;
 };
 
 type CsvOrder = {
@@ -64,9 +69,11 @@ type CsvOrder = {
 
 function displayName(item: CsvOrderItem): string {
   const name = item.productNameAtPurchase ?? item.product.name;
-  return item.productVariantLabel
+  const label = item.productVariantLabel
     ? `${name} (${item.productVariantLabel})`
     : name;
+  const bundleName = item.bundleAllocation?.orderBundle.nameSnapshot;
+  return bundleName ? `${label} [combo ${bundleName}]` : label;
 }
 
 function customerName(order: CsvOrder): string {
@@ -176,6 +183,9 @@ export function serializeOrderLineItemsCsv(
       "gross_profit_bs",
       "gross_margin_percent",
       "cost_status",
+      "bundle_line_id",
+      "bundle_name",
+      "individual_unit_price_bs",
     ],
     ...orders.flatMap((order) =>
       scopedItems(order, scope).map((item) => {
@@ -207,6 +217,11 @@ export function serializeOrderLineItemsCsv(
             ? ""
             : ((profit / revenue) * 100).toFixed(2),
           isRental ? "unavailable" : cost == null ? "missing" : "known",
+          item.bundleAllocation?.orderBundle.id ?? "",
+          item.bundleAllocation?.orderBundle.nameSnapshot ?? "",
+          item.bundleAllocation
+            ? (item.bundleAllocation.listUnitPriceCents / 100).toFixed(2)
+            : "",
         ];
       }),
     ),

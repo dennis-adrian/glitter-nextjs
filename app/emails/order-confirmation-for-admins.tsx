@@ -25,6 +25,8 @@ interface AdminOrderNotificationEmailProps {
     availableDate: Date | null;
     status: "available" | "presale" | "sale";
     transactionType?: "purchase" | "rental";
+    /** Contents of a bundle, e.g. "2 × Stickers". */
+    components?: string[];
   }[];
   total: number;
 }
@@ -83,8 +85,8 @@ export default function OrderConfirmationForAdminsEmailTemplate(
                 </tr>
               </thead>
               <tbody>
-                {props.products.map((p) => (
-                  <tr key={p.id}>
+                {props.products.map((p, index) => (
+                  <tr key={`${p.id}-${index}`}>
                     <td>
                       <div
                         style={{
@@ -95,6 +97,11 @@ export default function OrderConfirmationForAdminsEmailTemplate(
                         {p.name}
                         {p.transactionType === "rental" && " (Alquiler)"}{" "}
                       </div>
+                      {p.components?.map((component) => (
+                        <div key={component} style={{ ...styles.textSmall }}>
+                          {component}
+                        </div>
+                      ))}
                       {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>
                           {p.availableDate

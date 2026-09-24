@@ -6,7 +6,7 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { Button } from "@/app/components/ui/button";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getOrderLineLabel } from "@/app/lib/orders/utils";
 import OrderVoucherReviewDialog from "@/app/components/organisms/orders/order-voucher-review-dialog";
 
 export const voucherColumnTitles = {
@@ -70,7 +70,7 @@ export const voucherColumns: ColumnDef<OrderWithRelations>[] = [
   {
     id: "items",
     accessorFn: (row) =>
-      row.orderItems.map((item) => getOrderItemDisplayName(item)).join(", "),
+      row.orderItems.map((item) => getOrderLineLabel(item)).join(", "),
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
@@ -84,7 +84,7 @@ export const voucherColumns: ColumnDef<OrderWithRelations>[] = [
             <span className="font-medium text-foreground">
               {item.quantity}x
             </span>{" "}
-            {getOrderItemDisplayName(item)}
+            {getOrderLineLabel(item)}
           </li>
         ))}
       </ul>

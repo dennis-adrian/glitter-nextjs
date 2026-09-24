@@ -192,3 +192,37 @@ describe("profitability export serializer", () => {
     expect(csv).toContain('"30.00","","","","missing","paid"');
   });
 });
+
+describe("bundle lines in CSV exports", () => {
+  const bundleOrder = {
+    ...sampleOrders[0],
+    id: 173,
+    orderItems: [
+      {
+        ...sampleOrders[0].orderItems[0],
+        quantity: 1,
+        priceAtPurchase: 83.34,
+        bundleAllocation: {
+          listUnitPriceCents: 10000,
+          orderBundle: { id: 5, nameSnapshot: "Kit Clásicos" },
+        },
+      },
+    ],
+  };
+
+  it("keeps the paid allocation as revenue and names the bundle", () => {
+    const csv = serializeOrderLineItemsCsv([bundleOrder]);
+    const [header, row] = csv.split("\n");
+    expect(header).toContain(
+      '"bundle_line_id","bundle_name","individual_unit_price_bs"',
+    );
+    expect(row).toContain('"83.34","83.34"');
+    expect(row).toContain('"5","Kit Clásicos","100.00"');
+  });
+
+  it("marks bundle lines in the order summary", () => {
+    expect(serializeOrdersSummaryCsv([bundleOrder])).toContain(
+      "1x Polera (Personaje: Antonieta) [combo Kit Clásicos]",
+    );
+  });
+});

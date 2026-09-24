@@ -1,7 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { db as Database } from "@/db";
 import {
   festivals,
+  merchBundleCollections,
+  merchBundleComponents,
+  merchBundleComponentVariants,
+  merchBundles,
   merchCollections,
   merchCollectionProducts,
   productImages,
@@ -221,6 +225,109 @@ export async function seedMerch(database: typeof Database) {
         })),
       );
     }
-    return { createdProducts, createdCollections };
+
+    // Separate prices: polera 100 + tote 60 + 2 × stickers 20 (sale) = 200;
+    // stickers 20 + pin 30 + print 45 = 95. The print is sold out, so the
+    // second bundle demonstrates an unavailable combo.
+    const bundles = [
+      {
+        slug: "demo-kit-clasicos",
+        name: "Kit Clásicos Glitter",
+        description:
+          "Polera, tote y stickers para llevar Glitter a todas partes. Combo de demostración.",
+        price: 165,
+        isVisible: true,
+        collectionSlugs: ["demo-clasicos"],
+        components: [
+          { key: "polera", quantity: 1 },
+          { key: "tote", quantity: 1 },
+          { key: "stickers", quantity: 2 },
+        ],
+      },
+      {
+        slug: "demo-combo-alegrias",
+        name: "Combo Pequeñas alegrías",
+        description:
+          "Stickers, pin y print para regalar. Combo de demostración agotado.",
+        price: 80,
+        isVisible: true,
+        collectionSlugs: ["demo-colaboraciones"],
+        components: [
+          { key: "stickers", quantity: 1 },
+          { key: "pin", quantity: 1 },
+          { key: "print", quantity: 1 },
+        ],
+      },
+      {
+        slug: "demo-combo-borrador",
+        name: "Combo en preparación (demo oculto)",
+        description: "Combo en borrador para verificar la visibilidad.",
+        price: 80,
+        isVisible: false,
+        collectionSlugs: [],
+        components: [
+          { key: "tote", quantity: 1 },
+          { key: "pin", quantity: 1 },
+        ],
+      },
+    ];
+    let createdBundles = 0;
+    for (const [sortOrder, bundle] of bundles.entries()) {
+      const { components, collectionSlugs, ...values } = bundle;
+      const [created] = await tx
+        .insert(merchBundles)
+        .values({ ...values, sortOrder: sortOrder + 1 })
+        .onConflictDoNothing({ target: merchBundles.slug })
+        .returning({ id: merchBundles.id });
+      if (!created) continue;
+      createdBundles++;
+      for (const [index, component] of components.entries()) {
+        const productId = productIds.get(component.key)!;
+        const [row] = await tx
+          .insert(merchBundleComponents)
+          .values({
+            bundleId: created.id,
+            productId,
+            quantity: component.quantity,
+            sortOrder: index,
+          })
+          .returning({ id: merchBundleComponents.id });
+        // Every visible size is eligible; the customer picks one. A hidden
+        // size stays out, or unhiding it later would add it to the combo.
+        const variants = await tx
+          .select({ id: productVariants.id })
+          .from(productVariants)
+          .where(
+            and(
+              eq(productVariants.productId, productId),
+              eq(productVariants.isVisible, true),
+            ),
+          );
+        if (variants.length) {
+          await tx.insert(merchBundleComponentVariants).values(
+            variants.map((variant) => ({
+              componentId: row.id,
+              productId,
+              variantId: variant.id,
+            })),
+          );
+        }
+      }
+      if (collectionSlugs.length) {
+        const memberships = await tx
+          .select({ id: merchCollections.id })
+          .from(merchCollections)
+          .where(inArray(merchCollections.slug, collectionSlugs));
+        if (memberships.length) {
+          await tx.insert(merchBundleCollections).values(
+            memberships.map((collection) => ({
+              bundleId: created.id,
+              collectionId: collection.id,
+            })),
+          );
+        }
+      }
+    }
+    return { createdProducts, createdCollections, createdBundles };
   });
 }

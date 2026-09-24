@@ -12,7 +12,11 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { fetchOrder, fetchGuestOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { formatDisplayDate } from "@/app/lib/formatters";
-import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import OrderBundleGroupRow from "@/app/components/molecules/order-bundle-group";
+import {
+  getOrderItemDisplayName,
+  splitOrderItemsByBundle,
+} from "@/app/lib/orders/utils";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
@@ -119,37 +123,46 @@ export default async function OrderPaymentPage(props: {
               Resumen del pedido
             </p>
             <div className="space-y-3">
-              {order.orderItems.map((item: OrderItemWithRelations) => {
-                const imageUrl =
-                  getProductVariantImageUrl(item.product, item.variant) ??
-                  PLACEHOLDER_IMAGE_URLS["300"];
-                const unitPrice = item.priceAtPurchase;
+              {splitOrderItemsByBundle(order).bundles.map((group) => (
+                <OrderBundleGroupRow
+                  key={`bundle-${group.bundle.id}`}
+                  group={group}
+                  imageSize={40}
+                />
+              ))}
+              {splitOrderItemsByBundle(order).items.map(
+                (item: OrderItemWithRelations) => {
+                  const imageUrl =
+                    getProductVariantImageUrl(item.product, item.variant) ??
+                    PLACEHOLDER_IMAGE_URLS["300"];
+                  const unitPrice = item.priceAtPurchase;
 
-                return (
-                  <div key={item.id} className="flex gap-3 items-center">
-                    <div className="shrink-0 w-10 h-10 rounded overflow-hidden bg-muted">
-                      <Image
-                        src={imageUrl}
-                        alt={item.product.name}
-                        width={40}
-                        height={40}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {getOrderItemDisplayName(item)}
+                  return (
+                    <div key={item.id} className="flex gap-3 items-center">
+                      <div className="shrink-0 w-10 h-10 rounded overflow-hidden bg-muted">
+                        <Image
+                          src={imageUrl}
+                          alt={item.product.name}
+                          width={40}
+                          height={40}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {getOrderItemDisplayName(item)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.quantity} × Bs {unitPrice.toFixed(2)}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold shrink-0">
+                        Bs {(item.priceAtPurchase * item.quantity).toFixed(2)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.quantity} × Bs {unitPrice.toFixed(2)}
-                      </p>
                     </div>
-                    <p className="text-sm font-semibold shrink-0">
-                      Bs {(item.priceAtPurchase * item.quantity).toFixed(2)}
-                    </p>
-                  </div>
-                );
-              })}
+                  );
+                },
+              )}
               <div className="flex justify-between font-semibold pt-2 border-t">
                 <span>Total</span>
                 <span>Bs {order.totalAmount.toFixed(2)}</span>

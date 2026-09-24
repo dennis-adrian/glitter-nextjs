@@ -10,7 +10,7 @@ import {
   formatDisplayDate,
 } from "@/app/lib/formatters";
 import { AdminOrderListRow } from "@/app/lib/orders/definitions";
-import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getOrderLineLabel } from "@/app/lib/orders/utils";
 import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
@@ -136,7 +136,7 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
   {
     id: "items",
     accessorFn: (row) => {
-      const items = row.orderItems.map((item) => getOrderItemDisplayName(item));
+      const items = row.orderItems.map((item) => getOrderLineLabel(item));
       return items.join(", ");
     },
     header: ({ column }) => (
@@ -147,7 +147,7 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
         <ul className="flex flex-col gap-2">
           {row.original.orderItems.map((item) => (
             <li key={item.id}>
-              {item.quantity} x {getOrderItemDisplayName(item)}
+              {item.quantity} x {getOrderLineLabel(item)}
             </li>
           ))}
         </ul>

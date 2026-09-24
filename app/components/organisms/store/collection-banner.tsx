@@ -16,6 +16,24 @@ export default function CollectionBanner({
   const campaign = collection.campaignImageUrl;
   const lightText = !!campaign && collection.campaignTextTone === "light";
   const Heading = preview ? "h4" : "h1";
+  // A collection holding only bundles has no product catalog to land on.
+  const section =
+    collection.productIds.length === 0 && (collection.bundleIds?.length ?? 0) > 0
+      ? "#combos"
+      : "#catalogo";
+  const href = isCollectionPage
+    ? section
+    : `${merchCollectionPath(collection.slug)}${section}`;
+  // The whole banner leads where its button does. The button stays the one
+  // accessible link; this layer only widens the click target.
+  const bannerLink = preview ? null : (
+    <Link
+      href={href}
+      tabIndex={-1}
+      aria-hidden="true"
+      className="absolute inset-0"
+    />
+  );
   const copy = (
     <>
       <Heading className="font-display text-4xl leading-tight tracking-tight sm:text-5xl lg:text-6xl">
@@ -32,19 +50,15 @@ export default function CollectionBanner({
         asChild
         size="sm"
         className={
-          lightText ? "mt-6 bg-white text-brand-ink hover:bg-white/90" : "mt-6"
+          lightText
+            ? "relative z-10 mt-6 bg-white text-brand-ink hover:bg-white/90"
+            : "relative z-10 mt-6"
         }
       >
         {preview ? (
           <span aria-hidden="true">Explorar colección</span>
         ) : (
-          <Link
-            href={
-              isCollectionPage
-                ? "#catalogo"
-                : merchCollectionPath(collection.slug)
-            }
-          >
+          <Link href={href}>
             {isCollectionPage ? "Ver productos" : "Explorar colección"}
           </Link>
         )}
@@ -83,6 +97,7 @@ export default function CollectionBanner({
         <div className="relative p-6 md:flex md:min-h-[360px] md:w-1/2 md:flex-col md:items-start md:justify-center md:p-9 lg:min-h-[460px] lg:p-12">
           {copy}
         </div>
+        {bannerLink}
       </section>
     );
   }
@@ -90,7 +105,7 @@ export default function CollectionBanner({
   return (
     <section
       aria-label={`Colección ${collection.name}`}
-      className="flex flex-col-reverse overflow-hidden rounded-2xl bg-brand-lavender text-brand-ink md:grid md:grid-cols-2"
+      className="relative isolate flex flex-col-reverse overflow-hidden rounded-2xl bg-brand-lavender text-brand-ink md:grid md:grid-cols-2"
     >
       <div className="flex flex-col items-start justify-center p-6 md:p-9 lg:p-12">
         {copy}
@@ -108,6 +123,7 @@ export default function CollectionBanner({
           className="object-contain p-6"
         />
       </div>
+      {bannerLink}
     </section>
   );
 }

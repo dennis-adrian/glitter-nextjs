@@ -15,7 +15,11 @@ import { Badge } from "@/app/components/ui/badge";
 import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import OrderBundleGroupRow from "@/app/components/molecules/order-bundle-group";
+import {
+  getOrderItemDisplayName,
+  splitOrderItemsByBundle,
+} from "@/app/lib/orders/utils";
 import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
 import {
   deriveRentalStatus,
@@ -56,6 +60,7 @@ export default async function UserOrderPage(props: {
   const hasPresaleItems = order.orderItems.some(
     (item: OrderItemWithRelations) => item.product.status === "presale",
   );
+  const groupedItems = splitOrderItemsByBundle(order);
 
   return (
     <div className={`container p-3 md:p-6${canPay ? " pb-32 lg:pb-0" : ""}`}>
@@ -80,7 +85,12 @@ export default async function UserOrderPage(props: {
             </h2>
 
             <div className="divide-y">
-              {order.orderItems.map((item: OrderItemWithRelations) => {
+              {groupedItems.bundles.map((group) => (
+                <div key={`bundle-${group.bundle.id}`} className="py-1">
+                  <OrderBundleGroupRow group={group} imageSize={80} />
+                </div>
+              ))}
+              {groupedItems.items.map((item: OrderItemWithRelations) => {
                 const rentalStatus = deriveRentalStatus({
                   transactionType: item.transactionType,
                   quantity: item.quantity,

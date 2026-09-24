@@ -215,21 +215,28 @@ export default function AdminAdjustOrderForm({
               <p className="text-sm text-muted-foreground">
                 Bs {item.priceAtPurchase.toFixed(2)} c/u
                 {item.adjustmentItemId != null ? " · agregado por ajuste" : ""}
+                {item.bundleAllocation &&
+                  ` · combo ${item.bundleAllocation.orderBundle.nameSnapshot} (solo se puede reducir)`}
               </p>
             </div>
             <Input
               aria-label={`Cantidad de ${getOrderItemDisplayName(item)}`}
               className="w-24 text-base"
               min={0}
+              max={item.bundleAllocation ? item.quantity : undefined}
               step={1}
               type="number"
               value={quantities[item.id] ?? item.quantity}
               onChange={(event) =>
                 setQuantities((current) => ({
                   ...current,
-                  [item.id]: Math.max(
-                    0,
-                    Math.trunc(Number(event.target.value)) || 0,
+                  [item.id]: Math.min(
+                    Math.max(0, Math.trunc(Number(event.target.value)) || 0),
+                    // Bundle components were paid at a bundle allocation;
+                    // extra units are added as individual products.
+                    item.bundleAllocation
+                      ? item.quantity
+                      : Number.MAX_SAFE_INTEGER,
                   ),
                 }))
               }

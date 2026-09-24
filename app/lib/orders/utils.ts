@@ -9,6 +9,8 @@ import {
 } from "@/app/lib/store/category";
 import {
   AdminOrderListRow,
+  OrderBundleWithItems,
+  OrderItemWithRelations,
   OrderStatus,
   OrderWithRelations,
 } from "./definitions";
@@ -148,4 +150,113 @@ export function getOrderItemDisplayName(item: {
   }
 
   return `${productName} (${item.productVariantLabel})`;
+}
+
+/** Display name for compact order lists, naming the bundle a line belongs to. */
+export function getOrderLineLabel(
+  item: Parameters<typeof getOrderItemDisplayName>[0] & {
+    bundleAllocation?: { orderBundle: { nameSnapshot: string } } | null;
+  },
+): string {
+  const name = getOrderItemDisplayName(item);
+  const bundleName = item.bundleAllocation?.orderBundle.nameSnapshot;
+  return bundleName ? `${name} · Combo ${bundleName}` : name;
+}
+
+export type OrderBundleGroup = {
+  bundle: OrderBundleWithItems;
+  /** Current (effective) component lines. */
+  items: OrderItemWithRelations[];
+  /**
+   * Complete bundles still in the order, or null once single components were
+   * adjusted and the lines no longer form whole bundles.
+   */
+  wholeQuantity: number | null;
+  /** What the remaining component lines cost, from their paid allocations. */
+  paidTotal: number;
+};
+
+/**
+ * Splits effective order lines into bundle groups and individual lines.
+ * Groups whose components were all removed are dropped.
+ */
+export function splitOrderItemsByBundle(
+  order: Pick<OrderWithRelations, "orderItems" | "bundles">,
+): { bundles: OrderBundleGroup[]; items: OrderItemWithRelations[] } {
+  const bundles = order.bundles ?? [];
+  const bundleByItemId = new Map<number, OrderBundleWithItems>();
+  for (const bundle of bundles) {
+    for (const allocation of bundle.items) {
+      bundleByItemId.set(allocation.orderItemId, bundle);
+    }
+  }
+  const itemsById = new Map(order.orderItems.map((item) => [item.id, item]));
+  const groups = bundles.flatMap((bundle) => {
+    const items = bundle.items
+      .map((allocation) => itemsById.get(allocation.orderItemId))
+      .filter((item): item is OrderItemWithRelations => item != null);
+    if (items.length === 0) return [];
+    const counts = bundle.items.map((allocation) => {
+      const quantity = itemsById.get(allocation.orderItemId)?.quantity ?? 0;
+      return quantity / allocation.unitsPerBundle;
+    });
+    const wholeQuantity =
+      counts.every((count) => count === counts[0]) &&
+      Number.isInteger(counts[0])
+        ? counts[0]
+        : null;
+    return [
+      {
+        bundle,
+        items,
+        wholeQuantity,
+        paidTotal: items.reduce(
+          (sum, item) => sum + item.priceAtPurchase * item.quantity,
+          0,
+        ),
+      },
+    ];
+  });
+  return {
+    bundles: groups,
+    items: order.orderItems.filter((item) => !bundleByItemId.has(item.id)),
+  };
+}
+
+export type OrderBundleContent = {
+  key: string;
+  label: string;
+  quantity: number;
+};
+
+/**
+ * What a bundle holds, one entry per product and variant. Whole bundles list
+ * the units in one bundle, so the text holds whatever the quantity; a bundle
+ * whose components were adjusted lists what is left of it. A component whose
+ * units were allocated different cents spans two lines but is one entry.
+ */
+export function getOrderBundleContents(
+  group: OrderBundleGroup,
+): OrderBundleContent[] {
+  const itemsById = new Map(group.items.map((item) => [item.id, item]));
+  const contents = new Map<string, OrderBundleContent>();
+  const allocations = [...group.bundle.items].sort(
+    (a, b) => a.orderItemId - b.orderItemId,
+  );
+  for (const allocation of allocations) {
+    const item = itemsById.get(allocation.orderItemId);
+    if (!item) continue;
+    const quantity =
+      group.wholeQuantity == null ? item.quantity : allocation.unitsPerBundle;
+    const key = JSON.stringify([item.productId, item.productVariantId]);
+    const existing = contents.get(key);
+    if (existing) existing.quantity += quantity;
+    else
+      contents.set(key, {
+        key,
+        label: getOrderItemDisplayName(item),
+        quantity,
+      });
+  }
+  return [...contents.values()];
 }

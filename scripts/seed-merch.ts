@@ -10,7 +10,7 @@ async function main() {
   try {
     const result = await seedMerch(db);
     console.info(
-      `[seed] merch: ${result.createdProducts} products, ${result.createdCollections} collections created; existing fixtures preserved.`,
+      `[seed] merch: ${result.createdProducts} products, ${result.createdCollections} collections, ${result.createdBundles} bundles created; existing fixtures preserved.`,
     );
   } finally {
     await pool.end();
