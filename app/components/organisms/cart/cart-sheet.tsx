@@ -261,9 +261,13 @@ export default function CartSheet() {
       ) +
       guestDisplayBundles.reduce(
         (sum, { bundle, line }) =>
-          sum +
-          ((line?.unitPriceCents || bundle.unitPriceCents) * bundle.quantity) /
-            100,
+          // Rows show no price for a bundle that cannot be bought.
+          line?.issue === "unavailable"
+            ? sum
+            : sum +
+              ((line?.unitPriceCents || bundle.unitPriceCents) *
+                bundle.quantity) /
+                100,
         0,
       );
     // A checkout attempt's findings last until the lines change; live limits
@@ -342,7 +346,9 @@ export default function CartSheet() {
                     }
                     imageUrl={line?.imageUrl ?? bundle.imageUrl}
                     unitPriceCents={
-                      line?.unitPriceCents || bundle.unitPriceCents
+                      line?.issue === "unavailable"
+                        ? null
+                        : line?.unitPriceCents || bundle.unitPriceCents
                     }
                     separateUnitPriceCents={
                       line?.separateUnitPriceCents ||
