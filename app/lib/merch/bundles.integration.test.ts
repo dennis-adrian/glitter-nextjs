@@ -2,7 +2,7 @@
 
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 import {
   afterAll,
   afterEach,
@@ -379,10 +379,23 @@ async function cleanupFixture(fixture: Fixture) {
 
 describeDatabase("bundle checkout", () => {
   beforeAll(async () => {
-    process.env.POSTGRES_URL ??= testDatabaseUrl;
+    // Forced, not `??=`: `node --env-file-if-exists=.env.local` has already
+    // set POSTGRES_URL, and the production modules below (saveMerchBundle,
+    // deleteProduct, checkoutCart…) query `@/db`, not the fixture pool.
+    process.env.POSTGRES_URL = testDatabaseUrl!;
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
+    // `@/db` keeps its pool on `globalThis` and reads the URL once, so a pool
+    // or env parse from before the assignment above would still win.
+    const { pool: appPool } = await import("@/db");
+    const appPoolUrl = (appPool as Pool & { options: PoolConfig }).options
+      .connectionString;
+    if (appPoolUrl !== testDatabaseUrl) {
+      throw new Error(
+        "The app's database pool does not target TEST_DATABASE_URL; refusing to run production modules against it.",
+      );
+    }
     ({ createOrderInTx, createGuestOrderInTx } =
       await import("@/app/lib/orders/actions"));
     ({ applyOrderAdjustmentWithDatabase } =
