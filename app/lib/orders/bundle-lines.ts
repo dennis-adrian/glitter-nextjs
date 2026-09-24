@@ -15,10 +15,15 @@ import {
 } from "@/app/lib/merch/bundle-pricing";
 import { MAX_CART_BUNDLE_QUANTITY } from "@/app/lib/merch/bundle-schema";
 import { loadBundleRecords } from "@/app/lib/merch/bundles";
+import { validateCombinedSharedStockDemand } from "@/app/lib/rentals/order-stock";
+import { getStockPoolForTransaction } from "@/app/lib/rentals/stock";
+import type { ProductTransactionType } from "@/app/lib/rentals/types";
 import { db } from "@/db";
-import { merchBundles } from "@/db/schema";
+import { merchBundles, products, productVariants } from "@/db/schema";
 
 type OrderTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type ProductRow = typeof products.$inferSelect;
+type VariantRow = typeof productVariants.$inferSelect;
 
 /** A bundle line as submitted from a cart. Prices never come from clients. */
 export type BundleOrderRequest = {
@@ -156,6 +161,66 @@ export function bundleDemandLines(bundles: readonly ResolvedOrderBundle[]) {
       transactionType: "purchase" as const,
     })),
   );
+}
+
+/**
+ * Names each bundle component whose sale stock cannot cover the order's
+ * combined demand, once per stock pool. A pool an individual line already
+ * checked is skipped, since that line reports the shortage itself. The key
+ * includes the pool: a rental line with separate rental stock never looked at
+ * the sale stock its product's bundle components draw from.
+ */
+export function bundleComponentStockErrors(
+  bundles: readonly ResolvedOrderBundle[],
+  individualLines: readonly {
+    product: ProductRow;
+    productVariantId: number | null;
+    transactionType: ProductTransactionType;
+  }[],
+  demandLines: Parameters<typeof validateCombinedSharedStockDemand>[0],
+  productMap: ReadonlyMap<number, ProductRow>,
+  variantMap: ReadonlyMap<number, VariantRow>,
+): string[] {
+  const poolKey = (
+    pool: "sale" | "rental",
+    productId: number,
+    productVariantId: number | null,
+  ) => JSON.stringify([pool, productId, productVariantId]);
+  const reported = new Set(
+    individualLines.map((line) =>
+      poolKey(
+        getStockPoolForTransaction(line.product, line.transactionType),
+        line.product.id,
+        line.productVariantId,
+      ),
+    ),
+  );
+  const errors: string[] = [];
+  for (const bundle of bundles) {
+    for (const component of bundle.components) {
+      const key = poolKey(
+        "sale",
+        component.productId,
+        component.productVariantId,
+      );
+      if (reported.has(key)) continue;
+      reported.add(key);
+      const product = productMap.get(component.productId)!;
+      const variant =
+        component.productVariantId != null
+          ? (variantMap.get(component.productVariantId) ?? null)
+          : null;
+      if (
+        validateCombinedSharedStockDemand(demandLines, product, variant) < 0
+      ) {
+        const label = component.variantLabel
+          ? `${product.name} (${component.variantLabel})`
+          : product.name;
+        errors.push(`${label} del combo ${bundle.name} - stock insuficiente`);
+      }
+    }
+  }
+  return errors;
 }
 
 /**

@@ -55,6 +55,7 @@ import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-vouc
 import { getVariantLabel } from "@/app/lib/products/variants";
 import { loadBundleCatalog } from "@/app/lib/merch/bundles";
 import {
+  bundleComponentStockErrors,
   bundleDemandLines,
   bundleLockTargets,
   describeOrderBundle,
@@ -596,36 +597,15 @@ async function resolveOrderLines(
     });
   }
 
-  const reported = new Set(
-    normalizedLines.map((line) =>
-      JSON.stringify([line.productId, line.productVariantId ?? null]),
+  stockValidationErrors.push(
+    ...bundleComponentStockErrors(
+      resolvedBundles,
+      resolvedLines,
+      demandLines,
+      productMap,
+      variantMap,
     ),
   );
-  for (const bundle of resolvedBundles) {
-    for (const component of bundle.components) {
-      const key = JSON.stringify([
-        component.productId,
-        component.productVariantId,
-      ]);
-      if (reported.has(key)) continue;
-      reported.add(key);
-      const product = productMap.get(component.productId)!;
-      const variant =
-        component.productVariantId != null
-          ? (variantMap.get(component.productVariantId) ?? null)
-          : null;
-      if (
-        validateCombinedSharedStockDemand(demandLines, product, variant) < 0
-      ) {
-        const label = component.variantLabel
-          ? `${product.name} (${component.variantLabel})`
-          : product.name;
-        stockValidationErrors.push(
-          `${label} del combo ${bundle.name} - stock insuficiente`,
-        );
-      }
-    }
-  }
 
   if (stockValidationErrors.length > 0) {
     throw new Error(`Stock insuficiente: ${stockValidationErrors.join(", ")}`, {
