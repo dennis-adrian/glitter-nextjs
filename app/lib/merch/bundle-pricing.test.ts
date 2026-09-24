@@ -3,7 +3,10 @@ import type {
   BaseProductWithImages,
   ProductVariantWithSelections,
 } from "@/app/lib/products/definitions";
-import type { BundleRecord } from "./bundle-definitions";
+import type {
+  BundleRecord,
+  EvaluatedBundleComponent,
+} from "./bundle-definitions";
 import {
   aggregateStockDemand,
   allocateBundlePrice,
@@ -11,6 +14,7 @@ import {
   bundleHasStock,
   bundleSaveEvaluationOptions,
   evaluateBundle,
+  findStockedCombination,
   maxBundleQuantity,
   resolveBundleSelection,
   toCents,
@@ -472,6 +476,112 @@ describe("bundle stock", () => {
       { mode: "sale" },
     );
     expect(bundleHasStock(soldOut.components)).toBe(false);
+  });
+
+  /** Components of one shirt with sizes S (id 11) and M (id 12). */
+  const shirtComponent = (
+    componentId: number,
+    sizes: ("S" | "M")[],
+    stock: { S: number; M: number },
+    quantity = 1,
+  ): EvaluatedBundleComponent => ({
+    componentId,
+    productId: 1,
+    productName: "Polera",
+    productSlug: "polera",
+    productStatus: "available",
+    productAvailableDate: null,
+    imageUrl: null,
+    quantity,
+    choice: sizes.length > 1 ? "choice" : "fixed",
+    options: sizes.map((size) => ({
+      variantId: size === "S" ? 11 : 12,
+      label: `Talla: ${size}`,
+      unitPriceCents: 10000,
+      stock: stock[size],
+      imageUrl: null,
+    })),
+  });
+  const toteComponent: EvaluatedBundleComponent = {
+    ...shirtComponent(3, ["S"], { S: 0, M: 0 }),
+    productId: 2,
+    choice: "none",
+    options: [
+      {
+        variantId: null,
+        label: null,
+        unitPriceCents: 6000,
+        stock: 3,
+        imageUrl: null,
+      },
+    ],
+  };
+
+  it("adds up every component's demand on a shared size", () => {
+    const has = (...components: EvaluatedBundleComponent[]) =>
+      bundleHasStock([...components, toteComponent]);
+    // A fixed S and a choice of S or M need two units when only S is left.
+    expect(
+      has(
+        shirtComponent(1, ["S"], { S: 1, M: 0 }),
+        shirtComponent(2, ["S", "M"], { S: 1, M: 0 }),
+      ),
+    ).toBe(false);
+    expect(
+      has(
+        shirtComponent(1, ["S", "M"], { S: 1, M: 0 }),
+        shirtComponent(2, ["S", "M"], { S: 1, M: 0 }),
+      ),
+    ).toBe(false);
+    expect(
+      has(
+        shirtComponent(1, ["S", "M"], { S: 2, M: 0 }),
+        shirtComponent(2, ["S", "M"], { S: 2, M: 0 }),
+      ),
+    ).toBe(true);
+    expect(
+      has(
+        shirtComponent(1, ["S", "M"], { S: 1, M: 1 }),
+        shirtComponent(2, ["S", "M"], { S: 1, M: 1 }),
+      ),
+    ).toBe(true);
+    // Two units of one component must come from a single size.
+    expect(has(shirtComponent(1, ["S", "M"], { S: 1, M: 1 }, 2))).toBe(false);
+  });
+
+  it("finds the combination that stock can serve together", () => {
+    const found = findStockedCombination([
+      shirtComponent(1, ["S", "M"], { S: 1, M: 1 }),
+      shirtComponent(2, ["S"], { S: 1, M: 1 }),
+      toteComponent,
+    ]);
+    expect(found.outcome).toBe("found");
+    if (found.outcome !== "found") return;
+    // The fixed S takes the last S, so the choice falls back to M.
+    expect(found.options.map((option) => option.variantId)).toEqual([
+      12,
+      11,
+      null,
+    ]);
+  });
+
+  it("stops searching huge bundles and leaves the answer to checkout", () => {
+    // Eleven components of 11–21 units over ten sizes of 21 units: any two
+    // overflow a size, so none fits, but only after trying 10! placements.
+    const components = Array.from({ length: 11 }, (_, index) => ({
+      productId: 1,
+      quantity: 11 + index,
+      options: Array.from({ length: 10 }, (_, size) => ({
+        variantId: 100 + size,
+        label: null,
+        unitPriceCents: 1000,
+        stock: 21,
+        imageUrl: null,
+      })),
+    }));
+    const started = performance.now();
+    expect(findStockedCombination(components).outcome).toBe("gave_up");
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 });
 

@@ -184,3 +184,41 @@ it("reports a sold-out bundle", () => {
       .disabled,
   ).toBe(true);
 });
+
+it("starts on a combination the shared stock can serve", () => {
+  // A fixed S and a choice of S or M on one shirt with a single S left: the
+  // first size in stock for both would need two S.
+  const shirt = bundle.components[0];
+  render(
+    <BundleDetail
+      bundle={{
+        ...bundle,
+        components: [
+          {
+            ...shirt,
+            componentId: 20,
+            choice: "fixed",
+            options: [option(101, "Talla: S", 1, 10000)],
+          },
+          {
+            ...shirt,
+            componentId: 21,
+            options: [
+              option(101, "Talla: S", 1, 10000),
+              option(102, "Talla: M", 1, 10000),
+            ],
+          },
+          bundle.components[1],
+        ],
+      }}
+    />,
+  );
+  expect((screen.getByLabelText("M") as HTMLInputElement).checked).toBe(true);
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Agregar combo al carrito",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false);
+});

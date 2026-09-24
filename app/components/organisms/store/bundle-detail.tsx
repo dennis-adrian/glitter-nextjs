@@ -24,6 +24,7 @@ import type {
   PublicBundle,
 } from "@/app/lib/merch/bundle-definitions";
 import {
+  findStockedCombination,
   formatBundleMoneyShort,
   maxBundleQuantity,
   resolveBundleSelection,
@@ -32,7 +33,7 @@ import { MAX_CART_BUNDLE_QUANTITY } from "@/app/lib/merch/bundle-schema";
 import { cn } from "@/lib/utils";
 
 function initialSelections(bundle: PublicBundle) {
-  return Object.fromEntries(
+  const firstInStock = Object.fromEntries(
     bundle.components
       .filter((component) => component.choice === "choice")
       .map((component) => {
@@ -44,6 +45,29 @@ function initialSelections(bundle: PublicBundle) {
           (inStock ?? component.options[0])?.variantId ?? null,
         ];
       }),
+  ) as Record<number, number | null>;
+  // Components of one product compete for its stock: the first size in stock
+  // of each may not be buyable together (two shirts on the last S). Start on
+  // a combination the stock can serve instead.
+  const resolved = resolveBundleSelection(
+    bundle,
+    Object.entries(firstInStock).flatMap(([componentId, variantId]) =>
+      variantId == null
+        ? []
+        : [{ componentId: Number(componentId), productVariantId: variantId }],
+    ),
+  );
+  if (resolved.ok && maxBundleQuantity(resolved.components) > 0) {
+    return firstInStock;
+  }
+  const stocked = findStockedCombination(bundle.components);
+  if (stocked.outcome !== "found") return firstInStock;
+  return Object.fromEntries(
+    bundle.components.flatMap((component, index) =>
+      component.choice === "choice"
+        ? [[component.componentId, stocked.options[index].variantId]]
+        : [],
+    ),
   ) as Record<number, number | null>;
 }
 

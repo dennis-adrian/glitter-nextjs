@@ -436,33 +436,141 @@ export function maxBundleQuantity(
   return Number.isFinite(max) ? max : 0;
 }
 
+/** Search steps after which the stock search gives up (see below). */
+const STOCK_SEARCH_STEP_LIMIT = 100_000;
+
+export type StockedCombination =
+  | { outcome: "found"; options: BundleComponentOption[] }
+  | { outcome: "none" }
+  | { outcome: "gave_up" };
+
+type StockCandidate = { option: BundleComponentOption; pool: string };
+
+/** Components whose options share a stock pool, directly or through others. */
+function componentsSharingStock(
+  candidates: readonly StockCandidate[][],
+): number[][] {
+  const parent = candidates.map((_, index) => index);
+  const root = (index: number): number => {
+    while (parent[index] !== index) index = parent[index];
+    return index;
+  };
+  const poolOwner = new Map<string, number>();
+  candidates.forEach((list, index) => {
+    for (const { pool } of list) {
+      const owner = poolOwner.get(pool);
+      if (owner === undefined) poolOwner.set(pool, index);
+      else parent[root(index)] = root(owner);
+    }
+  });
+  const groups = new Map<number, number[]>();
+  candidates.forEach((_, index) => {
+    const key = root(index);
+    groups.set(key, [...(groups.get(key) ?? []), index]);
+  });
+  return [...groups.values()];
+}
+
+/**
+ * Finds one option per component that the stock can serve together: demand is
+ * summed per stock pool across every component, fixed and choice, since
+ * components of one product compete for the same units (two shirt components
+ * cannot both take the last S).
+ *
+ * Exact backtracking. Options that cannot cover their own component are
+ * dropped first, components that share no pool are searched separately, and
+ * interchangeable components (same quantity and options) are tried in one
+ * order only. Each group of components sharing stock therefore costs at most
+ * the product of its components' option counts (4 × 4 = 16 combinations for
+ * two shirt components with four sizes each), and a fixed component or one
+ * with its own product costs one step. Only bundles far larger than any real
+ * kit reach STOCK_SEARCH_STEP_LIMIT; the search then reports "gave_up" and
+ * callers treat the bundle as available, since the cart and checkout check
+ * the chosen combination exactly.
+ */
+export function findStockedCombination(
+  components: readonly Pick<
+    EvaluatedBundleComponent,
+    "productId" | "quantity" | "options"
+  >[],
+): StockedCombination {
+  if (components.length === 0) return { outcome: "none" };
+  const stockByPool = new Map<string, number>();
+  const candidates = components.map((component) =>
+    component.options.flatMap((option) => {
+      const pool = stockResourceKey(component.productId, option.variantId);
+      stockByPool.set(pool, option.stock);
+      return option.stock >= component.quantity ? [{ option, pool }] : [];
+    }),
+  );
+  if (candidates.some((list) => list.length === 0)) return { outcome: "none" };
+
+  // Same shape: interchangeable, so only non-decreasing picks are tried.
+  const shapes = candidates.map(
+    (list, index) =>
+      `${components[index].quantity}|${list.map((c) => c.pool).join(",")}`,
+  );
+  const chosen: BundleComponentOption[] = [];
+  let steps = 0;
+  for (const group of componentsSharingStock(candidates)) {
+    const pools = new Set(
+      group.flatMap((index) => candidates[index].map((c) => c.pool)),
+    );
+    const demand = group.reduce(
+      (sum, index) => sum + components[index].quantity,
+      0,
+    );
+    const supply = [...pools].reduce(
+      (sum, pool) => sum + (stockByPool.get(pool) ?? 0),
+      0,
+    );
+    if (demand > supply) return { outcome: "none" };
+
+    // Most constrained first; identical components end up adjacent.
+    const order = [...group].sort(
+      (a, b) =>
+        candidates[a].length - candidates[b].length ||
+        components[b].quantity - components[a].quantity ||
+        shapes[a].localeCompare(shapes[b]),
+    );
+    const remaining = new Map(stockByPool);
+    const picks: number[] = [];
+    const search = (depth: number): boolean | null => {
+      if (depth === order.length) return true;
+      if (++steps > STOCK_SEARCH_STEP_LIMIT) return null;
+      const index = order[depth];
+      const { quantity } = components[index];
+      const first =
+        depth > 0 && shapes[order[depth - 1]] === shapes[index]
+          ? picks[depth - 1]
+          : 0;
+      for (let pick = first; pick < candidates[index].length; pick += 1) {
+        const { pool } = candidates[index][pick];
+        const left = remaining.get(pool) ?? 0;
+        if (left < quantity) continue;
+        remaining.set(pool, left - quantity);
+        picks[depth] = pick;
+        const found = search(depth + 1);
+        remaining.set(pool, left);
+        if (found !== false) return found;
+      }
+      return false;
+    };
+    const found = search(0);
+    if (found === null) return { outcome: "gave_up" };
+    if (!found) return { outcome: "none" };
+    order.forEach((index, depth) => {
+      chosen[index] = candidates[index][picks[depth]].option;
+    });
+  }
+  return { outcome: "found", options: chosen };
+}
+
 /** Whether at least one bundle can be bought with some allowed combination. */
 export function bundleHasStock(
   components: readonly EvaluatedBundleComponent[],
 ) {
-  if (components.length === 0) return false;
-  // Components sharing a product compete for the same pools; check every
-  // pool against the combined demand of the options that could draw from it.
-  const fixedDemand = new Map<string, { stock: number; demand: number }>();
-  for (const component of components) {
-    const sellable = component.options.filter(
-      (option) => option.stock >= component.quantity,
-    );
-    if (sellable.length === 0) return false;
-    if (component.options.length === 1) {
-      const [option] = component.options;
-      const key = stockResourceKey(component.productId, option.variantId);
-      const current = fixedDemand.get(key) ?? {
-        stock: option.stock,
-        demand: 0,
-      };
-      current.demand += component.quantity;
-      fixedDemand.set(key, current);
-    }
-  }
-  return [...fixedDemand.values()].every(
-    (entry) => entry.stock >= entry.demand,
-  );
+  return findStockedCombination(components).outcome !== "none";
 }
 
 export type AllocationInput = {
