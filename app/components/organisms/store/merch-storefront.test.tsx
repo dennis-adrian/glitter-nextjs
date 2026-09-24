@@ -64,7 +64,7 @@ it("links featured and remaining collections without repeating the hero card", (
     screen
       .getByRole("link", { name: "Explorar colección" })
       .getAttribute("href"),
-  ).toBe("/merch/collections/clasicos");
+  ).toBe("/merch/collections/clasicos#catalogo");
   expect(
     screen
       .getByRole("link", { name: "Pequeñas alegrías" })
