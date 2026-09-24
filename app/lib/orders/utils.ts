@@ -222,3 +222,41 @@ export function splitOrderItemsByBundle(
     items: order.orderItems.filter((item) => !bundleByItemId.has(item.id)),
   };
 }
+
+export type OrderBundleContent = {
+  key: string;
+  label: string;
+  quantity: number;
+};
+
+/**
+ * What a bundle holds, one entry per product and variant. Whole bundles list
+ * the units in one bundle, so the text holds whatever the quantity; a bundle
+ * whose components were adjusted lists what is left of it. A component whose
+ * units were allocated different cents spans two lines but is one entry.
+ */
+export function getOrderBundleContents(
+  group: OrderBundleGroup,
+): OrderBundleContent[] {
+  const itemsById = new Map(group.items.map((item) => [item.id, item]));
+  const contents = new Map<string, OrderBundleContent>();
+  const allocations = [...group.bundle.items].sort(
+    (a, b) => a.orderItemId - b.orderItemId,
+  );
+  for (const allocation of allocations) {
+    const item = itemsById.get(allocation.orderItemId);
+    if (!item) continue;
+    const quantity =
+      group.wholeQuantity == null ? item.quantity : allocation.unitsPerBundle;
+    const key = JSON.stringify([item.productId, item.productVariantId]);
+    const existing = contents.get(key);
+    if (existing) existing.quantity += quantity;
+    else
+      contents.set(key, {
+        key,
+        label: getOrderItemDisplayName(item),
+        quantity,
+      });
+  }
+  return [...contents.values()];
+}

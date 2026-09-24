@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getOrderBundleContents,
   getOrderItemDisplayName,
   getOrderLineLabel,
   splitOrderItemsByBundle,
@@ -185,5 +186,74 @@ describe("bundle order lines", () => {
       "Producto 11 · Combo Kit Clásicos",
     );
     expect(getOrderLineLabel(line(10, 1, 60))).toBe("Producto 10");
+  });
+});
+
+describe("getOrderBundleContents", () => {
+  // Two kits: polera + 2 stickers whose units were allocated 834 and 833
+  // cents, so the stickers component spans two order lines.
+  const allocations = [
+    { orderItemId: 23, unitsPerBundle: 1, paidUnitPriceCents: 833 },
+    { orderItemId: 21, unitsPerBundle: 1, paidUnitPriceCents: 8333 },
+    { orderItemId: 22, unitsPerBundle: 1, paidUnitPriceCents: 834 },
+  ];
+  const bundle = {
+    id: 9,
+    nameSnapshot: "Kit Stickers",
+    unitPriceCents: 10000,
+    items: allocations.map((allocation, index) => ({
+      id: index + 1,
+      orderBundleId: 9,
+      orderId: 1,
+      listUnitPriceCents: 1000,
+      ...allocation,
+    })),
+  };
+  const line = (
+    id: number,
+    productId: number,
+    name: string,
+    quantity: number,
+    productVariantLabel: string | null = null,
+  ) => ({
+    id,
+    productId,
+    productVariantId: productVariantLabel ? 5 : null,
+    quantity,
+    priceAtPurchase: 0,
+    product: { name },
+    productNameAtPurchase: name,
+    productVariantLabel,
+  });
+  const group = (lines: ReturnType<typeof line>[]) =>
+    splitOrderItemsByBundle({
+      orderItems: lines,
+      bundles: [bundle],
+    } as unknown as OrderWithRelations).bundles[0];
+
+  it("lists one bundle's units and merges split price tiers", () => {
+    const contents = getOrderBundleContents(
+      group([
+        line(21, 1, "Polera", 2, "Talla: M"),
+        line(22, 2, "Stickers", 2),
+        line(23, 2, "Stickers", 2),
+      ]),
+    );
+    expect(
+      contents.map(({ label, quantity }) => `${quantity} × ${label}`),
+    ).toEqual(["1 × Polera (Talla: M)", "2 × Stickers"]);
+  });
+
+  it("lists what is left of a bundle whose components were adjusted", () => {
+    const contents = getOrderBundleContents(
+      group([
+        line(21, 1, "Polera", 1, "Talla: M"),
+        line(22, 2, "Stickers", 2),
+        line(23, 2, "Stickers", 1),
+      ]),
+    );
+    expect(
+      contents.map(({ label, quantity }) => `${quantity} × ${label}`),
+    ).toEqual(["1 × Polera (Talla: M)", "3 × Stickers"]);
   });
 });
