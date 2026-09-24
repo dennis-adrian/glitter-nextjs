@@ -381,7 +381,10 @@ export async function resolveCartBundleLines(
         ...line,
         maxQuantity,
         issue: "stock_insufficient" as const,
-        message: `Solo quedan ${maxQuantity} disponibles.`,
+        message:
+          maxQuantity === 1
+            ? "Solo queda 1 disponible."
+            : `Solo quedan ${maxQuantity} disponibles.`,
       };
     }
     return { ...line, maxQuantity };

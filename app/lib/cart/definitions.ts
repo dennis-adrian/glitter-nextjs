@@ -50,6 +50,9 @@ export type GuestCartBundle = {
   unitPriceCents: number;
   separateUnitPriceCents: number;
   components: {
+    /** Stock the line draws on; also caps the guest's individual adds. */
+    productId: number;
+    productVariantId: number | null;
     productName: string;
     variantLabel: string | null;
     quantity: number;

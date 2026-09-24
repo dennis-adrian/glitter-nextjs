@@ -14,7 +14,10 @@ import {
   CartWithItems,
   type GuestCartBundle,
 } from "@/app/lib/cart/definitions";
-import { toGuestCartBundle } from "@/app/lib/cart/utils";
+import {
+  MERGED_BUNDLE_LINES_NOTICE,
+  toGuestCartBundle,
+} from "@/app/lib/cart/utils";
 import type { CartBundleLine } from "@/app/lib/merch/bundle-definitions";
 import {
   buildBundleSelectionKey,
@@ -1058,6 +1061,18 @@ async function planBundleAdd(
   };
 }
 
+/**
+ * Locks the cart row before its lines, in the order checkout takes them, so
+ * a merge of several lines never deadlocks against a checkout.
+ */
+async function lockCart(tx: CartTx, cartId: number) {
+  await tx
+    .select({ id: carts.id })
+    .from(carts)
+    .where(eq(carts.id, cartId))
+    .for("update");
+}
+
 /** Rewrites a stored line's choices to the canonical ones. */
 async function replaceCartBundleSelections(
   tx: CartTx,
@@ -1119,6 +1134,7 @@ export async function addBundleToCart(
     const selectionKey = buildBundleSelectionKey(plan.line.selections);
     const [target, ...duplicates] = plan.matches;
     await db.transaction(async (tx) => {
+      await lockCart(tx, cart.id);
       if (duplicates.length) {
         await tx.delete(cartBundles).where(
           and(
@@ -1310,6 +1326,7 @@ export async function acceptCartBundleChanges(
     );
     const quantity = Math.min(combined, MAX_CART_BUNDLE_QUANTITY);
     await db.transaction(async (tx) => {
+      await lockCart(tx, cart.id);
       if (matches.length) {
         await tx.delete(cartBundles).where(
           and(
@@ -1355,10 +1372,7 @@ export async function acceptCartBundleChanges(
     revalidateCartViews();
     return {
       success: true,
-      message:
-        combined > quantity
-          ? `Juntamos las líneas iguales de este combo. Podés llevar hasta ${MAX_CART_BUNDLE_QUANTITY} unidades.`
-          : undefined,
+      message: combined > quantity ? MERGED_BUNDLE_LINES_NOTICE : undefined,
     };
   } catch (error) {
     console.error(error);

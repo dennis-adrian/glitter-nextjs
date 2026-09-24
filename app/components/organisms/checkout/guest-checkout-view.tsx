@@ -18,6 +18,7 @@ import {
   type GuestCartResolution,
 } from "@/app/lib/cart/actions";
 import {
+  MERGED_BUNDLE_LINES_NOTICE,
   removedBundlesNotice,
   toGuestBundleInputs,
   toGuestItemInputs,
@@ -52,8 +53,9 @@ export default function GuestCheckoutView() {
       .then((result) => {
         if (cancelled) return;
         setResolution(result);
-        const removed = reconcileGuestBundles(result);
+        const { removed, droppedUnits } = reconcileGuestBundles(result);
         if (removed > 0) toast.info(removedBundlesNotice(removed));
+        if (droppedUnits > 0) toast.info(MERGED_BUNDLE_LINES_NOTICE);
       })
       .catch(() => {
         if (!cancelled) setResolution(null);
@@ -111,7 +113,9 @@ export default function GuestCheckoutView() {
     return [
       check.isOutOfStock
         ? `${name} ya no tiene stock.`
-        : `Solo quedan ${check.stock} unidades de ${name}.`,
+        : check.stock === 1
+          ? `Solo queda 1 unidad de ${name}.`
+          : `Solo quedan ${check.stock} unidades de ${name}.`,
     ];
   })[0];
   const blockingMessage =

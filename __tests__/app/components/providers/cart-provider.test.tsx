@@ -747,9 +747,9 @@ describe("CartProvider — reconcileGuestBundles", () => {
     storeBundles([deleted, legacy, current]);
     renderBundles();
 
-    let removed = 0;
+    let outcome: ReturnType<CartContext["reconcileGuestBundles"]> | undefined;
     act(() => {
-      removed = bundleContext.reconcileGuestBundles(
+      outcome = bundleContext.reconcileGuestBundles(
         resolution(
           [
             // The shirt choice became fixed: the line resolves without it.
@@ -761,7 +761,8 @@ describe("CartProvider — reconcileGuestBundles", () => {
       );
     });
 
-    expect(removed).toBe(1);
+    // 3 + 4 merge up to the per-line limit, which leaves 2 units out.
+    expect(outcome).toEqual({ removed: 1, droppedUnits: 2 });
     expect(shownBundles()).toEqual([["bundle:4:-", 5]]);
     expect(JSON.parse(localStorage.getItem(GUEST_CART_BUNDLES_KEY)!)).toEqual([
       expect.objectContaining({ lineKey: "bundle:4:-", selections: [] }),
@@ -823,5 +824,108 @@ describe("CartProvider — shared guest cart", () => {
     });
 
     expect(shownBundles()).toEqual([]);
+  });
+});
+
+describe("CartProvider — guest lines share stock with bundles", () => {
+  const toteInBundle = (quantity: number) =>
+    buildGuestBundle([], {
+      quantity,
+      components: [
+        {
+          productId: 99,
+          productVariantId: null,
+          productName: "Product 99",
+          variantLabel: null,
+          quantity: 1,
+          imageUrl: null,
+        },
+      ],
+    });
+
+  function renderWithBundles(bundles: GuestCartBundle[], items = "[]") {
+    storeBundles(bundles);
+    localStorage.setItem(GUEST_CART_KEY, items);
+    renderBundles();
+  }
+
+  const storedItems = () =>
+    JSON.parse(localStorage.getItem(GUEST_CART_KEY) ?? "[]") as GuestCartItem[];
+
+  it("caps an individual add by what the cart's bundles leave", () => {
+    // Stock 3, and the bundle line holds 2 of them.
+    renderWithBundles([toteInBundle(2)]);
+
+    act(() => bundleContext.addGuestItem({ ...buildGuestCartItem(99, 3, 3) }));
+
+    expect(storedItems()).toEqual([
+      expect.objectContaining({ productId: 99, quantity: 1 }),
+    ]);
+  });
+
+  it("stores nothing when the bundles take the whole stock", () => {
+    renderWithBundles([toteInBundle(3)]);
+
+    act(() => bundleContext.addGuestItem(buildGuestCartItem(99, 1, 3)));
+
+    expect(bundleContext.guestItems).toEqual([]);
+  });
+
+  it("never lowers a line on add, even when stock no longer covers it", () => {
+    renderWithBundles(
+      [toteInBundle(2)],
+      JSON.stringify([buildGuestCartItem(99, 2, 3)]),
+    );
+
+    act(() => bundleContext.addGuestItem(buildGuestCartItem(99, 1, 3)));
+
+    expect(bundleContext.guestItems[0].quantity).toBe(2);
+  });
+
+  it("caps a quantity increase by what the bundles leave", () => {
+    renderWithBundles(
+      [toteInBundle(2)],
+      JSON.stringify([buildGuestCartItem(99, 1, 5)]),
+    );
+
+    act(() =>
+      bundleContext.updateGuestItemQuantity(buildCartLineKey(99, null), 5),
+    );
+
+    expect(bundleContext.guestItems[0].quantity).toBe(3);
+  });
+
+  it("prefers the server's limit and always allows lowering", () => {
+    renderWithBundles([], JSON.stringify([buildGuestCartItem(99, 4, 10)]));
+
+    act(() =>
+      bundleContext.updateGuestItemQuantity(buildCartLineKey(99, null), 5, 1),
+    );
+    expect(bundleContext.guestItems[0].quantity).toBe(4);
+
+    act(() =>
+      bundleContext.updateGuestItemQuantity(buildCartLineKey(99, null), 2, 1),
+    );
+    expect(bundleContext.guestItems[0].quantity).toBe(2);
+  });
+});
+
+describe("CartProvider — replaceGuestBundle", () => {
+  it("reports the units a merge leaves out past the per-line limit", () => {
+    const stale = buildGuestBundle(shirtM, { bundleVersion: 1, quantity: 3 });
+    const current = buildGuestBundle([], { quantity: 4 });
+    storeBundles([stale, current]);
+    renderBundles();
+
+    let dropped = 0;
+    act(() => {
+      dropped = bundleContext.replaceGuestBundle(
+        stale.lineKey,
+        buildGuestBundle([], { quantity: 3 }),
+      );
+    });
+
+    expect(dropped).toBe(2);
+    expect(shownBundles()).toEqual([["bundle:4:-", 5]]);
   });
 });

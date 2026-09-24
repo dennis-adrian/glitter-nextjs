@@ -109,7 +109,9 @@ function setCart(overrides: Record<string, unknown>) {
     removeGuestBundle: vi.fn(),
     updateGuestBundleQuantity: vi.fn(),
     replaceGuestBundle: vi.fn(),
-    reconcileGuestBundles: vi.fn().mockReturnValue(0),
+    reconcileGuestBundles: vi
+      .fn()
+      .mockReturnValue({ removed: 0, droppedUnits: 0 }),
     removeGuestItem: vi.fn(),
     updateGuestItemQuantity: vi.fn(),
     ...overrides,
@@ -176,7 +178,9 @@ it("caps a guest line by what the cart's bundles leave and blocks checkout", asy
 
 it("drops deleted bundles from a guest cart with a notice", async () => {
   const { toast } = await import("sonner");
-  const reconcileGuestBundles = vi.fn().mockReturnValue(1);
+  const reconcileGuestBundles = vi
+    .fn()
+    .mockReturnValue({ removed: 1, droppedUnits: 0 });
   setCart({ guestBundles: [guestBundle], reconcileGuestBundles });
   const resolution = {
     bundles: [],
@@ -247,4 +251,82 @@ it("shows an unpublished bundle in a signed-in cart without name or price", asyn
   expect(screen.getByText("Combo no disponible")).toBeTruthy();
   // The row shows no price (the footer total is a separate span).
   expect(screen.queryAllByText(/Bs/, { selector: "p" })).toEqual([]);
+});
+
+it("drops a checkout attempt's stock flag once the guest changes the lines", async () => {
+  const lines = [{ ...guestItem, quantity: 3 }];
+  setCart({ guestItems: lines });
+  actions.validateGuestCartStock.mockResolvedValue([
+    {
+      lineKey: guestItem.lineKey,
+      productId: 7,
+      productVariantId: null,
+      stock: 1,
+      isOutOfStock: false,
+      quantityExceedsStock: true,
+    },
+  ]);
+  const { rerender } = render(<CartSheet />);
+  fireEvent.click(screen.getByRole("button", { name: "Proceder al pago" }));
+  await screen.findByText("Solo queda 1 disponible");
+  expect(mocks.push).not.toHaveBeenCalled();
+
+  // Same lines: the finding still stands.
+  rerender(<CartSheet />);
+  expect(screen.getByText("Solo queda 1 disponible")).toBeTruthy();
+
+  setCart({ guestItems: [{ ...guestItem, quantity: 1 }] });
+  rerender(<CartSheet />);
+  expect(screen.queryByText("Solo queda 1 disponible")).toBeNull();
+  expect(
+    screen.queryByText(
+      "Revisá tu carrito, algunos productos cambiaron de disponibilidad.",
+    ),
+  ).toBeNull();
+});
+
+it("tells the guest when accepting a change merges lines past the limit", async () => {
+  const { toast } = await import("sonner");
+  const replaceGuestBundle = vi.fn().mockReturnValue(2);
+  setCart({ guestBundles: [guestBundle], replaceGuestBundle });
+  actions.resolveGuestCart.mockResolvedValue({
+    bundles: [line({ currentVersion: 2, issue: "stale", message: "Cambió." })],
+    items: [],
+    removedBundleKeys: [],
+  });
+  render(<CartSheet />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Aceptar precio actual" }),
+  );
+  expect(replaceGuestBundle).toHaveBeenCalledWith(
+    guestBundle.lineKey,
+    expect.objectContaining({ bundleVersion: 2, quantity: 2 }),
+  );
+  expect(toast.info).toHaveBeenCalledWith(
+    "Juntamos las líneas iguales de este combo. Podés llevar hasta 5 unidades.",
+  );
+});
+
+it("leaves a signed-in bundle it shows no price for out of the total", async () => {
+  setCart({ isAuthenticated: true });
+  actions.fetchCartWithItems.mockResolvedValue({
+    success: true,
+    data: {
+      id: 1,
+      items: [],
+      bundles: [
+        line({
+          key: "cart-bundle:9",
+          cartBundleId: 9,
+          // Published, but a component can no longer be sold.
+          unitPriceCents: 15000,
+          issue: "unavailable",
+          message: "Este combo ya no está disponible.",
+        }),
+      ],
+    },
+  });
+  render(<CartSheet />);
+  await screen.findByText("Este combo ya no está disponible.");
+  expect(screen.getByText("Bs 0.00")).toBeTruthy();
 });

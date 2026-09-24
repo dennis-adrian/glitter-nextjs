@@ -16,6 +16,8 @@ import {
 import {
   buildBundleLineKey,
   buildCartLineKey,
+  getGuestItemStockCap,
+  reconcileGuestBundleLines,
   replaceGuestBundleLine,
   toGuestBundleInputs,
   toGuestItemInputs,
@@ -40,6 +42,14 @@ export type GuestBundleAddOutcome = {
   message?: string;
 };
 
+/** What applying a server resolution changed in the guest cart. */
+export type GuestBundleReconcileOutcome = {
+  /** Lines dropped because their bundle was deleted. */
+  removed: number;
+  /** Units left out where equal lines merged past the per-line limit. */
+  droppedUnits: number;
+};
+
 type CartContextValue = {
   itemCount: number;
   setItemCount: (n: number) => void;
@@ -50,9 +60,18 @@ type CartContextValue = {
   // Guest cart (only populated when isAuthenticated is false)
   guestItems: GuestCartItem[];
   guestCartHydrated: boolean;
+  /** Caps the line by its stock snapshot, net of the cart's bundle lines. */
   addGuestItem: (item: GuestCartItem) => void;
   removeGuestItem: (lineKey: string) => void;
-  updateGuestItemQuantity: (lineKey: string, quantity: number) => void;
+  /**
+   * `maxQuantity` is the server's limit for the line when known; without it
+   * the stock snapshot, net of the cart's bundle lines, caps an increase.
+   */
+  updateGuestItemQuantity: (
+    lineKey: string,
+    quantity: number,
+    maxQuantity?: number,
+  ) => void;
   guestBundles: GuestCartBundle[];
   /**
    * Adds a bundle after the server checks it against the whole guest cart
@@ -65,14 +84,17 @@ type CartContextValue = {
   updateGuestBundleQuantity: (lineKey: string, quantity: number) => void;
   /**
    * Replaces a bundle's snapshot (e.g. after the customer accepts changes),
-   * merging it with a line that now names the same configuration.
+   * merging it with a line that now names the same configuration. Returns
+   * the units the per-line limit left out of that merge.
    */
-  replaceGuestBundle: (lineKey: string, bundle: GuestCartBundle) => void;
+  replaceGuestBundle: (lineKey: string, bundle: GuestCartBundle) => number;
   /**
    * Applies a server resolution: drops lines whose bundle was deleted and
-   * re-keys resolved lines canonically. Returns how many lines were dropped.
+   * re-keys resolved lines canonically, merging equal ones.
    */
-  reconcileGuestBundles: (resolution: GuestCartResolution) => number;
+  reconcileGuestBundles: (
+    resolution: GuestCartResolution,
+  ) => GuestBundleReconcileOutcome;
   clearGuestCart: () => void;
 };
 
@@ -302,38 +324,35 @@ export function CartProvider({
   const openCart = useCallback(() => setIsOpen(true), []);
   const closeCart = useCallback(() => setIsOpen(false), []);
 
-  const addGuestItem = useCallback((incoming: GuestCartItem) => {
-    if (incoming.lineKey.endsWith(":rental")) {
-      return;
-    }
-    setGuestItems((prev) => {
-      const existing = prev.find((i) => i.lineKey === incoming.lineKey);
-      let updatedGuestItems: GuestCartItem[];
-      if (existing) {
-        const newQty = Math.min(
-          existing.quantity + incoming.quantity,
-          MAX_CART_LINE_QUANTITY,
-          incoming.variant?.stock ??
-            incoming.product.stock ??
-            MAX_CART_LINE_QUANTITY,
-        );
-        updatedGuestItems = prev.map((i) =>
-          i.lineKey === incoming.lineKey ? { ...i, quantity: newQty } : i,
-        );
-      } else {
-        const cappedQty = Math.min(
-          incoming.quantity,
-          MAX_CART_LINE_QUANTITY,
-          incoming.variant?.stock ??
-            incoming.product.stock ??
-            MAX_CART_LINE_QUANTITY,
-        );
-        updatedGuestItems = [...prev, { ...incoming, quantity: cappedQty }];
+  const addGuestItem = useCallback(
+    (incoming: GuestCartItem) => {
+      if (incoming.lineKey.endsWith(":rental")) {
+        return;
       }
-      writeGuestCart(updatedGuestItems);
-      return updatedGuestItems;
-    });
-  }, []);
+      // Bundles in the cart draw from the same stock as individual lines.
+      const stockCap = getGuestItemStockCap(incoming, guestBundles);
+      setGuestItems((prev) => {
+        const existing = prev.find((i) => i.lineKey === incoming.lineKey);
+        const existingQty = existing?.quantity ?? 0;
+        const newQty = Math.min(
+          existingQty + incoming.quantity,
+          MAX_CART_LINE_QUANTITY,
+          stockCap,
+        );
+        // An add never lowers a line nor stores an empty one; the cart flags
+        // what the stock no longer covers.
+        if (newQty <= existingQty) return prev;
+        const updatedGuestItems = existing
+          ? prev.map((i) =>
+              i.lineKey === incoming.lineKey ? { ...i, quantity: newQty } : i,
+            )
+          : [...prev, { ...incoming, quantity: newQty }];
+        writeGuestCart(updatedGuestItems);
+        return updatedGuestItems;
+      });
+    },
+    [guestBundles],
+  );
 
   const removeGuestItem = useCallback((lineKey: string) => {
     setGuestItems((prev) => {
@@ -344,7 +363,7 @@ export function CartProvider({
   }, []);
 
   const updateGuestItemQuantity = useCallback(
-    (lineKey: string, quantity: number) => {
+    (lineKey: string, quantity: number, maxQuantity?: number) => {
       setGuestItems((prev) => {
         const guestCartLine = prev.find((i) => i.lineKey === lineKey);
         let updatedGuestItems: GuestCartItem[];
@@ -354,28 +373,25 @@ export function CartProvider({
         } else if (!guestCartLine) {
           updatedGuestItems = prev;
         } else {
+          // The server's limit, when known, already nets out the cart's
+          // bundles; otherwise the stored snapshot minus those bundles.
           const stockCap =
-            guestCartLine.variant?.stock ??
-            guestCartLine.product?.stock ??
-            MAX_CART_LINE_QUANTITY;
+            maxQuantity ?? getGuestItemStockCap(guestCartLine, guestBundles);
+          // Lowering is always allowed; raising stops where stock does.
           const clampedQty = Math.min(
             quantity,
             MAX_CART_LINE_QUANTITY,
-            stockCap,
+            Math.max(stockCap, guestCartLine.quantity),
           );
-          if (clampedQty <= 0) {
-            updatedGuestItems = prev.filter((i) => i.lineKey !== lineKey);
-          } else {
-            updatedGuestItems = prev.map((i) =>
-              i.lineKey === lineKey ? { ...i, quantity: clampedQty } : i,
-            );
-          }
+          updatedGuestItems = prev.map((i) =>
+            i.lineKey === lineKey ? { ...i, quantity: clampedQty } : i,
+          );
         }
         writeGuestCart(updatedGuestItems);
         return updatedGuestItems;
       });
     },
-    [],
+    [guestBundles],
   );
 
   const addGuestBundle = useCallback(
@@ -439,55 +455,45 @@ export function CartProvider({
   const replaceGuestBundle = useCallback(
     (lineKey: string, bundle: GuestCartBundle) => {
       setGuestBundles((prev) => {
-        const updated = replaceGuestBundleLine(prev, lineKey, bundle);
+        const { bundles: updated } = replaceGuestBundleLine(
+          prev,
+          lineKey,
+          bundle,
+        );
         writeGuestBundles(updated);
         return updated;
       });
+      return replaceGuestBundleLine(guestBundles, lineKey, bundle).droppedUnits;
     },
-    [],
+    [guestBundles],
   );
 
   const reconcileGuestBundles = useCallback(
-    (resolution: GuestCartResolution) => {
-      const removed = new Set(resolution.removedBundleKeys);
-      // Lines waiting for a price confirmation keep their key until accepted.
-      const rekeys = resolution.bundles.filter(
-        (line) =>
-          line.issue !== "stale" &&
-          line.issue !== "unavailable" &&
-          line.issue !== "selection_invalid" &&
-          buildBundleLineKey(line.bundleId, line.selections) !== line.key,
+    (resolution: GuestCartResolution): GuestBundleReconcileOutcome => {
+      // Judged on the lines the resolution was made for.
+      const { bundles: next, droppedUnits } = reconcileGuestBundleLines(
+        guestBundles,
+        resolution,
       );
-      if (removed.size === 0 && rekeys.length === 0) return 0;
-      setGuestBundles((prev) => {
-        let updated = prev.filter((bundle) => !removed.has(bundle.lineKey));
-        let changed = updated.length !== prev.length;
-        for (const line of rekeys) {
-          const current = updated.find((bundle) => bundle.lineKey === line.key);
-          if (!current) continue;
-          const lineKey = buildBundleLineKey(line.bundleId, line.selections);
-          const holder = updated.find((bundle) => bundle.lineKey === lineKey);
-          // The key belongs to a line still awaiting confirmation; they merge
-          // once it is accepted.
-          if (holder && holder.bundleVersion !== current.bundleVersion) {
-            continue;
-          }
-          updated = replaceGuestBundleLine(updated, line.key, {
-            ...current,
-            lineKey,
-            selections: line.selections,
-          });
-          changed = true;
-        }
-        // Unchanged state keeps its identity, so it does not trigger another
-        // resolution.
-        if (!changed) return prev;
-        writeGuestBundles(updated);
-        return updated;
-      });
-      return removed.size;
+      if (next !== guestBundles) {
+        setGuestBundles((prev) => {
+          const { bundles: updated } = reconcileGuestBundleLines(
+            prev,
+            resolution,
+          );
+          // Unchanged state keeps its identity, so it does not trigger
+          // another resolution.
+          if (updated === prev) return prev;
+          writeGuestBundles(updated);
+          return updated;
+        });
+      }
+      return {
+        removed: new Set(resolution.removedBundleKeys).size,
+        droppedUnits,
+      };
     },
-    [],
+    [guestBundles],
   );
 
   const clearGuestCart = useCallback(() => {

@@ -10,7 +10,10 @@ import { CartSheetCheckoutFooter } from "@/app/components/organisms/cart/cart-sh
 import { CartSheetEmptyState } from "@/app/components/organisms/cart/cart-sheet-empty-state";
 import { CartSheetShell } from "@/app/components/organisms/cart/cart-sheet-shell";
 import GuestCartItemRow from "@/app/components/organisms/cart/guest-cart-item-row";
-import { useCartContext } from "@/app/components/providers/cart-provider";
+import {
+  useCartContext,
+  type GuestBundleReconcileOutcome,
+} from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import {
   acceptCartBundleChanges,
@@ -23,10 +26,11 @@ import {
   type GuestCartResolution,
   type GuestStockValidationResult,
 } from "@/app/lib/cart/actions";
-import type { CartWithItems } from "@/app/lib/cart/definitions";
+import type { CartWithItems, GuestCartItem } from "@/app/lib/cart/definitions";
 import {
   getBundleDemandLines,
   getCartItemWarnings,
+  MERGED_BUNDLE_LINES_NOTICE,
   removedBundlesNotice,
   toGuestBundleInputs,
   toGuestCartBundle,
@@ -41,6 +45,13 @@ import CartItemSkeleton from "./cart-item-skeleton";
 
 const hasStockProblem = (check: GuestStockValidationResult) =>
   check.isOutOfStock || check.quantityExceedsStock;
+
+/** Tells the guest what applying a resolution changed in their cart. */
+function notifyReconcile(outcome: GuestBundleReconcileOutcome) {
+  if (outcome.removed > 0) toast.info(removedBundlesNotice(outcome.removed));
+  if (outcome.droppedUnits > 0) toast.info(MERGED_BUNDLE_LINES_NOTICE);
+  return outcome;
+}
 
 function AuthBundleCartRow({
   line,
@@ -135,9 +146,11 @@ export default function CartSheet() {
   const [fetchError, setFetchError] = useState(false);
   const fetchGenerationRef = useRef(0);
   const [guestValidating, setGuestValidating] = useState(false);
-  const [guestStockIssues, setGuestStockIssues] = useState<
-    GuestStockValidationResult[]
-  >([]);
+  // A checkout attempt's findings hold only for the lines it checked.
+  const [guestStockCheck, setGuestStockCheck] = useState<{
+    items: GuestCartItem[];
+    issues: GuestStockValidationResult[];
+  } | null>(null);
   const [guestResolution, setGuestResolution] =
     useState<GuestCartResolution | null>(null);
   const guestBundleGenerationRef = useRef(0);
@@ -213,8 +226,7 @@ export default function CartSheet() {
       .then((resolution) => {
         if (generation !== guestBundleGenerationRef.current) return;
         setGuestResolution(resolution);
-        const removed = reconcileGuestBundles(resolution);
-        if (removed > 0) toast.info(removedBundlesNotice(removed));
+        notifyReconcile(reconcileGuestBundles(resolution));
       })
       .catch(() => {
         if (generation === guestBundleGenerationRef.current) {
@@ -254,10 +266,13 @@ export default function CartSheet() {
             100,
         0,
       );
-    // Live limits (bundles present) first; a checkout attempt's findings win.
+    // A checkout attempt's findings last until the lines change; live limits
+    // (bundles present) are fresher and win.
     const liveItemChecks = liveResolution?.items ?? [];
+    const checkoutItemChecks =
+      guestStockCheck?.items === guestItems ? guestStockCheck.issues : [];
     const stockIssuesMap = new Map(
-      [...liveItemChecks, ...guestStockIssues].map((s) => [s.lineKey, s]),
+      [...checkoutItemChecks, ...liveItemChecks].map((s) => [s.lineKey, s]),
     );
     const hasBundleIssues = guestDisplayBundles.some(
       ({ line }) => line?.issue != null,
@@ -268,7 +283,7 @@ export default function CartSheet() {
     const isEmpty = guestItems.length === 0 && guestBundles.length === 0;
 
     async function handleGuestCheckout() {
-      setGuestStockIssues([]);
+      setGuestStockCheck(null);
       setGuestValidating(true);
       try {
         const items = toGuestItemInputs(guestItems);
@@ -286,15 +301,16 @@ export default function CartSheet() {
           if (generation === guestBundleGenerationRef.current) {
             setGuestResolution(resolution);
           }
-          const removed = reconcileGuestBundles(resolution);
-          if (removed > 0) toast.info(removedBundlesNotice(removed));
+          const { removed } = notifyReconcile(
+            reconcileGuestBundles(resolution),
+          );
           itemChecks = resolution.items;
           blocked =
             removed > 0 || resolution.bundles.some((line) => line.issue);
         }
         const issues = itemChecks.filter(hasStockProblem);
         if (issues.length > 0 || blocked) {
-          setGuestStockIssues(issues);
+          setGuestStockCheck({ items: guestItems, issues });
           return;
         }
         closeCart();
@@ -347,14 +363,18 @@ export default function CartSheet() {
                     onRemove={() => removeGuestBundle(bundle.lineKey)}
                     onAcceptChanges={
                       line?.currentVersion != null
-                        ? () =>
-                            replaceGuestBundle(
+                        ? () => {
+                            const droppedUnits = replaceGuestBundle(
                               bundle.lineKey,
                               toGuestCartBundle(line, {
                                 bundleVersion: line.currentVersion!,
                                 quantity: bundle.quantity,
                               }),
-                            )
+                            );
+                            if (droppedUnits > 0) {
+                              toast.info(MERGED_BUNDLE_LINES_NOTICE);
+                            }
+                          }
                         : undefined
                     }
                   />
@@ -403,7 +423,11 @@ export default function CartSheet() {
       );
     }, 0) ?? 0) +
     bundleLines.reduce(
-      (sum, line) => sum + (line.unitPriceCents * line.quantity) / 100,
+      (sum, line) =>
+        // Rows show no price for a bundle that cannot be bought.
+        line.issue === "unavailable"
+          ? sum
+          : sum + (line.unitPriceCents * line.quantity) / 100,
       0,
     );
   const isEmpty =

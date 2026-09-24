@@ -76,7 +76,9 @@ export default function GuestCartItemRow({
           )}
           {!stockIssue?.isOutOfStock && stockIssue?.quantityExceedsStock && (
             <span className="inline-block text-xs text-amber-600 font-medium mt-1">
-              Solo quedan {stockIssue.stock} disponibles
+              {stockIssue.stock === 1
+                ? "Solo queda 1 disponible"
+                : `Solo quedan ${stockIssue.stock} disponibles`}
             </span>
           )}
           {!stockIssue &&
@@ -91,7 +93,7 @@ export default function GuestCartItemRow({
         <Select
           value={String(sanitizedQuantity)}
           onValueChange={(v) =>
-            updateGuestItemQuantity(item.lineKey, Number(v))
+            updateGuestItemQuantity(item.lineKey, Number(v), stockIssue?.stock)
           }
         >
           <SelectTrigger

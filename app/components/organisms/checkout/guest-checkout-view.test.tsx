@@ -58,7 +58,9 @@ it("checks individual lines before a guest confirms, even without bundles", asyn
     guestItems: [item],
     guestBundles: [],
     guestCartHydrated: true,
-    reconcileGuestBundles: vi.fn().mockReturnValue(0),
+    reconcileGuestBundles: vi
+      .fn()
+      .mockReturnValue({ removed: 0, droppedUnits: 0 }),
   };
   mocks.actions.validateGuestCartStock.mockResolvedValue([
     {
@@ -77,4 +79,31 @@ it("checks individual lines before a guest confirms, even without bundles", asyn
     ),
   );
   expect(mocks.actions.resolveGuestCart).not.toHaveBeenCalled();
+});
+
+it("says a single unit is left in the singular", async () => {
+  mocks.cart = {
+    guestItems: [item],
+    guestBundles: [],
+    guestCartHydrated: true,
+    reconcileGuestBundles: vi
+      .fn()
+      .mockReturnValue({ removed: 0, droppedUnits: 0 }),
+  };
+  mocks.actions.validateGuestCartStock.mockResolvedValue([
+    {
+      lineKey: item.lineKey,
+      productId: 7,
+      productVariantId: null,
+      stock: 1,
+      isOutOfStock: false,
+      quantityExceedsStock: true,
+    },
+  ]);
+  render(<GuestCheckoutView />);
+  await waitFor(() =>
+    expect(screen.getByTestId("blocking").textContent).toBe(
+      "Solo queda 1 unidad de Tote.",
+    ),
+  );
 });
