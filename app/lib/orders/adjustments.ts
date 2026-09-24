@@ -103,6 +103,15 @@ function fail(message: string, cause: string): never {
   throw Object.assign(new Error(message), { cause });
 }
 
+/**
+ * Prices are stored as floats and decimals; money is summed in integer cents
+ * so float noise (19.23 + 15.39 + 2 × 7.69 is 50.00000000000001) never trips
+ * the negative-total guard or reaches a stored total.
+ */
+function toCents(amount: number): number {
+  return Math.round(amount * 100);
+}
+
 function aggregateIntegerDeltas<T>(
   rows: readonly T[],
   getId: (row: T) => number,
@@ -488,14 +497,17 @@ export async function applyOrderAdjustmentWithDatabase(
     if (changes.length === 0)
       fail("No hay cambios para aplicar.", "invalid_input");
 
-    const totalDelta = changes.reduce(
-      (total, line) => total + line.quantityDelta * line.unitPriceSnapshot,
+    const totalDeltaCents = changes.reduce(
+      (total, line) =>
+        total + line.quantityDelta * toCents(line.unitPriceSnapshot),
       0,
     );
     const previousTotal = order.totalAmount;
-    const newTotal = previousTotal + totalDelta;
-    if (newTotal < 0)
+    const newTotalCents = toCents(previousTotal) + totalDeltaCents;
+    if (newTotalCents < 0)
       fail("El total del pedido no puede ser negativo.", "invalid_input");
+    const totalDelta = totalDeltaCents / 100;
+    const newTotal = newTotalCents / 100;
     const [adjustment] = await tx
       .insert(orderAdjustments)
       .values({

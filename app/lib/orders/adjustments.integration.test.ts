@@ -746,4 +746,63 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
       storeCategorySnapshot: "supplies",
     });
   });
+
+  it("sums money in cents, so removing every line reaches exactly zero", async () => {
+    const fixture = await createFixture();
+    // 19.23 + 15.39 + 2 × 7.69 is 50.00000000000001 in floating point.
+    await integrationDb!
+      .update(orderItems)
+      .set({ quantity: 1, priceAtPurchase: 19.23 })
+      .where(eq(orderItems.id, fixture.baseItemId));
+    const extraLines = await integrationDb!
+      .insert(orderItems)
+      .values(
+        [
+          { quantity: 1, priceAtPurchase: 15.39 },
+          { quantity: 2, priceAtPurchase: 7.69 },
+        ].map((line) => ({
+          ...line,
+          orderId: fixture.orderId,
+          productId: fixture.baseProductId,
+          transactionType: "purchase" as const,
+        })),
+      )
+      .returning();
+    await integrationDb!
+      .update(orders)
+      .set({ totalAmount: 50 })
+      .where(eq(orders.id, fixture.orderId));
+
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      {
+        ...baseAdjustment(fixture, -1),
+        items: [
+          { baseOrderItemId: fixture.baseItemId, quantityDelta: -1 },
+          { baseOrderItemId: extraLines[0].id, quantityDelta: -1 },
+          { baseOrderItemId: extraLines[1].id, quantityDelta: -2 },
+        ],
+      },
+    );
+
+    expect(result).toMatchObject({
+      previousTotal: 50,
+      totalDelta: -50,
+      newTotal: 0,
+    });
+    const [order] = await integrationDb!
+      .select()
+      .from(orders)
+      .where(eq(orders.id, fixture.orderId));
+    const [adjustment] = await integrationDb!
+      .select()
+      .from(orderAdjustments)
+      .where(eq(orderAdjustments.id, result.adjustmentId));
+    expect(order.totalAmount).toBe(0);
+    expect(adjustment).toMatchObject({
+      previousTotal: 50,
+      totalDelta: -50,
+      newTotal: 0,
+    });
+  });
 });

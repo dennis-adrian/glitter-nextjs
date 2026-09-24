@@ -1267,4 +1267,88 @@ describeDatabase("bundle checkout", () => {
       ),
     ).toBe(false);
   });
+
+  /**
+   * Shirt Bs25 + tote Bs20 + 2 × stickers Bs10 sold for Bs50. The paid
+   * allocations (19.23, 15.39, 7.69 × 2) add up to 50.00000000000001 in
+   * floating point, so money has to be summed in cents.
+   */
+  async function createUnevenFixture() {
+    const fixture = await createFixture();
+    await db()
+      .update(products)
+      .set({ price: 25 })
+      .where(eq(products.id, fixture.shirtId));
+    await db()
+      .update(products)
+      .set({ price: 20 })
+      .where(eq(products.id, fixture.toteId));
+    await db()
+      .update(merchBundles)
+      .set({ price: 50 })
+      .where(eq(merchBundles.id, fixture.bundleId));
+    return fixture;
+  }
+
+  it("returns every component of a bundle-only order with an exact refund", async () => {
+    const fixture = await createUnevenFixture();
+    const result = await buy(fixture, [], [bundleRequest(fixture)]);
+    await db()
+      .update(orders)
+      .set({ status: "paid" })
+      .where(eq(orders.id, result.orderId));
+    signIn(fixture, "admin");
+    const { adminReturnOrder } = await import("@/app/lib/orders/actions");
+    const order = (await fetchOrder(result.orderId))!;
+
+    const returned = await adminReturnOrder({
+      orderId: result.orderId,
+      items: order.orderItems.map((item) => ({
+        orderItemId: item.id,
+        quantity: item.quantity,
+      })),
+      reason: "Devolución completa",
+      expectedRevision: order.revision,
+    });
+
+    expect(returned).toMatchObject({ success: true, refundAmount: 50 });
+    const after = await orderSnapshot(result.orderId);
+    expect(after.order).toMatchObject({ status: "paid", totalAmount: 0 });
+    const [returnRecord] = await db()
+      .select()
+      .from(orderReturns)
+      .where(eq(orderReturns.orderId, result.orderId));
+    expect(returnRecord.refundAmount).toBe(50);
+  });
+
+  it("lets an admin reduce every component of a bundle-only order to zero", async () => {
+    const fixture = await createUnevenFixture();
+    const before = await stockOf(fixture);
+    const result = await buy(fixture, [], [bundleRequest(fixture)]);
+    signIn(fixture, "admin");
+    const { adminAdjustOrder } = await import("@/app/lib/orders/actions");
+    const order = (await fetchOrder(result.orderId))!;
+
+    const adjusted = await adminAdjustOrder({
+      orderId: result.orderId,
+      items: order.orderItems.map((item) => ({
+        orderItemId: item.id,
+        quantity: 0,
+      })),
+      additions: [],
+      expectedRevision: order.revision,
+      reason: "Sin stock para entregar",
+    });
+
+    expect(adjusted).toMatchObject({ success: true });
+    const after = await orderSnapshot(result.orderId);
+    // Only customer edits cancel an emptied order; the admin decides here.
+    expect(after.order).toMatchObject({ status: "pending", totalAmount: 0 });
+    const [adjustment] = await db()
+      .select()
+      .from(orderAdjustments)
+      .where(eq(orderAdjustments.orderId, result.orderId));
+    expect(adjustment).toMatchObject({ totalDelta: -50, newTotal: 0 });
+    expect(await stockOf(fixture)).toEqual(before);
+  });
 });
