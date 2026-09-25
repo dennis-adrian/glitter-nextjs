@@ -199,7 +199,8 @@ export type CreditAccountsPage = {
 
 type AccountsQueryInput = {
   query?: string;
-  filter?: CreditAccountFilter;
+  /** An account matching any of them; none means every account. */
+  filters?: readonly CreditAccountFilter[];
   sort?: CreditAccountSort;
   direction?: "asc" | "desc";
   userId?: number;
@@ -313,7 +314,7 @@ function accountSources() {
 function accountFilterCondition(
   filter: CreditAccountFilter,
   expressions: ReturnType<typeof accountSources>["expressions"],
-): SQL | undefined {
+): SQL {
   switch (filter) {
     case "positive":
       return sql`${expressions.balance} > 0`;
@@ -327,8 +328,6 @@ function accountFilterCondition(
       return sql`${expressions.underReviewCount} > 0`;
     case "drift":
       return expressions.drift;
-    default:
-      return undefined;
   }
 }
 
@@ -338,7 +337,7 @@ async function queryCreditAccounts(
 ): Promise<CreditAccountsPage> {
   const {
     query = "",
-    filter = "all",
+    filters = [],
     sort = "balance",
     direction = "desc",
     userId,
@@ -352,7 +351,7 @@ async function queryCreditAccounts(
     hasActivity,
     userId != null ? eq(users.id, userId) : undefined,
     userSearchCondition(query),
-    accountFilterCondition(filter, expressions),
+    or(...filters.map((filter) => accountFilterCondition(filter, expressions))),
   );
 
   const sortExpression = {
@@ -544,9 +543,9 @@ export async function fetchCreditOverview(
           awaitingCount: sql<string>`count(*) filter (where ${creditTopUps.status} = 'awaiting_voucher' and ${creditTopUps.uploadDeadlineAt} > ${isoParam(now)})`,
         })
         .from(creditTopUps),
-      queryCreditAccounts({ filter: "drift", limit: 1 }),
+      queryCreditAccounts({ filters: ["drift"], limit: 1 }),
       queryCreditAccounts({
-        filter: "positive",
+        filters: ["positive"],
         sort: "balance",
         direction: "desc",
         limit: 5,

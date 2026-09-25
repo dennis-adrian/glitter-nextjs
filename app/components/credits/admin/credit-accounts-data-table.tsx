@@ -11,6 +11,7 @@ import { DataTable } from "@/app/components/ui/data_table/data-table";
 import {
   CREDIT_ACCOUNT_FILTER_LABELS,
   CREDIT_ACCOUNT_FILTERS,
+  DEFAULT_CREDIT_ACCOUNT_FILTERS,
 } from "@/app/lib/credits/admin-definitions";
 import type { CreditAccountRow } from "@/app/lib/credits/admin-queries";
 import { formatDateWithTime } from "@/app/lib/formatters";
@@ -238,13 +239,12 @@ export default function CreditAccountsDataTable({
         {
           columnId: "filter",
           label: "Estado",
-          multiple: false,
-          options: CREDIT_ACCOUNT_FILTERS.filter(
-            (value) => value !== "all",
-          ).map((value) => ({
+          // An account in any of the chosen states; see the search params.
+          options: CREDIT_ACCOUNT_FILTERS.map((value) => ({
             value,
             label: CREDIT_ACCOUNT_FILTER_LABELS[value],
           })),
+          defaultValue: DEFAULT_CREDIT_ACCOUNT_FILTERS,
         },
       ]}
       toolbar={

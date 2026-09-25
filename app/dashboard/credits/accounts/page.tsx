@@ -10,10 +10,10 @@ import { fetchCreditAccounts } from "@/app/lib/credits/admin-queries";
 export default async function CreditAccountsPage(props: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const params = CreditAccountsSearchParamsSchema.parse(
+  const { filter, ...params } = CreditAccountsSearchParamsSchema.parse(
     await props.searchParams,
   );
-  const page = await fetchCreditAccounts(params);
+  const page = await fetchCreditAccounts({ ...params, filters: filter });
   if (!page) notFound();
 
   return (

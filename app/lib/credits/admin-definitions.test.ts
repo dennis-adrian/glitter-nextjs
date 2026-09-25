@@ -33,10 +33,10 @@ describe("canRevertCreditEntry", () => {
 });
 
 describe("CreditAccountsSearchParamsSchema", () => {
-  it("defaults to every account, richest first", () => {
+  it("defaults to the accounts holding credits, richest first", () => {
     expect(CreditAccountsSearchParamsSchema.parse({})).toEqual({
       query: "",
-      filter: "all",
+      filter: ["positive"],
       sort: "balance",
       direction: "desc",
       limit: 25,
@@ -56,12 +56,27 @@ describe("CreditAccountsSearchParamsSchema", () => {
       }),
     ).toEqual({
       query: "ana",
-      filter: "all",
+      filter: [],
       sort: "spent",
       direction: "desc",
       limit: 25,
       offset: 0,
     });
+  });
+});
+
+describe("CreditAccountsSearchParamsSchema filter", () => {
+  const parse = (filter: string | string[]) =>
+    CreditAccountsSearchParamsSchema.parse({ filter }).filter;
+
+  it("reads one state or several, and drops unknown ones", () => {
+    expect(parse("debt")).toEqual(["debt"]);
+    expect(parse(["debt", "nope", "drift", "debt"])).toEqual(["debt", "drift"]);
+  });
+
+  /** The default only applies with no `filter` at all; clearing it is a choice. */
+  it("reads an empty filter as every account", () => {
+    expect(parse("")).toEqual([]);
   });
 });
 

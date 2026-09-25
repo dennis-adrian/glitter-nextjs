@@ -507,11 +507,27 @@ describeDatabase("admin credit queries", () => {
     ["review", () => [ids.ana, ids.caro]],
     ["drift", () => [ids.caro]],
   ] as const)("filters accounts by %s", async (filter, expected) => {
-    const page = (await queries.fetchCreditAccounts({ query: tag, filter }))!;
+    const page = (await queries.fetchCreditAccounts({
+      query: tag,
+      filters: [filter],
+    }))!;
     expect(page.rows.map((row) => row.user.id).sort()).toEqual(
       [...expected()].sort(),
     );
     expect(page.total).toBe(expected().length);
+  });
+
+  it("matches an account in any of several states", async () => {
+    const page = (await queries.fetchCreditAccounts({
+      query: tag,
+      filters: ["debt", "drift"],
+    }))!;
+    expect(page.rows.map((row) => row.user.id).sort()).toEqual(
+      [ids.beto, ids.caro].sort(),
+    );
+    expect(page.total).toBe(2);
+    // Beto owes 15; Caro's ledger says 25 whatever her cache claims.
+    expect(page.balanceTotal).toBe(10);
   });
 
   it("sorts and paginates accounts", async () => {

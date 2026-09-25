@@ -59,6 +59,12 @@ interface DataTableFiltersProps {
   multiple?: boolean;
   /** Server mode: the URL parameter this filter reads and writes. Defaults to `columnId`. */
   param?: string;
+  /**
+   * Server mode: what the server applies when the URL names nothing, so the
+   * trigger and chips say so. Clearing it leaves an empty parameter behind
+   * (`?status=`); dropping the parameter would bring the default back.
+   */
+  defaultValue?: readonly string[];
 }
 
 export interface DataTableInitialState {
@@ -214,6 +220,11 @@ function createSelectColumn(maxSelectable?: number) {
   };
 }
 
+function sameValues(a: readonly string[], b: readonly string[]) {
+  const set = new Set(a);
+  return set.size === new Set(b).size && b.every((value) => set.has(value));
+}
+
 function resolve<T>(updater: T | ((old: T) => T), old: T): T {
   return typeof updater === "function"
     ? (updater as (old: T) => T)(old)
@@ -245,7 +256,13 @@ function useServerState(
       ? [server.defaultSorting]
       : [];
   const columnFilters: ColumnFiltersState = filters.flatMap((filter) => {
-    const values = searchParams.getAll(filter.param ?? filter.columnId);
+    const param = filter.param ?? filter.columnId;
+    // A value the filter does not offer comes from a stale or hand-edited
+    // URL; shown, it would name a filter with no option to untick.
+    const offered = new Set(filter.options.map((option) => option.value));
+    const values = searchParams.has(param)
+      ? searchParams.getAll(param).filter((value) => offered.has(value))
+      : (filter.defaultValue ?? []);
     return values.length ? [{ id: filter.columnId, value: values }] : [];
   });
   const pagination: PaginationState = {
@@ -284,12 +301,17 @@ function useServerState(
         const param = filter.param ?? filter.columnId;
         params.delete(param);
         const entry = next.find((item) => item.id === filter.columnId);
-        const values = entry
-          ? Array.isArray(entry.value)
-            ? (entry.value as unknown[])
-            : [entry.value]
-          : [];
-        for (const value of values) params.append(param, String(value));
+        const values = (
+          entry
+            ? Array.isArray(entry.value)
+              ? (entry.value as unknown[])
+              : [entry.value]
+            : []
+        ).map(String);
+        // The default needs no parameter; clearing it needs an empty one.
+        if (sameValues(values, filter.defaultValue ?? [])) continue;
+        if (values.length === 0) params.set(param, "");
+        for (const value of values) params.append(param, value);
       }
     });
   };

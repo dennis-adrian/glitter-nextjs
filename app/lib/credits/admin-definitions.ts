@@ -125,7 +125,6 @@ export function defaultPurchaseDirection(
 }
 
 export const CREDIT_ACCOUNT_FILTERS = [
-  "all",
   "positive",
   "debt",
   "zero",
@@ -137,7 +136,6 @@ export type CreditAccountFilter = (typeof CREDIT_ACCOUNT_FILTERS)[number];
 
 export const CREDIT_ACCOUNT_FILTER_LABELS: Record<CreditAccountFilter, string> =
   {
-    all: "Todas las cuentas",
     positive: "Con saldo",
     debt: "En negativo",
     zero: "Sin saldo",
@@ -145,6 +143,14 @@ export const CREDIT_ACCOUNT_FILTER_LABELS: Record<CreditAccountFilter, string> =
     review: "Con compras en revisión",
     drift: "Con descuadre",
   };
+
+/**
+ * What Saldos shows with no `filter` in its URL: the accounts holding credits.
+ * An empty `filter=` is how the page asks for every account instead.
+ */
+export const DEFAULT_CREDIT_ACCOUNT_FILTERS: readonly CreditAccountFilter[] = [
+  "positive",
+];
 
 export const CREDIT_ACCOUNT_SORTS = [
   "balance",
@@ -187,7 +193,23 @@ const isoDateSchema = z
 
 export const CreditAccountsSearchParamsSchema = z.object({
   query: querySchema,
-  filter: z.enum(CREDIT_ACCOUNT_FILTERS).catch("all"),
+  // Several at once match an account in any of them.
+  filter: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .catch(undefined)
+    .transform((value): CreditAccountFilter[] =>
+      value === undefined
+        ? [...DEFAULT_CREDIT_ACCOUNT_FILTERS]
+        : [
+            ...new Set(
+              (typeof value === "string" ? [value] : value).filter(
+                (entry): entry is CreditAccountFilter =>
+                  (CREDIT_ACCOUNT_FILTERS as readonly string[]).includes(entry),
+              ),
+            ),
+          ],
+    ),
   sort: z.enum(CREDIT_ACCOUNT_SORTS).catch("balance"),
   direction: z.enum(["asc", "desc"]).catch("desc"),
   limit: limitSchema,
