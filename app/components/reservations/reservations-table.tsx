@@ -15,21 +15,25 @@ export default function ReservationsTable({
   data,
   canMutate = false,
   lens = "reservas",
+  focused = false,
 }: {
   data: FullReservationWithTender[];
   canMutate?: boolean;
   /** Which column preset to open on. Everything stays reachable via the view menu. */
   lens?: ConsoleLens;
+  /** `data` is already narrowed to one linked reservation. */
+  focused?: boolean;
 }) {
   return (
     <DataTable
-      // Remounts on a lens change so the preset's visibility and filters take
-      // effect; initialState is only read when the table is created.
-      key={lens}
+      // Remounts on a lens or focus change so the preset's visibility and
+      // filters take effect; initialState is only read when the table is
+      // created.
+      key={`${lens}:${focused ? "focused" : "all"}`}
       columns={columns(canMutate)}
       data={data}
       columnTitles={columnTitles}
-      initialState={lensInitialState(lens)}
+      initialState={lensInitialState(lens, { focused })}
       filters={[
         {
           label: "Estado de la reserva",
