@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import CreditAmount from "@/app/components/credits/credit-amount";
@@ -40,7 +41,12 @@ export default function CreditDebtCard({
             >
               <CreditAmount amount={account.ledgerBalance} />
             </p>
-            <p className="truncate text-sm">{participantName}</p>
+            <Link
+              href={`/dashboard/credits/accounts/${account.user.id}`}
+              className="block truncate text-sm underline-offset-2 hover:underline"
+            >
+              {participantName}
+            </Link>
             <p className="truncate text-xs text-muted-foreground">
               {account.user.email}
             </p>

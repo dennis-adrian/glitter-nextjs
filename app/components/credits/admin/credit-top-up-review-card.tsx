@@ -70,7 +70,12 @@ export default function CreditTopUpReviewCard({
             <p className="text-lg font-semibold">
               <CreditAmount amount={item.amount} />
             </p>
-            <p className="truncate text-sm">{participantName}</p>
+            <Link
+              href={`/dashboard/credits/accounts/${item.user.id}`}
+              className="block truncate text-sm underline-offset-2 hover:underline"
+            >
+              {participantName}
+            </Link>
             <p className="truncate text-xs text-muted-foreground">
               {item.user.email}
             </p>
