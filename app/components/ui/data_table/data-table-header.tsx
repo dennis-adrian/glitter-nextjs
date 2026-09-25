@@ -14,6 +14,9 @@ export function DataTableHeader<TData>({
   table: Table<TData>;
   density?: TableDensity;
 }) {
+  // With no rows the pinned actions header sits over nothing, and its divider
+  // would draw an empty column beside the empty state.
+  const hasRows = table.getRowModel().rows.length > 0;
   return (
     <TableHeader className="[&_tr]:border-b-0">
       {table.getHeaderGroups().map((headerGroup) => (
@@ -39,7 +42,7 @@ export function DataTableHeader<TData>({
                   meta?.align === "right" && "text-right",
                   meta?.align === "center" && "text-center",
                   header.column.getIsPinned()
-                    ? "right-0 z-30 border-l"
+                    ? cn("right-0 z-30", hasRows && "border-l")
                     : "z-10",
                   meta?.className,
                 )}

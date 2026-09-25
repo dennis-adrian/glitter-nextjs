@@ -182,10 +182,10 @@ const columnTitles: Record<string, string> = {
 
 function buildColumns({
   showUser,
-  canAdjust,
+  showActions,
 }: {
   showUser: boolean;
-  canAdjust: boolean;
+  showActions: boolean;
 }): ColumnDef<CreditLedgerRow>[] {
   return [
     {
@@ -244,7 +244,7 @@ function buildColumns({
       enableHiding: false,
       meta: { align: "right" },
     },
-    ...(canAdjust
+    ...(showActions
       ? [
           {
             id: "actions",
@@ -288,7 +288,12 @@ export default function CreditLedgerDataTable({
 }) {
   return (
     <DataTable
-      columns={buildColumns({ showUser, canAdjust })}
+      columns={buildColumns({
+        showUser,
+        // Most entries cannot be undone, so on a page with none the column
+        // would be an empty strip down the table's edge.
+        showActions: canAdjust && rows.some(canRevertCreditEntry),
+      })}
       data={rows}
       columnTitles={columnTitles}
       getRowId={(row) => String(row.id)}

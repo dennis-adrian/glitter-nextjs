@@ -188,15 +188,21 @@ const columnTitles: Record<string, string> = {
   decision: "Revisión",
 };
 
+function hasAction(row: CreditPurchaseRow) {
+  return row.review != null || row.voucherUrl != null;
+}
+
 function buildColumns({
   status,
   canReview,
   showUser,
+  showActions,
   now,
 }: {
   status: CreditPurchaseStatusFilter;
   canReview: boolean;
   showUser: boolean;
+  showActions: boolean;
   now: Date;
 }): ColumnDef<CreditPurchaseRow>[] {
   const pending = status === "under_review";
@@ -301,9 +307,11 @@ function buildColumns({
       enableHiding: false,
     },
   ];
-  return showUser
-    ? columns
-    : columns.filter((column) => column.id !== "participant");
+  return columns.filter(
+    (column) =>
+      (showUser || column.id !== "participant") &&
+      (showActions || column.id !== "actions"),
+  );
 }
 
 export default function CreditPurchasesDataTable({
@@ -331,7 +339,15 @@ export default function CreditPurchasesDataTable({
     <DataTable
       // A new status tab is a different list, with its own default order.
       key={status}
-      columns={buildColumns({ status, canReview, showUser, now })}
+      columns={buildColumns({
+        status,
+        canReview,
+        showUser,
+        // A tab of purchases still waiting on a voucher, or expired without
+        // one, has nothing to open; the column would be an empty strip.
+        showActions: rows.some(hasAction),
+        now,
+      })}
       data={rows}
       columnTitles={columnTitles}
       getRowId={(row) => String(row.id)}

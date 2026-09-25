@@ -146,6 +146,29 @@ describe("CreditPurchasesDataTable", () => {
     );
   });
 
+  it("leaves out the actions column when no purchase on the page has a voucher", () => {
+    renderTable(
+      [
+        purchase({
+          status: "awaiting_voucher",
+          voucherUrl: null,
+          review: null,
+        }),
+        purchase({
+          id: 8,
+          status: "expired",
+          voucherUrl: null,
+          review: null,
+        }),
+      ],
+      "all",
+    );
+
+    expect(
+      table().queryByRole("columnheader", { name: "Acciones" }),
+    ).toBeNull();
+  });
+
   it("offers a review only for a voucher still waiting on one", () => {
     renderTable(
       [

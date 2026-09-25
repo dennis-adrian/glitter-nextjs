@@ -158,6 +158,16 @@ describe("CreditLedgerDataTable", () => {
     expect(withRevert).toEqual([4, 6]);
   });
 
+  it("leaves out the actions column when no entry on the page can be undone", () => {
+    renderTable({ rows: rows.filter((entry) => ![4, 6].includes(entry.id)) });
+
+    expect(
+      within(screen.getByRole("table")).queryByRole("columnheader", {
+        name: "Acciones",
+      }),
+    ).toBeNull();
+  });
+
   it("shows no revert control to someone who cannot adjust", () => {
     renderTable({ canAdjust: false });
 

@@ -148,7 +148,13 @@ export default function CreditHoldsDataTable({
         </p>
       )}
       <DataTable
-        columns={columns}
+        // Only an active hold can be released; with none, the column would be
+        // an empty strip down the table's edge.
+        columns={
+          holds.some((hold) => hold.status === "active")
+            ? columns
+            : columns.filter((column) => column.id !== "actions")
+        }
         data={holds}
         columnTitles={columnTitles}
         getRowId={(row) => String(row.featureActionId)}
