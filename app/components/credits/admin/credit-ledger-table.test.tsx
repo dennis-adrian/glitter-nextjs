@@ -95,6 +95,8 @@ function entryItem(id: number) {
 }
 
 describe("CreditLedgerTable", () => {
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     fetchCreditLedgerMock.mockResolvedValue({
       rows,
@@ -102,8 +104,13 @@ describe("CreditLedgerTable", () => {
       creditsIn: 165,
       creditsOut: -75,
     });
+    consoleError = vi.spyOn(console, "error");
   });
   afterEach(() => {
+    // React reports invalid nesting (a badge's <div> inside a <p>) only as a
+    // console error, and in the browser it breaks hydration of the page.
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
     cleanup();
     vi.clearAllMocks();
   });

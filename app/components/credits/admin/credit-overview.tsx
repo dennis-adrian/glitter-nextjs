@@ -221,18 +221,20 @@ export default async function CreditOverview() {
         />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="px-4 sm:px-6">
             <CardTitle className="text-base">Movimientos por tipo</CardTitle>
           </CardHeader>
-          <CardContent>
+          {/* Three columns only fit a phone once the card and cells give
+              back some of their padding. */}
+          <CardContent className="px-2 sm:px-6">
             {kinds.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Todavía no se movió ningún crédito.
               </p>
             ) : (
-              <Table>
+              <Table className="[&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-4 sm:[&_th]:px-4">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tipo</TableHead>
@@ -296,7 +298,7 @@ export default async function CreditOverview() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 sm:px-6">
             <CardTitle className="text-base">Mayores saldos</CardTitle>
             <Link
               href="/dashboard/credits/accounts"
@@ -305,7 +307,7 @@ export default async function CreditOverview() {
               Ver todos
             </Link>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
             {overview.topHolders.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Nadie tiene créditos disponibles.

@@ -116,7 +116,9 @@ function EntryContext({ row }: { row: CreditLedgerRow }) {
       </span>,
     );
   }
-  if (row.kind === "revert" && row.reversesEntryId != null) {
+  // An undo posted from this screen already says so in its reason; the link
+  // is only worth spelling out for one that arrived without one.
+  if (row.kind === "revert" && row.reversesEntryId != null && !row.reason) {
     parts.push(
       <span key="reverts">Revierte el movimiento #{row.reversesEntryId}</span>,
     );
@@ -124,14 +126,14 @@ function EntryContext({ row }: { row: CreditLedgerRow }) {
 
   if (parts.length === 0) return null;
   return (
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
       {parts.map((part, index) => (
         <span key={index} className="inline-flex items-center gap-2">
           {index > 0 && <span aria-hidden="true">·</span>}
           {part}
         </span>
       ))}
-    </p>
+    </div>
   );
 }
 
@@ -234,14 +236,14 @@ export default async function CreditLedgerTable({
               )}
 
               <div className="min-w-0 space-y-1">
-                <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                   {CREDIT_LEDGER_KIND_LABELS[row.kind]}
                   {reverted && (
                     <Badge size="sm" variant="secondary">
                       {reverted}
                     </Badge>
                   )}
-                </p>
+                </div>
                 {row.reason && (
                   <p className="text-sm text-muted-foreground">{row.reason}</p>
                 )}

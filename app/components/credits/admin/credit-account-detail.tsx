@@ -198,7 +198,7 @@ export default async function CreditAccountDetail({
         </Suspense>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="space-y-3">
           <h3 className="text-lg font-semibold">Compras</h3>
           <CreditAccountTopUps topUps={topUps} />

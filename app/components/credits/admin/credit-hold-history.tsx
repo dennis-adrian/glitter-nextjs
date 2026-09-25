@@ -36,12 +36,12 @@ export default function CreditHoldHistory({ holds }: { holds: FeatureHold[] }) {
           className="flex items-start justify-between gap-3 p-3"
         >
           <div className="min-w-0 space-y-1">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
               Mesa completa
               <Badge size="sm" variant={STATUS[hold.status].variant}>
                 {STATUS[hold.status].label}
               </Badge>
-            </p>
+            </div>
             <p className="text-xs text-muted-foreground">
               <Link
                 href={`/dashboard/festivals/${hold.festivalId}`}

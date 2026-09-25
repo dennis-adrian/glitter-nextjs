@@ -41,7 +41,7 @@ export default function CreditAccountTopUps({
           className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between"
         >
           <div className="min-w-0 space-y-1">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
               Compra #{topUp.id}
               <Badge
                 size="sm"
@@ -49,7 +49,7 @@ export default function CreditAccountTopUps({
               >
                 {CREDIT_TOP_UP_STATUS_LABELS[topUp.status] ?? topUp.status}
               </Badge>
-            </p>
+            </div>
             <p className="text-xs text-muted-foreground">
               {CREDIT_TOP_UP_PURPOSE_LABELS[topUp.intendedUseType] ??
                 topUp.intendedUseType}{" "}
