@@ -16,11 +16,10 @@ export default function CollectionBanner({
   const campaign = collection.campaignImageUrl;
   const lightText = !!campaign && collection.campaignTextTone === "light";
   const Heading = preview ? "h4" : "h1";
-  // A collection holding only bundles has no product catalog to land on.
-  const section =
-    collection.productIds.length === 0 && (collection.bundleIds?.length ?? 0) > 0
-      ? "#combos"
-      : "#catalogo";
+  // Combos sit between the banner and the catalog, so landing on the catalog
+  // would scroll past them. bundleIds holds exactly the bundles the collection
+  // page renders there, so #combos exists whenever it is non-empty.
+  const section = collection.bundleIds?.length ? "#combos" : "#catalogo";
   const href = isCollectionPage
     ? section
     : `${merchCollectionPath(collection.slug)}${section}`;

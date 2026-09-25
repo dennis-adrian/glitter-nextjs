@@ -47,6 +47,20 @@ it("makes the banner without campaign art clickable too", () => {
   );
 });
 
+it("lands on the combos of a collection that also has products", () => {
+  const { container } = render(
+    <CollectionBanner collection={{ ...collection, bundleIds: [4] }} />,
+  );
+  expect(
+    screen
+      .getByRole("link", { name: "Explorar colección" })
+      .getAttribute("href"),
+  ).toBe("/merch/collections/clasicos#combos");
+  expect(bannerLayer(container)?.getAttribute("href")).toBe(
+    "/merch/collections/clasicos#combos",
+  );
+});
+
 it("lands on the combos of a collection that only holds bundles", () => {
   const { container } = render(
     <CollectionBanner
@@ -71,6 +85,18 @@ it("scrolls to the catalog on the collection's own page", () => {
     screen.getByRole("link", { name: "Ver productos" }).getAttribute("href"),
   ).toBe("#catalogo");
   expect(bannerLayer(container)?.getAttribute("href")).toBe("#catalogo");
+});
+
+it("scrolls to the combos on the collection's own page when it has any", () => {
+  render(
+    <CollectionBanner
+      collection={{ ...collection, bundleIds: [4] }}
+      isCollectionPage
+    />,
+  );
+  expect(
+    screen.getByRole("link", { name: "Ver productos" }).getAttribute("href"),
+  ).toBe("#combos");
 });
 
 it("links nowhere in the editor preview", () => {
