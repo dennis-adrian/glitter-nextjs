@@ -86,7 +86,7 @@ function AttentionLink({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 rounded-md border p-3 text-sm transition-colors",
+        "flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors",
         tone === "red"
           ? "border-red-200 bg-red-50 text-red-900 hover:bg-red-100"
           : "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
@@ -124,8 +124,14 @@ export default async function CreditOverview() {
     overview.driftCount > 0;
 
   return (
-    <div className="space-y-6">
-      <section aria-label="Pendientes" className="space-y-2">
+    // On a wide screen the page fits the viewport: the lower cards take the
+    // height left and scroll inside themselves. Stacked on a phone there is no
+    // height to share, so the page keeps its natural length.
+    <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
+      <section
+        aria-label="Pendientes"
+        className="grid shrink-0 gap-2 lg:auto-cols-fr lg:grid-flow-col"
+      >
         {needsAttention ? (
           <>
             {overview.underReview.count > 0 && (
@@ -174,7 +180,7 @@ export default async function CreditOverview() {
             )}
           </>
         ) : (
-          <p className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-muted-foreground">
             <CheckCircle2Icon className="h-5 w-5 shrink-0 text-green-600" />
             No hay compras por revisar, deudas ni descuadres.
           </p>
@@ -183,7 +189,7 @@ export default async function CreditOverview() {
 
       <section
         aria-label="Indicadores de créditos"
-        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4"
       >
         <StatTile
           label="En manos de participantes"
@@ -221,14 +227,14 @@ export default async function CreditOverview() {
         />
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="px-4 sm:px-6">
+      <div className="grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-3">
+        <Card className="flex flex-col lg:col-span-2 lg:min-h-0">
+          <CardHeader className="px-4 py-4 sm:px-6">
             <CardTitle className="text-base">Movimientos por tipo</CardTitle>
           </CardHeader>
           {/* Three columns only fit a phone once the card and cells give
               back some of their padding. */}
-          <CardContent className="px-2 sm:px-6">
+          <CardContent className="px-2 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {kinds.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Todavía no se movió ningún crédito.
@@ -297,8 +303,8 @@ export default async function CreditOverview() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 sm:px-6">
+        <Card className="flex flex-col lg:min-h-0">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-4 sm:px-6">
             <CardTitle className="text-base">Mayores saldos</CardTitle>
             <Link
               href="/dashboard/credits/accounts"
@@ -307,7 +313,7 @@ export default async function CreditOverview() {
               Ver todos
             </Link>
           </CardHeader>
-          <CardContent className="px-4 sm:px-6">
+          <CardContent className="px-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {overview.topHolders.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Nadie tiene créditos disponibles.

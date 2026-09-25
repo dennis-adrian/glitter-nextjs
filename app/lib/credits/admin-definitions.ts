@@ -75,6 +75,55 @@ export const CREDIT_TOP_UP_PURPOSE_LABELS: Record<string, string> = {
   debt: "Regularización de saldo",
 };
 
+export const CREDIT_TOP_UP_PURPOSES = ["feature", "invoice", "debt"] as const;
+export type CreditTopUpPurpose = (typeof CREDIT_TOP_UP_PURPOSES)[number];
+
+/** Which feature a `feature` purchase was for, in the ledger's own wording. */
+export const CREDIT_FEATURE_TYPE_LABELS: Record<string, string> = {
+  full_table: "Mesa completa",
+  late_partner: "Compañero agregado",
+  reservation_release: "Liberación de espacio",
+};
+
+/**
+ * The purchase list's status tabs, in the order an admin works them.
+ *
+ * `expired` includes purchases still stored as `awaiting_voucher` whose
+ * upload window has closed — they are dead, just not yet swept.
+ */
+export const CREDIT_PURCHASE_STATUSES = [
+  "under_review",
+  "awaiting_voucher",
+  "approved",
+  "rejected",
+  "expired",
+  "all",
+] as const;
+export type CreditPurchaseStatusFilter =
+  (typeof CREDIT_PURCHASE_STATUSES)[number];
+
+export const CREDIT_PURCHASE_STATUS_TAB_LABELS: Record<
+  CreditPurchaseStatusFilter,
+  string
+> = {
+  under_review: "Por revisar",
+  awaiting_voucher: "Esperando comprobante",
+  approved: "Aprobadas",
+  rejected: "Rechazadas",
+  expired: "Vencidas",
+  all: "Todas",
+};
+
+/**
+ * The queue drains oldest first, so nobody waits behind newer vouchers; every
+ * other view is history, read newest first.
+ */
+export function defaultPurchaseDirection(
+  status: CreditPurchaseStatusFilter,
+): "asc" | "desc" {
+  return status === "under_review" ? "asc" : "desc";
+}
+
 export const CREDIT_ACCOUNT_FILTERS = [
   "all",
   "positive",
@@ -175,6 +224,23 @@ export const CreditLedgerSearchParamsSchema = z.object({
 });
 export type CreditLedgerSearchParams = z.infer<
   typeof CreditLedgerSearchParamsSchema
+>;
+
+export const CreditPurchasesSearchParamsSchema = z.object({
+  status: z.enum(CREDIT_PURCHASE_STATUSES).catch("under_review"),
+  query: querySchema,
+  purpose: z.enum(CREDIT_TOP_UP_PURPOSES).optional().catch(undefined),
+  festivalId: positiveIdSchema,
+  from: isoDateSchema,
+  to: isoDateSchema,
+  sort: z.enum(["arrivedAt", "amount"]).catch("arrivedAt"),
+  /** Unset means the status's own default; see `defaultPurchaseDirection`. */
+  direction: z.enum(["asc", "desc"]).optional().catch(undefined),
+  limit: limitSchema,
+  offset: offsetSchema,
+});
+export type CreditPurchasesSearchParams = z.infer<
+  typeof CreditPurchasesSearchParamsSchema
 >;
 
 /** Plain `searchParams` from a page, with repeated keys kept as arrays. */

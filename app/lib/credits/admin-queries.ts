@@ -120,6 +120,20 @@ function startOfLocalDay(value: string): Date | null {
   return date.isValid ? date.toJSDate() : null;
 }
 
+/** An inclusive `from`–`to` range of Bolivian calendar days, as UTC bounds. */
+function localDayBounds(fromDay?: string, toDay?: string) {
+  const from = fromDay ? startOfLocalDay(fromDay) : null;
+  const toStart = toDay ? startOfLocalDay(toDay) : null;
+  const toExclusive = toStart
+    ? new Date(
+        DateTime.fromJSDate(toStart, { zone: STORE_TIMEZONE })
+          .plus({ days: 1 })
+          .toMillis(),
+      )
+    : null;
+  return { from, toExclusive };
+}
+
 type UserSummary = {
   id: number;
   displayName: string | null;
@@ -703,15 +717,7 @@ function joinLedger<Q extends PgSelect>(qb: Q) {
 }
 
 function ledgerWhere(input: CreditLedgerQueryInput): SQL | undefined {
-  const from = input.from ? startOfLocalDay(input.from) : null;
-  const toStart = input.to ? startOfLocalDay(input.to) : null;
-  const toExclusive = toStart
-    ? new Date(
-        DateTime.fromJSDate(toStart, { zone: STORE_TIMEZONE })
-          .plus({ days: 1 })
-          .toMillis(),
-      )
-    : null;
+  const { from, toExclusive } = localDayBounds(input.from, input.to);
   return and(
     input.userId != null
       ? eq(creditLedgerEntries.userId, input.userId)
@@ -971,67 +977,6 @@ export async function fetchCreditAccountDetail(
   return { subject, account: accounts.rows[0] ?? null };
 }
 
-export type CreditAdminTopUp = {
-  id: number;
-  amount: number;
-  status: CreditTopUpDisplayStatus;
-  intendedUseType: "feature" | "invoice" | "debt";
-  voucherUrl: string | null;
-  createdAt: Date;
-  submittedAt: Date | null;
-  reviewedAt: Date | null;
-  reviewerName: string | null;
-  rejectionReason: string | null;
-};
-
-/** Every purchase a participant opened, including ones never paid. */
-export async function fetchCreditTopUpsForAccount(
-  userId: number,
-  now = new Date(),
-): Promise<CreditAdminTopUp[]> {
-  if (!(await canViewCredits())) return [];
-
-  const rows = await db
-    .select({
-      id: creditTopUps.id,
-      amount: creditTopUps.amount,
-      status: creditTopUps.status,
-      intendedUseType: creditTopUps.intendedUseType,
-      voucherUrl: creditTopUps.voucherUrl,
-      uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
-      createdAt: creditTopUps.createdAt,
-      submittedAt: creditTopUps.submittedAt,
-      reviewedAt: creditTopUps.reviewedAt,
-      reviewedByUserId: creditTopUps.reviewedByUserId,
-      rejectionReason: creditTopUps.rejectionReason,
-    })
-    .from(creditTopUps)
-    .where(eq(creditTopUps.userId, userId))
-    .orderBy(desc(creditTopUps.createdAt), desc(creditTopUps.id));
-
-  const reviewerNames = await namesForUsers(
-    rows
-      .map((row) => row.reviewedByUserId)
-      .filter((id): id is number => id != null),
-  );
-
-  return rows.map((row) => ({
-    id: row.id,
-    amount: Number(row.amount),
-    status: displayTopUpStatus(row.status, row.uploadDeadlineAt, now),
-    intendedUseType: row.intendedUseType,
-    voucherUrl: row.voucherUrl,
-    createdAt: row.createdAt,
-    submittedAt: row.submittedAt,
-    reviewedAt: row.reviewedAt,
-    reviewerName:
-      row.reviewedByUserId != null
-        ? (reviewerNames.get(row.reviewedByUserId) ?? null)
-        : null,
-    rejectionReason: row.rejectionReason,
-  }));
-}
-
 export type CreditParticipantOption = {
   id: number;
   label: string;
@@ -1065,4 +1010,337 @@ export async function searchCreditParticipants(
     label: `${getUserName(row) || row.email} · ${row.email}`,
     imageUrl: row.imageUrl,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Purchases (top-ups) and their review
+// ---------------------------------------------------------------------------
+
+/** What a pending voucher would cost to reject; see the review dialog. */
+export type CreditPurchaseReviewContext = {
+  /** The participant's whole ledger balance, this purchase included. */
+  ledgerBalance: number;
+  /**
+   * Where a rejection would leave the ledger. Exact, unlike attributing
+   * individual spends to a voucher — credits are fungible once posted.
+   */
+  balanceAfterReversal: number;
+  /** Context only: credits spent since this voucher arrived. */
+  spentSinceSubmission: number;
+};
+
+export type CreditPurchaseRow = {
+  id: number;
+  amount: number;
+  status: CreditTopUpDisplayStatus;
+  intendedUseType: "feature" | "invoice" | "debt";
+  /** Which feature a `feature` purchase was for; null on older rows. */
+  featureType: string | null;
+  voucherUrl: string | null;
+  createdAt: Date;
+  submittedAt: Date | null;
+  uploadDeadlineAt: Date;
+  reviewedAt: Date | null;
+  reviewerName: string | null;
+  rejectionReason: string | null;
+  user: UserSummary;
+  /** The festival it was for: the feature's, or the paid reservation's. */
+  festival: { id: number; name: string } | null;
+  /** Set for an `invoice` purchase whose invoice still exists. */
+  invoice: { id: number; reservationId: number } | null;
+  /** Only for a purchase still under review. */
+  review: CreditPurchaseReviewContext | null;
+};
+
+export type CreditPurchaseStatusCounts = Record<
+  CreditTopUpDisplayStatus | "all",
+  number
+>;
+
+export type CreditPurchasesPage = {
+  rows: CreditPurchaseRow[];
+  /** Every purchase matching the filters and status, not just this page. */
+  total: number;
+  totalAmount: number;
+  /** Per status under the same filters, for the status tabs. */
+  counts: CreditPurchaseStatusCounts;
+};
+
+export type CreditPurchasesQueryInput = {
+  status?: CreditTopUpDisplayStatus | "all";
+  /** One participant's purchases, for their account page. */
+  userId?: number;
+  query?: string;
+  purpose?: "feature" | "invoice" | "debt";
+  festivalId?: number;
+  from?: string;
+  to?: string;
+  /** When the purchase reached an admin, or how much it was for. */
+  sort?: "arrivedAt" | "amount";
+  direction?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+};
+
+/**
+ * The stored status with the one correction reads make: a purchase still
+ * `awaiting_voucher` past its deadline is expired, just not yet swept.
+ */
+function purchaseStatusSql(now: Date) {
+  return sql<CreditTopUpDisplayStatus>`case
+    when ${creditTopUps.status} = 'awaiting_voucher' and ${creditTopUps.uploadDeadlineAt} <= ${isoParam(now)} then 'expired'
+    else ${creditTopUps.status}::text
+  end`;
+}
+
+/** When the purchase reached the admin: its voucher, or its opening. */
+const purchaseArrivedAt = sql`coalesce(${creditTopUps.submittedAt}, ${creditTopUps.createdAt})`;
+
+function joinPurchases<Q extends PgSelect>(qb: Q) {
+  return (
+    qb
+      .innerJoin(users, eq(users.id, creditTopUps.userId))
+      .leftJoin(
+        invoices,
+        and(
+          eq(creditTopUps.intendedUseType, "invoice"),
+          eq(invoices.id, creditTopUps.intendedUseId),
+        ),
+      )
+      .leftJoin(
+        standReservations,
+        eq(standReservations.id, invoices.reservationId),
+      )
+      // A feature purchase stores its festival directly; an invoice purchase
+      // reaches it through the reservation it pays.
+      .leftJoin(
+        festivals,
+        sql`${festivals.id} = case when ${creditTopUps.intendedUseType} = 'feature' then ${creditTopUps.intendedUseId} else ${standReservations.festivalId} end`,
+      )
+  );
+}
+
+function purchaseSearchCondition(query: string): SQL | undefined {
+  const byUser = userSearchCondition(query);
+  if (!byUser) return undefined;
+  // The same number is also a purchase, which is what an admin holding a
+  // voucher screenshot is most likely to have.
+  const id = Number(query.trim().replace(/^#/, ""));
+  return Number.isInteger(id) && id > 0 && id <= 2_147_483_647
+    ? or(byUser, eq(creditTopUps.id, id))
+    : byUser;
+}
+
+/** Unguarded; callers check the viewer. */
+async function queryCreditPurchases(
+  input: CreditPurchasesQueryInput,
+  now = new Date(),
+): Promise<CreditPurchasesPage> {
+  const status = input.status ?? "under_review";
+  const direction =
+    input.direction ?? (status === "under_review" ? "asc" : "desc");
+  const statusSql = purchaseStatusSql(now);
+  const { from, toExclusive } = localDayBounds(input.from, input.to);
+
+  // Everything but the status, so the tabs can count their own.
+  const filters = and(
+    input.userId != null ? eq(creditTopUps.userId, input.userId) : undefined,
+    purchaseSearchCondition(input.query ?? ""),
+    input.purpose ? eq(creditTopUps.intendedUseType, input.purpose) : undefined,
+    input.festivalId != null ? eq(festivals.id, input.festivalId) : undefined,
+    from ? sql`${purchaseArrivedAt} >= ${isoParam(from)}` : undefined,
+    toExclusive
+      ? sql`${purchaseArrivedAt} < ${isoParam(toExclusive)}`
+      : undefined,
+  );
+  const where = and(
+    filters,
+    status === "all" ? undefined : sql`${statusSql} = ${status}`,
+  );
+  // Arrival for every state, so the "Llegó" header is always the truth; the
+  // queue reads it oldest first and history newest first.
+  const sortKey =
+    input.sort === "amount" ? creditTopUps.amount : purchaseArrivedAt;
+  const order = sql.raw(direction === "asc" ? "asc" : "desc");
+
+  const [rows, totals, countRows] = await Promise.all([
+    joinPurchases(
+      db
+        .select({
+          id: creditTopUps.id,
+          amount: creditTopUps.amount,
+          status: statusSql,
+          intendedUseType: creditTopUps.intendedUseType,
+          featureType: creditTopUps.intendedFeatureType,
+          voucherUrl: creditTopUps.voucherUrl,
+          createdAt: creditTopUps.createdAt,
+          submittedAt: creditTopUps.submittedAt,
+          uploadDeadlineAt: creditTopUps.uploadDeadlineAt,
+          reviewedAt: creditTopUps.reviewedAt,
+          reviewedByUserId: creditTopUps.reviewedByUserId,
+          rejectionReason: creditTopUps.rejectionReason,
+          userId: users.id,
+          displayName: users.displayName,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          invoiceId: invoices.id,
+          invoiceReservationId: invoices.reservationId,
+          festivalId: festivals.id,
+          festivalName: festivals.name,
+        })
+        .from(creditTopUps)
+        .$dynamic(),
+    )
+      .where(where)
+      .orderBy(sql`${sortKey} ${order}`, sql`${creditTopUps.id} ${order}`)
+      .limit(input.limit ?? 25)
+      .offset(input.offset ?? 0),
+    joinPurchases(
+      db
+        .select({
+          total: sql<string>`count(*)`,
+          totalAmount: sql<string>`coalesce(sum(${creditTopUps.amount}), 0)`,
+        })
+        .from(creditTopUps)
+        .$dynamic(),
+    ).where(where),
+    joinPurchases(
+      db
+        .select({ status: statusSql, total: sql<string>`count(*)` })
+        .from(creditTopUps)
+        .$dynamic(),
+    )
+      .where(filters)
+      // By position: the status expression carries `now` as a bind
+      // parameter, which Postgres numbers differently in the GROUP BY and so
+      // would not recognise as the selected expression.
+      .groupBy(sql`1`),
+  ]);
+
+  const counts: CreditPurchaseStatusCounts = {
+    under_review: 0,
+    awaiting_voucher: 0,
+    approved: 0,
+    rejected: 0,
+    expired: 0,
+    all: 0,
+  };
+  for (const row of countRows) {
+    if (row.status in counts) counts[row.status] = count(row.total);
+    counts.all += count(row.total);
+  }
+
+  const pending = rows.filter((row) => row.status === "under_review");
+  const pendingUserIds = [...new Set(pending.map((row) => row.userId))];
+  const [balanceRows, spentRows, reviewerNames] = await Promise.all([
+    pendingUserIds.length
+      ? db
+          .select({
+            userId: creditLedgerEntries.userId,
+            balance: sql<string>`coalesce(sum(${creditLedgerEntries.amount}), 0)`,
+          })
+          .from(creditLedgerEntries)
+          .where(inArray(creditLedgerEntries.userId, pendingUserIds))
+          .groupBy(creditLedgerEntries.userId)
+      : [],
+    pending.length
+      ? db
+          .select({
+            topUpId: creditTopUps.id,
+            spent: sql<string>`coalesce(-sum(${creditLedgerEntries.amount}), 0)`,
+          })
+          .from(creditTopUps)
+          .innerJoin(
+            creditLedgerEntries,
+            and(
+              eq(creditLedgerEntries.userId, creditTopUps.userId),
+              eq(creditLedgerEntries.type, "spend"),
+              gte(creditLedgerEntries.createdAt, creditTopUps.submittedAt),
+            ),
+          )
+          .where(
+            inArray(
+              creditTopUps.id,
+              pending.map((row) => row.id),
+            ),
+          )
+          .groupBy(creditTopUps.id)
+      : [],
+    namesForUsers(
+      rows
+        .map((row) => row.reviewedByUserId)
+        .filter((id): id is number => id != null),
+    ),
+  ]);
+  const balanceByUser = new Map(
+    balanceRows.map((row) => [row.userId, money(row.balance)]),
+  );
+  const spentByTopUp = new Map(
+    spentRows.map((row) => [row.topUpId, money(row.spent)]),
+  );
+
+  return {
+    rows: rows.map((row) => {
+      const amount = Number(row.amount);
+      const ledgerBalance = balanceByUser.get(row.userId) ?? 0;
+      return {
+        id: row.id,
+        amount,
+        status: row.status,
+        intendedUseType: row.intendedUseType,
+        featureType: row.featureType,
+        voucherUrl: row.voucherUrl,
+        createdAt: row.createdAt,
+        submittedAt: row.submittedAt,
+        uploadDeadlineAt: row.uploadDeadlineAt,
+        reviewedAt: row.reviewedAt,
+        reviewerName:
+          row.reviewedByUserId != null
+            ? (reviewerNames.get(row.reviewedByUserId) ?? null)
+            : null,
+        rejectionReason: row.rejectionReason,
+        user: {
+          id: row.userId,
+          displayName: row.displayName,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          email: row.email,
+        },
+        festival:
+          row.festivalId != null && row.festivalName
+            ? { id: row.festivalId, name: row.festivalName }
+            : null,
+        invoice:
+          row.invoiceId != null && row.invoiceReservationId != null
+            ? { id: row.invoiceId, reservationId: row.invoiceReservationId }
+            : null,
+        review:
+          row.status === "under_review"
+            ? {
+                ledgerBalance,
+                balanceAfterReversal: roundMoney(ledgerBalance - amount),
+                spentSinceSubmission: spentByTopUp.get(row.id) ?? 0,
+              }
+            : null,
+      };
+    }),
+    total: count(totals[0]?.total),
+    totalAmount: money(totals[0]?.totalAmount),
+    counts,
+  };
+}
+
+/**
+ * Every credit purchase, filterable, for the review page.
+ *
+ * Readable by global and festival admins; only a global admin can act on a
+ * voucher, which `reviewCreditTopUpAction` enforces separately.
+ */
+export async function fetchCreditPurchases(
+  input: CreditPurchasesQueryInput,
+  now = new Date(),
+): Promise<CreditPurchasesPage | null> {
+  if (!(await canViewCredits())) return null;
+  return queryCreditPurchases(input, now);
 }

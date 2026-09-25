@@ -1,33 +1,35 @@
-import { Suspense } from "react";
+import { notFound } from "next/navigation";
 
-import CreditLedgerFilters from "@/app/components/credits/admin/credit-ledger-filters";
-import CreditLedgerTable from "@/app/components/credits/admin/credit-ledger-table";
-import TableSkeleton from "@/app/components/users/skeletons/table";
+import CreditLedgerDataTable from "@/app/components/credits/admin/credit-ledger-data-table";
 import {
   CreditLedgerSearchParamsSchema,
   type RawSearchParams,
 } from "@/app/lib/credits/admin-definitions";
-import { fetchCreditLedgerFestivals } from "@/app/lib/credits/admin-queries";
+import {
+  fetchCreditLedger,
+  fetchCreditLedgerFestivals,
+} from "@/app/lib/credits/admin-queries";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function CreditLedgerPage(props: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const [params, festivals] = await Promise.all([
-    props.searchParams.then((raw) => CreditLedgerSearchParamsSchema.parse(raw)),
+  const params = CreditLedgerSearchParamsSchema.parse(await props.searchParams);
+  const [actor, page, festivals] = await Promise.all([
+    getCurrentUserProfile(),
+    fetchCreditLedger({ ...params, kinds: params.kind }),
     fetchCreditLedgerFestivals(),
   ]);
+  if (!page) notFound();
 
   return (
-    <div className="space-y-4">
-      <p className="max-w-2xl text-sm text-muted-foreground">
-        El libro completo de créditos, de todos los participantes. Nada se
-        borra: una corrección es un movimiento nuevo que queda al lado del
-        original.
-      </p>
-      <CreditLedgerFilters festivals={festivals} />
-      <Suspense key={JSON.stringify(params)} fallback={<TableSkeleton />}>
-        <CreditLedgerTable params={params} />
-      </Suspense>
-    </div>
+    <CreditLedgerDataTable
+      rows={page.rows}
+      rowCount={page.total}
+      totals={{ creditsIn: page.creditsIn, creditsOut: page.creditsOut }}
+      festivals={festivals}
+      canAdjust={canMutateAdminReservations(actor)}
+    />
   );
 }

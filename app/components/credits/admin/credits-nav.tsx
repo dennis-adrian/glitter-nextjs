@@ -78,7 +78,10 @@ function CountBadge({
   );
 }
 
-/** Same shape as the store's section rail, so the two admin areas read alike. */
+/**
+ * Same shape as the store's section rail, so the two admin areas read alike.
+ * Not sticky: the credits pages fit the viewport, so it never scrolls away.
+ */
 export default function CreditsNav({
   pendingReviews,
   debtAccounts,
@@ -102,7 +105,7 @@ export default function CreditsNav({
   }, [active]);
 
   return (
-    <div className="sticky top-16 z-40 -mx-3 border-b bg-background/95 px-3 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:top-20 md:-mx-6 md:px-6">
+    <div className="shrink-0">
       <nav
         aria-label="Secciones de créditos"
         className="overflow-x-auto rounded-2xl border border-border/70 bg-muted/30 p-1 shadow-sm [&::-webkit-scrollbar]:hidden"

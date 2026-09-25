@@ -18,12 +18,12 @@ export default function CreditAccountPicker() {
   const [isSearching, startSearch] = useTransition();
 
   return (
-    <div className="w-full md:max-w-96">
+    <div className="w-full sm:w-64">
       <SearchInput
         id="credit-account-picker"
         label="Abrir la cuenta de un participante"
-        labelStyles="text-sm text-muted-foreground"
-        placeholder="Nombre o correo"
+        labelStyles="sr-only"
+        placeholder="Abrir cuenta de…"
         options={options}
         isLoading={isSearching}
         onSearch={(term) =>

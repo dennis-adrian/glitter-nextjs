@@ -4,14 +4,6 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-const fetchCreditLedgerMock = vi.hoisted(() => vi.fn());
-const currentProfileMock = vi.hoisted(() => vi.fn());
-vi.mock("@/app/lib/credits/admin-queries", () => ({
-  fetchCreditLedger: fetchCreditLedgerMock,
-}));
-vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
-}));
 // The revert button reaches a "use server" module.
 vi.mock("@/app/lib/credits/actions", () => ({
   adjustCreditAccountAction: vi.fn(),
@@ -19,17 +11,13 @@ vi.mock("@/app/lib/credits/actions", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/dashboard/credits/ledger",
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import CreditLedgerTable from "@/app/components/credits/admin/credit-ledger-table";
-import {
-  CreditLedgerSearchParamsSchema,
-  type CreditLedgerKind,
-} from "@/app/lib/credits/admin-definitions";
+import CreditLedgerDataTable from "@/app/components/credits/admin/credit-ledger-data-table";
+import type { CreditLedgerKind } from "@/app/lib/credits/admin-definitions";
 import type { CreditLedgerRow } from "@/app/lib/credits/admin-queries";
-
-const params = CreditLedgerSearchParamsSchema.parse({});
 
 function row(
   id: number,
@@ -90,20 +78,30 @@ const rows: CreditLedgerRow[] = [
   }),
 ];
 
-function entryItem(id: number) {
-  return screen.getByText(`#${id}`).closest("li")!;
+function renderTable(
+  props: Partial<Parameters<typeof CreditLedgerDataTable>[0]> = {},
+) {
+  return render(
+    <CreditLedgerDataTable
+      rows={rows}
+      rowCount={rows.length}
+      totals={{ creditsIn: 165, creditsOut: -75 }}
+      festivals={[{ id: 5, name: "Festicker" }]}
+      canAdjust
+      {...props}
+    />,
+  );
 }
 
-describe("CreditLedgerTable", () => {
+/** The desktop table's row for an entry; the phone list repeats it. */
+function entryRow(id: number) {
+  return within(screen.getByRole("table")).getByText(`#${id}`).closest("tr")!;
+}
+
+describe("CreditLedgerDataTable", () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    fetchCreditLedgerMock.mockResolvedValue({
-      rows,
-      total: rows.length,
-      creditsIn: 165,
-      creditsOut: -75,
-    });
     consoleError = vi.spyOn(console, "error");
   });
   afterEach(() => {
@@ -112,40 +110,36 @@ describe("CreditLedgerTable", () => {
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
     cleanup();
-    vi.clearAllMocks();
   });
 
-  it("says what each entry touched", async () => {
-    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    render(await CreditLedgerTable({ params }));
+  it("says what each entry touched", () => {
+    renderTable();
 
     expect(
-      within(entryItem(1))
+      within(entryRow(1))
         .getByRole("link", { name: "ver comprobante" })
         .getAttribute("href"),
     ).toBe("https://files/v.png");
-    expect(within(entryItem(1)).getByText("Aprobada")).toBeTruthy();
+    expect(within(entryRow(1)).getByText("Aprobada")).toBeTruthy();
 
-    expect(within(entryItem(2)).getByText("Devuelto")).toBeTruthy();
+    expect(within(entryRow(2)).getByText("Devuelto")).toBeTruthy();
     expect(
-      within(entryItem(2))
+      within(entryRow(2))
         .getByRole("link", { name: "reserva #21" })
         .getAttribute("href"),
     ).toBe("/dashboard/reservations/21/edit");
     expect(
-      within(entryItem(2))
+      within(entryRow(2))
         .getByRole("link", { name: "Festicker" })
         .getAttribute("href"),
     ).toBe("/dashboard/festivals/5");
 
-    expect(
-      within(entryItem(3)).getByText(/Devuelto del cobro #9/),
-    ).toBeTruthy();
-    expect(within(entryItem(4)).getByText("compensación")).toBeTruthy();
-    expect(within(entryItem(4)).getByText("Por Admin Uno")).toBeTruthy();
-    expect(within(entryItem(5)).getByText("Revertido")).toBeTruthy();
-    expect(within(entryItem(6)).getByText("Condonado")).toBeTruthy();
-    expect(within(entryItem(7)).getByText(/Compañero agregado/)).toBeTruthy();
+    expect(within(entryRow(3)).getByText(/Devuelto del cobro #9/)).toBeTruthy();
+    expect(within(entryRow(4)).getByText("compensación")).toBeTruthy();
+    expect(within(entryRow(4)).getByText("Por Admin Uno")).toBeTruthy();
+    expect(within(entryRow(5)).getByText("Revertido")).toBeTruthy();
+    expect(within(entryRow(6)).getByText("Condonado")).toBeTruthy();
+    expect(within(entryRow(7)).getByText(/Compañero agregado/)).toBeTruthy();
   });
 
   /**
@@ -153,66 +147,54 @@ describe("CreditLedgerTable", () => {
    * like an admin adjustment in the ledger but taking it back would strand
    * the participant's credits.
    */
-  it("offers a revert only on admin decisions that still stand", async () => {
-    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    render(await CreditLedgerTable({ params }));
+  it("offers a revert only on admin decisions that still stand", () => {
+    renderTable();
 
     const withRevert = [1, 2, 3, 4, 5, 6, 7].filter(
       (id) =>
-        within(entryItem(id)).queryByRole("button", { name: /Revertir/ }) !=
+        within(entryRow(id)).queryByRole("button", { name: /Revertir/ }) !=
         null,
     );
     expect(withRevert).toEqual([4, 6]);
   });
 
-  it("shows no revert control to a festival admin", async () => {
-    currentProfileMock.mockResolvedValue({ id: 2, role: "festival_admin" });
-    render(await CreditLedgerTable({ params }));
+  it("shows no revert control to someone who cannot adjust", () => {
+    renderTable({ canAdjust: false });
 
     expect(screen.queryAllByRole("button", { name: /Revertir/ })).toHaveLength(
       0,
     );
   });
 
-  it("links each entry to its participant unless the page is one account", async () => {
-    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    const { unmount } = render(await CreditLedgerTable({ params }));
+  it("links each entry to its participant unless the page is one account", () => {
+    const { unmount } = renderTable();
     expect(
-      within(entryItem(4))
+      within(entryRow(4))
         .getByRole("link", { name: /Ana/ })
         .getAttribute("href"),
     ).toBe("/dashboard/credits/accounts/8");
     unmount();
 
-    render(await CreditLedgerTable({ params, showUser: false }));
-    expect(
-      within(entryItem(4)).queryByRole("link", { name: /Ana/ }),
-    ).toBeNull();
+    renderTable({ showUser: false });
+    expect(within(entryRow(4)).queryByRole("link", { name: /Ana/ })).toBeNull();
   });
 
-  it("totals what the filter matched", async () => {
-    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    render(await CreditLedgerTable({ params }));
+  it("totals what the filter matched", () => {
+    renderTable();
 
-    expect(
-      screen.getByText(/7 movimientos/).textContent?.replace(/\s+/g, " "),
-    ).toBe(
-      "7 movimientos · entradas +Bs165.00 · salidas -Bs75.00 · neto +Bs90.00",
+    expect(screen.getByText(/Entradas/).textContent?.replace(/\s+/g, " ")).toBe(
+      "Entradas +Bs165.00 · salidas -Bs75.00",
     );
+    expect(screen.getByText("1–7 de 7")).toBeTruthy();
   });
 
-  it("says so when nothing matches", async () => {
-    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
-    fetchCreditLedgerMock.mockResolvedValue({
-      rows: [],
-      total: 0,
-      creditsIn: 0,
-      creditsOut: 0,
-    });
-    render(await CreditLedgerTable({ params }));
+  it("says so when nothing matches", () => {
+    renderTable({ rows: [], rowCount: 0 });
 
     expect(
-      screen.getByText("Ningún movimiento coincide con el filtro"),
+      within(screen.getByRole("table")).getByText(
+        "Ningún movimiento coincide con el filtro.",
+      ),
     ).toBeTruthy();
   });
 });

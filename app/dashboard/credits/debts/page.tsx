@@ -1,20 +1,28 @@
-import { Suspense } from "react";
+import { notFound } from "next/navigation";
 
-import CreditCardGridSkeleton from "@/app/components/credits/admin/credit-card-grid-skeleton";
-import CreditDebtReport from "@/app/components/credits/admin/credit-debt-report";
+import CreditDebtsDataTable from "@/app/components/credits/admin/credit-debts-data-table";
+import { fetchCreditDebtReport } from "@/app/lib/credits/queries";
+import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
-export default function CreditDebtsPage() {
+export default async function CreditDebtsPage() {
+  const [actor, accounts] = await Promise.all([
+    getCurrentUserProfile(),
+    fetchCreditDebtReport(),
+  ]);
+  if (!accounts) notFound();
+
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Saldos pendientes</h2>
-      <p className="text-sm text-muted-foreground">
-        Cuentas que quedaron en negativo tras rechazar un comprobante ya usado,
-        o cuyo saldo en caché no coincide con el libro. Un saldo negativo
-        bloquea todo uso de créditos hasta regularizarlo.
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <p className="shrink-0 text-sm text-muted-foreground">
+        Cuentas en negativo tras rechazar un comprobante ya usado, o con el
+        saldo en caché descuadrado del libro. Un saldo negativo bloquea todo uso
+        de créditos hasta regularizarlo.
       </p>
-      <Suspense fallback={<CreditCardGridSkeleton />}>
-        <CreditDebtReport />
-      </Suspense>
-    </section>
+      <CreditDebtsDataTable
+        accounts={accounts}
+        canResolve={canMutateAdminReservations(actor)}
+      />
+    </div>
   );
 }

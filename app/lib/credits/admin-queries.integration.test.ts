@@ -95,6 +95,10 @@ async function topUp(
   amount: number,
   status: "under_review" | "approved" | "rejected" | "awaiting_voucher",
   reviewedByUserId?: number,
+  purpose: Pick<
+    typeof creditTopUps.$inferInsert,
+    "intendedUseType" | "intendedUseId" | "intendedFeatureType"
+  > = { intendedUseType: "debt" },
 ) {
   const now = new Date();
   const [row] = await integrationDb!
@@ -103,7 +107,7 @@ async function topUp(
       userId,
       amount,
       status,
-      intendedUseType: "debt",
+      ...purpose,
       uploadDeadlineAt: new Date(now.getTime() + 10 * 60 * 1000),
       voucherUrl: status === "awaiting_voucher" ? null : "https://x/v.png",
       submittedAt: status === "awaiting_voucher" ? null : now,
@@ -148,6 +152,8 @@ const ids = {} as {
   reservation: number;
   invoice: number;
   anaTopUp: number;
+  anaPendingTopUp: number;
+  caroFeatureTopUp: number;
   anaInvoiceSpend: number;
   anaRefund: number;
   anaFeatureSpend: number;
@@ -218,7 +224,12 @@ describeDatabase("admin credit queries", () => {
 
     // Ana: bought 100, paid 40 on an invoice that was later cancelled and
     // refunded, spent 30 on a partner, was granted 20, and holds 10.
-    // Balance 90, spendable 80.
+    // Balance 90, spendable 80. A second voucher, for 30 towards the
+    // invoice, is still under review and arrived before any of her spends.
+    ids.anaPendingTopUp = await topUp(ids.ana, 30, "under_review", undefined, {
+      intendedUseType: "invoice",
+      intendedUseId: ids.invoice,
+    });
     const anaTopUp = await topUp(ids.ana, 100, "approved", ids.admin);
     ids.anaTopUp = await post({
       userId: ids.ana,
@@ -339,6 +350,13 @@ describeDatabase("admin credit queries", () => {
       metadata: { reason: `Reversión del movimiento #${ids.caroDeduction}` },
     });
     await setCachedBalance(ids.caro, 999);
+    // An approved purchase for a feature at the festival, which reaches the
+    // festival through the purchase rather than a reservation.
+    ids.caroFeatureTopUp = await topUp(ids.caro, 40, "approved", ids.admin, {
+      intendedUseType: "feature",
+      intendedUseId: ids.festival,
+      intendedFeatureType: "late_partner",
+    });
 
     // Dani: opened a purchase and has not paid it. No ledger entry at all.
     await topUp(ids.dani, 15, "awaiting_voucher");
@@ -443,8 +461,9 @@ describeDatabase("admin credit queries", () => {
         ledgerBalance: 90,
         activeHolds: 10,
         spendableBalance: 80,
-        underReviewIssuance: 0,
+        underReviewIssuance: 30,
       },
+      underReviewCount: 1,
       purchased: 100,
       reversed: 0,
       // Net of the 40 handed back when the invoice was cancelled.
@@ -485,7 +504,7 @@ describeDatabase("admin credit queries", () => {
     ["debt", () => [ids.beto]],
     ["zero", () => [ids.dani]],
     ["holds", () => [ids.ana]],
-    ["review", () => [ids.caro]],
+    ["review", () => [ids.ana, ids.caro]],
     ["drift", () => [ids.caro]],
   ] as const)("filters accounts by %s", async (filter, expected) => {
     const page = (await queries.fetchCreditAccounts({ query: tag, filter }))!;
@@ -632,8 +651,8 @@ describeDatabase("admin credit queries", () => {
     expect(delta((o) => o.debtTotal)).toBe(15);
     expect(delta((o) => o.debtorCount)).toBe(1);
     expect(delta((o) => o.activeHolds.amount)).toBe(10);
-    expect(delta((o) => o.underReview.amount)).toBe(25);
-    expect(delta((o) => o.underReview.count)).toBe(1);
+    expect(delta((o) => o.underReview.amount)).toBe(55);
+    expect(delta((o) => o.underReview.count)).toBe(2);
     expect(delta((o) => o.awaitingVoucherCount)).toBe(1);
     expect(delta((o) => o.driftCount)).toBe(1);
     expect(delta((o) => o.lifetime.purchase.amount)).toBe(175);
@@ -652,19 +671,143 @@ describeDatabase("admin credit queries", () => {
     expect(attention.debtAccounts).toBeGreaterThanOrEqual(1);
   });
 
-  it("lists every purchase an account opened, with its reviewer", async () => {
-    const beto = await queries.fetchCreditTopUpsForAccount(ids.beto);
-    expect(beto).toHaveLength(1);
-    expect(beto[0]).toMatchObject({
+  it("lists every purchase one account opened, paid or not", async () => {
+    const beto = (await queries.fetchCreditPurchases({
+      userId: ids.beto,
+      status: "all",
+    }))!;
+    expect(beto.rows).toHaveLength(1);
+    expect(beto.rows[0]).toMatchObject({
       status: "rejected",
       amount: 50,
       reviewerName: `admin ${tag}`,
     });
 
-    const dani = await queries.fetchCreditTopUpsForAccount(ids.dani);
-    expect(dani[0]).toMatchObject({ status: "awaiting_voucher" });
+    const dani = (await queries.fetchCreditPurchases({
+      userId: ids.dani,
+      status: "all",
+    }))!;
+    expect(dani.rows.map((row) => row.status)).toEqual(["awaiting_voucher"]);
     const later = new Date(Date.now() + 60 * 60 * 1000);
-    const expired = await queries.fetchCreditTopUpsForAccount(ids.dani, later);
-    expect(expired[0]).toMatchObject({ status: "expired" });
+    const expired = (await queries.fetchCreditPurchases(
+      { userId: ids.dani, status: "all" },
+      later,
+    ))!;
+    expect(expired.rows.map((row) => row.status)).toEqual(["expired"]);
+  });
+
+  it("queues vouchers oldest first, with what rejecting each would cost", async () => {
+    const page = (await queries.fetchCreditPurchases({ query: tag }))!;
+
+    expect(page.rows.map((row) => row.id)).toEqual([
+      ids.anaPendingTopUp,
+      page.rows[1]!.id,
+    ]);
+    expect(page.rows[1]!.user.id).toBe(ids.caro);
+    expect(page.total).toBe(2);
+    expect(page.totalAmount).toBe(55);
+    expect(page.counts).toEqual({
+      under_review: 2,
+      awaiting_voucher: 1,
+      approved: 2,
+      rejected: 1,
+      expired: 0,
+      all: 6,
+    });
+
+    // Ana spent 70 after this voucher arrived; the 40 handed back later is a
+    // refund, not a spend, and does not reduce what she used.
+    expect(page.rows[0]).toMatchObject({
+      status: "under_review",
+      intendedUseType: "invoice",
+      invoice: { id: ids.invoice, reservationId: ids.reservation },
+      festival: { id: ids.festival },
+      review: {
+        ledgerBalance: 90,
+        balanceAfterReversal: 60,
+        spentSinceSubmission: 70,
+      },
+    });
+    expect(page.rows[1]!.review).toEqual({
+      ledgerBalance: 25,
+      balanceAfterReversal: 0,
+      spentSinceSubmission: 0,
+    });
+  });
+
+  it("reads decided purchases newest first, with who decided", async () => {
+    const approved = (await queries.fetchCreditPurchases({
+      query: tag,
+      status: "approved",
+    }))!;
+    expect(approved.rows).toHaveLength(2);
+    for (const row of approved.rows) {
+      expect(row.reviewerName).toBe(`admin ${tag}`);
+      expect(row.review).toBeNull();
+    }
+    expect(
+      approved.rows.find((row) => row.id === ids.caroFeatureTopUp),
+    ).toMatchObject({
+      intendedUseType: "feature",
+      featureType: "late_partner",
+      festival: { id: ids.festival },
+      invoice: null,
+    });
+
+    const rejected = (await queries.fetchCreditPurchases({
+      query: tag,
+      status: "rejected",
+    }))!;
+    expect(rejected.rows.map((row) => row.user.id)).toEqual([ids.beto]);
+  });
+
+  it("filters purchases by purpose, festival, number and arrival day", async () => {
+    const byPurpose = (await queries.fetchCreditPurchases({
+      query: tag,
+      status: "all",
+      purpose: "invoice",
+    }))!;
+    expect(byPurpose.rows.map((row) => row.id)).toEqual([ids.anaPendingTopUp]);
+
+    const atFestival = (await queries.fetchCreditPurchases({
+      status: "all",
+      festivalId: ids.festival,
+    }))!;
+    expect(atFestival.rows.map((row) => row.id).sort()).toEqual(
+      [ids.anaPendingTopUp, ids.caroFeatureTopUp].sort(),
+    );
+
+    const byNumber = (await queries.fetchCreditPurchases({
+      status: "all",
+      query: `#${ids.caroFeatureTopUp}`,
+    }))!;
+    expect(byNumber.rows.map((row) => row.id)).toContain(ids.caroFeatureTopUp);
+
+    const longAgo = (await queries.fetchCreditPurchases({
+      query: tag,
+      status: "all",
+      from: "2020-01-01",
+      to: "2020-01-31",
+    }))!;
+    expect(longAgo.total).toBe(0);
+    expect(longAgo.counts.all).toBe(0);
+  });
+
+  it("treats an unpaid purchase past its window as expired", async () => {
+    const later = new Date(Date.now() + 60 * 60 * 1000);
+    const page = (await queries.fetchCreditPurchases(
+      { query: tag, status: "expired" },
+      later,
+    ))!;
+    expect(page.rows.map((row) => row.user.id)).toEqual([ids.dani]);
+    expect(page.counts.awaiting_voucher).toBe(0);
+    expect(page.counts.expired).toBe(1);
+  });
+
+  it("refuses the purchase list to a participant", async () => {
+    currentProfileMock.mockResolvedValueOnce({ id: ids.ana, role: "user" });
+    await expect(queries.fetchCreditPurchases({ query: tag })).resolves.toBe(
+      null,
+    );
   });
 });
