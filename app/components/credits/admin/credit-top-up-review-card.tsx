@@ -10,6 +10,7 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import { type CreditTopUpReviewItem } from "@/app/lib/credits/queries";
+import { consoleHref } from "@/app/lib/reservations/console-lenses";
 import { getUserName } from "@/app/lib/users/utils";
 
 const DECISION_LABELS: Record<string, string> = {
@@ -49,9 +50,17 @@ export default function CreditTopUpReviewCard({
     (total, spend) => total + Math.abs(spend.amount),
     0,
   );
-  const invoiceHref = item.invoiceReservationId
-    ? `/dashboard/reservations/${item.invoiceReservationId}/payments`
-    : null;
+  // The cobros lens is where a reservation's tender lives — credits applied,
+  // cash, what is still owed, the vouchers in review. Focused on this one row,
+  // since the festival-wide queue could be filtered to exclude it.
+  const invoiceHref =
+    item.invoiceFestivalId && item.invoiceReservationId
+      ? consoleHref({
+          festivalId: item.invoiceFestivalId,
+          lens: "cobros",
+          reservationId: item.invoiceReservationId,
+        })
+      : null;
 
   return (
     <Card>
@@ -103,7 +112,7 @@ export default function CreditTopUpReviewCard({
             href={invoiceHref}
             className="inline-block text-xs text-primary underline underline-offset-2"
           >
-            Ver los pagos de la reserva
+            Ver los pagos de la reserva #{item.invoiceReservationId}
           </Link>
         )}
 

@@ -5,7 +5,10 @@ import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import {
+  consoleHref,
+  FOCUS_PARAM,
   LENS_DESCRIPTIONS,
+  parseFocusedReservation,
   parseLens,
 } from "@/app/lib/reservations/console-lenses";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
@@ -31,13 +34,22 @@ export default async function FestivalReservationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { lens: lensParam } = await searchParams;
-  const lens = parseLens(lensParam);
+  const query = await searchParams;
+  const lens = parseLens(query.lens);
+  const focusedId = parseFocusedReservation(query[FOCUS_PARAM]);
 
-  const [reservations, profile] = await Promise.all([
+  const [festivalReservations, profile] = await Promise.all([
     fetchReservationsByFestivalId(id),
     getCurrentUserProfile(),
   ]);
+  // Narrowed here rather than in the table, so a link to one row does not
+  // ship the whole festival to the client.
+  const reservations =
+    focusedId == null
+      ? festivalReservations
+      : festivalReservations.filter(
+          (reservation) => reservation.id === focusedId,
+        );
   // Festival admins can read this page but mutate nothing on it; the actions
   // menu disables what they cannot do rather than offering it and failing.
   const canMutate = canMutateAdminReservations(profile);
@@ -61,11 +73,26 @@ export default async function FestivalReservationsPage({
 
       <LensTabs festivalId={id} active={lens} />
 
+      {focusedId != null && (
+        <p className="mt-4 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+          {reservations.length > 0
+            ? `Mostrando solo la reserva #${focusedId}.`
+            : `La reserva #${focusedId} no está en este festival.`}
+          <Link
+            href={consoleHref({ festivalId: id, lens })}
+            className="text-primary underline underline-offset-2"
+          >
+            Ver todas
+          </Link>
+        </p>
+      )}
+
       <div className="mt-4">
         <ReservationsTable
           data={reservations}
           canMutate={canMutate}
           lens={lens}
+          focused={focusedId != null}
         />
       </div>
     </div>

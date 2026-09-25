@@ -22,6 +22,34 @@ export function parseLens(value: string | string[] | undefined): ConsoleLens {
     : DEFAULT_LENS;
 }
 
+/**
+ * Narrows the console to one reservation, so a link from elsewhere in the
+ * dashboard lands on that row instead of on a festival-wide queue.
+ */
+export const FOCUS_PARAM = "reservation";
+
+export function parseFocusedReservation(
+  value: string | string[] | undefined,
+): number | null {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate) return null;
+  const id = Number(candidate);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+export function consoleHref({
+  festivalId,
+  lens,
+  reservationId,
+}: {
+  festivalId: number;
+  lens: ConsoleLens;
+  reservationId?: number | null;
+}): string {
+  const base = `/dashboard/festivals/${festivalId}/reservations?lens=${lens}`;
+  return reservationId ? `${base}&${FOCUS_PARAM}=${reservationId}` : base;
+}
+
 export const LENS_LABELS: Record<ConsoleLens, string> = {
   reservas: "Reservas",
   cobros: "Cobros",
@@ -111,7 +139,10 @@ const ALL_COLUMNS = [
   "actions",
 ];
 
-export function lensInitialState(lens: ConsoleLens): DataTableInitialState {
+export function lensInitialState(
+  lens: ConsoleLens,
+  { focused = false }: { focused?: boolean } = {},
+): DataTableInitialState {
   const visible = new Set(VISIBLE[lens]);
   const columnVisibility: Record<string, boolean> = {};
   for (const column of ALL_COLUMNS) {
@@ -120,7 +151,10 @@ export function lensInitialState(lens: ConsoleLens): DataTableInitialState {
 
   return {
     columnVisibility,
-    columnFilters: LENS_FILTERS[lens],
+    // A focused console is already down to the one row it was linked to. The
+    // queue's default would hide it whenever that row is not awaiting a
+    // decision — an unpaid cobro, say, whose credits are still under review.
+    columnFilters: focused ? [] : LENS_FILTERS[lens],
   };
 }
 
