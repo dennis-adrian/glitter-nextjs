@@ -12,6 +12,26 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Database targets
+
+- `.env.local`'s `POSTGRES_URL` has **no fixed target**. It gets repointed depending on what is being worked on, so do not assume it — including from this file. Resolve it and state the host/port/database you got before any command that reads or writes the database, starts a dev server, or reports on schema state.
+- Last observed 2026-09-04: `POSTGRES_URL` → `localhost:5432/glitter_dev`. Treat that as a sample, not a fact.
+- When a URL resolves to Railway, treat it as production: read-only unless asked, and never a seed, a test suite, or a dev server. Applying migrations is always Dennis's call, and one-way.
+
+# Integration tests
+
+- `migrate:test` and `test:integration` build their own connection string from `compose.test.yml`'s fixed credentials and `GLITTER_TEST_DB_PORT`. Nothing to export, and `.env.local` cannot redirect them at a real database.
+- On a local machine, spin up a disposable Postgres per worktree with Docker. Full procedure: [docs/testing-with-docker-postgres.md](docs/testing-with-docker-postgres.md).
+
+```bash
+pnpm db:test:up && pnpm migrate:test && pnpm test:integration
+```
+
+- Set `GLITTER_TEST_DB_PORT` (default `55432`) when running concurrent worktrees, so each gets its own container and port. It has to be set for every one of the three commands.
+- Override `POSTGRES_URL` in the shell before running `pnpm dev` against a scratch database — `process.env` wins over `.env.local`.
+- The suites still refuse any database whose name lacks `test`/`ci`, as a backstop.
+- `pnpm db:test:down` stops the container and keeps the volume; `pnpm db:test:logs` tails it.
+
 ## Cursor Cloud specific instructions
 
 Glitter (`glitter-nextjs`, "Productora Glitter") is a Spanish-language Next.js 16 (App Router, Turbopack, React 19) festival-operations platform: public storefront (`/merch`, `/supplies`), participant portal, admin dashboard, stand reservations, and store orders. Data lives in PostgreSQL via Drizzle ORM. Standard scripts are in `package.json`; product docs are in `docs/PRD-*.md`.
@@ -37,7 +57,7 @@ pnpm db:test:up && pnpm migrate:test
 
 - After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Merch products, variants, and independent collections are seeded with local demo artwork.
 - Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (needs the migrated Docker Postgres from `pnpm db:test:up` + `pnpm migrate:test`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
-- `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file and `CLAUDE.md`; commit that change rather than fighting it.
+- `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file; commit that change rather than fighting it.
 
 ## Development seed (demo users)
 
