@@ -380,9 +380,16 @@ function useViewportFill(
       // Measured from the top of the document, so scrolling does not move it.
       const top = rows.getBoundingClientRect().top + window.scrollY;
       const pager = pagerRef.current?.offsetHeight ?? 0;
+      // Rows that start on the first screen end where it does. Rows further
+      // down are scrolled to anyway, so they get a whole viewport rather than
+      // what is left of one they are not on.
+      const available =
+        top < window.innerHeight
+          ? window.innerHeight - top
+          : window.innerHeight;
       const next = Math.max(
         MIN_ROWS_HEIGHT,
-        Math.floor(window.innerHeight - top - pager - BELOW_ROWS_GAP),
+        Math.floor(available - pager - BELOW_ROWS_GAP),
       );
       setMaxHeight((current) => (current === next ? current : next));
     }
