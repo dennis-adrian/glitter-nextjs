@@ -1,15 +1,6 @@
 "use no memo";
 
 import { Table } from "@tanstack/react-table";
-
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -17,86 +8,123 @@ import {
   ChevronsRightIcon,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { pagerButtonClass } from "@/app/components/ui/data_table/styles";
+import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export const DEFAULT_PAGE_SIZES = [10, 25, 50, 100, 200, 500] as const;
+
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
+  pageSizes?: readonly number[];
+  /** Whether rows can be selected, and so whether a selection is worth counting. */
+  selectable?: boolean;
 }
 
+/**
+ * Where the reader is and how to move on, in one line.
+ *
+ * Reads the row count from the table rather than the rows it holds, so it is
+ * right both when every row is loaded and when the server sends one page.
+ */
 export function DataTablePagination<TData>({
   table,
+  pageSizes = DEFAULT_PAGE_SIZES,
+  selectable = false,
 }: DataTablePaginationProps<TData>) {
+  const { pageIndex, pageSize } = table.getState().pagination;
+  const rowCount = table.getRowCount();
+  const pageCount = Math.max(1, table.getPageCount());
+  const first = rowCount === 0 ? 0 : pageIndex * pageSize + 1;
+  const last = Math.min(rowCount, (pageIndex + 1) * pageSize);
+  const selectedCount = table.getSelectedRowModel().rows.length;
+
   return (
-    <div className="flex items-center justify-between px-2">
-      <div className="flex-1 hidden sm:block text-sm text-muted-foreground">
-        {table.getFilteredSelectedRowModel().rows.length} de{" "}
-        {table.getFilteredRowModel().rows.length} fila(s) seleccionadas
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:flex-nowrap sm:gap-x-8">
-        <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium">Filas por página</p>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
+      <p className="text-muted-foreground tabular-nums">
+        {rowCount === 0 ? "Sin resultados" : `${first}–${last} de ${rowCount}`}
+        {selectable && selectedCount > 0 && (
+          <span className="text-foreground">
+            {" · "}
+            {selectedCount === 1
+              ? "1 seleccionada"
+              : `${selectedCount} seleccionadas`}
+          </span>
+        )}
+      </p>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="hidden text-muted-foreground sm:inline">Filas</span>
           <Select
-            value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => {
-              table.setPageSize(Number(value));
-            }}
+            value={`${pageSize}`}
+            onValueChange={(value) => table.setPageSize(Number(value))}
           >
-            <SelectTrigger className="h-8 w-[70px]">
-              <SelectValue placeholder={table.getState().pagination.pageSize} />
+            <SelectTrigger
+              className="h-8 w-[72px]"
+              aria-label="Filas por página"
+            >
+              <SelectValue placeholder={pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
-              {[10, 25, 50, 100, 200, 500].map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`}>
-                  {pageSize}
+              {pageSizes.map((size) => (
+                <SelectItem key={size} value={`${size}`}>
+                  {size}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        {/* Page count and arrows wrap as one unit on a narrow screen, so the
-            arrows never land on a row of their own. */}
-        <div className="flex items-center gap-x-4 sm:gap-x-8">
-          <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-            <span className="hidden sm:block sm:mr-1">Página </span>
-            {table.getState().pagination.pageIndex + 1} de{" "}
-            {table.getPageCount()}
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => table.setPageIndex(0)}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <span className="sr-only">Go to first page</span>{" "}
-              <ChevronsLeftIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              className="h-8 w-8 p-0"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <span className="sr-only">Go to previous page</span>
-              <ChevronLeftIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              className="h-8 w-8 p-0"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              <span className="sr-only">Go to next page</span>
-              <ChevronRightIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-              disabled={!table.getCanNextPage()}
-            >
-              <span className="sr-only">Go to last page</span>
-              <ChevronsRightIcon className="h-4 w-4" />
-            </Button>
-          </div>
+        <span className="text-muted-foreground tabular-nums">
+          {pageIndex + 1} / {pageCount}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(pagerButtonClass, "hidden lg:inline-flex")}
+            onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <span className="sr-only">Primera página</span>
+            <ChevronsLeftIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={pagerButtonClass}
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <span className="sr-only">Página anterior</span>
+            <ChevronLeftIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={pagerButtonClass}
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            <span className="sr-only">Página siguiente</span>
+            <ChevronRightIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(pagerButtonClass, "hidden lg:inline-flex")}
+            onClick={() => table.setPageIndex(pageCount - 1)}
+            disabled={!table.getCanNextPage()}
+          >
+            <span className="sr-only">Última página</span>
+            <ChevronsRightIcon className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </div>

@@ -16,6 +16,9 @@ export default function Footer({
   const pathname = usePathname();
 
   if (pathname === "/") return null;
+  // Admin screens are sized to the viewport; the site footer only pushes
+  // their tables and actions below the fold.
+  if (pathname?.startsWith("/dashboard")) return null;
 
   // Hide footer on festival registration pages
   const shouldHide =

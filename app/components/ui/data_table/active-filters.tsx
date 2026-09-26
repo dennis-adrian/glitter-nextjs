@@ -4,7 +4,6 @@
 import { XIcon } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 
-import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
   selectedValuesFor,
@@ -22,7 +21,8 @@ type ActiveFiltersProps<TData> = {
   table: Table<TData>;
   /** Rows left after filtering, shown so the effect of a filter is legible. */
   visibleCount: number;
-  totalCount: number;
+  /** Rows before filtering; omitted when only the server knows it. */
+  totalCount?: number;
 };
 
 /**
@@ -77,12 +77,11 @@ export function DataTableActiveFilters<TData>({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 pb-2">
+    <div className="flex flex-wrap items-center gap-1.5">
       {active.map((chip) => (
-        <Badge
+        <span
           key={`${chip.columnId}-${chip.value}`}
-          variant="secondary"
-          className="gap-1 rounded-full pr-1 font-normal"
+          className="inline-flex items-center gap-1 rounded-md border bg-background py-0.5 pl-2 pr-0.5 text-xs"
         >
           <span className="text-muted-foreground">{chip.groupLabel}:</span>
           {chip.label}
@@ -90,24 +89,24 @@ export function DataTableActiveFilters<TData>({
             type="button"
             aria-label={`Quitar ${chip.groupLabel}: ${chip.label}`}
             onClick={() => remove(chip.columnId, chip.value)}
-            className="ml-0.5 rounded-full p-0.5 hover:bg-background/60"
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <XIcon className="h-3 w-3" />
           </button>
-        </Badge>
+        </span>
       ))}
-
       <Button
         variant="ghost"
         size="sm"
         onClick={clearAll}
-        className="h-7 px-2 text-xs"
+        className="h-6 px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        Limpiar todo
+        Limpiar filtros
       </Button>
-
       <span className="text-xs text-muted-foreground">
-        {visibleCount} de {totalCount}
+        {totalCount == null
+          ? `${visibleCount} ${visibleCount === 1 ? "resultado" : "resultados"}`
+          : `${visibleCount} de ${totalCount}`}
       </span>
     </div>
   );

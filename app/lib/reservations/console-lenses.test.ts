@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  consoleHref,
   DEFAULT_LENS,
   lensInitialState,
+  parseFocusedReservation,
   parseLens,
 } from "@/app/lib/reservations/console-lenses";
 
@@ -28,6 +30,50 @@ describe("parseLens", () => {
 
   it("takes the first value when the query repeats the key", () => {
     expect(parseLens(["cobros", "reservas"])).toBe("cobros");
+  });
+});
+
+describe("parseFocusedReservation", () => {
+  it("reads a reservation id", () => {
+    expect(parseFocusedReservation("88")).toBe(88);
+  });
+
+  it("ignores anything that is not a positive integer", () => {
+    expect(parseFocusedReservation(undefined)).toBeNull();
+    expect(parseFocusedReservation("")).toBeNull();
+    expect(parseFocusedReservation("0")).toBeNull();
+    expect(parseFocusedReservation("-3")).toBeNull();
+    expect(parseFocusedReservation("8.5")).toBeNull();
+    expect(parseFocusedReservation("abc")).toBeNull();
+  });
+
+  it("takes the first value when the query repeats the key", () => {
+    expect(parseFocusedReservation(["88", "12"])).toBe(88);
+  });
+});
+
+describe("consoleHref", () => {
+  it("links to a lens", () => {
+    expect(consoleHref({ festivalId: 619, lens: "cobros" })).toBe(
+      "/dashboard/festivals/619/reservations?lens=cobros",
+    );
+  });
+
+  it("focuses one reservation in a form the page reads back", () => {
+    const href = consoleHref({
+      festivalId: 619,
+      lens: "cobros",
+      reservationId: 88,
+    });
+    expect(href).toBe(
+      "/dashboard/festivals/619/reservations?lens=cobros&reservation=88",
+    );
+
+    const query = new URL(href, "https://example.com").searchParams;
+    expect(parseLens(query.get("lens") ?? undefined)).toBe("cobros");
+    expect(parseFocusedReservation(query.get("reservation") ?? undefined)).toBe(
+      88,
+    );
   });
 });
 
@@ -68,6 +114,21 @@ describe("lensInitialState", () => {
     const filters = lensInitialState("creditos").columnFilters ?? [];
     const source = filters.find((filter) => filter.id === "creditSource");
     expect(source?.value).toEqual(["invoice", "features"]);
+  });
+
+  it("drops the queue's default filters when focused on one reservation", () => {
+    // An unpaid cobro whose credits are still under review is outside the
+    // cobros queue's default, so a link to it would land on an empty table.
+    expect(lensInitialState("cobros", { focused: true }).columnFilters).toEqual(
+      [],
+    );
+    expect(
+      lensInitialState("creditos", { focused: true }).columnFilters,
+    ).toEqual([]);
+    // Focus narrows rows, not columns: the lens still decides what is shown.
+    expect(
+      lensInitialState("cobros", { focused: true }).columnVisibility,
+    ).toEqual(lensInitialState("cobros").columnVisibility);
   });
 
   it("leaves the reservations lens unfiltered", () => {

@@ -1,18 +1,16 @@
 import { CoinsIcon } from "lucide-react";
+import Link from "next/link";
 
-import CreditAmount, {
-  formatCreditCount,
-} from "@/app/components/credits/credit-amount";
+import CreditAmount from "@/app/components/credits/credit-amount";
+import CreditActiveHolds from "@/app/components/credits/admin/credit-active-holds";
 import CreditAdjustButton from "@/app/components/credits/admin/credit-adjust-button";
 import CreditRevertButton from "@/app/components/credits/admin/credit-revert-button";
-import ReleaseFeatureCreditsButton from "@/app/components/credits/release-feature-credits-button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { unbackedHoldAmount } from "@/app/lib/credits/balances";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import {
   fetchCreditWallet,
@@ -57,13 +55,6 @@ export default async function CreditAccountPanel({
     fetchFeatureHolds(userId),
   ]);
   if (!wallet) return null;
-
-  const activeHolds = holds.filter((hold) => hold.status === "active");
-
-  // Releasing a backed hold gives the credits back; releasing one whose
-  // credits were reversed closes the earmark and returns nothing, so the
-  // two cannot share copy.
-  const unbackedHolds = unbackedHoldAmount(wallet.balances);
 
   const canAdjust = canMutateAdminReservations(actor);
   const recentEntries = wallet.entries.slice(0, RECENT_ENTRY_LIMIT);
@@ -110,51 +101,12 @@ export default async function CreditAccountPanel({
           )}
         </dl>
 
-        {/* An activation only the participant could undo is unreachable once
-            they stop coming back — and the one whose voucher was rejected has
-            the least reason to. Releasing posts no entry either way; it drops
-            the earmark, which frees only credit that is still there. */}
-        {activeHolds.length > 0 && (
-          <div
-            className={
-              unbackedHolds > 0
-                ? "space-y-2 rounded-md bg-amber-50 p-3 text-amber-900"
-                : "space-y-2 rounded-md bg-muted p-3"
-            }
-          >
-            <p
-              className={
-                unbackedHolds > 0 ? "text-xs" : "text-xs text-muted-foreground"
-              }
-            >
-              {unbackedHolds > 0
-                ? `Tiene la mesa completa activada con créditos que después se revirtieron. Liberarla cierra la reserva, pero no devuelve ${formatCreditCount(unbackedHolds)} a su saldo: esos créditos ya no están.`
-                : "Tiene la mesa completa activada. Liberarla devuelve los créditos reservados a su saldo disponible."}
-            </p>
-            {activeHolds.map((hold) => (
-              <ReleaseFeatureCreditsButton
-                key={hold.featureActionId}
-                userId={userId}
-                festivalId={hold.festivalId}
-                label={
-                  unbackedHolds > 0
-                    ? `Liberar la mesa completa de ${hold.festivalName}`
-                    : `Liberar ${formatCreditCount(hold.amount)} de ${hold.festivalName}`
-                }
-                disabledReason={
-                  canAdjust
-                    ? undefined
-                    : "Solo un administrador general puede liberarla"
-                }
-              />
-            ))}
-            {!canAdjust && (
-              <p className="text-xs text-muted-foreground">
-                Solo un administrador general puede liberarla.
-              </p>
-            )}
-          </div>
-        )}
+        <CreditActiveHolds
+          userId={userId}
+          holds={holds}
+          balances={wallet.balances}
+          canAdjust={canAdjust}
+        />
 
         {recentEntries.length > 0 && (
           <div className="space-y-1">
@@ -188,13 +140,16 @@ export default async function CreditAccountPanel({
                           : "text-sm font-medium"
                       }
                     />
-                    {/* Only an admin's own entry is undoable from here. A
+                    {/* Only an admin's own decision is undoable from here. A
                         top-up is undone by rejecting its voucher and a spend
-                        by whatever booked it, so offering the control on those
-                        would promise something the service refuses. */}
+                        by whatever booked it. An entry that itself reverses
+                        another — an undo, or credits handed back from a
+                        cancelled invoice — is not offered either; see
+                        `canRevertCreditEntry`. */}
                     {canAdjust &&
                       (entry.type === "admin_grant" ||
                         entry.type === "admin_adjustment") &&
+                      entry.reversesEntryId == null &&
                       (entry.isReverted ? (
                         <span className="text-xs text-muted-foreground">
                           Revertido
@@ -212,6 +167,13 @@ export default async function CreditAccountPanel({
             </ul>
           </div>
         )}
+
+        <Link
+          href={`/dashboard/credits/accounts/${userId}`}
+          className="inline-block text-sm text-primary underline-offset-2 hover:underline"
+        >
+          Ver la cuenta completa
+        </Link>
       </CardContent>
     </Card>
   );
