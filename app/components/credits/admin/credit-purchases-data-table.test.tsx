@@ -53,7 +53,11 @@ function purchase(
   };
 }
 
-function renderTable(rows: CreditPurchaseRow[], status = "under_review") {
+function renderTable(
+  rows: CreditPurchaseRow[],
+  status = "under_review",
+  { showUser }: { showUser?: boolean } = {},
+) {
   return render(
     <CreditPurchasesDataTable
       rows={rows}
@@ -63,12 +67,18 @@ function renderTable(rows: CreditPurchaseRow[], status = "under_review") {
       festivals={[{ id: 619, name: "Festicker" }]}
       canReview
       now={new Date("2026-09-03T12:30:00Z")}
+      showUser={showUser}
     />,
   );
 }
 
 function table() {
   return within(screen.getByRole("table"));
+}
+
+/** The cards a phone gets instead of the table. */
+function cards() {
+  return within(screen.getByRole("list"));
 }
 
 describe("CreditPurchasesDataTable", () => {
@@ -197,5 +207,36 @@ describe("CreditPurchasesDataTable", () => {
     expect(table().getAllByRole("link", { name: "Comprobante" })).toHaveLength(
       2,
     );
+  });
+
+  it("gives a phone the same review, or the voucher once decided", () => {
+    renderTable(
+      [
+        purchase(),
+        purchase({
+          id: 8,
+          status: "approved",
+          review: null,
+          reviewedAt: new Date("2026-09-04T12:00:00Z"),
+          reviewerName: "Admin Uno",
+        }),
+      ],
+      "all",
+    );
+
+    expect(cards().getAllByRole("button", { name: "Revisar" })).toHaveLength(1);
+    const voucher = cards().getByRole("link", { name: "Comprobante" });
+    expect(voucher.getAttribute("href")).toBe(
+      "https://example.com/voucher.png",
+    );
+    expect(voucher.getAttribute("target")).toBe("_blank");
+    expect(voucher.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(cards().getAllByText("Ana")).toHaveLength(2);
+  });
+
+  it("leaves the participant off a phone's cards on a single account's page", () => {
+    renderTable([purchase()], "under_review", { showUser: false });
+
+    expect(cards().queryByText("Ana")).toBeNull();
   });
 });
