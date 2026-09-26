@@ -352,10 +352,30 @@ function useServerState(
 
 type ServerState = ReturnType<typeof useServerState>;
 
+/** The gap between the rows and the pager. */
+const ROWS_PAGER_GAP = 12;
 /** Room kept under the rows: the gap above the pager, and the page's padding. */
-const BELOW_ROWS_GAP = 12 + 24;
+const BELOW_ROWS_GAP = ROWS_PAGER_GAP + 24;
 /** Never squeeze the rows below this; past it the page scrolls instead. */
 const MIN_ROWS_HEIGHT = 240;
+
+/**
+ * How far down the viewport the sticky bars reach once the page scrolls: the
+ * site navbar, and any section bar pinned under it. A bar opts in with
+ * `data-sticky-top`; they overlap, so the lowest edge wins.
+ */
+function stickyTopInset() {
+  let inset = 0;
+  for (const bar of document.querySelectorAll<HTMLElement>(
+    "[data-sticky-top]",
+  )) {
+    // Hidden at this breakpoint, so it covers nothing.
+    if (!bar.offsetHeight) continue;
+    const top = Number.parseFloat(getComputedStyle(bar).top) || 0;
+    inset = Math.max(inset, top + bar.offsetHeight);
+  }
+  return inset;
+}
 
 /**
  * Caps the rows so they end where the viewport does, with the pager still on
@@ -365,6 +385,10 @@ const MIN_ROWS_HEIGHT = 240;
  * nothing. Every other page used to get a fixed `100dvh - 16rem`, which was
  * right for none of them: a tall header pushed the pager below the fold, and
  * a short one left the rows cut off early.
+ *
+ * Rows the first screen has no room for, not even the floor with the pager
+ * under it, need the page scrolled to them either way, so they get a whole
+ * viewport below the sticky bars instead.
  */
 function useViewportFill(
   rowsRef: RefObject<HTMLElement | null>,
@@ -380,13 +404,15 @@ function useViewportFill(
       // Measured from the top of the document, so scrolling does not move it.
       const top = rows.getBoundingClientRect().top + window.scrollY;
       const pager = pagerRef.current?.offsetHeight ?? 0;
-      // Rows that start on the first screen end where it does. Rows further
-      // down are scrolled to anyway, so they get a whole viewport rather than
-      // what is left of one they are not on.
-      const available =
-        top < window.innerHeight
-          ? window.innerHeight - top
-          : window.innerHeight;
+      // Judged against the small viewport, with a phone's toolbars out.
+      // innerHeight grows as they slide away mid-scroll, and deciding on it
+      // would swap the rows between both caps under the reader's finger.
+      const fitsFirstScreen =
+        document.documentElement.clientHeight - top - pager - ROWS_PAGER_GAP >=
+        MIN_ROWS_HEIGHT;
+      const available = fitsFirstScreen
+        ? window.innerHeight - top
+        : window.innerHeight - stickyTopInset();
       const next = Math.max(
         MIN_ROWS_HEIGHT,
         Math.floor(available - pager - BELOW_ROWS_GAP),
