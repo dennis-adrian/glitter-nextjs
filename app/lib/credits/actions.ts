@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { searchCreditParticipants } from "@/app/lib/credits/admin-queries";
 import {
   adjustCreditAccount,
   CREDIT_DEBT_RESOLUTIONS,
@@ -36,6 +37,15 @@ const adjustCreditAccountSchema = z.object({
   /** Set when this adjustment undoes an earlier admin entry. */
   reversesEntryId: z.coerce.number().int().positive().optional(),
 });
+
+/**
+ * Finds any participant, credit history or not, so an admin can open the
+ * account of someone who has never held credits and grant them some.
+ */
+export async function searchParticipantsForCreditsAction(query: unknown) {
+  if (typeof query !== "string") return [];
+  return searchCreditParticipants(query);
+}
 
 /** Global-admin review command. It intentionally returns no voucher data. */
 export async function reviewCreditTopUpAction(input: unknown) {
@@ -129,7 +139,10 @@ export async function adjustCreditAccountAction(input: unknown) {
   if (!parsed.success || parsed.data.amount === 0) {
     return { success: false, message: "Datos inválidos." };
   }
-  const result = await adjustCreditAccount(parsed.data);
+  const result = await adjustCreditAccount({
+    ...parsed.data,
+    adminUserId: actor.id,
+  });
   if (result.ok) {
     return {
       success: true,

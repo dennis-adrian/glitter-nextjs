@@ -1334,6 +1334,11 @@ export async function adjustCreditAccount(input: {
    * the account ends up short by the original amount.
    */
   reversesEntryId?: number;
+  /**
+   * The admin posting it, kept on the entry so the credit history can say who
+   * moved the balance. `resolveCreditDebt` records its admin the same way.
+   */
+  adminUserId?: number;
 }): Promise<CreditResult<{ ledgerEntryId: number; balances: CreditBalances }>> {
   if (
     !Number.isFinite(input.amount) ||
@@ -1420,7 +1425,12 @@ export async function adjustCreditAccount(input: {
         type: amount > 0 ? "admin_grant" : "admin_adjustment",
         idempotencyKey: input.idempotencyKey,
         reversesEntryId: input.reversesEntryId ?? null,
-        metadata: { reason: input.reason.trim() },
+        metadata: {
+          reason: input.reason.trim(),
+          ...(input.adminUserId != null
+            ? { adminUserId: String(input.adminUserId) }
+            : {}),
+        },
       })
       .returning({ id: creditLedgerEntries.id });
     if (!entry) return failure("TOP_UP_NOT_FOUND");

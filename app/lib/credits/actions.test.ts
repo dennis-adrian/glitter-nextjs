@@ -18,6 +18,10 @@ vi.mock("@/app/lib/credits/service", () => ({
   CREDIT_DEBT_RESOLUTIONS: ["mark_paid", "waive"] as const,
 }));
 
+vi.mock("@/app/lib/credits/admin-queries", () => ({
+  searchCreditParticipants: vi.fn(),
+}));
+
 // Sending is the outbox's job and reaches Resend and the server env; these
 // tests only care that the action hands it the ids the service returned.
 const scheduleJobsMock = vi.hoisted(() => vi.fn());
@@ -26,6 +30,7 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
 }));
 
 import {
+  adjustCreditAccountAction,
   resolveCreditDebtAction,
   reviewCreditTopUpAction,
 } from "@/app/lib/credits/actions";
@@ -257,6 +262,94 @@ describe("resolveCreditDebtAction", () => {
     expect(result).toMatchObject({
       success: false,
       message: "El monto supera el saldo pendiente de la cuenta.",
+    });
+  });
+});
+
+describe("adjustCreditAccountAction", () => {
+  const key = "44444444-4444-4444-8444-444444444444";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    adjustCreditAccountMock.mockResolvedValue({ ok: true, data: {} });
+  });
+
+  it.each([
+    ["signed out", null],
+    ["a participant", { id: 8, role: "user" }],
+    ["a festival admin", { id: 3, role: "festival_admin" }],
+  ])("refuses %s", async (_label, actor) => {
+    currentProfileMock.mockResolvedValue(actor);
+
+    const result = await adjustCreditAccountAction({
+      userId: 8,
+      amount: 20,
+      reason: "compensación",
+      idempotencyKey: key,
+    });
+
+    expect(result).toMatchObject({ success: false });
+    expect(adjustCreditAccountMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a zero adjustment", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+
+    const result = await adjustCreditAccountAction({
+      userId: 8,
+      amount: 0,
+      reason: "compensación",
+      idempotencyKey: key,
+    });
+
+    expect(result).toMatchObject({ success: false });
+    expect(adjustCreditAccountMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The history names who moved a balance, and a manual grant has no voucher
+   * or reservation behind it: the admin is the only provenance it has.
+   */
+  it("records which admin posted the adjustment", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+
+    const result = await adjustCreditAccountAction({
+      userId: 8,
+      amount: -12.5,
+      reason: "descuento acordado",
+      idempotencyKey: key,
+    });
+
+    expect(adjustCreditAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 8,
+        amount: -12.5,
+        reason: "descuento acordado",
+        idempotencyKey: key,
+        adminUserId: 1,
+      }),
+    );
+    expect(result).toMatchObject({ success: true, message: "Saldo ajustado." });
+  });
+
+  it("explains a revert that already happened", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    adjustCreditAccountMock.mockResolvedValue({
+      ok: false,
+      code: "ENTRY_ALREADY_REVERTED",
+    });
+
+    const result = await adjustCreditAccountAction({
+      userId: 8,
+      amount: -20,
+      reason: "Reversión del movimiento #4",
+      idempotencyKey: key,
+      reversesEntryId: 4,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      message: "Ese movimiento ya fue revertido. Actualizá la página.",
     });
   });
 });

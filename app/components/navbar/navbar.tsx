@@ -38,7 +38,7 @@ export default async function Navbar() {
     ]);
 
   return (
-    <div data-site-navbar className="sticky top-0 z-50">
+    <div data-site-navbar data-sticky-top className="sticky top-0 z-50">
       <AnnouncementStrip announcement={landingContent.announcement} />
       <NavbarClient
         programsHref={programsHref}

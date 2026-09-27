@@ -1,22 +1,9 @@
 "use no memo";
 
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  ArrowUpDownIcon,
-  EyeOffIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "lucide-react";
 import { Column } from "@tanstack/react-table";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 interface DataTableColumnHeaderProps<
   TData,
@@ -26,50 +13,61 @@ interface DataTableColumnHeaderProps<
   title: string;
 }
 
+/**
+ * A column title that sorts when clicked.
+ *
+ * It used to open a menu with Asc, Desc and Ocultar behind every title, and
+ * drew a sort icon on every sortable column whether or not it was sorted — a
+ * row of identical arrows that said nothing. The arrow now appears only on the
+ * column the table is actually sorted by (and faintly on hover), and hiding a
+ * column lives in the "Columnas" menu with the rest of the view options.
+ */
 export function DataTableColumnHeader<TData, TValue>({
   column,
   title,
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
+  const alignRight = column.columnDef.meta?.align === "right";
+
   if (!column.getCanSort()) {
-    return <div className={cn(className)}>{title}</div>;
+    return (
+      <div className={cn(alignRight && "text-right", className)}>{title}</div>
+    );
   }
 
+  const sorted = column.getIsSorted();
+  const nextDescending = sorted
+    ? sorted === "asc"
+    : column.getFirstSortDir() === "desc";
+
   return (
-    <div className={cn("flex items-center space-x-2", className)}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="data-[state=open]:bg-accent -ml-3 h-8"
-          >
-            <span>{title}</span>
-            {column.getIsSorted() === "desc" ? (
-              <ArrowDownIcon className="ml-2 h-4 w-4" />
-            ) : column.getIsSorted() === "asc" ? (
-              <ArrowUpIcon className="ml-2 h-4 w-4" />
-            ) : (
-              <ArrowUpDownIcon className="ml-2 h-4 w-4" />
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => column.toggleSorting(false)}>
-            <ArrowUpIcon className="text-muted-foreground/70 mr-2 h-3.5 w-3.5" />
-            Asc
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => column.toggleSorting(true)}>
-            <ArrowDownIcon className="text-muted-foreground/70 mr-2 h-3.5 w-3.5" />
-            Desc
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => column.toggleVisibility(false)}>
-            <EyeOffIcon className="text-muted-foreground/70 mr-2 h-3.5 w-3.5" />
-            Ocultar
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <div className={cn("flex", alignRight && "justify-end", className)}>
+      <button
+        type="button"
+        onClick={() => column.toggleSorting(nextDescending)}
+        className={cn(
+          "group -mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          sorted && "text-foreground",
+          alignRight && "flex-row-reverse",
+        )}
+        title={
+          nextDescending
+            ? `Ordenar por ${title}, de mayor a menor`
+            : `Ordenar por ${title}, de menor a mayor`
+        }
+      >
+        <span>{title}</span>
+        {sorted === "asc" ? (
+          <ArrowUpIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        ) : sorted === "desc" ? (
+          <ArrowDownIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        ) : (
+          <ChevronsUpDownIcon
+            className="h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-50 group-focus-visible:opacity-50"
+            aria-hidden
+          />
+        )}
+      </button>
     </div>
   );
 }

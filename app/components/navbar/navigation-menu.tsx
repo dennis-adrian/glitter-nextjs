@@ -313,6 +313,12 @@ const NavbarNavigationMenu = ({
                   Perfiles pendientes o rechazados
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
+                  title="Créditos"
+                  href="/dashboard/credits"
+                >
+                  Saldos, movimientos y comprobantes de créditos
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
                   title="Festivales"
                   href="/dashboard/festivals"
                 >
