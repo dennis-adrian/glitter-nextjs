@@ -88,9 +88,14 @@ describe("CreditPurchasesDataTable", () => {
     consoleError = vi.spyOn(console, "error");
   });
   afterEach(() => {
-    expect(consoleError).not.toHaveBeenCalled();
-    consoleError.mockRestore();
-    cleanup();
+    // Torn down even when the assertion fails, or the spy and the rendered
+    // table would leak into every test after it.
+    try {
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+      cleanup();
+    }
   });
 
   it("links an invoice purchase to its reservation's cobro in the festival console", () => {
