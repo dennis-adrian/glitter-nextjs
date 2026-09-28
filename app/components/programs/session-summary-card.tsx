@@ -82,6 +82,7 @@ export default function SessionSummaryCard({
         programStatus,
         sessionStatus: session.status,
         lifecycleStatus: nextOccurrence.lifecycleStatus,
+        endsAt: nextOccurrence.endsAt,
         salesStartAt: nextOccurrence.salesStartAt,
         salesEndAt: nextOccurrence.salesEndAt,
         salesClosedAt: nextOccurrence.salesClosedAt,

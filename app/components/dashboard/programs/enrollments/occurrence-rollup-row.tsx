@@ -51,6 +51,7 @@ export default function OccurrenceRollupRow({
       programStatus,
       sessionStatus,
       lifecycleStatus: rollup.lifecycleStatus,
+      endsAt: rollup.endsAt,
       salesStartAt: rollup.salesStartAt,
       salesEndAt: rollup.salesEndAt,
       salesClosedAt: rollup.salesClosedAt,

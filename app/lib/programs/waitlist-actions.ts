@@ -120,6 +120,7 @@ export async function joinWaitlist(
           programStatus: context.program.status,
           sessionStatus: context.session.status,
           lifecycleStatus: context.occurrence.lifecycleStatus,
+          endsAt: context.occurrence.endsAt,
           salesStartAt: context.occurrence.salesStartAt,
           salesEndAt: context.occurrence.salesEndAt,
           salesClosedAt: context.occurrence.salesClosedAt,

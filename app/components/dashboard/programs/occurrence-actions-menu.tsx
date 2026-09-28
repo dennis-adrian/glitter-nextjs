@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -38,10 +38,14 @@ import {
   rescheduleOccurrence,
   setOccurrenceSalesClosed,
 } from "@/app/lib/programs/occurrence-actions";
+import { hasOccurrenceEnded } from "@/app/lib/programs/state";
 
 type Props = {
   occurrence: SessionOccurrence;
 };
+
+/** Longer delays overflow `setTimeout`, which then fires at once. */
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /** The reschedule form seeded from the occurrence as it stands right now. */
 function freshReschedule(occurrence: SessionOccurrence) {
@@ -67,6 +71,28 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
   const [reschedule, setReschedule] = useState(() =>
     freshReschedule(occurrence),
   );
+  const endsAtMs = occurrence.endsAt.getTime();
+  const [hasEnded, setHasEnded] = useState(() =>
+    hasOccurrenceEnded(occurrence.endsAt),
+  );
+
+  /**
+   * Flips the sales toggle at the end itself, so a page left open stops
+   * offering an action the server would refuse. A reschedule changes `endsAt`
+   * and restarts this against the new time.
+   */
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const check = () => {
+      const remaining = endsAtMs - Date.now();
+      setHasEnded(remaining <= 0);
+      if (remaining > 0) {
+        timer = setTimeout(check, Math.min(remaining, MAX_TIMEOUT_MS));
+      }
+    };
+    timer = setTimeout(check, 0);
+    return () => clearTimeout(timer);
+  }, [endsAtMs]);
 
   /**
    * Both dialogs re-seed on open rather than trusting their initial state.
@@ -115,16 +141,26 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={isPending}
-        onClick={() =>
-          run(setOccurrenceSalesClosed(occurrence.id, !salesClosed))
+      {/* A disabled button fires no pointer events, so the reason sits on a
+          wrapper where the browser can still show it. */}
+      <span
+        title={
+          hasEnded
+            ? "Las ventas cerraron al terminar el horario. Para volver a vender hay que reprogramarlo."
+            : undefined
         }
       >
-        {salesClosed ? "Reabrir ventas" : "Cerrar ventas"}
-      </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isPending || hasEnded}
+          onClick={() =>
+            run(setOccurrenceSalesClosed(occurrence.id, !salesClosed))
+          }
+        >
+          {salesClosed ? "Reabrir ventas" : "Cerrar ventas"}
+        </Button>
+      </span>
 
       <Dialog open={rescheduleOpen} onOpenChange={openReschedule}>
         <DialogTrigger asChild>

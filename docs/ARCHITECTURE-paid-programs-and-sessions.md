@@ -264,7 +264,7 @@ Schedule and inventory.
 | `venueId`                    | integer → `venues.id`, `ON DELETE RESTRICT`, nullable          | Occurrence-level override                                                |
 | `room`                       | text, nullable                                                 |                                                                          |
 | `capacity`                   | integer, not null, default 20                                  | PRD §4.2                                                                 |
-| `salesStartAt`, `salesEndAt` | timestamp, nullable                                            | Null = unbounded on that side                                            |
+| `salesStartAt`, `salesEndAt` | timestamp, nullable                                            | Null = unbounded on that side; sales never run past `endsAt` (§7.1)      |
 | `salesClosedAt`              | timestamp, nullable                                            | Manual close, independent of the window                                  |
 | `lifecycleStatus`            | `occurrence_lifecycle_status`, not null, default `scheduled`   | `scheduled` \| `completed` \| `cancelled`                                |
 | `cancelledAt`, `completedAt` | timestamp, nullable                                            |                                                                          |
@@ -623,9 +623,20 @@ Resolution order, evaluated against `now`:
 | 1     | program or session `status = 'draft'`             | `draft`             | no          |
 | 2     | `lifecycleStatus = 'cancelled'`                   | `cancelled`         | no          |
 | 3     | `lifecycleStatus = 'completed'`                   | `completed`         | no          |
-| 4     | `salesClosedAt IS NOT NULL` or `now > salesEndAt` | `sales_closed`      | no          |
-| 5     | `salesStartAt IS NOT NULL AND now < salesStartAt` | `sales_not_started` | no          |
-| 6     | otherwise                                         | `on_sale`           | yes         |
+| 4     | `now >= endsAt`                                   | `ended`             | no          |
+| 5     | `salesClosedAt IS NOT NULL` or `now > salesEndAt` | `sales_closed`      | no          |
+| 6     | `salesStartAt IS NOT NULL AND now < salesStartAt` | `sales_not_started` | no          |
+| 7     | otherwise                                         | `on_sale`           | yes         |
+
+Row 4 makes the end the hard limit of every sales window: a `salesEndAt` left empty, or set after
+`endsAt`, never keeps an occurrence selling once it is over. Sales stay open while it runs, so
+someone arriving late can still sign up; an admin who wants an earlier cutoff sets `salesEndAt` or
+closes sales by hand. `ended` is time having passed without anyone recording Finalizar, which is
+what `completed` stores; completing stays manual. No job is needed: `ended` is derived from `now`,
+the same way `salesEndAt` already closes sales. Saving a `salesStartAt` at or after `endsAt` is
+refused, and so is rescheduling the end to or before an existing `salesStartAt`, since either would
+leave an occurrence that reads "Ventas próximamente" and never opens. Holds taken before the end can
+still upload a voucher and be approved after it; those paths never consult this state.
 
 `rescheduled` is returned alongside the effective state as a boolean (`wasRescheduled`), not as a
 mutually exclusive state — a rescheduled occurrence must keep selling while its ticket holders gain
@@ -633,14 +644,14 @@ the right to request a refund. This is the resolution of PRD open note §17.4.
 
 Mapping back to the PRD's vocabulary, so nothing is lost in review:
 
-| PRD state      | Representation here                                                      |
-| -------------- | ------------------------------------------------------------------------ |
-| `draft`        | `status = 'draft'` on program or session                                 |
-| `published`    | `status = 'published'` + effective state `on_sale` / `sales_not_started` |
-| `sales_closed` | `salesClosedAt` set (manual) or `salesEndAt` elapsed (automatic)         |
-| `completed`    | `lifecycleStatus = 'completed'`                                          |
-| `cancelled`    | `lifecycleStatus = 'cancelled'`                                          |
-| `rescheduled`  | `rescheduledAt` set + a `session_occurrence_schedule_changes` row        |
+| PRD state      | Representation here                                                        |
+| -------------- | -------------------------------------------------------------------------- |
+| `draft`        | `status = 'draft'` on program or session                                   |
+| `published`    | `status = 'published'` + effective state `on_sale` / `sales_not_started`   |
+| `sales_closed` | `salesClosedAt` set (manual) or `salesEndAt` elapsed (automatic)           |
+| `completed`    | `lifecycleStatus = 'completed'`; before that, `ended` once `endsAt` passes |
+| `cancelled`    | `lifecycleStatus = 'cancelled'`                                            |
+| `rescheduled`  | `rescheduledAt` set + a `session_occurrence_schedule_changes` row          |
 
 Transitions and authorized actors (all admin or `festival_admin`; all recorded):
 
@@ -1007,16 +1018,16 @@ Two concurrent requests for a last seat serialize on the occurrence row lock; th
 
 ## 10. Idempotency
 
-| Operation             | Mechanism                                                                                                                                                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Checkout confirmation | `session_purchases.idempotencyKey` unique; a retried submit returns the existing purchase instead of holding a second set of seats                                                                                             |
-| Ticket issuance       | `session_tickets.purchaseLineId` unique + `ON CONFLICT DO NOTHING`                                                                                                                                                             |
-| Approval              | Guarded update `WHERE status IN ('under_verification','changes_requested')`; zero affected rows means the transition already happened, so no second email and no second issuance                                               |
-| Expiration            | Guarded update `WHERE status = 'pending_upload' AND holdExpiresAt <= :now`                                                                                                                                                     |
-| Check-in              | `session_attendances.ticketId` unique                                                                                                                                                                                          |
-| Emails                | `sendEmail`'s existing `idempotencyKey` header, keyed `program-purchase-{purchaseId}-{template}-{discriminator}` where the discriminator is the voucher version for review mails and the approval timestamp for issuance mails |
+| Operation             | Mechanism                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Checkout confirmation | `session_purchases.idempotencyKey` unique; a retried submit returns the existing purchase instead of holding a second set of seats                                                                                                                                                                                                                           |
+| Ticket issuance       | `session_tickets.purchaseLineId` unique + `ON CONFLICT DO NOTHING`                                                                                                                                                                                                                                                                                           |
+| Approval              | Guarded update `WHERE status IN ('under_verification','changes_requested')`; zero affected rows means the transition already happened, so no second email and no second issuance                                                                                                                                                                             |
+| Expiration            | Guarded update `WHERE status = 'pending_upload' AND holdExpiresAt <= :now`                                                                                                                                                                                                                                                                                   |
+| Check-in              | `session_attendances.ticketId` unique                                                                                                                                                                                                                                                                                                                        |
+| Emails                | `sendEmail`'s existing `idempotencyKey` header, keyed `program-purchase-{purchaseId}-{template}-{discriminator}` where the discriminator is the voucher version for review mails and the approval timestamp for issuance mails                                                                                                                               |
 | Session day reminder  | `program-session-day-reminder-{storeLocalDay}-{digest}` where `digest` is the first 32 hex characters of `sha256("program-session-day-reminder:{dayKey}:{normalizedEmail}")` (`buildSessionDayReminderKey`); keyed on recipient and day, not on their tickets, so a seat cancelled or bought between two firings cannot mint a fresh key and mail them twice |
-| Waitlist invitation   | Partial unique index on one `sent` invitation per entry                                                                                                                                                                        |
+| Waitlist invitation   | Partial unique index on one `sent` invitation per entry                                                                                                                                                                                                                                                                                                      |
 
 An email failure never rolls back an approval: tickets are issued and committed first, then mail is
 dispatched. Retrying the send reuses the same idempotency key, so the buyer cannot receive

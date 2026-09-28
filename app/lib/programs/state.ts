@@ -15,6 +15,7 @@ export type OccurrenceEffectiveState =
   | "draft"
   | "cancelled"
   | "completed"
+  | "ended"
   | "sales_closed"
   | "sales_not_started"
   | "on_sale";
@@ -23,6 +24,8 @@ export type OccurrenceStateInput = {
   programStatus: ProgramStatus;
   sessionStatus: ProgramStatus;
   lifecycleStatus: OccurrenceLifecycleStatus;
+  /** Sales stop here whatever the window says; see `resolveState`. */
+  endsAt: Date;
   salesStartAt: Date | null;
   salesEndAt: Date | null;
   salesClosedAt: Date | null;
@@ -47,6 +50,7 @@ export const OCCURRENCE_STATE_LABELS: Record<OccurrenceEffectiveState, string> =
     draft: "Borrador",
     cancelled: "Cancelada",
     completed: "Finalizada",
+    ended: "Realizada",
     sales_closed: "Ventas cerradas",
     sales_not_started: "Ventas próximamente",
     on_sale: "En venta",
@@ -81,6 +85,12 @@ function resolveState(
 
   if (input.lifecycleStatus === "cancelled") return "cancelled";
   if (input.lifecycleStatus === "completed") return "completed";
+
+  // Time outranks the sales window: an occurrence keeps selling while it runs,
+  // so someone arriving late can still sign up, and never sells once it is
+  // over, with no `salesEndAt` or one set after the end. `ended` is time having
+  // passed without anyone pressing Finalizar, which is what `completed` records.
+  if (hasOccurrenceEnded(input.endsAt, now)) return "ended";
 
   if (input.salesClosedAt !== null) return "sales_closed";
   if (input.salesEndAt !== null && now.getTime() > input.salesEndAt.getTime()) {
@@ -195,13 +205,24 @@ export function canUnpublishSession(activePurchaseLineCount: number): boolean {
   return activePurchaseLineCount === 0;
 }
 
+/**
+ * Sales close at the end on their own, so opening or closing them by hand no
+ * longer changes anything once this is true.
+ */
+export function hasOccurrenceEnded(
+  endsAt: Date,
+  now: Date = new Date(),
+): boolean {
+  return now.getTime() >= endsAt.getTime();
+}
+
 /** An occurrence may only be completed once it has actually ended. */
 export function canCompleteOccurrence(
   endsAt: Date,
   lifecycleStatus: OccurrenceLifecycleStatus,
   now: Date = new Date(),
 ): boolean {
-  return lifecycleStatus === "scheduled" && now.getTime() >= endsAt.getTime();
+  return lifecycleStatus === "scheduled" && hasOccurrenceEnded(endsAt, now);
 }
 
 export function canCancelOccurrence(
