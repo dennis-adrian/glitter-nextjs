@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, gte, inArray, isNotNull, lt, lte } from "drizzle-orm";
 
 import { queueEmails } from "@/app/lib/emails/helpers";
+import { effectiveVenueJoin } from "@/app/lib/programs/effective-venue";
 import { sendSessionDayReminderEmail } from "@/app/lib/programs/notifications";
 import {
   buildSessionDayReminderKey,
@@ -210,7 +211,7 @@ export async function sendSessionDayReminders(
       eq(programSessions.id, sessionOccurrences.sessionId),
     )
     .innerJoin(programs, eq(programs.id, programSessions.programId))
-    .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
+    .leftJoin(venues, effectiveVenueJoin())
     .where(
       and(
         eq(sessionTickets.status, "valid"),

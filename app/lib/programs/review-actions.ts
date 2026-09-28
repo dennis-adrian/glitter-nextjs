@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import type { SessionType } from "@/app/lib/programs/definitions";
+import { effectiveVenueJoin } from "@/app/lib/programs/effective-venue";
 import {
   buildBuyerLandingUrl,
   sendPaymentApprovedEmail,
@@ -283,7 +284,7 @@ export async function reviewPurchase(
           eq(sessionOccurrences.id, sessionPurchaseLines.occurrenceId),
         )
         .innerJoin(programs, eq(programs.id, purchase.programId))
-        .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
+        .leftJoin(venues, effectiveVenueJoin())
         // Only a live ticket may supply a code: `notifyBuyer` mails a QR for
         // whatever it finds here, and a cancelled ticket's code would send the
         // buyer a QR that check-in refuses. `resendPurchaseEmails` applies the

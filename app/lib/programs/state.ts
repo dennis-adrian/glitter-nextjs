@@ -110,6 +110,9 @@ function resolveState(
 /**
  * Effective venue for an occurrence: occurrence override, else session
  * override, else the program default. PRD §5.2.
+ *
+ * Queries use the SQL twin, `effectiveVenueJoin` in `effective-venue.ts`;
+ * change both together.
  */
 export function resolveEffectiveVenueId(
   occurrenceVenueId: number | null,
