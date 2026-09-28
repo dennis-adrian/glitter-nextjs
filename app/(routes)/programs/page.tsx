@@ -17,7 +17,7 @@ import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
 
 export const metadata: Metadata = {
-  title: "Programas",
+  title: "Charlas y Talleres",
   description: "Charlas y talleres de Glitter.",
 };
 
@@ -40,9 +40,9 @@ export default async function ProgramsIndexPage() {
       />
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Programas</h1>
+          <h1 className="text-3xl font-bold">Charlas y Talleres</h1>
           <p className="text-muted-foreground">
-            Charlas y talleres para aprender, practicar y conocer gente.
+            Espacios para aprender, practicar y conocer gente.
           </p>
         </div>
         {/* Contextual entry point: this page already resolves the flag and the
