@@ -106,6 +106,9 @@ export default async function SessionPage({ params }: Props) {
   const availabilityByOccurrence = await getAvailabilityForOccurrences(
     session.occurrences.map((occurrence) => occurrence.id),
   );
+  // This HTML is cached; the list hydrates against the same instant it was
+  // rendered with, then moves to the browser clock.
+  const renderedAt = new Date();
 
   const venuesById = new Map(venues.map((venue) => [venue.id, venue]));
   const outcomes = session.learningOutcomes ?? [];
@@ -415,6 +418,7 @@ export default async function SessionPage({ params }: Props) {
                 audience={session.audience}
                 publicPrice={publicPrice}
                 participantPrice={participantPrice}
+                renderedAt={renderedAt}
               />
             </div>
           </section>

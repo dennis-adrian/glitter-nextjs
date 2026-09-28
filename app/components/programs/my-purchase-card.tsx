@@ -89,6 +89,7 @@ export default function MyPurchaseCard({ purchase }: Props) {
               programStatus: purchase.program.status,
               sessionStatus: line.session.status,
               lifecycleStatus: line.occurrence.lifecycleStatus,
+              endsAt: line.occurrence.endsAt,
               salesStartAt: line.occurrence.salesStartAt,
               salesEndAt: line.occurrence.salesEndAt,
               salesClosedAt: line.occurrence.salesClosedAt,

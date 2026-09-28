@@ -50,6 +50,7 @@ export default function OccurrenceRow({
     programStatus,
     sessionStatus,
     lifecycleStatus: occurrence.lifecycleStatus,
+    endsAt: occurrence.endsAt,
     salesStartAt: occurrence.salesStartAt,
     salesEndAt: occurrence.salesEndAt,
     salesClosedAt: occurrence.salesClosedAt,

@@ -49,6 +49,7 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
     programStatus: program.status,
     sessionStatus: session.status,
     lifecycleStatus: occurrence.lifecycleStatus,
+    endsAt: occurrence.endsAt,
     salesStartAt: occurrence.salesStartAt,
     salesEndAt: occurrence.salesEndAt,
     salesClosedAt: occurrence.salesClosedAt,

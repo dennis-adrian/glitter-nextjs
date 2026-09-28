@@ -426,6 +426,7 @@ export async function startPaidCheckout(
             programStatus: entry.program.status,
             sessionStatus: entry.session.status,
             lifecycleStatus: entry.occurrence.lifecycleStatus,
+            endsAt: entry.occurrence.endsAt,
             salesStartAt: entry.occurrence.salesStartAt,
             salesEndAt: entry.occurrence.salesEndAt,
             salesClosedAt: entry.occurrence.salesClosedAt,

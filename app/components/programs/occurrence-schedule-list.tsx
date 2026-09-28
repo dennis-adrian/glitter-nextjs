@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import FreeRegistrationForm from "@/app/components/programs/free-registration-form";
 import PaidRegistrationForm from "@/app/components/programs/paid-registration-form";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
+import { useNow } from "@/app/hooks/use-now";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import type {
   ProgramStatus,
@@ -22,7 +23,10 @@ import {
 import type { OccurrenceAvailability } from "@/app/lib/programs/inventory";
 import { isFreePrice } from "@/app/lib/programs/pricing";
 import { getCurrentViewerProgramEligibility } from "@/app/lib/programs/registration-actions";
-import { resolveOccurrenceState } from "@/app/lib/programs/state";
+import {
+  resolveOccurrenceState,
+  type OccurrenceEffectiveState,
+} from "@/app/lib/programs/state";
 
 type Props = {
   occurrences: SessionOccurrence[];
@@ -39,7 +43,19 @@ type Props = {
   audience: SessionAudience;
   publicPrice: number;
   participantPrice: number;
+  /** When the server rendered the page; see `useNow`. */
+  renderedAt: Date;
 };
+
+/**
+ * Seat counts only mean something while an occurrence can still sell. Once it
+ * is over or called off, "3 de 20 cupos" reads as an offer.
+ */
+const STATES_WITHOUT_SEATS: ReadonlySet<OccurrenceEffectiveState> = new Set([
+  "cancelled",
+  "completed",
+  "ended",
+]);
 
 /**
  * Every scheduled group for a session. Each is separately purchasable with its
@@ -58,8 +74,10 @@ export default function OccurrenceScheduleList({
   audience,
   publicPrice,
   participantPrice,
+  renderedAt,
 }: Props) {
   const { isLoaded, isSignedIn } = useAuth();
+  const now = useNow(renderedAt);
   const [eligibility, setEligibility] =
     useState<ParticipantEligibility>("public");
 
@@ -117,15 +135,19 @@ export default function OccurrenceScheduleList({
   return (
     <ul className="@container overflow-hidden rounded-4xl bg-[#fffaf3] text-[#4b255f]">
       {occurrences.map((occurrence) => {
-        const resolved = resolveOccurrenceState({
-          programStatus,
-          sessionStatus,
-          lifecycleStatus: occurrence.lifecycleStatus,
-          salesStartAt: occurrence.salesStartAt,
-          salesEndAt: occurrence.salesEndAt,
-          salesClosedAt: occurrence.salesClosedAt,
-          rescheduledAt: occurrence.rescheduledAt,
-        });
+        const resolved = resolveOccurrenceState(
+          {
+            programStatus,
+            sessionStatus,
+            lifecycleStatus: occurrence.lifecycleStatus,
+            endsAt: occurrence.endsAt,
+            salesStartAt: occurrence.salesStartAt,
+            salesEndAt: occurrence.salesEndAt,
+            salesClosedAt: occurrence.salesClosedAt,
+            rescheduledAt: occurrence.rescheduledAt,
+          },
+          now,
+        );
 
         const venueId = occurrence.venueId ?? fallbackVenueId;
         const venue = venueId === null ? null : venuesById.get(venueId);
@@ -170,7 +192,8 @@ export default function OccurrenceScheduleList({
                   {occurrence.room ? ` - ${occurrence.room}` : ""}
                 </p>
               ) : null}
-              {remaining !== undefined ? (
+              {remaining !== undefined &&
+              !STATES_WITHOUT_SEATS.has(resolved.state) ? (
                 <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
                   <UsersIcon className="size-4 shrink-0 text-[#9347f5]" />
                   {remaining > 0
