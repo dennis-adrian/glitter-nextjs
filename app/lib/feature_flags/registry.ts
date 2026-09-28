@@ -22,9 +22,9 @@ export type FeatureFlagDefinition = {
  */
 export const FEATURE_FLAGS = {
   paid_programs: {
-    label: "Programas y sesiones pagas",
+    label: "Charlas y talleres",
     description:
-      "Catálogo público de programas (Glitter Week): charlas, talleres, compra de entradas, Week Pass y check-in.",
+      "Catálogo público de programas y sesiones, gratuitas o pagas: inscripción, compra de entradas, Mis inscripciones y check-in con QR. Si se oculta, quienes ya se inscribieron dejan de ver su entrada y el equipo no puede hacer check-in.",
     defaultVisibility: "hidden",
   },
   programs_nav_entry: {
