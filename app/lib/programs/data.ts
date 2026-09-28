@@ -267,7 +267,7 @@ export const fetchPublishedSession = cache(
 );
 
 /**
- * Where the "Semana Glitter" menu entry should point.
+ * Where the "Charlas y Talleres" menu entry should point.
  *
  * One published program is the launch case, and sending someone to a catalogue
  * listing a single item is a wasted click — so it links straight to that
