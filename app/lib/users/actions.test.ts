@@ -140,6 +140,17 @@ describe("updateProfile", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
+  it("stores a display name trimmed, so trailing spaces cannot pass the limit", async () => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    const { set } = captureUpdate();
+    const name = "a".repeat(80);
+
+    await expect(
+      updateProfile(OWNER.id, { displayName: `${name}   ` }),
+    ).resolves.toMatchObject({ success: true });
+    expect(set.mock.calls[0][0]).toHaveProperty("displayName", name);
+  });
+
   it("lets an admin edit another profile's self-editable fields", async () => {
     ownerOrAdminMock.mockResolvedValue(ADMIN);
     const { set } = captureUpdate();

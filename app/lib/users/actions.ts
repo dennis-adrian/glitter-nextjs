@@ -182,14 +182,16 @@ export async function updateProfile(
   // privileged columns are dropped rather than written.
   const fields = pickSelfEditableProfileFields(profile);
 
-  if (
-    typeof fields.displayName === "string" &&
-    fields.displayName.trim().length > DISPLAY_NAME_MAX_LENGTH
-  ) {
-    return {
-      success: false,
-      message: `Tu nombre puede tener hasta ${DISPLAY_NAME_MAX_LENGTH} caracteres`,
-    };
+  if (typeof fields.displayName === "string") {
+    // Check and store the same trimmed value, so trailing spaces cannot carry
+    // a stored name past the limit.
+    fields.displayName = fields.displayName.trim();
+    if (fields.displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+      return {
+        success: false,
+        message: `Tu nombre puede tener hasta ${DISPLAY_NAME_MAX_LENGTH} caracteres`,
+      };
+    }
   }
 
   try {
