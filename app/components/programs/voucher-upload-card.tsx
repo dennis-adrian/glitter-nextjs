@@ -159,7 +159,7 @@ export default function VoucherUploadCard({
           ...attemptProperties,
           failure: "upload",
         });
-        toast.error("No pudimos subir la imagen. Intenta de nuevo.");
+        toast.error("No pudimos subir la imagen. Intentá de nuevo.");
         return;
       }
 
@@ -199,7 +199,7 @@ export default function VoucherUploadCard({
         ...attemptProperties,
         failure: "exception",
       });
-      toast.error("No pudimos registrar el comprobante. Intenta de nuevo.");
+      toast.error("No pudimos registrar el comprobante. Intentá de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -242,13 +242,13 @@ export default function VoucherUploadCard({
         <CardHeader>
           <CardTitle>
             {changesRequested
-              ? "Necesitamos otro comprobante"
-              : "Paga y sube tu comprobante"}
+              ? "Subí otro comprobante"
+              : "Pagá y subí tu comprobante"}
           </CardTitle>
           <CardDescription>
             {changesRequested
               ? "Revisamos tu comprobante y necesitamos una imagen distinta."
-              : `Transfiere ${formatMoney(totalAmount)} y sube la captura para confirmar tu cupo.`}
+              : `Transferí ${formatMoney(totalAmount)} y subí la captura para confirmar tu cupo.`}
           </CardDescription>
         </CardHeader>
       )}
@@ -320,13 +320,13 @@ export default function VoucherUploadCard({
           >
             {expired ? (
               <>
-                Tu reserva expiró y el cupo volvió a estar disponible. Vuelve a
-                inscribirte si aún quieres asistir.
+                Tu reserva expiró y el cupo volvió a estar disponible. Volvé a
+                inscribirte si aún querés asistir.
               </>
             ) : (
               <>
                 Tu cupo está reservado por{" "}
-                <strong>{formatRemaining(msLeft)}</strong>. Sube tu comprobante
+                <strong>{formatRemaining(msLeft)}</strong>. Subí tu comprobante
                 antes de las{" "}
                 {formatFullDate(holdExpiresAt, DateTime.TIME_SIMPLE)}.
               </>
@@ -345,10 +345,10 @@ export default function VoucherUploadCard({
             />
             <p className="text-center text-xs text-muted-foreground">
               {qrCoversAmount ? (
-                <>Escanea el QR desde tu app bancaria. Ya lleva el monto.</>
+                <>Escaneá el QR desde tu app bancaria. Ya lleva el monto.</>
               ) : (
                 <>
-                  Escanea el QR desde tu app bancaria y escribe el monto:{" "}
+                  Escaneá el QR desde tu app bancaria y escribí el monto:{" "}
                   <strong>{formatMoney(totalAmount)}</strong>.
                 </>
               )}
@@ -358,7 +358,7 @@ export default function VoucherUploadCard({
 
         {showPaymentInstructions && !expired && !bankQrImageUrl ? (
           <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            No encontramos un QR de pago disponible. Escríbenos para coordinar
+            No encontramos un QR de pago disponible. Escribinos para coordinar
             tu pago.
           </p>
         ) : null}
@@ -478,7 +478,7 @@ export default function VoucherUploadCard({
                 <span className="text-sm font-medium text-muted-foreground">
                   {latest
                     ? "Elegir otra imagen"
-                    : "Presiona para elegir una imagen"}
+                    : "Presioná para elegir una imagen"}
                 </span>
                 <span className="text-xs text-muted-foreground/70">
                   JPG, PNG o HEIC — hasta 4MB

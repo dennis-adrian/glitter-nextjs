@@ -27,15 +27,15 @@ export default function SecureLinkNotice({ url }: Props) {
       toast.success("Enlace copiado");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("No se pudo copiar. Selecciona el enlace manualmente.");
+      toast.error("No se pudo copiar. Seleccioná el enlace manualmente.");
     }
   }
 
   return (
     <div className="space-y-2 rounded-lg border border-border/70 bg-muted/40 p-4">
-      <p className="text-sm font-medium">Guarda este enlace</p>
+      <p className="text-sm font-medium">Guardá este enlace</p>
       <p className="text-sm text-muted-foreground">
-        Es la única forma de recuperar tu entrada si pierdes el correo. No lo
+        Es la única forma de recuperar tu entrada si perdés el correo. No lo
         compartas: quien lo tenga puede ver tu inscripción.
       </p>
       <div className="flex flex-wrap items-center gap-2">
