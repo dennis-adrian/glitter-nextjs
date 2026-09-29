@@ -15,7 +15,7 @@ type ProgramDateStampProps = {
 };
 
 const FRAME: Record<ProgramDateStampSize, string> = {
-  sm: "w-16 rounded-[14px] py-2",
+  sm: "min-w-16 rounded-[14px] px-2 py-2",
   md: "w-20 rounded-[16px] py-3",
   lg: "min-w-28 rounded-[18px] px-5 py-4",
 };

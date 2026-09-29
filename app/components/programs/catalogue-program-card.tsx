@@ -31,7 +31,7 @@ export default function CatalogueProgramCard({
         <p className="w-fit rounded-full bg-brand-lavender px-3 py-1 text-xs font-semibold">
           Programa
         </p>
-        <h2 className="mt-3 max-w-[18ch] text-balance font-display text-3xl font-extrabold leading-tight tracking-[-0.5px] sm:text-4xl">
+        <h2 className="mt-3 max-w-[18ch] text-balance font-display text-2xl font-extrabold leading-tight tracking-[-0.5px] sm:text-3xl lg:text-4xl">
           <Link
             href={programPath(program.slug)}
             className="decoration-brand-primary decoration-2 underline-offset-4 after:absolute after:inset-0 after:z-10 after:content-[''] focus-visible:outline-none group-hover:underline"
@@ -41,7 +41,7 @@ export default function CatalogueProgramCard({
         </h2>
 
         {program.summary ? (
-          <p className="mt-4 line-clamp-3 max-w-lg leading-7 text-brand-ink/75 sm:text-lg sm:leading-8">
+          <p className="mt-2 line-clamp-3 max-w-lg leading-7 text-brand-ink/75 sm:text-lg sm:leading-8">
             {program.summary}
           </p>
         ) : null}
@@ -50,7 +50,7 @@ export default function CatalogueProgramCard({
           {/* Either date may be set alone; show whichever exists. */}
           {program.startDate || program.endDate ? (
             <ProgramDateStamp
-              size="lg"
+              size="sm"
               start={program.startDate ?? program.endDate}
               end={program.endDate}
               third="year"
