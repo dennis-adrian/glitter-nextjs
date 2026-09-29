@@ -128,6 +128,18 @@ describe("updateProfile", () => {
     expect(Object.keys(written).sort()).toEqual(["displayName", "updatedAt"]);
   });
 
+  it("refuses a display name over 80 characters without touching the row", async () => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+
+    await expect(
+      updateProfile(OWNER.id, { displayName: "a".repeat(81) }),
+    ).resolves.toEqual({
+      success: false,
+      message: "Tu nombre puede tener hasta 80 caracteres",
+    });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it("lets an admin edit another profile's self-editable fields", async () => {
     ownerOrAdminMock.mockResolvedValue(ADMIN);
     const { set } = captureUpdate();
