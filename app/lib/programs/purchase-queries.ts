@@ -5,6 +5,11 @@ import { cache } from "react";
 
 import type { SessionPurchaseStatus } from "@/app/lib/programs/definitions";
 import {
+  occurrenceVenueSources,
+  withEffectiveVenue,
+  type VenueSources,
+} from "@/app/lib/programs/effective-venue";
+import {
   buildSearchPattern,
   ticketMatchesQuery,
 } from "@/app/lib/programs/search";
@@ -26,7 +31,7 @@ const purchaseWith = {
   lines: {
     with: {
       session: true as const,
-      occurrence: { with: { venue: true as const } },
+      occurrence: { with: occurrenceVenueSources },
       ticket: true as const,
     },
   },
@@ -37,6 +42,15 @@ const purchaseWith = {
   },
 };
 
+/** Each line's occurrence with its effective venue; see `withEffectiveVenue`. */
+function resolveLineVenues<L extends { occurrence: VenueSources }>(lines: L[]) {
+  return lines.map(({ occurrence, ...line }) => ({
+    ...line,
+    // Explicit, or inference widens the occurrence to `VenueSources`.
+    occurrence: withEffectiveVenue<L["occurrence"]>(occurrence),
+  }));
+}
+
 /**
  * Loads a purchase for the access check.
  *
@@ -45,10 +59,12 @@ const purchaseWith = {
  * ask. The caller must not use the result before that check passes.
  */
 export const fetchPurchaseForAccess = cache(async (purchaseId: number) => {
-  return db.query.sessionPurchases.findFirst({
+  const purchase = await db.query.sessionPurchases.findFirst({
     where: eq(sessionPurchases.id, purchaseId),
     with: purchaseWith,
   });
+
+  return purchase && { ...purchase, lines: resolveLineVenues(purchase.lines) };
 });
 
 export type PurchaseForAccess = NonNullable<
@@ -62,7 +78,7 @@ export type PurchaseForAccess = NonNullable<
  * first, and the seat they hold is the one blocking someone else.
  */
 export const fetchPurchasesAwaitingReview = cache(async () => {
-  return db.query.sessionPurchases.findMany({
+  const purchases = await db.query.sessionPurchases.findMany({
     where: and(
       eq(sessionPurchases.paymentMode, "bank_qr"),
       inArray(sessionPurchases.status, [
@@ -73,6 +89,11 @@ export const fetchPurchasesAwaitingReview = cache(async () => {
     with: { ...purchaseWith, buyer: true },
     orderBy: [asc(sessionPurchases.voucherSubmittedAt)],
   });
+
+  return purchases.map((purchase) => ({
+    ...purchase,
+    lines: resolveLineVenues(purchase.lines),
+  }));
 });
 
 /**
@@ -88,7 +109,7 @@ export const fetchPurchasesAwaitingReview = cache(async () => {
  * the single place an admin reconciles what happened without a database query.
  */
 export const fetchPurchaseForAdmin = cache(async (purchaseId: number) => {
-  return db.query.sessionPurchases.findFirst({
+  const purchase = await db.query.sessionPurchases.findFirst({
     where: eq(sessionPurchases.id, purchaseId),
     with: {
       ...purchaseWith,
@@ -96,7 +117,7 @@ export const fetchPurchaseForAdmin = cache(async (purchaseId: number) => {
       lines: {
         with: {
           session: true as const,
-          occurrence: { with: { venue: true as const } },
+          occurrence: { with: occurrenceVenueSources },
           ticket: { with: { attendance: true as const } },
         },
       },
@@ -107,6 +128,8 @@ export const fetchPurchaseForAdmin = cache(async (purchaseId: number) => {
       },
     },
   });
+
+  return purchase && { ...purchase, lines: resolveLineVenues(purchase.lines) };
 });
 
 export type PurchaseForAdmin = NonNullable<
@@ -126,11 +149,16 @@ export const fetchProgramSettings = cache(async () => {
 
 /** A signed-in buyer's own purchases, for their profile area. */
 export const fetchPurchasesForUser = cache(async (userId: number) => {
-  return db.query.sessionPurchases.findMany({
+  const purchases = await db.query.sessionPurchases.findMany({
     where: eq(sessionPurchases.userId, userId),
     with: purchaseWith,
     orderBy: [desc(sessionPurchases.createdAt)],
   });
+
+  return purchases.map((purchase) => ({
+    ...purchase,
+    lines: resolveLineVenues(purchase.lines),
+  }));
 });
 
 /** Shortest query worth running; one character would scan the whole table. */

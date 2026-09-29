@@ -1,5 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 
+import type { Venue } from "@/app/lib/programs/definitions";
+import { resolveEffectiveVenue } from "@/app/lib/programs/state";
 import {
   programs,
   programSessions,
@@ -29,4 +31,47 @@ export function effectiveVenueIdSql() {
 /** `leftJoin(venues, effectiveVenueJoin())`: the effective venue's row. */
 export function effectiveVenueJoin() {
   return eq(venues.id, effectiveVenueIdSql());
+}
+
+/**
+ * Relational `with` for an occurrence that loads every venue its effective
+ * venue can come from. Pass the result through `withEffectiveVenue`.
+ *
+ * Booleans pinned with `as const` for drizzle's `DBQueryConfig`; see
+ * `sessionWith` in `data.ts`.
+ */
+export const occurrenceVenueSources = {
+  venue: true as const,
+  session: {
+    with: {
+      venue: true as const,
+      program: { with: { defaultVenue: true as const } },
+    },
+  },
+};
+
+export type VenueSources = {
+  venue: Venue | null;
+  session: { venue: Venue | null; program: { defaultVenue: Venue | null } };
+};
+
+/**
+ * Relational counterpart of `effectiveVenueJoin`: swaps the occurrence's own
+ * `venue`, which is only its override, for `effectiveVenue`.
+ *
+ * The override is dropped rather than kept alongside, so a page that reaches
+ * for `occurrence.venue` fails to compile instead of rendering no location
+ * for an occurrence that inherits one.
+ */
+export function withEffectiveVenue<O extends VenueSources>(occurrence: O) {
+  const { venue, ...rest } = occurrence;
+
+  return {
+    ...rest,
+    effectiveVenue: resolveEffectiveVenue(
+      venue,
+      occurrence.session.venue,
+      occurrence.session.program.defaultVenue,
+    ),
+  };
 }

@@ -78,7 +78,9 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
         </div>
         <p className="text-sm text-muted-foreground">
           {program.name} · {SESSION_TYPE_LABELS[session.type]}
-          {occurrence.venue ? ` · ${occurrence.venue.name}` : ""}
+          {occurrence.effectiveVenue
+            ? ` · ${occurrence.effectiveVenue.name}`
+            : ""}
           {occurrence.room ? ` · ${occurrence.room}` : ""}
         </p>
         <OccurrenceSeatSummary summary={summary} />

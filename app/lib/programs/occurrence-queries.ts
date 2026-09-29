@@ -10,7 +10,11 @@ import type {
   SessionType,
 } from "@/app/lib/programs/definitions";
 import type { CheckInAgendaWindow } from "@/app/lib/programs/checkin";
-import { effectiveVenueJoin } from "@/app/lib/programs/effective-venue";
+import {
+  effectiveVenueJoin,
+  occurrenceVenueSources,
+  withEffectiveVenue,
+} from "@/app/lib/programs/effective-venue";
 import { resolveAvailability } from "@/app/lib/programs/inventory";
 import { resolveAttendeeIdentity } from "@/app/lib/programs/registration";
 import {
@@ -21,6 +25,7 @@ import {
   type RosterSeatState,
   type RosterTotals,
 } from "@/app/lib/programs/roster";
+import { resolveEffectiveVenue } from "@/app/lib/programs/state";
 import { db } from "@/db";
 import {
   programs,
@@ -353,12 +358,14 @@ export async function fetchProgramRoster(
     db.query.programs.findFirst({
       where: eq(programs.id, programId),
       columns: { status: true },
+      with: { defaultVenue: true },
     }),
     db.query.programSessions.findMany({
       where: eq(programSessions.programId, programId),
       columns: { id: true, title: true, type: true, status: true },
       orderBy: [asc(programSessions.id)],
       with: {
+        venue: true,
         occurrences: {
           with: { venue: true },
           orderBy: [asc(sessionOccurrences.startsAt)],
@@ -387,7 +394,12 @@ export async function fetchProgramRoster(
       startsAt: occurrence.startsAt,
       endsAt: occurrence.endsAt,
       capacity: occurrence.capacity,
-      venueName: occurrence.venue?.name ?? null,
+      venueName:
+        resolveEffectiveVenue(
+          occurrence.venue,
+          session.venue,
+          program.defaultVenue,
+        )?.name ?? null,
       room: occurrence.room,
       lifecycleStatus: occurrence.lifecycleStatus,
       rescheduledAt: occurrence.rescheduledAt,
@@ -425,13 +437,12 @@ export async function fetchProgramRoster(
 
 /** The occurrence plus the context the detail page's heading needs. */
 export const fetchOccurrenceForAdmin = cache(async (occurrenceId: number) => {
-  return db.query.sessionOccurrences.findFirst({
+  const occurrence = await db.query.sessionOccurrences.findFirst({
     where: eq(sessionOccurrences.id, occurrenceId),
-    with: {
-      venue: true,
-      session: { with: { program: true } },
-    },
+    with: occurrenceVenueSources,
   });
+
+  return occurrence && withEffectiveVenue(occurrence);
 });
 
 export type OccurrenceForAdmin = NonNullable<
