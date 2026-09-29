@@ -151,7 +151,7 @@ export default async function PurchaseAccessPage({
               sessionType={line.session.type}
               startsAt={line.occurrence.startsAt}
               endsAt={line.occurrence.endsAt}
-              venueName={line.occurrence.venue?.name ?? null}
+              venueName={line.occurrence.effectiveVenue?.name ?? null}
               room={line.occurrence.room}
               ticketCode={line.ticket.code}
               ticketStatus={line.ticket.status}

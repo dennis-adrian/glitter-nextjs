@@ -110,13 +110,29 @@ function resolveState(
 /**
  * Effective venue for an occurrence: occurrence override, else session
  * override, else the program default. PRD §5.2.
+ *
+ * Generic so ids and loaded venue rows share one precedence. Select queries
+ * use the SQL twin, `effectiveVenueJoin` in `effective-venue.ts`; relational
+ * ones use `withEffectiveVenue` there. Change them together.
  */
+export function resolveEffectiveVenue<V>(
+  occurrenceVenue: V | null,
+  sessionVenue: V | null,
+  programDefaultVenue: V | null,
+): V | null {
+  return occurrenceVenue ?? sessionVenue ?? programDefaultVenue;
+}
+
 export function resolveEffectiveVenueId(
   occurrenceVenueId: number | null,
   sessionVenueId: number | null,
   programDefaultVenueId: number | null,
 ): number | null {
-  return occurrenceVenueId ?? sessionVenueId ?? programDefaultVenueId;
+  return resolveEffectiveVenue(
+    occurrenceVenueId,
+    sessionVenueId,
+    programDefaultVenueId,
+  );
 }
 
 export type SessionPublishBlocker =

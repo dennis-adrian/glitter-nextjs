@@ -10,6 +10,11 @@ import type {
   SessionType,
 } from "@/app/lib/programs/definitions";
 import type { CheckInAgendaWindow } from "@/app/lib/programs/checkin";
+import {
+  effectiveVenueJoin,
+  occurrenceVenueSources,
+  withEffectiveVenue,
+} from "@/app/lib/programs/effective-venue";
 import { resolveAvailability } from "@/app/lib/programs/inventory";
 import { resolveAttendeeIdentity } from "@/app/lib/programs/registration";
 import {
@@ -20,6 +25,7 @@ import {
   type RosterSeatState,
   type RosterTotals,
 } from "@/app/lib/programs/roster";
+import { resolveEffectiveVenue } from "@/app/lib/programs/state";
 import { db } from "@/db";
 import {
   programs,
@@ -27,6 +33,7 @@ import {
   sessionOccurrences,
   sessionPurchaseLines,
   sessionWaitlistEntries,
+  venues,
 } from "@/db/schema";
 
 /** One seat in one occurrence, as the admin roster shows it. */
@@ -351,12 +358,14 @@ export async function fetchProgramRoster(
     db.query.programs.findFirst({
       where: eq(programs.id, programId),
       columns: { status: true },
+      with: { defaultVenue: true },
     }),
     db.query.programSessions.findMany({
       where: eq(programSessions.programId, programId),
       columns: { id: true, title: true, type: true, status: true },
       orderBy: [asc(programSessions.id)],
       with: {
+        venue: true,
         occurrences: {
           with: { venue: true },
           orderBy: [asc(sessionOccurrences.startsAt)],
@@ -385,7 +394,12 @@ export async function fetchProgramRoster(
       startsAt: occurrence.startsAt,
       endsAt: occurrence.endsAt,
       capacity: occurrence.capacity,
-      venueName: occurrence.venue?.name ?? null,
+      venueName:
+        resolveEffectiveVenue(
+          occurrence.venue,
+          session.venue,
+          program.defaultVenue,
+        )?.name ?? null,
       room: occurrence.room,
       lifecycleStatus: occurrence.lifecycleStatus,
       rescheduledAt: occurrence.rescheduledAt,
@@ -423,13 +437,12 @@ export async function fetchProgramRoster(
 
 /** The occurrence plus the context the detail page's heading needs. */
 export const fetchOccurrenceForAdmin = cache(async (occurrenceId: number) => {
-  return db.query.sessionOccurrences.findFirst({
+  const occurrence = await db.query.sessionOccurrences.findFirst({
     where: eq(sessionOccurrences.id, occurrenceId),
-    with: {
-      venue: true,
-      session: { with: { program: true } },
-    },
+    with: occurrenceVenueSources,
   });
+
+  return occurrence && withEffectiveVenue(occurrence);
 });
 
 export type OccurrenceForAdmin = NonNullable<
@@ -468,18 +481,35 @@ export async function fetchCheckInAgenda(
 ): Promise<CheckInAgendaEntry[]> {
   const now = options.now ?? new Date();
 
-  const occurrences = await db.query.sessionOccurrences.findMany({
-    where: and(
-      gte(sessionOccurrences.endsAt, now),
-      lte(sessionOccurrences.startsAt, window.to),
-      ne(sessionOccurrences.lifecycleStatus, "cancelled"),
-    ),
-    with: {
-      venue: true,
-      session: { with: { program: true } },
-    },
-    orderBy: [asc(sessionOccurrences.startsAt)],
-  });
+  // A select rather than a relational query so the venue comes from the same
+  // inherited-venue join the emails use.
+  const occurrences = await db
+    .select({
+      occurrenceId: sessionOccurrences.id,
+      capacity: sessionOccurrences.capacity,
+      programName: programs.name,
+      sessionTitle: programSessions.title,
+      sessionType: programSessions.type,
+      startsAt: sessionOccurrences.startsAt,
+      endsAt: sessionOccurrences.endsAt,
+      venueName: venues.name,
+      room: sessionOccurrences.room,
+    })
+    .from(sessionOccurrences)
+    .innerJoin(
+      programSessions,
+      eq(programSessions.id, sessionOccurrences.sessionId),
+    )
+    .innerJoin(programs, eq(programs.id, programSessions.programId))
+    .leftJoin(venues, effectiveVenueJoin())
+    .where(
+      and(
+        gte(sessionOccurrences.endsAt, now),
+        lte(sessionOccurrences.startsAt, window.to),
+        ne(sessionOccurrences.lifecycleStatus, "cancelled"),
+      ),
+    )
+    .orderBy(asc(sessionOccurrences.startsAt));
 
   if (occurrences.length === 0) return [];
 
@@ -487,25 +517,25 @@ export async function fetchCheckInAgenda(
   // uses, so a count here can never disagree with the count there.
   const summaries = await fetchOccurrenceSummaries(
     occurrences.map((occurrence) => ({
-      id: occurrence.id,
+      id: occurrence.occurrenceId,
       capacity: occurrence.capacity,
     })),
     { now },
   );
 
   return occurrences.flatMap((occurrence) => {
-    const summary = summaries.get(occurrence.id);
+    const summary = summaries.get(occurrence.occurrenceId);
     if (!summary) return [];
 
     return [
       {
-        occurrenceId: occurrence.id,
-        programName: occurrence.session.program.name,
-        sessionTitle: occurrence.session.title,
-        sessionType: occurrence.session.type,
+        occurrenceId: occurrence.occurrenceId,
+        programName: occurrence.programName,
+        sessionTitle: occurrence.sessionTitle,
+        sessionType: occurrence.sessionType,
         startsAt: occurrence.startsAt,
         endsAt: occurrence.endsAt,
-        venueName: occurrence.venue?.name ?? null,
+        venueName: occurrence.venueName,
         room: occurrence.room,
         summary,
       },

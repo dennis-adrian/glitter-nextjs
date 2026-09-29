@@ -106,8 +106,8 @@ export default function MyPurchaseCard({ purchase }: Props) {
                     line.occurrence.startsAt,
                     DateTime.DATETIME_MED,
                   )}
-                  {line.occurrence.venue
-                    ? ` · ${line.occurrence.venue.name}`
+                  {line.occurrence.effectiveVenue
+                    ? ` · ${line.occurrence.effectiveVenue.name}`
                     : ""}
                 </span>
                 {/* Surfaced here because a rescheduled session is the one thing

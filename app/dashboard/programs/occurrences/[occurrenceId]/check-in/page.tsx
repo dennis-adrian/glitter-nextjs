@@ -56,7 +56,9 @@ export default async function OccurrenceCheckInPage({ params }: Props) {
           {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
           {" · "}
           {program.name} · {SESSION_TYPE_LABELS[session.type]}
-          {occurrence.venue ? ` · ${occurrence.venue.name}` : ""}
+          {occurrence.effectiveVenue
+            ? ` · ${occurrence.effectiveVenue.name}`
+            : ""}
           {occurrence.room ? ` · ${occurrence.room}` : ""}
         </p>
       </div>

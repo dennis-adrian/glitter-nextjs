@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
+import { effectiveVenueJoin } from "@/app/lib/programs/effective-venue";
 import {
   buildSecureLinkUrl,
   sendPaymentApprovedEmail,
@@ -315,7 +316,7 @@ export async function resendPurchaseLink(
           eq(sessionOccurrences.id, sessionPurchaseLines.occurrenceId),
         )
         .innerJoin(programs, eq(programs.id, purchase.programId))
-        .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
+        .leftJoin(venues, effectiveVenueJoin())
         .leftJoin(
           sessionTickets,
           eq(sessionTickets.purchaseLineId, sessionPurchaseLines.id),

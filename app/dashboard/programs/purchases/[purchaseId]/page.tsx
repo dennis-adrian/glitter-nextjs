@@ -111,7 +111,7 @@ export default async function EnrollmentDetailPage({ params }: Props) {
               occurrenceId: line.occurrenceId,
               sessionTitle: line.sessionTitleSnapshot,
               startsAt: line.occurrenceStartsAtSnapshot,
-              venueName: line.occurrence?.venue?.name ?? null,
+              venueName: line.occurrence?.effectiveVenue?.name ?? null,
               room: line.occurrence?.room ?? null,
               unitPrice: line.unitPrice,
               ticket: line.ticket
