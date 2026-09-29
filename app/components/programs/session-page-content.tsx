@@ -3,17 +3,21 @@ import {
   Clock3Icon,
   GaugeIcon,
   MapPinIcon,
-  SparklesIcon,
+  TicketIcon,
 } from "lucide-react";
 import { DateTime } from "luxon";
 import Image from "next/image";
 
+import LearningOutcomesList from "@/app/components/programs/learning-outcomes-list";
 import OccurrenceScheduleList from "@/app/components/programs/occurrence-schedule-list";
 import ParticipantDiscountHint from "@/app/components/programs/participant-discount-hint";
+import ProgramArtworkFrame from "@/app/components/programs/program-artwork-frame";
 import ProgramViewTracker from "@/app/components/programs/program-view-tracker";
 import SessionContextHeader from "@/app/components/programs/session-context-header";
+import SessionTypePill from "@/app/components/programs/session-type-pill";
 import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
+import { buttonVariants } from "@/app/components/ui/button";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
@@ -120,7 +124,10 @@ export default function SessionPageContent({
   );
 
   return (
-    <div className="overflow-hidden bg-[#fffaf3] text-[#4b255f]">
+    // overflow-x-clip, not overflow-hidden: hidden makes this a scroll
+    // container, which leaves the booking panel's lg:sticky with nothing to
+    // stick to.
+    <div className="overflow-x-clip bg-brand-elevated text-brand-ink">
       <ProgramViewTracker
         event={POSTHOG_EVENTS.PROGRAM_SESSION_VIEWED}
         properties={{
@@ -137,16 +144,7 @@ export default function SessionPageContent({
           seats_remaining: seatsRemaining,
         }}
       />
-      <section className="relative overflow-hidden bg-[#9347f5] text-[#fffaf3]">
-        <div
-          aria-hidden="true"
-          className="absolute -left-28 top-28 size-80 rounded-full bg-[#ffc1fd]/30"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute -right-24 -top-20 size-72 rounded-full bg-[#72e5e7]/20"
-        />
-
+      <section className="relative bg-brand-lavender text-brand-ink">
         <SessionContextHeader
           program={program}
           festival={session.festival ?? null}
@@ -160,14 +158,14 @@ export default function SessionPageContent({
           )}
         >
           <div className={cn("flex flex-col", !hasHeroMedia && "max-w-6xl")}>
-            <h1
-              className={`font-display font-bold max-w-[13ch] text-balance text-[clamp(3.5rem,12vw,6rem)] uppercase leading-[0.87] tracking-[0.01em] lg:text-[clamp(4.5rem,6.5vw,7rem)]`}
-            >
+            <SessionTypePill type={session.type} className="self-start" />
+
+            <h1 className="mt-4 max-w-[18ch] text-balance font-display text-4xl font-extrabold leading-[1.02] tracking-[-1px] sm:text-5xl lg:text-6xl">
               {session.title}
             </h1>
 
             {session.sessionSpeakers.length > 0 ? (
-              <p className="mt-6 max-w-xl text-lg font-black sm:text-xl">
+              <p className="mt-5 max-w-xl text-lg leading-8 text-brand-ink/80">
                 {session.type === "workshop"
                   ? session.sessionSpeakers.length === 1
                     ? "Facilita"
@@ -175,7 +173,7 @@ export default function SessionPageContent({
                   : session.sessionSpeakers.length === 1
                     ? "Expone"
                     : "Exponen"}{" "}
-                <span className="text-[#c9f4ef]">
+                <span className="font-semibold text-brand-ink">
                   {session.sessionSpeakers
                     .map((entry) => entry.speaker.publicName)
                     .join(", ")}
@@ -183,18 +181,25 @@ export default function SessionPageContent({
               </p>
             ) : null}
 
+            {/*
+              Each icon sits in its dt, pulled into the item's left gutter: a
+              dl group may only hold dt and dd.
+            */}
             <dl
               className={cn(
-                "order-2 mt-8 grid gap-3 sm:order-1 sm:grid-cols-2",
+                "order-2 mt-8 grid gap-x-8 gap-y-5 sm:order-1 sm:grid-cols-2",
                 !hasHeroMedia && "lg:grid-cols-4",
               )}
             >
-              <div className="rounded-[1.5rem] bg-white/12 p-4">
-                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
-                  <Clock3Icon className="size-4" />
+              <div className="relative pl-8">
+                <dt className="text-sm text-brand-ink/75">
+                  <Clock3Icon
+                    aria-hidden="true"
+                    className="absolute left-0 top-0.5 size-5 text-brand-primary"
+                  />
                   {heroDateLabel}
                 </dt>
-                <dd className="font-black">
+                <dd className="font-semibold tabular-nums">
                   {heroOccurrence
                     ? formatDisplayDate(
                         heroOccurrence.startsAt,
@@ -203,38 +208,47 @@ export default function SessionPageContent({
                     : "Por anunciar"}
                 </dd>
               </div>
-              <div className="rounded-[1.5rem] bg-white/12 p-4">
-                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
-                  <MapPinIcon className="size-4" />
+              <div className="relative pl-8">
+                <dt className="text-sm text-brand-ink/75">
+                  <MapPinIcon
+                    aria-hidden="true"
+                    className="absolute left-0 top-0.5 size-5 text-brand-primary"
+                  />
                   Lugar
                 </dt>
-                <dd className="font-black">
+                <dd className="font-semibold">
                   {primaryVenue?.name ?? "Por anunciar"}
                 </dd>
               </div>
-              <div className="rounded-[1.5rem] bg-white/12 p-4">
-                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
-                  <GaugeIcon className="size-4" />
+              <div className="relative pl-8">
+                <dt className="text-sm text-brand-ink/75">
+                  <GaugeIcon
+                    aria-hidden="true"
+                    className="absolute left-0 top-0.5 size-5 text-brand-primary"
+                  />
                   Nivel
                 </dt>
-                <dd className="font-black">
+                <dd className="font-semibold">
                   {session.skillLevel
                     ? SESSION_SKILL_LEVEL_LABELS[session.skillLevel]
                     : "Por anunciar"}
                 </dd>
               </div>
-              <div className="rounded-[1.5rem] bg-white/12 p-4">
-                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
-                  <SparklesIcon className="size-4" />
+              <div className="relative pl-8">
+                <dt className="text-sm text-brand-ink/75">
+                  <TicketIcon
+                    aria-hidden="true"
+                    className="absolute left-0 top-0.5 size-5 text-brand-primary"
+                  />
                   Inversión
                 </dt>
-                <dd className="font-black">
+                <dd className="font-semibold tabular-nums">
                   <ViewerSessionPrice
                     publicPrice={publicPrice}
                     participantPrice={participantPrice}
                   />
                   {durationMinutes ? (
-                    <span className="ml-2 text-sm font-semibold text-[#e5d5ff]">
+                    <span className="ml-2 text-sm font-normal text-brand-ink/75">
                       · {durationMinutes} min
                     </span>
                   ) : null}
@@ -250,7 +264,10 @@ export default function SessionPageContent({
 
             <SmoothScrollLink
               targetId="horarios"
-              className="order-1 mt-7 inline-flex min-h-12 items-center gap-2 self-start rounded-full bg-[#ffbe57] px-6 text-sm font-black uppercase tracking-[0.08em] text-[#4b255f] transition hover:-translate-y-0.5 hover:bg-[#ffd477] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70 sm:order-3"
+              className={cn(
+                buttonVariants({ variant: "cta", size: "lg" }),
+                "order-1 mt-7 w-full gap-2 self-start sm:order-3 sm:w-fit",
+              )}
             >
               Elegir horario
               <ArrowDownIcon className="size-4" aria-hidden="true" />
@@ -267,39 +284,35 @@ export default function SessionPageContent({
               )}
             >
               {speakerPortraits.map((entry, index) => (
-                <figure
-                  key={entry.id}
-                  className={cn(
-                    "relative min-h-[360px] overflow-hidden bg-[#72e5e7]",
-                    index % 2 === 0
-                      ? "rounded-[3rem_3rem_1rem_3rem]"
-                      : "rounded-[3rem_1rem_3rem_3rem]",
-                    speakerPortraits.length === 1 && "lg:min-h-[620px]",
-                  )}
-                >
-                  <Image
+                <figure key={entry.id} className="relative">
+                  <ProgramArtworkFrame
                     src={entry.imageUrl}
                     alt={entry.speaker.publicName}
-                    fill
                     priority={index === 0}
                     sizes={
                       speakerPortraits.length === 1
                         ? "(min-width: 1024px) 38vw, 100vw"
                         : "(min-width: 1280px) 19vw, (min-width: 1024px) 38vw, 50vw"
                     }
-                    className="object-cover"
+                    shadow
+                    // A grid, so the frame's full-size well can fill the
+                    // min-height.
+                    className={cn(
+                      "grid min-h-[360px]",
+                      speakerPortraits.length === 1 && "lg:min-h-[620px]",
+                    )}
                   />
-                  <figcaption className="absolute inset-x-4 bottom-4 rounded-[1.3rem] bg-[#fffaf3] px-4 py-3 text-[#4b255f]">
-                    <span className="block font-black">
+                  <figcaption className="absolute inset-x-3 bottom-3 rounded-xl bg-brand-card/95 px-4 py-3 text-brand-ink">
+                    <span className="block font-semibold">
                       {entry.speaker.publicName}
                     </span>
                     {entry.speaker.occupation ? (
-                      <span className="mt-1 block text-sm font-semibold text-[#70566f]">
+                      <span className="mt-1 block text-sm text-brand-ink/75">
                         {entry.speaker.occupation}
                       </span>
                     ) : null}
                     {entry.role ? (
-                      <span className="mt-1 block text-xs font-bold uppercase tracking-[0.12em] text-[#9347f5]">
+                      <span className="mt-1.5 inline-flex rounded-full bg-brand-lavender px-2.5 py-0.5 text-xs font-semibold">
                         {entry.role}
                       </span>
                     ) : null}
@@ -308,35 +321,27 @@ export default function SessionPageContent({
               ))}
             </div>
           ) : sessionArtwork ? (
-            <div className="relative min-h-[360px] overflow-hidden rounded-[3rem_3rem_1rem_3rem] bg-[#72e5e7] lg:min-h-[620px]">
-              {/* Decorative: the title beside it already names the session. */}
-              <Image
-                src={sessionArtwork}
-                alt=""
-                fill
-                priority
-                sizes="(min-width: 1024px) 38vw, 100vw"
-                className="object-cover"
-              />
-            </div>
+            // Decorative: the title beside it already names the session.
+            <ProgramArtworkFrame
+              src={sessionArtwork}
+              priority
+              sizes="(min-width: 1024px) 38vw, 100vw"
+              shadow
+              className="grid min-h-[360px] lg:min-h-[620px]"
+            />
           ) : null}
         </div>
       </section>
 
-      <section className="bg-[#fffaf3]">
+      <section>
         <div className="container mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] lg:gap-20 lg:px-12">
           <div>
             {session.description ? (
               <section>
-                <p className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-[#e639b5]">
-                  Sobre la sesión
-                </p>
-                <h2
-                  className={`font-display font-bold mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
-                >
+                <h2 className="mb-5 font-display text-3xl font-extrabold leading-tight tracking-[-0.5px] sm:text-4xl">
                   Lo que vamos a explorar
                 </h2>
-                <p className="whitespace-pre-line text-lg font-medium leading-relaxed text-[#644868]">
+                <p className="max-w-prose whitespace-pre-line text-lg leading-8 text-brand-ink/80">
                   {session.description}
                 </p>
               </section>
@@ -344,42 +349,21 @@ export default function SessionPageContent({
 
             {outcomes.length > 0 ? (
               <section className="mt-14">
-                <h2
-                  className={`font-display font-bold mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
-                >
+                <h2 className="mb-5 font-display text-3xl font-extrabold leading-tight tracking-[-0.5px] sm:text-4xl">
                   Lo que aprenderás
                 </h2>
-                <ol className="grid gap-4 sm:grid-cols-2">
-                  {outcomes.map((outcome, index) => (
-                    <li
-                      key={outcome}
-                      className={`rounded-[1.7rem] p-5 font-bold leading-relaxed ${
-                        index % 3 === 0
-                          ? "bg-[#dff8f4]"
-                          : index % 3 === 1
-                            ? "bg-[#ffe3a9]"
-                            : "bg-[#f7d2ef]"
-                      }`}
-                    >
-                      <span className="mb-4 block text-xs font-black uppercase tracking-[0.15em] text-[#9347f5]">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      {outcome}
-                    </li>
-                  ))}
-                </ol>
+                <LearningOutcomesList outcomes={outcomes} />
               </section>
             ) : null}
           </div>
 
           <section id="horarios" tabIndex={-1} className="scroll-mt-28">
-            <div className="rounded-[2.5rem] bg-[#ffbe57] p-5 sm:p-7 lg:sticky lg:top-28">
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#7b3b76]">
-                Reserva tu lugar
-              </p>
-              <h2
-                className={`font-display font-bold mb-6 text-5xl uppercase leading-[0.92]`}
-              >
+            <div className="rounded-2xl border border-brand-ink/10 bg-brand-card p-5 sm:p-7 lg:sticky lg:top-[calc(85px+var(--announcement-strip-height,0px)+1.5rem)]">
+              <h2 className="mb-2 flex items-center gap-2 font-display text-2xl font-extrabold tracking-[-0.5px] sm:text-3xl">
+                <TicketIcon
+                  aria-hidden="true"
+                  className="size-6 shrink-0 text-brand-primary"
+                />
                 Elige un horario
               </h2>
               <OccurrenceScheduleList
@@ -404,11 +388,9 @@ export default function SessionPageContent({
       </section>
 
       {session.sessionSpeakers.length > 0 ? (
-        <section className="bg-[#72e5e7] py-16 sm:py-24">
+        <section className="bg-brand-coral-soft py-14 sm:py-20">
           <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-            <h2
-              className={`font-display font-bold mb-10 text-5xl uppercase leading-none sm:text-7xl`}
-            >
+            <h2 className="mb-8 font-display text-3xl font-extrabold leading-tight tracking-[-0.5px] sm:text-4xl">
               Detrás de la sesión
             </h2>
 
@@ -423,41 +405,39 @@ export default function SessionPageContent({
                 return (
                   <li
                     key={entry.id}
-                    className="grid grid-cols-[92px_1fr] gap-5 rounded-[2rem] bg-[#fffaf3] p-5 sm:grid-cols-[120px_1fr]"
+                    className="grid grid-cols-[88px_1fr] gap-5 rounded-2xl bg-brand-card p-5 sm:grid-cols-[112px_1fr]"
                   >
-                    <div className="relative aspect-square overflow-hidden rounded-[1.5rem] bg-[#f7aee8]">
+                    <div className="relative aspect-square overflow-hidden rounded-xl bg-brand-lavender">
                       {imageUrl ? (
                         <Image
                           src={imageUrl}
                           alt={entry.speaker.publicName}
                           fill
-                          sizes="120px"
+                          sizes="112px"
                           className="object-cover"
                         />
                       ) : (
-                        <span
-                          className={`font-display font-bold absolute inset-0 grid place-items-center text-5xl text-[#4b255f]`}
-                        >
+                        <span className="absolute inset-0 grid place-items-center font-display text-4xl font-extrabold text-brand-primary">
                           {entry.speaker.publicName.slice(0, 1)}
                         </span>
                       )}
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black">
+                      <h3 className="font-display text-xl font-bold">
                         {entry.speaker.publicName}
                       </h3>
                       {entry.speaker.occupation ? (
-                        <p className="mt-1 text-sm font-bold text-[#70566f]">
+                        <p className="mt-1 text-sm text-brand-ink/75">
                           {entry.speaker.occupation}
                         </p>
                       ) : null}
                       {entry.role ? (
-                        <p className="mt-1 text-xs font-black uppercase tracking-[0.13em] text-[#9347f5]">
+                        <p className="mt-2 inline-flex rounded-full bg-brand-lavender px-2.5 py-0.5 text-xs font-semibold">
                           {entry.role}
                         </p>
                       ) : null}
                       {entry.speaker.bio ? (
-                        <p className="mt-3 text-sm font-medium leading-relaxed text-[#70566f]">
+                        <p className="mt-3 text-sm leading-6 text-brand-ink/80">
                           {entry.speaker.bio}
                         </p>
                       ) : null}

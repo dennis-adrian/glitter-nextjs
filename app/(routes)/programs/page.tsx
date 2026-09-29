@@ -41,7 +41,7 @@ export default async function ProgramsIndexPage() {
   const globalDiscount = globalDiscountFrom(settings);
 
   return (
-    <div className="bg-[#fffaf3] text-[#4b255f]">
+    <div className="bg-brand-elevated text-brand-ink">
       <div className="container mx-auto max-w-6xl space-y-14 px-4 py-10 sm:px-6 sm:py-14">
         <ProgramViewTracker
           event={POSTHOG_EVENTS.PROGRAM_INDEX_VIEWED}
@@ -53,10 +53,10 @@ export default async function ProgramsIndexPage() {
         />
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="space-y-3">
-            <h1 className="font-display font-bold text-balance text-5xl uppercase leading-[0.9] sm:text-7xl">
+            <h1 className="max-w-[18ch] text-balance font-display text-4xl font-extrabold leading-[1.02] tracking-[-1px] sm:text-5xl">
               Charlas y Talleres
             </h1>
-            <p className="text-lg font-semibold text-[#70566f]">
+            <p className="text-lg leading-8 text-brand-ink/75">
               Espacios para aprender, practicar y conocer gente.
             </p>
           </div>
@@ -83,7 +83,7 @@ export default async function ProgramsIndexPage() {
 
         <CatalogueSection id="proximas-sesiones" title="Próximas sesiones">
           {upcomingSessions.length === 0 ? (
-            <p className="rounded-4xl bg-[#ffc1fd]/40 px-6 py-8 text-lg font-bold sm:px-8">
+            <p className="rounded-2xl bg-brand-lavender/60 px-6 py-8 text-lg font-medium">
               Pronto anunciaremos nuevas charlas y talleres.
             </p>
           ) : (

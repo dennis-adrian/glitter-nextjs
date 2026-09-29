@@ -221,11 +221,11 @@ export default function VoucherUploadCard({
       {isUnderReview ? (
         <CardHeader className="border-b border-primary-950 bg-primary-950 text-white">
           <div className="flex items-start gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#ffbe57] text-[#4b255f] shadow-sm shadow-black/25">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-primary-950 shadow-sm shadow-black/25">
               <CheckIcon className="h-6 w-6" strokeWidth={3} />
             </span>
             <div className="space-y-1">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#ffcf7d]">
+              <p className="text-xs font-semibold text-primary-200">
                 Comprobante recibido
               </p>
               <CardTitle className="text-2xl text-white">
@@ -267,11 +267,11 @@ export default function VoucherUploadCard({
             </h3>
             <ol className="grid gap-2 sm:grid-cols-3">
               <li className="flex items-center gap-2.5 rounded-lg border border-primary-200 bg-primary-50 p-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#ffbe57] text-[#4b255f]">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                   <CheckIcon className="h-4 w-4" strokeWidth={3} />
                 </span>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-primary-800">
+                  <p className="text-[11px] font-medium text-primary-800">
                     Listo
                   </p>
                   <p className="text-xs font-semibold">Comprobante enviado</p>
@@ -282,7 +282,7 @@ export default function VoucherUploadCard({
                   <Clock3Icon className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-primary-100">
+                  <p className="text-[11px] font-medium text-primary-100">
                     Ahora
                   </p>
                   <p className="text-xs font-semibold">Revisión del pago</p>
@@ -293,9 +293,7 @@ export default function VoucherUploadCard({
                   <CircleIcon className="h-3 w-3" />
                 </span>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide">
-                    Después
-                  </p>
+                  <p className="text-[11px] font-medium">Después</p>
                   <p className="text-xs font-semibold">Entrada confirmada</p>
                 </div>
               </li>

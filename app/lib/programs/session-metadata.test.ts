@@ -67,7 +67,7 @@ describe("resolveSessionSocialImage", () => {
     ).toBe(BANNER);
   });
 
-  it("uses the placeholder for a standalone session with nothing else", () => {
+  it("uses the default artwork for a standalone session with nothing else", () => {
     expect(resolveSessionSocialImage(source({}))).toBe(DEFAULT_PROGRAM_ARTWORK);
   });
 

@@ -16,8 +16,8 @@ type Props = {
  */
 export default function CataloguePastPrograms({ programs }: Props) {
   return (
-    <Card className="overflow-hidden rounded-[2rem] border-[#4b255f]/10 bg-white/70 text-[#4b255f] shadow-none">
-      <ul className="divide-y divide-[#4b255f]/10">
+    <Card className="overflow-hidden rounded-2xl border-brand-ink/10 bg-brand-card text-brand-ink shadow-none">
+      <ul className="divide-y divide-brand-ink/10">
         {programs.map((program) => {
           const dateRange = formatDateRange(program.startDate, program.endDate);
 
@@ -25,18 +25,18 @@ export default function CataloguePastPrograms({ programs }: Props) {
             <li key={program.id}>
               <Link
                 href={programPath(program.slug)}
-                className="group flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#ffc1fd]/25 focus-visible:bg-[#ffc1fd]/25 focus-visible:outline-none sm:px-6"
+                className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-brand-lavender/40 focus-visible:bg-brand-lavender/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-primary sm:px-6"
               >
                 <span className="min-w-0">
-                  <span className="block font-black">{program.name}</span>
+                  <span className="block font-semibold">{program.name}</span>
                   {dateRange ? (
-                    <span className="mt-0.5 block text-sm font-medium text-[#70566f]">
+                    <span className="mt-0.5 block text-sm tabular-nums text-brand-ink/75">
                       {dateRange}
                     </span>
                   ) : null}
                 </span>
                 <ArrowUpRightIcon
-                  className="size-4 shrink-0 text-[#9347f5] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                  className="size-4 shrink-0 text-brand-primary"
                   aria-hidden="true"
                 />
               </Link>

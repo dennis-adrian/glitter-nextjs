@@ -24,7 +24,7 @@ type SessionMetadataSource = SessionArtworkSource & {
 
 /**
  * The image shared on social previews: the session's own artwork, else the
- * first speaker portrait, else the program banner, else the placeholder.
+ * first speaker portrait, else the program banner, else the default PNG.
  *
  * Every candidate is host-checked: the schema validates new records, but rows
  * predating it can still hold an arbitrary URL, and an OG image is emitted to

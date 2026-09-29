@@ -8,7 +8,7 @@ export default function ParticipantDiscountHint() {
   if (!isLoaded || isSignedIn) return null;
 
   return (
-    <p className="mt-3 text-sm font-bold text-[#dff8f4]">
+    <p className="mt-3 text-sm font-medium text-brand-ink/80">
       Si tenés un perfil Glitter verificado, podés acceder al precio con
       descuento. Solo tenés que iniciar sesión.
     </p>

@@ -1,9 +1,7 @@
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
 
-import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import { programPath, publicFestivalPath } from "@/app/lib/programs/paths";
-import { cn } from "@/app/lib/utils";
 
 type Props = {
   /** Null for a standalone session. */
@@ -13,37 +11,35 @@ type Props = {
 };
 
 const BACK_LINK_CLASS =
-  "inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] decoration-[#ffbe57] decoration-2 underline-offset-4 hover:underline";
+  "inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-brand-ink underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary";
 
 /**
  * The strip above a session's hero, naming where the session belongs.
  *
- * A program session points back to its program and carries the program's
- * mark, as the program page does. A standalone session has no program: it
- * points back to the catalogue and, when it is part of a festival, links to
- * it, since that is the only context a visitor gets for it. Program sessions
- * leave the festival to their program page, which does not show one either.
+ * A program session points back to its program and names it in a plain pill,
+ * not a second link: the back link already goes there. A standalone session
+ * has no program: it points back to the catalogue and, when it is part of a
+ * festival, links to it, since that is the only context a visitor gets for it.
+ * Program sessions leave the festival to their program page, which does not
+ * show one either.
  */
 export default function SessionContextHeader({ program, festival }: Props) {
   // A draft festival has no page and has not been announced: say nothing.
   const festivalHref = festival ? publicFestivalPath(festival) : null;
 
   return (
-    <div
-      className={cn(
-        "container relative mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-6 sm:px-8 lg:px-12",
-        // A festival name can be long; let the pill drop under the back link
-        // rather than squeeze it.
-        !program && "flex-wrap gap-y-4",
-      )}
-    >
+    // A program or festival name can be long; let the pill drop under the back
+    // link rather than squeeze it.
+    <div className="container relative mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-4 px-5 py-6 sm:px-8 lg:px-12">
       {program ? (
         <>
           <Link href={programPath(program.slug)} className={BACK_LINK_CLASS}>
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
             Volver al programa
           </Link>
-          <GlitterWeekLockup compact title={program.name} />
+          <span className="inline-flex min-h-10 items-center rounded-full bg-brand-card px-4 text-sm font-semibold">
+            {program.name}
+          </span>
         </>
       ) : (
         <>
@@ -54,7 +50,7 @@ export default function SessionContextHeader({ program, festival }: Props) {
           {festival && festivalHref ? (
             <Link
               href={festivalHref}
-              className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/55 px-4 text-xs font-black uppercase tracking-widest transition hover:bg-white/12 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70"
+              className="inline-flex min-h-10 items-center gap-2 rounded-full border border-brand-ink/15 bg-brand-card px-4 text-sm font-semibold transition-colors hover:border-brand-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
             >
               Parte de {festival.name}
               <ArrowUpRightIcon className="size-4" aria-hidden="true" />

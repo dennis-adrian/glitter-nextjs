@@ -1,13 +1,14 @@
-import { ArrowUpRightIcon, CalendarDaysIcon } from "lucide-react";
-import Image from "next/image";
+import { ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
 
-import { Badge } from "@/app/components/ui/badge";
+import ProgramArtworkFrame from "@/app/components/programs/program-artwork-frame";
+import ProgramDateStamp from "@/app/components/programs/program-date-stamp";
+import { buttonVariants } from "@/app/components/ui/button";
 import { Card } from "@/app/components/ui/card";
-import { resolveProgramArtwork } from "@/app/lib/programs/artwork";
-import { formatDateRange } from "@/app/lib/programs/catalogue-view";
+import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
 import type { Program } from "@/app/lib/programs/definitions";
 import { programPath } from "@/app/lib/programs/paths";
+import { cn } from "@/app/lib/utils";
 
 type Props = {
   program: Program;
@@ -23,65 +24,70 @@ export default function CatalogueProgramCard({
   program,
   upcomingCount,
 }: Props) {
-  const dateRange = formatDateRange(program.startDate, program.endDate);
-
   return (
-    <Card className="group relative isolate grid overflow-hidden rounded-[2.4rem] border-0 bg-[#9347f5] text-[#fffaf3] shadow-none ring-[#ffbe57] ring-offset-2 has-[a:focus-visible]:ring-4 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+    <Card className="group relative isolate grid overflow-hidden rounded-[28px] border border-brand-ink/10 bg-brand-card text-brand-ink shadow-[0_24px_70px_rgba(41,0,92,0.12)] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-brand-primary sm:grid-cols-[minmax(0,1.15fr)_2px_minmax(0,0.85fr)]">
       {/* Not positioned, so the title link's hit area spans the whole card. */}
       <div className="flex flex-col justify-center px-6 py-8 sm:px-8 sm:py-10 lg:px-12">
-        <div
-          aria-hidden="true"
-          className="absolute -left-16 -top-20 -z-10 size-56 rounded-full bg-[#ffc1fd]/30"
-        />
-
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#dff8f4]">
+        <p className="w-fit rounded-full bg-brand-lavender px-3 py-1 text-xs font-semibold">
           Programa
         </p>
-        <h2 className="mt-3 font-display font-bold max-w-[16ch] text-balance text-4xl uppercase leading-[0.9] sm:text-5xl">
+        <h2 className="mt-3 max-w-[18ch] text-balance font-display text-3xl font-extrabold leading-tight tracking-[-0.5px] sm:text-4xl">
           <Link
             href={programPath(program.slug)}
-            className="decoration-[#ffbe57] decoration-4 underline-offset-4 after:absolute after:inset-0 after:z-10 after:content-[''] focus-visible:outline-none group-hover:underline"
+            className="decoration-brand-primary decoration-2 underline-offset-4 after:absolute after:inset-0 after:z-10 after:content-[''] focus-visible:outline-none group-hover:underline"
           >
             {program.name}
           </Link>
         </h2>
 
-        {dateRange ? (
-          <p className="mt-4 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#dff8f4]">
-            <CalendarDaysIcon className="size-4 shrink-0" aria-hidden="true" />
-            {dateRange}
-          </p>
-        ) : null}
         {program.summary ? (
-          <p className="mt-4 line-clamp-3 max-w-lg text-balance font-bold leading-snug sm:text-lg">
+          <p className="mt-4 line-clamp-3 max-w-lg leading-7 text-brand-ink/75 sm:text-lg sm:leading-8">
             {program.summary}
           </p>
         ) : null}
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          {/* Either date may be set alone; show whichever exists. */}
+          {program.startDate || program.endDate ? (
+            <ProgramDateStamp
+              size="lg"
+              start={program.startDate ?? program.endDate}
+              end={program.endDate}
+              third="year"
+            />
+          ) : null}
           <span
             aria-hidden="true"
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#ffbe57] px-5 text-sm font-black uppercase tracking-[0.08em] text-[#4b255f] transition group-hover:-translate-y-0.5 group-hover:bg-[#ffd477]"
+            className={cn(buttonVariants({ variant: "cta" }), "min-h-11 gap-2")}
           >
             Ver programa
             <ArrowUpRightIcon className="size-4" />
           </span>
-          <Badge className="border-white/55 bg-transparent px-4 py-2 font-black uppercase tracking-widest text-[#fffaf3]">
+          <span className="text-sm font-medium tabular-nums text-brand-ink/75">
             {/* Announced before any session is published or scheduled. */}
             {upcomingCount === 0
               ? "Fechas por anunciar"
               : `${upcomingCount} ${upcomingCount === 1 ? "sesión próxima" : "sesiones próximas"}`}
-          </Badge>
+          </span>
         </div>
       </div>
 
-      <div className="relative order-first min-h-52 overflow-hidden bg-[#72e5e7] sm:order-last sm:min-h-80">
-        <Image
-          src={resolveProgramArtwork(program.bannerUrl)}
-          alt=""
-          fill
+      {/* The talón: the ticket perforation between the stub and the art. */}
+      <div
+        aria-hidden="true"
+        className="-order-1 border-t-2 border-dashed border-brand-primary/25 sm:order-none sm:border-l-2 sm:border-t-0"
+      />
+
+      <div className="relative order-first flex items-center bg-brand-lavender p-4 sm:order-last sm:p-6">
+        <ProgramArtworkFrame
+          src={
+            isAllowedProgramArtworkUrl(program.bannerUrl)
+              ? program.bannerUrl
+              : null
+          }
           sizes="(min-width: 1152px) 500px, (min-width: 640px) 45vw, 100vw"
-          className="object-cover object-top-right transition duration-500 ease-out group-hover:scale-[1.03]"
+          className="aspect-4/3 w-full"
+          imageClassName="transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.02]"
         />
       </div>
     </Card>

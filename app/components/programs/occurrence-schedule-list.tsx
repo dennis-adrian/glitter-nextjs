@@ -7,9 +7,10 @@ import { useEffect, useState } from "react";
 
 import FreeRegistrationForm from "@/app/components/programs/free-registration-form";
 import PaidRegistrationForm from "@/app/components/programs/paid-registration-form";
+import ProgramDateStamp from "@/app/components/programs/program-date-stamp";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { useNow } from "@/app/hooks/use-now";
-import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type {
   ProgramStatus,
   SessionOccurrence,
@@ -116,9 +117,7 @@ export default function OccurrenceScheduleList({
 
   if (occurrences.length === 0) {
     return (
-      <p className="text-muted-foreground">
-        Todavía no hay horarios definidos.
-      </p>
+      <p className="text-brand-ink/75">Todavía no hay horarios definidos.</p>
     );
   }
 
@@ -143,7 +142,8 @@ export default function OccurrenceScheduleList({
       : null;
 
   return (
-    <ul className="@container overflow-hidden rounded-4xl bg-[#fffaf3] text-[#4b255f]">
+    // Dashed dividers: the stub perforation between bookable rows.
+    <ul className="@container divide-y-2 divide-dashed divide-brand-primary/25">
       {occurrences.map((occurrence) => {
         const resolved = resolveOccurrenceState(
           {
@@ -175,20 +175,13 @@ export default function OccurrenceScheduleList({
         return (
           <li
             key={occurrence.id}
-            className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-5 border-b border-[#4b255f]/15 p-5 last:border-b-0 @[44rem]:grid-cols-[78px_minmax(0,1fr)_auto] @[44rem]:p-6"
+            className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-4 py-5 first:pt-3 last:pb-0 @[44rem]:grid-cols-[64px_minmax(0,1fr)_auto]"
           >
-            <div className="grid size-17 place-content-center rounded-full bg-[#dff7f3] text-center">
-              <span className="text-4xl font-black leading-none text-[#4b255f]">
-                {formatDate(occurrence.startsAt).toFormat("dd")}
-              </span>
-              <span className="mt-0.5 block text-xs font-black uppercase tracking-[0.16em] text-[#e639b5]">
-                {formatDate(occurrence.startsAt).toFormat("LLL")}
-              </span>
-            </div>
+            <ProgramDateStamp size="sm" start={occurrence.startsAt} />
 
             <div className="min-w-0 space-y-2">
-              <p className="flex items-center gap-2 font-black text-[#4b255f]">
-                <Clock3Icon className="size-4 text-[#9347f5]" />
+              <p className="flex items-center gap-2 font-semibold tabular-nums">
+                <Clock3Icon className="size-4 shrink-0 text-brand-primary" />
                 {formatDisplayDate(
                   occurrence.startsAt,
                   DateTime.TIME_SIMPLE,
@@ -196,16 +189,16 @@ export default function OccurrenceScheduleList({
                 {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
               </p>
               {venue ? (
-                <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
-                  <MapPinIcon className="size-4 shrink-0 text-[#9347f5]" />
+                <p className="flex items-center gap-2 text-sm text-brand-ink/75">
+                  <MapPinIcon className="size-4 shrink-0 text-brand-primary" />
                   {venue.name}
                   {occurrence.room ? ` - ${occurrence.room}` : ""}
                 </p>
               ) : null}
               {remaining !== undefined &&
               !STATES_WITHOUT_SEATS.has(resolved.state) ? (
-                <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
-                  <UsersIcon className="size-4 shrink-0 text-[#9347f5]" />
+                <p className="flex items-center gap-2 text-sm tabular-nums text-brand-ink/75">
+                  <UsersIcon className="size-4 shrink-0 text-brand-primary" />
                   {remaining > 0
                     ? `${remaining} de ${occurrence.capacity} cupos disponibles`
                     : "Sin cupos disponibles"}

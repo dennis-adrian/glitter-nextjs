@@ -305,7 +305,7 @@ export default function PaidRegistrationForm({
 
   const promoHintId = `promo-${occurrenceId}-hint`;
   const promoSection = (
-    <div className="grid gap-2 rounded-xl border border-[#9347f5]/20 bg-[#fffaf3] p-3">
+    <div className="grid gap-2 rounded-xl border border-border/70 bg-card p-3">
       <Label htmlFor={`promo-${occurrenceId}`}>Código promocional</Label>
       <div className="flex gap-2">
         <Input
@@ -332,9 +332,9 @@ export default function PaidRegistrationForm({
         </Button>
       </div>
       {appliedPromo ? (
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 rounded-lg bg-[#dff7f3] px-3 py-2 text-[#4b255f]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 rounded-lg bg-brand-coral-soft px-3 py-2 text-brand-ink">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide">
+            <p className="text-xs font-semibold">
               {appliedPromo.discountPercent}% · {appliedPromo.partnerName}
             </p>
             <p className="text-xs opacity-75">Código {appliedPromo.code}</p>
@@ -342,13 +342,13 @@ export default function PaidRegistrationForm({
           <dl className="grid gap-0.5 text-right">
             <div className="flex items-baseline justify-end gap-1.5 text-xs opacity-70">
               <dt>Precio base</dt>
-              <dd className="line-through">
+              <dd className="tabular-nums line-through">
                 {formatMoney(appliedPromo.basePrice)}
               </dd>
             </div>
             <div className="flex items-baseline justify-end gap-1.5">
               <dt className="text-xs font-semibold">Con código</dt>
-              <dd className="text-xl font-black">
+              <dd className="text-xl font-bold tabular-nums">
                 {formatMoney(appliedPromo.promoPrice)}
               </dd>
             </div>
@@ -372,8 +372,8 @@ export default function PaidRegistrationForm({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
-          className="h-auto min-h-9 flex gap-1 w-full whitespace-normal rounded-full bg-[#9347f5] px-5 py-2 text-center font-black text-white hover:bg-[#7f36dc] @[44rem]:w-auto"
+          variant="cta"
+          className="flex h-auto min-h-10 w-full gap-1 whitespace-normal px-5 py-2 text-center @[44rem]:w-auto"
         >
           Reservar por{" "}
           <SessionPriceTransition
@@ -409,6 +409,7 @@ export default function PaidRegistrationForm({
             />
             <DialogFooter>
               <Button
+                variant="cta"
                 disabled={!acceptsPolicy || isSubmitting}
                 onClick={() => submit(null)}
                 className="flex gap-1"
@@ -464,6 +465,7 @@ export default function PaidRegistrationForm({
               <DialogFooter>
                 <Button
                   type="submit"
+                  variant="cta"
                   disabled={!acceptsPolicy || isSubmitting}
                   className="flex gap-1"
                 >
@@ -504,18 +506,16 @@ export default function PaidRegistrationForm({
 
           {pendingHigherPromo ? (
             <div className={isDesktop ? "grid gap-4" : "grid gap-4 px-4 pb-6"}>
-              <div className="grid grid-cols-[1fr_auto] overflow-hidden rounded-2xl border border-[#4b255f]/15 text-[#4b255f]">
-                <div className="bg-[#dff7f3] p-4">
-                  <p className="text-xs font-black uppercase tracking-wide">
-                    Precio actual
-                  </p>
-                  <p className="mt-1 text-3xl font-black">
+              <div className="grid grid-cols-[1fr_auto] overflow-hidden rounded-2xl border border-brand-ink/10 text-brand-ink">
+                <div className="bg-brand-lavender p-4">
+                  <p className="text-xs font-semibold">Precio actual</p>
+                  <p className="mt-1 text-3xl font-bold tabular-nums">
                     {formatMoney(pendingHigherPromo.existingPrice)}
                   </p>
                 </div>
-                <div className="grid place-content-center bg-[#ffc1fd]/45 px-4 text-center">
-                  <p className="text-xs font-bold">Código</p>
-                  <p className="text-xl font-black">
+                <div className="grid place-content-center bg-brand-coral-soft px-4 text-center">
+                  <p className="text-xs font-semibold">Código</p>
+                  <p className="text-xl font-bold tabular-nums">
                     {formatMoney(pendingHigherPromo.promoPrice)}
                   </p>
                 </div>
@@ -532,7 +532,7 @@ export default function PaidRegistrationForm({
                 >
                   Mantener {formatMoney(pendingHigherPromo.existingPrice)}
                 </Button>
-                <Button type="button" onClick={acceptHigherPromo}>
+                <Button type="button" variant="cta" onClick={acceptHigherPromo}>
                   Aplicar código · {formatMoney(pendingHigherPromo.promoPrice)}
                 </Button>
               </div>

@@ -24,12 +24,12 @@ export default function CatalogueSection({
       <div className="space-y-1">
         <h2
           id={id}
-          className="font-display font-bold text-balance text-4xl uppercase leading-[0.92] sm:text-5xl"
+          className="font-display text-2xl font-extrabold tracking-[-0.5px] sm:text-3xl"
         >
           {title}
         </h2>
         {description ? (
-          <p className="font-medium text-[#70566f]">{description}</p>
+          <p className="text-sm text-brand-ink/75">{description}</p>
         ) : null}
       </div>
       {children}

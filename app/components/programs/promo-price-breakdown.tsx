@@ -26,39 +26,37 @@ export default function PromoPriceBreakdown({
   return (
     <div
       className={cn(
-        "rounded-xl border border-[#9347f5]/20 bg-[#fffaf3] text-[#4b255f]",
+        "rounded-xl border border-border/70 bg-card text-foreground",
         compact ? "p-3" : "p-4",
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-black uppercase tracking-wide">
-            Código promocional
-          </p>
+          <p className="text-xs font-semibold">Código promocional</p>
           <p className="font-semibold">{partnerName}</p>
         </div>
-        <Badge className="bg-[#9347f5] text-white hover:bg-[#9347f5]">
+        <Badge variant="secondary">
           {code} · {discountPercent}%
         </Badge>
       </div>
 
       <dl className={cn("grid gap-1 text-sm", compact ? "mt-2" : "mt-4")}>
-        <div className="flex justify-between gap-4 text-[#70566f]">
+        <div className="flex justify-between gap-4 text-muted-foreground">
           <dt>Precio público</dt>
-          <dd>{formatMoney(baseAmount)}</dd>
+          <dd className="tabular-nums">{formatMoney(baseAmount)}</dd>
         </div>
-        <div className="flex justify-between gap-4 text-[#e639b5]">
+        <div className="flex justify-between gap-4 text-secondary-foreground">
           <dt>Descuento del código</dt>
-          <dd>−{formatMoney(discountAmount)}</dd>
+          <dd className="tabular-nums">−{formatMoney(discountAmount)}</dd>
         </div>
-        <div className="mt-1 flex justify-between gap-4 border-t border-[#4b255f]/15 pt-2 text-base font-black">
+        <div className="mt-1 flex justify-between gap-4 border-t border-border pt-2 text-base font-semibold">
           <dt>Total</dt>
-          <dd>{formatMoney(totalAmount)}</dd>
+          <dd className="tabular-nums">{formatMoney(totalAmount)}</dd>
         </div>
       </dl>
 
       {higherPriceAccepted ? (
-        <p className="mt-2 text-xs text-[#70566f]">
+        <p className="mt-2 text-xs text-muted-foreground">
           Elegiste este código aunque ya tenías un precio menor.
         </p>
       ) : null}

@@ -235,8 +235,8 @@ export default function FreeRegistrationForm({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
-          className="h-auto min-h-9 w-full whitespace-normal rounded-full bg-[#9347f5] px-5 py-2 text-center font-black text-white hover:bg-[#7f36dc] @[44rem]:w-auto"
+          variant="cta"
+          className="h-auto min-h-10 w-full whitespace-normal px-5 py-2 text-center @[44rem]:w-auto"
         >
           Inscribirme
         </Button>
@@ -262,6 +262,7 @@ export default function FreeRegistrationForm({
             />
             <DialogFooter>
               <Button
+                variant="cta"
                 disabled={!acceptsPolicy || isSubmitting}
                 onClick={() => submit(null)}
               >
@@ -307,7 +308,11 @@ export default function FreeRegistrationForm({
               />
 
               <DialogFooter>
-                <Button type="submit" disabled={!acceptsPolicy || isSubmitting}>
+                <Button
+                  type="submit"
+                  variant="cta"
+                  disabled={!acceptsPolicy || isSubmitting}
+                >
                   {isSubmitting ? "Inscribiendo..." : "Confirmar inscripción"}
                 </Button>
               </DialogFooter>

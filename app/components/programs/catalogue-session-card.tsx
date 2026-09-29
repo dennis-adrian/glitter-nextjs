@@ -1,12 +1,11 @@
-import { ArrowUpRightIcon, CalendarDaysIcon } from "lucide-react";
-import { DateTime } from "luxon";
+import { ArrowUpRightIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
+import ProgramDateStamp from "@/app/components/programs/program-date-stamp";
+import SessionTypePill from "@/app/components/programs/session-type-pill";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
-import { Badge } from "@/app/components/ui/badge";
 import { Card } from "@/app/components/ui/card";
-import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   countOtherUpcomingOccurrences,
   pickSessionArtwork,
@@ -64,13 +63,13 @@ export default function CatalogueSessionCard({
     .join(", ");
 
   return (
-    <Card
-      className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-4xl border-0 shadow-none transition-transform duration-300 hover:-translate-y-1",
-        isTalk ? "bg-[#ffbe57] text-[#4b255f]" : "bg-[#9347f5] text-[#fffaf3]",
-      )}
-    >
-      <div className="relative m-3 mb-0 aspect-4/3 overflow-hidden rounded-[1.4rem] bg-[#dff8f4]">
+    <Card className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-brand-ink/10 bg-brand-card text-brand-ink shadow-none transition-colors hover:border-brand-primary/35">
+      <div
+        className={cn(
+          "relative m-2 mb-0 aspect-4/3 overflow-hidden rounded-xl",
+          isTalk ? "bg-brand-lavender" : "bg-brand-coral-soft",
+        )}
+      >
         {/* A second way in for pointer users; the title link below is the
             one keyboard and screen-reader users get. */}
         <Link
@@ -86,98 +85,82 @@ export default function CatalogueSessionCard({
               fill
               sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
               className={cn(
-                "object-cover transition duration-500 ease-out group-hover:scale-[1.035]",
+                "object-cover transition-transform duration-500 motion-safe:group-hover:scale-[1.02]",
                 artwork.kind === "speaker" && "object-top",
               )}
             />
           ) : (
-            <span className="absolute inset-0 flex flex-col justify-end p-6 text-[#4b255f]">
+            <span className="absolute inset-0 flex flex-col justify-end p-6">
+              <span
+                aria-hidden="true"
+                className="absolute right-5 top-5 size-5 bg-brand-primary [clip-path:polygon(50%_0%,58%_42%,100%_50%,58%_58%,50%_100%,42%_58%,0%_50%,42%_42%)]"
+              />
               {/* Clamped: a long topic would otherwise climb under the badge. */}
-              <span className="font-display font-bold line-clamp-3 text-balance text-4xl uppercase leading-none sm:text-5xl">
+              <span className="line-clamp-3 text-balance font-display text-3xl font-extrabold leading-tight tracking-[-0.5px]">
                 {session.topic ?? typeLabel}
               </span>
             </span>
           )}
         </Link>
-        <Badge className="pointer-events-none absolute left-3 top-3 border-transparent bg-[#fffaf3] px-3 py-1.5 font-black uppercase tracking-[0.14em] text-[#4b255f]">
-          {typeLabel}
-        </Badge>
+        <SessionTypePill
+          type={session.type}
+          className="pointer-events-none absolute left-3 top-3"
+        />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-3 right-3 grid size-11 place-items-center rounded-full bg-[#fffaf3] text-[#4b255f] transition-transform duration-300 group-hover:rotate-6"
+          className="pointer-events-none absolute bottom-3 right-3 grid size-11 place-items-center rounded-full bg-brand-card text-brand-ink"
         >
           <ArrowUpRightIcon className="size-5" />
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col p-5">
-        <p
-          className={cn(
-            "flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-black uppercase tracking-[0.14em]",
-            isTalk ? "text-[#7b3b76]" : "text-[#e5d5ff]",
-          )}
-        >
-          <CalendarDaysIcon className="size-4 shrink-0" aria-hidden="true" />
-          <time dateTime={nextOccurrence.startsAt.toISOString()}>
-            {formatDisplayDate(nextOccurrence.startsAt, {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-            })}{" "}
-            · {formatDisplayDate(nextOccurrence.startsAt, DateTime.TIME_SIMPLE)}
-          </time>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-4 p-4">
+        <ProgramDateStamp
+          size="sm"
+          start={nextOccurrence.startsAt}
+          third="time"
+        />
+
+        <div className="min-w-0">
+          <h3 className="text-balance font-display text-xl font-bold leading-tight sm:text-2xl">
+            <Link
+              href={href}
+              className="decoration-current decoration-2 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+            >
+              {session.title}
+            </Link>
+          </h3>
+
+          {speakerNames ? (
+            <p className="mt-1 text-sm text-brand-ink/75">Con {speakerNames}</p>
+          ) : null}
+
           {otherDates > 0 ? (
-            <span className="normal-case tracking-normal">
+            <p className="mt-1 text-xs tabular-nums text-brand-ink/75">
               + {otherDates} {otherDates === 1 ? "fecha" : "fechas"}
-            </span>
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {/* The talón: the ticket perforation above the price stub. */}
+      <div className="mx-4 mb-4 mt-auto flex items-end justify-between gap-4 border-t-2 border-dashed border-brand-primary/25 pt-3">
+        <p className="min-w-0">
+          {context ? (
+            <Link
+              href={context.href}
+              className="text-sm font-medium text-brand-primary underline underline-offset-4 [@media(hover:hover)]:no-underline [@media(hover:hover)]:hover:underline"
+            >
+              {context.label}
+            </Link>
           ) : null}
         </p>
-
-        <h3 className="mt-3 font-display font-bold text-balance text-3xl uppercase leading-[0.98] sm:text-4xl">
-          <Link
-            href={href}
-            className="decoration-current decoration-2 underline-offset-4 hover:underline"
-          >
-            {session.title}
-          </Link>
-        </h3>
-
-        {speakerNames ? (
-          <p
-            className={cn(
-              "mt-3 text-sm font-semibold",
-              isTalk ? "text-[#663c67]" : "text-[#eee4ff]",
-            )}
-          >
-            Con {speakerNames}
-          </p>
-        ) : null}
-
-        <div className="mt-auto pt-6">
-          <div
-            className={cn(
-              "flex items-end justify-between gap-4 border-t pt-4",
-              isTalk ? "border-[#4b255f]/25" : "border-white/35",
-            )}
-          >
-            <p className="min-w-0 text-sm font-bold">
-              {context ? (
-                <Link
-                  href={context.href}
-                  className="underline decoration-2 underline-offset-4 [@media(hover:hover)]:no-underline [@media(hover:hover)]:hover:underline"
-                >
-                  {context.label}
-                </Link>
-              ) : null}
-            </p>
-            <p className="shrink-0 text-right text-sm font-black">
-              <ViewerSessionPrice
-                publicPrice={publicPrice}
-                participantPrice={participantPrice}
-              />
-            </p>
-          </div>
-        </div>
+        <p className="shrink-0 text-right text-sm font-semibold tabular-nums">
+          <ViewerSessionPrice
+            publicPrice={publicPrice}
+            participantPrice={participantPrice}
+          />
+        </p>
       </div>
     </Card>
   );
