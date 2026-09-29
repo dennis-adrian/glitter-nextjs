@@ -61,13 +61,16 @@ export const PARTICIPANT_DISCOUNT_TYPE_LABELS: Record<
 /**
  * Reads a program's discount override off its row. Both columns move together,
  * enforced by `programs_discount_pair_complete`, so null means "inherit the
- * global default".
+ * global default". A standalone session has no program and always inherits.
  */
-export function programDiscountFrom(program: {
-  participantDiscountType: ParticipantDiscountType | null;
-  participantDiscountValue: number | null;
-}): ParticipantDiscount | null {
+export function programDiscountFrom(
+  program: {
+    participantDiscountType: ParticipantDiscountType | null;
+    participantDiscountValue: number | null;
+  } | null,
+): ParticipantDiscount | null {
   if (
+    program === null ||
     program.participantDiscountType === null ||
     program.participantDiscountValue === null
   ) {

@@ -35,7 +35,8 @@ import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
   occurrenceId: number;
-  programSlug: string;
+  /** Null for a standalone session. */
+  programSlug: string | null;
   sessionSlug: string;
   sessionTitle: string;
   scheduleLabel: string;
@@ -86,6 +87,9 @@ export default function FreeRegistrationForm({
   const funnelProperties = {
     occurrence_id: occurrenceId,
     program_slug: programSlug,
+    // Standalone sessions have no program slug to group by; this keeps their
+    // registrations from reading as a missing dimension.
+    is_standalone: programSlug === null,
     session_slug: sessionSlug,
     session_title: sessionTitle,
     is_free: true,

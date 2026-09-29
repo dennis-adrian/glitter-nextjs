@@ -101,11 +101,12 @@ Entities marked `%% deferred` below belong to the Week Pass and are not built (�
 ```mermaid
 erDiagram
     festivals ||..o{ programs : "optional link"
+    festivals ||..o{ program_sessions : "standalone only"
     venues ||..o{ programs : "default venue"
     venues ||..o{ program_sessions : "session override"
     venues ||..o{ session_occurrences : "occurrence override"
 
-    programs ||--o{ program_sessions : contains
+    programs |o--o{ program_sessions : "contains (optional)"
 
     %% deferred — Week Pass (§0b)
     programs ||--o| program_passes : "optional pass"
@@ -162,8 +163,10 @@ erDiagram
 and their gamification types, `tickets` (festival visitor tickets), `invoices`, `payments`,
 `products`, `productVariants`, `orders`, `orderItems`, `carts`, `cartItems`.
 
-The only permitted link into an existing domain is `programs.festivalId` (nullable,
-`ON DELETE SET NULL`) and the actor/buyer/attendee links to `users`.
+The only permitted links into an existing domain are `programs.festivalId` and, for a standalone
+session only, `program_sessions.festivalId` (both nullable, `ON DELETE SET NULL`), plus the
+actor/buyer/attendee links to `users`. A session takes its festival from exactly one of the two
+(§6.4).
 
 The word "cart" is deliberately avoided in this domain to prevent confusion with the store's
 `carts` table; the multi-session selection is a _purchase draft_ assembled client-side and
@@ -231,27 +234,52 @@ complete pair (`programs_discount_pair_complete` — both columns set or both nu
 
 Content only. No schedule, no capacity, no inventory.
 
-| Column             | Type                                                   | Notes                                         |
-| ------------------ | ------------------------------------------------------ | --------------------------------------------- |
-| `programId`        | integer → `programs.id`, `ON DELETE CASCADE`, not null |                                               |
-| `slug`             | text, not null                                         | Unique per program: `unique(programId, slug)` |
-| `title`            | text, not null                                         |                                               |
-| `type`             | `session_type`, not null                               | `talk` \| `workshop`                          |
-| `topic`            | text                                                   |                                               |
-| `description`      | text                                                   |                                               |
-| `learningOutcomes` | jsonb                                                  | Array of strings, PRD §5.1                    |
-| `skillLevel`       | `session_skill_level`, nullable                        | Optional                                      |
-| `imageUrl`         | text                                                   |                                               |
-| `audience`         | `session_audience`, not null, default `all`            | §8.2                                          |
-| `publicPrice`      | numeric(10,2), not null, default 0                     | Zero allowed (free session)                   |
-| `participantPrice` | numeric(10,2), nullable                                | Explicit override of the discount rule        |
-| `status`           | `program_status`, not null, default `draft`            | Editorial publication, §7.1                   |
-| `publishedAt`      | timestamp, nullable                                    |                                               |
-| `venueId`          | integer → `venues.id`, `ON DELETE RESTRICT`, nullable  | Session-level override                        |
-| `displayOrder`     | integer, not null, default 0                           | Program page ordering                         |
+| Column             | Type                                                     | Notes                                                                                            |
+| ------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `programId`        | integer → `programs.id`, `ON DELETE CASCADE`, nullable   | Null for a standalone session (§6.4.1). Fixed at creation                                        |
+| `festivalId`       | integer → `festivals.id`, `ON DELETE SET NULL`, nullable | Standalone sessions only; a program session takes the program's festival                         |
+| `slug`             | text, not null                                           | Unique per program: `unique(programId, slug)`; unique among standalone sessions by partial index |
+| `title`            | text, not null                                           |                                                                                                  |
+| `type`             | `session_type`, not null                                 | `talk` \| `workshop`                                                                             |
+| `topic`            | text                                                     |                                                                                                  |
+| `description`      | text                                                     |                                                                                                  |
+| `learningOutcomes` | jsonb                                                    | Array of strings, PRD §5.1                                                                       |
+| `skillLevel`       | `session_skill_level`, nullable                          | Optional                                                                                         |
+| `imageUrl`         | text                                                     |                                                                                                  |
+| `audience`         | `session_audience`, not null, default `all`              | §8.2                                                                                             |
+| `publicPrice`      | numeric(10,2), not null, default 0                       | Zero allowed (free session)                                                                      |
+| `participantPrice` | numeric(10,2), nullable                                  | Explicit override of the discount rule                                                           |
+| `status`           | `program_status`, not null, default `draft`              | Editorial publication, §7.1                                                                      |
+| `publishedAt`      | timestamp, nullable                                      |                                                                                                  |
+| `venueId`          | integer → `venues.id`, `ON DELETE RESTRICT`, nullable    | Session-level override                                                                           |
+| `displayOrder`     | integer, not null, default 0                             | Program page ordering                                                                            |
 
 Checks: `publicPrice >= 0`; `participantPrice IS NULL OR participantPrice >= 0`;
-`participantPrice IS NULL OR participantPrice <= publicPrice`.
+`participantPrice IS NULL OR participantPrice <= publicPrice`;
+`programId IS NULL OR festivalId IS NULL` (one festival source). Indexes: unique `(slug) WHERE
+programId IS NULL`, `(festivalId)`.
+
+#### 6.4.1 Standalone sessions
+
+A talk or workshop launched on its own — one or two sessions, often tied to a festival — is a
+session with no program. Everything a program would supply falls back to `program_settings`:
+participant discount, hold minutes, waitlist window. The venue resolves occurrence → session, with
+no program default.
+
+- **URL**: `/programs/sessions/{slug}`. `ensureUniqueProgramSlug` reserves `sessions`,
+  `purchases`, and `waitlist`, the static segments under `/programs`.
+- **Publication**: the session's own `status` is the only gate; `resolveOccurrenceState` receives
+  `programStatus: null`.
+- **Purchases**: `session_purchases.programId` is null. A purchase never mixes a program's sessions
+  with standalone ones, or two programs.
+- **Promo codes**: none. Codes are scoped to a program (§6.18), and checkout and the
+  preview refuse a code for a standalone session with its own message.
+- **Buyer copy**: emails, the ticket page, Mis inscripciones, and door screens print no program
+  name for a standalone session.
+- **Queries**: join `programs` with `leftJoin`. An inner join drops a standalone session without
+  any error — no QR email on approval, a resend that rotates the link and sends nothing, no
+  reminder. `app/lib/programs/program-joins.test.ts` fails if one is reintroduced.
+- **Passes** [Deferred]: a pass covers a program's sessions, so a standalone session is never in one.
 
 ### 6.5 `session_occurrences`
 
@@ -359,7 +387,7 @@ Not created (§0b). Specification retained for the future delivery.
 
 | Column                                                 | Type                                                          | Notes                                                                         |
 | ------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, not null       | Scopes settings resolution                                                    |
+| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, nullable       | Scopes settings resolution. Null for standalone sessions (§6.4.1)             |
 | `userId`                                               | integer → `users.id`, `ON DELETE SET NULL`, nullable          | Null for guests                                                               |
 | `guestName`, `guestEmail`, `guestPhone`                | text, nullable                                                | Required together when `userId` is null                                       |
 | `guestGender`                                          | `gender`, nullable                                            | Collected from guests only; a signed-in buyer has it on their profile         |

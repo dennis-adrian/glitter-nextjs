@@ -18,6 +18,7 @@ import {
   fetchOccurrenceDashboard,
   fetchOccurrenceForAdmin,
 } from "@/app/lib/programs/occurrence-queries";
+import { sessionAdminPath } from "@/app/lib/programs/paths";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
@@ -37,6 +38,7 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
   if (!occurrence) notFound();
 
   const { session } = occurrence;
+  // Null for a standalone session, which has no program to name or gate it.
   const { program } = session;
 
   // One load, one `now`: the badge above and the table below are the same read.
@@ -46,7 +48,7 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
   });
 
   const resolved = resolveOccurrenceState({
-    programStatus: program.status,
+    programStatus: program?.status ?? null,
     sessionStatus: session.status,
     lifecycleStatus: occurrence.lifecycleStatus,
     endsAt: occurrence.endsAt,
@@ -60,7 +62,7 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-2">
         <Link
-          href={`/dashboard/programs/${program.id}/sessions/${session.id}`}
+          href={sessionAdminPath(session)}
           className="text-sm text-muted-foreground underline-offset-2 hover:underline"
         >
           ← {session.title}
@@ -77,7 +79,8 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
           />
         </div>
         <p className="text-sm text-muted-foreground">
-          {program.name} · {SESSION_TYPE_LABELS[session.type]}
+          {program ? `${program.name} · ` : ""}
+          {SESSION_TYPE_LABELS[session.type]}
           {occurrence.venue ? ` · ${occurrence.venue.name}` : ""}
           {occurrence.room ? ` · ${occurrence.room}` : ""}
         </p>

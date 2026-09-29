@@ -33,6 +33,7 @@ import {
   type SessionOccurrence,
   type SessionWithOccurrences,
 } from "@/app/lib/programs/definitions";
+import { sessionPath } from "@/app/lib/programs/paths";
 import {
   globalDiscountFrom,
   programDiscountFrom,
@@ -175,10 +176,11 @@ export default async function ProgramPage({ params }: Props) {
                   {dateRange}
                 </p>
               ) : null}
-              <p className="text-balance text-lg font-bold leading-snug sm:text-xl">
-                {program.summary ??
-                  "Una semana para aprender, practicar y compartir nuevas formas de hacer ilustración."}
-              </p>
+              {program.summary ? (
+                <p className="text-balance text-lg font-bold leading-snug sm:text-xl">
+                  {program.summary}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -327,7 +329,10 @@ export default async function ProgramPage({ params }: Props) {
 
                             <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
                               <Link
-                                href={`/programs/${program.slug}/${session.slug}`}
+                                href={sessionPath({
+                                  slug: session.slug,
+                                  program,
+                                })}
                                 className="inline-flex items-start gap-2 text-balance text-xl font-black leading-tight underline decoration-[#9347f5] decoration-2 underline-offset-4 [@media(hover:hover)]:no-underline [@media(hover:hover)]:hover:underline sm:text-2xl"
                               >
                                 {session.title}

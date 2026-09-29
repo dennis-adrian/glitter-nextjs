@@ -64,9 +64,15 @@ export default function MyPurchaseCard({ purchase }: Props) {
           ) : null}
         </div>
         <CardTitle className="text-lg">
-          {firstLine?.session.title ?? purchase.program.name}
+          {firstLine?.session.title ?? purchase.program?.name ?? "Inscripción"}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">{purchase.program.name}</p>
+        {/* A standalone session has no program: the title and type badge
+            already say what it is, so nothing stands in for the name. */}
+        {purchase.program ? (
+          <p className="text-sm text-muted-foreground">
+            {purchase.program.name}
+          </p>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-3">
         {purchase.promoRedemption && purchase.vouchers.length === 0 ? (
@@ -86,7 +92,7 @@ export default function MyPurchaseCard({ purchase }: Props) {
         <ul className="space-y-2 text-sm">
           {purchase.lines.map((line) => {
             const resolved = resolveOccurrenceState({
-              programStatus: purchase.program.status,
+              programStatus: purchase.program?.status ?? null,
               sessionStatus: line.session.status,
               lifecycleStatus: line.occurrence.lifecycleStatus,
               endsAt: line.occurrence.endsAt,

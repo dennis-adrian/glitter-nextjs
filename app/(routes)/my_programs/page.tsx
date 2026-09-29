@@ -37,7 +37,7 @@ export default async function MyProgramsPage() {
             Todavía no tienes inscripciones.
           </p>
           <Button asChild variant="outline">
-            <Link href="/programs">Ver programas</Link>
+            <Link href="/programs">Ver charlas y talleres</Link>
           </Button>
         </div>
       ) : (

@@ -45,12 +45,14 @@ import {
   previewProgramPromoCode,
   type PromoCodePreviewResult,
 } from "@/app/lib/programs/promo-code-actions";
+import { PROMO_CODE_ERROR_MESSAGES } from "@/app/lib/programs/promo-codes";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
   occurrenceId: number;
-  programSlug: string;
+  /** Null for a standalone session. */
+  programSlug: string | null;
   sessionSlug: string;
   sessionTitle: string;
   scheduleLabel: string;
@@ -59,6 +61,11 @@ type Props = {
   previousPrice?: number | null;
   /** Null when availability could not be resolved for this occurrence. */
   seatsRemaining: number | null;
+  /**
+   * False for a standalone session. The field stays visible but disabled with
+   * the reason; checkout refuses a code for it either way.
+   */
+  acceptsPromoCodes: boolean;
 };
 
 const guestSchema = z.object({
@@ -87,6 +94,7 @@ export default function PaidRegistrationForm({
   price,
   previousPrice,
   seatsRemaining,
+  acceptsPromoCodes,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -111,6 +119,7 @@ export default function PaidRegistrationForm({
   const funnelProperties = {
     occurrence_id: occurrenceId,
     program_slug: programSlug,
+    is_standalone: programSlug === null,
     session_slug: sessionSlug,
     session_title: sessionTitle,
     is_free: false,
@@ -239,6 +248,7 @@ export default function PaidRegistrationForm({
   }
 
   async function applyPromoCode() {
+    if (!acceptsPromoCodes) return;
     if (!promoCode.trim()) {
       toast.error("Escribe un código promocional");
       return;
@@ -293,12 +303,14 @@ export default function PaidRegistrationForm({
   const payablePrice = appliedPromo?.promoPrice ?? price;
   const comparisonPrice = appliedPromo?.basePrice ?? previousPrice;
 
+  const promoHintId = `promo-${occurrenceId}-hint`;
   const promoSection = (
     <div className="grid gap-2 rounded-xl border border-[#9347f5]/20 bg-[#fffaf3] p-3">
       <Label htmlFor={`promo-${occurrenceId}`}>Código promocional</Label>
       <div className="flex gap-2">
         <Input
           id={`promo-${occurrenceId}`}
+          aria-describedby={appliedPromo ? undefined : promoHintId}
           value={promoCode}
           onChange={(event) => {
             setPromoCode(event.target.value.toUpperCase());
@@ -308,13 +320,13 @@ export default function PaidRegistrationForm({
           placeholder="ARTISTA50"
           className="uppercase"
           maxLength={32}
-          disabled={isSubmitting || isApplyingPromo}
+          disabled={!acceptsPromoCodes || isSubmitting || isApplyingPromo}
         />
         <Button
           type="button"
           variant="outline"
           onClick={applyPromoCode}
-          disabled={isSubmitting || isApplyingPromo}
+          disabled={!acceptsPromoCodes || isSubmitting || isApplyingPromo}
         >
           {isApplyingPromo ? "Revisando…" : "Aplicar"}
         </Button>
@@ -343,9 +355,10 @@ export default function PaidRegistrationForm({
           </dl>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          El porcentaje se calcula sobre el precio público, sin acumular
-          descuentos.
+        <p id={promoHintId} className="text-xs text-muted-foreground">
+          {acceptsPromoCodes
+            ? "El porcentaje se calcula sobre el precio público, sin acumular descuentos."
+            : PROMO_CODE_ERROR_MESSAGES.standaloneSession}
         </p>
       )}
     </div>

@@ -208,7 +208,9 @@ export async function registerForFreeSession(
           programSessions,
           eq(programSessions.id, sessionOccurrences.sessionId),
         )
-        .innerJoin(programs, eq(programs.id, programSessions.programId))
+        // Left, not inner: a standalone session has no program row, and an
+        // inner join would report it as "Horario no encontrado".
+        .leftJoin(programs, eq(programs.id, programSessions.programId))
         .where(eq(sessionOccurrences.id, data.occurrenceId))
         .limit(1);
 
@@ -231,7 +233,7 @@ export async function registerForFreeSession(
 
       const occurrenceState = resolveOccurrenceState(
         {
-          programStatus: context.program.status,
+          programStatus: context.program?.status ?? null,
           sessionStatus: context.session.status,
           lifecycleStatus: context.occurrence.lifecycleStatus,
           endsAt: context.occurrence.endsAt,
@@ -277,7 +279,7 @@ export async function registerForFreeSession(
       const [purchase] = await tx
         .insert(sessionPurchases)
         .values({
-          programId: context.program.id,
+          programId: context.program?.id ?? null,
           userId: profile?.id ?? null,
           guestName: profile ? null : (data.guestName ?? null),
           guestEmail: profile ? null : (data.guestEmail ?? null),
@@ -362,7 +364,7 @@ export async function registerForFreeSession(
         purchaseId: purchase.id,
         ticketCode: ticket.code,
         email: {
-          programName: context.program.name,
+          programName: context.program?.name ?? null,
           sessionTitle: context.session.title,
           sessionType: context.session.type,
           startsAt: context.occurrence.startsAt,
@@ -370,7 +372,8 @@ export async function registerForFreeSession(
           venueId:
             context.occurrence.venueId ??
             context.session.venueId ??
-            context.program.defaultVenueId,
+            context.program?.defaultVenueId ??
+            null,
           room: context.occurrence.room,
         },
       };

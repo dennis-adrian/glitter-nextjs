@@ -314,7 +314,9 @@ export async function resendPurchaseLink(
           sessionOccurrences,
           eq(sessionOccurrences.id, sessionPurchaseLines.occurrenceId),
         )
-        .innerJoin(programs, eq(programs.id, purchase.programId))
+        // Through the session, and left: a standalone session has no program,
+        // and an inner join would drop its lines and send no email at all.
+        .leftJoin(programs, eq(programs.id, programSessions.programId))
         .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
         .leftJoin(
           sessionTickets,

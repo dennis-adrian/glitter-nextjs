@@ -5221,7 +5221,8 @@ export const actionRateLimits = pgTable(
 /* See docs/ARCHITECTURE-paid-programs-and-sessions.md §6.                     */
 /* Deliberately independent of festivalType, sectors, stands, reservations,    */
 /* festival activities, store products, and the visitor `tickets` table. The   */
-/* only link into an existing domain is the optional `programs.festivalId`.    */
+/* only links into an existing domain are the optional `programs.festivalId`   */
+/* and, for a standalone session only, `program_sessions.festivalId`.          */
 /* -------------------------------------------------------------------------- */
 
 /** Editorial publication state, for both programs and their sessions. */
@@ -5535,9 +5536,21 @@ export const programSessions = pgTable(
   "program_sessions",
   {
     id: serial("id").primaryKey(),
-    programId: integer("program_id")
-      .notNull()
-      .references(() => programs.id, { onDelete: "cascade" }),
+    /**
+     * Null for a standalone session: a talk or workshop launched on its own,
+     * with no program around it. Its URL is `/programs/sessions/{slug}` and
+     * every program-level setting falls back to `program_settings`.
+     */
+    programId: integer("program_id").references(() => programs.id, {
+      onDelete: "cascade",
+    }),
+    /**
+     * Festival context for a standalone session. A program session takes it
+     * from `programs.festivalId` instead, so there is only ever one source.
+     */
+    festivalId: integer("festival_id").references(() => festivals.id, {
+      onDelete: "set null",
+    }),
     slug: text("slug").notNull(),
     title: text("title").notNull(),
     type: sessionTypeEnum("type").notNull(),
@@ -5572,7 +5585,17 @@ export const programSessions = pgTable(
   },
   (t) => [
     unique().on(t.programId, t.slug),
+    // Postgres treats nulls as distinct, so the constraint above leaves
+    // standalone slugs unchecked; they share one URL namespace.
+    uniqueIndex("program_sessions_standalone_slug_unique")
+      .on(t.slug)
+      .where(sql`${t.programId} IS NULL`),
     index("program_sessions_program_id_status_idx").on(t.programId, t.status),
+    index("program_sessions_festival_id_idx").on(t.festivalId),
+    check(
+      "program_sessions_festival_only_when_standalone",
+      sql`${t.programId} IS NULL OR ${t.festivalId} IS NULL`,
+    ),
     check("program_sessions_public_price_positive", sql`${t.publicPrice} >= 0`),
     check(
       "program_sessions_participant_price_valid",
@@ -5587,6 +5610,10 @@ export const programSessionsRelations = relations(
     program: one(programs, {
       fields: [programSessions.programId],
       references: [programs.id],
+    }),
+    festival: one(festivals, {
+      fields: [programSessions.festivalId],
+      references: [festivals.id],
     }),
     venue: one(venues, {
       fields: [programSessions.venueId],
@@ -5875,9 +5902,14 @@ export const sessionPurchases = pgTable(
   "session_purchases",
   {
     id: serial("id").primaryKey(),
-    programId: integer("program_id")
-      .notNull()
-      .references(() => programs.id, { onDelete: "restrict" }),
+    /**
+     * Null when the purchase is for standalone sessions. Checkout keeps one
+     * value per purchase: a cart never mixes a program with standalone
+     * sessions, or two programs.
+     */
+    programId: integer("program_id").references(() => programs.id, {
+      onDelete: "restrict",
+    }),
     /**
      * `restrict`, not `set null`: a purchase is financial history, and nulling
      * the buyer would leave a row with no identity at all — which the identity

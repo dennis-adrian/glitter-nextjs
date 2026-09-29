@@ -19,7 +19,11 @@ vi.mock("@/app/components/programs/free-registration-form", () => ({
 }));
 
 vi.mock("@/app/components/programs/paid-registration-form", () => ({
-  default: () => <button type="button">Reservar</button>,
+  default: ({ acceptsPromoCodes }: { acceptsPromoCodes: boolean }) => (
+    <button type="button" data-accepts-promo-codes={String(acceptsPromoCodes)}>
+      Reservar
+    </button>
+  ),
 }));
 
 const STARTS_AT = new Date("2026-10-01T14:00:00.000Z");
@@ -57,22 +61,29 @@ const availability: OccurrenceAvailability = {
   isSoldOut: false,
 };
 
-function renderList(renderedAt: Date) {
+function renderList(
+  renderedAt: Date,
+  {
+    standalone = false,
+    price = 0,
+  }: { standalone?: boolean; price?: number } = {},
+) {
   return render(
     <OccurrenceScheduleList
       occurrences={[occurrence]}
-      programStatus="published"
+      programStatus={standalone ? null : "published"}
       sessionStatus="published"
       venuesById={new Map()}
       fallbackVenueId={null}
-      programSlug="taller"
+      programSlug={standalone ? null : "taller"}
       sessionSlug="fanzines"
       sessionTitle="Fanzines"
       availabilityByOccurrence={new Map([[occurrence.id, availability]])}
       audience="all"
-      publicPrice={0}
-      participantPrice={0}
+      publicPrice={price}
+      participantPrice={price}
       renderedAt={renderedAt}
+      acceptsPromoCodes={!standalone}
     />,
   );
 }
@@ -139,6 +150,36 @@ describe("OccurrenceScheduleList", () => {
 
     expect(screen.getByText("Realizada")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Inscribirme" })).toBeNull();
+  });
+
+  it("sells a standalone session, which has no program to gate it", () => {
+    vi.setSystemTime(BEFORE_START);
+    renderList(BEFORE_START, { standalone: true });
+
+    expect(screen.getByRole("button", { name: "Inscribirme" })).toBeTruthy();
+    expect(screen.getByText("15 de 20 cupos disponibles")).toBeTruthy();
+  });
+
+  it("tells a standalone session's paid form not to take promo codes", () => {
+    vi.setSystemTime(BEFORE_START);
+    renderList(BEFORE_START, { standalone: true, price: 120 });
+
+    expect(
+      screen
+        .getByRole("button", { name: "Reservar" })
+        .getAttribute("data-accepts-promo-codes"),
+    ).toBe("false");
+  });
+
+  it("lets a program session's paid form take promo codes", () => {
+    vi.setSystemTime(BEFORE_START);
+    renderList(BEFORE_START, { price: 120 });
+
+    expect(
+      screen
+        .getByRole("button", { name: "Reservar" })
+        .getAttribute("data-accepts-promo-codes"),
+    ).toBe("true");
   });
 
   it("closes on its own when left open across the end", () => {

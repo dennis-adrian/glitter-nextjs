@@ -21,7 +21,8 @@ export type OccurrenceEffectiveState =
   | "on_sale";
 
 export type OccurrenceStateInput = {
-  programStatus: ProgramStatus;
+  /** Null for a standalone session: there is no program to gate it. */
+  programStatus: ProgramStatus | null;
   sessionStatus: ProgramStatus;
   lifecycleStatus: OccurrenceLifecycleStatus;
   /** Sales stop here whatever the window says; see `resolveState`. */
@@ -133,7 +134,9 @@ export const SESSION_PUBLISH_BLOCKER_LABELS: Record<
   already_published: "Ya está publicada",
   no_occurrences: "No tiene horarios programados",
   no_speakers: "No tiene expositores asignados",
-  no_venue: "No tiene lugar definido ni lo hereda del programa",
+  // Covers both kinds: a standalone session has no program to inherit from.
+  no_venue:
+    "No tiene lugar definido: ni propio, ni en sus horarios, ni en su programa",
   no_active_occurrences: "Todos sus horarios están cancelados o finalizados",
 };
 

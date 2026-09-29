@@ -107,7 +107,8 @@ export async function joinWaitlist(
           programSessions,
           eq(programSessions.id, sessionOccurrences.sessionId),
         )
-        .innerJoin(programs, eq(programs.id, programSessions.programId))
+        // Left, not inner: a standalone session has no program row.
+        .leftJoin(programs, eq(programs.id, programSessions.programId))
         .where(eq(sessionOccurrences.id, data.occurrenceId))
         .limit(1);
 
@@ -117,7 +118,7 @@ export async function joinWaitlist(
 
       const occurrenceState = resolveOccurrenceState(
         {
-          programStatus: context.program.status,
+          programStatus: context.program?.status ?? null,
           sessionStatus: context.session.status,
           lifecycleStatus: context.occurrence.lifecycleStatus,
           endsAt: context.occurrence.endsAt,

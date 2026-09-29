@@ -56,7 +56,13 @@ const programSchema = z.object({
 });
 
 const sessionSchema = z.object({
-  programId: z.number().int().positive(),
+  /**
+   * Null creates a standalone session. Fixed at creation: `updateSession`
+   * ignores it, because purchases and the URL both hang off the program.
+   */
+  programId: z.number().int().positive().nullable(),
+  /** Standalone sessions only; a program session takes the program's. */
+  festivalId: z.number().int().positive().nullish(),
   title: z.string().trim().min(1).max(TITLE_MAX),
   type: z.enum(["talk", "workshop"]),
   topic: z.string().trim().max(TITLE_MAX).nullish(),
@@ -138,6 +144,17 @@ function discountColumns(data: DiscountFields) {
 function revalidatePrograms() {
   revalidatePath("/dashboard/programs", "layout");
   revalidatePath("/programs", "layout");
+}
+
+/**
+ * Keeps `program_sessions_festival_only_when_standalone` satisfied: a program
+ * session takes its festival from the program, so one sent with it is dropped.
+ */
+function festivalForSession(
+  programId: number | null,
+  festivalId: number | null | undefined,
+) {
+  return programId === null ? (festivalId ?? null) : null;
 }
 
 /* --------------------------------- Programs --------------------------------- */
@@ -337,6 +354,7 @@ export async function createSession(input: SessionInput) {
       .insert(programSessions)
       .values({
         programId: data.programId,
+        festivalId: festivalForSession(data.programId, data.festivalId),
         slug,
         title: data.title,
         type: data.type,
@@ -381,6 +399,7 @@ export async function updateSession(sessionId: number, input: SessionInput) {
   const updated = await db.transaction(async (tx) => {
     const [existing] = await tx
       .select({
+        programId: programSessions.programId,
         slug: programSessions.slug,
         publishedAt: programSessions.publishedAt,
       })
@@ -391,13 +410,14 @@ export async function updateSession(sessionId: number, input: SessionInput) {
     if (!existing) return false;
 
     // Same rule as programs: a published session keeps the URL it was published
-    // under, however its title changes afterwards.
+    // under, however its title changes afterwards. Uniqueness is checked in the
+    // stored program's namespace, never the one the form sent.
     const slug =
       existing.publishedAt && existing.slug
         ? existing.slug
         : await ensureUniqueSessionSlug(
             tx,
-            data.programId,
+            existing.programId,
             data.title,
             sessionId,
           );
@@ -406,6 +426,7 @@ export async function updateSession(sessionId: number, input: SessionInput) {
       .update(programSessions)
       .set({
         slug,
+        festivalId: festivalForSession(existing.programId, data.festivalId),
         title: data.title,
         type: data.type,
         topic: blankToNull(data.topic),
@@ -489,7 +510,7 @@ export async function publishSession(sessionId: number) {
   const publishability = resolveSessionPublishability({
     status: session.status,
     venueId: session.venueId,
-    programDefaultVenueId: session.program.defaultVenueId,
+    programDefaultVenueId: session.program?.defaultVenueId ?? null,
     speakerCount: session.sessionSpeakers.length,
     occurrences: session.occurrences,
   });
@@ -561,7 +582,7 @@ export async function publishProgramWithSessions(programId: number) {
     const publishability = resolveSessionPublishability({
       status: session.status,
       venueId: session.venueId,
-      programDefaultVenueId: session.program.defaultVenueId,
+      programDefaultVenueId: session.program?.defaultVenueId ?? null,
       speakerCount: session.sessionSpeakers.length,
       occurrences: session.occurrences,
     });

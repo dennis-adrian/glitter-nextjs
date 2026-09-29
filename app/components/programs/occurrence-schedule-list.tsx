@@ -30,13 +30,17 @@ import {
 
 type Props = {
   occurrences: SessionOccurrence[];
-  programStatus: ProgramStatus;
+  /** Null for a standalone session: there is no program to gate it. */
+  programStatus: ProgramStatus | null;
   sessionStatus: ProgramStatus;
   /** Already resolved per occurrence: occurrence → session → program. */
   venuesById: Map<number, Venue>;
   fallbackVenueId: number | null;
-  /** Analytics dimensions: the funnel is read per session, not per URL. */
-  programSlug: string;
+  /**
+   * Analytics dimensions: the funnel is read per session, not per URL. Null
+   * for a standalone session.
+   */
+  programSlug: string | null;
   sessionSlug: string;
   sessionTitle: string;
   availabilityByOccurrence: Map<number, OccurrenceAvailability>;
@@ -45,6 +49,11 @@ type Props = {
   participantPrice: number;
   /** When the server rendered the page; see `useNow`. */
   renderedAt: Date;
+  /**
+   * Codes belong to a program, so a standalone session takes none. The paid
+   * form still shows the field, disabled with the reason.
+   */
+  acceptsPromoCodes: boolean;
 };
 
 /**
@@ -75,6 +84,7 @@ export default function OccurrenceScheduleList({
   publicPrice,
   participantPrice,
   renderedAt,
+  acceptsPromoCodes,
 }: Props) {
   const { isLoaded, isSignedIn } = useAuth();
   const now = useNow(renderedAt);
@@ -231,6 +241,7 @@ export default function OccurrenceScheduleList({
                   price={paidRegistration.price}
                   previousPrice={previousPrice}
                   seatsRemaining={remaining ?? null}
+                  acceptsPromoCodes={acceptsPromoCodes}
                 />
               ) : null}
             </div>
