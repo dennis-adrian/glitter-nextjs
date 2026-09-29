@@ -199,6 +199,7 @@ describe("SessionForm", () => {
         venues={[]}
         topics={[]}
         festivals={FESTIVALS}
+        canUploadImages
       />,
     );
 
