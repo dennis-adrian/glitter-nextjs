@@ -8,6 +8,9 @@ import {
 import { Textarea } from "@/app/components/ui/textarea";
 import { UseFormReturn } from "react-hook-form";
 
+/** Callers whose schema allows less must pass their own `maxLength`. */
+const DEFAULT_MAX_LENGTH = 2000;
+
 export default function TextareaInput({
   formControl,
   label,
@@ -36,7 +39,7 @@ export default function TextareaInput({
           <FormControl>
             <Textarea
               className="resize-none"
-              maxLength={maxLength || 80}
+              maxLength={maxLength || DEFAULT_MAX_LENGTH}
               placeholder={placeholder}
               {...field}
             />

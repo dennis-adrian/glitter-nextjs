@@ -20,7 +20,11 @@ function isAcceptedExternalParticipantImageUrl(value?: string) {
 }
 
 export const externalParticipantInputSchema = z.object({
-  displayName: z.string().trim().min(2, "El nombre es requerido"),
+  displayName: z
+    .string()
+    .trim()
+    .min(2, "El nombre es requerido")
+    .max(80, "Usá 80 caracteres o menos"),
   type: z.enum(externalParticipantTypeEnum.enumValues),
   customCategoryLabel: z.string().trim().optional(),
   description: z.string().trim().optional(),
