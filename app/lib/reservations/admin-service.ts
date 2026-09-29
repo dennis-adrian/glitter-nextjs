@@ -62,6 +62,7 @@ type ReservationPricingSnapshot = {
   priceAmountSnapshot: number | null;
   individualPriceSnapshot: number | null;
   sharedPriceSnapshot: number | null;
+  fullTablePriceSnapshot: number | null;
 };
 
 async function synchronizeReservationParticipantPricing(
@@ -69,6 +70,13 @@ async function synchronizeReservationParticipantPricing(
   reservation: ReservationPricingSnapshot,
   participantCount: number,
 ) {
+  // A full table is billed as a table, and the participant count does not
+  // move that price — the rule both ways of creating one apply. Its
+  // individual and shared snapshots are the kept half's, on record for the
+  // manual downgrade, so pricing from them here would bill both stands as one
+  // half. The count itself still has to move: that downgrade reads it to
+  // choose which half price survives.
+  const keepsTablePrice = reservation.fullTablePriceSnapshot != null;
   const applicablePriceSnapshot =
     participantCount > 1
       ? reservation.sharedPriceSnapshot
@@ -78,6 +86,7 @@ async function synchronizeReservationParticipantPricing(
       ? reservation.priceAmountSnapshot
       : roundMoney(applicablePriceSnapshot);
   const priceChanged =
+    !keepsTablePrice &&
     nextPriceSnapshot != null &&
     (reservation.priceAmountSnapshot == null ||
       roundMoney(reservation.priceAmountSnapshot) !== nextPriceSnapshot);
@@ -491,6 +500,7 @@ export async function updateReservationPartner(
           priceAmountSnapshot: standReservations.priceAmountSnapshot,
           individualPriceSnapshot: standReservations.individualPriceSnapshot,
           sharedPriceSnapshot: standReservations.sharedPriceSnapshot,
+          fullTablePriceSnapshot: standReservations.fullTablePriceSnapshot,
         })
         .from(standReservations)
         .where(eq(standReservations.id, reservationId))

@@ -74,6 +74,8 @@ type Fixture = { festivalId: number; userIds: number[] };
 const fixtures: Fixture[] = [];
 
 let createAdminReservation: (typeof import("@/app/lib/reservations/admin-actions"))["createAdminReservation"];
+let updateReservationPartner: (typeof import("@/app/lib/reservations/admin-service"))["updateReservationPartner"];
+let downgradeFullTableReservation: (typeof import("@/app/lib/reservations/full-table-service"))["downgradeFullTableReservation"];
 
 /**
  * An admin assigning a full table is an allocation, not a purchase (PRD §6.3).
@@ -89,6 +91,10 @@ describeDatabase("admin full-table assignment", () => {
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
     ({ createAdminReservation } =
       await import("@/app/lib/reservations/admin-actions"));
+    ({ updateReservationPartner } =
+      await import("@/app/lib/reservations/admin-service"));
+    ({ downgradeFullTableReservation } =
+      await import("@/app/lib/reservations/full-table-service"));
   }, 60_000);
 
   afterEach(async () => {
@@ -198,12 +204,25 @@ describeDatabase("admin full-table assignment", () => {
       })
       .returning();
 
-    await db.insert(userRequests).values({
-      userId: participant.id,
-      festivalId: festival.id,
-      type: "festival_participation",
-      status: "accepted",
-    });
+    const [partner] = await db
+      .insert(users)
+      .values({
+        clerkId: `at-partner-${suffix}`,
+        email: `at-partner-${suffix}@example.test`,
+        displayName: `AT Partner ${suffix}`,
+        status: "verified",
+        category: "illustration",
+      })
+      .returning();
+
+    await db.insert(userRequests).values(
+      [participant, partner].map((user) => ({
+        userId: user.id,
+        festivalId: festival.id,
+        type: "festival_participation" as const,
+        status: "accepted" as const,
+      })),
+    );
 
     const [sector] = await db
       .insert(festivalSectors)
@@ -242,7 +261,7 @@ describeDatabase("admin full-table assignment", () => {
 
     fixtures.push({
       festivalId: festival.id,
-      userIds: [admin.id, participant.id],
+      userIds: [admin.id, participant.id, partner.id],
     });
     currentProfileMock.mockResolvedValue({
       id: admin.id,
@@ -251,7 +270,25 @@ describeDatabase("admin full-table assignment", () => {
       category: "none",
     });
 
-    return { festival, admin, participant, group, standRows };
+    return { festival, admin, participant, partner, group, standRows };
+  }
+
+  async function readBilling(reservationId: number) {
+    const db = integrationDb!;
+    const [reservation] = await db
+      .select()
+      .from(standReservations)
+      .where(eq(standReservations.id, reservationId));
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.reservationId, reservationId));
+    return {
+      bookedParticipantCount: reservation.bookedParticipantCount,
+      priceAmountSnapshot: Number(reservation.priceAmountSnapshot),
+      originalAmount: Number(invoice.originalAmount),
+      amount: Number(invoice.amount),
+    };
   }
 
   it("assigns both halves, bills the table price, and spends no credits", async () => {
@@ -442,5 +479,75 @@ describeDatabase("admin full-table assignment", () => {
 
     expect(second.success).toBe(true);
     expect(second.reservationId).not.toBe(first.reservationId);
+  });
+
+  it("keeps billing the table when an admin adds or removes a partner", async () => {
+    const seeded = await seed({ fullTablePrice: 800 });
+
+    const created = await createAdminReservation({
+      festivalId: seeded.festival.id,
+      standId: seeded.standRows[0].id,
+      ownerUserId: seeded.participant.id,
+      idempotencyKey: randomUUID(),
+      fullTable: true,
+    });
+    expect(created.success).toBe(true);
+    const reservationId = created.reservationId!;
+
+    const added = await updateReservationPartner({
+      reservationId,
+      partnerUserId: seeded.partner.id,
+    });
+    expect(added.success).toBe(true);
+    // Not the half's shared price of 500.
+    expect(await readBilling(reservationId)).toEqual({
+      bookedParticipantCount: 2,
+      priceAmountSnapshot: 800,
+      originalAmount: 800,
+      amount: 800,
+    });
+
+    const removed = await updateReservationPartner({
+      reservationId,
+      partnerUserId: null,
+    });
+    expect(removed.success).toBe(true);
+    // Not the half's individual price of 300.
+    expect(await readBilling(reservationId)).toEqual({
+      bookedParticipantCount: 1,
+      priceAmountSnapshot: 800,
+      originalAmount: 800,
+      amount: 800,
+    });
+  });
+
+  it("downgrades to the shared half price after an admin adds a partner", async () => {
+    const seeded = await seed({ fullTablePrice: 800 });
+
+    const created = await createAdminReservation({
+      festivalId: seeded.festival.id,
+      standId: seeded.standRows[0].id,
+      ownerUserId: seeded.participant.id,
+      idempotencyKey: randomUUID(),
+      fullTable: true,
+    });
+    const reservationId = created.reservationId!;
+    await updateReservationPartner({
+      reservationId,
+      partnerUserId: seeded.partner.id,
+    });
+
+    const downgraded = await downgradeFullTableReservation({
+      reservationId,
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(downgraded.success).toBe(true);
+    expect(await readBilling(reservationId)).toEqual({
+      bookedParticipantCount: 2,
+      priceAmountSnapshot: 500,
+      originalAmount: 500,
+      amount: 500,
+    });
   });
 });
