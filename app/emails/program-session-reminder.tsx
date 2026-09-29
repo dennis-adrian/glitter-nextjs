@@ -18,7 +18,8 @@ import * as styles from "@/app/emails/styles";
 export type ProgramSessionReminderSession = {
   title: string;
   typeLabel: string;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   /** Preformatted — the template does no date maths. */
   scheduleLabel: string;
   venueLabel: string | null;
@@ -61,7 +62,9 @@ export default function ProgramSessionReminderEmailTemplate({
    */
   const programNames = new Set(sessions.map((session) => session.programName));
   const programSuffix =
-    programNames.size === 1 ? ` de ${first.programName}` : "";
+    programNames.size === 1 && first.programName
+      ? ` de ${first.programName}`
+      : "";
 
   return (
     <Html>
@@ -96,7 +99,8 @@ export default function ProgramSessionReminderEmailTemplate({
                   {session.title}
                 </Text>
                 <Text style={styles.detailLine}>
-                  {session.typeLabel} · {session.programName}
+                  {session.typeLabel}
+                  {session.programName ? ` · ${session.programName}` : null}
                 </Text>
                 <Text style={styles.detailLine}>{session.scheduleLabel}</Text>
                 {session.venueLabel ? (

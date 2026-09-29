@@ -7,6 +7,7 @@ import { Badge } from "@/app/components/ui/badge";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
@@ -105,6 +106,10 @@ export default async function ProgramPromoCodeDetailPage({ params }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Configuración</CardTitle>
+            <CardDescription>
+              Un código vale para las sesiones de un programa. Las charlas y
+              talleres sueltos no aceptan códigos promocionales.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <PromoCodeForm

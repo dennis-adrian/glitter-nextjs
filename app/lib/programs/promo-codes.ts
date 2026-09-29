@@ -37,6 +37,11 @@ export type PromoCodeBlocker =
 export const PROMO_CODE_ERROR_MESSAGES = {
   unavailable: "Este código no está disponible para esta sesión",
   invalidFormat: "El formato del código no es válido",
+  /**
+   * Codes belong to a program, so a standalone session accepts none. Unlike
+   * the generic message, this reveals nothing about which codes exist.
+   */
+  standaloneSession: "Esta sesión no acepta códigos promocionales",
 } as const;
 
 export function promoCodeBlockerMessage(

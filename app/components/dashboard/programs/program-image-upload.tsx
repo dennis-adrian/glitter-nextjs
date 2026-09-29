@@ -2,7 +2,7 @@
 
 import { ImageIcon, XIcon } from "lucide-react";
 import Image from "next/image";
-import type { Control } from "react-hook-form";
+import type { Control, FieldPath, FieldValues } from "react-hook-form";
 
 import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
 import { Button } from "@/app/components/ui/button";
@@ -14,22 +14,28 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
-import type { ProgramFormValues } from "@/app/lib/programs/form-schemas";
 import { cn } from "@/lib/utils";
 
-type ArtworkField = "bannerUrl" | "thumbnailUrl";
-
-type Props = {
-  control: Control<ProgramFormValues>;
+/**
+ * Generic over the form so the session form reuses it for its own image; the
+ * field it binds to holds the uploaded URL as a string, blank for none.
+ */
+type Props<TValues extends FieldValues> = {
+  control: Control<TValues>;
   description: string;
   label: string;
-  name: ArtworkField;
+  name: FieldPath<TValues>;
   previewClassName: string;
   previewSizes: string;
   onUploading: (isUploading: boolean) => void;
+  /**
+   * Set when this viewer cannot upload (the endpoint is admin-only): the
+   * button stays, disabled, with this as the reason.
+   */
+  uploadDisabledReason?: string;
 };
 
-export default function ProgramImageUpload({
+export default function ProgramImageUpload<TValues extends FieldValues>({
   control,
   description,
   label,
@@ -37,7 +43,8 @@ export default function ProgramImageUpload({
   previewClassName,
   previewSizes,
   onUploading,
-}: Props) {
+  uploadDisabledReason,
+}: Props<TValues>) {
   return (
     <FormField
       control={control}
@@ -87,15 +94,26 @@ export default function ProgramImageUpload({
             </div>
 
             <div className="flex flex-wrap items-start gap-2">
-              <UploadThingImageButton
-                endpoint="programArtwork"
-                hasImage={Boolean(imageUrl)}
-                buttonLabel="Seleccionar imagen"
-                allowedContent="JPG, PNG o WebP · máximo 4 MB"
-                variant="primary"
-                onUploading={onUploading}
-                onUploadComplete={field.onChange}
-              />
+              {uploadDisabledReason ? (
+                <div className="grid gap-1">
+                  <Button type="button" size="sm" disabled>
+                    Seleccionar imagen
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    {uploadDisabledReason}
+                  </p>
+                </div>
+              ) : (
+                <UploadThingImageButton
+                  endpoint="programArtwork"
+                  hasImage={Boolean(imageUrl)}
+                  buttonLabel="Seleccionar imagen"
+                  allowedContent="JPG, PNG o WebP · máximo 4 MB"
+                  variant="primary"
+                  onUploading={onUploading}
+                  onUploadComplete={field.onChange}
+                />
+              )}
 
               {imageUrl ? (
                 <Button

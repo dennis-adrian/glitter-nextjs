@@ -61,13 +61,16 @@ export const PARTICIPANT_DISCOUNT_TYPE_LABELS: Record<
 /**
  * Reads a program's discount override off its row. Both columns move together,
  * enforced by `programs_discount_pair_complete`, so null means "inherit the
- * global default".
+ * global default". A standalone session has no program and always inherits.
  */
-export function programDiscountFrom(program: {
-  participantDiscountType: ParticipantDiscountType | null;
-  participantDiscountValue: number | null;
-}): ParticipantDiscount | null {
+export function programDiscountFrom(
+  program: {
+    participantDiscountType: ParticipantDiscountType | null;
+    participantDiscountValue: number | null;
+  } | null,
+): ParticipantDiscount | null {
   if (
+    program === null ||
     program.participantDiscountType === null ||
     program.participantDiscountValue === null
   ) {
@@ -220,6 +223,11 @@ function build(
 /** A zero price routes the purchase through the free-registration flow. */
 export function isFreePrice(amount: number): boolean {
   return amount <= 0;
+}
+
+/** A session price as a visitor reads it: "Sin costo" instead of "Bs 0,00". */
+export function formatSessionPrice(amount: number): string {
+  return isFreePrice(amount) ? "Sin costo" : formatMoney(amount);
 }
 
 /**

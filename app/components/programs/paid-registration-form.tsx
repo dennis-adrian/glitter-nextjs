@@ -45,12 +45,14 @@ import {
   previewProgramPromoCode,
   type PromoCodePreviewResult,
 } from "@/app/lib/programs/promo-code-actions";
-import { formatMoney } from "@/app/lib/programs/pricing";
+import { PROMO_CODE_ERROR_MESSAGES } from "@/app/lib/programs/promo-codes";
+import { formatMoney, isFreePrice } from "@/app/lib/programs/pricing";
 import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
   occurrenceId: number;
-  programSlug: string;
+  /** Null for a standalone session. */
+  programSlug: string | null;
   sessionSlug: string;
   sessionTitle: string;
   scheduleLabel: string;
@@ -59,13 +61,20 @@ type Props = {
   previousPrice?: number | null;
   /** Null when availability could not be resolved for this occurrence. */
   seatsRemaining: number | null;
+  /**
+   * False for a standalone session. The field stays visible but disabled with
+   * the reason; checkout refuses a code for it either way.
+   */
+  acceptsPromoCodes: boolean;
 };
 
 const guestSchema = z.object({
-  name: z.string().trim().min(2, "Escribe tu nombre completo"),
+  name: z.string().trim().min(2, "Escribí tu nombre completo"),
   email: z.string().trim().email("El correo no es válido"),
   phone: phoneValidator(),
-  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"]),
+  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"], {
+    error: "Seleccioná una opción",
+  }),
   birthdate: birthdateValidator({}),
 });
 
@@ -87,6 +96,7 @@ export default function PaidRegistrationForm({
   price,
   previousPrice,
   seatsRemaining,
+  acceptsPromoCodes,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -111,6 +121,7 @@ export default function PaidRegistrationForm({
   const funnelProperties = {
     occurrence_id: occurrenceId,
     program_slug: programSlug,
+    is_standalone: programSlug === null,
     session_slug: sessionSlug,
     session_title: sessionTitle,
     is_free: false,
@@ -169,7 +180,7 @@ export default function PaidRegistrationForm({
     // The consent actually given. See the free form for why the guard is here
     // rather than relying on the disabled button alone.
     if (!acceptsPolicy) {
-      toast.error("Confirma que entiendes la política para continuar");
+      toast.error("Confirmá que entendés la política para continuar");
       return;
     }
 
@@ -232,15 +243,16 @@ export default function PaidRegistrationForm({
         is_guest: guest !== null,
         failure: "exception",
       });
-      toast.error("No pudimos reservar tu cupo. Intenta de nuevo.");
+      toast.error("No pudimos reservar tu cupo. Intentá de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function applyPromoCode() {
+    if (!acceptsPromoCodes) return;
     if (!promoCode.trim()) {
-      toast.error("Escribe un código promocional");
+      toast.error("Escribí un código promocional");
       return;
     }
 
@@ -268,7 +280,7 @@ export default function PaidRegistrationForm({
       setAcceptsHigherPromoPrice(false);
       toast.success(`Código aplicado: ${formatMoney(result.promoPrice)}`);
     } catch {
-      toast.error("No pudimos revisar el código. Intenta de nuevo.");
+      toast.error("No pudimos revisar el código. Intentá de nuevo.");
     } finally {
       setIsApplyingPromo(false);
     }
@@ -292,13 +304,28 @@ export default function PaidRegistrationForm({
 
   const payablePrice = appliedPromo?.promoPrice ?? price;
   const comparisonPrice = appliedPromo?.basePrice ?? previousPrice;
+  // A 100% code leaves nothing to pay, and "Reservar por Sin costo" reads
+  // wrong.
+  const reserveLabel = isFreePrice(payablePrice) ? (
+    "Reservar sin costo"
+  ) : (
+    <>
+      Reservar por{" "}
+      <SessionPriceTransition
+        price={payablePrice}
+        previousPrice={comparisonPrice}
+      />
+    </>
+  );
 
+  const promoHintId = `promo-${occurrenceId}-hint`;
   const promoSection = (
-    <div className="grid gap-2 rounded-xl border border-[#9347f5]/20 bg-[#fffaf3] p-3">
+    <div className="grid gap-2 rounded-xl border border-border/70 bg-card p-3">
       <Label htmlFor={`promo-${occurrenceId}`}>Código promocional</Label>
       <div className="flex gap-2">
         <Input
           id={`promo-${occurrenceId}`}
+          aria-describedby={appliedPromo ? undefined : promoHintId}
           value={promoCode}
           onChange={(event) => {
             setPromoCode(event.target.value.toUpperCase());
@@ -308,21 +335,21 @@ export default function PaidRegistrationForm({
           placeholder="ARTISTA50"
           className="uppercase"
           maxLength={32}
-          disabled={isSubmitting || isApplyingPromo}
+          disabled={!acceptsPromoCodes || isSubmitting || isApplyingPromo}
         />
         <Button
           type="button"
           variant="outline"
           onClick={applyPromoCode}
-          disabled={isSubmitting || isApplyingPromo}
+          disabled={!acceptsPromoCodes || isSubmitting || isApplyingPromo}
         >
           {isApplyingPromo ? "Revisando…" : "Aplicar"}
         </Button>
       </div>
       {appliedPromo ? (
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 rounded-lg bg-[#dff7f3] px-3 py-2 text-[#4b255f]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 rounded-lg bg-brand-coral-soft px-3 py-2 text-brand-ink">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide">
+            <p className="text-xs font-semibold">
               {appliedPromo.discountPercent}% · {appliedPromo.partnerName}
             </p>
             <p className="text-xs opacity-75">Código {appliedPromo.code}</p>
@@ -330,22 +357,23 @@ export default function PaidRegistrationForm({
           <dl className="grid gap-0.5 text-right">
             <div className="flex items-baseline justify-end gap-1.5 text-xs opacity-70">
               <dt>Precio base</dt>
-              <dd className="line-through">
+              <dd className="tabular-nums line-through">
                 {formatMoney(appliedPromo.basePrice)}
               </dd>
             </div>
             <div className="flex items-baseline justify-end gap-1.5">
               <dt className="text-xs font-semibold">Con código</dt>
-              <dd className="text-xl font-black">
+              <dd className="text-xl font-bold tabular-nums">
                 {formatMoney(appliedPromo.promoPrice)}
               </dd>
             </div>
           </dl>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          El porcentaje se calcula sobre el precio público, sin acumular
-          descuentos.
+        <p id={promoHintId} className="text-xs text-muted-foreground">
+          {acceptsPromoCodes
+            ? "El porcentaje se calcula sobre el precio público, sin acumular descuentos."
+            : PROMO_CODE_ERROR_MESSAGES.standaloneSession}
         </p>
       )}
     </div>
@@ -359,14 +387,10 @@ export default function PaidRegistrationForm({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
-          className="h-auto min-h-9 flex gap-1 w-full whitespace-normal rounded-full bg-[#9347f5] px-5 py-2 text-center font-black text-white hover:bg-[#7f36dc] @[44rem]:w-auto"
+          variant="cta"
+          className="flex h-auto min-h-10 w-full gap-1 whitespace-normal px-5 py-2 text-center @[44rem]:w-auto"
         >
-          Reservar por{" "}
-          <SessionPriceTransition
-            price={payablePrice}
-            previousPrice={comparisonPrice}
-          />
+          {reserveLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -396,17 +420,12 @@ export default function PaidRegistrationForm({
             />
             <DialogFooter>
               <Button
+                variant="cta"
                 disabled={!acceptsPolicy || isSubmitting}
                 onClick={() => submit(null)}
                 className="flex gap-1"
               >
-                {isSubmitting ? "Reservando..." : "Reservar por"}
-                {!isSubmitting ? (
-                  <SessionPriceTransition
-                    price={payablePrice}
-                    previousPrice={comparisonPrice}
-                  />
-                ) : null}
+                {isSubmitting ? "Reservando..." : reserveLabel}
               </Button>
             </DialogFooter>
           </div>
@@ -428,7 +447,7 @@ export default function PaidRegistrationForm({
                   formControl={form.control}
                   name="birthdate"
                   label="Fecha de nacimiento"
-                  placeholder="Selecciona tu fecha de nacimiento"
+                  placeholder="Seleccioná tu fecha de nacimiento"
                   required
                 />
                 <SelectInput
@@ -436,7 +455,7 @@ export default function PaidRegistrationForm({
                   label="Género"
                   name="gender"
                   options={genderOptions}
-                  placeholder="Selecciona una opción"
+                  placeholder="Seleccioná una opción"
                   required
                 />
               </div>
@@ -451,16 +470,11 @@ export default function PaidRegistrationForm({
               <DialogFooter>
                 <Button
                   type="submit"
+                  variant="cta"
                   disabled={!acceptsPolicy || isSubmitting}
                   className="flex gap-1"
                 >
-                  {isSubmitting ? "Reservando..." : "Reservar por "}
-                  {!isSubmitting ? (
-                    <SessionPriceTransition
-                      price={payablePrice}
-                      previousPrice={comparisonPrice}
-                    />
-                  ) : null}
+                  {isSubmitting ? "Reservando..." : reserveLabel}
                 </Button>
               </DialogFooter>
             </form>
@@ -491,18 +505,16 @@ export default function PaidRegistrationForm({
 
           {pendingHigherPromo ? (
             <div className={isDesktop ? "grid gap-4" : "grid gap-4 px-4 pb-6"}>
-              <div className="grid grid-cols-[1fr_auto] overflow-hidden rounded-2xl border border-[#4b255f]/15 text-[#4b255f]">
-                <div className="bg-[#dff7f3] p-4">
-                  <p className="text-xs font-black uppercase tracking-wide">
-                    Precio actual
-                  </p>
-                  <p className="mt-1 text-3xl font-black">
+              <div className="grid grid-cols-[1fr_auto] overflow-hidden rounded-2xl border border-brand-ink/10 text-brand-ink">
+                <div className="bg-brand-lavender p-4">
+                  <p className="text-xs font-semibold">Precio actual</p>
+                  <p className="mt-1 text-3xl font-bold tabular-nums">
                     {formatMoney(pendingHigherPromo.existingPrice)}
                   </p>
                 </div>
-                <div className="grid place-content-center bg-[#ffc1fd]/45 px-4 text-center">
-                  <p className="text-xs font-bold">Código</p>
-                  <p className="text-xl font-black">
+                <div className="grid place-content-center bg-brand-coral-soft px-4 text-center">
+                  <p className="text-xs font-semibold">Código</p>
+                  <p className="text-xl font-bold tabular-nums">
                     {formatMoney(pendingHigherPromo.promoPrice)}
                   </p>
                 </div>
@@ -519,7 +531,7 @@ export default function PaidRegistrationForm({
                 >
                   Mantener {formatMoney(pendingHigherPromo.existingPrice)}
                 </Button>
-                <Button type="button" onClick={acceptHigherPromo}>
+                <Button type="button" variant="cta" onClick={acceptHigherPromo}>
                   Aplicar código · {formatMoney(pendingHigherPromo.promoPrice)}
                 </Button>
               </div>

@@ -2038,6 +2038,13 @@
       "when": 1790222883830,
       "tag": "0291_merch_bundle_selection_component_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1790638921239,
+      "tag": "0292_standalone_sessions",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import PromoCodeForm from "@/app/components/dashboard/programs/promo-code-form";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
@@ -37,6 +38,10 @@ export default async function NewProgramPromoCodePage({ searchParams }: Props) {
       <Card>
         <CardHeader>
           <CardTitle>Campaña</CardTitle>
+          <CardDescription>
+            Un código vale para las sesiones de un programa. Las charlas y
+            talleres sueltos no aceptan códigos promocionales.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <PromoCodeForm

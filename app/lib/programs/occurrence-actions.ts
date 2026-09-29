@@ -14,6 +14,7 @@ import {
   canCancelOccurrence,
   canCompleteOccurrence,
   canRescheduleOccurrence,
+  hasOccurrenceEnded,
 } from "@/app/lib/programs/state";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -57,7 +58,13 @@ const occurrenceSchema = z
       message: "El cierre de ventas no puede ser anterior a la apertura",
       path: ["salesEndAt"],
     },
-  );
+  )
+  // Sales close at the end whatever the window says, so an opening at or
+  // after it would leave the slot reading "Ventas próximamente" forever.
+  .refine((data) => !data.salesStartAt || data.salesStartAt < data.endsAt, {
+    message: "La apertura de ventas debe ser anterior al fin del horario",
+    path: ["salesStartAt"],
+  });
 
 const rescheduleSchema = z
   .object({
@@ -267,7 +274,7 @@ export async function setOccurrenceSalesClosed(
 
   const existing = await db.query.sessionOccurrences.findFirst({
     where: eq(sessionOccurrences.id, occurrenceId),
-    columns: { lifecycleStatus: true },
+    columns: { lifecycleStatus: true, endsAt: true },
   });
 
   if (!existing) {
@@ -278,6 +285,16 @@ export async function setOccurrenceSalesClosed(
     return {
       success: false,
       message: "Un horario cancelado o finalizado no se puede editar",
+    } as const;
+  }
+
+  // Reopening would report success and change nothing: sales close at the
+  // end regardless of this column.
+  if (!closed && hasOccurrenceEnded(existing.endsAt)) {
+    return {
+      success: false,
+      message:
+        "Este horario ya terminó. Para volver a vender hay que reprogramarlo a una fecha futura.",
     } as const;
   }
 
@@ -409,6 +426,14 @@ export async function rescheduleOccurrence(
     return {
       success: false,
       message: "Un horario cancelado o finalizado no se puede reprogramar",
+    } as const;
+  }
+
+  if (existing.salesStartAt !== null && existing.salesStartAt >= data.endsAt) {
+    return {
+      success: false,
+      message:
+        "La apertura de ventas queda después del nuevo fin. Edítala antes de reprogramar.",
     } as const;
   }
 

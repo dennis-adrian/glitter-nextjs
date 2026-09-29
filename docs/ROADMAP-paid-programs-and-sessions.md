@@ -216,6 +216,31 @@ Phase 0: contracts and architecture          ✅ delivered
 - Expired/rejected/pre-approval-cancelled attempts release their code slot; approved purchases keep
   the confirmed attribution.
 
+### Phase 3.2 — Standalone sessions and a session-first catalogue
+
+**Status:** implemented behind the existing `paid_programs` flag. Migration
+`0292_standalone_sessions`.
+
+**Delivered**
+
+- Sessions without a program ([PRD §5.4](./PRD-paid-programs-and-sessions.md),
+  [ARCHITECTURE §6.4.1](./ARCHITECTURE-paid-programs-and-sessions.md)): optional festival link,
+  `/programs/sessions/{slug}`, global-default settings, no promo codes, no program name in buyer
+  copy.
+- "Charlas y Talleres" catalogue led by upcoming sessions, with current programs above and
+  finished programs under "Programas anteriores"; ended sessions drop off the listing.
+- Menu entry resolved from upcoming sessions: one session links to it, one program's sessions link
+  to the program, otherwise the catalogue; nothing upcoming hides the entry.
+- Admin "Charlas y talleres sueltos" section grouped by festival, a "Nueva charla o taller suelto"
+  flow, and a session image upload.
+
+**Validation**
+
+- Free registration and paid checkout succeed for a standalone session; approval emails, resend,
+  reminders, and the door agenda include it.
+- A promo code on a standalone session is refused with its own message.
+- A test fails if any query in `app/lib/programs` inner-joins `programs`.
+
 ### Phase 4 — Multi-session cart — **[Deferred — post-MVP, §0a]**
 
 **Objective:** add commercial composition only after single-session capacity and payment are stable.

@@ -21,7 +21,8 @@ export type FreeRegistrationEmailInput = {
   purchaseId: number;
   attendeeName: string;
   attendeeEmail: string;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   sessionTitle: string;
   sessionType: SessionType;
   startsAt: Date;
@@ -347,7 +348,8 @@ export type PaymentApprovedEmailInput = {
   purchaseId: number;
   attendeeName: string;
   attendeeEmail: string;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   sessionTitle: string;
   sessionType: SessionType;
   startsAt: Date;
@@ -525,7 +527,8 @@ export async function sendWaitlistInvitationEmail(
 export type SessionDayReminderLine = {
   sessionTitle: string;
   sessionType: SessionType;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   startsAt: Date;
   endsAt: Date;
   venueName: string | null;

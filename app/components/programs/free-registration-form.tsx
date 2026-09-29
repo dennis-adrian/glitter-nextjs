@@ -35,7 +35,8 @@ import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
   occurrenceId: number;
-  programSlug: string;
+  /** Null for a standalone session. */
+  programSlug: string | null;
   sessionSlug: string;
   sessionTitle: string;
   scheduleLabel: string;
@@ -50,10 +51,12 @@ type Props = {
  * profile and is only asked to confirm.
  */
 const guestSchema = z.object({
-  name: z.string().trim().min(2, "Escribe tu nombre completo"),
+  name: z.string().trim().min(2, "Escribí tu nombre completo"),
   email: z.string().trim().email("El correo no es válido"),
   phone: phoneValidator(),
-  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"]),
+  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"], {
+    error: "Seleccioná una opción",
+  }),
   birthdate: birthdateValidator({}),
 });
 
@@ -86,6 +89,9 @@ export default function FreeRegistrationForm({
   const funnelProperties = {
     occurrence_id: occurrenceId,
     program_slug: programSlug,
+    // Standalone sessions have no program slug to group by; this keeps their
+    // registrations from reading as a missing dimension.
+    is_standalone: programSlug === null,
     session_slug: sessionSlug,
     session_title: sessionTitle,
     is_free: true,
@@ -158,7 +164,7 @@ export default function FreeRegistrationForm({
      * the server action's schema demands.
      */
     if (!acceptsPolicy) {
-      toast.error("Confirma que entiendes la política para continuar");
+      toast.error("Confirmá que entendés la política para continuar");
       return;
     }
 
@@ -217,7 +223,7 @@ export default function FreeRegistrationForm({
         is_guest: guest !== null,
         failure: "exception",
       });
-      toast.error("No pudimos completar tu inscripción. Intenta de nuevo.");
+      toast.error("No pudimos completar tu inscripción. Intentá de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -231,8 +237,8 @@ export default function FreeRegistrationForm({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
-          className="h-auto min-h-9 w-full whitespace-normal rounded-full bg-[#9347f5] px-5 py-2 text-center font-black text-white hover:bg-[#7f36dc] @[44rem]:w-auto"
+          variant="cta"
+          className="h-auto min-h-10 w-full whitespace-normal px-5 py-2 text-center @[44rem]:w-auto"
         >
           Inscribirme
         </Button>
@@ -258,6 +264,7 @@ export default function FreeRegistrationForm({
             />
             <DialogFooter>
               <Button
+                variant="cta"
                 disabled={!acceptsPolicy || isSubmitting}
                 onClick={() => submit(null)}
               >
@@ -282,7 +289,7 @@ export default function FreeRegistrationForm({
                   formControl={form.control}
                   name="birthdate"
                   label="Fecha de nacimiento"
-                  placeholder="Selecciona tu fecha de nacimiento"
+                  placeholder="Seleccioná tu fecha de nacimiento"
                   required
                 />
                 <SelectInput
@@ -290,7 +297,7 @@ export default function FreeRegistrationForm({
                   label="Género"
                   name="gender"
                   options={genderOptions}
-                  placeholder="Selecciona una opción"
+                  placeholder="Seleccioná una opción"
                   required
                 />
               </div>
@@ -303,7 +310,11 @@ export default function FreeRegistrationForm({
               />
 
               <DialogFooter>
-                <Button type="submit" disabled={!acceptsPolicy || isSubmitting}>
+                <Button
+                  type="submit"
+                  variant="cta"
+                  disabled={!acceptsPolicy || isSubmitting}
+                >
                   {isSubmitting ? "Inscribiendo..." : "Confirmar inscripción"}
                 </Button>
               </DialogFooter>
