@@ -98,7 +98,7 @@ export async function registerForFreeSession(
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ?? "Revisa los datos del formulario",
+        parsed.error.issues[0]?.message ?? "Revisá los datos del formulario",
     };
   }
 
@@ -389,7 +389,7 @@ export async function registerForFreeSession(
     if (outcome.kind === "replayed") {
       return {
         success: false,
-        message: "Esta inscripción ya se registró. Revisa tu correo.",
+        message: "Esta inscripción ya se registró. Revisá tu correo.",
       };
     }
 
@@ -445,7 +445,7 @@ export async function registerForFreeSession(
       success: true,
       message: emailed
         ? "¡Listo! Tu inscripción quedó confirmada. Te enviamos el QR por correo."
-        : "¡Listo! Tu inscripción quedó confirmada. No pudimos enviarte el correo, guarda el enlace de esta página.",
+        : "¡Listo! Tu inscripción quedó confirmada. No pudimos enviarte el correo: guardá el enlace de esta página.",
       purchaseId: outcome.purchaseId,
       accessToken,
       ticketCode: outcome.ticketCode,
@@ -463,7 +463,7 @@ export async function registerForFreeSession(
     console.error("Free registration failed");
     return {
       success: false,
-      message: "No pudimos completar tu inscripción. Intenta de nuevo.",
+      message: "No pudimos completar tu inscripción. Intentá de nuevo.",
     };
   }
 }

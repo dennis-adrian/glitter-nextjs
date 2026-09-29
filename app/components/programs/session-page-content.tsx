@@ -14,7 +14,6 @@ import ParticipantDiscountHint from "@/app/components/programs/participant-disco
 import ProgramArtworkFrame from "@/app/components/programs/program-artwork-frame";
 import ProgramViewTracker from "@/app/components/programs/program-view-tracker";
 import SessionContextHeader from "@/app/components/programs/session-context-header";
-import SessionTypePill from "@/app/components/programs/session-type-pill";
 import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { buttonVariants } from "@/app/components/ui/button";
@@ -25,6 +24,7 @@ import { nextUpcomingOccurrence } from "@/app/lib/programs/catalogue";
 import type { PublishedSession } from "@/app/lib/programs/data";
 import {
   SESSION_SKILL_LEVEL_LABELS,
+  SESSION_TYPE_LABELS,
   type ProgramSettings,
   type Venue,
 } from "@/app/lib/programs/definitions";
@@ -158,28 +158,31 @@ export default function SessionPageContent({
           )}
         >
           <div className={cn("flex flex-col", !hasHeroMedia && "max-w-6xl")}>
-            <SessionTypePill type={session.type} className="self-start" />
-
-            <h1 className="mt-4 max-w-[18ch] text-balance font-display text-4xl font-extrabold leading-[1.02] tracking-[-1px] sm:text-5xl lg:text-6xl">
+            <h1 className="max-w-[18ch] text-balance font-display text-4xl font-extrabold leading-[1.02] tracking-[-1px] sm:text-5xl lg:text-6xl">
               {session.title}
             </h1>
 
-            {session.sessionSpeakers.length > 0 ? (
-              <p className="mt-5 max-w-xl text-lg leading-8 text-brand-ink/80">
-                {session.type === "workshop"
-                  ? session.sessionSpeakers.length === 1
-                    ? "Facilita"
-                    : "Facilitan"
-                  : session.sessionSpeakers.length === 1
-                    ? "Expone"
-                    : "Exponen"}{" "}
-                <span className="font-semibold text-brand-ink">
-                  {session.sessionSpeakers
-                    .map((entry) => entry.speaker.publicName)
-                    .join(", ")}
-                </span>
-              </p>
-            ) : null}
+            <p className="mt-5 max-w-xl text-lg leading-8 text-brand-ink/80">
+              {SESSION_TYPE_LABELS[session.type]}
+              {session.topic ? <> · {session.topic}</> : null}
+              {session.sessionSpeakers.length > 0 ? (
+                <>
+                  {" · "}
+                  {session.type === "workshop"
+                    ? session.sessionSpeakers.length === 1
+                      ? "Facilita"
+                      : "Facilitan"
+                    : session.sessionSpeakers.length === 1
+                      ? "Expone"
+                      : "Exponen"}{" "}
+                  <span className="font-semibold text-brand-ink">
+                    {session.sessionSpeakers
+                      .map((entry) => entry.speaker.publicName)
+                      .join(", ")}
+                  </span>
+                </>
+              ) : null}
+            </p>
 
             {/*
               Each icon sits in its dt, pulled into the item's left gutter: a
@@ -306,14 +309,11 @@ export default function SessionPageContent({
                     <span className="block font-semibold">
                       {entry.speaker.publicName}
                     </span>
-                    {entry.speaker.occupation ? (
+                    {entry.speaker.occupation || entry.role ? (
                       <span className="mt-1 block text-sm text-brand-ink/75">
-                        {entry.speaker.occupation}
-                      </span>
-                    ) : null}
-                    {entry.role ? (
-                      <span className="mt-1.5 inline-flex rounded-full bg-brand-lavender px-2.5 py-0.5 text-xs font-semibold">
-                        {entry.role}
+                        {[entry.speaker.occupation, entry.role]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     ) : null}
                   </figcaption>
@@ -339,7 +339,7 @@ export default function SessionPageContent({
             {session.description ? (
               <section>
                 <h2 className="mb-5 font-display text-3xl font-extrabold leading-tight tracking-[-0.5px] sm:text-4xl">
-                  Lo que vamos a explorar
+                  De qué trata
                 </h2>
                 <p className="max-w-prose whitespace-pre-line text-lg leading-8 text-brand-ink/80">
                   {session.description}
@@ -350,7 +350,7 @@ export default function SessionPageContent({
             {outcomes.length > 0 ? (
               <section className="mt-14">
                 <h2 className="mb-5 font-display text-3xl font-extrabold leading-tight tracking-[-0.5px] sm:text-4xl">
-                  Lo que aprenderás
+                  Lo que vas a aprender
                 </h2>
                 <LearningOutcomesList outcomes={outcomes} />
               </section>
@@ -359,12 +359,8 @@ export default function SessionPageContent({
 
           <section id="horarios" tabIndex={-1} className="scroll-mt-28">
             <div className="rounded-2xl border border-brand-ink/10 bg-brand-card p-5 sm:p-7 lg:sticky lg:top-[calc(85px+var(--announcement-strip-height,0px)+1.5rem)]">
-              <h2 className="mb-2 flex items-center gap-2 font-display text-2xl font-extrabold tracking-[-0.5px] sm:text-3xl">
-                <TicketIcon
-                  aria-hidden="true"
-                  className="size-6 shrink-0 text-brand-primary"
-                />
-                Elige un horario
+              <h2 className="mb-2 font-display text-2xl font-extrabold tracking-[-0.5px] sm:text-3xl">
+                Elegí un horario
               </h2>
               <OccurrenceScheduleList
                 occurrences={session.occurrences}
@@ -426,14 +422,11 @@ export default function SessionPageContent({
                       <h3 className="font-display text-xl font-bold">
                         {entry.speaker.publicName}
                       </h3>
-                      {entry.speaker.occupation ? (
+                      {entry.speaker.occupation || entry.role ? (
                         <p className="mt-1 text-sm text-brand-ink/75">
-                          {entry.speaker.occupation}
-                        </p>
-                      ) : null}
-                      {entry.role ? (
-                        <p className="mt-2 inline-flex rounded-full bg-brand-lavender px-2.5 py-0.5 text-xs font-semibold">
-                          {entry.role}
+                          {[entry.speaker.occupation, entry.role]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </p>
                       ) : null}
                       {entry.speaker.bio ? (

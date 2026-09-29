@@ -63,7 +63,7 @@ export async function joinWaitlist(
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ?? "Revisa los datos del formulario",
+        parsed.error.issues[0]?.message ?? "Revisá los datos del formulario",
     };
   }
 

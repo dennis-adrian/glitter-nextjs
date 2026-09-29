@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 import ProgramDateStamp from "@/app/components/programs/program-date-stamp";
-import SessionTypePill from "@/app/components/programs/session-type-pill";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { Card } from "@/app/components/ui/card";
 import {
@@ -40,8 +39,6 @@ export default function CatalogueSessionCard({
   now,
 }: Props) {
   const href = sessionPath(session);
-  const isTalk = session.type === "talk";
-  const typeLabel = SESSION_TYPE_LABELS[session.type];
   const artwork = pickSessionArtwork(session);
   const context = resolveSessionContext(session);
   const otherDates = countOtherUpcomingOccurrences(session.occurrences, now);
@@ -64,57 +61,36 @@ export default function CatalogueSessionCard({
 
   return (
     <Card className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-brand-ink/10 bg-brand-card text-brand-ink shadow-none transition-colors hover:border-brand-primary/35">
+      {artwork ? (
+        <div className="relative m-2 mb-0 aspect-4/3 overflow-hidden rounded-xl bg-brand-lavender">
+          {/* Decorative: the speaker's name is in the text below. */}
+          <Image
+            src={artwork.src}
+            alt=""
+            fill
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className={cn(
+              "object-cover transition-transform duration-500 motion-safe:group-hover:scale-[1.02]",
+              artwork.kind === "speaker" && "object-top",
+            )}
+          />
+          <span
+            aria-hidden="true"
+            className="absolute bottom-3 right-3 grid size-11 place-items-center rounded-full bg-brand-card text-brand-ink"
+          >
+            <ArrowUpRightIcon className="size-5" />
+          </span>
+        </div>
+      ) : null}
+
       <div
         className={cn(
-          "relative m-2 mb-0 aspect-4/3 overflow-hidden rounded-xl",
-          isTalk ? "bg-brand-lavender" : "bg-brand-coral-soft",
+          "grid items-start gap-4 p-4",
+          artwork
+            ? "grid-cols-[auto_minmax(0,1fr)]"
+            : "grid-cols-[auto_minmax(0,1fr)_auto]",
         )}
       >
-        {/* A second way in for pointer users; the title link below is the
-            one keyboard and screen-reader users get. */}
-        <Link
-          href={href}
-          tabIndex={-1}
-          aria-hidden="true"
-          className="absolute inset-0 block"
-        >
-          {artwork ? (
-            <Image
-              src={artwork.src}
-              alt={artwork.alt}
-              fill
-              sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-              className={cn(
-                "object-cover transition-transform duration-500 motion-safe:group-hover:scale-[1.02]",
-                artwork.kind === "speaker" && "object-top",
-              )}
-            />
-          ) : (
-            <span className="absolute inset-0 flex flex-col justify-end p-6">
-              <span
-                aria-hidden="true"
-                className="absolute right-5 top-5 size-5 bg-brand-primary [clip-path:polygon(50%_0%,58%_42%,100%_50%,58%_58%,50%_100%,42%_58%,0%_50%,42%_42%)]"
-              />
-              {/* Clamped: a long topic would otherwise climb under the badge. */}
-              <span className="line-clamp-3 text-balance font-display text-3xl font-extrabold leading-tight tracking-[-0.5px]">
-                {session.topic ?? typeLabel}
-              </span>
-            </span>
-          )}
-        </Link>
-        <SessionTypePill
-          type={session.type}
-          className="pointer-events-none absolute left-3 top-3"
-        />
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute bottom-3 right-3 grid size-11 place-items-center rounded-full bg-brand-card text-brand-ink"
-        >
-          <ArrowUpRightIcon className="size-5" />
-        </span>
-      </div>
-
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-4 p-4">
         <ProgramDateStamp
           size="sm"
           start={nextOccurrence.startsAt}
@@ -123,17 +99,31 @@ export default function CatalogueSessionCard({
 
         <div className="min-w-0">
           <h3 className="text-balance font-display text-xl font-bold leading-tight sm:text-2xl">
+            {/* Stretched over the whole card; the context link sits above it. */}
             <Link
               href={href}
-              className="decoration-current decoration-2 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+              className="decoration-current decoration-2 underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
             >
               {session.title}
             </Link>
           </h3>
 
-          {speakerNames ? (
-            <p className="mt-1 text-sm text-brand-ink/75">Con {speakerNames}</p>
-          ) : null}
+          {/* Beside the stamp, so the type costs no row of its own. */}
+          <p className="mt-1 text-sm text-brand-ink/75">
+            <span>{SESSION_TYPE_LABELS[session.type]}</span>
+            {session.topic ? (
+              <>
+                {" "}
+                · <span>{session.topic}</span>
+              </>
+            ) : null}
+            {speakerNames ? (
+              <>
+                {" "}
+                · <span>Con {speakerNames}</span>
+              </>
+            ) : null}
+          </p>
 
           {otherDates > 0 ? (
             <p className="mt-1 text-xs tabular-nums text-brand-ink/75">
@@ -141,6 +131,25 @@ export default function CatalogueSessionCard({
             </p>
           ) : null}
         </div>
+
+        {/* With no picture to carry it, the "opens" cue sits beside the
+            title. */}
+        {artwork ? null : (
+          <span
+            aria-hidden="true"
+            className="grid size-10 place-items-center rounded-full bg-brand-lavender text-brand-ink"
+          >
+            <ArrowUpRightIcon className="size-5 transition-transform motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5" />
+          </span>
+        )}
+
+        {/* Full width under the date; clamped so cards in a row stay close
+            in height. The session page has the whole text. */}
+        {session.description ? (
+          <p className="col-span-full line-clamp-3 text-sm leading-6 text-brand-ink/75">
+            {session.description}
+          </p>
+        ) : null}
       </div>
 
       {/* The talón: the ticket perforation above the price stub. */}
@@ -149,7 +158,7 @@ export default function CatalogueSessionCard({
           {context ? (
             <Link
               href={context.href}
-              className="text-sm font-medium text-brand-primary underline underline-offset-4 [@media(hover:hover)]:no-underline [@media(hover:hover)]:hover:underline"
+              className="relative z-10 text-sm font-medium text-brand-primary underline underline-offset-4 [@media(hover:hover)]:no-underline [@media(hover:hover)]:hover:underline"
             >
               {context.label}
             </Link>

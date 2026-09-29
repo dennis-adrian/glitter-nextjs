@@ -51,10 +51,12 @@ type Props = {
  * profile and is only asked to confirm.
  */
 const guestSchema = z.object({
-  name: z.string().trim().min(2, "Escribe tu nombre completo"),
+  name: z.string().trim().min(2, "Escribí tu nombre completo"),
   email: z.string().trim().email("El correo no es válido"),
   phone: phoneValidator(),
-  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"]),
+  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"], {
+    error: "Seleccioná una opción",
+  }),
   birthdate: birthdateValidator({}),
 });
 
@@ -162,7 +164,7 @@ export default function FreeRegistrationForm({
      * the server action's schema demands.
      */
     if (!acceptsPolicy) {
-      toast.error("Confirma que entiendes la política para continuar");
+      toast.error("Confirmá que entendés la política para continuar");
       return;
     }
 
@@ -221,7 +223,7 @@ export default function FreeRegistrationForm({
         is_guest: guest !== null,
         failure: "exception",
       });
-      toast.error("No pudimos completar tu inscripción. Intenta de nuevo.");
+      toast.error("No pudimos completar tu inscripción. Intentá de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -287,7 +289,7 @@ export default function FreeRegistrationForm({
                   formControl={form.control}
                   name="birthdate"
                   label="Fecha de nacimiento"
-                  placeholder="Selecciona tu fecha de nacimiento"
+                  placeholder="Seleccioná tu fecha de nacimiento"
                   required
                 />
                 <SelectInput
@@ -295,7 +297,7 @@ export default function FreeRegistrationForm({
                   label="Género"
                   name="gender"
                   options={genderOptions}
-                  placeholder="Selecciona una opción"
+                  placeholder="Seleccioná una opción"
                   required
                 />
               </div>

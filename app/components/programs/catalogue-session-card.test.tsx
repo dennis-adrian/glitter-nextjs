@@ -98,10 +98,37 @@ describe("CatalogueSessionCard", () => {
     expect(
       screen.getByRole("link", { name: "Risografía" }).getAttribute("href"),
     ).toBe("/programs/sessions/risografia");
-    // The type badge, plus the fallback art's decorative copy of it.
-    expect(screen.getAllByText("Taller")).toHaveLength(2);
+    expect(screen.getByText("Taller")).toBeTruthy();
     expect(screen.getByText("Con Ana Rojas")).toBeTruthy();
     expect(screen.queryByText(/Parte de/)).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("leads with the type and topic when there is no artwork", () => {
+    const { container } = renderCard(
+      session({ topic: "Cómics", description: "Imprime tu primer fanzine." }),
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("Imprime tu primer fanzine.")).toBeTruthy();
+    expect(screen.getByText("Taller")).toBeTruthy();
+    expect(screen.getByText("Cómics")).toBeTruthy();
+  });
+
+  it("shows a speaker's portrait when the session has no image", () => {
+    const base = session();
+    const { container } = renderCard(
+      session({
+        topic: "Cómics",
+        sessionSpeakers: base.sessionSpeakers.map((entry) => ({
+          ...entry,
+          speaker: { ...entry.speaker, imageUrl: "https://utfs.io/f/ana.png" },
+        })),
+      }),
+    );
+
+    expect(container.querySelector("img")).not.toBeNull();
+    expect(screen.getByText("Cómics")).toBeTruthy();
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 

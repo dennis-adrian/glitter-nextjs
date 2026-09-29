@@ -104,11 +104,11 @@ const checkoutSchema = z
   }))
   .refine((value) => value.occurrenceIds.length > 0, {
     path: ["occurrenceIds"],
-    message: "Elige al menos un horario",
+    message: "Elegí al menos un horario",
   })
   .refine((value) => value.occurrenceIds.length <= MAX_CART_LINES, {
     path: ["occurrenceIds"],
-    message: `Puedes llevar hasta ${MAX_CART_LINES} sesiones por compra`,
+    message: `Podés llevar hasta ${MAX_CART_LINES} sesiones por compra`,
   });
 
 export type PaidCheckoutInput = z.input<typeof checkoutSchema>;
@@ -154,7 +154,7 @@ export async function startPaidCheckout(
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ?? "Revisa los datos del formulario",
+        parsed.error.issues[0]?.message ?? "Revisá los datos del formulario",
     };
   }
 
@@ -300,7 +300,7 @@ export async function startPaidCheckout(
       if (contexts.some((entry) => (entry.program?.id ?? null) !== programId)) {
         return {
           kind: "error" as const,
-          message: "Solo puedes comprar sesiones de un mismo programa a la vez",
+          message: "Solo podés comprar sesiones de un mismo programa a la vez",
         };
       }
 
@@ -472,7 +472,7 @@ export async function startPaidCheckout(
           return {
             kind: "error" as const,
             message:
-              "Este código deja un precio mayor. Confirma cuál precio quieres usar.",
+              "Este código deja un precio mayor. Confirmá qué precio querés usar.",
           };
         }
 
@@ -761,7 +761,7 @@ export async function startPaidCheckout(
     });
     return {
       success: false,
-      message: "No pudimos iniciar tu compra. Intenta de nuevo.",
+      message: "No pudimos iniciar tu compra. Intentá de nuevo.",
     };
   }
 
@@ -775,7 +775,7 @@ export async function startPaidCheckout(
   if (outcome.kind === "replayed") {
     return {
       success: false,
-      message: "Esta compra ya se registró. Revisa tu correo.",
+      message: "Esta compra ya se registró. Revisá tu correo.",
     };
   }
 
@@ -823,8 +823,8 @@ export async function startPaidCheckout(
       outcome.paymentMode === "free"
         ? zeroTotalEmailsSent
           ? "¡Listo! Tu código dejó la inscripción en Bs 0 y tu entrada está confirmada."
-          : "¡Listo! Tu entrada está confirmada. Guarda el enlace de esta página."
-        : "Reservamos tu cupo. Sube tu comprobante para confirmarlo.",
+          : "¡Listo! Tu entrada está confirmada. Guardá el enlace de esta página."
+        : "Reservamos tu cupo. Subí tu comprobante para confirmarlo.",
     purchaseId: outcome.purchaseId,
     accessToken,
     holdExpiresAt: outcome.holdExpiresAt,

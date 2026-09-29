@@ -225,6 +225,11 @@ export function isFreePrice(amount: number): boolean {
   return amount <= 0;
 }
 
+/** A session price as a visitor reads it: "Sin costo" instead of "Bs 0,00". */
+export function formatSessionPrice(amount: number): string {
+  return isFreePrice(amount) ? "Sin costo" : formatMoney(amount);
+}
+
 /**
  * What a participant saves versus the public price. Used by the session pages
  * and, in Phase 4, by the Week Pass recommendation.

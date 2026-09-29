@@ -90,7 +90,7 @@ const MobileSidebar = ({
   return (
     <Sheet>
       <SheetTrigger
-        aria-label="Open navigation menu"
+        aria-label="Abrir menú de navegación"
         className="cursor-default rounded-full border-brand-border text-brand-ink hover:bg-brand-lavender hover:text-brand-primary"
         variant="outline"
         size="icon"

@@ -46,7 +46,7 @@ import {
   type PromoCodePreviewResult,
 } from "@/app/lib/programs/promo-code-actions";
 import { PROMO_CODE_ERROR_MESSAGES } from "@/app/lib/programs/promo-codes";
-import { formatMoney } from "@/app/lib/programs/pricing";
+import { formatMoney, isFreePrice } from "@/app/lib/programs/pricing";
 import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
@@ -69,10 +69,12 @@ type Props = {
 };
 
 const guestSchema = z.object({
-  name: z.string().trim().min(2, "Escribe tu nombre completo"),
+  name: z.string().trim().min(2, "Escribí tu nombre completo"),
   email: z.string().trim().email("El correo no es válido"),
   phone: phoneValidator(),
-  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"]),
+  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"], {
+    error: "Seleccioná una opción",
+  }),
   birthdate: birthdateValidator({}),
 });
 
@@ -178,7 +180,7 @@ export default function PaidRegistrationForm({
     // The consent actually given. See the free form for why the guard is here
     // rather than relying on the disabled button alone.
     if (!acceptsPolicy) {
-      toast.error("Confirma que entiendes la política para continuar");
+      toast.error("Confirmá que entendés la política para continuar");
       return;
     }
 
@@ -241,7 +243,7 @@ export default function PaidRegistrationForm({
         is_guest: guest !== null,
         failure: "exception",
       });
-      toast.error("No pudimos reservar tu cupo. Intenta de nuevo.");
+      toast.error("No pudimos reservar tu cupo. Intentá de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -250,7 +252,7 @@ export default function PaidRegistrationForm({
   async function applyPromoCode() {
     if (!acceptsPromoCodes) return;
     if (!promoCode.trim()) {
-      toast.error("Escribe un código promocional");
+      toast.error("Escribí un código promocional");
       return;
     }
 
@@ -278,7 +280,7 @@ export default function PaidRegistrationForm({
       setAcceptsHigherPromoPrice(false);
       toast.success(`Código aplicado: ${formatMoney(result.promoPrice)}`);
     } catch {
-      toast.error("No pudimos revisar el código. Intenta de nuevo.");
+      toast.error("No pudimos revisar el código. Intentá de nuevo.");
     } finally {
       setIsApplyingPromo(false);
     }
@@ -302,6 +304,19 @@ export default function PaidRegistrationForm({
 
   const payablePrice = appliedPromo?.promoPrice ?? price;
   const comparisonPrice = appliedPromo?.basePrice ?? previousPrice;
+  // A 100% code leaves nothing to pay, and "Reservar por Sin costo" reads
+  // wrong.
+  const reserveLabel = isFreePrice(payablePrice) ? (
+    "Reservar sin costo"
+  ) : (
+    <>
+      Reservar por{" "}
+      <SessionPriceTransition
+        price={payablePrice}
+        previousPrice={comparisonPrice}
+      />
+    </>
+  );
 
   const promoHintId = `promo-${occurrenceId}-hint`;
   const promoSection = (
@@ -375,11 +390,7 @@ export default function PaidRegistrationForm({
           variant="cta"
           className="flex h-auto min-h-10 w-full gap-1 whitespace-normal px-5 py-2 text-center @[44rem]:w-auto"
         >
-          Reservar por{" "}
-          <SessionPriceTransition
-            price={payablePrice}
-            previousPrice={comparisonPrice}
-          />
+          {reserveLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -414,13 +425,7 @@ export default function PaidRegistrationForm({
                 onClick={() => submit(null)}
                 className="flex gap-1"
               >
-                {isSubmitting ? "Reservando..." : "Reservar por"}
-                {!isSubmitting ? (
-                  <SessionPriceTransition
-                    price={payablePrice}
-                    previousPrice={comparisonPrice}
-                  />
-                ) : null}
+                {isSubmitting ? "Reservando..." : reserveLabel}
               </Button>
             </DialogFooter>
           </div>
@@ -442,7 +447,7 @@ export default function PaidRegistrationForm({
                   formControl={form.control}
                   name="birthdate"
                   label="Fecha de nacimiento"
-                  placeholder="Selecciona tu fecha de nacimiento"
+                  placeholder="Seleccioná tu fecha de nacimiento"
                   required
                 />
                 <SelectInput
@@ -450,7 +455,7 @@ export default function PaidRegistrationForm({
                   label="Género"
                   name="gender"
                   options={genderOptions}
-                  placeholder="Selecciona una opción"
+                  placeholder="Seleccioná una opción"
                   required
                 />
               </div>
@@ -469,13 +474,7 @@ export default function PaidRegistrationForm({
                   disabled={!acceptsPolicy || isSubmitting}
                   className="flex gap-1"
                 >
-                  {isSubmitting ? "Reservando..." : "Reservar por "}
-                  {!isSubmitting ? (
-                    <SessionPriceTransition
-                      price={payablePrice}
-                      previousPrice={comparisonPrice}
-                    />
-                  ) : null}
+                  {isSubmitting ? "Reservando..." : reserveLabel}
                 </Button>
               </DialogFooter>
             </form>

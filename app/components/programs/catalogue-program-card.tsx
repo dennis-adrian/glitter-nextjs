@@ -28,10 +28,7 @@ export default function CatalogueProgramCard({
     <Card className="group relative isolate grid overflow-hidden rounded-[28px] border border-brand-ink/10 bg-brand-card text-brand-ink shadow-[0_24px_70px_rgba(41,0,92,0.12)] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-brand-primary sm:grid-cols-[minmax(0,1.15fr)_2px_minmax(0,0.85fr)]">
       {/* Not positioned, so the title link's hit area spans the whole card. */}
       <div className="flex flex-col justify-center px-6 py-8 sm:px-8 sm:py-10 lg:px-12">
-        <p className="w-fit rounded-full bg-brand-lavender px-3 py-1 text-xs font-semibold">
-          Programa
-        </p>
-        <h2 className="mt-3 max-w-[18ch] text-balance font-display text-2xl font-extrabold leading-tight tracking-[-0.5px] sm:text-3xl lg:text-4xl">
+        <h2 className="max-w-[18ch] text-balance font-display text-2xl font-extrabold leading-tight tracking-[-0.5px] sm:text-3xl lg:text-4xl">
           <Link
             href={programPath(program.slug)}
             className="decoration-brand-primary decoration-2 underline-offset-4 after:absolute after:inset-0 after:z-10 after:content-[''] focus-visible:outline-none group-hover:underline"
@@ -46,7 +43,7 @@ export default function CatalogueProgramCard({
           </p>
         ) : null}
 
-        <div className="mt-6 flex flex-wrap items-center gap-4">
+        <div className="mt-6 flex items-center gap-4">
           {/* Either date may be set alone; show whichever exists. */}
           {program.startDate || program.endDate ? (
             <ProgramDateStamp
@@ -56,19 +53,26 @@ export default function CatalogueProgramCard({
               third="year"
             />
           ) : null}
-          <span
-            aria-hidden="true"
-            className={cn(buttonVariants({ variant: "cta" }), "min-h-11 gap-2")}
-          >
-            Ver programa
-            <ArrowUpRightIcon className="size-4" />
-          </span>
-          <span className="text-sm font-medium tabular-nums text-brand-ink/75">
-            {/* Announced before any session is published or scheduled. */}
-            {upcomingCount === 0
-              ? "Fechas por anunciar"
-              : `${upcomingCount} ${upcomingCount === 1 ? "sesión próxima" : "sesiones próximas"}`}
-          </span>
+          {/* Stacked beside the stamp rather than wrapping onto a row of
+              its own. */}
+          <div className="flex min-w-0 flex-col items-start gap-2">
+            <span
+              aria-hidden="true"
+              className={cn(
+                buttonVariants({ variant: "cta" }),
+                "min-h-11 gap-2",
+              )}
+            >
+              Ver programa
+              <ArrowUpRightIcon className="size-4" />
+            </span>
+            <span className="text-sm font-medium tabular-nums text-brand-ink/75">
+              {/* Announced before any session is published or scheduled. */}
+              {upcomingCount === 0
+                ? "Fechas por anunciar"
+                : `${upcomingCount} ${upcomingCount === 1 ? "sesión próxima" : "sesiones próximas"}`}
+            </span>
+          </div>
         </div>
       </div>
 

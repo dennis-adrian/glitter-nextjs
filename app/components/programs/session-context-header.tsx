@@ -35,11 +35,8 @@ export default function SessionContextHeader({ program, festival }: Props) {
         <>
           <Link href={programPath(program.slug)} className={BACK_LINK_CLASS}>
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
-            Volver al programa
+            Volver a {program.name}
           </Link>
-          <span className="inline-flex min-h-10 items-center rounded-full bg-brand-card px-4 text-sm font-semibold">
-            {program.name}
-          </span>
         </>
       ) : (
         <>

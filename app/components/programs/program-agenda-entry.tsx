@@ -82,7 +82,7 @@ export default function ProgramAgendaEntry({
 
         {session.learningOutcomes && session.learningOutcomes.length > 0 ? (
           <div className="mt-5">
-            <p className="text-sm font-semibold">Lo que aprenderás</p>
+            <p className="text-sm font-semibold">Lo que vas a aprender</p>
             <LearningOutcomesList
               outcomes={session.learningOutcomes}
               compact

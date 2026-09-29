@@ -18,7 +18,7 @@ describe("SessionContextHeader", () => {
 
     expect(
       screen
-        .getByRole("link", { name: "Volver al programa" })
+        .getByRole("link", { name: "Volver a Semana Glitter" })
         .getAttribute("href"),
     ).toBe("/programs/semana");
   });

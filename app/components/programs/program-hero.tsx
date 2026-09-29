@@ -47,7 +47,9 @@ export default function ProgramHero({
             </p>
           ) : null}
 
-          <div className="mt-8 flex flex-wrap items-center gap-4">
+          {/* Phones: stamp and count share a row, the action spans below.
+              Wider: the action and count stack beside the stamp. */}
+          <div className="mt-8 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 sm:gap-x-5 sm:gap-y-2">
             {/* Either date may be set alone. With neither, the agenda's own
                 days speak for the dates, so only an empty program says
                 they are pending. */}
@@ -57,19 +59,20 @@ export default function ProgramHero({
                 end={endDate}
                 third="year"
                 size="lg"
+                className="sm:row-span-2"
               />
             ) : null}
             <SmoothScrollLink
               targetId={agendaId}
               className={cn(
                 buttonVariants({ variant: "cta", size: "lg" }),
-                "gap-2",
+                "order-last col-span-2 gap-2 sm:order-none sm:col-span-1 sm:w-fit sm:self-end",
               )}
             >
               Explorar el programa
               <ArrowDownIcon className="size-4" aria-hidden="true" />
             </SmoothScrollLink>
-            <span className="rounded-full bg-brand-card px-4 py-2 text-sm font-semibold tabular-nums">
+            <span className="text-sm font-semibold tabular-nums text-brand-ink/75 sm:self-start">
               {sessionCount} {sessionCount === 1 ? "sesión" : "sesiones"} ·{" "}
               {dayCount} {dayCount === 1 ? "día" : "días"}
             </span>
