@@ -105,7 +105,9 @@ export async function previewProgramPromoCode(input: {
       programSessions,
       eq(programSessions.id, sessionOccurrences.sessionId),
     )
-    .innerJoin(programs, eq(programs.id, programSessions.programId))
+    // Left, not inner, so a standalone session gets its own answer below
+    // instead of looking like a missing occurrence.
+    .leftJoin(programs, eq(programs.id, programSessions.programId))
     .where(eq(sessionOccurrences.id, parsed.data.occurrenceId))
     .limit(1);
 
@@ -116,9 +118,17 @@ export async function previewProgramPromoCode(input: {
     };
   }
 
+  const { program } = context;
+  if (!program) {
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.standaloneSession,
+    };
+  }
+
   const occurrenceState = resolveOccurrenceState(
     {
-      programStatus: context.program.status,
+      programStatus: program.status,
       sessionStatus: context.session.status,
       lifecycleStatus: context.occurrence.lifecycleStatus,
       endsAt: context.occurrence.endsAt,
@@ -145,7 +155,7 @@ export async function previewProgramPromoCode(input: {
     db.query.programSettings.findFirst({
       where: eq(programSettings.key, "global"),
     }),
-    fetchProgramPromoCode(db, context.program.id, parsed.data.code),
+    fetchProgramPromoCode(db, program.id, parsed.data.code),
   ]);
 
   if (!settings) {
@@ -177,7 +187,7 @@ export async function previewProgramPromoCode(input: {
     {
       publicPrice: context.session.publicPrice,
       participantPrice: context.session.participantPrice,
-      programDiscount: programDiscountFrom(context.program),
+      programDiscount: programDiscountFrom(program),
       globalDiscount: globalDiscountFrom(settings),
     },
     eligibility,

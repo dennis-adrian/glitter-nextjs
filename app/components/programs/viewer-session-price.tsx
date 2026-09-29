@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import SessionPriceTransition from "@/app/components/programs/session-price-transition";
 import type { ParticipantEligibility } from "@/app/lib/programs/eligibility";
-import { formatMoney } from "@/app/lib/programs/pricing";
+import { formatSessionPrice } from "@/app/lib/programs/pricing";
 import { getCurrentViewerProgramEligibility } from "@/app/lib/programs/registration-actions";
 
 type Props = {
@@ -91,5 +91,5 @@ export default function ViewerSessionPrice({
     );
   }
 
-  return <span>{formatMoney(publicPrice)}</span>;
+  return <span>{formatSessionPrice(publicPrice)}</span>;
 }

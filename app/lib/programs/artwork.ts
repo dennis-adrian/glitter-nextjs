@@ -1,5 +1,8 @@
-export const DEFAULT_PROGRAM_ARTWORK =
-  "/img/programs/program-banner-placeholder.svg";
+/**
+ * The og:image when a program or session has no allowed artwork of its own.
+ * A 1200x630 PNG, because social crawlers do not reliably render SVG.
+ */
+export const DEFAULT_PROGRAM_ARTWORK = "/img/programs/program-og-default.png";
 
 const ALLOWED_REMOTE_ARTWORK_HOSTS = new Set([
   "img.clerk.com",
@@ -25,9 +28,7 @@ function isAllowedLocalArtworkPath(input: string): boolean {
     const normalizedPathname = new URL(decodedPathname, LOCAL_ARTWORK_ORIGIN)
       .pathname;
 
-    return (
-      input.startsWith("/img/") && normalizedPathname.startsWith("/img/")
-    );
+    return input.startsWith("/img/") && normalizedPathname.startsWith("/img/");
   } catch {
     return false;
   }

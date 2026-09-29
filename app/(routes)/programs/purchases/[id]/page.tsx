@@ -83,6 +83,17 @@ export default async function PurchaseAccessPage({
     ? await getQrCodeForAmount(purchase.totalAmount)
     : null;
 
+  /**
+   * What the purchase is for. A standalone session has no program to name, so
+   * its own title takes the program's place — the tickets below only render
+   * once issued, and a pending purchase would otherwise say nothing about it.
+   */
+  const purchaseLabel =
+    purchase.program?.name ??
+    Array.from(new Set(purchase.lines.map((line) => line.session.title))).join(
+      ", ",
+    );
+
   return (
     <div className="container mx-auto max-w-2xl space-y-6 px-4 py-8">
       {/* No token in the properties: the URL carries a credential and PostHog
@@ -91,7 +102,8 @@ export default async function PurchaseAccessPage({
         event={POSTHOG_EVENTS.PROGRAM_PURCHASE_VIEWED}
         properties={{
           purchase_id: purchase.id,
-          program_slug: purchase.program.slug,
+          // Null for a standalone session, which has no program.
+          program_slug: purchase.program?.slug ?? null,
           purchase_status: purchase.status,
           payment_mode: purchase.paymentMode,
           total_amount: purchase.totalAmount,
@@ -102,7 +114,7 @@ export default async function PurchaseAccessPage({
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">Tu inscripción</h1>
         <p className="text-sm text-muted-foreground">
-          {purchase.program.name} ·{" "}
+          {purchaseLabel ? `${purchaseLabel} · ` : null}
           {SESSION_PURCHASE_STATUS_LABELS[purchase.status]}
         </p>
       </header>

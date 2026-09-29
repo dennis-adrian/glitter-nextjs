@@ -441,7 +441,8 @@ export type { RosterSeatState };
 /** One occurrence on the door agenda, with the counts an operator reads. */
 export type CheckInAgendaEntry = {
   occurrenceId: number;
-  programName: string;
+  /** Null for a standalone session. */
+  programName: string | null;
   sessionTitle: string;
   sessionType: SessionType;
   startsAt: Date;
@@ -500,7 +501,7 @@ export async function fetchCheckInAgenda(
     return [
       {
         occurrenceId: occurrence.id,
-        programName: occurrence.session.program.name,
+        programName: occurrence.session.program?.name ?? null,
         sessionTitle: occurrence.session.title,
         sessionType: occurrence.session.type,
         startsAt: occurrence.startsAt,

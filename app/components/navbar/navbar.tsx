@@ -23,8 +23,8 @@ async function resolveProgramsHref(): Promise<string | null> {
 
   if (!navEnabled || !programsEnabled) return null;
 
-  // Null when nothing is published yet — an entry leading to an empty
-  // catalogue is worse than no entry.
+  // Null when no published session has a date still ahead — an entry leading
+  // to an empty catalogue is worse than no entry.
   return fetchProgramsNavTarget();
 }
 

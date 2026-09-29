@@ -19,7 +19,8 @@ import * as styles from "@/app/emails/styles";
 
 export type ProgramRegistrationEmailProps = {
   attendeeName: string;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   sessionTitle: string;
   sessionTypeLabel: string;
   /** Preformatted — the template does no date maths. */
@@ -88,7 +89,8 @@ export default function ProgramRegistrationEmailTemplate({
 
             <Section style={styles.detailBox}>
               <Text style={styles.detailLine}>
-                <strong>{sessionTypeLabel}</strong> · {programName}
+                <strong>{sessionTypeLabel}</strong>
+                {programName ? ` · ${programName}` : null}
               </Text>
               <Text style={styles.detailLine}>{scheduleLabel}</Text>
               {venueLabel ? (

@@ -1,9 +1,21 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { programSessions, programs } from "@/db/schema";
 
 const MAX_SLUG_LENGTH = 120;
+
+/**
+ * Static segments under `/programs` that a program slug would collide with:
+ * `/programs/sessions/{slug}` is a standalone session, `/programs/purchases/…`
+ * a buyer's purchase, and `/programs/waitlist/…` is where waitlist emails
+ * point. A program named after one of them gets a numbered slug instead.
+ */
+export const RESERVED_PROGRAM_SLUGS: ReadonlySet<string> = new Set([
+  "sessions",
+  "purchases",
+  "waitlist",
+]);
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -36,7 +48,10 @@ export async function ensureUniqueProgramSlug(
   let candidate = base;
   let n = 2;
 
-  while (await isProgramSlugTaken(tx, candidate, excludeProgramId)) {
+  while (
+    RESERVED_PROGRAM_SLUGS.has(candidate) ||
+    (await isProgramSlugTaken(tx, candidate, excludeProgramId))
+  ) {
     candidate = `${base}-${n}`;
     n++;
   }
@@ -63,10 +78,14 @@ async function isProgramSlugTaken(
   return rows.length > 0;
 }
 
-/** Session slugs are unique per program, not globally. */
+/**
+ * Session slugs are unique per program, not globally. Standalone sessions
+ * (`programId` null) share one namespace of their own, the one behind
+ * `/programs/sessions/{slug}`.
+ */
 export async function ensureUniqueSessionSlug(
   tx: DbOrTx,
-  programId: number,
+  programId: number | null,
   baseSlug: string,
   excludeSessionId?: number,
 ): Promise<string> {
@@ -84,12 +103,14 @@ export async function ensureUniqueSessionSlug(
 
 async function isSessionSlugTaken(
   tx: DbOrTx,
-  programId: number,
+  programId: number | null,
   slug: string,
   excludeSessionId?: number,
 ): Promise<boolean> {
   const matches = and(
-    eq(programSessions.programId, programId),
+    programId === null
+      ? isNull(programSessions.programId)
+      : eq(programSessions.programId, programId),
     eq(programSessions.slug, slug),
   );
   const where =

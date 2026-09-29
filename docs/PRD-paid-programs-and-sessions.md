@@ -191,6 +191,20 @@ Materials and prerequisites are outside the MVP.
 - Each session has a public page and shareable URL.
 - A published session may be shared even when other sessions in the program remain in draft.
 - An admin may publish sessions individually or publish all eligible sessions in the program in one action.
+- The public "Charlas y Talleres" page lists upcoming sessions first, with programs that still have upcoming sessions above them and finished programs under "Programas anteriores". A session drops off the listing once it has ended; its link keeps working.
+
+### 5.4 Standalone sessions
+
+_Added 2026-09-28._
+
+A talk or workshop can be launched on its own, without a program around it — typically one or two sessions tied to a festival.
+
+- A standalone session has no program. It may be linked to a festival, shown on its page as "Parte de {festival}".
+- Its public URL is `/programs/sessions/{slug}`.
+- Program-level settings fall back to the global defaults (participant discount, hold time, waitlist window).
+- It accepts no promo codes in this version; the code field is shown disabled with the reason.
+- Emails, the ticket page, "Mis inscripciones", and door screens show no program name for it.
+- Admins create it from "Nueva charla o taller suelto"; the dashboard lists standalone sessions grouped by festival.
 
 ## 6. Audience, eligibility, and pricing
 
@@ -506,7 +520,7 @@ The expected technical design includes separate concepts for program, session, o
 
 ### Included in the MVP
 
-- Glitter Week and standalone programs.
+- Glitter Week, standalone programs, and standalone sessions (§5.4).
 - Talks and workshops with multiple speakers.
 - Individual sessions, purchased one at a time.
 - Eligibility-based pricing and free sessions.

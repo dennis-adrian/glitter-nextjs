@@ -15,6 +15,7 @@ import {
 import { fetchFestivals } from "@/app/lib/festivals/actions";
 import { fetchProgramForAdmin, fetchVenues } from "@/app/lib/programs/data";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
+import { sessionAdminPath } from "@/app/lib/programs/paths";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 type Props = {
@@ -99,7 +100,7 @@ export default async function ProgramDetailPage({ params }: Props) {
                 >
                   <div className="min-w-0 space-y-1">
                     <Link
-                      href={`/dashboard/programs/${program.id}/sessions/${session.id}`}
+                      href={sessionAdminPath(session)}
                       className="truncate font-medium hover:underline"
                     >
                       {session.title}

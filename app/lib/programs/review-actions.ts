@@ -282,7 +282,9 @@ export async function reviewPurchase(
           sessionOccurrences,
           eq(sessionOccurrences.id, sessionPurchaseLines.occurrenceId),
         )
-        .innerJoin(programs, eq(programs.id, purchase.programId))
+        // Through the session, and left: a standalone session has no program,
+        // and an inner join would drop its lines and send no email at all.
+        .leftJoin(programs, eq(programs.id, programSessions.programId))
         .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
         // Only a live ticket may supply a code: `notifyBuyer` mails a QR for
         // whatever it finds here, and a cancelled ticket's code would send the
@@ -371,7 +373,8 @@ type NotifyRow = {
   endsAt: Date;
   room: string | null;
   venueName: string | null;
-  programName: string;
+  /** Null for a standalone session. */
+  programName: string | null;
   ticketCode: string | null;
 };
 

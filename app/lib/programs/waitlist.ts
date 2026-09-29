@@ -21,7 +21,7 @@ export const WAITLIST_JOIN_BLOCKER_LABELS: Record<WaitlistJoinBlocker, string> =
   {
     not_on_sale: "Este horario no está aceptando inscripciones ahora mismo",
     seats_available: "Todavía hay cupos: puedes inscribirte directamente",
-    already_registered: "Ya tienes una entrada para este horario",
+    already_registered: "Ya tenés una entrada para este horario",
     already_waiting: "Ya estás en la lista de espera de este horario",
   };
 

@@ -14,7 +14,7 @@ export const birthdateValidator = ({
 }) => {
   if (minAge) {
     return z.coerce
-      .date()
+      .date({ error: "Seleccioná tu fecha de nacimiento" })
       .refine((date) => date < new Date(), {
         error: "La fecha de nacimiento no puede ser en el futuro",
       })
@@ -29,9 +29,11 @@ export const birthdateValidator = ({
       );
   }
 
-  return z.coerce.date().refine((date) => date < new Date(), {
-    error: "La fecha de nacimiento no puede ser en el futuro",
-  });
+  return z.coerce
+    .date({ error: "Seleccioná tu fecha de nacimiento" })
+    .refine((date) => date < new Date(), {
+      error: "La fecha de nacimiento no puede ser en el futuro",
+    });
 };
 
 export const phoneValidator = () => {
