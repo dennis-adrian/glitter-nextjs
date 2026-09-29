@@ -90,6 +90,7 @@ const pendingReservation = {
   priceAmountSnapshot: 100,
   individualPriceSnapshot: 100,
   sharedPriceSnapshot: 150,
+  fullTablePriceSnapshot: null as number | null,
   bookedParticipantCount: 1,
 };
 
@@ -753,6 +754,77 @@ describe("updateReservationPartner", () => {
       ),
     ).toBe(false);
   });
+
+  it.each([
+    {
+      change: "adding",
+      participants: [{ userId: 3 }],
+      partnerUserId: 4,
+      bookedParticipantCount: 2,
+    },
+    {
+      change: "removing",
+      participants: [{ userId: 3 }, { userId: 4 }],
+      partnerUserId: null,
+      bookedParticipantCount: 1,
+    },
+  ])(
+    "keeps a full table's price after $change a partner",
+    async ({ participants, partnerUserId, bookedParticipantCount }) => {
+      currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+      const updates: Array<{
+        table: unknown;
+        payload: Record<string, unknown>;
+      }> = [];
+      const tx = tableAwareTx({
+        reservation: {
+          ...pendingReservation,
+          priceAmountSnapshot: 800,
+          fullTablePriceSnapshot: 800,
+          bookedParticipantCount: participants.length,
+        },
+        memberStandIds: [7, 8],
+        participants,
+        invoices: [
+          {
+            id: 1,
+            userId: 3,
+            status: "pending",
+            reservationId: 9,
+            originalAmount: 800,
+            discountAmount: 0,
+            amount: 800,
+          },
+        ],
+      });
+      tx.update = vi.fn((table: unknown) => ({
+        set: vi.fn((payload: Record<string, unknown>) => {
+          updates.push({ table, payload });
+          return { where: vi.fn().mockResolvedValue([]) };
+        }),
+      }));
+      transactionMock.mockImplementation(
+        async (callback: (value: unknown) => unknown) => callback(tx),
+      );
+
+      const result = await updateReservationPartner({
+        reservationId: 9,
+        partnerUserId,
+      });
+
+      expect(result.success).toBe(true);
+      expect(updates).toContainEqual({
+        table: standReservations,
+        payload: expect.objectContaining({ bookedParticipantCount }),
+      });
+      expect(
+        updates.some(
+          ({ table, payload }) =>
+            table === invoices || "priceAmountSnapshot" in payload,
+        ),
+      ).toBe(false);
+    },
+  );
 });
 
 describe("extendReservationPaymentDeadline", () => {
