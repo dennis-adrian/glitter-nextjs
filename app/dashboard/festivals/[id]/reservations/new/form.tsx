@@ -54,7 +54,7 @@ const FormSchema = z.object({
   revealAt: z.string().optional(),
   partnerId: z.string().optional(),
   externalParticipantId: z.string().optional(),
-  displayName: z.string().optional(),
+  displayName: z.string().max(80, "Usá 80 caracteres o menos").optional(),
   type: z.string().optional(),
   customCategoryLabel: z.string().optional(),
   description: z.string().optional(),
@@ -96,11 +96,13 @@ function TextField({
   name,
   label,
   placeholder,
+  maxLength,
 }: {
   form: UseFormReturn<FormValues>;
   name: keyof FormValues;
   label: string;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <FormField
@@ -110,7 +112,7 @@ function TextField({
         <FormItem>
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <Input placeholder={placeholder} {...field} />
+            <Input maxLength={maxLength} placeholder={placeholder} {...field} />
           </FormControl>
           <FormMessage />
         </FormItem>
@@ -446,6 +448,7 @@ export default function CreateReservationForm({
                   name="displayName"
                   label="Nombre"
                   placeholder="Nombre de la institución"
+                  maxLength={80}
                 />
                 <SelectInput
                   formControl={form.control}

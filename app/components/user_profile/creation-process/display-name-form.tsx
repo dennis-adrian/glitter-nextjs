@@ -11,9 +11,15 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-  displayName: z.string().trim().min(2, {
-    error: "El nombre tiene que tener al menos dos letras",
-  }),
+  displayName: z
+    .string()
+    .trim()
+    .min(2, {
+      error: "El nombre tiene que tener al menos dos letras",
+    })
+    .max(80, {
+      error: "Usá 80 caracteres o menos",
+    }),
   bio: z
     .string()
     .trim()
@@ -60,6 +66,7 @@ export default function DisplayNameForm(props: DisplayNameFormProps) {
         <TextInput
           bottomBorderOnly
           label="Nombre de tu perfil"
+          maxLength={80}
           name="displayName"
           placeholder={
             props.displayNamePlaceholder ||
@@ -69,6 +76,7 @@ export default function DisplayNameForm(props: DisplayNameFormProps) {
         <TextareaInput
           formControl={form.control}
           label="Bio/Descripción"
+          maxLength={80}
           name="bio"
           placeholder="Danos más detalles"
         />

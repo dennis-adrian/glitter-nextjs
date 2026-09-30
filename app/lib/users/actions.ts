@@ -25,6 +25,7 @@ import {
   requireProfileOwnerOrStaff,
 } from "@/app/lib/users/helpers";
 import {
+  DISPLAY_NAME_MAX_LENGTH,
   pickSelfEditableProfileFields,
   SelfEditableProfile,
 } from "@/app/lib/users/profile-fields";
@@ -180,6 +181,18 @@ export async function updateProfile(
   // re-applied here: `status`, `role`, `category` and the rest of the
   // privileged columns are dropped rather than written.
   const fields = pickSelfEditableProfileFields(profile);
+
+  if (typeof fields.displayName === "string") {
+    // Check and store the same trimmed value, so trailing spaces cannot carry
+    // a stored name past the limit.
+    fields.displayName = fields.displayName.trim();
+    if (fields.displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+      return {
+        success: false,
+        message: `Tu nombre puede tener hasta ${DISPLAY_NAME_MAX_LENGTH} caracteres`,
+      };
+    }
+  }
 
   try {
     await db
