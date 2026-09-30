@@ -62,6 +62,7 @@ type ReservationPricingSnapshot = {
   priceAmountSnapshot: number | null;
   individualPriceSnapshot: number | null;
   sharedPriceSnapshot: number | null;
+  fullTablePriceSnapshot: number | null;
 };
 
 async function synchronizeReservationParticipantPricing(
@@ -69,6 +70,18 @@ async function synchronizeReservationParticipantPricing(
   reservation: ReservationPricingSnapshot,
   participantCount: number,
 ) {
+  // A full table bills the table price whatever the headcount, so adding or
+  // removing a partner changes who is on it and nothing else. Repricing from
+  // the half's individual/shared snapshots here dropped a full table back to
+  // a half's price on the next partner edit.
+  if (reservation.fullTablePriceSnapshot != null) {
+    await tx
+      .update(standReservations)
+      .set({ bookedParticipantCount: participantCount, updatedAt: new Date() })
+      .where(eq(standReservations.id, reservation.id));
+    return;
+  }
+
   const applicablePriceSnapshot =
     participantCount > 1
       ? reservation.sharedPriceSnapshot
@@ -491,6 +504,7 @@ export async function updateReservationPartner(
           priceAmountSnapshot: standReservations.priceAmountSnapshot,
           individualPriceSnapshot: standReservations.individualPriceSnapshot,
           sharedPriceSnapshot: standReservations.sharedPriceSnapshot,
+          fullTablePriceSnapshot: standReservations.fullTablePriceSnapshot,
         })
         .from(standReservations)
         .where(eq(standReservations.id, reservationId))

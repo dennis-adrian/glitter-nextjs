@@ -33,6 +33,13 @@ export const RESERVATION_ERROR_CODES = [
   "FULL_TABLE_ACCESS_INACTIVE",
   "FULL_TABLE_NOT_DOWNGRADABLE",
   "FULL_TABLE_HOLD_ACTIVE",
+  "FULL_TABLE_NOT_UPGRADABLE",
+  "FULL_TABLE_UPGRADE_NO_TABLE",
+  "FULL_TABLE_COMPANION_TAKEN",
+  "FULL_TABLE_COMPANION_HELD",
+  "FULL_TABLE_UPGRADE_PROOF_UNDER_REVIEW",
+  "FULL_TABLE_UPGRADE_STALE",
+  "FULL_TABLE_UPGRADE_REFUND_NO_OWNER",
   "RELEASE_UNAVAILABLE",
   "RELEASE_NOT_PENDING",
   "RELEASE_INSUFFICIENT_CREDITS",
@@ -121,6 +128,26 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "Esta reserva no se puede reducir: o no ocupa dos espacios, o ya tiene pagos o créditos aplicados.",
     FULL_TABLE_HOLD_ACTIVE:
       "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
+    // The upgrade codes are admin-only: the command is a global admin's, so
+    // these are written for the operator looking at somebody's reservation.
+    FULL_TABLE_NOT_UPGRADABLE:
+      "Esta reserva no se puede ampliar: ya ocupa dos espacios o ya no ocupa ninguno.",
+    FULL_TABLE_UPGRADE_NO_TABLE:
+      "El espacio de esta reserva no forma parte de una mesa completa con precio configurado.",
+    FULL_TABLE_COMPANION_TAKEN:
+      "La otra mitad de la mesa ya está ocupada por otra reserva.",
+    FULL_TABLE_COMPANION_HELD:
+      "Alguien está reservando la otra mitad de la mesa en este momento. Esperá a que termine o expire.",
+    // Also a zero-value entitlement request, which is under review the same
+    // way a comprobante is and would be judged against the old total.
+    FULL_TABLE_UPGRADE_PROOF_UNDER_REVIEW:
+      "Hay un comprobante o una solicitud en revisión para esta reserva. Resolvelo antes de ampliarla a mesa completa.",
+    // The numbers the admin confirmed are not the ones the server would apply:
+    // a payment, a refund or the table price moved after the dialog opened.
+    FULL_TABLE_UPGRADE_STALE:
+      "El monto cambió desde que abriste el diálogo. Actualizá la página y revisalo de nuevo.",
+    FULL_TABLE_UPGRADE_REFUND_NO_OWNER:
+      "Lo ya pagado supera el precio de la mesa y esta reserva no tiene titular a quien devolverle la diferencia en créditos.",
     RELEASE_UNAVAILABLE:
       "Liberar reservas no está habilitado en este festival.",
     // Named for what the participant can see rather than for the status: they
