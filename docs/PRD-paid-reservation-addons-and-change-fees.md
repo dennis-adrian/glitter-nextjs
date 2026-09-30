@@ -1149,7 +1149,7 @@ The command refuses anything but `pending` and rechecks that under lock, so a pa
 - Using credits for store, programs, sessions, or every Glitter purchase in MVP.
 - Credit transfers, cash refunds, withdrawals, expiration, or promotional-credit rules.
 - Guaranteed full-table inventory or waitlists.
-- Full-table upgrades after a half-table reservation is created.
+- Participant self-service full-table upgrades after a half-table reservation is created. An admin-only upgrade now exists ([PRD-admin-stand-management §7, Feature D](PRD-admin-stand-management.md)): no credits, and money already paid is settled like an admin stand switch. Participants still activate full-table access only before they have a reservation (§7.2).
 - Self-service partner replacement/removal.
 - Partners outside illustration or more than one partner.
 - Any self-service path out of a terminal reservation. Whatever ended it, only an admin lifts the block, by hand.

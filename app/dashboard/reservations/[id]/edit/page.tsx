@@ -1,9 +1,15 @@
 import { fetchReservationForAdmin } from "@/app/lib/reservations/queries";
 import EditReservationForm from "@/app/components/reservations/edit-form";
 import FullTableDowngradeButton from "@/app/components/reservations/full-table-downgrade-button";
+import FullTableUpgradeButton from "@/app/components/reservations/full-table-upgrade-button";
+import {
+  describeFullTableUpgradeCard,
+  fullTableUpgradeDisabledReason,
+} from "@/app/components/reservations/full-table-upgrade-options";
 import StandChangeControl from "@/app/components/reservations/stand-change-control";
 import { standChangeDisabledReason } from "@/app/components/reservations/stand-change-options";
 import { fetchStandChangeOptions } from "@/app/lib/reservations/stand-change-queries";
+import { fetchFullTableUpgradePreview } from "@/app/lib/reservations/full-table-upgrade-queries";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -67,21 +73,46 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   // Only a global admin may run it; a festival admin sees it inert rather than
   // missing, so the action reads as restricted instead of unimplemented.
   const actor = await getCurrentUserProfile();
+  const isGlobalAdmin = canMutateAdminReservations(actor);
   const [keptStand, releasedStand] = standSummary.active;
 
   // The picker lists every stand in the festival, occupied ones included:
-  // choosing one of those is how an admin reaches the exchange.
-  const standChangeOptions = await fetchStandChangeOptions(
-    reservation.festivalId,
-  );
+  // choosing one of those is how an admin reaches the exchange. A full table
+  // has no single half to widen, so its upgrade preview is not even asked for.
+  const [standChangeOptions, upgradePreview] = await Promise.all([
+    fetchStandChangeOptions(reservation.festivalId),
+    standSummary.isFullTable
+      ? Promise.resolve(null)
+      : fetchFullTableUpgradePreview(reservation.id),
+  ]);
   const liveMembers = reservation.members.filter(
     (member) => member.releasedAt == null,
   );
   const standChangeBlockedReason = standChangeDisabledReason({
-    isGlobalAdmin: canMutateAdminReservations(actor),
+    isGlobalAdmin,
     liveMemberCount: liveMembers.length,
     reservationStatus: reservation.status,
   });
+  // Offered only where a stand really is half of a declared table; a stand
+  // outside any table lacks the concept altogether. Every other blocker keeps
+  // the control on the page, disabled with its reason.
+  const showUpgrade =
+    !standSummary.isFullTable && upgradePreview?.inFullTableGroup === true;
+  const upgradeBlockedReason =
+    showUpgrade && upgradePreview
+      ? fullTableUpgradeDisabledReason({
+          isGlobalAdmin,
+          reservationStatus: reservation.status,
+          liveMemberCount: liveMembers.length,
+          preview: upgradePreview,
+        })
+      : null;
+  const upgradeDescription = upgradePreview
+    ? describeFullTableUpgradeCard({
+        preview: upgradePreview,
+        disabledReason: upgradeBlockedReason,
+      })
+    : null;
 
   const statusLabel =
     {
@@ -137,7 +168,12 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
           nesting them inside a page-wide card made every heading look like a
           sub-heading of something else. */}
       <div className="space-y-6">
+        {/* Keyed by status: the form seeds its fields once, and the stand
+            switch and the full-table upgrade can reopen the reservation to
+            `pending` behind it. Without a remount the select would keep
+            offering the old status after the refresh. */}
         <EditReservationForm
+          key={`${reservation.id}:${reservation.status}`}
           artists={uniqueParticipants as ProfileWithParticipationsAndRequests[]}
           artistsOptions={options}
           reservation={reservation}
@@ -165,6 +201,22 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
           </CardContent>
         </Card>
 
+        {showUpgrade && upgradePreview ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Mesa completa</CardTitle>
+              <CardDescription>{upgradeDescription}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FullTableUpgradeButton
+                reservationId={reservation.id}
+                preview={upgradePreview}
+                disabledReason={upgradeBlockedReason}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
         {/* Isolated because it hands a stand back to the map, where somebody
             else can take it before anyone changes their mind. */}
         {standSummary.isFullTable && keptStand && releasedStand ? (
@@ -173,7 +225,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
               <CardTitle className="text-lg">Zona de riesgo</CardTitle>
               <CardDescription>
                 Esta reserva ocupa los dos espacios de una mesa. Si los créditos
-                que la pagaron fueron revertidos, puedes dejarla con el espacio
+                que la pagaron fueron revertidos, podés dejarla con el espacio
                 que el participante eligió primero y devolver el otro al mapa.
               </CardDescription>
             </CardHeader>
@@ -183,7 +235,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
                 keptStandLabel={formatStandLabel(keptStand)}
                 releasedStandLabel={formatStandLabel(releasedStand)}
                 disabledReason={
-                  canMutateAdminReservations(actor)
+                  isGlobalAdmin
                     ? undefined
                     : "Solo un administrador general puede reducirla."
                 }

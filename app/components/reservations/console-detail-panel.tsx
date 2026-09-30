@@ -85,6 +85,21 @@ function describePayload(event: ConsoleEvent): string | null {
     }
     case "full_table_manually_downgraded":
       return "Bajó la reserva a media mesa";
+    case "full_table_manually_upgraded": {
+      // The money outcome is the part an admin comes here to explain: why a
+      // paid reservation went back to pending, or where credits came from.
+      const price = money(record.toPrice);
+      const amount = money(record.settlementAmount);
+      const outcome =
+        amount && record.settlement === "balance_due"
+          ? ` (saldo pendiente de ${amount})`
+          : amount && record.settlement === "overpaid"
+            ? ` (${amount} devueltos en créditos)`
+            : "";
+      return price
+        ? `Amplió la reserva a mesa completa: ${price}${outcome}`
+        : "Amplió la reserva a mesa completa";
+    }
     case "reservation_released": {
       const price = money(record.creditPrice);
       return price
