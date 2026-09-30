@@ -10,6 +10,7 @@ import {
   deactivateFullTableAccess,
   downgradeFullTableReservation,
 } from "@/app/lib/reservations/full-table-service";
+import { upgradeFullTableReservation } from "@/app/lib/reservations/full-table-upgrade-service";
 
 const schema = z.object({
   festivalId: z.coerce.number().int().positive(),
@@ -21,6 +22,18 @@ const schema = z.object({
 const downgradeSchema = z.object({
   reservationId: z.coerce.number().int().positive(),
   idempotencyKey: z.string().uuid(),
+});
+
+// The downgrade's shape plus what the admin confirmed. The dialog sends back
+// the preview's `expected` verbatim; the server recomputes the plan under its
+// locks and refuses if these numbers moved, rather than applying money the
+// admin never saw.
+const upgradeSchema = downgradeSchema.extend({
+  expected: z.object({
+    tablePrice: z.number().finite().nonnegative(),
+    settlementKind: z.enum(["none", "balance_due", "overpaid"]),
+    settlementAmount: z.number().finite().nonnegative(),
+  }),
 });
 
 // Its own schema rather than the shared one: only deactivation accepts a
@@ -101,4 +114,38 @@ export async function downgradeFullTableReservationAction(input: unknown) {
   return result.success
     ? { success: true as const, message: result.message }
     : { success: false as const, message: result.message };
+}
+
+/**
+ * Admin-only upgrade of a half-table reservation to its full table
+ * (PRD-admin-stand-management, Feature D).
+ *
+ * Revalidates the same screens as the downgrade: the companion stops being
+ * selectable on the participant map the moment it joins the reservation.
+ * `code` is returned so the dialog can tell a stale confirmation from any
+ * other refusal.
+ */
+export async function upgradeFullTableReservationAction(input: unknown) {
+  const parsed = upgradeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false as const, message: "Datos inválidos." };
+  }
+  const result = await upgradeFullTableReservation(parsed.data);
+  if (result.success) {
+    revalidateReservationEntry();
+    try {
+      revalidatePath("/dashboard/reservations/[id]/edit", "page");
+      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
+      revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    } catch (error) {
+      console.error("[full-table] revalidatePath failed", error);
+    }
+  }
+  return result.success
+    ? {
+        success: true as const,
+        message: result.message,
+        settlement: result.data.settlement,
+      }
+    : { success: false as const, message: result.message, code: result.code };
 }

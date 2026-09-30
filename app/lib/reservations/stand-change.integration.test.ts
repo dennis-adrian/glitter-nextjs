@@ -991,10 +991,12 @@ describeDatabase("admin stand switch and exchange", () => {
         amount: 100,
         userId: seeded.participants[0].id,
       });
-      // The clock the booking already started, still running.
+      // The clock the booking already started, still running, whose reminder
+      // already went out.
       await integrationDb!.insert(scheduledTasks).values({
         dueDate: new Date(Date.now() + 60_000),
         reminderTime: new Date(Date.now() + 30_000),
+        reminderSentAt: new Date(),
         profileId: seeded.participants[0].id,
         reservationId: reservation.id,
         taskType: "stand_reservation",
@@ -1013,6 +1015,8 @@ describeDatabase("admin stand switch and exchange", () => {
       expect(open).toHaveLength(1);
       // Two open tasks would mean two reminders for one balance.
       expect(open[0].dueDate.getTime()).toBeGreaterThan(Date.now() + 60_000);
+      // But the new balance does get its own reminder.
+      expect(open[0].reminderSentAt).toBeNull();
     });
 
     it("does not refund a partial payer who moves somewhere cheaper", async () => {

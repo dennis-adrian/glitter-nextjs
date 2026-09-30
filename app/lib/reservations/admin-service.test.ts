@@ -90,6 +90,7 @@ const pendingReservation = {
   priceAmountSnapshot: 100,
   individualPriceSnapshot: 100,
   sharedPriceSnapshot: 150,
+  fullTablePriceSnapshot: null as number | null,
   bookedParticipantCount: 1,
 };
 
@@ -706,6 +707,90 @@ describe("updateReservationPartner", () => {
       }),
     });
   });
+
+  it.each([
+    {
+      change: "adding",
+      participants: [{ userId: 3 }],
+      bookedParticipantCount: 1,
+      partnerUserId: 4,
+      expectedCount: 2,
+    },
+    {
+      change: "removing",
+      participants: [{ userId: 3 }, { userId: 4 }],
+      bookedParticipantCount: 2,
+      partnerUserId: null,
+      expectedCount: 1,
+    },
+  ])(
+    "keeps a full table's price when $change a partner",
+    async ({
+      participants,
+      bookedParticipantCount,
+      partnerUserId,
+      expectedCount,
+    }) => {
+      currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+      const updates: Array<{
+        table: unknown;
+        payload: Record<string, unknown>;
+      }> = [];
+      const tx = tableAwareTx({
+        // The table bills 450 whatever the headcount; the half's own prices
+        // (100 / 150) are on record only for a later downgrade.
+        reservation: {
+          ...pendingReservation,
+          priceAmountSnapshot: 450,
+          fullTablePriceSnapshot: 450,
+          bookedParticipantCount,
+        },
+        participants,
+        invoices: [
+          {
+            id: 1,
+            userId: 3,
+            status: "pending",
+            reservationId: 9,
+            originalAmount: 450,
+            discountAmount: 0,
+            amount: 450,
+          },
+        ],
+      });
+      tx.update = vi.fn((table: unknown) => ({
+        set: vi.fn((payload: Record<string, unknown>) => {
+          updates.push({ table, payload });
+          return { where: vi.fn().mockResolvedValue([]) };
+        }),
+      }));
+      transactionMock.mockImplementation(
+        async (callback: (value: unknown) => unknown) => callback(tx),
+      );
+
+      const result = await updateReservationPartner({
+        reservationId: 9,
+        partnerUserId,
+      });
+
+      expect(result).toEqual({
+        success: true,
+        message: "Compañero actualizado",
+      });
+      expect(updates).toContainEqual({
+        table: standReservations,
+        payload: expect.objectContaining({
+          bookedParticipantCount: expectedCount,
+        }),
+      });
+      expect(
+        updates.some(
+          ({ table, payload }) =>
+            table === invoices || "priceAmountSnapshot" in payload,
+        ),
+      ).toBe(false);
+    },
+  );
 
   it("synchronizes participant count without repricing after replacing a partner", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
