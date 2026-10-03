@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 
 import {
   type FullTablePairProblem,
@@ -14,7 +14,7 @@ import { pruneEmptyGroups } from "@/app/lib/stands/group-service";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { resolveJointAxis } from "@/app/lib/stands/groups";
 import { lockStandRows } from "@/app/lib/reservations/locks";
-import { OCCUPYING_RESERVATION_STATUSES } from "@/app/lib/reservations/members";
+import { occupyingMemberPredicate } from "@/app/lib/reservations/members";
 import { db } from "@/db";
 import {
   standGroups,
@@ -32,8 +32,8 @@ export type FullTableConfigResult =
   | { ok: false; code: "OCCUPIED"; problems?: undefined }
   | { ok: false; code: "INVALID_PAIR"; problems: FullTablePairProblem[] };
 
-/** Any reservation still holding one of these stands. */
-async function hasLiveOccupancy(tx: DbTx, standIds: readonly number[]) {
+/** Any unexpired hold on one of these stands. */
+async function hasLiveHold(tx: DbTx, standIds: readonly number[]) {
   if (standIds.length === 0) return false;
 
   // A participant holding both halves is mid-booking on this pair. Retyping
@@ -50,7 +50,13 @@ async function hasLiveOccupancy(tx: DbTx, standIds: readonly number[]) {
       ),
     )
     .limit(1);
-  if (heldRow != null) return true;
+  return heldRow != null;
+}
+
+/** Any reservation, or hold, still occupying one of these stands. */
+async function hasLiveOccupancy(tx: DbTx, standIds: readonly number[]) {
+  if (standIds.length === 0) return false;
+  if (await hasLiveHold(tx, standIds)) return true;
 
   const [row] = await tx
     .select({ id: standReservationStands.id })
@@ -58,12 +64,44 @@ async function hasLiveOccupancy(tx: DbTx, standIds: readonly number[]) {
     .where(
       and(
         inArray(standReservationStands.standId, [...standIds]),
-        isNull(standReservationStands.releasedAt),
-        inArray(standReservationStands.reservationStatus, [
-          ...OCCUPYING_RESERVATION_STATUSES,
-        ]),
+        occupyingMemberPredicate,
       ),
     )
+    .limit(1);
+  return row != null;
+}
+
+/**
+ * Any live reservation on these stands that occupies more than one stand —
+ * a booked full table, by the same count confirmation uses to bill one.
+ *
+ * Counted across all of the reservation's live members, not only the ones in
+ * this group: a two-stand reservation is billed at a table price wherever its
+ * second stand is, so it is never one a split may leave behind.
+ */
+async function hasMultiStandReservation(tx: DbTx, standIds: readonly number[]) {
+  if (standIds.length === 0) return false;
+
+  const touching = tx
+    .select({ reservationId: standReservationStands.reservationId })
+    .from(standReservationStands)
+    .where(
+      and(
+        inArray(standReservationStands.standId, [...standIds]),
+        occupyingMemberPredicate,
+      ),
+    );
+  const [row] = await tx
+    .select({ reservationId: standReservationStands.reservationId })
+    .from(standReservationStands)
+    .where(
+      and(
+        inArray(standReservationStands.reservationId, touching),
+        occupyingMemberPredicate,
+      ),
+    )
+    .groupBy(standReservationStands.reservationId)
+    .having(sql`count(*) > 1`)
     .limit(1);
   return row != null;
 }
@@ -312,7 +350,10 @@ export async function declareFullTablePair(input: {
 
 export type DissolveFullTablePairResult =
   | { ok: true }
-  | { ok: false; code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | "OCCUPIED" };
+  | {
+      ok: false;
+      code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | "HELD" | "BOOKED_AS_TABLE";
+    };
 
 /**
  * Undoes a declaration completely: the stands stop being a table and stop being
@@ -323,6 +364,14 @@ export type DissolveFullTablePairResult =
  * question is whether these two stands are one table, and a leftover group they
  * cannot see from there is exactly what `declareFullTablePair` exists to avoid
  * creating.
+ *
+ * A half booked on its own does not block the split. Its price comes from its
+ * own stand, not the table, so it reads the same afterwards; what it loses is
+ * the offer to upgrade to the whole table. Only a reservation billed as the
+ * whole table, or a hold that may become one, keeps the pair together.
+ *
+ * The split is one-way while that half stays booked: declaring still refuses
+ * any live reservation, and nothing re-pairs the stands once it ends.
  */
 export async function dissolveFullTablePair(input: {
   groupId: number;
@@ -352,8 +401,14 @@ export async function dissolveFullTablePair(input: {
     ).map((row) => row.id);
     await lockStandRows(tx, memberIds);
 
-    if (await hasLiveOccupancy(tx, memberIds)) {
-      return { ok: false as const, code: "OCCUPIED" as const };
+    // Holds are refused whole rather than by size: one lasts minutes, and
+    // confirmation decides it is a table from its member count alone, never
+    // re-reading the group.
+    if (await hasLiveHold(tx, memberIds)) {
+      return { ok: false as const, code: "HELD" as const };
+    }
+    if (await hasMultiStandReservation(tx, memberIds)) {
+      return { ok: false as const, code: "BOOKED_AS_TABLE" as const };
     }
 
     // The stands foreign key is ON DELETE SET NULL, so deleting the group

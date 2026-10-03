@@ -20,9 +20,12 @@ import {
   festivalSectors,
   festivals,
   standGroups,
+  standHoldMembers,
+  standHolds,
   standReservationStands,
   standReservations,
   stands,
+  users,
 } from "@/db/schema";
 
 vi.mock("server-only", () => ({}));
@@ -63,6 +66,7 @@ let guardLegacySinglePriceEdit: (typeof import("@/app/lib/stands/pricing-service
 const createdFestivalIds: number[] = [];
 const createdGroupIds: number[] = [];
 const createdReservationIds: number[] = [];
+const createdUserIds: number[] = [];
 
 type StandOverrides = Partial<typeof stands.$inferInsert>;
 
@@ -161,6 +165,10 @@ describeDatabase("setStandGroupFullTable", () => {
         .delete(festivals)
         .where(inArray(festivals.id, createdFestivalIds));
       createdFestivalIds.length = 0;
+    }
+    if (createdUserIds.length > 0) {
+      await db.delete(users).where(inArray(users.id, createdUserIds));
+      createdUserIds.length = 0;
     }
   });
 
@@ -604,7 +612,41 @@ describeDatabase("setStandGroupFullTable", () => {
         )
         .returning({ id: stands.id });
 
-      return { sectorId: sector!.id, standIds: inserted.map((row) => row.id) };
+      return {
+        festivalId: festival!.id,
+        sectorId: sector!.id,
+        standIds: inserted.map((row) => row.id),
+      };
+    }
+
+    /** One reservation over `standIds`, in order; `released` ones no longer occupy. */
+    async function book(
+      festivalId: number,
+      standIds: number[],
+      released: number[] = [],
+    ) {
+      const [reservation] = await integrationDb!
+        .insert(standReservations)
+        .values({ standId: standIds[0], festivalId, status: "accepted" })
+        .returning({ id: standReservations.id });
+      createdReservationIds.push(reservation!.id);
+      await integrationDb!.insert(standReservationStands).values(
+        standIds.map((standId, position) => ({
+          reservationId: reservation!.id,
+          standId,
+          position,
+          releasedAt: released.includes(standId) ? new Date() : null,
+        })),
+      );
+      return reservation!.id;
+    }
+
+    async function declaredTable() {
+      const lone = await loneStands();
+      const declared = await declareFullTablePair({ standIds: lone.standIds });
+      if (!declared.ok) throw new Error("expected the pair to be declared");
+      createdGroupIds.push(declared.groupId);
+      return { ...lone, groupId: declared.groupId };
     }
 
     async function trackGroupOf(standId: number) {
@@ -829,6 +871,128 @@ describeDatabase("setStandGroupFullTable", () => {
       expect(await groupType(declared.groupId)).toBeUndefined();
       expect(await trackGroupOf(standIds[0])).toBeNull();
       expect(await trackGroupOf(standIds[1])).toBeNull();
+    });
+
+    it("dissolves a table with one half booked on its own", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      const reservationId = await book(festivalId, [standIds[0]]);
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({ ok: true });
+
+      expect(await groupType(groupId)).toBeUndefined();
+      expect(await trackGroupOf(standIds[0])).toBeNull();
+      expect(await trackGroupOf(standIds[1])).toBeNull();
+      // The booking itself is untouched: same stand, still occupying it.
+      expect(
+        await integrationDb!
+          .select({
+            standId: standReservationStands.standId,
+            releasedAt: standReservationStands.releasedAt,
+          })
+          .from(standReservationStands)
+          .where(eq(standReservationStands.reservationId, reservationId)),
+      ).toEqual([{ standId: standIds[0], releasedAt: null }]);
+    });
+
+    it("dissolves a table whose halves are booked separately", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      await book(festivalId, [standIds[0]]);
+      await book(festivalId, [standIds[1]]);
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({ ok: true });
+      expect(await groupType(groupId)).toBeUndefined();
+    });
+
+    it("refuses to dissolve a table booked as a whole", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      await book(festivalId, standIds);
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({
+        ok: false,
+        code: "BOOKED_AS_TABLE",
+      });
+      expect(await groupType(groupId)).toBe("full_table");
+      expect(await trackGroupOf(standIds[1])).toBe(groupId);
+    });
+
+    it("dissolves a table whose whole-table booking was cancelled", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      const reservationId = await book(festivalId, standIds);
+      // Cancelling leaves the member rows unreleased; the trigger copies the
+      // status onto them, and that alone has to stop them counting.
+      await integrationDb!
+        .update(standReservations)
+        .set({ status: "cancelled" })
+        .where(eq(standReservations.id, reservationId));
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({ ok: true });
+      expect(await groupType(groupId)).toBeUndefined();
+    });
+
+    it("dissolves a table booking already reduced to a half", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      // A downgrade releases the companion and keeps the row.
+      await book(festivalId, standIds, [standIds[1]]);
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({ ok: true });
+      expect(await groupType(groupId)).toBeUndefined();
+    });
+
+    async function holdStand(
+      festivalId: number,
+      standId: number,
+      expiresAt: Date,
+    ) {
+      const suffix = randomUUID();
+      const [holder] = await integrationDb!
+        .insert(users)
+        .values({
+          clerkId: `ft-holder-${suffix}`,
+          email: `ft-holder-${suffix}@example.test`,
+          displayName: `FT Holder ${suffix}`,
+          status: "verified",
+        })
+        .returning({ id: users.id });
+      createdUserIds.push(holder!.id);
+      const [hold] = await integrationDb!
+        .insert(standHolds)
+        .values({
+          standId,
+          userId: holder!.id,
+          festivalId,
+          // `stand_holds_expires_after_created` forbids an expiry before creation.
+          createdAt: new Date(expiresAt.getTime() - 10 * 60_000),
+          expiresAt,
+        })
+        .returning({ id: standHolds.id });
+      await integrationDb!
+        .insert(standHoldMembers)
+        .values({ holdId: hold!.id, standId, position: 0 })
+        .onConflictDoNothing();
+    }
+
+    it("refuses to dissolve a table someone is holding", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      await holdStand(
+        festivalId,
+        standIds[1],
+        new Date(Date.now() + 10 * 60_000),
+      );
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({
+        ok: false,
+        code: "HELD",
+      });
+      expect(await groupType(groupId)).toBe("full_table");
+    });
+
+    it("dissolves a table whose hold has expired", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      // Expired holds linger until something reconciles them.
+      await holdStand(festivalId, standIds[1], new Date(Date.now() - 60_000));
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({ ok: true });
+      expect(await groupType(groupId)).toBeUndefined();
     });
 
     it("refuses to dissolve a group that is not a full table", async () => {

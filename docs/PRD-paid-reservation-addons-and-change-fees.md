@@ -349,7 +349,7 @@ Extend the existing `stand_groups` model with `type: visual_group | full_table`,
 - Matching prices by category: illustration pairs share identical individual and shared prices; entrepreneurship pairs share identical individual prices only (`shared_price` ignored or disallowed).
 - Valid group membership and map placement, including alignment on the map.
 - A `full_table_price`. A pair without one is not reservable as a table: the companion cannot be billed, so either half books on its own as if it were never paired.
-- No conflicting live occupancy when changing the pair configuration.
+- No conflicting live occupancy when changing the pair configuration. Separating a declared table conflicts only with a live hold on either half or a reservation occupying more than one stand; a half booked on its own does not block it and keeps its own price, but loses the full-table upgrade offer, and the pair cannot be declared again until that reservation ends (nothing re-pairs it automatically).
 
 Admin UI creates/edits the group and identifies malformed pairs and their exact mismatch. The server transaction locks the group and both stands, validates exactly two members, then changes the type. Direct writes cannot make an invalid group reservable.
 

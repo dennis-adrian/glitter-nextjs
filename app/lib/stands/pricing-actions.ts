@@ -229,11 +229,13 @@ export async function dissolveFullTablePairAction(
       return {
         success: false,
         message:
-          result.code === "OCCUPIED"
-            ? "No se puede separar: hay una reserva vigente en estos espacios."
-            : result.code === "NOT_A_FULL_TABLE"
-              ? "Ese grupo no es una mesa completa."
-              : "No se encontró la mesa completa.",
+          result.code === "BOOKED_AS_TABLE"
+            ? "No se puede separar: hay una reserva que ocupa la mesa completa."
+            : result.code === "HELD"
+              ? "No se puede separar: alguien está reservando estos espacios ahora mismo. Probá de nuevo en unos minutos."
+              : result.code === "NOT_A_FULL_TABLE"
+                ? "Ese grupo no es una mesa completa."
+                : "No se encontró la mesa completa.",
       };
     }
 
