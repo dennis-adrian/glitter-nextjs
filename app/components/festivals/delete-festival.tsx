@@ -63,7 +63,7 @@ export default function DeleteFestival({
             </AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Si el festival ya tuvo
-              actividad (cambios de estado o movimientos de créditos), se
+              actividad (cambios de estado, entradas, reservas o créditos), se
               archivará en lugar de eliminarse para conservar su historial.
             </AlertDialogDescription>
           </AlertDialogHeader>

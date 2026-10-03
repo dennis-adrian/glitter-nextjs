@@ -47,8 +47,8 @@ function sectionFigure(key: string, counts: FestivalOverviewCounts) {
 
 /**
  * Every admin page under the festival, grouped by who it is about. On a
- * phone each group is a tappable list; wider screens lay the groups side by
- * side.
+ * phone each group is a tappable list; wider screens lay the groups out in
+ * two columns, and three once each column has room for its labels.
  */
 export default function FestivalSectionsNav({
   festival,
@@ -64,7 +64,7 @@ export default function FestivalSectionsNav({
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">Gestionar</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-x-6 gap-y-4 md:grid-cols-3">
+      <CardContent className="grid gap-x-6 gap-y-4 md:grid-cols-2 xl:grid-cols-3">
         {GROUPS.map((group) => (
           <nav
             key={group}
@@ -74,7 +74,7 @@ export default function FestivalSectionsNav({
             <h3 className="mb-1 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {FESTIVAL_SECTION_GROUP_LABELS[group]}
             </h3>
-            <ul className="divide-y md:divide-y-0">
+            <ul className="divide-y xl:divide-y-0">
               {sections
                 .filter((section) => section.group === group)
                 .map((section) => {
@@ -96,12 +96,13 @@ export default function FestivalSectionsNav({
                             {section.label}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {/* On a phone the figure shares this line, so it
-                                never squeezes the label. */}
+                            {/* Until the columns are wide enough, the figure
+                                shares this line so it never squeezes the
+                                label. */}
                             {figure ? (
                               <span
                                 className={cn(
-                                  "font-medium sm:hidden",
+                                  "font-medium xl:hidden",
                                   urgent && "text-amber-800",
                                 )}
                               >
@@ -114,7 +115,7 @@ export default function FestivalSectionsNav({
                         {figure ? (
                           <span
                             className={cn(
-                              "hidden shrink-0 text-xs tabular-nums sm:inline",
+                              "hidden shrink-0 text-xs tabular-nums xl:inline",
                               urgent
                                 ? "rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900"
                                 : "text-muted-foreground",

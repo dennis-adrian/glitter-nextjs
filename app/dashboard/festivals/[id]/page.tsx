@@ -4,8 +4,12 @@ import FestivalInfoCard from "@/app/components/festivals/festival-info-card";
 import FestivalParticipantTermsSummary from "@/app/components/festivals/festival-participant-terms-summary";
 import FestivalSectionsNav from "@/app/components/festivals/festival-sections-nav";
 import FestivalSettingsCard from "@/app/components/festivals/festival-settings-card";
-import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
+import {
+  fetchActiveFestivalBase,
+  fetchFestivalWithDates,
+} from "@/app/lib/festivals/actions";
 import { fetchFestivalOverviewCounts } from "@/app/lib/festivals/overview";
+import { isFestivalDay } from "@/app/lib/festivals/utils";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
@@ -41,9 +45,10 @@ export default async function Page({ params }: PageProps) {
   if (!parsed.success) return notFound();
 
   const { id } = parsed.data;
-  const [festival, counts] = await Promise.all([
+  const [festival, counts, activeFestival] = await Promise.all([
     loadFestival(id),
     fetchFestivalOverviewCounts(id),
+    fetchActiveFestivalBase(),
   ]);
 
   if (!festival) {
@@ -59,7 +64,15 @@ export default async function Page({ params }: PageProps) {
           column spanning both rows, beside the switches and the panel. */}
       <div className="grid items-start gap-6 lg:grid-cols-3 lg:grid-rows-[auto_1fr]">
         <div className="min-w-0 lg:col-span-2">
-          <FestivalSettingsCard festival={festival} />
+          <FestivalSettingsCard
+            festival={festival}
+            otherActiveFestival={
+              activeFestival && activeFestival.id !== festival.id
+                ? { id: activeFestival.id, name: activeFestival.name }
+                : null
+            }
+            isFestivalDayToday={isFestivalDay(festival.festivalDates)}
+          />
         </div>
         <div className="min-w-0 space-y-6 lg:col-start-3 lg:row-span-2 lg:row-start-1">
           <FestivalInfoCard festival={festival} />
@@ -69,7 +82,10 @@ export default async function Page({ params }: PageProps) {
           />
         </div>
         <div className="min-w-0 lg:col-span-2">
-          <FestivalFeatureConfigPanel festivalId={id} />
+          <FestivalFeatureConfigPanel
+            festivalId={id}
+            readOnly={festival.status === "archived"}
+          />
         </div>
       </div>
     </div>

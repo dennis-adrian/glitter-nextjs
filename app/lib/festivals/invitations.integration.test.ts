@@ -315,6 +315,21 @@ describeDatabase("festival registration and invitation actions", () => {
       });
     });
 
+    it("refuses to activate a second festival, naming the active one", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      await createFestival();
+      const draft = await createFestival({ status: "draft" });
+
+      const result = await actions.setFestivalActive(draft.id, true);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/ya está activo/);
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, draft.id),
+      });
+      expect(row?.status).toBe("draft");
+    });
+
     it("refuses an archived festival", async () => {
       requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
       const festival = await createFestival({ status: "archived" });
@@ -501,6 +516,26 @@ describeDatabase("festival registration and invitation actions", () => {
         where: eq(festivals.id, festival.id),
       });
       expect(row).toBeUndefined();
+    });
+
+    it("archives a festival with tickets rather than orphan them", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const tag = suffix();
+      const festival = await createFestival({ status: "draft" });
+      const [visitor] = await createVisitors(tag, [`ticket-${tag}@example.test`]);
+      await integrationDb!.insert(tickets).values({
+        date: new Date(),
+        visitorId: visitor!.id,
+        festivalId: festival.id,
+      });
+
+      const result = await actions.deleteFestival(festival.id);
+
+      expect(result).toMatchObject({ success: true });
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, festival.id),
+      });
+      expect(row?.status).toBe("archived");
     });
 
     it("archives a festival with status history instead of failing", async () => {

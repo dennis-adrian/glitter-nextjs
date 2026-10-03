@@ -20,6 +20,7 @@ import {
   reservationParticipants,
   stands,
   standReservations,
+  tickets,
   userRequests,
   users,
 } from "@/db/schema";
@@ -32,6 +33,7 @@ import {
   isNull,
   not,
   or,
+  sql,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
@@ -116,13 +118,34 @@ async function hasStatusTransitions(festivalId: number) {
   return Boolean(transition);
 }
 
+/**
+ * Tickets and reservations point at their festival without a foreign key, so
+ * deleting the festival would orphan them rather than fail. Any of them means
+ * the festival happened, or nearly did, and is archived instead.
+ */
+async function hasTicketsOrReservations(festivalId: number) {
+  const [[ticket], [reservation]] = await Promise.all([
+    db
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(eq(tickets.festivalId, festivalId))
+      .limit(1),
+    db
+      .select({ id: standReservations.id })
+      .from(standReservations)
+      .where(eq(standReservations.festivalId, festivalId))
+      .limit(1),
+  ]);
+  return Boolean(ticket || reservation);
+}
+
 async function archiveFestivalWithStatusHistory(festivalId: number) {
   const archived = await archiveFestival(festivalId);
   return archived.success
     ? {
         success: true,
         message:
-          "El festival ya tuvo actividad, así que se archivó para conservar su historial.",
+          "El festival ya tuvo actividad (estados, entradas o reservas), así que se archivó para conservar su historial.",
       }
     : archived;
 }
@@ -251,7 +274,10 @@ export async function deleteFestival(festivalId: number) {
     if (await hasLedgerReferencedFeatureAction(festivalId)) {
       return archiveLedgerReferencedFestival(festivalId);
     }
-    if (await hasStatusTransitions(festivalId)) {
+    if (
+      (await hasStatusTransitions(festivalId)) ||
+      (await hasTicketsOrReservations(festivalId))
+    ) {
       return archiveFestivalWithStatusHistory(festivalId);
     }
 
@@ -917,6 +943,28 @@ export async function setFestivalActive(festivalId: number, active: boolean) {
       // that is not active is a stale screen, not a request to demote it.
       if (!active && current.status !== "active") {
         return { associatedSanctionIds: [], changed: false };
+      }
+
+      if (active && current.status !== "active") {
+        // The site reads "the" active festival with an unordered findFirst,
+        // so a second one makes it pick arbitrarily (see
+        // docs/PLAN-stand-reservation-hardening.md, 6.1). Activations take
+        // this lock so two of them cannot both see none active.
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext('festivals:activation'))`,
+        );
+        const [alreadyActive] = await tx
+          .select({ name: festivals.name })
+          .from(festivals)
+          .where(
+            and(eq(festivals.status, "active"), not(eq(festivals.id, festivalId))),
+          )
+          .limit(1);
+        if (alreadyActive) {
+          return {
+            error: `${alreadyActive.name} ya está activo. Desactívalo o archívalo antes de activar este festival.`,
+          };
+        }
       }
 
       const transition = await transitionFestivalStatus(

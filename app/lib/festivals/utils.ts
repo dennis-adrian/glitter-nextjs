@@ -84,3 +84,11 @@ export function sortFestivalsForAdmin<
       b.id - a.id,
   );
 }
+
+/** Whether `now` falls on one of the festival's days, in the store's zone. */
+export function isFestivalDay(dates: { startDate: Date }[], now = new Date()) {
+  const today = formatDate(now).startOf("day");
+  return dates.some((date) =>
+    formatDate(date.startDate).startOf("day").equals(today),
+  );
+}

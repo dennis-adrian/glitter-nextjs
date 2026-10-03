@@ -72,7 +72,7 @@ type SettingRowProps = {
   /** The switch cannot move (an archived festival locks every row). */
   locked?: boolean;
   /** Why it cannot move; shown in the row, not a tooltip touch can't open. */
-  lockedReason?: string | null;
+  lockedReason?: ReactNode;
   onToggle: () => void;
   children?: ReactNode;
 };
@@ -137,8 +137,14 @@ function SettingRow({
  */
 export default function FestivalSettingsCard({
   festival,
+  otherActiveFestival,
+  isFestivalDayToday = false,
 }: {
   festival: FestivalBase;
+  /** Another festival that is active now; only one can be at a time. */
+  otherActiveFestival?: { id: number; name: string } | null;
+  /** Today is one of the festival's days, in the store's time zone. */
+  isFestivalDayToday?: boolean;
 }) {
   const [intent, setIntent] = useState<DialogIntent | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -230,10 +236,13 @@ export default function FestivalSettingsCard({
           ? {
               title: "Habilitar registro en puerta",
               description:
-                "Los visitantes podrán crear su entrada el mismo día del evento desde el formulario de acreditación.",
+                "Quien ya se registró antes y vuelve al formulario de acreditación obtiene una entrada solo para el día en curso, en lugar de elegir una fecha.",
               confirmLabel: "Habilitar",
               onConfirm: () =>
                 updateFestivalEventDayRegistration(festival.id, true),
+              notice: isFestivalDayToday
+                ? null
+                : "Hoy no es un día del festival: mientras esté habilitado, quienes ya se registraron antes no podrán obtener entradas. Habilítalo el día del evento.",
             }
           : {
               title: "Deshabilitar registro en puerta",
@@ -294,6 +303,20 @@ export default function FestivalSettingsCard({
             }
             checked={active}
             locked={archived}
+            lockedReason={
+              !archived && !active && otherActiveFestival ? (
+                <span>
+                  Solo puede haber un festival activo y ahora lo está{" "}
+                  <Link
+                    href={`/dashboard/festivals/${otherActiveFestival.id}`}
+                    className="font-medium underline"
+                  >
+                    {otherActiveFestival.name}
+                  </Link>
+                  . Desactívalo o archívalo primero.
+                </span>
+              ) : null
+            }
             onToggle={() => open({ type: "status", enable: !active })}
           />
 
@@ -338,7 +361,7 @@ export default function FestivalSettingsCard({
 
           <SettingRow
             label="Registro en puerta"
-            description="Permite crear entradas el mismo día del evento."
+            description="Para el día del evento: quien vuelve a acreditarse recibe una entrada solo para ese día."
             checked={registrationOpen && festival.eventDayRegistration}
             locked={archived}
             lockedReason={
@@ -349,7 +372,17 @@ export default function FestivalSettingsCard({
             onToggle={() =>
               open({ type: "event-day", enable: !festival.eventDayRegistration })
             }
-          />
+          >
+            {registrationOpen &&
+            festival.eventDayRegistration &&
+            !isFestivalDayToday ? (
+              <p className="flex items-start gap-1.5 text-xs text-amber-800">
+                <InfoIcon className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+                Está habilitado y hoy no es un día del festival: quienes ya se
+                registraron antes no pueden obtener entradas.
+              </p>
+            ) : null}
+          </SettingRow>
 
           <SettingRow
             label="Términos para participantes"

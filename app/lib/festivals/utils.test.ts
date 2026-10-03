@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { FestivalBase } from "@/app/lib/festivals/definitions";
 import {
   formatFestivalDateRange,
+  isFestivalDay,
   sortFestivalDates,
   sortFestivalsForAdmin,
 } from "@/app/lib/festivals/utils";
@@ -82,5 +83,24 @@ describe("sortFestivalsForAdmin", () => {
       festival(2, "draft", []),
     ]);
     expect(sorted.map((f) => f.id)).toEqual([2, 1]);
+  });
+});
+
+describe("isFestivalDay", () => {
+  const dates = [day("2026-10-24"), day("2026-10-25")];
+
+  it("is true on any of the festival's days", () => {
+    expect(isFestivalDay(dates, new Date("2026-10-25T20:00:00Z"))).toBe(true);
+  });
+
+  it("follows the store's day, not UTC's", () => {
+    // 02:00 UTC on the 26th is still the 25th in La Paz.
+    expect(isFestivalDay(dates, new Date("2026-10-26T02:00:00Z"))).toBe(true);
+    // 05:00 UTC on the 26th is the 26th there too.
+    expect(isFestivalDay(dates, new Date("2026-10-26T05:00:00Z"))).toBe(false);
+  });
+
+  it("is false without dates", () => {
+    expect(isFestivalDay([], new Date())).toBe(false);
   });
 });
