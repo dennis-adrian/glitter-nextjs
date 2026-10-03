@@ -148,7 +148,7 @@ export default function TemplateExportDialog({
       const template = await exportTemplate();
       if (!template) return;
 
-      const result = await saveMapTemplate(template, user.id, festivalId);
+      const result = await saveMapTemplate(template, festivalId);
 
       if (result.success) {
         toast.success(result.message);

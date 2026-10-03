@@ -20,11 +20,14 @@ export type InvitationSendState = {
   simulated: boolean;
 };
 
+/**
+ * One call to make: either "from this cursor on" (follow) or exactly one
+ * known page (throughId set), at a given attempt of its idempotency key.
+ */
 type QueuedPage = {
   cursor: number;
-  /** One page for a retry of a page Resend refused; the default otherwise. */
-  maxPages?: number;
-  /** Keep going from where this call stops, to the end of the list. */
+  throughId: number | null;
+  attempt: number;
   follow: boolean;
 };
 
@@ -38,13 +41,26 @@ const IDLE: InvitationSendState = {
   simulated: false,
 };
 
+/** What to call to send a failed page again. */
+function retryOf(failure: InvitationPageFailure): QueuedPage {
+  return {
+    cursor: failure.cursor,
+    throughId: failure.throughId,
+    // Resend refused it, so nothing went out: a new key. Otherwise it may
+    // have gone out, and only the same key lets Resend tell.
+    attempt: failure.refused ? failure.attempt + 1 : failure.attempt,
+    follow: failure.follow ?? false,
+  };
+}
+
 /**
  * Drives a mailing from the browser, one server call per few hundred
  * recipients, because the whole list does not fit in one function call.
  *
- * The server picks every recipient itself; this only carries the cursor and a
+ * The server picks every recipient itself; this only carries cursors and a
  * run id. Pages that did not go out are kept so the admin can retry exactly
- * those, and the run id makes a retry of a page that did go out a no-op.
+ * those, and their idempotency keys make a retry of a page that did go out a
+ * no-op.
  */
 export function useInvitationSender(festivalId: number, kind: InvitationKind) {
   const [state, setState] = useState<InvitationSendState>(IDLE);
@@ -79,7 +95,8 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
             kind,
             runId,
             cursor: page.cursor,
-            maxPages: page.maxPages,
+            throughId: page.throughId,
+            attempt: page.attempt,
           });
         } catch {
           result = {
@@ -90,8 +107,9 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
 
         if (!result.success) {
           const message = result.message;
-          // Nothing from this page on went out. Each stays retryable from its
-          // cursor; a count of 0 marks it as never having reached Resend.
+          // Nothing from this call on is known to have gone out. Each stays
+          // retryable exactly as it was queued; a count of 0 marks a call
+          // that never reached Resend, so its attempt is not spent.
           current = {
             ...current,
             status: "error",
@@ -100,8 +118,11 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
               ...current.failures,
               ...[page, ...queue].map((pending) => ({
                 cursor: pending.cursor,
+                throughId: pending.throughId,
                 count: 0,
                 message,
+                refused: false,
+                attempt: pending.attempt,
                 follow: pending.follow,
               })),
             ],
@@ -121,7 +142,12 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
         setState(current);
 
         if (page.follow && result.nextCursor !== null) {
-          queue.push({ cursor: result.nextCursor, follow: true });
+          queue.push({
+            cursor: result.nextCursor,
+            throughId: null,
+            attempt: 0,
+            follow: true,
+          });
         }
       }
 
@@ -134,23 +160,18 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
   /** Sends to everyone, from the first recipient. */
   const start = useCallback(() => {
     runIdRef.current = null;
-    return run([{ cursor: 0, follow: true }], IDLE);
+    return run(
+      [{ cursor: 0, throughId: null, attempt: 0, follow: true }],
+      IDLE,
+    );
   }, [run]);
 
-  /**
-   * Sends again only what did not go out: a page Resend refused is sent again
-   * on its own; a call that never completed resumes from its cursor onwards.
-   */
+  /** Sends again only what did not go out, in the same run. */
   const retryFailures = useCallback(() => {
     const { failures } = state;
     if (failures.length === 0) return Promise.resolve();
-    const pages: QueuedPage[] = failures.map((failure) =>
-      failure.count === 0
-        ? { cursor: failure.cursor, follow: failure.follow ?? true }
-        : { cursor: failure.cursor, maxPages: 1, follow: false },
-    );
     const failedCount = failures.reduce((sum, f) => sum + f.count, 0);
-    return run(pages, {
+    return run(failures.map(retryOf), {
       ...state,
       failed: state.failed - failedCount,
       failures: [],

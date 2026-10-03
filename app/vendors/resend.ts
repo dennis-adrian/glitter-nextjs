@@ -90,6 +90,17 @@ export async function sendEmail(
 }
 
 /**
+ * Resend 4.x renames camelCase fields to the API's snake_case for a single
+ * send (`emails.send`), but `batch.send` posts its payload as given, so the
+ * API would drop a `replyTo` it does not know.
+ */
+function toBatchApiEmail(email: CreateEmailOptions): CreateEmailOptions {
+  const { replyTo, ...rest } = email;
+  if (replyTo === undefined) return email;
+  return { ...rest, reply_to: replyTo } as unknown as CreateEmailOptions;
+}
+
+/**
  * Up to `RESEND_BATCH_MAX_EMAILS` separate emails in one API call, so a
  * mailing to thousands of people costs a few dozen requests instead of
  * thousands. The batch is atomic: one invalid address fails all of it.
@@ -111,15 +122,12 @@ export async function sendBatchEmails(
   }
 
   if (serverEnv.VERCEL_ENV !== "production") {
+    // Counts only: a batch is a slice of a real mailing list, and preview
+    // logs are no place for it.
     console.log(
       `[${serverEnv.VERCEL_ENV}] Not sending a batch of ${payload.length} emails. First subject:`,
       payload[0]?.subject,
     );
-    console.log(
-      "To:",
-      payload.map((email) => email.to),
-    );
-    console.log("--------------------------------");
 
     return {
       data: { data: payload.map(() => ({ id: "not-sent" })) },
@@ -141,7 +149,10 @@ export async function sendBatchEmails(
       idempotencyKey,
     ) as CreateBatchRequestOptions;
 
-    const response = await resend.batch.send(payload, requestOptions);
+    const response = await resend.batch.send(
+      payload.map(toBatchApiEmail),
+      requestOptions,
+    );
 
     if (controller.signal.aborted) {
       throw controller.signal.reason;

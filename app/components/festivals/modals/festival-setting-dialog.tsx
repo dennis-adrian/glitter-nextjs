@@ -168,6 +168,11 @@ export default function FestivalSettingDialog({
         await sender.start();
         return;
       }
+      if (invitation && !sendOnly && audience.status === "error") {
+        toast.warning(
+          "No se enviaron invitaciones: no se pudo calcular a quiénes enviarlas.",
+        );
+      }
       onOpenChange(false);
     } finally {
       setPending(false);
@@ -179,6 +184,9 @@ export default function FestivalSettingDialog({
       isDesktop={isDesktop}
       open={open}
       onOpenChange={handleOpenChange}
+      // A swipe would only half-close it, since a run in flight keeps it
+      // open; don't let it start.
+      dismissible={!busy}
     >
       <DrawerDialogContent
         isDesktop={isDesktop}
@@ -284,6 +292,9 @@ export default function FestivalSettingDialog({
                   variant={destructive ? "destructive" : "default"}
                   disabled={
                     busy ||
+                    // Wait for the audience: confirming earlier would apply
+                    // the change and silently skip the mailing.
+                    (!!invitation && audience.status === "loading") ||
                     (sendOnly &&
                       (audience.status !== "ready" || recipients === 0))
                   }

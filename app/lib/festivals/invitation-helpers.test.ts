@@ -8,6 +8,8 @@ import {
   invitationIdempotencyKey,
   isDeliverableEmail,
   partitionRecipients,
+  resendOutcome,
+  safeGreetingName,
 } from "@/app/lib/festivals/invitation-helpers";
 
 describe("isDeliverableEmail", () => {
@@ -66,36 +68,88 @@ describe("invitationIdempotencyKey", () => {
     kind: "visitor_registration" as const,
     festivalId: 3,
     runId: "6f0c6c1e-8f64-4a8e-9a54-3b1f0c3f2a11",
-    recipientIds: [1, 2, 3],
+    cursor: 0,
+    throughId: 140,
+    attempt: 0,
   };
 
-  it("is stable for the same page of the same run, so a retry is deduplicated", () => {
+  it("names a page by its bounds, so a retry keeps its key when recipients change", () => {
     expect(invitationIdempotencyKey(base)).toBe(
-      invitationIdempotencyKey({ ...base, recipientIds: [1, 2, 3] }),
+      invitationIdempotencyKey({ ...base }),
     );
   });
 
-  it("differs for another run, so a deliberate re-send is not swallowed", () => {
-    expect(invitationIdempotencyKey(base)).not.toBe(
+  it("changes with the attempt, the run, the page, the festival and the mailing", () => {
+    const key = invitationIdempotencyKey(base);
+    for (const change of [
+      { attempt: 1 },
+      { runId: "1b4e28ba-2fa1-41d2-883f-0016d3cca427" },
+      { cursor: 140, throughId: 260 },
+      { festivalId: 4 },
+      { kind: "participant_activation" as const },
+    ]) {
+      expect(invitationIdempotencyKey({ ...base, ...change })).not.toBe(key);
+    }
+  });
+
+  it("fits Resend's 256-character limit", () => {
+    expect(
       invitationIdempotencyKey({
         ...base,
-        runId: "1b4e28ba-2fa1-41d2-883f-0016d3cca427",
-      }),
-    );
+        kind: "participant_activation",
+        festivalId: 2_147_483_647,
+        cursor: 2_147_483_647,
+        throughId: 2_147_483_647,
+        attempt: 50,
+      }).length,
+    ).toBeLessThanOrEqual(256);
+  });
+});
+
+describe("resendOutcome", () => {
+  it("treats no error, and a key already used with another body, as sent", () => {
+    expect(resendOutcome(null)).toBe("sent");
+    expect(resendOutcome({ name: "invalid_idempotent_request" })).toBe("sent");
   });
 
-  it("differs when the page holds other recipients", () => {
-    expect(invitationIdempotencyKey(base)).not.toBe(
-      invitationIdempotencyKey({ ...base, recipientIds: [1, 2, 4] }),
-    );
+  it("keeps the key when Resend may have taken the batch", () => {
+    for (const name of [
+      "application_error",
+      "internal_server_error",
+      "concurrent_idempotent_requests",
+    ]) {
+      expect(resendOutcome({ name })).toBe("unknown");
+    }
   });
 
-  it("differs per festival and mailing, and fits Resend's 256-character limit", () => {
-    const key = invitationIdempotencyKey(base);
-    expect(key).not.toBe(invitationIdempotencyKey({ ...base, festivalId: 4 }));
-    expect(key).not.toBe(
-      invitationIdempotencyKey({ ...base, kind: "participant_activation" }),
-    );
-    expect(key.length).toBeLessThanOrEqual(256);
+  it("moves to a new key when Resend refused the batch", () => {
+    for (const name of ["validation_error", "rate_limit_exceeded", undefined]) {
+      expect(resendOutcome({ name })).toBe("refused");
+    }
+  });
+});
+
+describe("safeGreetingName", () => {
+  it.each([
+    ["Camila", "Camila"],
+    ["  María José  ", "María José"],
+    ["O'Brien", "O'Brien"],
+    ["Ana-Lucía", "Ana-Lucía"],
+  ])("keeps the name %j", (input, expected) => {
+    expect(safeGreetingName(input)).toBe(expected);
+  });
+
+  it.each([
+    null,
+    undefined,
+    "",
+    "visita evil.com",
+    "https://evil.example",
+    "<b>Ana</b>",
+    "Ana, tu entrada fue anulada: escribe a soporte",
+    "1234",
+    "a".repeat(41),
+  ])("leaves out %j", (input) => {
+    expect(safeGreetingName(input)).toBeNull();
   });
 });

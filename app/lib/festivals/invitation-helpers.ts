@@ -1,7 +1,5 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-
 import type { InvitationKind } from "@/app/lib/festivals/invitation-definitions";
 
 /**
@@ -52,20 +50,60 @@ export function partitionRecipients<T extends { email: string }>(rows: T[]) {
 }
 
 /**
- * Names one page of one send run. Retrying the same page within a run reuses
- * the key, so Resend delivers it once even when our side timed out after
- * Resend had already accepted it. A new run gets new keys, so sending again
- * on purpose is not silently swallowed.
+ * Names one attempt at one page of one send run. The page is named by its
+ * bounds, not by who it held, so a retry keeps its key even when a recipient
+ * registered in between. Retrying after an unknown outcome (our timeout)
+ * reuses the attempt, and Resend delivers it at most once; retrying after
+ * Resend refused the page, so nothing went out, moves to the next attempt.
+ * A new run gets new keys, so sending again on purpose is not swallowed.
  */
 export function invitationIdempotencyKey(input: {
   kind: InvitationKind;
   festivalId: number;
   runId: string;
-  recipientIds: readonly number[];
+  cursor: number;
+  throughId: number;
+  attempt: number;
 }) {
-  const digest = createHash("sha256")
-    .update(input.recipientIds.join(","))
-    .digest("hex")
-    .slice(0, 24);
-  return `festival-invitation/${input.kind}/${input.festivalId}/${input.runId}/${digest}`;
+  return `festival-invitation/${input.kind}/${input.festivalId}/${input.runId}/${input.cursor}-${input.throughId}/${input.attempt}`;
+}
+
+// Resend errors after which the batch may or may not have been accepted.
+const UNKNOWN_OUTCOME_ERRORS = new Set([
+  "application_error",
+  "internal_server_error",
+  "concurrent_idempotent_requests",
+]);
+
+/**
+ * What a Resend batch response means for the page:
+ * - `sent`: accepted. Includes `invalid_idempotent_request`, which says this
+ *   key already went out with a different body — the first attempt was
+ *   delivered and only its recipients have changed since.
+ * - `unknown`: it may have gone out; retry with the same key.
+ * - `refused`: it did not go out; retry with a new key.
+ */
+export function resendOutcome(
+  error: { name?: string | null } | null | undefined,
+): "sent" | "unknown" | "refused" {
+  if (!error) return "sent";
+  if (error.name === "invalid_idempotent_request") return "sent";
+  if (error.name && UNKNOWN_OUTCOME_ERRORS.has(error.name)) return "unknown";
+  return "refused";
+}
+
+const GREETING_NAME = /^\p{L}[\p{L}\p{M}' -]{0,39}$/u;
+
+/**
+ * A visitor's first name, fit to greet them with in a mail from our domain,
+ * or null. Visitors register through a public form with no checks on the
+ * name, so anything that is not plainly a name (a link, a sentence, markup)
+ * is left out rather than sent to someone else's inbox under our name. No
+ * dots either: "visita evil.com" is short and lettered, and mail clients
+ * turn it into a link.
+ */
+export function safeGreetingName(name: string | null | undefined) {
+  const trimmed = name?.trim().replace(/\s+/g, " ");
+  if (!trimmed || !GREETING_NAME.test(trimmed)) return null;
+  return trimmed;
 }

@@ -69,6 +69,11 @@ export default async function FestivalFeatureConfigPanel({
             festivalId={festivalId}
             scope={scope}
             canEdit={canEdit}
+            readOnlyReason={
+              readOnly
+                ? "El festival está archivado: su configuración ya no se puede cambiar."
+                : null
+            }
             readiness={scope.category ? readiness[scope.category] : null}
             creditsLaunched={creditsRevealed}
           />

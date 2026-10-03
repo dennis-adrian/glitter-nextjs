@@ -31,11 +31,23 @@ export type InvitationAudienceResult =
   | { success: false; message: string };
 
 export type InvitationPageFailure = {
-  /** The cursor that page was read from; send it again to retry the page. */
+  /** The cursor the page was read from. */
   cursor: number;
+  /**
+   * The last id the page held, so a retry reads exactly that page; null for
+   * a call that failed before reading it.
+   */
+  throughId: number | null;
   /** Recipients on the page; 0 for a call that never reached Resend. */
   count: number;
   message: string;
+  /**
+   * Resend answered that it did not take the page, so a retry needs a new
+   * idempotency key. False when the outcome is unknown, e.g. a timeout.
+   */
+  refused: boolean;
+  /** The attempt the page's idempotency key belongs to. */
+  attempt: number;
   /**
    * Set by the browser for a call that never completed: whether retrying it
    * should carry on to the end of the list.

@@ -103,15 +103,20 @@ describe("sendBatchEmails", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const response = await sendBatchEmails([payload, payload], {
-      idempotencyKey: "festival-invitation/x",
-    });
+    const response = await sendBatchEmails(
+      [payload, { ...payload, replyTo: "visitantes@example.com" }],
+      { idempotencyKey: "festival-invitation/x" },
+    );
 
     expect(response.error).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/emails\/batch$/);
-    expect(JSON.parse(init.body as string)).toHaveLength(2);
+    const body = JSON.parse(init.body as string);
+    expect(body).toHaveLength(2);
+    // The batch endpoint only knows the API's snake_case name.
+    expect(body[1].reply_to).toBe("visitantes@example.com");
+    expect(body[1].replyTo).toBeUndefined();
     expect(new Headers(init.headers).get("Idempotency-Key")).toBe(
       "festival-invitation/x",
     );

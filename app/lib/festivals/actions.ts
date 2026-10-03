@@ -184,10 +184,13 @@ export async function createFestival(
           address: festivalData.address || null,
           locationLabel: festivalData.locationLabel || null,
           locationUrl: festivalData.locationUrl || null,
-          status: festivalData.status || "draft",
+          // A festival is born as a draft (or published), closed to
+          // visitors. Activation and acreditación have their own actions,
+          // which enforce one active festival and offer the invitations.
+          status: festivalData.status === "published" ? "published" : "draft",
           mapsVersion: festivalData.mapsVersion || "v1",
-          publicRegistration: festivalData.publicRegistration || false,
-          eventDayRegistration: festivalData.eventDayRegistration || false,
+          publicRegistration: false,
+          eventDayRegistration: false,
           festivalType: festivalData.festivalType || "glitter",
           reservationsStartDate:
             festivalData.reservationsStartDate || new Date(),

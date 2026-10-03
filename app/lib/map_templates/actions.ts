@@ -12,7 +12,6 @@ import {
   mapElements,
   mapTemplates,
   stands,
-  users,
 } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -283,10 +282,10 @@ export async function exportSectorAsTemplate(
 // Save template to database
 export async function saveMapTemplate(
   template: MapTemplate,
-  clerkId: string,
   festivalId?: number,
 ): Promise<{ success: boolean; templateId?: number; message: string }> {
-  if (!(await requireAdminOrFestivalAdmin())) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
     return { success: false, message: "No autorizado" };
   }
 
@@ -294,10 +293,6 @@ export async function saveMapTemplate(
     // Validate template structure
     mapTemplateSchema.parse(template);
 
-    // Look up user by clerkId
-    const user = await db.query.users.findFirst({
-      where: eq(users.clerkId, clerkId),
-    });
 
     const [created] = await db
       .insert(mapTemplates)
@@ -305,7 +300,8 @@ export async function saveMapTemplate(
         name: template.metadata.name,
         description: template.metadata.description ?? null,
         templateData: template,
-        createdByUserId: user?.id ?? null,
+        // The signed-in admin, not the clerkId the browser sent.
+        createdByUserId: actor.id,
         createdFromFestivalId: festivalId ?? null,
       })
       .returning();

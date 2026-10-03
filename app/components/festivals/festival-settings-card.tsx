@@ -236,18 +236,18 @@ export default function FestivalSettingsCard({
           ? {
               title: "Habilitar registro en puerta",
               description:
-                "Quien ya se registró antes y vuelve al formulario de acreditación obtiene una entrada solo para el día en curso, en lugar de elegir una fecha.",
+                "Mientras esté habilitado, el formulario de acreditación solo entrega entradas para el día en curso: nadie elige otra fecha.",
               confirmLabel: "Habilitar",
               onConfirm: () =>
                 updateFestivalEventDayRegistration(festival.id, true),
               notice: isFestivalDayToday
                 ? null
-                : "Hoy no es un día del festival: mientras esté habilitado, quienes ya se registraron antes no podrán obtener entradas. Habilítalo el día del evento.",
+                : "Hoy no es un día del festival: mientras esté habilitado, nadie podrá obtener entradas desde el formulario. Habilítalo el día del evento.",
             }
           : {
               title: "Deshabilitar registro en puerta",
               description:
-                "Los visitantes ya no podrán crear entradas el día del evento.",
+                "El formulario de acreditación vuelve a pedir que cada visitante elija la fecha de su entrada.",
               confirmLabel: "Deshabilitar",
               destructive: true,
               onConfirm: () =>
@@ -361,7 +361,7 @@ export default function FestivalSettingsCard({
 
           <SettingRow
             label="Registro en puerta"
-            description="Para el día del evento: quien vuelve a acreditarse recibe una entrada solo para ese día."
+            description="Para el día del evento: el formulario de acreditación solo entrega entradas para ese día."
             checked={registrationOpen && festival.eventDayRegistration}
             locked={archived}
             lockedReason={
@@ -378,8 +378,8 @@ export default function FestivalSettingsCard({
             !isFestivalDayToday ? (
               <p className="flex items-start gap-1.5 text-xs text-amber-800">
                 <InfoIcon className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-                Está habilitado y hoy no es un día del festival: quienes ya se
-                registraron antes no pueden obtener entradas.
+                Está habilitado y hoy no es un día del festival: nadie puede
+                obtener entradas desde el formulario.
               </p>
             ) : null}
           </SettingRow>
