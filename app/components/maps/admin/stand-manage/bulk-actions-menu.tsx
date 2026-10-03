@@ -20,6 +20,7 @@ import {
   deleteStands,
   renumberStandsSequentially,
 } from "@/app/api/stands/actions";
+import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 import {
   declareFullTablePairAction,
   dissolveFullTablePairAction,
@@ -214,6 +215,16 @@ export default function StandBulkActionsMenu({
       (row) => fullTableByStandId.get(row.id)?.groupId === dissolveGroupId,
     );
   }, [dissolveGroupId, rowsById, fullTableByStandId]);
+  // Rows list every reservation ever made on the stand, cancelled ones too.
+  const bookedDissolveMembers = useMemo(
+    () =>
+      dissolveMembers.filter((row) =>
+        row.reservations.some((reservation) =>
+          occupiesStandCapacity(reservation.status),
+        ),
+      ),
+    [dissolveMembers],
+  );
 
   async function runBulk(
     fn: () => Promise<{
@@ -722,6 +733,15 @@ export default function StandBulkActionsMenu({
               </li>
             ))}
           </ul>
+
+          {bookedDissolveMembers.length > 0 && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {bookedDissolveMembers.map(standDisplayLabel).join(" y ")}{" "}
+              {bookedDissolveMembers.length === 1
+                ? "tiene una reserva vigente. La reserva no cambia, pero deja de poder ampliarse a mesa completa, y no vas a poder volver a declarar la mesa mientras siga vigente."
+                : "tienen reservas vigentes. Las reservas no cambian, pero no vas a poder volver a declarar la mesa mientras sigan vigentes."}
+            </p>
+          )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>
