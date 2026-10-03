@@ -29,6 +29,8 @@ type QueuedPage = {
   throughId: number | null;
   attempt: number;
   follow: boolean;
+  /** An earlier attempt at this page may have gone out; see retryOf. */
+  uncertain: boolean;
 };
 
 const IDLE: InvitationSendState = {
@@ -42,14 +44,16 @@ const IDLE: InvitationSendState = {
 };
 
 /** What to call to send a failed page again. */
-function retryOf(failure: InvitationPageFailure): QueuedPage {
+export function retryOf(failure: InvitationPageFailure): QueuedPage {
+  const uncertain = failure.uncertain ?? !failure.refused;
   return {
     cursor: failure.cursor,
     throughId: failure.throughId,
-    // Resend refused it, so nothing went out: a new key. Otherwise it may
-    // have gone out, and only the same key lets Resend tell.
-    attempt: failure.refused ? failure.attempt + 1 : failure.attempt,
+    // Only when no attempt at this page can have gone out does it get a new
+    // key. Once one may have, only that key lets Resend deduplicate it.
+    attempt: failure.refused && !uncertain ? failure.attempt + 1 : failure.attempt,
     follow: failure.follow ?? false,
+    uncertain,
   };
 }
 
@@ -124,6 +128,8 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
                 refused: false,
                 attempt: pending.attempt,
                 follow: pending.follow,
+                // The call may have run on the server before failing here.
+                uncertain: true,
               })),
             ],
           };
@@ -136,7 +142,14 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
           sent: current.sent + result.sent,
           failed: current.failed + result.failed,
           skipped: current.skipped + result.skipped,
-          failures: [...current.failures, ...result.failures],
+          failures: [
+            ...current.failures,
+            ...result.failures.map((failure) => ({
+              ...failure,
+              follow: failure.follow ?? false,
+              uncertain: page.uncertain || !failure.refused,
+            })),
+          ],
           simulated: current.simulated || result.simulated,
         };
         setState(current);
@@ -147,6 +160,7 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
             throughId: null,
             attempt: 0,
             follow: true,
+            uncertain: false,
           });
         }
       }
@@ -161,7 +175,15 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
   const start = useCallback(() => {
     runIdRef.current = null;
     return run(
-      [{ cursor: 0, throughId: null, attempt: 0, follow: true }],
+      [
+        {
+          cursor: 0,
+          throughId: null,
+          attempt: 0,
+          follow: true,
+          uncertain: false,
+        },
+      ],
       IDLE,
     );
   }, [run]);

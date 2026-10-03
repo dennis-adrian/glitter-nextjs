@@ -1,7 +1,7 @@
 "use server";
 
 import { render } from "@react-email/render";
-import { and, asc, eq, exists, gt, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import type { BaseProfile } from "@/app/api/users/definitions";
@@ -33,6 +33,7 @@ import {
   festivalSectors,
   profileSubcategories,
   users,
+  visitors,
 } from "@/db/schema";
 
 const VISITOR_FROM = "Equipo Glitter <equipo@productoraglitter.com>";
@@ -161,43 +162,92 @@ function visitorAudienceCtes(festivalId: number) {
   `;
 }
 
-async function visitorPage(
+/**
+ * One page of a mailing: a window of up to a page of candidate ids after
+ * `cursor`, and the recipients in it who should get the mail.
+ *
+ * The window is drawn before anyone is filtered out, so its bounds do not
+ * move when someone in it registers or stops qualifying — which the mailing
+ * itself makes people do. A retry or a resume therefore reads the same
+ * windows, and their idempotency keys still match what may have gone out.
+ */
+type PageRead<T> = {
+  /** Candidates in the window, eligible or not; 0 means the list is done. */
+  size: number;
+  /** The window's last id. */
+  lastId: number;
+  recipients: T[];
+};
+
+function windowBounds(cursor: number, throughId: number | null, column: SQL) {
+  return throughId === null
+    ? sql`${column} > ${cursor}`
+    : sql`${column} > ${cursor} and ${column} <= ${throughId}`;
+}
+
+async function readVisitorPage(
   festivalId: number,
   cursor: number,
   throughId: number | null,
-) {
-  const result = await db.execute(sql`
-    ${visitorAudienceCtes(festivalId)}
-    select v.id, v.email, v.first_name as "firstName"
-    from visitors v
-    join canonical c on c.id = v.id
-    where v.id > ${cursor}
-      ${throughId === null ? sql`` : sql`and v.id <= ${throughId}`}
-      and lower(trim(v.email)) not in (select email_key from registered)
-    order by v.id
+): Promise<PageRead<VisitorRecipient>> {
+  const window = await db.execute(sql`
+    select min(id) as id
+    from visitors
+    group by lower(trim(email))
+    having ${windowBounds(cursor, throughId, sql`min(id)`)}
+    order by 1
     limit ${INVITATION_PAGE_SIZE}
   `);
-  return result.rows as VisitorRecipient[];
+  const ids = (window.rows as { id: number }[]).map((row) => Number(row.id));
+  if (ids.length === 0) return { size: 0, lastId: cursor, recipients: [] };
+
+  const recipients = await db
+    .select({
+      id: visitors.id,
+      email: visitors.email,
+      firstName: visitors.firstName,
+    })
+    .from(visitors)
+    .where(
+      and(
+        inArray(visitors.id, ids),
+        sql`lower(trim(${visitors.email})) not in (
+          select lower(trim(rv.email))
+          from visitors rv
+          join tickets t on t.visitor_id = rv.id
+          where t.festival_id = ${festivalId}
+        )`,
+      ),
+    )
+    .orderBy(asc(visitors.id));
+
+  return { size: ids.length, lastId: ids[ids.length - 1]!, recipients };
 }
 
-async function participantPage(
+async function readParticipantPage(
   categories: BaseProfile["category"][],
   cursor: number,
   throughId: number | null,
-) {
-  if (categories.length === 0) return [];
-  return db
-    .select()
+): Promise<PageRead<BaseProfile>> {
+  const window = await db
+    .select({ id: users.id })
     .from(users)
-    .where(
-      and(
-        gt(users.id, cursor),
-        throughId === null ? undefined : lte(users.id, throughId),
-        invitableParticipant(categories),
-      ),
-    )
+    .where(windowBounds(cursor, throughId, sql`${users.id}`))
     .orderBy(asc(users.id))
     .limit(INVITATION_PAGE_SIZE);
+  const ids = window.map((row) => row.id);
+  if (ids.length === 0) return { size: 0, lastId: cursor, recipients: [] };
+
+  const recipients =
+    categories.length === 0
+      ? []
+      : await db
+          .select()
+          .from(users)
+          .where(and(inArray(users.id, ids), invitableParticipant(categories)))
+          .orderBy(asc(users.id));
+
+  return { size: ids.length, lastId: ids[ids.length - 1]!, recipients };
 }
 
 async function buildVisitorEmails(
@@ -364,32 +414,59 @@ export async function sendInvitationBatch(
     for (let page = 0; page < maxPages && cursor !== null; page++) {
       const pageCursor: number = cursor;
 
-      if (page > 0) {
-        // Another admin may have closed acreditación or deactivated the
-        // festival since this call began: stop before the next page, and let
-        // the next call report why.
-        const current = await db.query.festivals.findFirst({
-          columns: { status: true, publicRegistration: true },
-          where: eq(festivals.id, festivalId),
+      let read: PageRead<VisitorRecipient | BaseProfile>;
+      try {
+        if (page > 0) {
+          // Another admin may have closed acreditación or deactivated the
+          // festival since this call began: stop before the next page, and
+          // let the next call report why.
+          const current = await db.query.festivals.findFirst({
+            columns: { status: true, publicRegistration: true },
+            where: eq(festivals.id, festivalId),
+          });
+          if (!current || sendBlocker({ ...festival, ...current }, kind)) {
+            break;
+          }
+        }
+        read =
+          kind === "visitor_registration"
+            ? await readVisitorPage(festivalId, pageCursor, throughId)
+            : await readParticipantPage(categories, pageCursor, throughId);
+      } catch (error) {
+        // Keep what this call already sent; the rest resumes from here.
+        console.error("Error reading an invitation page", {
+          kind,
+          festivalId,
+          cursor: pageCursor,
+          error,
         });
-        if (!current || sendBlocker({ ...festival, ...current }, kind)) break;
-      }
-
-      const rows: (VisitorRecipient | BaseProfile)[] =
-        kind === "visitor_registration"
-          ? await visitorPage(festivalId, pageCursor, throughId)
-          : await participantPage(categories, pageCursor, throughId);
-
-      if (rows.length === 0) {
+        failures.push({
+          cursor: pageCursor,
+          throughId,
+          count: 0,
+          message: "No se pudo leer la lista de destinatarios.",
+          refused: false,
+          attempt,
+          follow: !retrying,
+        });
         cursor = null;
         break;
       }
 
-      const pageThroughId = rows[rows.length - 1]!.id;
-      cursor =
-        retrying || rows.length < INVITATION_PAGE_SIZE ? null : pageThroughId;
+      if (read.size === 0) {
+        cursor = null;
+        break;
+      }
 
-      const { valid, skipped: pageSkipped } = partitionRecipients(rows);
+      // A retry is named by the bounds it was given, so its key matches the
+      // attempt it repeats even when the window's last row dropped out.
+      const pageThroughId = throughId ?? read.lastId;
+      cursor =
+        retrying || read.size < INVITATION_PAGE_SIZE ? null : read.lastId;
+
+      const { valid, skipped: pageSkipped } = partitionRecipients(
+        read.recipients,
+      );
       // A retried page was already counted the first time it was read.
       if (!retrying) skipped += pageSkipped;
       if (valid.length === 0) continue;
@@ -435,7 +512,10 @@ export async function sendInvitationBatch(
           cursor: pageCursor,
           error: response.error,
         });
-        fail(response.error?.message ?? "Error desconocido", outcome === "refused");
+        fail(
+          response.error?.message ?? "Error desconocido",
+          outcome === "refused",
+        );
       } catch (error) {
         // Our own timeout: Resend may have taken the page, so a retry must
         // reuse this attempt's key to be deduplicated.
@@ -445,7 +525,10 @@ export async function sendInvitationBatch(
           cursor: pageCursor,
           error,
         });
-        fail(error instanceof Error ? error.message : "Error desconocido", false);
+        fail(
+          error instanceof Error ? error.message : "Error desconocido",
+          false,
+        );
       }
     }
 

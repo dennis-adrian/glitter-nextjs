@@ -49,6 +49,12 @@ export type InvitationPageFailure = {
   /** The attempt the page's idempotency key belongs to. */
   attempt: number;
   /**
+   * Set by the browser once any attempt at this page had an unknown outcome:
+   * it may have gone out, so every later retry keeps the key, even after a
+   * refusal, which says nothing about that earlier attempt.
+   */
+  uncertain?: boolean;
+  /**
    * Set by the browser for a call that never completed: whether retrying it
    * should carry on to the end of the list.
    */

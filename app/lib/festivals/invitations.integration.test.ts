@@ -494,6 +494,36 @@ describeDatabase("festival registration and invitation actions", () => {
       );
     });
 
+    it("keys a retry by the bounds it was given, even when the window's last row dropped out", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [a, b] = await createVisitors(tag, [
+        `keep-${tag}@example.test`,
+        `left-${tag}@example.test`,
+      ]);
+      // The last person of the page registered after the first attempt.
+      await integrationDb!.insert(tickets).values({
+        date: new Date(),
+        visitorId: b!.id,
+        festivalId: festival.id,
+      });
+
+      await invitations.sendInvitationBatch({
+        festivalId: festival.id,
+        kind: "visitor_registration",
+        runId: RUN_ID,
+        cursor: a!.id - 1,
+        throughId: b!.id,
+      });
+
+      expect(mailedTo()).toEqual([a!.email]);
+      expect(sendBatchEmails.mock.calls[0]![1].idempotencyKey).toBe(
+        `festival-invitation/visitor_registration/${festival.id}/${RUN_ID}/${a!.id - 1}-${b!.id}/0`,
+      );
+    });
+
     it("counts a page whose key already went out with another body as delivered", async () => {
       requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
       sendBatchEmails.mockResolvedValue({
