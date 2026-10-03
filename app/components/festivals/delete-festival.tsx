@@ -16,12 +16,21 @@ import { useRouter } from "next/navigation";
 
 export default function DeleteFestival({
   festivalId,
+  festivalName,
   children,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   festivalId: number;
-  children: React.ReactNode;
+  festivalName?: string;
+  /** The trigger. Omit it and pass `open` to open the dialog from a menu. */
+  children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
@@ -41,16 +50,21 @@ export default function DeleteFestival({
 
   return (
     <>
-      <div onClick={() => setOpen(true)} className="w-full">
-        {children}
-      </div>
+      {children ? (
+        <div onClick={() => setOpen(true)} className="w-full">
+          {children}
+        </div>
+      ) : null}
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {festivalName ? `¿Eliminar ${festivalName}?` : "¿Eliminar festival?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. El festival será eliminado
-              permanentemente.
+              Esta acción no se puede deshacer. Si el festival ya tuvo
+              actividad (cambios de estado o movimientos de créditos), se
+              archivará en lugar de eliminarse para conservar su historial.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -38,7 +38,7 @@ export default async function FestivalFeatureConfigPanel({
     !creditsRevealed && scopes.some((scope) => scope.config?.enabled);
 
   return (
-    <section className="mt-6 space-y-3">
+    <section className="space-y-3">
       <div>
         <h2 className="text-lg font-semibold">Funciones de reserva</h2>
         <p className="text-sm text-muted-foreground">

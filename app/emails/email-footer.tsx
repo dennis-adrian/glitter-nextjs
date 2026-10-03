@@ -12,7 +12,7 @@ export default function EmailFooter() {
       />
       <Text style={styles.footerText}>Enviado por el equipo Glitter</Text>
       <Text style={styles.footerText}>
-        © 2025 | Productora Glitter, Santa Cruz, Bolivia{" "}
+        © {new Date().getFullYear()} | Productora Glitter, Santa Cruz, Bolivia{" "}
       </Text>
     </Container>
   );

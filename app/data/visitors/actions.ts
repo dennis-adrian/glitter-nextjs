@@ -1,6 +1,6 @@
 "use server";
 
-import { asc, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { TicketBase } from "@/app/data/tickets/actions";
 import { db } from "@/db";
@@ -64,21 +64,6 @@ export async function createVisitor(visitor: NewVisitor) {
 
   revalidatePath("/festivals");
   return { success: true, visitor: createdVisitor };
-}
-
-export async function fetchVisitorsEmails() {
-  try {
-    return db
-      .select({
-        id: visitors.id,
-        email: visitors.email,
-      })
-      .from(visitors)
-      .orderBy(asc(visitors.id));
-  } catch (error) {
-    console.error("Error fetching visitors", error);
-    return [];
-  }
 }
 
 export async function fetchVisitors() {

@@ -6,7 +6,8 @@ vi.mock("../../env", () => ({
   },
 }));
 
-import { sendEmail } from "@/app/vendors/resend";
+import { serverEnv } from "../../env";
+import { sendBatchEmails, sendEmail } from "@/app/vendors/resend";
 
 const payload = {
   from: "Glitter <test@example.com>",
@@ -70,5 +71,57 @@ describe("sendEmail", () => {
 
     await vi.advanceTimersByTimeAsync(10_000);
     expect(requestOptions.signal?.aborted).toBe(false);
+  });
+});
+
+describe("sendBatchEmails", () => {
+  const env = serverEnv as { VERCEL_ENV?: string };
+
+  afterEach(() => {
+    delete env.VERCEL_ENV;
+    vi.unstubAllGlobals();
+  });
+
+  it("does not reach Resend outside production, and says so", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const environment of [undefined, "development", "preview"]) {
+      env.VERCEL_ENV = environment;
+      const response = await sendBatchEmails([payload, payload]);
+      expect(response.error).toBeNull();
+      expect("simulated" in response && response.simulated).toBe(true);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("posts one batch with its idempotency key in production", async () => {
+    env.VERCEL_ENV = "production";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "a" }, { id: "b" }] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails([payload, payload], {
+      idempotencyKey: "festival-invitation/x",
+    });
+
+    expect(response.error).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/emails\/batch$/);
+    expect(JSON.parse(init.body as string)).toHaveLength(2);
+    expect(new Headers(init.headers).get("Idempotency-Key")).toBe(
+      "festival-invitation/x",
+    );
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("refuses more emails than one Resend batch holds", async () => {
+    env.VERCEL_ENV = "production";
+    await expect(
+      sendBatchEmails(Array.from({ length: 101 }, () => payload)),
+    ).rejects.toThrow("at most 100");
   });
 });

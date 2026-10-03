@@ -4,22 +4,18 @@ import {
   BaseProfile,
   ParticipationWithParticipantWithInfractionsAndReservations,
 } from "@/app/api/users/definitions";
-import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
-import EmailTemplate from "@/app/emails/festival-activation";
 import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
-import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
-import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
   creditLedgerEntries,
   festivalActivities,
   festivalDates,
   festivalStatusEnum,
+  festivalStatusEvents,
   festivals,
   festivalSectors,
   infractions,
-  profileSubcategories,
   reservationFeatureActions,
   reservationParticipants,
   stands,
@@ -27,7 +23,16 @@ import {
   userRequests,
   users,
 } from "@/db/schema";
-import { and, desc, eq, inArray, not, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  not,
+  or,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   FestivalActivityWithDetailsAndParticipants,
@@ -42,7 +47,6 @@ import {
   recordFestivalCreatedStatus,
   transitionFestivalStatus,
 } from "./status-transitions";
-import { groupVisitorEmails } from "./utils";
 import {
   lockFestivalRow,
   lockFestivalTermsDocument,
@@ -87,6 +91,38 @@ async function archiveLedgerReferencedFestival(festivalId: number) {
     ? {
         success: true,
         message: "Festival archivado; se conserva su historial de créditos.",
+      }
+    : archived;
+}
+
+/**
+ * Whether the festival ever changed status after it was created. That
+ * history feeds sanction counting, and `festival_status_events` keeps it with
+ * ON DELETE RESTRICT; only the creation row of a festival that never moved
+ * carries nothing worth keeping.
+ */
+async function hasStatusTransitions(festivalId: number) {
+  const [transition] = await db
+    .select({ id: festivalStatusEvents.id })
+    .from(festivalStatusEvents)
+    .where(
+      and(
+        eq(festivalStatusEvents.festivalId, festivalId),
+        isNotNull(festivalStatusEvents.fromStatus),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(transition);
+}
+
+async function archiveFestivalWithStatusHistory(festivalId: number) {
+  const archived = await archiveFestival(festivalId);
+  return archived.success
+    ? {
+        success: true,
+        message:
+          "El festival ya tuvo actividad, así que se archivó para conservar su historial.",
       }
     : archived;
 }
@@ -215,8 +251,23 @@ export async function deleteFestival(festivalId: number) {
     if (await hasLedgerReferencedFeatureAction(festivalId)) {
       return archiveLedgerReferencedFestival(festivalId);
     }
+    if (await hasStatusTransitions(festivalId)) {
+      return archiveFestivalWithStatusHistory(festivalId);
+    }
 
-    await db.delete(festivals).where(eq(festivals.id, festivalId));
+    await db.transaction(async (tx) => {
+      // Only the creation row is left (see hasStatusTransitions); it would
+      // otherwise block the delete through its RESTRICT foreign key.
+      await tx
+        .delete(festivalStatusEvents)
+        .where(
+          and(
+            eq(festivalStatusEvents.festivalId, festivalId),
+            isNull(festivalStatusEvents.fromStatus),
+          ),
+        );
+      await tx.delete(festivals).where(eq(festivals.id, festivalId));
+    });
   } catch (error) {
     if (isForeignKeyViolation(error)) {
       try {
@@ -225,6 +276,10 @@ export async function deleteFestival(festivalId: number) {
         // the same archival outcome as a pre-existing reference.
         if (await hasLedgerReferencedFeatureAction(festivalId)) {
           return archiveLedgerReferencedFestival(festivalId);
+        }
+        // Likewise for a status change made after the check above.
+        if (await hasStatusTransitions(festivalId)) {
+          return archiveFestivalWithStatusHistory(festivalId);
         }
       } catch (recheckError) {
         console.error(
@@ -325,8 +380,10 @@ export async function updateFestival(
           // Status is owned by the locked row; transitions use dedicated APIs.
           status: existing.status,
           mapsVersion: data.mapsVersion || "v1",
-          publicRegistration: data.publicRegistration || false,
-          eventDayRegistration: data.eventDayRegistration || false,
+          // publicRegistration and eventDayRegistration are not written here
+          // either: the edit form only carries the values it loaded, so saving
+          // it would undo a registration change made since. They go through
+          // updateFestivalRegistration / updateFestivalEventDayRegistration.
           keepStoreOpen: data.keepStoreOpen || false,
           festivalType: data.festivalType || "glitter",
           reservationsStartDate: nextReservationsStartDate,
@@ -791,39 +848,127 @@ export async function fetchFestivals(): Promise<FestivalWithDates[]> {
   }
 }
 
-// TODO: Improve this by running actions in the background
-// ------ BEGIN
-export async function updateFestivalStatusTemp(festival: FestivalBase) {
+/**
+ * Every page that reads a festival's status or registration switches: the
+ * dashboard, and the public festival pages whose registration forms open and
+ * close with them.
+ */
+function revalidateFestivalPages(
+  festivalId: number,
+  associatedSanctionIds: readonly number[] = [],
+) {
+  revalidatePath("/dashboard/festivals");
+  revalidatePath(`/dashboard/festivals/${festivalId}`);
+  revalidatePath(`/festivals/${festivalId}`, "layout");
+  revalidatePath("/");
+  for (const sanctionId of associatedSanctionIds) {
+    revalidatePath(`/dashboard/sanctions/${sanctionId}`);
+  }
+}
+
+function isValidFestivalId(festivalId: unknown): festivalId is number {
+  return (
+    typeof festivalId === "number" &&
+    Number.isInteger(festivalId) &&
+    festivalId > 0
+  );
+}
+
+/**
+ * Switches a festival on for the public, or back to draft.
+ *
+ * Switching off also closes acreditación and registro en puerta, as archiving
+ * does. Otherwise a festival switched back on later would reopen visitor
+ * registration without anyone deciding to, and without its invitation.
+ *
+ * Nothing is mailed here. The dashboard sends the participant invitation
+ * afterwards through `sendInvitationBatch`, a page per call, because a whole
+ * list does not fit in one function invocation.
+ */
+export async function setFestivalActive(festivalId: number, active: boolean) {
   const actor = await requireAdminOrFestivalAdmin();
   if (!actor) {
     return { success: false, message: "No autorizado" };
   }
-  if (
-    !Number.isInteger(festival.id) ||
-    festival.id <= 0 ||
-    !isValidFestivalStatus(festival.status)
-  ) {
+  if (!isValidFestivalId(festivalId) || typeof active !== "boolean") {
     return { success: false, message: "Festival inválido" };
   }
 
+  let associatedSanctionIds: number[] = [];
+  let changed = false;
   try {
-    const transition = await transitionFestivalStatus({
-      festivalId: festival.id,
-      toStatus: festival.status,
-      actorUserId: actor.id,
+    type Outcome =
+      | { error: string }
+      | { associatedSanctionIds: number[]; changed: boolean };
+    const outcome = await db.transaction(async (tx): Promise<Outcome> => {
+      const [current] = await tx
+        .select({ status: festivals.status })
+        .from(festivals)
+        .where(eq(festivals.id, festivalId))
+        .for("update");
+
+      if (!current) return { error: "Festival no encontrado" };
+      if (current.status === "archived") {
+        return {
+          error: "Un festival archivado no se puede activar ni desactivar.",
+        };
+      }
+      // Only an active festival goes back to draft. Asking to deactivate one
+      // that is not active is a stale screen, not a request to demote it.
+      if (!active && current.status !== "active") {
+        return { associatedSanctionIds: [], changed: false };
+      }
+
+      const transition = await transitionFestivalStatus(
+        {
+          festivalId,
+          toStatus: active ? "active" : "draft",
+          actorUserId: actor.id,
+        },
+        tx,
+      );
+
+      if (!active) {
+        await tx
+          .update(festivals)
+          .set({
+            publicRegistration: false,
+            eventDayRegistration: false,
+            updatedAt: new Date(),
+          })
+          .where(eq(festivals.id, festivalId));
+      }
+
+      return {
+        associatedSanctionIds: transition.associatedSanctionIds,
+        changed: transition.changed,
+      };
     });
 
-    revalidatePath("/dashboard/festivals");
-    revalidatePath(`/dashboard/festivals/${festival.id}`);
-    for (const sanctionId of transition.associatedSanctionIds) {
-      revalidatePath(`/dashboard/sanctions/${sanctionId}`);
+    if ("error" in outcome) {
+      return { success: false, message: outcome.error };
     }
+    associatedSanctionIds = outcome.associatedSanctionIds;
+    changed = outcome.changed;
   } catch (error) {
-    console.error(error);
+    console.error("Error updating festival status", error);
     return { success: false, message: "Error al actualizar el festival" };
   }
 
-  return { success: true, message: "Festival actualizado con éxito" };
+  revalidateFestivalPages(festivalId, associatedSanctionIds);
+  return {
+    success: true,
+    // False when the festival was already in the requested state, e.g. a
+    // second admin's stale screen: the caller then skips the invitation.
+    changed,
+    message: !changed
+      ? active
+        ? "El festival ya estaba activo"
+        : "El festival ya estaba desactivado"
+      : active
+        ? "Festival activado"
+        : "Festival desactivado",
+  };
 }
 
 export async function archiveFestival(festivalId: number) {
@@ -861,10 +1006,20 @@ export async function archiveFestival(festivalId: number) {
   }
 
   revalidatePath("/dashboard/festivals", "layout");
-  return { success: true, message: "Festival actualizado con éxito" };
+  revalidatePath(`/festivals/${festivalId}`, "layout");
+  return { success: true, message: "Festival archivado" };
 }
 
+/**
+ * The verified participants of the festival's categories, for the
+ * "Participantes habilitados" page. Server-only: it returns whole profiles.
+ */
 export async function getFestivalAvailableUsers(festivalId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor || !isValidFestivalId(festivalId)) {
+    return [];
+  }
+
   try {
     const sectors = await db.query.festivalSectors.findMany({
       with: {
@@ -880,6 +1035,7 @@ export async function getFestivalAvailableUsers(festivalId: number) {
         ),
       ),
     ];
+    if (categories.length === 0) return [];
 
     return await db
       .select()
@@ -892,130 +1048,135 @@ export async function getFestivalAvailableUsers(festivalId: number) {
     throw error;
   }
 }
-export async function sendUserEmailsTemp(
-  users: BaseProfile[],
-  festivalId: number,
-) {
-  try {
-    const verifiedUsers = users.filter((user) => user.status === "verified");
-    const festivalWithDates = await fetchFestivalWithDates(festivalId);
-    await queueEmails<BaseProfile>(
-      verifiedUsers,
-      festivalWithDates!,
-      sendEmailToUsers,
-    );
-  } catch (error) {}
-}
-// ------ END
 
-export async function updateFestivalStatus(festival: FestivalBase) {
+/**
+ * Opens or closes acreditación: the public form where visitors get their free
+ * ticket (`/festivals/[id]/registration`). It only opens on an active
+ * festival, since that form refuses every other status.
+ *
+ * Closing it also closes registro en puerta, which depends on it. Opening it
+ * mails nobody by itself; the dashboard then offers to invite past visitors
+ * through `sendInvitationBatch`.
+ */
+export async function updateFestivalRegistration(
+  festivalId: FestivalBase["id"],
+  enabled: FestivalBase["publicRegistration"],
+) {
   const actor = await requireAdminOrFestivalAdmin();
   if (!actor) {
     return { success: false, message: "No autorizado" };
   }
-  if (
-    !Number.isInteger(festival.id) ||
-    festival.id <= 0 ||
-    !isValidFestivalStatus(festival.status)
-  ) {
+  if (!isValidFestivalId(festivalId) || typeof enabled !== "boolean") {
     return { success: false, message: "Festival inválido" };
   }
 
-  let associatedSanctionIds: number[] = [];
+  let changed = false;
   try {
-    const { status } = festival;
-    const transition = await transitionFestivalStatus({
-      festivalId: festival.id,
-      toStatus: status,
-      actorUserId: actor.id,
+    const error = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          status: festivals.status,
+          publicRegistration: festivals.publicRegistration,
+        })
+        .from(festivals)
+        .where(eq(festivals.id, festivalId))
+        .for("update");
+
+      if (!current) return "Festival no encontrado";
+      if (enabled && current.status !== "active") {
+        return "Activa el festival antes de abrir la acreditación.";
+      }
+      changed = current.publicRegistration !== enabled;
+
+      await tx
+        .update(festivals)
+        .set({
+          publicRegistration: enabled,
+          ...(enabled ? {} : { eventDayRegistration: false }),
+          updatedAt: new Date(),
+        })
+        .where(eq(festivals.id, festivalId));
+      return null;
     });
-    associatedSanctionIds = transition.associatedSanctionIds;
 
-    const festivalWithDates = await fetchFestivalWithDates(festival.id);
-
-    if (transition.toStatus === "active" && transition.changed) {
-      const sectors = await db.query.festivalSectors.findMany({
-        with: {
-          stands: true,
-        },
-        where: eq(festivalSectors.festivalId, festival.id),
-      });
-
-      const categories = [
-        ...new Set(
-          sectors.flatMap((sector) =>
-            getFestivalSectorAllowedCategories(sector, true),
-          ),
-        ),
-      ];
-
-      const result = await db
-        .select()
-        .from(users)
-        .innerJoin(
-          profileSubcategories,
-          eq(users.id, profileSubcategories.profileId),
-        )
-        .where(
-          and(
-            eq(users.status, "verified"),
-            inArray(users.category, categories),
-          ),
-        );
-
-      const availableUsers = result.map((result) => result.users);
-
-      await queueEmails<BaseProfile>(
-        availableUsers,
-        festivalWithDates!,
-        sendEmailToUsers,
-      );
-    }
-  } catch (error) {
-    console.error("Error activating festival", error);
-    return { success: false, message: "Error al actualizar el festival" };
-  }
-
-  revalidatePath("/dashboard/festivals");
-  revalidatePath(`/dashboard/festivals/${festival.id}`);
-  for (const sanctionId of associatedSanctionIds) {
-    revalidatePath(`/dashboard/sanctions/${sanctionId}`);
-  }
-  return { success: true, message: "Festival actualizado con éxito" };
-}
-
-export async function updateFestivalRegistration(
-  publicRegistrationValue: FestivalBase["publicRegistration"],
-  festivalId: FestivalBase["id"],
-) {
-  try {
-    const [updatedFestival] = await db
-      .update(festivals)
-      .set({ publicRegistration: publicRegistrationValue })
-      .where(eq(festivals.id, festivalId))
-      .returning({ festivalId: festivals.id });
-
-    const festivalWithDates = await fetchFestivalWithDates(
-      updatedFestival.festivalId,
-    );
-
-    const visitors = await fetchVisitorsEmails();
-    const emailGroups = groupVisitorEmails(visitors);
-
-    if (festivalWithDates?.publicRegistration) {
-      await queueEmails<string[]>(
-        emailGroups,
-        festivalWithDates,
-        sendEmailToVisitors,
-      );
-    }
+    if (error) return { success: false, message: error };
   } catch (error) {
     console.error("Error updating festival registration", error);
     return { success: false, message: "Error al actualizar el festival" };
   }
 
-  revalidatePath("/dashboard/festivals");
-  return { success: true, message: "Festival actualizado con éxito" };
+  revalidateFestivalPages(festivalId);
+  return {
+    success: true,
+    // False when acreditación was already in that state: the caller then
+    // skips the invitation, so a stale screen cannot mail everyone again.
+    changed,
+    message: !changed
+      ? enabled
+        ? "La acreditación ya estaba abierta"
+        : "La acreditación ya estaba cerrada"
+      : enabled
+        ? "Acreditación abierta"
+        : "Acreditación cerrada",
+  };
+}
+
+/**
+ * Registro en puerta: whether a visitor can create a ticket on the day of the
+ * event. Changes only this flag, so a screen opened before someone else edited
+ * the festival cannot write its stale copy of everything else back.
+ */
+export async function updateFestivalEventDayRegistration(
+  festivalId: FestivalBase["id"],
+  enabled: FestivalBase["eventDayRegistration"],
+) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!isValidFestivalId(festivalId) || typeof enabled !== "boolean") {
+    return { success: false, message: "Festival inválido" };
+  }
+
+  try {
+    const error = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          status: festivals.status,
+          publicRegistration: festivals.publicRegistration,
+        })
+        .from(festivals)
+        .where(eq(festivals.id, festivalId))
+        .for("update");
+
+      if (!current) return "Festival no encontrado";
+      if (
+        enabled &&
+        (current.status !== "active" || !current.publicRegistration)
+      ) {
+        return "Abre la acreditación antes de habilitar el registro en puerta.";
+      }
+
+      await tx
+        .update(festivals)
+        .set({ eventDayRegistration: enabled, updatedAt: new Date() })
+        .where(eq(festivals.id, festivalId));
+      return null;
+    });
+
+    if (error) return { success: false, message: error };
+  } catch (error) {
+    console.error("Error updating event day registration", error);
+    return { success: false, message: "Error al actualizar el festival" };
+  }
+
+  revalidateFestivalPages(festivalId);
+  return {
+    success: true,
+    message: enabled
+      ? "Registro en puerta habilitado"
+      : "Registro en puerta deshabilitado",
+  };
 }
 
 export async function updateFestivalParticipantTerms(
@@ -1026,7 +1187,10 @@ export async function updateFestivalParticipantTerms(
   if (!actor) {
     return { success: false, message: "No autorizado" };
   }
-  if (!Number.isInteger(festivalId) || festivalId <= 0) {
+  if (
+    !isValidFestivalId(festivalId) ||
+    typeof participantTermsEnabled !== "boolean"
+  ) {
     return { success: false, message: "Festival inválido" };
   }
 
@@ -1063,69 +1227,6 @@ export async function updateFestivalParticipantTerms(
       ? "Los participantes ya pueden acceder a los términos y condiciones"
       : "Se deshabilitó el acceso a los términos y condiciones para participantes",
   };
-}
-
-export async function queueEmails<T>(
-  entities: T[],
-  festival: FestivalWithDates,
-  callback: (entity: T, festival: FestivalWithDates) => Promise<void>,
-) {
-  let counter = 0;
-  for (const entity of entities) {
-    if (counter % 10 === 0) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-    await callback(entity, festival);
-    counter++;
-  }
-}
-
-export async function sendEmailToVisitors(
-  emails: string[],
-  festival: FestivalWithDates,
-) {
-  const { error } = await sendEmail({
-    to: "visitantes@productoraglitter.com",
-    from: "Equipo Glitter <equipo@productoraglitter.com>",
-    bcc: emails,
-    subject: "Pre-registro abierto para nuestro próximo festival",
-    react: RegistrationInvitationEmailTemplate({
-      festival: festival,
-    }) as React.ReactElement,
-    // this might be preventing that the email is sent to all the visitors we need
-    // so i'll comment it for now
-    // headers: {
-    // 	"X-Entity-Ref-ID": new Date().getTime().toString(),
-    // },
-    replyTo: "visitantes@productoraglitter.com",
-  });
-  if (error) {
-    console.error("Error sending email to visitors", error);
-  }
-}
-
-export async function sendEmailToUsers(
-  user: BaseProfile,
-  festival: FestivalWithDates,
-) {
-  if (user.status !== "verified") {
-    return;
-  }
-
-  const { error } = await sendEmail({
-    to: [user.email],
-    from: "Productora Glitter <eventos@productoraglitter.com>",
-    subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
-      festival.name
-    }`,
-    react: EmailTemplate({
-      profile: user,
-      festival: festival,
-    }) as React.ReactElement,
-  });
-  if (error) {
-    console.error("Error sending email to users", error);
-  }
 }
 
 export async function fetchFestivalParticipants(

@@ -3,8 +3,9 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { sendUserEmailsTemp } from "@/app/lib/festivals/actions";
+import { sendParticipantInvitationsToUsers } from "@/app/lib/festivals/invitations";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 type SendEmailsFormProps = {
   users: BaseProfile[];
@@ -18,7 +19,15 @@ export default function SendEmailsForm({
   const form = useForm();
 
   const action = form.handleSubmit(async () => {
-    await sendUserEmailsTemp(users, festivalId);
+    const result = await sendParticipantInvitationsToUsers(
+      festivalId,
+      users.map((user) => user.id),
+    );
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
   });
 
   return (
