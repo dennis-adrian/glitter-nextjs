@@ -19,6 +19,7 @@ import {
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 import type { PublicFestivalParticipant } from "@/app/components/festivals/participant-info";
 import { isNewParticipationCount } from "@/app/lib/utils";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   festivalActivityParticipants,
@@ -158,6 +159,10 @@ export async function updateSectorMapBounds(
   sectorId: number,
   bounds: { minX: number; minY: number; width: number; height: number },
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   if (
     !Number.isFinite(bounds.minX) ||
     !Number.isFinite(bounds.minY) ||

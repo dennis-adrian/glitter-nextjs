@@ -44,12 +44,12 @@ function normalizeStandLabelForCompare(label: string | null | undefined) {
 async function requireFestivalOrAdmin() {
   const profile = await getCurrentUserProfile();
   if (!profile) {
-    return { ok: false as const, message: "Inicia sesión para continuar." };
+    return { ok: false as const, message: "Iniciá sesión para continuar." };
   }
   if (profile.role !== "festival_admin" && profile.role !== "admin") {
     return {
       ok: false as const,
-      message: "No tienes permisos para realizar esta acción.",
+      message: "No tenés permisos para realizar esta acción.",
     };
   }
   return { ok: true as const, profile };
@@ -81,6 +81,9 @@ const positionSchema = z.object({
 export async function updateStandPositions(
   positions: { id: number; positionLeft: number; positionTop: number }[],
 ): Promise<{ success: boolean; message: string }> {
+  const auth = await requireFestivalOrAdmin();
+  if (!auth.ok) return { success: false, message: auth.message };
+
   try {
     const parsed = z.array(positionSchema).min(1).parse(positions);
 
@@ -136,6 +139,9 @@ const createStandsSchema = z.object({
 export async function createStands(
   input: z.infer<typeof createStandsSchema>,
 ): Promise<{ success: boolean; message: string; stands: StandBase[] }> {
+  const auth = await requireFestivalOrAdmin();
+  if (!auth.ok) return { success: false, message: auth.message, stands: [] };
+
   try {
     const parsed = createStandsSchema.parse(input);
 
@@ -181,6 +187,9 @@ const updateStandSchema = z.object({
 export async function updateStand(
   input: z.infer<typeof updateStandSchema>,
 ): Promise<{ success: boolean; message: string; stand?: StandBase }> {
+  const auth = await requireFestivalOrAdmin();
+  if (!auth.ok) return { success: false, message: auth.message };
+
   try {
     const parsed = updateStandSchema.parse(input);
 
