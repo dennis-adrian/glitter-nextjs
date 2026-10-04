@@ -3,7 +3,7 @@ import * as styles from "@/app/emails/styles";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { Button, Link, Text } from "@react-email/components";
+import { Button, Text } from "react-email";
 
 type FullFestivalBodyProps = {
   baseUrl: string;
