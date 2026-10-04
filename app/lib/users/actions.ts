@@ -33,6 +33,7 @@ import { verifyProfilePictureUpload } from "@/app/lib/uploadthing/profile-pictur
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   infractions,
@@ -251,14 +252,20 @@ export async function updateProfileCategories(
 
     if (options && options.sendUserEmail) {
       const fullProfile = await fetchUserProfileById(profileId);
-      await sendEmail({
-        to: [fullProfile!.email],
-        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-        subject: "Actualización de perfil",
-        react: SubcategoryUpdateEmailTemplate({
-          profile: fullProfile!,
-        }) as React.ReactElement,
-      });
+      // The update is committed; a failed notice must not report it as failed.
+      try {
+        const result = await sendEmail({
+          to: [fullProfile!.email],
+          from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+          subject: "Actualización de perfil",
+          react: SubcategoryUpdateEmailTemplate({
+            profile: fullProfile!,
+          }) as React.ReactElement,
+        });
+        assertSent(result);
+      } catch (error) {
+        console.error("Error sending subcategory update email", error);
+      }
     }
   } catch (error) {
     console.error("Error updating profile", error);
@@ -355,14 +362,21 @@ async function verifyProfileCompletion(userId: number) {
     if (fullProfile.status === "pending" || fullProfile.status === "rejected") {
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((admin) => admin.email);
-      await sendEmail({
-        to: [...adminEmails],
-        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-        subject: `${fullProfile.displayName} ha completado su perfil`,
-        react: ProfileCompletionEmailTemplate({
-          profile: fullProfile,
-        }) as React.ReactElement,
-      });
+      // The profile update is committed; a failed notice must not report it
+      // as failed.
+      try {
+        const result = await sendEmail({
+          to: [...adminEmails],
+          from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+          subject: `${fullProfile.displayName} ha completado su perfil`,
+          react: ProfileCompletionEmailTemplate({
+            profile: fullProfile,
+          }) as React.ReactElement,
+        });
+        assertSent(result);
+      } catch (error) {
+        console.error("Error sending profile completion email", error);
+      }
     }
   }
 }
