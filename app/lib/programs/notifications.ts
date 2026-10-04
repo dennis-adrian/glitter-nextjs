@@ -16,6 +16,7 @@ import type { SessionType } from "@/app/lib/programs/definitions";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 
 export type FreeRegistrationEmailInput = {
   purchaseId: number;
@@ -120,7 +121,7 @@ export async function sendFreeRegistrationEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -153,12 +154,13 @@ export async function sendFreeRegistrationEmail(
         idempotencyKey: `program-registration-${input.purchaseId}-${input.ticketCode}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Free registration email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -201,7 +203,7 @@ export async function sendVoucherReceivedEmail(
   input: VoucherReceivedEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -231,12 +233,13 @@ export async function sendVoucherReceivedEmail(
         idempotencyKey: `program-voucher-received-${input.purchaseId}-v${input.version}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Voucher received email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -258,7 +261,7 @@ export async function sendAdminNewSignupEmail(
   if (input.adminEmails.length === 0) return true;
 
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: input.adminEmails,
@@ -284,12 +287,13 @@ export async function sendAdminNewSignupEmail(
         idempotencyKey: `program-admin-new-signup-${input.purchaseId}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Admin new signup email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -311,7 +315,7 @@ export async function sendVoucherChangesEmail(
   input: VoucherChangesEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -327,12 +331,13 @@ export async function sendVoucherChangesEmail(
         idempotencyKey: `program-voucher-changes-${input.purchaseId}-${input.requestedAt.getTime()}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Voucher changes email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -373,7 +378,7 @@ export async function sendPaymentApprovedEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -405,12 +410,13 @@ export async function sendPaymentApprovedEmail(
           (input.deliveryKey ? `-${input.deliveryKey}` : ""),
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Payment approved email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -431,7 +437,7 @@ export async function sendPurchaseLinkEmail(
   input: PurchaseLinkEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -446,12 +452,13 @@ export async function sendPurchaseLinkEmail(
         idempotencyKey: `program-purchase-link-${input.purchaseId}-${input.resentAt.getTime()}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Purchase link email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -483,7 +490,7 @@ export async function sendWaitlistInvitationEmail(
   input: WaitlistInvitationEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -508,12 +515,13 @@ export async function sendWaitlistInvitationEmail(
         idempotencyKey: `program-waitlist-invite-${input.entryId}-${input.expiresAt.getTime()}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Waitlist invitation email failed", {
       entryId: input.entryId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -560,7 +568,7 @@ export async function sendSessionDayReminderEmail(
   const isSingle = input.lines.length === 1;
 
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -585,12 +593,13 @@ export async function sendSessionDayReminderEmail(
       },
       { idempotencyKey: input.idempotencyKey },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Session day reminder email failed", {
       ticketCode: first.ticketCode,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
