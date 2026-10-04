@@ -139,6 +139,7 @@ export default async function Page(props: {
                     festivalId={validatedParams.data.festivalId}
                     approvedCashAmount={tender?.approvedCashAmount}
                     creditAppliedAmount={tender?.confirmedCreditAmount}
+                    refundedAmount={tender?.refundedAmount}
                     outstandingAmount={outstandingAmount}
                   />
                 </div>

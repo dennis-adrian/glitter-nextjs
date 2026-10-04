@@ -109,3 +109,26 @@ export function standChangeDisabledReason(input: {
   }
   return null;
 }
+
+/**
+ * What the move does to money, as the confirmation states it.
+ *
+ * General rules rather than amounts — the picker does not price each stand
+ * against the reservation's payments — but every rule is the one the shared
+ * repricing model applies, so none of them promises something the service
+ * does not do: a late partner's payment counts as paid, a write-off survives,
+ * a reservation confirmed at no cost owes a dearer stand's difference (one
+ * marked paid with no payment rows only has its amount moved), and a pending
+ * reservation left fully paid is confirmed.
+ */
+export function describeStandChangeMoney(input: {
+  isExchange: boolean;
+}): string[] {
+  return [
+    `${input.isExchange ? "Cada cobro pasa" : "El cobro pasa"} a ser el del espacio nuevo, manteniendo el descuento y cualquier monto que se haya dado por saldado. Los participantes y los pagos registrados quedan como están.`,
+    "Lo que el titular ya pagó en créditos al agregar a un compañero (la diferencia al precio compartido) cuenta como pagado.",
+    "Si el nuevo monto supera lo ya pagado y ya hay pagos (o la reserva se confirmó sin costo), la reserva queda pendiente por la diferencia, con cinco días para pagarla, aunque el espacio nuevo cueste menos. Si lo ya pagado cubre justo el nuevo monto, una reserva pendiente queda confirmada. Si lo ya pagado supera el nuevo monto, lo pagado de más vuelve como créditos y una reserva pendiente queda confirmada. Una reserva pendiente sin pagos solo cambia de monto.",
+    "Una reserva que figura como pagada sin pagos registrados en el sistema solo cambia de monto: no vuelve a quedar pendiente ni se devuelven créditos.",
+    "Si hay un comprobante en revisión, el cambio de precio se rechaza hasta que se resuelva.",
+  ];
+}

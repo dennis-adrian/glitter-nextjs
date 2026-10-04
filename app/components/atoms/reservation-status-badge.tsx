@@ -1,5 +1,6 @@
 import { ReservationBase } from "@/app/api/reservations/definitions";
 import { Badge } from "@/app/components/ui/badge";
+import { RESERVATION_STATUS_LABELS } from "@/app/lib/reservations/status-labels";
 import { cn } from "@/app/lib/utils";
 
 const statusColors = {
@@ -17,15 +18,6 @@ const statusColors = {
     "bg-slate-500/20 border border-slate-300 text-slate-800 hover:bg-slate-500/30 hover:border-slate-300",
 } satisfies Record<ReservationBase["status"], string>;
 
-const statusLabels = {
-  pending: "Pendiente",
-  accepted: "Confirmada",
-  verification_payment: "Verificación de Pago",
-  rejected: "Rechazada",
-  cancelled: "Cancelada",
-  released: "Liberada",
-} satisfies Record<ReservationBase["status"], string>;
-
 export default function ReservationStatusBadge({
   status,
   className,
@@ -35,7 +27,7 @@ export default function ReservationStatusBadge({
 }) {
   return (
     <Badge className={cn(statusColors[status], "font-normal", className)}>
-      {statusLabels[status]}
+      {RESERVATION_STATUS_LABELS[status]}
     </Badge>
   );
 }

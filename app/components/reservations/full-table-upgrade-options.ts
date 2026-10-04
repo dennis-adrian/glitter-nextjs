@@ -1,6 +1,7 @@
 import { formatMoney } from "@/app/lib/formatters";
 import type { FullTableUpgradePlan } from "@/app/lib/reservations/full-table-upgrade";
 import type { FullTableUpgradePreview } from "@/app/lib/reservations/full-table-upgrade-queries";
+import { roundMoney } from "@/app/lib/reservations/money";
 import { isMovableReservationStatus } from "@/app/lib/reservations/stand-change";
 
 /**
@@ -83,9 +84,12 @@ export function describeFullTableUpgradeCard(input: {
       : "";
     return `El espacio ${kept} forma parte de una mesa completa${companion}.`;
   }
+  const table = formatMoney(preview.plan.toPrice);
   const price = preview.plan.priceChanged
-    ? `, que pasa a tener el precio de la mesa: ${formatMoney(preview.plan.toPrice)}`
-    : `, que ya tiene el precio de la mesa (${formatMoney(preview.plan.toPrice)})`;
+    ? `, que pasa a tener el precio de la mesa: ${table}`
+    : preview.plan.latePartnerPrepaid > 0
+      ? `, que con lo pagado por el compañero ya queda en el precio de la mesa (${table})`
+      : `, que ya tiene el precio de la mesa (${table})`;
   return `El espacio ${kept} forma parte de una mesa completa. Podés sumar la otra mitad (${preview.companion.label}) a esta reserva${price}.`;
 }
 
@@ -106,10 +110,12 @@ export function describeFullTableUpgradeCharge(
     }
     const from =
       plan.fromPrice == null ? "" : `de ${formatMoney(plan.fromPrice)} `;
-    return `Esta reserva no tiene cobro: solo cambia el precio registrado, ${from}a ${formatMoney(plan.toPrice)}.`;
+    return `Esta reserva no tiene cobro: solo cambia el precio registrado, ${from}a ${formatMoney(plan.grossAmount)}.`;
   }
   if (!plan.priceChanged) {
-    return `El monto no cambia: la reserva ya tiene el precio de la mesa (${formatMoney(plan.toPrice)}). ${unchanged}`;
+    return plan.latePartnerPrepaid > 0
+      ? `El monto no cambia: con lo que ya se pagó por el compañero, la reserva ya queda en el precio de la mesa (${formatMoney(plan.toPrice)}). ${unchanged}`
+      : `El monto no cambia: la reserva ya tiene el precio de la mesa (${formatMoney(plan.toPrice)}). ${unchanged}`;
   }
 
   const change =
@@ -124,25 +130,47 @@ export function describeFullTableUpgradeCharge(
 }
 
 /**
- * The part of an earlier "confirmar con saldo pendiente" the upgrade undoes.
+ * Why the cobro is lower than the table price when a late partner was added:
+ * the shared-price difference the owner already paid in credits counts as
+ * paid. Said out loud, or "Ya hay Bs X pagados" reads as more than the cobro
+ * ever received.
  *
- * Repricing recomputes the cobro from the table price and the discount, so an
- * amount an admin wrote off comes back into what is owed. Said out loud, or the
- * balance below reads as a miscalculation.
+ * Null when no late partner paid anything.
+ */
+export function describeFullTableUpgradeLatePartner(
+  plan: FullTableUpgradePlan,
+): string | null {
+  if (plan.latePartnerPrepaid <= 0) return null;
+  return `Los ${formatMoney(plan.latePartnerPrepaid)} que el titular ya pagó en créditos al agregar a su compañero (la diferencia al precio compartido) cuentan como pagados: el cobro se calcula sobre el precio de la mesa, ${formatMoney(plan.toPrice)}, menos ese monto. El cargo por agregarlo no se descuenta.`;
+}
+
+/**
+ * An earlier "confirmar con saldo pendiente" the upgrade keeps.
+ *
+ * The amount an admin waived is a fixed concession: the new cobro takes it off
+ * the table price too. Said out loud, or the new amount reads as a
+ * miscalculation.
  */
 export function describeFullTableUpgradeWriteOff(
   plan: FullTableUpgradePlan,
 ): string | null {
   if (!plan.priceChanged || plan.writtenOffAmount <= 0) return null;
-  return `El monto de ${formatMoney(plan.writtenOffAmount)} que se dio por saldado no se mantiene: el nuevo cobro se calcula sobre el precio de la mesa.`;
+  return `El monto de ${formatMoney(plan.writtenOffAmount)} que se dio por saldado se mantiene: también se descuenta del nuevo cobro.`;
 }
 
 /**
  * What the upgrade does with money already paid, in the terms the service
  * applies it: a balance reopens the reservation, a surplus comes back as
- * credits, anything else only moves the amount.
+ * credits, a waiting reservation left fully paid is confirmed, anything else
+ * only moves the amount.
  *
- * Null when there is nothing to say — no cobro, or no price change.
+ * "Pagado" includes what a late partner already paid in credits, because the
+ * service counts it. Then it is split into its two parts and compared with
+ * what the table asks — never with "el nuevo monto", the cobro the charge line
+ * just showed net of that same payment, which it would not add up against
+ * (Bs300 of the cobro plus Bs200 of the partner is not Bs50 over a Bs250
+ * cobro; it is Bs50 over a Bs450 table). Null when there is nothing to say —
+ * no cobro, or no price change.
  */
 export function describeFullTableUpgradeSettlement(input: {
   plan: FullTableUpgradePlan;
@@ -151,44 +179,78 @@ export function describeFullTableUpgradeSettlement(input: {
   const { plan } = input;
   if (plan.currentInvoiceAmount == null || !plan.priceChanged) return null;
 
-  const covered = formatMoney(plan.coveredAmount);
+  const paidAmount = plan.coveredAmount + plan.latePartnerPrepaid;
+  const withLatePartner = plan.latePartnerPrepaid > 0;
+  const paid = withLatePartner
+    ? `${formatMoney(paidAmount)} pagados (${formatMoney(plan.coveredAmount)} del cobro y ${formatMoney(plan.latePartnerPrepaid)} por el compañero)`
+    : `${formatMoney(paidAmount)} pagados`;
+  // What the table asks once everything counted is off: the table price, less
+  // any discount and write-off the cobro keeps. `owed` is exactly this less
+  // what is paid, so the figures always add up.
+  const tableAsk = roundMoney(plan.effectiveAmount + plan.latePartnerPrepaid);
+  const target = !withLatePartner
+    ? "el nuevo monto"
+    : tableAsk === plan.toPrice
+      ? `los ${formatMoney(plan.toPrice)} de la mesa`
+      : `los ${formatMoney(tableAsk)} que cuesta la mesa con lo ya descontado`;
+  const confirmed = plan.completesAcceptance
+    ? " La reserva queda confirmada."
+    : "";
   switch (plan.settlement.kind) {
     case "balance_due": {
       const outstanding = formatMoney(plan.settlement.outstandingAmount);
+      if (paidAmount <= 0) {
+        // Only a reservation confirmed at no cost — a Bs0 cobro (a full
+        // discount, a zero-price stand) or an approved zero-value entitlement
+        // — reopens with nothing paid. It owes the difference like a paid one.
+        return `La reserva se había confirmado sin costo. Vuelve a quedar pendiente por la diferencia de ${outstanding}, con cinco días para pagarla.`;
+      }
+      const ofTarget = withLatePartner ? ` de ${target}` : "";
       return input.reservationStatus === "pending"
-        ? `Ya hay ${covered} pagados. La reserva sigue pendiente por la diferencia de ${outstanding} y vuelve a tener cinco días para pagarla.`
-        : `Ya hay ${covered} pagados. La reserva vuelve a quedar pendiente por la diferencia de ${outstanding}, con cinco días para pagarla.`;
+        ? `Ya hay ${paid}${ofTarget}. La reserva sigue pendiente por la diferencia de ${outstanding} y vuelve a tener cinco días para pagarla.`
+        : `Ya hay ${paid}${ofTarget}. La reserva vuelve a quedar pendiente por la diferencia de ${outstanding}, con cinco días para pagarla.`;
     }
     case "overpaid":
-      return `Ya hay ${covered} pagados, más que el nuevo monto. Los ${formatMoney(plan.settlement.refundAmount)} de diferencia vuelven como créditos al titular.`;
+      return `Ya hay ${paid}, más que ${target}. Los ${formatMoney(plan.settlement.refundAmount)} de diferencia vuelven como créditos al titular.${confirmed}`;
     default:
       break;
   }
 
-  if (plan.coveredAmount > 0) return "Lo ya pagado cubre el nuevo monto.";
-  // Nothing paid on an accepted reservation means it was accepted at no cost:
-  // a zero-value entitlement, or a cobro written off in full. The switch's rule
-  // leaves it accepted and its cobro settled, so the difference is never asked
-  // for.
-  if (input.reservationStatus === "accepted") {
-    return plan.newInvoiceAmount > 0
-      ? `La reserva sigue confirmada y su cobro no vuelve a quedar pendiente, aunque ahora es de ${formatMoney(plan.newInvoiceAmount)}: no se le pide la diferencia al participante.`
-      : "La reserva sigue confirmada y no queda nada por pagar.";
+  if (plan.completesAcceptance) {
+    return `Ya hay ${paid}, que cubren ${target}. La reserva queda confirmada.`;
   }
-  return "Todavía no hay pagos registrados: solo cambia el monto a pagar.";
+  if (paidAmount > 0 && plan.owedAmount <= 0) {
+    return withLatePartner
+      ? `Lo ya pagado (${formatMoney(plan.coveredAmount)} del cobro y ${formatMoney(plan.latePartnerPrepaid)} por el compañero) cubre ${target}.`
+      : "Lo ya pagado cubre el nuevo monto.";
+  }
+  if (input.reservationStatus === "accepted" && plan.newInvoiceAmount <= 0) {
+    return "La reserva sigue confirmada y no queda nada por pagar.";
+  }
+  // A positive cobro marked paid with nothing registered: the money came in
+  // outside the system, so the service neither reopens it nor refunds it.
+  if (
+    input.reservationStatus === "accepted" &&
+    paidAmount <= 0 &&
+    !plan.confirmedAtNoCost
+  ) {
+    return "La reserva figura como pagada sin pagos registrados en el sistema: solo cambia el monto del cobro. No vuelve a quedar pendiente ni se le pide la diferencia.";
+  }
+  return plan.latePartnerPrepaid > 0
+    ? "Todavía no hay pagos del cobro: solo cambia el monto a pagar."
+    : "Todavía no hay pagos registrados: solo cambia el monto a pagar.";
 }
 
 /**
  * Every paragraph of the confirmation, in order: what joins the reservation,
- * what the cobro becomes, what happens to money already paid, and what the
- * admin gives up or should not expect.
+ * what the cobro becomes and why, what happens to money already paid, and what
+ * the admin gives up or should not expect.
  */
 export function describeFullTableUpgrade(input: {
   plan: FullTableUpgradePlan;
   reservationStatus: string;
   keptStandLabel: string;
   companionStandLabel: string;
-  hasOwner: boolean;
   hasTender: boolean;
 }): string[] {
   const { plan } = input;
@@ -197,23 +259,27 @@ export function describeFullTableUpgrade(input: {
     describeFullTableUpgradeCharge(plan),
   ];
 
+  const latePartner = describeFullTableUpgradeLatePartner(plan);
+  if (latePartner) paragraphs.push(latePartner);
   const writeOff = describeFullTableUpgradeWriteOff(plan);
   if (writeOff) paragraphs.push(writeOff);
   const settlement = describeFullTableUpgradeSettlement(input);
   if (settlement) paragraphs.push(settlement);
 
-  // The downgrade refuses any reservation with a payment or credit allocation
-  // row, so once there is one this is a one-way door.
+  // The downgrade refuses a reservation with real money on its cobro
+  // (approved cash, credits, a proof in review), so once there is some this
+  // is a one-way door.
   if (input.hasTender) {
     paragraphs.push(
       "Como ya hay pagos o créditos registrados, después no vas a poder reducirla a media mesa.",
     );
   }
 
-  // The reopened balance gets its reminder task moved to the new deadline (or
-  // one created for the owner), so "no notice" is only true of right now.
+  // The reopened balance gets its reminder task moved to the new deadline, or
+  // one created — for the owner, or for the cobro's holder on a legacy row
+  // with none — so "no notice" is only true of right now.
   const reminder =
-    plan.settlement.kind === "balance_due" && input.hasOwner
+    plan.settlement.kind === "balance_due"
       ? " El recordatorio de pago se reprograma para un día antes del nuevo vencimiento."
       : "";
   paragraphs.push(

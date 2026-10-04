@@ -772,6 +772,8 @@ export async function refundInvoiceCreditsInTx(
 
 export type ReleasedAllocation = {
   allocationId: number;
+  /** Whose credits the allocation spent, and so whose wallet got them back. */
+  userId: number;
   amount: number;
   ledgerEntryId: number;
 };
@@ -871,12 +873,86 @@ export async function releaseInvoiceCreditAllocationsInTx(
     }
     released.push({
       allocationId: allocation.id,
+      userId: allocation.userId,
       amount: roundCredits(Number(allocation.amount)),
       ledgerEntryId: refund.data.ledgerEntryId,
     });
   }
 
   return { ok: true, released };
+}
+
+/**
+ * Takes back, inside the caller's transaction, credits a release is handing
+ * over a second time.
+ *
+ * The one caller is the credit release on a reservation's cobro
+ * (`releaseReservationInvoiceCreditsInTx`). A repricing that refunds a surplus
+ * posts a grant and leaves the allocation standing, so releasing that
+ * allocation whole would return the refunded part again. Trimming the release
+ * instead is not possible: `refundInvoiceCreditsInTx` reverses a spend whole,
+ * and the tender reads any reversal as the whole allocation undone. So the
+ * release stays whole and this posts the double-counted part back out beside
+ * it, as its own negative `admin_adjustment` — append-only, visible in the
+ * wallet with its reason, and revertible from the credit screen like any other
+ * admin entry.
+ *
+ * Deliberately no balance check: the caller offsets at most what it has just
+ * released to this same user in the same transaction, so the account never
+ * ends below where the release found it, even when the grant was spent. The
+ * caller must already hold this user's credit-account lock, which the
+ * release's own refund takes; locking again here only re-reads the row it
+ * holds.
+ */
+export async function offsetReleasedCreditsInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    /** Positive: how much to take back. */
+    amount: number;
+    reason: string;
+    idempotencyKey: string;
+    /** Queryable context for the workflow that has to find this entry later. */
+    metadata?: Record<string, string>;
+  },
+): Promise<{ ledgerEntryId: number } | null> {
+  const amount = roundCredits(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  await lockCreditAccount(tx, input.userId);
+
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+      amount: creditLedgerEntries.amount,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    if (
+      existing.userId !== input.userId ||
+      roundCredits(Number(existing.amount)) !== -amount
+    ) {
+      return null;
+    }
+    return { ledgerEntryId: existing.id };
+  }
+
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount: -amount,
+      type: "admin_adjustment",
+      idempotencyKey: input.idempotencyKey,
+      metadata: { ...input.metadata, reason: input.reason.trim() },
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return null;
+  await updateCachedBalance(tx, input.userId, -amount);
+  return { ledgerEntryId: entry.id };
 }
 
 /** Internal primitive for Phase 3 full-table activation. */

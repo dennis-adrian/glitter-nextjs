@@ -36,6 +36,9 @@ function preview(
     priceAmountSnapshot: 300,
     liveInvoice: { originalAmount: 300, discountAmount: 0, amount: 300 },
     coveredAmount: 300,
+    latePartnerPrepaid: 0,
+    reservationStatus: "accepted",
+    zeroValueEntitlementApproved: false,
   });
   return {
     reservationStatus: "accepted",

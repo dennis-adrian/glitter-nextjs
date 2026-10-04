@@ -137,4 +137,37 @@ describe("AddLatePartnerButton", () => {
     expect(dialog.textContent).toContain("20 créditos");
     expect(screen.queryByRole("button", { name: /^Agregar a / })).toBeNull();
   });
+
+  /**
+   * A full table costs the same for one person or two (PRD §7.1), so the
+   * quote is the fee alone. A "difference" row reading zero would raise the
+   * question the breakdown exists to answer.
+   */
+  it("quotes a full table as the fee alone, with no difference row", () => {
+    renderButton({
+      fullTable: true,
+      sharedPriceDifference: 0,
+      featurePrice: 25,
+      totalCredits: 25,
+    });
+    openDialog();
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent).not.toContain("Diferencia");
+    expect(dialog.textContent).not.toContain("0 créditos");
+    expect(dialog.textContent).toContain("25 créditos");
+    expect(dialog.textContent).toContain(
+      "Tu mesa completa cuesta lo mismo con una o dos personas",
+    );
+    expect(dialog.textContent).toContain("cobro original no cambia");
+  });
+
+  it("keeps the difference row on a half table", () => {
+    renderButton();
+    openDialog();
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent).toContain("Diferencia por compartir el espacio");
+    expect(dialog.textContent).not.toContain("mesa completa");
+  });
 });

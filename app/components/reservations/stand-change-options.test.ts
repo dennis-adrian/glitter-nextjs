@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  describeStandChangeMoney,
   standChangeDisabledReason,
   toStandChangeChoice,
 } from "@/app/components/reservations/stand-change-options";
@@ -123,5 +124,59 @@ describe("stand change availability", () => {
         reservationStatus: "rejected",
       }),
     ).toContain("ya no ocupa");
+  });
+});
+
+describe("stand change money copy", () => {
+  it("speaks of one cobro for a switch and of each for an exchange", () => {
+    expect(describeStandChangeMoney({ isExchange: false })[0]).toMatch(
+      /^El cobro pasa a ser el del espacio nuevo/,
+    );
+    expect(describeStandChangeMoney({ isExchange: true })[0]).toMatch(
+      /^Cada cobro pasa a ser el del espacio nuevo/,
+    );
+  });
+
+  /** Every rule the shared repricing model applies, and none it does not. */
+  it("states the late partner, write-off, free-confirmed and acceptance rules", () => {
+    const text = describeStandChangeMoney({ isExchange: false }).join(" ");
+    expect(text).toContain("cualquier monto que se haya dado por saldado");
+    expect(text).toContain(
+      "Lo que el titular ya pagó en créditos al agregar a un compañero",
+    );
+    expect(text).toContain("o la reserva se confirmó sin costo");
+    expect(text).toContain("una reserva pendiente queda confirmada");
+    expect(text).toContain("lo pagado de más vuelve como créditos");
+    expect(text).toContain("comprobante en revisión");
+    // Only a reservation confirmed at no cost owes the difference; one marked
+    // paid with no payment rows was paid outside the system.
+    expect(text).toContain(
+      "Una reserva que figura como pagada sin pagos registrados en el sistema solo cambia de monto",
+    );
+  });
+
+  /**
+   * The settlement turns on the new amount against what is already paid, not
+   * on which stand costs more: Bs200 paid of a Bs500 cobro, moved to a Bs400
+   * stand, still owes Bs200 and is not confirmed.
+   */
+  it("compares the new amount with what is paid, never the stand prices", () => {
+    const text = describeStandChangeMoney({ isExchange: false }).join(" ");
+    expect(text).toContain("Si el nuevo monto supera lo ya pagado");
+    expect(text).toContain("aunque el espacio nuevo cueste menos");
+    expect(text).toContain("Si lo ya pagado supera el nuevo monto");
+    expect(text).toContain(
+      "Una reserva pendiente sin pagos solo cambia de monto",
+    );
+    expect(text).not.toMatch(/cuesta (más|menos)/);
+    expect(text).not.toContain("la reserva queda confirmada");
+  });
+
+  it("never says factura", () => {
+    for (const isExchange of [false, true]) {
+      expect(
+        describeStandChangeMoney({ isExchange }).join(" ").toLowerCase(),
+      ).not.toContain("factura");
+    }
   });
 });

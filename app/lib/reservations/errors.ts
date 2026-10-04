@@ -53,8 +53,8 @@ export const RESERVATION_ERROR_CODES = [
   "STAND_CHANGE_NOT_MOVABLE",
   "STAND_CHANGE_DESTINATION_HELD",
   "STAND_CHANGE_EXCHANGE_NOT_CONFIRMED",
-  "STAND_CHANGE_INVOICE_SETTLED",
   "STAND_CHANGE_PROOF_UNDER_REVIEW",
+  "STAND_CHANGE_REFUND_NO_OWNER",
   "AMOUNT_BELOW_CREDITS",
   "CREDITS_NOT_RELEASABLE",
   "CREDITS_ALREADY_RELEASED",
@@ -120,12 +120,16 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "No te alcanzan los créditos para activar la mesa completa. Comprá la diferencia y volvé.",
     FULL_TABLE_ACCESS_INACTIVE:
       "No tenés la mesa completa activada en este festival.",
-    // Two causes, one code: the reservation is not a full table, or its
-    // invoice already has money against it. Both mean the same thing to an
-    // admin — there is nothing safe to reduce here — and naming only the first
-    // sent them looking for a second space that was never the problem.
+    // Two causes, one code: the reservation is not a full table, or its cobro
+    // has real money on it — any of the blockers the downgrade checks
+    // (`invoiceMoneyBlocker`: an approved or legacy payment, applied credits,
+    // a comprobante or zero-value request in review). Both mean the same thing
+    // to an admin — there is nothing safe to reduce here — and naming only
+    // some of them sent admins looking for a problem that was not there. The
+    // edit page disables the button with the exact reason first, so this is
+    // mostly seen on a race.
     FULL_TABLE_NOT_DOWNGRADABLE:
-      "Esta reserva no se puede reducir: o no ocupa dos espacios, o ya tiene pagos o créditos aplicados.",
+      "Esta reserva no se puede reducir a media mesa: tiene que ocupar los dos espacios, y su cobro no puede tener pagos aprobados o registrados, créditos aplicados ni un comprobante o una solicitud en revisión. Revisá el cobro y volvé a intentarlo.",
     FULL_TABLE_HOLD_ACTIVE:
       "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
     // The upgrade codes are admin-only: the command is a global admin's, so
@@ -183,13 +187,15 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     // a refusal so much as a request for the decision the dialog exists to ask.
     STAND_CHANGE_EXCHANGE_NOT_CONFIRMED:
       "Ese espacio está ocupado por otra reserva. Confirmá el intercambio para continuar.",
-    STAND_CHANGE_INVOICE_SETTLED:
-      "El espacio de destino tiene otro precio y ya hay pagos o créditos aplicados. Resolvé el pago antes de mover la reserva.",
     // A voucher in flight was sent for the old amount. Repricing under it would
     // leave the reviewer comparing a comprobante against a total that changed
     // after it was uploaded.
     STAND_CHANGE_PROOF_UNDER_REVIEW:
       "Hay un comprobante en revisión para esta reserva. Resolvelo antes de moverla a un espacio con otro precio.",
+    // A legacy reservation with no owner recorded: the surplus has nobody to go
+    // to as credits, and no retry changes that.
+    STAND_CHANGE_REFUND_NO_OWNER:
+      "Lo ya pagado supera el precio del espacio nuevo y esta reserva no tiene titular a quien devolverle la diferencia en créditos.",
     AMOUNT_BELOW_CREDITS:
       "El monto no puede quedar por debajo de los créditos ya aplicados. Devolvé los créditos antes de bajarlo.",
     CREDITS_NOT_RELEASABLE:

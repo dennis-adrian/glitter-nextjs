@@ -32,6 +32,12 @@ type PartnerOption = { id: number; displayName: string | null };
  * after booking. Showing only a total invites the question "why that much?",
  * which is exactly the question §8.3 asks us to answer up front.
  *
+ * A full table is the exception: its price does not depend on how many people
+ * stand at it, so there is no difference to charge and the quote is the fee
+ * alone. Showing a zero-credit "difference" row there would raise the very
+ * question the breakdown exists to answer, so the row goes and the copy says
+ * why.
+ *
  * When the balance is short the purchase replaces the confirm button rather
  * than sitting disabled beside it: credits are the only way to fund this, so
  * buying them is the next step, not an obstacle.
@@ -42,6 +48,7 @@ export default function AddLatePartnerButton({
   sharedPriceDifference,
   featurePrice,
   totalCredits,
+  fullTable = false,
   shortfall,
   deadlineLabel,
 }: {
@@ -50,6 +57,8 @@ export default function AddLatePartnerButton({
   sharedPriceDifference: number;
   featurePrice: number;
   totalCredits: number;
+  /** A full table: the fee alone, with no difference for the headcount. */
+  fullTable?: boolean;
   shortfall: number;
   /** The effective deadline, already formatted. Always shown (§5). */
   deadlineLabel: string | null;
@@ -202,12 +211,14 @@ export default function AddLatePartnerButton({
 
             {/* Both components named, not just the total (§8.3). */}
             <dl className="space-y-1 rounded-md bg-muted p-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">
-                  Diferencia por compartir el espacio
-                </dt>
-                <dd>{formatCreditCount(sharedPriceDifference)}</dd>
-              </div>
+              {fullTable ? null : (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">
+                    Diferencia por compartir el espacio
+                  </dt>
+                  <dd>{formatCreditCount(sharedPriceDifference)}</dd>
+                </div>
+              )}
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">
                   Agregar después de reservar
@@ -221,6 +232,9 @@ export default function AddLatePartnerButton({
             </dl>
 
             <p className="text-sm text-muted-foreground">
+              {fullTable
+                ? "Tu mesa completa cuesta lo mismo con una o dos personas, así que solo pagás el costo de agregar a alguien después de reservar. "
+                : null}
               Tu cobro original no cambia. Esto se paga aparte, con créditos.
               {deadlineLabel
                 ? ` Podés agregar a alguien hasta el ${deadlineLabel}.`

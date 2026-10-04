@@ -58,9 +58,9 @@ export async function addLatePartnerAction(input: unknown) {
  * Its own entry point rather than the shared feature purchase, because this is
  * the one feature whose price is not the festival's configured figure: it also
  * carries the difference between the individual and shared price of *this*
- * reservation. The browser sends the reservation id and the server works the
- * total out from that reservation's own snapshots, so no amount ever
- * originates in the browser.
+ * reservation (none on a full table, which pays the fee alone). The browser
+ * sends the reservation id and the server works the total out from that
+ * reservation's own snapshots, so no amount ever originates in the browser.
  */
 export async function createLatePartnerCreditTopUpAction(input: unknown) {
   const blocked = await featureFlagGuard("credits");
