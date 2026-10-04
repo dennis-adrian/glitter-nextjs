@@ -64,6 +64,7 @@ export default function RegistrationSteps(props: {
   const [newVisitor, setNewVisitor] =
     useState<NewVisitorDetails>(initialNewVisitor);
   const [view, setView] = useState<VisitorRegistrationView | null>(null);
+  const [email, setEmail] = useState("");
 
   // Phones at the door get passed around: whoever starts over must not
   // inherit the previous visitor's session.
@@ -72,6 +73,7 @@ export default function RegistrationSteps(props: {
     setRegistrationInfo(initialRegistrationInfo);
     setView(null);
     setNewVisitor(initialNewVisitor);
+    setEmail("");
   };
 
   const handleRestart = () => {
@@ -146,7 +148,10 @@ export default function RegistrationSteps(props: {
         <EmailForm
           festivalId={props.festivalId}
           onReturning={handleReturningVisitor}
-          onNew={() => setRegistrationInfo((prev) => ({ ...prev, step: 3 }))}
+          onNew={(typed) => {
+            setEmail(typed);
+            setRegistrationInfo((prev) => ({ ...prev, step: 3 }));
+          }}
         />
       )}
       {registrationInfo.step === 3 && (
@@ -176,6 +181,7 @@ export default function RegistrationSteps(props: {
       {registrationInfo.step === 6 && (
         <GenderForm
           festivalId={props.festivalId}
+          email={email}
           details={newVisitor}
           onSuccess={(registered: VisitorRegistrationView) => {
             setView(registered);

@@ -133,12 +133,18 @@ export async function ticketHistoryVisitorId(): Promise<number | null> {
   return verifyVisitorIdToken(cookieStore.get(HISTORY_COOKIE)?.value, "history");
 }
 
-/** A stable, non-reversible name for the caller's network address. */
+/**
+ * A stable, non-reversible name for the caller's network address.
+ *
+ * Only headers the hosting platform sets are read: Vercel overwrites
+ * `x-real-ip` and `x-forwarded-for` with the connecting address. Headers it
+ * passes through as sent, such as `cf-connecting-ip` (the site is not behind
+ * Cloudflare), would let a script pick a new address for every request.
+ */
 async function callerFingerprint() {
   const requestHeaders = await headers();
   const forwardedIp = requestHeaders.get("x-forwarded-for")?.split(",")[0];
   const clientIdentifier =
-    requestHeaders.get("cf-connecting-ip")?.trim() ||
     requestHeaders.get("x-real-ip")?.trim() ||
     forwardedIp?.trim() ||
     `unknown:${requestHeaders.get("user-agent") ?? "no-user-agent"}`;

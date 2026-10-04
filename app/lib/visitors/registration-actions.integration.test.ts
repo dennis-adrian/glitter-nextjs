@@ -234,6 +234,7 @@ describeDatabase("visitor registration actions", () => {
     const registered = await actions.registerVisitor({
       festivalId: festival.id,
       mode: "online",
+      email,
       details: newVisitorDetails,
     });
     expect(registered).toMatchObject({
@@ -282,6 +283,7 @@ describeDatabase("visitor registration actions", () => {
       await actions.registerVisitor({
         festivalId: festival.id,
         mode: "online",
+        email: victim.email,
         details: newVisitorDetails,
       }),
     ).toMatchObject({ success: false, restart: true });
@@ -305,6 +307,7 @@ describeDatabase("visitor registration actions", () => {
     await actions.registerVisitor({
       festivalId: festival.id,
       mode: "online",
+      email: victim.email,
       details: newVisitorDetails,
     });
     const [unchanged] = await integrationDb!
@@ -312,6 +315,72 @@ describeDatabase("visitor registration actions", () => {
       .from(visitors)
       .where(eq(visitors.id, victim.id));
     expect(unchanged).toMatchObject({ firstName: "Ana", lastName: "Pérez" });
+  });
+
+  it("refuses details meant for an email another tab has since replaced", async () => {
+    const festival = await createFestival();
+    const first = uniqueEmail("tab-a");
+    const second = uniqueEmail("tab-b");
+    await actions.startVisitorRegistration({
+      festivalId: festival.id,
+      email: first,
+      mode: "online",
+    });
+    await actions.startVisitorRegistration({
+      festivalId: festival.id,
+      email: second,
+      mode: "online",
+    });
+
+    expect(
+      await actions.registerVisitor({
+        festivalId: festival.id,
+        mode: "online",
+        email: first,
+        details: newVisitorDetails,
+      }),
+    ).toMatchObject({ success: false, restart: true });
+    const rows = await integrationDb!
+      .select()
+      .from(visitors)
+      .where(inArray(visitors.email, [first, second]));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("treats rows whose emails differ only in case as one visitor", async () => {
+    const festival = await createFestival();
+    const lower = uniqueEmail("twin");
+    const older = await createVisitor(lower.replace("twin", "Twin"));
+    const newer = await createVisitor(lower);
+    expect(older.id).toBeLessThan(newer.id);
+    const tomorrow = festivalDay(1);
+    await integrationDb!.insert(tickets).values({
+      date: tomorrow,
+      visitorId: newer.id,
+      festivalId: festival.id,
+      ticketNumber: 1,
+    });
+
+    const start = await actions.startVisitorRegistration({
+      festivalId: festival.id,
+      email: lower,
+      mode: "online",
+    });
+    expect(start).toMatchObject({ success: true, status: "returning" });
+    if (!start.success || start.status !== "returning") throw new Error();
+    expect(start.view.tickets.map((ticket) => ticket.date)).toEqual([tomorrow]);
+
+    expect(
+      await actions.claimTicket({
+        festivalId: festival.id,
+        date: tomorrow.toISOString(),
+      }),
+    ).toMatchObject({ message: "Ya tenías una entrada para este día" });
+    const rows = await integrationDb!
+      .select()
+      .from(tickets)
+      .where(inArray(tickets.visitorId, [older.id, newer.id]));
+    expect(rows).toHaveLength(1);
   });
 
   it("ignores a forged session cookie", async () => {

@@ -13,8 +13,13 @@ import { genderEnum } from "@/db/schema";
 
 export const VISITOR_MIN_AGE = 10;
 
-/** Letters (any script), spaces, hyphens and apostrophes: personal names. */
-const NAME_CHARS = /^[\p{L}\s'-]+$/u;
+/**
+ * Personal names: words of letters (any script, accents typed or combined),
+ * hyphens and apostrophes (straight or the curly one phones type), each word
+ * optionally ending in an abbreviation dot ("Ma. Fernanda"). A dot inside a
+ * word is refused, so a name greeted in our emails cannot be a domain.
+ */
+const NAME_PATTERN = /^[\p{L}\p{M}'’-]+\.?(?:\s+[\p{L}\p{M}'’-]+\.?)*$/u;
 
 function personName(label: "nombre" | "apellido") {
   return z
@@ -22,7 +27,7 @@ function personName(label: "nombre" | "apellido") {
     .trim()
     .min(2, { error: `El ${label} tiene que tener al menos dos letras` })
     .max(60, { error: `El ${label} es demasiado largo` })
-    .regex(NAME_CHARS, {
+    .regex(NAME_PATTERN, {
       error: `Usa solo letras, espacios y guiones en tu ${label}`,
     });
 }

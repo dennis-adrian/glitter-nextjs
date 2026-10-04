@@ -5,6 +5,7 @@ import { and, eq, max, sql } from "drizzle-orm";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import TicketHistoryLinkEmailTemplate from "@/app/emails/ticket-history-link";
 import type { FestivalBase } from "@/app/lib/festivals/definitions";
+import { ticketHolderIs } from "@/app/lib/visitors/registration-data";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { ticketHistoryToken } from "@/app/lib/visitors/session";
@@ -57,7 +58,7 @@ export async function issueTicket(input: {
       .from(tickets)
       .where(
         and(
-          eq(tickets.visitorId, input.visitorId),
+          ticketHolderIs(input.visitorId),
           eq(tickets.festivalId, input.festivalId),
           eq(tickets.date, input.date),
         ),

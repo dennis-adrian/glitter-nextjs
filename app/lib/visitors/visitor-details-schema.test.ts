@@ -19,7 +19,24 @@ describe("visitorDetailsSchema", () => {
     expect(visitorDetailsSchema.safeParse(valid).success).toBe(true);
   });
 
-  it.each(["Visita www.estafa.com", "Ana2", "<b>Ana</b>", "A", "x".repeat(61)])(
+  it.each(["Ma. Fernanda", "O’Brien", "Jose\u0301", "Ana  María", "D'Angelo"])(
+    "accepts %j as a name",
+    (firstName) => {
+      expect(
+        visitorDetailsSchema.safeParse({ ...valid, firstName }).success,
+      ).toBe(true);
+    },
+  );
+
+  it.each([
+    "Visita www.estafa.com",
+    "estafa.com",
+    "Ana2",
+    "<b>Ana</b>",
+    "A",
+    ".Ana",
+    "x".repeat(61),
+  ])(
     "refuses %j as a name",
     (firstName) => {
       expect(

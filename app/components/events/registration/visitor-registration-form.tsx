@@ -43,6 +43,7 @@ export default function VisitorRegistrationForm({
     const res = await registerVisitor({
       festivalId,
       mode: "online",
+      email,
       details: data,
     });
 

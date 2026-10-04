@@ -49,6 +49,14 @@ import { visitors } from "@/db/schema";
  */
 
 const MINUTE = 60 * 1000;
+
+/**
+ * Per network address, sized for a festival entrance: a door rush shares one
+ * venue Wi-Fi or carrier address, and staff register people from one desk.
+ * They only stop floods; the per-email and per-visitor limits are the ones
+ * that bound what one identity can do.
+ */
+const PER_ADDRESS_LIMIT = { limit: 300, windowMs: 10 * MINUTE };
 const TOO_MANY_REQUESTS =
   "Demasiados intentos. Espera unos minutos e intenta de nuevo.";
 const SESSION_EXPIRED: RegistrationFailure = {
@@ -95,11 +103,7 @@ export async function startVisitorRegistration(input: {
   const normalizedEmail = normalizeVisitorEmail(email.data);
 
   const allowed =
-    (await allowVisitorRequest({
-      scope: "start",
-      limit: 30,
-      windowMs: 10 * MINUTE,
-    })) &&
+    (await allowVisitorRequest({ scope: "start", ...PER_ADDRESS_LIMIT })) &&
     (await allowVisitorRequest({
       scope: "start-email",
       limit: 10,
@@ -138,6 +142,8 @@ export async function startVisitorRegistration(input: {
 export async function registerVisitor(input: {
   festivalId: number;
   mode: RegistrationMode;
+  /** The email the form showed, which must still be the one held. */
+  email: string;
   details: z.input<typeof visitorDetailsSchema>;
 }): Promise<RegisterVisitorResult> {
   const festivalId = festivalIdSchema.safeParse(input?.festivalId);
@@ -154,17 +160,25 @@ export async function registerVisitor(input: {
   }
 
   const email = await pendingVisitorEmail();
-  if (!email) return SESSION_EXPIRED;
-
+  // Another tab may have entered a different email since this form loaded;
+  // saving these details under that one would hand them to someone else.
   if (
-    !(await allowVisitorRequest({
-      scope: "register",
-      limit: 10,
-      windowMs: 10 * MINUTE,
-    }))
+    !email ||
+    typeof input?.email !== "string" ||
+    normalizeVisitorEmail(input.email) !== email
   ) {
-    return { success: false, message: TOO_MANY_REQUESTS };
+    return SESSION_EXPIRED;
   }
+
+  const allowed =
+    (await allowVisitorRequest({ scope: "register", ...PER_ADDRESS_LIMIT })) &&
+    (await allowVisitorRequest({
+      scope: "register-email",
+      limit: 5,
+      windowMs: 10 * MINUTE,
+      subject: email,
+    }));
+  if (!allowed) return { success: false, message: TOO_MANY_REQUESTS };
 
   try {
     const festival = await loadRegistrationFestival(festivalId.data);
@@ -345,7 +359,7 @@ export async function requestTicketHistoryLink(input: {
   const allowed =
     (await allowVisitorRequest({
       scope: "history-link",
-      limit: 5,
+      limit: 30,
       windowMs: 15 * MINUTE,
     })) &&
     (await allowVisitorRequest({

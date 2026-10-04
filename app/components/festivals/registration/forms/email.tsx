@@ -27,7 +27,7 @@ type EmailFormProps = {
   /** A visitor we already know: their details are on file. */
   onReturning: (view: VisitorRegistrationView) => void;
   /** First visit: ask for their details. */
-  onNew: () => void;
+  onNew: (email: string) => void;
 };
 
 export default function EmailForm(props: EmailFormProps) {
@@ -51,7 +51,7 @@ export default function EmailForm(props: EmailFormProps) {
     if (result.status === "returning") {
       props.onReturning(result.view);
     } else {
-      props.onNew();
+      props.onNew(data.email);
     }
   });
 

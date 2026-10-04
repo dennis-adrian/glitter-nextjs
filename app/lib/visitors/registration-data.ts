@@ -38,6 +38,21 @@ export async function findVisitorIdByEmail(email: string) {
   return row?.id ?? null;
 }
 
+/**
+ * `tickets.visitor_id` belongs to the same person as `visitorId`: any row
+ * with their email, whatever its case. The old form stored emails as typed,
+ * so one person can hold tickets under "Ana@…" and "ana@…".
+ */
+export function ticketHolderIs(visitorId: number) {
+  return sql`${tickets.visitorId} in (
+    select ${visitors.id} from ${visitors}
+    where lower(trim(${visitors.email})) = (
+      select lower(trim(${visitors.email})) from ${visitors}
+      where ${visitors.id} = ${visitorId}
+    )
+  )`;
+}
+
 export async function loadRegistrationFestival(festivalId: number) {
   if (!Number.isInteger(festivalId) || festivalId <= 0) return null;
   const festival = await db.query.festivals.findFirst({
@@ -134,9 +149,7 @@ export async function visitorRegistrationView(
   const rows = await db
     .select()
     .from(tickets)
-    .where(
-      and(eq(tickets.visitorId, visitorId), eq(tickets.festivalId, festival.id)),
-    )
+    .where(and(ticketHolderIs(visitorId), eq(tickets.festivalId, festival.id)))
     .orderBy(asc(tickets.date));
 
   return {
@@ -179,7 +192,7 @@ export async function visitorTicketHistory(visitorId: number) {
     })
     .from(tickets)
     .innerJoin(festivals, eq(festivals.id, tickets.festivalId))
-    .where(eq(tickets.visitorId, visitorId))
+    .where(ticketHolderIs(visitorId))
     .orderBy(sql`${tickets.date} desc`);
 
   return {

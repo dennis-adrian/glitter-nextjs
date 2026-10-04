@@ -19,6 +19,8 @@ const FormSchema = visitorDetailsSchema.pick({ gender: true });
 
 type GenderFormProps = {
   festivalId: number;
+  /** The email entered at the start, held by the server meanwhile. */
+  email: string;
   /** Everything the earlier steps collected. */
   details: Omit<VisitorDetails, "gender">;
   onSuccess: (view: VisitorRegistrationView) => void;
@@ -37,6 +39,7 @@ export default function GenderForm(props: GenderFormProps) {
     const res = await registerVisitor({
       festivalId: props.festivalId,
       mode: "door",
+      email: props.email,
       details: { ...props.details, gender: data.gender },
     });
 
