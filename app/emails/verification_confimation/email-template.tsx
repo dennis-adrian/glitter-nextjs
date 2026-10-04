@@ -7,7 +7,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import RegularBody from "./regular-body";
 import ActiveFestivalBody from "./active-festival-body";
 import { UserCategory } from "@/app/api/users/definitions";

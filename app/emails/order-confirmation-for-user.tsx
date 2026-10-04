@@ -9,7 +9,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import EmailFooter from "@/app/emails/email-footer";

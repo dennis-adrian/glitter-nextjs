@@ -103,12 +103,6 @@ export async function createTicket(data: {
   const qrBuffer = await generateQrBuffer(
     getTicketCode(festival.festivalCode || "", createdTicket.ticketNumber || 0),
   );
-  const qrAttachment = {
-    filename: "qrcode.png",
-    content: qrBuffer,
-    content_id: "ticket-qrcode",
-  };
-
   sendEmail({
     from: "Equipo Glitter <entradas@productoraglitter.com>",
     to: [visitor.email],
@@ -118,7 +112,14 @@ export async function createTicket(data: {
       festival,
       ticket: createdTicket,
     }) as React.ReactElement,
-    attachments: [qrAttachment],
+    attachments: [
+      {
+        filename: "qrcode.png",
+        content: qrBuffer,
+        // Resolves the template's `cid:ticket-qrcode` image.
+        contentId: "ticket-qrcode",
+      },
+    ],
   });
 
   revalidatePath(`/festivals/${festival.id}/registration`);
