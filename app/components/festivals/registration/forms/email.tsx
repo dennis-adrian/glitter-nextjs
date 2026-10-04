@@ -9,10 +9,8 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import {
-  fetchVisitorByEmail,
-  VisitorWithTickets,
-} from "@/app/data/visitors/actions";
+import { startVisitorRegistration } from "@/app/lib/visitors/registration-actions";
+import type { VisitorRegistrationView } from "@/app/lib/visitors/registration-definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -25,7 +23,11 @@ const FormSchema = z.object({
 });
 
 type EmailFormProps = {
-  onSubmit: (email: string, visitor?: VisitorWithTickets | null) => void;
+  festivalId: number;
+  /** A visitor we already know: their details are on file. */
+  onReturning: (view: VisitorRegistrationView) => void;
+  /** First visit: ask for their details. */
+  onNew: () => void;
 };
 
 export default function EmailForm(props: EmailFormProps) {
@@ -37,8 +39,20 @@ export default function EmailForm(props: EmailFormProps) {
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const visitor = await fetchVisitorByEmail(data.email);
-    props.onSubmit(data.email, visitor);
+    const result = await startVisitorRegistration({
+      festivalId: props.festivalId,
+      email: data.email,
+      mode: "door",
+    });
+    if (!result.success) {
+      form.setError("email", { message: result.message });
+      return;
+    }
+    if (result.status === "returning") {
+      props.onReturning(result.view);
+    } else {
+      props.onNew();
+    }
   });
 
   return (
@@ -54,6 +68,7 @@ export default function EmailForm(props: EmailFormProps) {
                 <Input
                   bottomBorderOnly
                   type="email"
+                  autoComplete="email"
                   placeholder="ejemplo@mail.com"
                   {...field}
                 />

@@ -6,15 +6,12 @@ import { Form } from "@/app/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 
-const FormSchema = z.object({
-  firstName: z.string().trim().min(2, {
-    error: "El nombre tiene que tener al menos dos letras",
-  }),
-  lastName: z.string().trim().min(2, {
-    error: "El apellido tiene que tener al menos dos letras",
-  }),
+import { visitorDetailsSchema } from "@/app/lib/visitors/visitor-details-schema";
+
+const FormSchema = visitorDetailsSchema.pick({
+  firstName: true,
+  lastName: true,
 });
 
 type NameFormProps = {
@@ -42,11 +39,13 @@ export default function NameForm(props: NameFormProps) {
             bottomBorderOnly
             name="firstName"
             placeholder="Ingresa tu nombre"
+            autoComplete="given-name"
           />
           <TextInput
             bottomBorderOnly
             name="lastName"
             placeholder="Ingresa tu apellido"
+            autoComplete="family-name"
           />
         </div>
         <SubmitButton

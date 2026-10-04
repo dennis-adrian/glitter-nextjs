@@ -1,6 +1,11 @@
 "use client";
 
-import { ExternalLinkIcon, InfoIcon, SendIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  InfoIcon,
+  QrCodeIcon,
+  SendIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
@@ -236,18 +241,18 @@ export default function FestivalSettingsCard({
           ? {
               title: "Habilitar registro en puerta",
               description:
-                "Mientras esté habilitado, el formulario de acreditación solo entrega entradas para el día en curso: nadie elige otra fecha.",
+                "El formulario de puerta entrega entradas solo para el día en curso. Descarga su QR y colócalo en la entrada. El formulario en línea sigue permitiendo elegir cualquier fecha.",
               confirmLabel: "Habilitar",
               onConfirm: () =>
                 updateFestivalEventDayRegistration(festival.id, true),
               notice: isFestivalDayToday
                 ? null
-                : "Hoy no es un día del festival: mientras esté habilitado, nadie podrá obtener entradas desde el formulario. Habilítalo el día del evento.",
+                : "Hoy no es un día del festival: hasta el día del evento, el QR enviará a los visitantes al formulario en línea.",
             }
           : {
               title: "Deshabilitar registro en puerta",
               description:
-                "El formulario de acreditación vuelve a pedir que cada visitante elija la fecha de su entrada.",
+                "El QR de la puerta deja de entregar entradas y envía a los visitantes al formulario en línea, donde eligen la fecha.",
               confirmLabel: "Deshabilitar",
               destructive: true,
               onConfirm: () =>
@@ -361,7 +366,7 @@ export default function FestivalSettingsCard({
 
           <SettingRow
             label="Registro en puerta"
-            description="Para el día del evento: el formulario de acreditación solo entrega entradas para ese día."
+            description="Un formulario con QR para la entrada del evento: quien lo escanea obtiene su entrada solo para el día en curso."
             checked={registrationOpen && festival.eventDayRegistration}
             locked={archived}
             lockedReason={
@@ -373,14 +378,35 @@ export default function FestivalSettingsCard({
               open({ type: "event-day", enable: !festival.eventDayRegistration })
             }
           >
-            {registrationOpen &&
-            festival.eventDayRegistration &&
-            !isFestivalDayToday ? (
-              <p className="flex items-start gap-1.5 text-xs text-amber-800">
-                <InfoIcon className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-                Está habilitado y hoy no es un día del festival: nadie puede
-                obtener entradas desde el formulario.
-              </p>
+            {registrationOpen && festival.eventDayRegistration ? (
+              <>
+                {!isFestivalDayToday ? (
+                  <p className="flex basis-full items-start gap-1.5 text-xs text-amber-800">
+                    <InfoIcon
+                      className="mt-px h-3.5 w-3.5 shrink-0"
+                      aria-hidden
+                    />
+                    Hoy no es un día del festival: el QR abre el formulario en
+                    línea hasta el día del evento.
+                  </p>
+                ) : null}
+                <Button asChild size="sm" variant="outline">
+                  <a href={`/dashboard/festivals/${festival.id}/door-qr`} download>
+                    <QrCodeIcon className="mr-2 h-3.5 w-3.5" aria-hidden />
+                    Descargar QR
+                  </a>
+                </Button>
+                <Button asChild size="sm" variant="ghost">
+                  <Link
+                    href={`/festivals/${festival.id}/event_day_registration`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLinkIcon className="mr-2 h-3.5 w-3.5" aria-hidden />
+                    Ver formulario de puerta
+                  </Link>
+                </Button>
+              </>
             ) : null}
           </SettingRow>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import BirthdayForm from "@/app/components/festivals/registration/forms/birthday";
 import EmailForm from "@/app/components/festivals/registration/forms/email";
@@ -11,13 +11,17 @@ import RegistrationTypeBanner from "@/app/components/festivals/registration/regi
 import RegistrationTypeCards from "@/app/components/festivals/registration/registration-type-cards";
 import FamilyMembersStep from "@/app/components/festivals/registration/steps/family-members-step";
 import StepDescription from "@/app/components/festivals/registration/steps/step-description";
-import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
+import TicketCreationStep, {
+  todaysTicket,
+} from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { RegistrationType } from "@/app/components/festivals/registration/types";
 import { stepsDescription } from "@/app/components/festivals/registration/utils";
-import { NewVisitor, VisitorWithTickets } from "@/app/data/visitors/actions";
-import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
-import { formatDate } from "@/app/lib/formatters";
-import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { forgetVisitor } from "@/app/lib/visitors/registration-actions";
+import type {
+  TicketFestivalView,
+  VisitorRegistrationView,
+} from "@/app/lib/visitors/registration-definitions";
+import type { VisitorDetails } from "@/app/lib/visitors/visitor-details-schema";
 
 type RegistrationInfo = {
   step: number;
@@ -26,13 +30,13 @@ type RegistrationInfo = {
   showBanner: boolean;
 };
 
-const initialNewVisitor: NewVisitor = {
+type NewVisitorDetails = Omit<VisitorDetails, "gender">;
+
+const initialNewVisitor: NewVisitorDetails = {
   firstName: "",
   lastName: "",
-  email: "",
   phoneNumber: "",
-  birthdate: new Date(),
-  gender: "other",
+  birthdate: "",
 };
 
 const initialRegistrationInfo: RegistrationInfo = {
@@ -42,59 +46,47 @@ const initialRegistrationInfo: RegistrationInfo = {
   showBanner: false,
 };
 
+/** The email step, where an expired session starts over. */
+const EMAIL_STEP = 2;
+const TICKET_STEP = 7;
+
+/**
+ * Registro en puerta: the form visitors open from the QR at the venue. It
+ * only ever gives a ticket for today; the server decides what today is.
+ */
 export default function RegistrationSteps(props: {
-  festival: FestivalWithDates;
+  festivalId: number;
+  festival: TicketFestivalView;
 }) {
   const [registrationInfo, setRegistrationInfo] = useState<RegistrationInfo>(
     initialRegistrationInfo,
   );
-  const [newVisitor, setNewVisitor] = useState<NewVisitor>(initialNewVisitor);
-  const [returningVisitor, setReturningVisitor] =
-    useState<VisitorWithTickets | null>(null);
+  const [newVisitor, setNewVisitor] =
+    useState<NewVisitorDetails>(initialNewVisitor);
+  const [view, setView] = useState<VisitorRegistrationView | null>(null);
 
-  useEffect(() => {
-    if (registrationInfo.type === "individual") {
-      setRegistrationInfo((prev) => ({
-        ...prev,
-        step: 2,
-      }));
-    } else if (registrationInfo.type === "family") {
-      setRegistrationInfo((prev) => ({
-        ...prev,
-        step: 1,
-      }));
-    }
-  }, [registrationInfo.type]);
-
+  // Phones at the door get passed around: whoever starts over must not
+  // inherit the previous visitor's session.
   const handleReset = () => {
+    void forgetVisitor();
     setRegistrationInfo(initialRegistrationInfo);
-    setReturningVisitor(null);
+    setView(null);
     setNewVisitor(initialNewVisitor);
   };
 
-  const handleVisitorSearch = (
-    email: string,
-    visitor?: VisitorWithTickets | null,
-  ) => {
-    if (visitor) {
-      setReturningVisitor(visitor);
+  const handleRestart = () => {
+    setView(null);
+    setNewVisitor(initialNewVisitor);
+    setRegistrationInfo((prev) => ({ ...prev, step: EMAIL_STEP }));
+  };
 
-      const tickets = getVisitorFestivalTickets(visitor, props.festival);
-      const currentDayTicket = tickets.find((ticket) => {
-        return formatDate(ticket.date)
-          .startOf("day")
-          .equals(formatDate(new Date()).startOf("day"));
-      });
-
-      setRegistrationInfo({
-        ...registrationInfo,
-        step: 7,
-        showBanner: !currentDayTicket,
-      });
-    } else {
-      setNewVisitor({ ...newVisitor, email });
-      setRegistrationInfo({ ...registrationInfo, step: 3 });
-    }
+  const handleReturningVisitor = (returning: VisitorRegistrationView) => {
+    setView(returning);
+    setRegistrationInfo((prev) => ({
+      ...prev,
+      step: TICKET_STEP,
+      showBanner: !todaysTicket(returning.tickets),
+    }));
   };
 
   const handleGoBack = () => {
@@ -110,7 +102,7 @@ export default function RegistrationSteps(props: {
         <div className="mb-4">
           <RegistrationTypeBanner
             show={registrationInfo.showBanner}
-            festivalId={props.festival.id}
+            festivalId={props.festivalId}
             type={registrationInfo.type}
             numberOfVisitors={registrationInfo.numberOfVisitors}
             step={registrationInfo.step}
@@ -130,6 +122,9 @@ export default function RegistrationSteps(props: {
             setRegistrationInfo({
               ...registrationInfo,
               type,
+              // A family says how many come in first; one person goes
+              // straight to the email.
+              step: type === "family" ? 1 : EMAIL_STEP,
               showBanner: true,
             });
           }}
@@ -147,8 +142,12 @@ export default function RegistrationSteps(props: {
           }}
         />
       )}
-      {registrationInfo.step === 2 && (
-        <EmailForm onSubmit={handleVisitorSearch} />
+      {registrationInfo.step === EMAIL_STEP && (
+        <EmailForm
+          festivalId={props.festivalId}
+          onReturning={handleReturningVisitor}
+          onNew={() => setRegistrationInfo((prev) => ({ ...prev, step: 3 }))}
+        />
       )}
       {registrationInfo.step === 3 && (
         <NameForm
@@ -160,8 +159,8 @@ export default function RegistrationSteps(props: {
       )}
       {registrationInfo.step === 4 && (
         <BirthdayForm
-          onSubmit={(date: Date) => {
-            setNewVisitor({ ...newVisitor, birthdate: date });
+          onSubmit={(birthdate: string) => {
+            setNewVisitor({ ...newVisitor, birthdate });
             setRegistrationInfo({ ...registrationInfo, step: 5 });
           }}
         />
@@ -176,24 +175,26 @@ export default function RegistrationSteps(props: {
       )}
       {registrationInfo.step === 6 && (
         <GenderForm
-          festival={props.festival}
-          numberOfVisitors={registrationInfo.numberOfVisitors}
-          visitor={newVisitor}
-          onSuccess={(visitor: VisitorWithTickets) => {
-            setReturningVisitor(visitor);
-            setRegistrationInfo({ ...registrationInfo, step: 7 });
+          festivalId={props.festivalId}
+          details={newVisitor}
+          onSuccess={(registered: VisitorRegistrationView) => {
+            setView(registered);
+            setRegistrationInfo({ ...registrationInfo, step: TICKET_STEP });
           }}
+          onRestart={handleRestart}
         />
       )}
-      {registrationInfo.step === 7 && returningVisitor?.id ? (
+      {registrationInfo.step === TICKET_STEP && view ? (
         <TicketCreationStep
+          festivalId={props.festivalId}
           festival={props.festival}
-          visitor={returningVisitor}
+          view={view}
           numberOfVisitors={registrationInfo.numberOfVisitors}
-          onSuccess={(visitor) => {
-            setReturningVisitor(visitor);
+          onSuccess={(updated) => {
+            setView(updated);
             setRegistrationInfo({ ...registrationInfo, showBanner: false });
           }}
+          onRestart={handleRestart}
         />
       ) : null}
     </>
