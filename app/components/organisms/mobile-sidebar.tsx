@@ -188,6 +188,10 @@ const MobileSidebar = ({
           ) : null}
           {profile && profile.role === "festival_admin" && (
             <>
+              <MobileSidebarItem href="/dashboard/festivals">
+                <CalendarIcon className="mr-2 h-6 w-6" />
+                Festivales
+              </MobileSidebarItem>
               <MobileSidebarItem href="/dashboard/infractions?limit=25&offset=0">
                 <CircleAlertIcon className="mr-2 h-6 w-6" />
                 Infracciones

@@ -185,6 +185,19 @@ const NavbarNavigationMenu = ({
                 asChild
                 className={navigationMenuTriggerStyle()}
               >
+                <Link href="/dashboard/festivals">
+                  <div className="flex items-center">
+                    <CalendarIcon className="w-4 h-4 mr-1" />
+                    Festivales
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
                 <Link href="/dashboard/infractions?limit=25&offset=0">
                   <div className="flex items-center">
                     <CircleAlertIcon className="w-4 h-4 mr-1" />
