@@ -1,6 +1,5 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
 import {
   Table,
   TableBody,
@@ -10,6 +9,7 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { Badge, BadgeVariant } from "@/app/components/ui/badge";
+import { FestivalAvailableUser } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { useState } from "react";
 import SendEmailsForm from "@/app/dashboard/festivals/[id]/allowed_participants/send-emails-form";
@@ -27,7 +27,7 @@ export default function UsersBuckets({
   users,
   festivalId,
 }: {
-  users: BaseProfile[];
+  users: FestivalAvailableUser[];
   festivalId: number;
 }) {
   const [bucketAmount, setBucketAmount] = useState(10);
@@ -40,7 +40,7 @@ export default function UsersBuckets({
       acc[bucketIndex].push(user);
       return acc;
     },
-    [] as { [key: number]: BaseProfile[] },
+    [] as { [key: number]: FestivalAvailableUser[] },
   );
 
   return (
@@ -70,7 +70,10 @@ export default function UsersBuckets({
             <h2 className="text-lg font-semibold">
               Bucket {parseInt(bucketIndex) + 1}
             </h2>
-            <SendEmailsForm users={bucketUsers} festivalId={festivalId} />
+            <SendEmailsForm
+              userIds={bucketUsers.map((user) => user.id)}
+              festivalId={festivalId}
+            />
           </div>
           <Table>
             <TableHeader>
