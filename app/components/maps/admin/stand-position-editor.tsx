@@ -98,6 +98,12 @@ import TemplateImportDialog from "./template-import-dialog";
 type StandPositionEditorProps = {
   festivalId: number;
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
+  /**
+   * Declared full tables. The map never changes their membership: they are
+   * split, paired and deleted from Gestionar espacios, where the rules about
+   * bookings and holds live.
+   */
+  fullTableGroupIds: number[];
 };
 
 /** Coordinates are floats, so treat sub-epsilon differences as unmoved */
@@ -191,6 +197,7 @@ const MAX_UNDO = 30;
 export default function StandPositionEditor({
   festivalId,
   sectors,
+  fullTableGroupIds,
 }: StandPositionEditorProps) {
   const [positions, setPositions] = useState(() => buildPositionsMap(sectors));
   const [originalPositions, setOriginalPositions] = useState(() =>
@@ -576,12 +583,24 @@ export default function StandPositionEditor({
 
     const deletedSet = new Set(ids);
 
+    // The server prunes groups the deleted stands leave with one member; clear
+    // the survivors here too, as applyGroupIdLocally does.
     setStandsPerSector((prev) => {
+      const prunedGroupIds = getPrunedGroupIds(
+        Array.from(prev.values()).flat(),
+        deletedSet,
+      );
       const next = new Map(prev);
       for (const [sectorId, sectorStands] of next) {
         next.set(
           sectorId,
-          sectorStands.filter((s) => !deletedSet.has(s.id)),
+          sectorStands
+            .filter((s) => !deletedSet.has(s.id))
+            .map((s) =>
+              s.standGroupId != null && prunedGroupIds.has(s.standGroupId)
+                ? { ...s, standGroupId: null }
+                : s,
+            ),
         );
       }
       return next;
@@ -1518,6 +1537,19 @@ export default function StandPositionEditor({
   const hasGroupedSelection = selectedStandRecords.some(
     (stand) => stand.standGroupId != null,
   );
+  const fullTableGroupIdSet = new Set(fullTableGroupIds);
+  const selectedFullTableHalves = selectedStandRecords.filter(
+    (stand) =>
+      stand.standGroupId != null && fullTableGroupIdSet.has(stand.standGroupId),
+  );
+  const fullTableReason =
+    selectedFullTableHalves.length === 0
+      ? null
+      : `${selectedFullTableHalves
+          .map((stand) => `${stand.label ?? ""}${stand.standNumber}`)
+          .join(" y ")} ${
+          selectedFullTableHalves.length === 1 ? "es mitad" : "son mitades"
+        } de una mesa completa. Para separarla, unirla a otro grupo o eliminarla, usá Gestionar espacios.`;
 
   return (
     <div className="space-y-4">
@@ -1800,8 +1832,11 @@ export default function StandPositionEditor({
             variant="outline"
             size="sm"
             onClick={handleGroupStands}
-            disabled={isGrouping}
-            title="Tratar los espacios seleccionados como uno solo en el plano"
+            disabled={isGrouping || fullTableReason != null}
+            title={
+              fullTableReason ??
+              "Tratar los espacios seleccionados como uno solo en el plano"
+            }
           >
             <Link2 className="h-4 w-4 mr-1" />
             {isGrouping ? "Uniendo..." : `Unir (${selectedStands.size})`}
@@ -1812,8 +1847,11 @@ export default function StandPositionEditor({
             variant="outline"
             size="sm"
             onClick={handleUngroupStands}
-            disabled={isGrouping}
-            title="Dejar de tratar los espacios seleccionados como uno solo"
+            disabled={isGrouping || fullTableReason != null}
+            title={
+              fullTableReason ??
+              "Dejar de tratar los espacios seleccionados como uno solo"
+            }
           >
             <Unlink className="h-4 w-4 mr-1" />
             Separar
@@ -1830,7 +1868,8 @@ export default function StandPositionEditor({
             variant="destructive"
             size="sm"
             onClick={handleDeleteStands}
-            disabled={isDeleting}
+            disabled={isDeleting || fullTableReason != null}
+            title={fullTableReason ?? undefined}
           >
             <Trash2 className="h-4 w-4 mr-1" />
             {isDeleting ? "Eliminando..." : `Eliminar (${selectedStands.size})`}
@@ -1856,6 +1895,17 @@ export default function StandPositionEditor({
           </Button>
         )}
       </div>
+      {fullTableReason && (
+        <p className="text-sm text-muted-foreground">
+          {fullTableReason}{" "}
+          <Link
+            href={`/dashboard/festivals/${festivalId}/stands/manage`}
+            className="underline"
+          >
+            Ir a Gestionar espacios
+          </Link>
+        </p>
+      )}
 
       <Tabs value={activeSectorId} onValueChange={setActiveSectorId}>
         <TabsList>

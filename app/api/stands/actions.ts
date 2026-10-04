@@ -6,7 +6,7 @@ import {
   FestivalWithUserRequests,
 } from "@/app/lib/festivals/definitions";
 import { lockFestivalRow, lockStandRows } from "@/app/lib/reservations/locks";
-import { standsHaveReservations } from "@/app/lib/reservations/members";
+import { deleteStandsWithGroups } from "@/app/lib/stands/group-service";
 import { guardLegacySinglePriceEdit } from "@/app/lib/stands/pricing-service";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -253,26 +253,25 @@ const deleteStandsSchema = z.array(z.number().int().positive()).min(1);
 export async function deleteStands(
   standIds: number[],
 ): Promise<{ success: boolean; message: string }> {
+  const auth = await requireFestivalOrAdmin();
+  if (!auth.ok) return { success: false, message: auth.message };
+
   try {
     const parsed = deleteStandsSchema.parse(standIds);
 
-    const result = await db.transaction(async (tx) => {
-      // Membership as well as the parent column: a full table's companion is
-      // reachable only through membership, so checking `stand_id` alone let the
-      // delete through and the foreign key rejected it with a generic error.
-      if (await standsHaveReservations(tx, parsed)) {
-        return {
-          success: false as const,
-          message: "No se pueden eliminar espacios con reservaciones",
-        };
-      }
-
-      await tx.delete(stands).where(inArray(stands.id, parsed));
-      return { success: true as const };
-    });
-
-    if (!result.success) {
-      return { success: false, message: result.message };
+    const result = await deleteStandsWithGroups({ standIds: parsed });
+    if (!result.ok) {
+      const message =
+        result.code === "HAS_RESERVATIONS"
+          ? "No se pueden eliminar espacios con reservaciones"
+          : result.code === "FULL_TABLE_MEMBER"
+            ? `${result.fullTableStandLabels.join(" y ")} ${
+                result.fullTableStandLabels.length === 1
+                  ? "es mitad"
+                  : "son mitades"
+              } de una mesa completa. Separá la mesa desde Gestionar espacios antes de eliminarla.`
+            : "Los espacios cambiaron mientras tanto. Recargá la página y probá de nuevo.";
+      return { success: false, message };
     }
 
     revalidatePath("/dashboard/festivals");
