@@ -112,6 +112,9 @@ export function visitorIdFromHistoryToken(token: unknown) {
  * the registration session, so their current tickets open without asking.
  */
 export async function openTicketHistory(visitorId: number) {
+  // Session first: it drops another visitor's history cookie, which must not
+  // take the one set below with it.
+  await startVisitorSession(visitorId);
   const cookieStore = await cookies();
   cookieStore.set(
     HISTORY_COOKIE,
@@ -122,7 +125,6 @@ export async function openTicketHistory(visitorId: number) {
     }),
     cookieOptions(VISITOR_SESSION_TTL_MS),
   );
-  await startVisitorSession(visitorId);
 }
 
 /** The visitor whose ticket history this browser may see, or null. */
