@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import {
   type CreateEmailOptions,
   type CreateEmailRequestOptions,
@@ -9,6 +10,7 @@ import { serverEnv } from "../../env";
 export const resend = new Resend(serverEnv.RESEND_API_KEY);
 
 const RESEND_REQUEST_TIMEOUT_MS = 10_000;
+const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
 
 /**
  * The SDK's own request options: it sends `idempotencyKey` as the
@@ -20,6 +22,22 @@ export type SendEmailOptions = CreateEmailRequestOptions;
 export type SendEmailResult =
   | CreateEmailResponse
   | { data: null; error: null; headers: null };
+
+/**
+ * Resend keeps idempotency keys per account for 24 hours, and a preview
+ * deployment can send through the same account as production while numbering
+ * purchases and jobs in its own database. Unscoped, a preview send could
+ * deduplicate a production one, or 409 it into being counted as sent.
+ *
+ * A key past Resend's 256-character limit is hashed rather than rejected.
+ */
+function scopeIdempotencyKey(key: string): string {
+  const scoped = `${serverEnv.VERCEL_ENV}:${key}`;
+  if (scoped.length <= MAX_IDEMPOTENCY_KEY_LENGTH) return scoped;
+
+  const digest = createHash("sha256").update(key).digest("hex");
+  return `${serverEnv.VERCEL_ENV}:sha256:${digest}`;
+}
 
 export async function sendEmail(
   payload: CreateEmailOptions,
@@ -51,7 +69,13 @@ export async function sendEmail(
     : controller.signal;
 
   try {
-    const response = await resend.emails.send(payload, { ...options, signal });
+    const response = await resend.emails.send(payload, {
+      ...options,
+      ...(options.idempotencyKey
+        ? { idempotencyKey: scopeIdempotencyKey(options.idempotencyKey) }
+        : {}),
+      signal,
+    });
 
     // The SDK resolves an aborted request as a network failure instead of
     // rejecting. Reject so callers' try/catch paths still see the timeout.

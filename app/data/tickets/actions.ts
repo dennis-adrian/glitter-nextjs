@@ -2,11 +2,13 @@
 
 import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
 import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
@@ -100,26 +102,43 @@ export async function createTicket(data: {
     };
   }
 
-  const qrBuffer = await generateQrBuffer(
-    getTicketCode(festival.festivalCode || "", createdTicket.ticketNumber || 0),
-  );
-  sendEmail({
-    from: "Equipo Glitter <entradas@productoraglitter.com>",
-    to: [visitor.email],
-    subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
-    react: TicketEmailTemplate({
-      visitor,
-      festival,
-      ticket: createdTicket,
-    }) as React.ReactElement,
-    attachments: [
-      {
-        filename: "qrcode.png",
-        content: qrBuffer,
-        // Resolves the template's `cid:ticket-qrcode` image.
-        contentId: "ticket-qrcode",
-      },
-    ],
+  // After the response, so registration does not wait on the mail provider.
+  // Unlike a floating promise, `after` keeps the function alive until the send
+  // settles. The ticket is already committed, so a failed send is logged
+  // rather than turned into a failed registration.
+  after(async () => {
+    try {
+      const qrBuffer = await generateQrBuffer(
+        getTicketCode(
+          festival.festivalCode || "",
+          createdTicket.ticketNumber || 0,
+        ),
+      );
+      const result = await sendEmail({
+        from: "Equipo Glitter <entradas@productoraglitter.com>",
+        to: [visitor.email],
+        subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
+        react: TicketEmailTemplate({
+          visitor,
+          festival,
+          ticket: createdTicket,
+        }) as React.ReactElement,
+        attachments: [
+          {
+            filename: "qrcode.png",
+            content: qrBuffer,
+            // Resolves the template's `cid:ticket-qrcode` image.
+            contentId: "ticket-qrcode",
+          },
+        ],
+      });
+      assertSent(result);
+    } catch (error) {
+      console.error("Ticket email failed", {
+        ticketId: createdTicket.id,
+        errorType: sendFailureType(error),
+      });
+    }
   });
 
   revalidatePath(`/festivals/${festival.id}/registration`);
