@@ -1,5 +1,5 @@
 import CouponBookPrintPage from "@/app/components/festivals/festival_activities/coupon-book-print-page";
-import { fetchParticipationPreviewDataBatch } from "@/app/lib/festival_activites/actions";
+import { fetchParticipationPreviewDataBatch } from "@/app/lib/festival_activites/queries";
 import {
   COUPON_BOOK_PAGE_HEIGHT_CM,
   COUPON_BOOK_PAGE_WIDTH_CM,

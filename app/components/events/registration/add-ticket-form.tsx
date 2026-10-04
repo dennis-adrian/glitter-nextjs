@@ -8,7 +8,7 @@ import {
 } from "@/app/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
 import { createTicket } from "@/app/data/tickets/actions";
-import { VisitorBase } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { FestivalBase, FestivalDate } from "@/app/lib/festivals/definitions";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,7 +24,7 @@ const FormSchema = z.object({
 type AddTicketFormProps = {
   festival: FestivalBase;
   festivalDates: FestivalDate[];
-  visitor: VisitorBase;
+  visitor: PublicVisitor;
   onSuccess: () => void;
 };
 
@@ -50,8 +50,8 @@ export default function AddTicketForm({
 
     const res = await createTicket({
       date: date.toJSDate(),
-      festival: festival,
-      visitor: visitor,
+      festivalId: festival.id,
+      email: visitor.email,
     });
 
     if (res.success) {

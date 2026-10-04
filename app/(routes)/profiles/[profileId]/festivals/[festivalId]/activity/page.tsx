@@ -1,8 +1,9 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import PassportActivityContent from "@/app/components/pages/festival_activities/passport-activity";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
+import { withoutParticipantRoster } from "@/app/lib/festivals/utils";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -46,11 +47,17 @@ export default async function ParticipantsActivityPage({
     return notFound();
   }
 
-  const stickerPrintActivity = festival.festivalActivities.find(
+  // The activities reach client components, so they are scoped to the
+  // profile the page is for.
+  const { festivalActivities } = withoutParticipantRoster(
+    festival,
+    forProfile.id,
+  );
+  const stickerPrintActivity = festivalActivities.find(
     (activity) => activity.type === "sticker_print",
   );
 
-  const passportActivity = festival.festivalActivities.find(
+  const passportActivity = festivalActivities.find(
     (activity) => activity.type === "stamp_passport",
   );
 

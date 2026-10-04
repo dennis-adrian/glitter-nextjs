@@ -1,6 +1,6 @@
 import "server-only";
 
-import { fetchAdminUsers } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
 import {
   captureCreditHoldForFeatureInTx,
   releaseCreditHoldForFeatureInTx,

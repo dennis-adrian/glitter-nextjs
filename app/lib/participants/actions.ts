@@ -25,6 +25,7 @@ import {
 import {
   buildWhereClauseForProfileFetching,
   getCurrentUserProfile,
+  requireAdminOrFestivalAdmin,
 } from "@/app/lib/users/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { updateUserStatusWithAudit } from "@/app/lib/users/status-events";
@@ -237,6 +238,9 @@ function mapActivitySummary(row: ParticipantRow): ParticipantActivitySummary {
 export async function fetchParticipantProfiles(
   filters: ParticipantListFilters,
 ): Promise<ParticipantProfile[]> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return [];
+
   try {
     const rows = await fetchParticipantRows(filters);
     if (rows.length === 0) return [];
@@ -297,6 +301,20 @@ export async function fetchParticipantAggregates(
     "limit" | "offset" | "sort" | "direction"
   >,
 ): Promise<ParticipantAggregates> {
+  // `query` matches email and phone, so even the counts would confirm whether
+  // an account exists.
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return {
+      total: 0,
+      active: 0,
+      paused: 0,
+      banned: 0,
+      totalParticipants: 0,
+      pauseEligible: 0,
+    };
+  }
+
   try {
     const filteredWhereClause = await buildParticipantWhereClause(filters);
     const summaryWhereClause = await buildParticipantWhereClause({
@@ -614,6 +632,9 @@ export async function unpauseParticipantAccount(
 export async function fetchParticipantActivitySummary(
   profileId: number,
 ): Promise<ParticipantActivitySummary | null> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return null;
+
   const result = await db.execute(sql`
     with ${pauseEligibilityFestivalCtes},
     participant_activity as (
@@ -691,46 +712,4 @@ export async function fetchParticipantActivitySummary(
   if (!row) return null;
 
   return mapActivitySummary(row);
-}
-
-export async function fetchParticipantProfileById(
-  profileId: number,
-): Promise<ParticipantProfile | null> {
-  const activitySummary = await fetchParticipantActivitySummary(profileId);
-  if (!activitySummary) return null;
-
-  const profile = await db.query.users.findFirst({
-    with: {
-      userRequests: true,
-      userSocials: true,
-      participations: {
-        with: {
-          reservation: {
-            with: {
-              stand: true,
-              festival: true,
-            },
-          },
-        },
-      },
-      profileTags: {
-        with: {
-          tag: true,
-        },
-      },
-      profileSubcategories: {
-        with: {
-          subcategory: true,
-        },
-      },
-    },
-    where: eq(users.id, profileId),
-  });
-
-  if (!profile) return null;
-
-  return {
-    ...profile,
-    activitySummary,
-  };
 }

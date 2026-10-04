@@ -21,7 +21,7 @@ import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
-import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
+import { promoteFromWaitlist } from "@/app/lib/festival_activites/waitlist-promotion";
 import { validateCouponBookHeaderImageInput } from "@/app/lib/festival_activites/coupon-book-header-image";
 import {
   getMaterialConfig,

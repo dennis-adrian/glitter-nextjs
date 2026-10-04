@@ -32,7 +32,7 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/app/api/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));
 
@@ -112,7 +112,7 @@ vi.mock("@/app/lib/reservations/admin-service", () => ({
   applyReservationCancellation: applyReservationCancellationMock,
 }));
 
-vi.mock("@/app/lib/uploadthing/actions", () => ({
+vi.mock("@/app/lib/uploadthing/storage", () => ({
   enqueueStorageCleanupJob: vi.fn(),
 }));
 

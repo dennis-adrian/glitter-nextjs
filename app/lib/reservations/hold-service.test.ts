@@ -50,7 +50,7 @@ vi.mock("@/app/lib/reservations/request-registry", () => ({
   abandonRequest: vi.fn(),
 }));
 
-vi.mock("@/app/api/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));
 

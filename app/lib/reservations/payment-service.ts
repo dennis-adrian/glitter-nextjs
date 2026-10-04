@@ -3,7 +3,7 @@ import { activeReservationStandIds } from "@/app/lib/reservations/members";
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-import { fetchAdminUsers } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
 import { invoiceCreditPlan } from "@/app/lib/credits/balances";
 import {
   createCreditTopUpForRequirementInTx,
@@ -52,7 +52,7 @@ import {
   claimRequest,
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
-import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/actions";
+import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/storage";
 import {
   computeInvoiceTender,
   type InvoiceTender,

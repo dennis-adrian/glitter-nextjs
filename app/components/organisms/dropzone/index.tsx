@@ -27,13 +27,15 @@ type DropzoneProps = {
   maxFiles?: number;
   maxSize?: number; // in bytes
   accept?: string[]; // e.g. ['image/*', 'application/pdf']
-  onUploadComplete?: (
-    files: {
-      imageUrl: string;
-      fileName: string;
-      fileSize: number;
-    }[],
-  ) => void;
+  onUploadComplete?: (files: DropzoneUploadedFile[]) => void;
+};
+
+export type DropzoneUploadedFile = {
+  imageUrl: string;
+  fileName: string;
+  fileSize: number;
+  /** Signed by the upload route; the proof action refuses a URL without it. */
+  receipt: string;
 };
 
 export function Dropzone({
@@ -79,9 +81,11 @@ export function Dropzone({
         if (onUploadComplete) {
           onUploadComplete(
             res.map((r) => ({
-              imageUrl: r.url,
+              // The URL the route signed, so it always matches the receipt.
+              imageUrl: r.serverData?.imageUrl ?? r.url,
               fileName: r.name,
               fileSize: r.size,
+              receipt: r.serverData?.receipt ?? "",
             })),
           );
         } else {

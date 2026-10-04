@@ -5,22 +5,20 @@ import {
   POSTHOG_SHUTDOWN_TIMEOUT_MS,
 } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
   BaseProfile,
-  NewUser,
   Participation,
-  ProfileType,
   UserCategory,
   UsersAggregates,
   UserSocial,
 } from "@/app/api/users/definitions";
+import { isParticipantSelectable } from "@/app/lib/categories/visibility";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
-import { UserInfraction } from "@/app/lib/users/definitions";
 import {
   buildWhereClauseForProfileFetching,
   getCurrentUserProfile,
+  requireAdminOrFestivalAdmin,
   requireProfileOwnerOrAdmin,
   requireProfileOwnerOrStaff,
 } from "@/app/lib/users/helpers";
@@ -29,97 +27,49 @@ import {
   pickSelfEditableProfileFields,
   SelfEditableProfile,
 } from "@/app/lib/users/profile-fields";
+import {
+  fetchAdminUsers,
+  fetchUserProfileById,
+  getCurrentClerkUser,
+} from "@/app/lib/users/queries";
 import { verifyProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
-  infractions,
   profileSubcategories,
   reservationParticipants,
   scheduledTasks,
+  subcategories,
   users,
   userSocials,
 } from "@/db/schema";
-import { currentUser } from "@clerk/nextjs/server";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { cache } from "react";
 
-export const getCurrentClerkUser = cache(async () => await currentUser());
-
-export const fetchUserProfileByClerkId = async (
-  clerkId: string,
-): Promise<ProfileType | null> => {
-  try {
-    const profile = await db.query.users.findFirst({
-      with: {
-        userRequests: true,
-        userSocials: true,
-        participations: {
-          with: {
-            reservation: {
-              with: {
-                stand: true,
-                festival: {
-                  with: {
-                    festivalDates: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        profileTags: {
-          with: {
-            tag: true,
-          },
-        },
-        profileSubcategories: {
-          with: {
-            subcategory: true,
-          },
-        },
-      },
-      where: eq(users.clerkId, clerkId),
-    });
-
-    return profile || null;
-  } catch (error) {
-    console.error(error);
-    return null;
+/**
+ * Creates the signed-in Clerk user's own profile row. Takes no input: the
+ * caller's identity and contact fields come from the session, so nobody can
+ * create a row under another Clerk id or pick their own role or status.
+ */
+export async function createUserProfile() {
+  const clerkUser = await getCurrentClerkUser();
+  const email = clerkUser?.emailAddresses[0]?.emailAddress;
+  if (!clerkUser || !email) {
+    return { success: false, message: "No autorizado" };
   }
-};
 
-export const cachedFetchUserProfileByClerkId = cache(fetchUserProfileByClerkId);
-
-export const fetchBaseUserProfileByClerkId = async (
-  clerkId: string,
-): Promise<BaseProfile | null> => {
-  try {
-    const profile = await db.query.users.findFirst({
-      where: eq(users.clerkId, clerkId),
-    });
-
-    return profile || null;
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-};
-
-export const cachedFetchBaseUserProfileByClerkId = cache(
-  fetchBaseUserProfileByClerkId,
-);
-
-export async function createUserProfile(user: NewUser) {
   try {
     const newUserRes = await db.transaction(async (tx) => {
       const [newUser] = await tx
         .insert(users)
         .values({
-          ...user,
+          clerkId: clerkUser.id,
+          email,
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          imageUrl: clerkUser.imageUrl,
         })
         .onConflictDoNothing({ target: users.clerkId })
         .returning();
@@ -140,11 +90,8 @@ export async function createUserProfile(user: NewUser) {
       try {
         const posthog = getPostHogClient();
         posthog.capture({
-          distinctId: String(user.clerkId),
+          distinctId: clerkUser.id,
           event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
-          properties: {
-            category: user.category,
-          },
         });
         await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
       } catch (telemetryError) {
@@ -219,6 +166,59 @@ export async function updateProfile(
   };
 }
 
+/** The areas the onboarding picker offers a participant. */
+const PARTICIPANT_CATEGORIES: readonly UserCategory[] = [
+  "illustration",
+  "entrepreneurship",
+  "gastronomy",
+];
+
+/**
+ * Whether a participant's pick has the shape the onboarding picker produces:
+ * one of its areas and at least one subcategory id. An empty pick would leave
+ * the profile in onboarding, and so free to recategorize, indefinitely.
+ */
+function isParticipantCategoryShape(
+  category: UserCategory,
+  subcategoryIds: number[],
+) {
+  return (
+    PARTICIPANT_CATEGORIES.includes(category) &&
+    Array.isArray(subcategoryIds) &&
+    subcategoryIds.length > 0 &&
+    subcategoryIds.every(Number.isInteger)
+  );
+}
+
+/**
+ * Whether every id names a distinct subcategory a participant may pick for
+ * themselves, inside `category`. Admin-only and non-selectable rows gate
+ * restricted stands, so only staff assign them.
+ */
+async function areParticipantSelectable(
+  category: UserCategory,
+  subcategoryIds: number[],
+) {
+  const rows = await db
+    .select({
+      category: subcategories.category,
+      visibility: subcategories.visibility,
+      isAdminAssignableOnly: subcategories.isAdminAssignableOnly,
+    })
+    .from(subcategories)
+    .where(inArray(subcategories.id, subcategoryIds));
+
+  // Fewer rows than ids means an unknown or a repeated id.
+  return (
+    rows.length === subcategoryIds.length &&
+    rows.every(
+      (row) =>
+        row.category === category &&
+        isParticipantSelectable(row.visibility, row.isAdminAssignableOnly),
+    )
+  );
+}
+
 export async function updateProfileCategories(
   profileId: number,
   category: UserCategory,
@@ -230,7 +230,28 @@ export async function updateProfileCategories(
     return { success: false, message: "No autorizado" };
   }
 
+  // Category decides stand eligibility and whether festival enrollment needs
+  // review, so a participant only picks it while completing their profile,
+  // the one place their UI offers it. Past that, staff changes it. A
+  // non-staff actor here is the owner, so `actor` is the target's own row.
+  const isStaff = actor.role === "admin" || actor.role === "festival_admin";
+  const isOnboarding =
+    actor.category === "none" || actor.profileSubcategories.length === 0;
+  if (!isStaff && !isOnboarding) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!isStaff && !isParticipantCategoryShape(category, subcategoryIds)) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
+    if (
+      !isStaff &&
+      !(await areParticipantSelectable(category, subcategoryIds))
+    ) {
+      return { success: false, message: "No autorizado" };
+    }
+
     await db.transaction(async (tx) => {
       await tx
         .update(users)
@@ -447,6 +468,11 @@ export async function fetchUsersAggregates(filters?: {
   query?: string;
   profileCompletion?: "complete" | "incomplete" | "all";
 }): Promise<UsersAggregates> {
+  // `query` matches email and phone, so even a bare count would confirm
+  // whether an account exists.
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return { total: 0 };
+
   const { includeAdmins, status, category, query, profileCompletion } =
     filters || {};
   const whereClause = await buildWhereClauseForProfileFetching(
@@ -487,6 +513,9 @@ export async function fetchUserProfiles(filters: {
   direction: "asc" | "desc";
   profileCompletion: "complete" | "incomplete" | "all";
 }) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return [];
+
   const {
     limit,
     offset,
@@ -549,12 +578,6 @@ export async function fetchUserProfiles(filters: {
   }
 }
 
-export async function fetchUserProfilesByEmails(emails: string[]) {
-  return await db.query.users.findMany({
-    where: inArray(users.email, emails),
-  });
-}
-
 export async function deleteUserSocial(
   socialId: number,
   pathToRevalidate?: string,
@@ -595,6 +618,10 @@ export async function deleteUserSocial(
 export async function fetchUserParticipations(
   profileId: number,
 ): Promise<Participation[]> {
+  // Same audience as the page that lists them: the owner, or an admin.
+  const actor = await requireProfileOwnerOrAdmin(profileId);
+  if (!actor) return [];
+
   try {
     return await db.query.reservationParticipants.findMany({
       where: eq(reservationParticipants.userId, profileId),
@@ -615,29 +642,6 @@ export async function fetchUserParticipations(
     });
   } catch (error) {
     console.error("Error fetching user participations", error);
-    return [];
-  }
-}
-
-export async function fetchUserInfractions(
-  profileId: number,
-): Promise<UserInfraction[]> {
-  try {
-    return await db.query.infractions.findMany({
-      with: {
-        type: true,
-        festival: true,
-        sanctionLinks: {
-          with: {
-            sanction: true,
-          },
-        },
-      },
-      where: eq(infractions.userId, profileId),
-      orderBy: desc(infractions.createdAt),
-    });
-  } catch (error) {
-    console.error("Error fetching user infractions", error);
     return [];
   }
 }

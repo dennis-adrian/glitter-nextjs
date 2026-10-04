@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { getFestivalById } from "@/app/lib/festivals/helpers";
-import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
 import { fetchFullTableGroups } from "@/app/lib/stands/full-table-queries";
 import StandPositionEditor from "@/app/components/maps/admin/stand-position-editor";
 
