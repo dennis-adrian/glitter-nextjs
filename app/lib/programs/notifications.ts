@@ -120,19 +120,6 @@ export async function sendFreeRegistrationEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    /**
-     * `content_id` is what makes the `cid:` reference in the template resolve
-     * to this image. Resend's API supports it, but the installed SDK's
-     * `Attachment` type omits it — assigning through a variable keeps
-     * TypeScript's excess-property check off an object literal, which is the
-     * same thing `app/data/tickets/actions.ts` does for the festival ticket.
-     */
-    const qrAttachment = {
-      filename: "entrada-qr.png",
-      content: qrBuffer,
-      content_id: "program-ticket-qrcode",
-    };
-
     await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
@@ -151,7 +138,14 @@ export async function sendFreeRegistrationEmail(
             input.accessToken,
           ),
         }) as React.ReactElement,
-        attachments: [qrAttachment],
+        attachments: [
+          {
+            filename: "entrada-qr.png",
+            content: qrBuffer,
+            // Resolves the template's `cid:program-ticket-qrcode` image.
+            contentId: "program-ticket-qrcode",
+          },
+        ],
       },
       {
         // Keyed on the ticket, so a retry of the same registration cannot
@@ -379,12 +373,6 @@ export async function sendPaymentApprovedEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    const qrAttachment = {
-      filename: "entrada-qr.png",
-      content: qrBuffer,
-      content_id: "program-ticket-qrcode",
-    };
-
     await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
@@ -401,7 +389,14 @@ export async function sendPaymentApprovedEmail(
           secureLinkUrl: input.landingUrl,
           paymentApproved: true,
         }) as React.ReactElement,
-        attachments: [qrAttachment],
+        attachments: [
+          {
+            filename: "entrada-qr.png",
+            content: qrBuffer,
+            // Resolves the template's `cid:program-ticket-qrcode` image.
+            contentId: "program-ticket-qrcode",
+          },
+        ],
       },
       {
         // Keyed on the ticket, so re-approval cannot deliver a second QR.
