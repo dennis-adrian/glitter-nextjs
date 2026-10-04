@@ -1,6 +1,13 @@
+import { isAuthorizedCronRequest } from "@/app/lib/cron/auth";
 import { handleReminderEmails } from "@/app/lib/profile_tasks/actions";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAuthorizedCronRequest(request)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+    });
+  }
+
   try {
     const pendingProfileTasks = await handleReminderEmails();
 
