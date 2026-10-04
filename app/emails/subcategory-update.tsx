@@ -8,7 +8,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { ProfileType } from "@/app/api/users/definitions";
 import { getUserName } from "@/app/lib/users/utils";
 import EmailFooter from "@/app/emails/email-footer";

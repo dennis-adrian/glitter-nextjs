@@ -1,7 +1,7 @@
 import * as styles from "@/app/emails/styles";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDisplayDate } from "@/app/lib/formatters";
-import { Button, Link, Text } from "@react-email/components";
+import { Button, Link, Text } from "react-email";
 import { DateTime } from "luxon";
 
 type ActiveFestivalBodyProps = {

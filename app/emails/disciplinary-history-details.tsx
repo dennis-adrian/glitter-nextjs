@@ -1,5 +1,5 @@
 import * as styles from "@/app/emails/styles";
-import { Button, Text } from "@react-email/components";
+import { Button, Text } from "react-email";
 
 type DisciplinaryHistoryDetailsProps = {
   note?: string | null;
