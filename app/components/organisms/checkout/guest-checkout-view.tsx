@@ -113,17 +113,24 @@ export default function GuestCheckoutView() {
   );
   const itemIssue = guestItems.flatMap((item) => {
     const check = checksByKey.get(item.lineKey);
-    if (!check || (!check.isOutOfStock && !check.quantityExceedsStock)) {
+    if (
+      !check ||
+      (!check.isUnavailable &&
+        !check.isOutOfStock &&
+        !check.quantityExceedsStock)
+    ) {
       return [];
     }
     const label = item.productVariantLabel ?? getVariantLabel(item.variant);
     const name = label ? `${item.product.name} (${label})` : item.product.name;
     return [
-      check.isOutOfStock
-        ? `${name} ya no tiene stock.`
-        : check.stock === 1
-          ? `Solo queda 1 unidad de ${name}.`
-          : `Solo quedan ${check.stock} unidades de ${name}.`,
+      check.isUnavailable
+        ? `${name} ya no está disponible.`
+        : check.isOutOfStock
+          ? `${name} ya no tiene stock.`
+          : check.stock === 1
+            ? `Solo queda 1 unidad de ${name}.`
+            : `Solo quedan ${check.stock} unidades de ${name}.`,
     ];
   })[0];
   const blockingMessage =

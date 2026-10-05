@@ -284,12 +284,24 @@ async function resolveOrderLines(
       throw new Error(`Product ${line.productId} not found`);
     }
 
+    // A hidden product is off the storefront, so it is neither sold nor
+    // rented, even to a cart or client that still names it.
+    if (!product.isVisible) {
+      throw new Error(`${product.name} ya no está disponible.`, {
+        cause: "product_unavailable",
+      });
+    }
+
     if (transactionType === "purchase" && !product.isPurchasable) {
-      throw new Error(`${product.name} no está disponible para compra.`);
+      throw new Error(`${product.name} no está disponible para compra.`, {
+        cause: "product_unavailable",
+      });
     }
 
     if (transactionType === "rental" && !product.isRentable) {
-      throw new Error(`${product.name} no está disponible para alquiler.`);
+      throw new Error(`${product.name} no está disponible para alquiler.`, {
+        cause: "product_unavailable",
+      });
     }
 
     let variant = null;
