@@ -33,15 +33,13 @@ import {
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
 import {
-  coveredAmountForInvoices,
+  applyReservationRepricing,
   invoicesHaveProofUnderReview,
   invoicesHaveTender,
+  latePartnerPrepaidAmount,
   liveReservationIdForStand,
+  readRepricingMoneyInputs,
   readReservationInvoices,
-  refundOverpaymentAsCredits,
-  reopenReservationForBalance,
-  repriceLiveInvoices,
-  standChangeRefundedAmount,
   standHasLiveHold,
 } from "@/app/lib/reservations/reservation-repricing";
 import { isMovableReservationStatus } from "@/app/lib/reservations/stand-change";
@@ -55,6 +53,8 @@ export type FullTableUpgradeResult = ReservationActionResult<{
   keptStandId: number;
   addedStandId: number;
   settlement: FullTableUpgradeSettlementSummary;
+  /** The upgrade left a waiting reservation fully paid and confirmed it. */
+  accepted: boolean;
 }>;
 
 const SETTLEMENT_KINDS = ["none", "balance_due", "overpaid"] as const;
@@ -68,12 +68,13 @@ const SETTLEMENT_KINDS = ["none", "balance_due", "overpaid"] as const;
  * companion becomes a second live member above the kept half, and the
  * reservation bills the table price. So the downgrade keeps working on it.
  *
- * Money already tendered is settled the way the stand switch settles a move to
- * a dearer stand (§4.6), with the same shared helpers: the invoice is repriced
- * in place, a balance reopens the reservation, a surplus comes back as credits
- * tagged so later repricings net it out. No credits are charged for the table
- * and nobody is notified — this is an allocation by an admin, like the admin
- * create, not the participant's paid feature.
+ * Money already paid is settled with the shared repricing model (§4.6), the
+ * same one the stand switch uses: the invoice is repriced in place net of a
+ * late partner's payment and keeping any write-off, a balance reopens the
+ * reservation, a surplus comes back as credits tagged so later repricings net
+ * it out, and a waiting reservation left fully paid is confirmed. No credits
+ * are charged for the table and nobody is notified — this is an allocation by
+ * an admin, like the admin create, not the participant's paid feature.
  *
  * `expected` is what the admin confirmed in the dialog. The plan is recomputed
  * under the locks, and a mismatch refuses instead of applying different money.
@@ -139,8 +140,13 @@ export async function upgradeFullTableReservation(input: {
       return adminReservationFailure("CONFLICT_RETRY");
     }
     if (claim.kind === "replayed") {
-      const { keptStandId, addedStandId, settlementKind, settlementAmount } =
-        claim.resultIds;
+      const {
+        keptStandId,
+        addedStandId,
+        settlementKind,
+        settlementAmount,
+        accepted,
+      } = claim.resultIds;
       if (
         typeof keptStandId !== "number" ||
         typeof addedStandId !== "number" ||
@@ -156,8 +162,8 @@ export async function upgradeFullTableReservation(input: {
         amount: settlementAmount,
       };
       return reservationSuccess(
-        { keptStandId, addedStandId, settlement },
-        fullTableUpgradeSuccessMessage(settlement),
+        { keptStandId, addedStandId, settlement, accepted: accepted === 1 },
+        fullTableUpgradeSuccessMessage(settlement, accepted === 1),
       );
     }
 
@@ -197,13 +203,15 @@ export async function upgradeFullTableReservation(input: {
     // A surplus goes back as credits, which needs the owner's credit account
     // locked — and the canonical order places credit accounts before stands,
     // so the decision is made here, before prices are known. Any money already
-    // against an invoice is enough to take the lock.
+    // against an invoice is enough to take the lock, and so is a late
+    // partner's payment, which can exceed what is left to pay on its own.
     const previewInvoiceIds = uniqueSortedIds(
       previewInvoices.map((invoice) => invoice.id),
     );
     const lockedCreditUserIds =
       reservationRow.ownerUserId != null &&
-      (await invoicesHaveTender(tx, previewInvoiceIds))
+      ((await invoicesHaveTender(tx, previewInvoiceIds)) ||
+        (await latePartnerPrepaidAmount(tx, reservationRow.id)) > 0)
         ? [reservationRow.ownerUserId]
         : [];
 
@@ -284,20 +292,15 @@ export async function upgradeFullTableReservation(input: {
     const liveInvoices = invoiceRows.filter(
       (invoice) => invoice.status !== "cancelled",
     );
-    // Net of what earlier repricings handed back, and clamped at zero, exactly
-    // as the stand switch measures it.
-    const coveredAmount = Math.max(
-      0,
-      roundMoney(
-        (await coveredAmountForInvoices(tx, liveInvoices)) -
-          (await standChangeRefundedAmount(tx, reservation.id)),
-      ),
-    );
+    // Measured exactly as the stand switch measures it, and as the preview
+    // did: the cobro's own tender (earlier refunds already out of it), and net
+    // of a late partner's payment.
     const plan = planFullTableUpgrade({
       tablePrice: companion.fullTablePrice,
       priceAmountSnapshot: reservation.priceAmountSnapshot,
       liveInvoice: liveInvoices[0] ?? null,
-      coveredAmount,
+      reservationStatus: fromStatus,
+      ...(await readRepricingMoneyInputs(tx, reservation.id, liveInvoices)),
     });
     const settlement = summarizeFullTableUpgradeSettlement(plan.settlement);
 
@@ -347,7 +350,9 @@ export async function upgradeFullTableReservation(input: {
     await tx
       .update(standReservations)
       .set({
-        priceAmountSnapshot: plan.toPrice,
+        // What the cobro bills: the table less a late partner's payment. The
+        // table price itself is kept on `full_table_price_snapshot`.
+        priceAmountSnapshot: plan.grossAmount,
         fullTablePriceSnapshot: plan.toPrice,
         // The half's own prices stay on record — the downgrade prices the
         // surviving half from them. A legacy row that never had one would be
@@ -362,38 +367,28 @@ export async function upgradeFullTableReservation(input: {
       })
       .where(eq(standReservations.id, reservation.id));
 
-    if (plan.priceChanged) {
-      await repriceLiveInvoices(tx, {
-        invoices: invoiceRows,
-        priceAmount: plan.toPrice,
-        settlement: plan.settlement,
-        now,
-      });
-      if (plan.settlement.kind === "balance_due") {
-        await reopenReservationForBalance(
-          tx,
-          {
-            reservationId: reservation.id,
-            ownerUserId: reservation.ownerUserId,
-          },
-          now,
-        );
-      } else if (plan.settlement.kind === "overpaid") {
-        await refundOverpaymentAsCredits(tx, {
-          reservationId: reservation.id,
-          ownerUserId: reservation.ownerUserId,
-          refundAmount: plan.settlement.refundAmount,
-          reason: `Mesa completa: diferencia a favor de la reserva #${reservation.id}`,
-          idempotencyKey: `full-table-upgrade-refund:${input.idempotencyKey}:${reservation.id}`,
-        });
-      }
-    }
+    // After the companion joined: an acceptance confirms every live member.
+    await applyReservationRepricing(tx, {
+      reservationId: reservation.id,
+      ownerUserId: reservation.ownerUserId,
+      standId: keptStandId,
+      invoices: invoiceRows,
+      plan,
+      actorUserId: actorId,
+      refund: {
+        reason: `Mesa completa: diferencia a favor de la reserva #${reservation.id}`,
+        idempotencyKey: `full-table-upgrade-refund:${input.idempotencyKey}:${reservation.id}`,
+      },
+      now,
+    });
 
     // Both halves follow the reservation, the mapping every other path uses:
     // paid means `confirmed`, anything still owed means `reserved`. A balance
-    // reopens an accepted reservation, so its kept half comes back down too.
-    const toStatus =
-      plan.settlement.kind === "balance_due" ? "pending" : fromStatus;
+    // reopens an accepted reservation, so its kept half comes back down too;
+    // a waiting reservation left fully paid is accepted, so both go up.
+    const toStatus = isMovableReservationStatus(plan.resultingStatus)
+      ? plan.resultingStatus
+      : fromStatus;
     await tx
       .update(stands)
       .set({
@@ -416,20 +411,26 @@ export async function upgradeFullTableReservation(input: {
         toPrice: plan.toPrice,
         settlement: settlement.kind,
         settlementAmount: settlement.amount,
+        ...(plan.latePartnerPrepaid > 0
+          ? { latePartnerPrepaid: plan.latePartnerPrepaid }
+          : {}),
       },
       idempotencyKey: `upgrade:${input.idempotencyKey}`,
     });
 
+    const accepted = plan.completesAcceptance;
     await completeRequest(tx, input.idempotencyKey, {
       keptStandId,
       addedStandId,
       settlementKind: settlement.kind,
       settlementAmount: settlement.amount,
+      // The registry stores numbers and strings, not booleans.
+      accepted: accepted ? 1 : 0,
     });
 
     return reservationSuccess(
-      { keptStandId, addedStandId, settlement },
-      fullTableUpgradeSuccessMessage(settlement),
+      { keptStandId, addedStandId, settlement, accepted },
+      fullTableUpgradeSuccessMessage(settlement, accepted),
     );
   });
 }

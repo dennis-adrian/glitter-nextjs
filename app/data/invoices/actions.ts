@@ -45,6 +45,12 @@ export async function confirmFreeInvoice(
 export type InvoiceTenderSummary = {
   approvedCashAmount: number;
   confirmedCreditAmount: number;
+  /**
+   * What a stand change already handed back from that cash and those credits,
+   * as credits in the wallet. Shown as its own line so the balance adds up:
+   * Bs500 paid, Bs200 back, on a Bs500 cobro leaves Bs200 to pay.
+   */
+  refundedAmount: number;
   outstandingAmount: number;
 };
 
@@ -79,9 +85,12 @@ export async function fetchInvoiceTenderSummary(
   }
 
   // Read through the one definition of coverage rather than re-summing the
-  // rows here. The hand-rolled version this replaces summed every credit
-  // allocation with no reversal filter, so a participant whose credits had
-  // been released was still shown them and quoted too small a balance.
+  // rows here — the same reader the settlement guards use under their locks.
+  // The hand-rolled version this replaced summed every credit allocation with
+  // no reversal filter, so a participant whose credits had been released was
+  // still shown them and quoted too small a balance; reading the rows alone
+  // would likewise miss a stand change's refund, and quote Bs0 on a cobro the
+  // participant still owes the difference on.
   const tenders = await fetchInvoiceTenders(
     [invoice.id],
     new Map([[invoice.id, invoice.amount]]),
@@ -91,6 +100,7 @@ export async function fetchInvoiceTenderSummary(
   return {
     approvedCashAmount: tender.approvedCashAmount,
     confirmedCreditAmount: tender.confirmedCreditAmount,
+    refundedAmount: tender.refundedAmount,
     outstandingAmount: tender.outstandingAmount,
   };
 }

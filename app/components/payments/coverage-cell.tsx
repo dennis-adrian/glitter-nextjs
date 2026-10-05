@@ -82,6 +82,12 @@ function breakdown(tender: InvoiceTender): string[] {
   if (tender.approvedCashAmount > 0) {
     parts.push(`${money(tender.approvedCashAmount)} QR`);
   }
+  // What a stand change already handed back from that tender. Without it the
+  // parts add up to more than "Cubierto", and a reopened balance looks like a
+  // mistake.
+  if (tender.refundedAmount > 0) {
+    parts.push(`−${money(tender.refundedAmount)} devueltos en créditos`);
+  }
   if (tender.submittedCashAmount > 0) {
     parts.push(`${money(tender.submittedCashAmount)} QR en revisión`);
   }

@@ -125,7 +125,6 @@ export default function FullTableUpgradeButton({
                     reservationStatus: preview.reservationStatus,
                     keptStandLabel: preview.keptStand.label,
                     companionStandLabel: companion.label,
-                    hasOwner: preview.hasOwner,
                     hasTender: preview.hasTender,
                   }).map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>

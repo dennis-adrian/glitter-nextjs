@@ -32,6 +32,7 @@ export default function FullTableDowngradeButton({
   keptStandLabel,
   releasedStandLabel,
   disabledReason,
+  tablePriced = true,
 }: {
   reservationId: number;
   /** The half the reservation keeps: member position 0. */
@@ -39,12 +40,20 @@ export default function FullTableDowngradeButton({
   /** The companion that goes back on the map. */
   releasedStandLabel: string;
   /**
-   * Why this viewer cannot downgrade, when they cannot. Set it and the button
-   * stays visible but inert: the service refuses the call anyway, and an admin
-   * who lacks the right should see the action exists rather than wonder where
-   * it went.
+   * Why the downgrade cannot run, when it cannot: this viewer is not a global
+   * admin, or real money sits on the cobro. Set it and the button stays
+   * visible but inert: the service refuses the call anyway, and an admin
+   * should see the action exists and what stands in its way rather than
+   * wonder where it went.
    */
   disabledReason?: string;
+  /**
+   * Whether the table was priced as a table (`full_table_price_snapshot`).
+   * Only then does the money rule apply: a full table from before table
+   * pricing is never refused for money, so the dialog does not state a rule
+   * the page itself would contradict.
+   */
+  tablePriced?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -109,7 +118,9 @@ export default function FullTableDowngradeButton({
             {/* Everything this changes, and everything it deliberately does
                 not: the money side is a separate decision the admin makes in
                 the wallet, and saying so here stops this reading like a
-                refund. */}
+                refund. It never says payments "stay as they are": the service
+                refuses whenever there is real money on a table-priced cobro,
+                and the page disables this button for exactly that. */}
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-left">
                 <p>
@@ -119,8 +130,10 @@ export default function FullTableDowngradeButton({
                 </p>
                 <p>
                   El cobro pasa a ser el de un solo espacio, manteniendo el
-                  descuento que ya tenía. Los pagos, los créditos gastados y los
-                  participantes quedan como están.
+                  descuento que ya tenía.{" "}
+                  {tablePriced &&
+                    "Solo se puede reducir mientras el cobro no tenga pagos aprobados, comprobantes o solicitudes en revisión ni créditos aplicados. "}
+                  Los participantes quedan como están.
                 </p>
                 <p>
                   Los créditos de la mesa completa no se devuelven. Si quedó

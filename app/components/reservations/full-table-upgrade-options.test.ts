@@ -4,6 +4,7 @@ import {
   describeFullTableUpgrade,
   describeFullTableUpgradeCard,
   describeFullTableUpgradeCharge,
+  describeFullTableUpgradeLatePartner,
   describeFullTableUpgradeSettlement,
   describeFullTableUpgradeWriteOff,
   fullTableUpgradeDisabledReason,
@@ -26,6 +27,9 @@ function plan(
     priceAmountSnapshot?: number | null;
     liveInvoice?: FullTableUpgradeInvoice | null;
     coveredAmount?: number;
+    latePartnerPrepaid?: number;
+    reservationStatus?: string;
+    zeroValueEntitlementApproved?: boolean;
   } = {},
 ): FullTableUpgradePlan {
   return planFullTableUpgrade({
@@ -37,6 +41,9 @@ function plan(
         ? { originalAmount: 300, discountAmount: 0, amount: 300 }
         : input.liveInvoice,
     coveredAmount: input.coveredAmount ?? 0,
+    latePartnerPrepaid: input.latePartnerPrepaid ?? 0,
+    reservationStatus: input.reservationStatus ?? "pending",
+    zeroValueEntitlementApproved: input.zeroValueEntitlementApproved ?? false,
   });
 }
 
@@ -246,6 +253,31 @@ describe("full table upgrade card description", () => {
     expect(text).not.toContain("pasa a tener");
   });
 
+  /**
+   * The table price less the late partner's payment is where the cobro
+   * already sits; that says nothing about whether the cobro is paid.
+   */
+  it("never says a late partner's reservation already covers the table", () => {
+    const samePrice = plan({
+      priceAmountSnapshot: 250,
+      liveInvoice: { originalAmount: 250, discountAmount: 0, amount: 250 },
+      latePartnerPrepaid: 200,
+    });
+    const card = describeFullTableUpgradeCard({
+      preview: preview({
+        plan: samePrice,
+        expected: fullTableUpgradeExpectation(samePrice),
+      }),
+      disabledReason: null,
+    });
+    expect(card).toContain(
+      "que con lo pagado por el compañero ya queda en el precio de la mesa (Bs450)",
+    );
+    const charge = describeFullTableUpgradeCharge(samePrice);
+    expect(charge).toContain("la reserva ya queda en el precio de la mesa");
+    for (const text of [card, charge]) expect(text).not.toContain("cubre");
+  });
+
   /** The disabled reason says why; the description must not promise otherwise. */
   it("stays neutral when the upgrade is blocked", () => {
     const text = describeFullTableUpgradeCard({
@@ -321,16 +353,32 @@ describe("full table upgrade charge", () => {
   });
 });
 
+describe("full table upgrade late partner", () => {
+  it("says the late partner's difference counts as paid, and the fee does not", () => {
+    const text = describeFullTableUpgradeLatePartner(
+      plan({ coveredAmount: 300, latePartnerPrepaid: 200 }),
+    );
+    expect(text).toContain("Los Bs200 que el titular ya pagó en créditos");
+    expect(text).toContain("cuentan como pagados");
+    expect(text).toContain("precio de la mesa, Bs450, menos ese monto");
+    expect(text).toContain("El cargo por agregarlo no se descuenta");
+  });
+
+  it("stays quiet without a late partner", () => {
+    expect(describeFullTableUpgradeLatePartner(plan())).toBeNull();
+  });
+});
+
 describe("full table upgrade write-off", () => {
-  it("discloses an amount written off that the upgrade brings back", () => {
-    expect(
-      describeFullTableUpgradeWriteOff(
-        plan({
-          liveInvoice: { originalAmount: 300, discountAmount: 0, amount: 200 },
-          coveredAmount: 200,
-        }),
-      ),
-    ).toContain("Bs100 que se dio por saldado no se mantiene");
+  it("says an amount written off is kept off the new cobro", () => {
+    const text = describeFullTableUpgradeWriteOff(
+      plan({
+        liveInvoice: { originalAmount: 300, discountAmount: 0, amount: 200 },
+        coveredAmount: 200,
+      }),
+    );
+    expect(text).toContain("Bs100 que se dio por saldado se mantiene");
+    expect(text).not.toContain("no se mantiene");
   });
 
   it("stays quiet with nothing written off", () => {
@@ -354,7 +402,7 @@ describe("full table upgrade write-off", () => {
 describe("full table upgrade settlement", () => {
   it("reopens a paid reservation for the difference", () => {
     const text = describeFullTableUpgradeSettlement({
-      plan: plan({ coveredAmount: 300 }),
+      plan: plan({ coveredAmount: 300, reservationStatus: "accepted" }),
       reservationStatus: "accepted",
     });
     expect(text).toBe(
@@ -378,11 +426,87 @@ describe("full table upgrade settlement", () => {
         priceAmountSnapshot: 500,
         liveInvoice: { originalAmount: 500, discountAmount: 0, amount: 500 },
         coveredAmount: 500,
+        reservationStatus: "accepted",
       }),
       reservationStatus: "accepted",
     });
     expect(text).toContain("Ya hay Bs500 pagados, más que el nuevo monto");
     expect(text).toContain("Los Bs50 de diferencia vuelven como créditos");
+    expect(text).not.toContain("queda confirmada");
+  });
+
+  it("counts a late partner's payment in what is already paid", () => {
+    // Cobro 300 paid, 200 paid by the late partner: 500 of a 450 table.
+    const text = describeFullTableUpgradeSettlement({
+      plan: plan({
+        coveredAmount: 300,
+        latePartnerPrepaid: 200,
+        reservationStatus: "accepted",
+      }),
+      reservationStatus: "accepted",
+    });
+    // Measured against the table, not the Bs250 cobro the charge line shows:
+    // 500 − 250 is not the 50 that comes back.
+    expect(text).toBe(
+      "Ya hay Bs500 pagados (Bs300 del cobro y Bs200 por el compañero), más que los Bs450 de la mesa. Los Bs50 de diferencia vuelven como créditos al titular.",
+    );
+    expect(text).not.toContain("el nuevo monto");
+  });
+
+  it("reconciles a late partner's balance against the table price", () => {
+    // I500 cobro paid, L300, a 1200 table: the cobro becomes 900, and 800 of
+    // the 1200 is paid — 400 owed, which 900 − 800 would not give.
+    const text = describeFullTableUpgradeSettlement({
+      plan: plan({
+        tablePrice: 1200,
+        priceAmountSnapshot: 500,
+        liveInvoice: { originalAmount: 500, discountAmount: 0, amount: 500 },
+        coveredAmount: 500,
+        latePartnerPrepaid: 300,
+        reservationStatus: "accepted",
+      }),
+      reservationStatus: "accepted",
+    });
+    expect(text).toBe(
+      "Ya hay Bs800 pagados (Bs500 del cobro y Bs300 por el compañero) de los Bs1.200 de la mesa. La reserva vuelve a quedar pendiente por la diferencia de Bs400, con cinco días para pagarla.",
+    );
+  });
+
+  it("confirms a late partner's pending reservation the table leaves exactly paid", () => {
+    const text = describeFullTableUpgradeSettlement({
+      plan: plan({ coveredAmount: 250, latePartnerPrepaid: 200 }),
+      reservationStatus: "pending",
+    });
+    expect(text).toBe(
+      "Ya hay Bs450 pagados (Bs250 del cobro y Bs200 por el compañero), que cubren los Bs450 de la mesa. La reserva queda confirmada.",
+    );
+  });
+
+  it("confirms a pending reservation the upgrade leaves exactly paid", () => {
+    const text = describeFullTableUpgradeSettlement({
+      plan: plan({
+        priceAmountSnapshot: 500,
+        liveInvoice: { originalAmount: 500, discountAmount: 0, amount: 500 },
+        coveredAmount: 450,
+      }),
+      reservationStatus: "pending",
+    });
+    expect(text).toBe(
+      "Ya hay Bs450 pagados, que cubren el nuevo monto. La reserva queda confirmada.",
+    );
+  });
+
+  it("confirms a pending reservation it overpays, besides the credits", () => {
+    const text = describeFullTableUpgradeSettlement({
+      plan: plan({
+        priceAmountSnapshot: 500,
+        liveInvoice: { originalAmount: 500, discountAmount: 0, amount: 500 },
+        coveredAmount: 500,
+      }),
+      reservationStatus: "pending",
+    });
+    expect(text).toContain("vuelven como créditos al titular.");
+    expect(text).toContain("La reserva queda confirmada.");
   });
 
   it("only moves the amount of an unpaid pending reservation", () => {
@@ -397,28 +521,58 @@ describe("full table upgrade settlement", () => {
   it("says an exact cover resolves itself", () => {
     expect(
       describeFullTableUpgradeSettlement({
-        plan: plan({ coveredAmount: 450 }),
+        plan: plan({ coveredAmount: 450, reservationStatus: "accepted" }),
         reservationStatus: "accepted",
       }),
     ).toBe("Lo ya pagado cubre el nuevo monto.");
   });
 
   /**
-   * Accepted with nothing covered is a zero-value entitlement. The switch's
-   * rule leaves it accepted, so "solo cambia el monto a pagar" would promise a
-   * payment nobody is going to ask for.
+   * Accepted at no cost — a Bs0 cobro, or an approved zero-value entitlement.
+   * It owes the difference like a paid reservation (Dennis, 2026-09-29);
+   * #551's copy promised the opposite.
    */
-  it("says an accepted reservation paid with nothing is not asked for the difference", () => {
+  it("asks an accepted reservation confirmed at no cost for the difference", () => {
     const text = describeFullTableUpgradeSettlement({
       plan: plan({
         liveInvoice: { originalAmount: 300, discountAmount: 300, amount: 0 },
+        reservationStatus: "accepted",
       }),
       reservationStatus: "accepted",
     });
-    expect(text).toContain("sigue confirmada");
-    expect(text).toContain("ahora es de Bs150");
-    expect(text).toContain("no se le pide la diferencia");
-    expect(text).not.toContain("monto a pagar");
+    expect(text).toBe(
+      "La reserva se había confirmado sin costo. Vuelve a quedar pendiente por la diferencia de Bs150, con cinco días para pagarla.",
+    );
+    expect(text).not.toContain("no se le pide");
+  });
+
+  /**
+   * A positive cobro marked paid with no payment rows was paid outside the
+   * system. Dennis's rule covers only reservations confirmed at no cost, so
+   * this one keeps the pre-batch behaviour and the dialog must not promise a
+   * balance the service will not open.
+   */
+  it("says a cobro paid outside the system only has its amount moved", () => {
+    const text = describeFullTableUpgradeSettlement({
+      plan: plan({ reservationStatus: "accepted" }),
+      reservationStatus: "accepted",
+    });
+    expect(text).toBe(
+      "La reserva figura como pagada sin pagos registrados en el sistema: solo cambia el monto del cobro. No vuelve a quedar pendiente ni se le pide la diferencia.",
+    );
+  });
+
+  it("asks for the difference once a zero-value entitlement was approved, even on a positive cobro", () => {
+    const text = describeFullTableUpgradeSettlement({
+      plan: plan({
+        reservationStatus: "accepted",
+        zeroValueEntitlementApproved: true,
+      }),
+      reservationStatus: "accepted",
+    });
+    expect(text).toBe(
+      "La reserva se había confirmado sin costo. Vuelve a quedar pendiente por la diferencia de Bs450, con cinco días para pagarla.",
+    );
   });
 
   it("has nothing to add for an accepted reservation still owing nothing", () => {
@@ -426,10 +580,20 @@ describe("full table upgrade settlement", () => {
       describeFullTableUpgradeSettlement({
         plan: plan({
           liveInvoice: { originalAmount: 300, discountAmount: 1000, amount: 0 },
+          reservationStatus: "accepted",
         }),
         reservationStatus: "accepted",
       }),
     ).toBe("La reserva sigue confirmada y no queda nada por pagar.");
+  });
+
+  it("does not call the cobro unpaid a late partner partly paid, beyond what is said", () => {
+    expect(
+      describeFullTableUpgradeSettlement({
+        plan: plan({ latePartnerPrepaid: 100 }),
+        reservationStatus: "pending",
+      }),
+    ).toBe("Todavía no hay pagos del cobro: solo cambia el monto a pagar.");
   });
 
   it("has nothing to say without a cobro or without a price change", () => {
@@ -461,7 +625,6 @@ describe("full table upgrade dialog copy", () => {
       reservationStatus: "pending",
       keptStandLabel: "A1",
       companionStandLabel: "A2",
-      hasOwner: true,
       hasTender: false,
       ...overrides,
     });
@@ -493,9 +656,14 @@ describe("full table upgrade dialog copy", () => {
     );
   });
 
-  it("mentions the rescheduled reminder only when a balance reopens", () => {
+  /**
+   * A reopened balance always has somebody to remind now: the owner, or on a
+   * legacy row with none, the cobro's holder (item 11). #551 left ownerless
+   * reservations without a task, and the copy stayed quiet for them.
+   */
+  it("mentions the rescheduled reminder whenever a balance reopens", () => {
     const balance = paragraphs({
-      plan: plan({ coveredAmount: 300 }),
+      plan: plan({ coveredAmount: 300, reservationStatus: "accepted" }),
       reservationStatus: "accepted",
       hasTender: true,
     }).join(" ");
@@ -503,29 +671,37 @@ describe("full table upgrade dialog copy", () => {
       "El recordatorio de pago se reprograma para un día antes del nuevo vencimiento.",
     );
 
-    // No owner and no task means nothing to reschedule, so no promise.
-    const ownerless = paragraphs({
-      plan: plan({ coveredAmount: 300 }),
+    const nothingOwed = paragraphs({
+      plan: plan({ coveredAmount: 450, reservationStatus: "accepted" }),
       reservationStatus: "accepted",
-      hasOwner: false,
       hasTender: true,
     }).join(" ");
-    expect(ownerless).not.toContain("recordatorio");
+    expect(nothingOwed).not.toContain("recordatorio");
   });
 
-  it("includes the write-off disclosure and the settlement in order", () => {
+  it("includes the late partner, the write-off and the settlement in order", () => {
     const list = paragraphs({
       plan: plan({
         liveInvoice: { originalAmount: 300, discountAmount: 0, amount: 200 },
         coveredAmount: 200,
+        latePartnerPrepaid: 50,
+        reservationStatus: "accepted",
       }),
       reservationStatus: "accepted",
       hasTender: true,
     });
+    const latePartner = list.findIndex((p) => p.includes("compañero"));
     const writeOff = list.findIndex((p) => p.includes("se dio por saldado"));
-    const settlement = list.findIndex((p) => p.includes("diferencia de Bs250"));
-    expect(writeOff).toBeGreaterThan(1);
+    // 450 - 50 late partner - 100 written off = 300 against 200 covered.
+    const settlement = list.findIndex((p) => p.includes("diferencia de Bs100"));
+    expect(latePartner).toBe(2);
+    expect(writeOff).toBe(latePartner + 1);
     expect(settlement).toBe(writeOff + 1);
+    // With a write-off, what the table asks is below its price; the figures
+    // still add up: 350 − 250 = 100.
+    expect(list[settlement]).toContain(
+      "Ya hay Bs250 pagados (Bs200 del cobro y Bs50 por el compañero) de los Bs350 que cuesta la mesa con lo ya descontado.",
+    );
   });
 
   it("never says factura", () => {

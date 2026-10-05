@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  attributeRepricingRefunds,
   computeInvoiceTender,
+  creditReleasePreview,
   isOverAllocated,
   shortfallWriteOff,
   type InvoiceTenderInput,
@@ -219,5 +221,157 @@ describe("shortfallWriteOff", () => {
       allocations: [{ amount: 150, reversed: false }],
     });
     expect(shortfallWriteOff(result)).toBe(0);
+  });
+});
+
+describe("repricing refunds netted against the cobro", () => {
+  const paid500 = {
+    payments: [{ id: 1, amount: 500 }],
+    submissions: [{ paymentId: 1, status: "approved" as const }],
+  };
+
+  /**
+   * Bs500 paid, moved to a Bs300 stand (Bs200 back as credits), moved back to
+   * Bs500. The rows still say Bs500; the participant owes Bs200.
+   */
+  it("reopens the balance a refund left behind", () => {
+    const result = tender({ amount: 500, ...paid500, refundedAmount: 200 });
+    expect(result.approvedCashAmount).toBe(500);
+    expect(result.refundedAmount).toBe(200);
+    expect(result.coveredAmount).toBe(300);
+    expect(result.outstandingAmount).toBe(200);
+  });
+
+  it("does not read a refunded cobro as over-allocated", () => {
+    const result = tender({ amount: 300, ...paid500, refundedAmount: 200 });
+    expect(result.outstandingAmount).toBe(0);
+    expect(isOverAllocated(result)).toBe(false);
+  });
+
+  it("never nets more than the cobro's own cash and credits", () => {
+    const result = tender({
+      amount: 300,
+      allocations: [{ amount: 100, reversed: false }],
+      refundedAmount: 550,
+    });
+    expect(result.refundedAmount).toBe(100);
+    expect(result.coveredAmount).toBe(0);
+    expect(result.outstandingAmount).toBe(300);
+  });
+
+  it("ignores a negative refund figure rather than inventing coverage", () => {
+    const result = tender({ amount: 500, ...paid500, refundedAmount: -200 });
+    expect(result.refundedAmount).toBe(0);
+    expect(result.coveredAmount).toBe(500);
+  });
+
+  it("nets nothing unless told to", () => {
+    expect(tender({ amount: 500, ...paid500 }).refundedAmount).toBe(0);
+  });
+
+  it("feeds the shortfall write-off the net coverage", () => {
+    // Reopened for Bs200 with nothing more paid: writing it off waives Bs200,
+    // not Bs0.
+    expect(
+      shortfallWriteOff(
+        tender({ amount: 500, ...paid500, refundedAmount: 200 }),
+      ),
+    ).toBe(200);
+  });
+});
+
+describe("attributeRepricingRefunds", () => {
+  it("puts the whole refund on the reservation's one live cobro", () => {
+    expect(
+      attributeRepricingRefunds({
+        refundedAmount: 200,
+        invoices: [{ id: 9, tenderedAmount: 500 }],
+      }),
+    ).toEqual(new Map([[9, 200]]));
+  });
+
+  it("fills a second live cobro in id order, each up to its own tender", () => {
+    const attributed = attributeRepricingRefunds({
+      refundedAmount: 300,
+      invoices: [
+        { id: 12, tenderedAmount: 500 },
+        { id: 7, tenderedAmount: 100 },
+      ],
+    });
+    expect(attributed.get(7)).toBe(100);
+    expect(attributed.get(12)).toBe(200);
+  });
+
+  it("drops what no tender can absorb", () => {
+    const attributed = attributeRepricingRefunds({
+      refundedAmount: 550,
+      invoices: [{ id: 3, tenderedAmount: 500 }],
+    });
+    expect(attributed.get(3)).toBe(500);
+  });
+
+  it("attributes nothing for a refund that is not positive", () => {
+    expect(
+      attributeRepricingRefunds({
+        refundedAmount: -50,
+        invoices: [{ id: 3, tenderedAmount: 500 }],
+      }).get(3),
+    ).toBe(0);
+  });
+});
+
+describe("creditReleasePreview", () => {
+  it("returns every credit when nothing was refunded", () => {
+    expect(
+      creditReleasePreview(
+        tender({
+          amount: 500,
+          allocations: [{ amount: 300, reversed: false }],
+        }),
+      ),
+    ).toEqual({
+      creditAmount: 300,
+      alreadyReturnedAmount: 0,
+      returnedAmount: 300,
+      nextOutstandingAmount: 500,
+    });
+  });
+
+  it("holds back what a stand change already refunded from them", () => {
+    expect(
+      creditReleasePreview(
+        tender({
+          amount: 300,
+          allocations: [{ amount: 500, reversed: false }],
+          refundedAmount: 200,
+        }),
+      ),
+    ).toEqual({
+      creditAmount: 500,
+      alreadyReturnedAmount: 200,
+      returnedAmount: 300,
+      nextOutstandingAmount: 300,
+    });
+  });
+
+  it("keeps the part of a refund the credits cannot cover, which cash funded", () => {
+    // Bs400 cash + Bs100 credits on Bs500, moved to Bs200: Bs300 refunded.
+    // Releasing the Bs100 returns nothing and leaves the cobro covered.
+    expect(
+      creditReleasePreview(
+        tender({
+          amount: 200,
+          payments: [{ id: 1, amount: 400 }],
+          submissions: [{ paymentId: 1, status: "approved" }],
+          allocations: [{ amount: 100, reversed: false }],
+          refundedAmount: 300,
+        }),
+      ),
+    ).toEqual({
+      creditAmount: 100,
+      alreadyReturnedAmount: 100,
+      returnedAmount: 0,
+      nextOutstandingAmount: 0,
+    });
   });
 });

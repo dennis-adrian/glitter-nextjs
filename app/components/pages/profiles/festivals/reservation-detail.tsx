@@ -148,6 +148,7 @@ export default async function ReservationDetailPage({
                       }
                       featurePrice={latePartnerOffer.featurePrice}
                       totalCredits={latePartnerOffer.totalCredits}
+                      fullTable={latePartnerOffer.fullTable}
                       shortfall={latePartnerOffer.shortfall}
                       deadlineLabel={partnerDeadline}
                     />

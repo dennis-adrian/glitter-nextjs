@@ -13,6 +13,12 @@ type PaymentSummaryProps = {
   festivalId: number;
   approvedCashAmount?: number;
   creditAppliedAmount?: number;
+  /**
+   * What a stand change already handed back from those payments, as credits.
+   * Without its own line, "paid Bs500" against a Bs500 cobro would not add up
+   * to the Bs200 still owed after Bs200 came back.
+   */
+  refundedAmount?: number;
   outstandingAmount?: number;
 };
 
@@ -21,6 +27,7 @@ export function PaymentSummary({
   festivalId,
   approvedCashAmount = 0,
   creditAppliedAmount = 0,
+  refundedAmount = 0,
   outstandingAmount = invoice.amount,
 }: PaymentSummaryProps) {
   const hasDiscount =
@@ -55,6 +62,14 @@ export function PaymentSummary({
             <div className="flex justify-between">
               <span className="text-muted-foreground">Créditos aplicados</span>
               <span className="text-green-600">-Bs{creditAppliedAmount}</span>
+            </div>
+          )}
+          {refundedAmount > 0 && (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">
+                Devuelto en créditos por un cambio de espacio
+              </span>
+              <span>+Bs{refundedAmount}</span>
             </div>
           )}
 

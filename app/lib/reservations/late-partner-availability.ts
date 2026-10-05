@@ -10,6 +10,10 @@ import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
  *
  * Deliberately excludes partner eligibility, which is about the other person
  * and needs the database: `assertReservationPartner` owns that.
+ *
+ * A full table is eligible like any other illustration reservation. What it
+ * changes is the price — the fee alone, since a table costs the same for one
+ * person or two — and that belongs to `latePartnerPrice`, not to this gate.
  */
 export type LatePartnerBlockReason =
   | "not_owner"

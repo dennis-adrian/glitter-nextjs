@@ -1,51 +1,43 @@
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
-  repriceInvoice,
-  resolveStandChangeSettlement,
-  type StandChangeSettlement,
-} from "@/app/lib/reservations/stand-change";
+  planReservationRepricing,
+  type RepricingInvoice,
+  type RepricingSettlement,
+  type ReservationRepricing,
+} from "@/app/lib/reservations/repricing";
 
 /**
  * The money arithmetic of widening a half-table reservation into a full table.
  *
  * Pure, so the admin dialog can show exactly the numbers the service is going
  * to apply: both call this with the same inputs, and the service refuses when
- * the numbers it computes under its locks are not the ones the admin saw.
+ * the numbers it computes under its locks are not the ones the admin saw. The
+ * arithmetic itself is the shared repricing model (`planReservationRepricing`),
+ * priced at the table; this only names it for the upgrade.
  */
 
 /** The reservation's live invoice as it stands before the upgrade. */
-export type FullTableUpgradeInvoice = {
-  originalAmount: number;
-  discountAmount: number;
-  amount: number;
-};
+export type FullTableUpgradeInvoice = RepricingInvoice;
 
-export type FullTableUpgradePlan = {
-  /** `price_amount_snapshot` before the upgrade. */
-  fromPrice: number | null;
+/**
+ * The shared repricing plan, priced at the table. Beyond the table price
+ * itself (`toPrice`), the fields the dialog reads:
+ *
+ * - `grossAmount` — the new cobro gross and `price_amount_snapshot`: the table
+ *   price less what a late partner already paid (`latePartnerPrepaid`).
+ *   `full_table_price_snapshot` keeps the raw table price.
+ * - `writtenOffAmount` — what an admin earlier wrote off the cobro ("confirmar
+ *   con saldo pendiente"). It survives the upgrade as a fixed amount off the
+ *   new cobro.
+ * - `completesAcceptance` — a waiting reservation the upgrade leaves fully
+ *   paid is confirmed in the same step.
+ */
+export type FullTableUpgradePlan = ReservationRepricing & {
   /** The table price the reservation moves to. */
   toPrice: number;
-  /** False when the reservation already bills exactly the table price. */
-  priceChanged: boolean;
-  /** The discount that survives, clamped to the table price; 0 with no invoice. */
-  discountAmount: number;
-  /** The live invoice's `amount` (net of discount) before; null with no invoice. */
-  currentInvoiceAmount: number | null;
-  /**
-   * What an admin earlier wrote off the live invoice ("confirmar con saldo
-   * pendiente"): its gross less discount less what it asks for. Repricing
-   * recomputes `amount` from the price and the discount, so this does not
-   * survive the upgrade, and the dialog has to say so.
-   */
-  writtenOffAmount: number;
-  /** The live invoice's `amount` after; the table price when there is none. */
-  newInvoiceAmount: number;
-  /** Approved cash plus confirmed credits, net of earlier refunds. */
-  coveredAmount: number;
-  settlement: StandChangeSettlement;
 };
 
-export type FullTableUpgradeSettlementKind = StandChangeSettlement["kind"];
+export type FullTableUpgradeSettlementKind = RepricingSettlement["kind"];
 
 export type FullTableUpgradeSettlementSummary = {
   kind: FullTableUpgradeSettlementKind;
@@ -70,48 +62,28 @@ export function planFullTableUpgrade(input: {
   priceAmountSnapshot: number | null;
   /** The reservation's live (non-cancelled) invoice; null when it has none. */
   liveInvoice: FullTableUpgradeInvoice | null;
-  /** Already net of earlier refunds; clamped at zero here regardless. */
+  /** The tender's net coverage (earlier refunds already out); clamped at zero. */
   coveredAmount: number;
+  /** The shared-price difference a late partner already paid in credits. */
+  latePartnerPrepaid: number;
+  reservationStatus: string;
+  /** The live cobro went through an approved zero-value entitlement. */
+  zeroValueEntitlementApproved: boolean;
 }): FullTableUpgradePlan {
-  const toPrice = roundMoney(input.tablePrice);
-  const fromPrice =
-    input.priceAmountSnapshot == null
-      ? null
-      : roundMoney(input.priceAmountSnapshot);
-  const priceChanged = fromPrice == null || fromPrice !== toPrice;
-  const coveredAmount = Math.max(0, roundMoney(input.coveredAmount));
-
-  const invoice = input.liveInvoice;
-  const repriced =
-    invoice == null ? null : repriceInvoice(toPrice, invoice.discountAmount);
-  const newInvoiceAmount = repriced?.amount ?? toPrice;
-  const writtenOffAmount =
-    invoice == null
-      ? 0
-      : Math.max(
-          0,
-          roundMoney(
-            invoice.originalAmount - invoice.discountAmount - invoice.amount,
-          ),
-        );
-
-  return {
-    fromPrice,
-    toPrice,
-    priceChanged,
-    discountAmount: repriced?.discountAmount ?? 0,
-    currentInvoiceAmount: invoice == null ? null : roundMoney(invoice.amount),
-    writtenOffAmount,
-    newInvoiceAmount,
-    coveredAmount,
-    settlement: priceChanged
-      ? resolveStandChangeSettlement({ newInvoiceAmount, coveredAmount })
-      : { kind: "none" },
-  };
+  const plan = planReservationRepricing({
+    newStandPrice: input.tablePrice,
+    latePartnerPrepaid: input.latePartnerPrepaid,
+    priceAmountSnapshot: input.priceAmountSnapshot,
+    liveInvoice: input.liveInvoice,
+    coveredAmount: input.coveredAmount,
+    reservationStatus: input.reservationStatus,
+    zeroValueEntitlementApproved: input.zeroValueEntitlementApproved,
+  });
+  return { ...plan, toPrice: plan.newStandPrice };
 }
 
 export function summarizeFullTableUpgradeSettlement(
-  settlement: StandChangeSettlement,
+  settlement: RepricingSettlement,
 ): FullTableUpgradeSettlementSummary {
   switch (settlement.kind) {
     case "balance_due":
@@ -149,18 +121,23 @@ export function fullTableUpgradeMatchesExpectation(
 
 /**
  * The admin-facing result message, rebuilt the same way on a replay so a retry
- * after a lost response still says a balance was reopened or credits returned.
+ * after a lost response still says a balance was reopened, credits returned,
+ * or the reservation confirmed.
  */
 export function fullTableUpgradeSuccessMessage(
   settlement: FullTableUpgradeSettlementSummary,
+  accepted = false,
 ): string {
   const done = "La reserva ahora ocupa la mesa completa.";
+  const confirmed = accepted
+    ? " Lo ya pagado cubre la mesa, así que quedó confirmada."
+    : "";
   switch (settlement.kind) {
     case "balance_due":
       return `${done} Quedó un saldo pendiente de Bs${roundMoney(settlement.amount)}.`;
     case "overpaid":
-      return `${done} Se devolvieron Bs${roundMoney(settlement.amount)} en créditos.`;
+      return `${done} Se devolvieron Bs${roundMoney(settlement.amount)} en créditos.${confirmed}`;
     default:
-      return done;
+      return `${done}${confirmed}`;
   }
 }

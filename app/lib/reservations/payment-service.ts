@@ -9,7 +9,6 @@ import {
   createCreditTopUpForRequirementInTx,
   debitConfirmedCreditsForInvoiceInTx,
   getCreditBalancesInTx,
-  releaseInvoiceCreditAllocationsInTx,
   type ReleasedAllocation,
 } from "@/app/lib/credits/service";
 import { applyReservationCancellation } from "@/app/lib/reservations/admin-service";
@@ -48,19 +47,23 @@ import {
   submitZeroValueInvoiceSchema,
 } from "@/app/lib/reservations/schemas";
 import {
+  releaseReservationInvoiceCreditsInTx,
+  type RepricingRefundOffset,
+} from "@/app/lib/reservations/repricing-refunds";
+import {
   abandonRequest,
   claimRequest,
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
 import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/storage";
+import { isOverAllocated, type InvoiceTender } from "@/app/lib/payments/tender";
 import {
-  computeInvoiceTender,
-  type InvoiceTender,
-} from "@/app/lib/payments/tender";
+  loadInvoiceTenders,
+  tenderFor,
+} from "@/app/lib/payments/tender-queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
-  creditLedgerEntries,
   creditTopUps,
   discountCodes,
   invoiceSettlementSubmissions,
@@ -250,53 +253,22 @@ export type InvoiceTenderTotals = InvoiceTender;
 /**
  * The locked-path reader for invoice coverage.
  *
- * Selects the tender rows under whatever lock the caller already holds and
- * hands them to `computeInvoiceTender`, so this and the list screens can never
- * disagree about what an invoice is owed.
+ * Reads the tender rows under whatever lock the caller already holds, through
+ * the same `loadInvoiceTenders` the list screens use, so this and every screen
+ * can never disagree about what an invoice is owed — including the repricing
+ * refunds netted against a reservation's live cobro, which every guard below
+ * (a proof's amount, the credits a participant may apply, the approval's exact
+ * match, "Confirmar reserva") has to see, or a cobro reopened after a refund
+ * reads as fully paid.
  */
 export async function getInvoiceTenderTotalsInTx(
   tx: DbTx,
   invoice: Pick<typeof invoices.$inferSelect, "id" | "amount">,
 ): Promise<InvoiceTenderTotals> {
-  const [paymentRows, allocationRows, submissionRows] = await Promise.all([
-    tx
-      .select({ id: payments.id, amount: payments.amount })
-      .from(payments)
-      .where(eq(payments.invoiceId, invoice.id)),
-    tx
-      .select({
-        amount: invoiceCreditAllocations.amount,
-        // An allocation is undone by a ledger entry pointing at its spend; the
-        // row itself stays as history.
-        reversed: sql<boolean>`EXISTS (
-          SELECT 1
-          FROM ${creditLedgerEntries} r
-          WHERE r.reverses_entry_id = ${invoiceCreditAllocations.ledgerEntryId}
-        )`,
-      })
-      .from(invoiceCreditAllocations)
-      .where(eq(invoiceCreditAllocations.invoiceId, invoice.id)),
-    tx
-      .select({
-        paymentId: invoiceSettlementSubmissions.paymentId,
-        status: invoiceSettlementSubmissions.status,
-        // Selected so `pendingZeroValueRequest` is answerable; the locked write
-        // paths and the list screens must agree on it.
-        kind: invoiceSettlementSubmissions.kind,
-      })
-      .from(invoiceSettlementSubmissions)
-      .where(eq(invoiceSettlementSubmissions.invoiceId, invoice.id)),
+  const tenders = await loadInvoiceTenders(tx, [
+    { id: invoice.id, amount: invoice.amount },
   ]);
-
-  return computeInvoiceTender({
-    amount: invoice.amount,
-    payments: paymentRows,
-    allocations: allocationRows.map((row) => ({
-      amount: row.amount,
-      reversed: Boolean(row.reversed),
-    })),
-    submissions: submissionRows,
-  });
+  return tenderFor(tenders, invoice.id);
 }
 
 function aggregateUnavailable(
@@ -957,10 +929,19 @@ export async function applyInvoiceCredits(input: unknown): Promise<
  * Refuses while a settlement submission is in review — approving that voucher
  * depends on the coverage this would remove, so the review has to be resolved
  * first rather than resolved against a moving total.
+ *
+ * Net of what a repricing already refunded from the same credits
+ * (`releaseReservationInvoiceCreditsInTx`): a participant whose Bs500 of
+ * credits earned Bs200 back on a move to a cheaper stand gets Bs300 here, not
+ * Bs500 on top of the Bs200.
  */
 export async function releaseInvoiceCredits(input: unknown): Promise<
   ReservationActionResult<{
     released: ReleasedAllocation[];
+    /** Refunds already handed back that this release took out again. */
+    refundOffsets: RepricingRefundOffset[];
+    /** What reached the wallets: released less the offsets. */
+    returnedAmount: number;
     outstandingAmount: number;
   }>
 > {
@@ -992,7 +973,8 @@ export async function releaseInvoiceCredits(input: unknown): Promise<
         return adminReservationFailure("CREDITS_NOT_RELEASABLE");
       }
 
-      const release = await releaseInvoiceCreditAllocationsInTx(tx, {
+      const release = await releaseReservationInvoiceCreditsInTx(tx, {
+        reservationId: reservation.id,
         invoiceId: invoice.id,
         allocationId: parsed.data.allocationId,
         idempotencyKey: parsed.data.idempotencyKey,
@@ -1016,6 +998,12 @@ export async function releaseInvoiceCredits(input: unknown): Promise<
           invoiceId: invoice.id,
           reason: parsed.data.reason,
           released: release.released,
+          ...(release.offsets.length > 0
+            ? {
+                refundOffsets: release.offsets,
+                returnedAmount: release.returnedAmount,
+              }
+            : {}),
           outstandingAmount: tender.outstandingAmount,
         },
         idempotencyKey: `invoice-credit-release:${parsed.data.idempotencyKey}`,
@@ -1030,10 +1018,7 @@ export async function releaseInvoiceCredits(input: unknown): Promise<
         adminEmails: [],
         payload: {
           invoiceId: invoice.id,
-          creditsReleased: release.released.reduce(
-            (sum, row) => sum + row.amount,
-            0,
-          ),
+          creditsReleased: release.returnedAmount,
         },
       });
 
@@ -1041,6 +1026,8 @@ export async function releaseInvoiceCredits(input: unknown): Promise<
         kind: "released" as const,
         jobIds,
         released: release.released,
+        refundOffsets: release.offsets,
+        returnedAmount: release.returnedAmount,
         outstandingAmount: tender.outstandingAmount,
       };
     });
@@ -1049,13 +1036,24 @@ export async function releaseInvoiceCredits(input: unknown): Promise<
     scheduleReservationNotificationJobs(outcome.jobIds);
     revalidatePath("/dashboard/festivals");
     revalidatePath("/profiles");
-    const total = outcome.released.reduce((sum, row) => sum + row.amount, 0);
+    const offset = roundMoney(
+      outcome.refundOffsets.reduce((sum, row) => sum + row.amount, 0),
+    );
+    // The dialog announced the credits on the cobro; when part of them had
+    // already come back through a repricing, the toast has to say why less
+    // arrived than it promised.
+    const alreadyReturned =
+      offset > 0
+        ? ` Bs${offset} ya se habían devuelto como diferencia a favor de un cambio de espacio, así que no se devuelven de nuevo.`
+        : "";
     return reservationSuccess(
       {
         released: outcome.released,
+        refundOffsets: outcome.refundOffsets,
+        returnedAmount: outcome.returnedAmount,
         outstandingAmount: outcome.outstandingAmount,
       },
-      `Devolvimos Bs${total} en créditos. Saldo pendiente: Bs${outcome.outstandingAmount}.`,
+      `Devolvimos Bs${outcome.returnedAmount} en créditos.${alreadyReturned} Saldo pendiente: Bs${outcome.outstandingAmount}.`,
     );
   } catch (error) {
     console.error("Error releasing invoice credits", error);
@@ -1295,7 +1293,14 @@ export async function settleInvoiceShortfall(input: unknown): Promise<
   }
 }
 
-async function applyAcceptedReservation(
+/**
+ * The acceptance write set: reservation accepted, every live member stand
+ * confirmed, the `stand_reservation` task completed, the cobro paid, and the
+ * `settlement_approved` event. Exported for the admin repricing commands, which
+ * accept a reservation their reprice leaves fully paid — one write set, so an
+ * acceptance means the same thing whichever path produced it.
+ */
+export async function applyAcceptedReservation(
   tx: DbTx,
   reservationId: number,
   standId: number,
@@ -1979,6 +1984,59 @@ export async function adminConfirmReservation(
       }
 
       if (!submission) {
+        // Already fully covered by approved cash and credits, with nothing in
+        // review: there is no comprobante to approve, and building one from a
+        // leftover voucher would refuse (it would be for Bs0). The repricing
+        // commands now accept such a reservation themselves; this repairs rows
+        // left "Por confirmar" before they did, the same way the credits-only
+        // branch of `settleInvoiceShortfall` is its own approval.
+        const tender = await getInvoiceTenderTotalsInTx(tx, invoice);
+        const awaitingConfirmation =
+          canAcceptInvoiceProof(reservation.status) &&
+          canAcceptInvoiceProof(invoice.status);
+        // An exact match only, as every other acceptance demands
+        // (`approveSubmissionInTx`, `applyInvoiceCredits`). `outstandingAmount`
+        // is clamped at zero, so it also reads 0 on a cobro paid beyond its
+        // amount — a partner removed, or a lower amount set, after credits
+        // went on — and accepting that would lock the surplus in: the cobro
+        // turns paid and "Devolver créditos" refuses from then on.
+        if (awaitingConfirmation && isOverAllocated(tender)) {
+          return finish(
+            reservationFailure(
+              "PAYMENT_AMOUNT_MISMATCH",
+              `Lo pagado (Bs${tender.coveredAmount}) supera el monto del cobro (Bs${tender.totalAmount}), así que no se puede confirmar tal cual. Si sobran créditos, devolvelos antes de confirmar la reserva.`,
+            ),
+          );
+        }
+        if (
+          tender.coveredAmount > 0 &&
+          tender.coveredAmount === tender.totalAmount &&
+          awaitingConfirmation
+        ) {
+          await applyAcceptedReservation(
+            tx,
+            reservation.id,
+            reservation.standId,
+            invoice.id,
+            actor.id,
+          );
+          const ownerEmail = await userEmail(tx, invoice.userId);
+          const jobIds = await enqueueAdminAndOwnerNotifications(tx, {
+            kind: "settlement_approved",
+            reservationId: reservation.id,
+            ownerUserId: invoice.userId,
+            ownerEmail,
+            adminEmails: [],
+            payload: { invoiceId: invoice.id },
+          });
+          return finish({
+            kind: "approved",
+            reservationId: reservation.id,
+            invoiceId: invoice.id,
+            jobIds,
+          });
+        }
+
         const currentPayment = await latestUnapprovedPaymentInTx(
           tx,
           invoice.id,

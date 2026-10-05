@@ -302,6 +302,7 @@ async function deliverJob(
         standLabel: reservationStandLabel(reservation),
         reservationId: reservation.id,
         totalCredits: payloadAmount(payload, "totalCredits") ?? 0,
+        sharedPriceDifference: payloadAmount(payload, "sharedPriceDifference"),
       }),
     });
     return;
