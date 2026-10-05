@@ -4,7 +4,11 @@ import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { generateQrBuffer } from "@/app/lib/utils";
-import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import { consumeTicketCreationRateLimit } from "@/app/lib/tickets/creation-rate-limit";
+import {
+  getCurrentBaseProfile,
+  requireAdminOrFestivalAdmin,
+} from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { festivals, tickets, visitors } from "@/db/schema";
 import type { VisitorBase } from "../visitors/actions";
@@ -69,6 +73,21 @@ export async function createTicket(data: {
     Math.max(Math.trunc(Number(data.numberOfVisitors) || 1), 1),
     MAX_VISITORS_PER_TICKET,
   );
+
+  // Before the lookups, so a flood costs no reads and probing which addresses
+  // belong to visitors is throttled too. The email key is the address the
+  // confirmation goes to: the visitor is matched on it exactly.
+  const allowed = await consumeTicketCreationRateLimit({
+    userId: (await getCurrentBaseProfile())?.id ?? null,
+    email,
+  });
+  if (!allowed) {
+    return {
+      success: false,
+      message: "Demasiados intentos seguidos. Esperá un rato e intentá de nuevo.",
+      ticket: null,
+    };
+  }
 
   const loaded = await Promise.all([
     db.query.visitors.findFirst({ where: eq(visitors.email, email) }),

@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ db: {} }));
 
-import { callerFingerprint } from "@/app/lib/rate-limit";
+import {
+  callerFingerprint,
+  callerRateLimitKey,
+  emailFingerprint,
+} from "@/app/lib/rate-limit";
 
 describe("callerFingerprint", () => {
   it("ignores cf-connecting-ip, which Vercel passes through as the client sent it", () => {
@@ -40,6 +44,36 @@ describe("callerFingerprint", () => {
     expect(fingerprint).not.toBe(
       callerFingerprint(new Headers({ "x-real-ip": "203.0.113.8" })),
     );
+    expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("callerRateLimitKey", () => {
+  const sharedNetwork = new Headers({ "x-real-ip": "203.0.113.7" });
+
+  it("keys a signed-in caller by account, so a shared network does not pool them", () => {
+    expect(callerRateLimitKey(42, sharedNetwork)).toBe("user:42");
+    expect(callerRateLimitKey(43, sharedNetwork)).toBe("user:43");
+  });
+
+  it("keys an anonymous caller by network address", () => {
+    expect(callerRateLimitKey(null, sharedNetwork)).toBe(
+      `ip:${callerFingerprint(sharedNetwork)}`,
+    );
+  });
+});
+
+describe("emailFingerprint", () => {
+  it("names one mailbox however its address is cased or padded", () => {
+    expect(emailFingerprint(" Visita@Example.TEST ")).toBe(
+      emailFingerprint("visita@example.test"),
+    );
+  });
+
+  it("tells addresses apart and does not expose them", () => {
+    const fingerprint = emailFingerprint("visita@example.test");
+
+    expect(fingerprint).not.toBe(emailFingerprint("otra@example.test"));
     expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
   });
 });

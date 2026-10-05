@@ -29,6 +29,26 @@ export function callerFingerprint(requestHeaders: Pick<Headers, "get">) {
   return createHash("sha256").update(clientIdentifier).digest("hex");
 }
 
+/**
+ * The bucket a caller's requests count against: their account when signed in,
+ * and their network address otherwise.
+ */
+export function callerRateLimitKey(
+  userId: number | null,
+  requestHeaders: Pick<Headers, "get">,
+) {
+  if (userId !== null) return `user:${userId}`;
+  return `ip:${callerFingerprint(requestHeaders)}`;
+}
+
+/**
+ * A stable, non-reversible name for an email address, for keying rate limits
+ * on it without storing the address. Mailboxes ignore case, so this does too.
+ */
+export function emailFingerprint(email: string) {
+  return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+}
+
 async function cleanupStaleRateLimits(now: Date) {
   if (now.getTime() < nextCleanupAt) return;
   nextCleanupAt = now.getTime() + RATE_LIMIT_CLEANUP_INTERVAL_MS;

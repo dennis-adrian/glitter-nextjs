@@ -45,7 +45,11 @@ vi.mock("next/server", () => ({
   },
 }));
 vi.mock("@/app/lib/users/helpers", () => ({
+  getCurrentBaseProfile: vi.fn(async () => null),
   requireAdminOrFestivalAdmin: vi.fn(async () => null),
+}));
+vi.mock("@/app/lib/tickets/creation-rate-limit", () => ({
+  consumeTicketCreationRateLimit: vi.fn(async () => true),
 }));
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: mocks.sendEmail }));
 vi.mock("@/app/emails/ticket", () => ({ default: mocks.ticketTemplate }));

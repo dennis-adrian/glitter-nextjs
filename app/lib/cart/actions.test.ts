@@ -6,8 +6,16 @@ const mocks = vi.hoisted(() => ({
   selectRows: vi.fn<() => Promise<{ storeCategory: string }[]>>(),
   transaction: vi.fn(),
   findClosedSection: vi.fn(),
+  consumeGuestCheckoutRateLimit: vi.fn(),
+  getCurrentBaseProfile: vi.fn(),
 }));
-const { selectRows, transaction, findClosedSection } = mocks;
+const {
+  selectRows,
+  transaction,
+  findClosedSection,
+  consumeGuestCheckoutRateLimit,
+  getCurrentBaseProfile,
+} = mocks;
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -32,7 +40,10 @@ vi.mock("@/app/lib/orders/order-emails", () => ({
 }));
 vi.mock("@/app/lib/products/queries", () => ({ fetchProduct: vi.fn() }));
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentBaseProfile: vi.fn(),
+  getCurrentBaseProfile: mocks.getCurrentBaseProfile,
+}));
+vi.mock("@/app/lib/cart/guest-checkout-rate-limit", () => ({
+  consumeGuestCheckoutRateLimit: mocks.consumeGuestCheckoutRateLimit,
 }));
 
 import { checkoutGuestCart } from "@/app/lib/cart/actions";
@@ -48,6 +59,7 @@ describe("checkoutGuestCart supplies gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findClosedSection.mockResolvedValue(null);
+    consumeGuestCheckoutRateLimit.mockResolvedValue(true);
   });
 
   it("rejects supplies before opening the order transaction", async () => {
@@ -91,5 +103,57 @@ describe("checkoutGuestCart supplies gate", () => {
       success: false,
       message: SUPPLIES_VERIFIED_MESSAGE,
     });
+  });
+});
+
+describe("checkoutGuestCart rate limit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findClosedSection.mockResolvedValue(null);
+    selectRows.mockResolvedValue([{ storeCategory: "merch" }]);
+  });
+
+  it("refuses a caller over the limit before reading products or taking stock", async () => {
+    consumeGuestCheckoutRateLimit.mockResolvedValue(false);
+
+    const result = await checkoutGuestCart(guestItems, ...contact);
+
+    expect(result).toEqual({
+      success: false,
+      message: "Demasiados pedidos seguidos. Esperá un rato e intentá de nuevo.",
+    });
+    expect(selectRows).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("limits an anonymous guest by address and their contact email", async () => {
+    consumeGuestCheckoutRateLimit.mockResolvedValue(false);
+    getCurrentBaseProfile.mockResolvedValue(null);
+
+    await checkoutGuestCart(guestItems, ...contact);
+
+    expect(consumeGuestCheckoutRateLimit).toHaveBeenCalledWith({
+      userId: null,
+      email: "invitada@example.test",
+    });
+  });
+
+  it("limits a signed-in caller by their account", async () => {
+    consumeGuestCheckoutRateLimit.mockResolvedValue(false);
+    getCurrentBaseProfile.mockResolvedValue({ id: 42 });
+
+    await checkoutGuestCart(guestItems, ...contact);
+
+    expect(consumeGuestCheckoutRateLimit).toHaveBeenCalledWith({
+      userId: 42,
+      email: "invitada@example.test",
+    });
+  });
+
+  it("does not spend the allowance on a request it rejects as invalid", async () => {
+    await checkoutGuestCart([], ...contact);
+    await checkoutGuestCart(guestItems, "Invitada", "no-es-un-correo", "+5917");
+
+    expect(consumeGuestCheckoutRateLimit).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,7 @@ import {
   MERGED_BUNDLE_LINES_NOTICE,
   toGuestCartBundle,
 } from "@/app/lib/cart/utils";
+import { consumeGuestCheckoutRateLimit } from "@/app/lib/cart/guest-checkout-rate-limit";
 import type { CartBundleLine } from "@/app/lib/merch/bundle-definitions";
 import {
   buildBundleSelectionKey,
@@ -1885,6 +1886,17 @@ export async function checkoutGuestCart(
     email: emailTrimmed,
     phone: phoneTrimmed,
   } = contactParsed.data;
+
+  const allowed = await consumeGuestCheckoutRateLimit({
+    userId: (await getCurrentBaseProfile())?.id ?? null,
+    email: emailTrimmed,
+  });
+  if (!allowed) {
+    return {
+      success: false,
+      message: "Demasiados pedidos seguidos. Esperá un rato e intentá de nuevo.",
+    };
+  }
 
   try {
     const productRows = items.length
