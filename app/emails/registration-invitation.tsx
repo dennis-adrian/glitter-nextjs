@@ -15,7 +15,6 @@ import {
   formatFullDate,
   formatDisplayDate,
 } from "@/app/lib/formatters";
-import { Interval } from "luxon";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { getFestivalLogo } from "@/app/lib/utils";
 import { FestivalWithDates } from "../lib/festivals/definitions";
@@ -23,20 +22,19 @@ import EmailFooter from "@/app/emails/email-footer";
 
 interface RegistrationInvitationEmailTemplateProps {
   festival: FestivalWithDates;
+  /** The visitor's first name, when we have one, for the greeting. */
+  visitorName?: string | null;
+  /** Where this visitor stops receiving these invitations. */
+  unsubscribeUrl?: string;
 }
 
 export default function RegistrationInvitationEmailTemplate(
   props: RegistrationInvitationEmailTemplateProps,
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const daysInterval = Interval.fromDateTimes(
-    formatDate(new Date()).startOf("day"),
-    formatDate(props.festival.festivalDates[0].startDate).startOf("day"),
-  )
-    .toDuration()
-    .toFormat("d");
-
   const dates = props.festival.festivalDates;
+  const firstDate = dates[0];
+  const visitorName = props.visitorName?.trim();
   const festivalLabel =
     props.festival.festivalType.charAt(0).toUpperCase() +
     props.festival.festivalType.slice(1);
@@ -55,27 +53,39 @@ export default function RegistrationInvitationEmailTemplate(
             <Text style={styles.titleWithBanner}>
               ¡Evita colas para ingresar al evento!
             </Text>
+            {visitorName ? (
+              <Text style={styles.text}>¡Hola, {visitorName}!</Text>
+            ) : null}
             <Text style={styles.text}>
-              Este{" "}
-              {dates.length > 1 ? (
-                <strong>{getFestivalDateLabel(props.festival)}</strong>
+              {firstDate ? (
+                <>
+                  Este{" "}
+                  {dates.length > 1 ? (
+                    <strong>{getFestivalDateLabel(props.festival)}</strong>
+                  ) : (
+                    <strong>{formatFullDate(firstDate.startDate)}</strong>
+                  )}{" "}
+                  te
+                </>
               ) : (
-                <strong>{formatFullDate(dates[0].startDate)}</strong>
+                "Te"
               )}{" "}
-              te invitamos a ser parte del festival{" "}
+              invitamos a ser parte del festival{" "}
               <strong>{props.festival.name}</strong>.
             </Text>
-            <Text style={styles.text}>
-              El ingreso al público es desde las{" "}
-              <strong>
-                {formatDisplayDate(dates[0].startDate, {
-                  hour: "numeric",
-                  minute: "numeric",
-                })}
-              </strong>{" "}
-              y tendremos sorpresas para las primeras 200 personas por día en
-              ingresar al evento.
-            </Text>
+            {firstDate ? (
+              <Text style={styles.text}>
+                El ingreso al público es desde las{" "}
+                <strong>
+                  {formatDisplayDate(firstDate.startDate, {
+                    hour: "numeric",
+                    minute: "numeric",
+                  })}
+                </strong>{" "}
+                y tendremos sorpresas para las primeras 200 personas por día en
+                ingresar al evento.
+              </Text>
+            ) : null}
             <Text style={styles.text}>
               ¡Evita colas y ahorra tiempo durante el registro en puerta! Haz
               clic en el botón para adquirir tu boleto virtual. El ingreso al
@@ -89,13 +99,15 @@ export default function RegistrationInvitationEmailTemplate(
             </Button>
           </Section>
         </Container>
-        <EmailFooter />
+        <EmailFooter unsubscribeUrl={props.unsubscribeUrl} />
       </Body>
     </Html>
   );
 }
 
 RegistrationInvitationEmailTemplate.PreviewProps = {
+  visitorName: "Camila",
+  unsubscribeUrl: "http://localhost:3000/email/unsubscribe?token=preview",
   festival: {
     id: 1,
     name: "Glitter 5ta Edición - Max el Caimán",

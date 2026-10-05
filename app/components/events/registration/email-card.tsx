@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import EmailSubmissionForm from "@/app/components/events/registration/email-submission-form";
 import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
 import {
@@ -11,6 +13,8 @@ import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 type EmailCardProps = {
   festival: FestivalWithDates;
+  /** The visitor this browser already entered as, to skip the email. */
+  continueAs?: string | null;
 };
 export default function EmailCard(props: EmailCardProps) {
   return (
@@ -25,7 +29,15 @@ export default function EmailCard(props: EmailCardProps) {
           festival={props.festival}
           noMascot
         />
-        <EmailSubmissionForm />
+        {props.continueAs ? (
+          <p className="mt-4 rounded-md border bg-muted/50 p-3 text-sm">
+            ¿Eres {props.continueAs}?{" "}
+            <Link href="?step=3" className="font-medium underline">
+              Ver tus entradas
+            </Link>
+          </p>
+        ) : null}
+        <EmailSubmissionForm festivalId={props.festival.id} />
       </CardContent>
     </Card>
   );

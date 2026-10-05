@@ -230,8 +230,9 @@ export async function importFestivalData(
               locationUrl: festivalInfo.locationUrl,
               festivalType: festivalInfo.festivalType,
               mapsVersion: festivalInfo.mapsVersion,
-              publicRegistration: festivalInfo.publicRegistration,
-              eventDayRegistration: festivalInfo.eventDayRegistration,
+              // Registration flags are not imported: acreditación opens only
+              // through updateFestivalRegistration, which checks the festival
+              // is active and offers the visitor invitation.
               festivalCode: festivalInfo.festivalCode,
               updatedAt: new Date(),
             })
@@ -365,8 +366,10 @@ export async function createFestivalFromImport(
           locationUrl: festivalInfo?.locationUrl ?? null,
           status: "draft",
           mapsVersion: festivalInfo?.mapsVersion ?? "v1",
-          publicRegistration: festivalInfo?.publicRegistration ?? false,
-          eventDayRegistration: festivalInfo?.eventDayRegistration ?? false,
+          // A new festival starts closed, whatever the file says; see
+          // importFestivalData.
+          publicRegistration: false,
+          eventDayRegistration: false,
           festivalType: festivalInfo?.festivalType ?? "glitter",
           festivalCode: festivalInfo?.festivalCode ?? null,
           reservationsStartDate: new Date(),

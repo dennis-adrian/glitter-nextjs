@@ -3,17 +3,18 @@
 import { useRef } from "react";
 import * as htmlToImage from "html-to-image";
 import Ticket from "@/app/components/events/registration/ticket";
-import { TicketBase } from "@/app/data/tickets/actions";
-import { PublicVisitor } from "@/app/data/visitors/actions";
 import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { DownloadIcon } from "lucide-react";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
+import type {
+  TicketFestivalView,
+  VisitorTicketView,
+} from "@/app/lib/visitors/registration-definitions";
 
 type DownloadableTicketProps = {
-  ticket: TicketBase;
-  visitor: PublicVisitor;
-  festival: FestivalBase;
+  ticket: VisitorTicketView;
+  holderName: string;
+  festival: TicketFestivalView;
 };
 export default function DownloadableTicket(props: DownloadableTicketProps) {
   const ticketRef = useRef<HTMLDivElement>(null);
@@ -30,7 +31,7 @@ export default function DownloadableTicket(props: DownloadableTicketProps) {
         link.href = dataUrl;
         link.click();
       })
-      .catch((err) => {
+      .catch(() => {
         toast.error("No se pudo descargar la entrada");
       });
   };

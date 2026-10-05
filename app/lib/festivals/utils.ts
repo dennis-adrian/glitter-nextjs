@@ -2,6 +2,7 @@
 
 import { UserCategory } from "@/app/api/users/definitions";
 import { getFestivalSectorAllowedCategories } from "../festival_sectors/helpers";
+import { formatDate } from "@/app/lib/formatters";
 import {
   Festival,
   FestivalActivityWithDetailsAndParticipants,
@@ -106,15 +107,62 @@ export function getFestivalsOptions(festivals: FestivalBase[]) {
   }));
 }
 
-export function groupVisitorEmails(visitors: { id: number; email: string }[]) {
-  // Resend has a limit of 50 emails per group and the first email is the sender the other 49 will be in bcc
-  const maxEmailsPerGroup = 49;
-  const visitorEmails = visitors.map((visitor) => visitor.email);
-  let emailGroups: string[][] = [];
-  for (let i = 0; i < visitorEmails.length; i += maxEmailsPerGroup) {
-    let group = visitorEmails.slice(i, i + maxEmailsPerGroup);
-    emailGroups.push(group);
-  }
+/** A festival's days in calendar order; the relation comes back unordered. */
+export function sortFestivalDates<T extends { startDate: Date }>(dates: T[]) {
+  return [...dates].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+}
 
-  return emailGroups;
+/**
+ * The span of a festival's days in the store's time zone, as compact as it
+ * reads unambiguously: "12 oct 2026", "12–13 oct 2026", "30 oct – 1 nov 2026",
+ * "30 dic 2026 – 2 ene 2027". Null when the festival has no dates yet.
+ */
+export function formatFestivalDateRange(dates: { startDate: Date }[]) {
+  if (dates.length === 0) return null;
+  const sorted = sortFestivalDates(dates);
+  const start = formatDate(sorted[0]!.startDate);
+  const end = formatDate(sorted[sorted.length - 1]!.startDate);
+
+  if (start.hasSame(end, "day")) return start.toFormat("d LLL yyyy");
+  if (start.hasSame(end, "month")) {
+    return `${start.toFormat("d")}–${end.toFormat("d LLL yyyy")}`;
+  }
+  if (start.hasSame(end, "year")) {
+    return `${start.toFormat("d LLL")} – ${end.toFormat("d LLL yyyy")}`;
+  }
+  return `${start.toFormat("d LLL yyyy")} – ${end.toFormat("d LLL yyyy")}`;
+}
+
+const ADMIN_STATUS_ORDER: Record<FestivalBase["status"], number> = {
+  active: 0,
+  published: 1,
+  draft: 2,
+  archived: 3,
+};
+
+/**
+ * The order the festivals list opens in: what is running first, then what is
+ * being prepared, then the archive, each newest first by its first day.
+ */
+export function sortFestivalsForAdmin<
+  T extends FestivalBase & { festivalDates: { startDate: Date }[] },
+>(festivals: T[]) {
+  const firstDay = (festival: T) =>
+    sortFestivalDates(festival.festivalDates)[0]?.startDate.getTime() ??
+    Number.NEGATIVE_INFINITY;
+
+  return [...festivals].sort(
+    (a, b) =>
+      ADMIN_STATUS_ORDER[a.status] - ADMIN_STATUS_ORDER[b.status] ||
+      firstDay(b) - firstDay(a) ||
+      b.id - a.id,
+  );
+}
+
+/** Whether `now` falls on one of the festival's days, in the store's zone. */
+export function isFestivalDay(dates: { startDate: Date }[], now = new Date()) {
+  const today = formatDate(now).startOf("day");
+  return dates.some((date) =>
+    formatDate(date.startDate).startOf("day").equals(today),
+  );
 }

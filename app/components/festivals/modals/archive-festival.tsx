@@ -1,5 +1,4 @@
 import ArchiveFestivalForm from "@/app/components/festivals/forms/archive-festival";
-import UpdateEventDayRegistrationForm from "@/app/components/festivals/forms/update-event-day-registration";
 import { Button } from "@/app/components/ui/button";
 import {
   DrawerDialog,

@@ -15,26 +15,27 @@ import {
 } from "react-email";
 
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
-import { VisitorBase } from "../data/visitors/actions";
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
-import { TicketBase } from "@/app/data/tickets/actions";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import { DateTime } from "luxon";
 import { FestivalBase } from "../lib/festivals/definitions";
+import type { tickets, visitors } from "@/db/schema";
 
 type TicketEmailTemplateProps = {
   festival: FestivalBase;
-  visitor: VisitorBase;
-  ticket: TicketBase;
+  visitor: typeof visitors.$inferSelect;
+  ticket: typeof tickets.$inferSelect;
+  /** Signed link to every ticket the visitor holds. */
+  ticketsUrl: string;
 };
 
 export default function TicketEmailTemplate({
   visitor,
   festival,
   ticket,
+  ticketsUrl,
 }: TicketEmailTemplateProps) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const ticketCode = getTicketCode(
     festival.festivalCode || "",
     ticket.ticketNumber || 0,
@@ -132,15 +133,11 @@ export default function TicketEmailTemplate({
               </Section>
             </Section>
             <Text style={{ ...styles.text, marginTop: "16px" }}>
-              Si tienes problemas viendo el código, puedes hacer clic en el
-              botón e ingresar con tu correo electrónico para descargar tu
-              entrada
+              Si tienes problemas viendo el código, abre tus entradas para
+              descargarla. El enlace es personal: no lo compartas.
             </Text>
-            <Link
-              href={`${baseUrl}/festivals/${festival.id}/registration`}
-              style={styles.button}
-            >
-              Ver mi entrada
+            <Link href={ticketsUrl} style={styles.button}>
+              Ver mis entradas
             </Link>
           </Section>
         </Container>
@@ -171,6 +168,7 @@ TicketEmailTemplate.PreviewProps = {
     numberOfVisitors: 2,
     ticketNumber: 2,
   },
+  ticketsUrl: "http://localhost:3000/visitors/tickets/access?token=preview",
 } as TicketEmailTemplateProps;
 
 const marginAuto = {

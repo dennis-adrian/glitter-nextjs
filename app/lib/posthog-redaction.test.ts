@@ -30,6 +30,16 @@ describe("redactSensitiveUrlParams", () => {
     );
   });
 
+  it("redacts the visitor email and id old registration links carried", () => {
+    expect(
+      redactSensitiveUrlParams(
+        "/festivals/9/registration?email=ana%40mail.com&step=3&visitorId=42",
+      ),
+    ).toBe(
+      "/festivals/9/registration?email=redacted&step=3&visitorId=redacted",
+    );
+  });
+
   it("leaves unrelated params alone", () => {
     const url = "https://example.com/programs?slug=glitter-week";
     expect(redactSensitiveUrlParams(url)).toBe(url);

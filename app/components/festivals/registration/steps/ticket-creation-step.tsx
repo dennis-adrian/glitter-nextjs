@@ -1,72 +1,90 @@
 "use client";
 
-import EventDayTicketCreationForm from "@/app/components/events/registration/event-day-ticket-creation-form";
+import { Loader2Icon } from "lucide-react";
+import { useTransition } from "react";
+import { toast } from "sonner";
+
 import Tickets from "@/app/components/events/registration/tickets";
-import { PublicVisitor } from "@/app/data/visitors/actions";
-import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
-import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { Button } from "@/app/components/ui/button";
 import { formatDate } from "@/app/lib/formatters";
+import { claimDoorTicket } from "@/app/lib/visitors/registration-actions";
+import type {
+  TicketFestivalView,
+  VisitorRegistrationView,
+  VisitorTicketView,
+} from "@/app/lib/visitors/registration-definitions";
+
+/** The visitor's ticket for today, in the store's time zone. */
+export function todaysTicket(
+  tickets: VisitorTicketView[],
+): VisitorTicketView | undefined {
+  const today = formatDate(new Date()).startOf("day");
+  return tickets.find((ticket) =>
+    formatDate(ticket.date).startOf("day").equals(today),
+  );
+}
 
 type TicketCreationStepProps = {
-  festival: FestivalWithDates;
-  visitor?: PublicVisitor | null;
-  numberOfVisitors?: number;
-  onSuccess: (visitor: PublicVisitor) => void;
+  festivalId: number;
+  festival: TicketFestivalView;
+  view: VisitorRegistrationView;
+  numberOfVisitors: number;
+  onSuccess: (view: VisitorRegistrationView) => void;
+  /** The visitor's session expired: start again from the email. */
+  onRestart: () => void;
 };
 
 export default function TicketCreationStep(props: TicketCreationStepProps) {
-  if (!props.visitor?.id) return null;
+  const [pending, startTransition] = useTransition();
+  const ticket = todaysTicket(props.view.tickets);
 
-  const ticketDate = props.festival.festivalDates.find((festivalDate) => {
-    return formatDate(festivalDate.startDate)
-      .startOf("day")
-      .equals(formatDate(new Date()).startOf("day"));
-  });
-
-  if (!ticketDate) {
-    return (
-      <div className="text-center text-sm md:text-lg border-2 border-dotted border-muted p-4 rounded-md text-muted-foreground">
-        No tenemos entradas disponibles para hoy
-      </div>
-    );
+  function claim() {
+    startTransition(async () => {
+      const res = await claimDoorTicket({
+        festivalId: props.festivalId,
+        numberOfVisitors: Math.max(1, props.numberOfVisitors),
+      });
+      if (res.success) {
+        toast.success(res.message);
+        props.onSuccess(res.view);
+        return;
+      }
+      toast.error(res.message);
+      if (res.restart) props.onRestart();
+    });
   }
-
-  const tickets = getVisitorFestivalTickets(props.visitor, props.festival);
-  const currentDayTicket = tickets.find((ticket) => {
-    return formatDate(ticket.date)
-      .startOf("day")
-      .equals(formatDate(new Date()).startOf("day"));
-  });
 
   return (
     <div className="flex flex-col gap-2">
       <h1 className="text-lg md:text-2xl font-bold text-center">
-        ¡Gracias por visitarnos, {props.visitor.firstName}!
+        ¡Gracias por visitarnos, {props.view.firstName}!
       </h1>
-      {currentDayTicket ? (
+      {ticket ? (
         <div>
           <div className="text-sm md:text-base text-center mb-1">
             Muestra tu entrada en puerta para ingresar al evento
           </div>
           <Tickets
-            visitor={props.visitor}
-            tickets={tickets}
+            tickets={[ticket]}
+            holderName={props.view.displayName}
             festival={props.festival}
           />
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="text-center text-sm md:text-lg border-2 border-dotted border-muted p-4 rounded-md text-muted-foreground">
-            Aún no tienes entradas para este día
+            Aún no tienes entrada para hoy
           </div>
-          <EventDayTicketCreationForm
-            festival={props.festival}
-            numberOfVisitors={props.numberOfVisitors}
-            visitor={props.visitor}
-            onSuccess={(visitor) => {
-              props.onSuccess(visitor);
-            }}
-          />
+          <Button disabled={pending} className="w-full" onClick={claim}>
+            {pending ? (
+              <span className="flex items-center gap-2">
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+                Generando tu entrada...
+              </span>
+            ) : (
+              <span>Obtener mi entrada de hoy</span>
+            )}
+          </Button>
         </div>
       )}
     </div>

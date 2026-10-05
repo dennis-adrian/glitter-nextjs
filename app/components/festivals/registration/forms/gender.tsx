@@ -1,60 +1,57 @@
+"use client";
+
 import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import {
-  createVisitor,
-  NewVisitor,
-  PublicVisitor,
-} from "@/app/data/visitors/actions";
-import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { genderOptions } from "@/app/lib/utils";
-import { genderEnum } from "@/db/schema";
+import { registerVisitor } from "@/app/lib/visitors/registration-actions";
+import type { VisitorRegistrationView } from "@/app/lib/visitors/registration-definitions";
+import {
+  type VisitorDetails,
+  visitorDetailsSchema,
+} from "@/app/lib/visitors/visitor-details-schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
 
-const FormSchema = z.object({
-  gender: z.enum([...genderEnum.enumValues]),
-});
+const FormSchema = visitorDetailsSchema.pick({ gender: true });
 
 type GenderFormProps = {
-  festival: FestivalWithDates;
-  numberOfVisitors?: number;
-  visitor: NewVisitor;
-  onSuccess: (visitor: PublicVisitor) => void;
+  festivalId: number;
+  /** The email entered at the start, held by the server meanwhile. */
+  email: string;
+  /** Everything the earlier steps collected. */
+  details: Omit<VisitorDetails, "gender">;
+  onSuccess: (view: VisitorRegistrationView) => void;
+  /** The email step expired: start again from it. */
+  onRestart: () => void;
 };
 export default function GenderForm(props: GenderFormProps) {
   const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      gender: props.visitor.gender ?? "other",
+      gender: "other" as const,
     },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const res = await createVisitor({
-      firstName: props.visitor.firstName,
-      lastName: props.visitor.lastName,
-      email: props.visitor.email,
-      phoneNumber: props.visitor.phoneNumber,
-      gender: data.gender,
-      birthdate: props.visitor.birthdate,
+    const res = await registerVisitor({
+      festivalId: props.festivalId,
+      mode: "door",
+      email: props.email,
+      details: { ...props.details, gender: data.gender },
     });
 
     if (res.success) {
       toast.success("Guardamos tu información correctamente");
-      props.onSuccess({
-        id: res.visitor!.id,
-        firstName: res.visitor!.firstName,
-        lastName: res.visitor!.lastName,
-        email: res.visitor!.email,
-        tickets: [],
-      });
-    } else {
-      toast.error("Ups! No se pudo guardar la información. Intenta nuevamente");
+      props.onSuccess(res.view);
+      return;
     }
+
+    toast.error(res.message);
+    form.setError("root", { message: res.message });
+    if (res.restart) props.onRestart();
   });
 
   return (
