@@ -57,7 +57,7 @@ pnpm db:test:up && pnpm migrate:test
 
 - After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Merch products, variants, and independent collections are seeded with local demo artwork.
 - Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (needs the migrated Docker Postgres from `pnpm db:test:up` + `pnpm migrate:test`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
-- `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file; commit that change rather than fighting it.
+- `next dev` rewrites the `nextjs-agent-rules` block in this file (`next build` does not); commit that change rather than fighting it.
 
 ## Development seed (demo users)
 
