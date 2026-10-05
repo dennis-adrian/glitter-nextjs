@@ -20,13 +20,33 @@ import { UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+/** An uploaded image and the receipt `createParticipantProduct` requires. */
+export type SignedProductImage = { imageUrl: string; receipt: string };
+
+/**
+ * The `imageUploader` route returns the URL it signed with the receipt. That
+ * URL is submitted rather than the upload response's own, so the pair always
+ * matches.
+ */
+function readSignedUpload(serverData: unknown): SignedProductImage | null {
+  if (!serverData || typeof serverData !== "object") return null;
+  const { imageUrl, receipt } = serverData as {
+    imageUrl?: unknown;
+    receipt?: unknown;
+  };
+  if (typeof imageUrl !== "string" || typeof receipt !== "string") {
+    return null;
+  }
+  return { imageUrl, receipt };
+}
+
 type UploadProductModalProps = {
   currentImage: File | null;
   form: UseFormReturn<z.infer<typeof UploadProductFormSchema>>;
   participationId: number;
   show: boolean;
-  uploadedImageUrl: string | null;
-  setUploadedImageUrl: (url: string | null) => void;
+  uploadedImage: SignedProductImage | null;
+  setUploadedImage: (image: SignedProductImage | null) => void;
   onClose: () => void;
   onOpenChange: (open: boolean) => void;
 };
@@ -36,8 +56,8 @@ export default function UploadProductModal({
   form,
   participationId,
   show,
-  uploadedImageUrl,
-  setUploadedImageUrl,
+  uploadedImage,
+  setUploadedImage,
   onClose,
   onOpenChange,
 }: UploadProductModalProps) {
@@ -45,7 +65,7 @@ export default function UploadProductModal({
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const { isUploading, startUpload } = useUploadThing("imageUploader", {
     onClientUploadComplete(res) {
-      setUploadedImageUrl(res[0].url);
+      setUploadedImage(readSignedUpload(res[0]?.serverData));
       setUploadProgress(0);
     },
     onUploadError(error: Error) {
@@ -76,29 +96,27 @@ export default function UploadProductModal({
       return;
     }
 
-    // Use existing uploaded URL or upload new image
-    let imageUrl: string | null = uploadedImageUrl;
-    if (!imageUrl) {
+    // Use the existing upload or upload the new image
+    let image = uploadedImage;
+    if (!image) {
       const imageUploadResponse = await startUpload([currentImage]);
-      if (imageUploadResponse) {
-        imageUrl = imageUploadResponse[0].url;
-
-        if (!imageUrl) {
-          toast.error("Error al subir la imagen, intenta nuevamente");
-          return;
-        }
+      if (!imageUploadResponse) {
+        toast.error("No hay imagen para subir.");
+        return;
       }
-    }
 
-    if (!imageUrl) {
-      toast.error("No hay imagen para subir.");
-      return;
+      image = readSignedUpload(imageUploadResponse[0]?.serverData);
+      if (!image) {
+        toast.error("Error al subir la imagen, intenta nuevamente");
+        return;
+      }
     }
 
     const result = await createParticipantProduct({
       ...formData,
       participationId: participationId,
-      imageUrl,
+      imageUrl: image.imageUrl,
+      uploadReceipt: image.receipt,
     });
 
     if (result.success) {
@@ -142,8 +160,8 @@ export default function UploadProductModal({
                   className={cn(
                     "w-5 h-5",
                     isUploading && "animate-pulse text-gray-500",
-                    uploadedImageUrl && !isUploading && "text-emerald-500",
-                    !uploadedImageUrl && !isUploading && "text-gray-500",
+                    uploadedImage && !isUploading && "text-emerald-500",
+                    !uploadedImage && !isUploading && "text-gray-500",
                   )}
                 />
               </div>

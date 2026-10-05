@@ -1,4 +1,4 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import { Card, CardContent } from "@/app/components/ui/card";
 import UpdateCategoriesForm from "@/app/components/users/form/update-categories-form";
 import { fetchAdminAssignableCategories } from "@/app/lib/categories/queries";

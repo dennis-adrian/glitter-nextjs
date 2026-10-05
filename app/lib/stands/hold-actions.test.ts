@@ -26,7 +26,7 @@ vi.mock("@/app/lib/reservations/tx-eligibility", () => ({
   denyIfStandNotEligibleForProfile: denyStandMock,
 }));
 
-vi.mock("@/app/api/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
   fetchBaseProfileById: vi.fn(),
 }));

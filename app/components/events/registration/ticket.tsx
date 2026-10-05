@@ -1,4 +1,4 @@
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { TicketBase } from "@/app/data/tickets/actions";
 import { Separator } from "@/app/components/ui/separator";
@@ -11,7 +11,7 @@ import { FestivalBase } from "@/app/lib/festivals/definitions";
 type TicketProps = {
   ticketRef?: React.RefObject<HTMLDivElement | null>;
   ticket: TicketBase;
-  visitor: VisitorWithTickets;
+  visitor: PublicVisitor;
   festival: FestivalBase;
 };
 export default function Ticket(props: TicketProps) {

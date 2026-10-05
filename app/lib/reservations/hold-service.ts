@@ -1,6 +1,6 @@
 import "server-only";
 
-import { fetchAdminUsers } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
 import {
   captureCreditHoldForFeatureInTx,
   releaseCreditHoldForFeatureInTx,
@@ -25,6 +25,7 @@ import {
 import {
   availableStandIds,
   findActiveFullTableAccess,
+  isDeclaredFullTablePair,
   isFullTableCategory,
   resolveFullTableCompanion,
 } from "@/app/lib/reservations/full-table-access";
@@ -306,8 +307,9 @@ export async function createStandHold(standIdInput: unknown): Promise<
       // Full-table access is resolved before locking so the companion half is
       // in the lock set from the start; locking it later would invert the
       // ascending-id order this transaction shares with every other writer.
-      // Categories that can never activate the feature skip the lookup, which
-      // is most participants.
+      // `pair` is only that preview: it is resolved again under the stand
+      // locks before anything is written. Categories that can never activate
+      // the feature skip the lookup, which is most participants.
       const access = isFullTableCategory(actor.category)
         ? await findActiveFullTableAccess(tx, {
             userId: actor.id,
@@ -413,6 +415,25 @@ export async function createStandHold(standIdInput: unknown): Promise<
       });
       if (ineligibleStand) return finish(ineligibleStand);
 
+      // The pair again, now that both halves are locked. Every write to a
+      // stand's group or a group's type locks the member stands, so a split or
+      // retype that committed while this waited is visible here and none can
+      // land until it commits. Only a preview that found a pair is re-read: a
+      // half that was not paired then was never locked as a companion.
+      const lockedPair =
+        pair == null
+          ? null
+          : await resolveFullTableCompanion(tx, freshStand.id);
+      if (
+        pair != null &&
+        lockedPair != null &&
+        lockedPair.companionStandId !== pair.companionStandId
+      ) {
+        // Re-paired with a stand this transaction never locked; taking it now
+        // would break the ascending order. A retry locks the new pair.
+        return finish(reservationFailure("CONFLICT_RETRY"));
+      }
+
       const existingHold = await tx
         .select({ id: standHolds.id, standId: standHolds.standId })
         .from(standHolds)
@@ -465,17 +486,18 @@ export async function createStandHold(standIdInput: unknown): Promise<
       }
 
       // The companion is re-checked under its own lock. If it went while the
-      // participant was choosing, the selected half stays reservable and the
-      // hold quietly becomes a half-table one — the fallback the PRD requires,
-      // which the confirmation screens then have to state explicitly.
+      // participant was choosing — taken, or the table split, retyped or
+      // unpriced — the selected half stays reservable and the hold quietly
+      // becomes a half-table one: the fallback the PRD requires, which the
+      // confirmation screens then have to state explicitly.
       const companionAvailable =
-        pair != null &&
-        (await availableStandIds(tx, [pair.companionStandId], now)).has(
-          pair.companionStandId,
+        lockedPair != null &&
+        (await availableStandIds(tx, [lockedPair.companionStandId], now)).has(
+          lockedPair.companionStandId,
         );
       const memberStandIds =
-        pair && companionAvailable
-          ? [freshStand.id, pair.companionStandId]
+        lockedPair && companionAvailable
+          ? [freshStand.id, lockedPair.companionStandId]
           : [freshStand.id];
 
       const [festivalHold] = await tx
@@ -508,8 +530,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
           // snapshotted here too: a reprice between holding and confirming must
           // not change what the participant was quoted.
           fullTablePriceSnapshot:
-            memberStandIds.length > 1 && pair != null
-              ? roundMoney(pair.fullTablePrice)
+            memberStandIds.length > 1 && lockedPair != null
+              ? roundMoney(lockedPair.fullTablePrice)
               : null,
           idempotencyKey,
         })
@@ -872,6 +894,18 @@ export async function confirmStandHold(
         return finish(reservationFailure("HOLD_EXPIRED"));
       }
       const isFullTable = memberStandIds.length > 1;
+
+      // Splitting or retyping a table is refused while a hold is live, but this
+      // is where the table price becomes a cobro, so the pairing is checked once
+      // more under the stand locks. The price is not: the snapshot is the quote.
+      // Released rather than kept, so the participant can pick again at once.
+      if (isFullTable && !(await isDeclaredFullTablePair(tx, memberStandIds))) {
+        await tx.delete(standHolds).where(eq(standHolds.id, hold.id));
+        for (const standId of memberStandIds) {
+          await releaseStandIfVacant(tx, standId);
+        }
+        return finish(reservationFailure("FULL_TABLE_HOLD_SPLIT"));
+      }
 
       const fullTableAccess = isFullTableCategory(actor.category)
         ? await findActiveFullTableAccess(tx, {

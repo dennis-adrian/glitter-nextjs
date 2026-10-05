@@ -40,6 +40,7 @@ import type { ReservationConsoleDetail } from "@/app/lib/reservations/console-de
 import { fetchReservationConsoleDetailAction } from "@/app/lib/reservations/payment-actions";
 import { EMPTY_TENDER, shortfallWriteOff } from "@/app/lib/payments/tender";
 import { isActivePaymentProof } from "@/app/lib/payments/helpers";
+import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 
 /**
  * Every action an admin can take on a reservation and its cobro, in one menu.
@@ -102,6 +103,13 @@ export function ConsoleActionsCell({
     ? undefined
     : "Solo un administrador global puede hacerlo";
   const noInvoice = invoice ? undefined : "Esta reserva no tiene cobro";
+  // A cancelled reservation can keep an open cobro when it had payments;
+  // confirming it would bring it back onto stands it already gave up.
+  const closed = occupiesStandCapacity(reservation.status)
+    ? undefined
+    : reservation.status === "released"
+      ? "La reserva fue liberada"
+      : "La reserva está cancelada";
 
   // The invoice-rooted dialogs still expect the invoice to carry its
   // reservation; this row has them the other way around.
@@ -145,6 +153,7 @@ export function ConsoleActionsCell({
             disabledReason={
               notAdmin ??
               noInvoice ??
+              closed ??
               (reservation.status === "accepted"
                 ? "La reserva ya está confirmada"
                 : settled
@@ -160,6 +169,7 @@ export function ConsoleActionsCell({
             disabledReason={
               notAdmin ??
               noInvoice ??
+              closed ??
               (settled
                 ? "Este cobro ya está cerrado"
                 : tender.coveredAmount <= 0

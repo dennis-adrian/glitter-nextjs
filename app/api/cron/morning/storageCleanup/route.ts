@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "crypto";
 
-import { processPendingStorageCleanupJobs } from "@/app/lib/uploadthing/actions";
+import { processPendingStorageCleanupJobs } from "@/app/lib/uploadthing/storage";
 
 function isAuthorizedCronRequest(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;

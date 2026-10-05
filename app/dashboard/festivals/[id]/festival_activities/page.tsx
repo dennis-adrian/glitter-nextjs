@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 
 import ActivitySummaryCard from "@/app/components/festivals/festival_activities/activity-summary-card";
-import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
+import { fetchFullFestivalById } from "@/app/lib/festival_sectors/queries";
 import { Button } from "@/app/components/ui/button";
 import { notFound } from "next/navigation";
 import { z } from "zod";

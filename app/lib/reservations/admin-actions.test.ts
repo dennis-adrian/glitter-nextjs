@@ -24,7 +24,7 @@ vi.mock("@/app/lib/festivals/actions", () => ({
   fetchBaseFestival: fetchFestivalMock,
 }));
 
-vi.mock("@/app/api/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   fetchBaseProfileById: fetchProfileMock,
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));

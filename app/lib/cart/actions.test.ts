@@ -22,13 +22,15 @@ vi.mock("@/app/lib/store_settings/closure", () => ({
   resolveSectionClosure: vi.fn(),
   storeClosureMessage: () => "Tienda cerrada.",
 }));
-vi.mock("@/app/lib/orders/actions", () => ({
+vi.mock("@/app/lib/orders/create-order", () => ({
   createGuestOrderInTx: vi.fn(),
   createOrderInTx: vi.fn(),
+}));
+vi.mock("@/app/lib/orders/order-emails", () => ({
   sendGuestOrderEmails: vi.fn(),
   sendOrderEmails: vi.fn(),
 }));
-vi.mock("@/app/lib/products/actions", () => ({ fetchProduct: vi.fn() }));
+vi.mock("@/app/lib/products/queries", () => ({ fetchProduct: vi.fn() }));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentBaseProfile: vi.fn(),
 }));
@@ -39,7 +41,7 @@ import {
   checkoutGuestCart,
   validateGuestCartStock,
 } from "@/app/lib/cart/actions";
-import { fetchProduct } from "@/app/lib/products/actions";
+import { fetchProduct } from "@/app/lib/products/queries";
 import { SUPPLIES_VERIFIED_MESSAGE } from "@/app/lib/store/category";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 
