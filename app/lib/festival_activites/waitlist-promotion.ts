@@ -59,6 +59,8 @@ export async function promoteFromWaitlist(
         Date.now() + waitlistWindowMinutes * 60 * 1000,
       );
 
+      // SET names bare columns: Postgres refuses a table-qualified one there,
+      // which is how a column interpolated into `sql` renders.
       const claimResult = await tx.execute(
         sql`
 					WITH next_entry AS (
@@ -75,10 +77,10 @@ export async function promoteFromWaitlist(
 					)
 					UPDATE ${festivalActivityWaitlist}
 					SET
-						${festivalActivityWaitlist.notifiedAt} = ${notifiedAt},
-						${festivalActivityWaitlist.expiresAt} = ${expiresAt},
-						${festivalActivityWaitlist.notifiedForDetailId} = ${freedVariantId},
-						${festivalActivityWaitlist.updatedAt} = ${notifiedAt}
+						${sql.identifier(festivalActivityWaitlist.notifiedAt.name)} = ${notifiedAt},
+						${sql.identifier(festivalActivityWaitlist.expiresAt.name)} = ${expiresAt},
+						${sql.identifier(festivalActivityWaitlist.notifiedForDetailId.name)} = ${freedVariantId},
+						${sql.identifier(festivalActivityWaitlist.updatedAt.name)} = ${notifiedAt}
 					FROM next_entry
 					WHERE ${festivalActivityWaitlist.id} = next_entry.id
 					RETURNING
