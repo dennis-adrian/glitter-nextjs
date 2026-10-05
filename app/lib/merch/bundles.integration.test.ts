@@ -56,6 +56,10 @@ vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: async () => session.profile,
   getCurrentBaseProfile: async () => session.profile,
 }));
+// Covered by its own tests; it reads request headers, which do not exist here.
+vi.mock("@/app/lib/cart/guest-checkout-rate-limit", () => ({
+  consumeGuestCheckoutRateLimit: async () => true,
+}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 

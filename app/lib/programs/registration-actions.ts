@@ -7,6 +7,7 @@ import { z } from "zod";
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import type { ParticipantEligibility } from "@/app/lib/programs/eligibility";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
+import { consumeFreeRegistrationRateLimit } from "@/app/lib/programs/free-registration-rate-limit";
 import { sendFreeRegistrationEmail } from "@/app/lib/programs/notifications";
 import { buildProgramPriceSnapshot } from "@/app/lib/programs/promo-codes";
 import {
@@ -138,6 +139,13 @@ export async function registerForFreeSession(
     return {
       success: false,
       message: "La fecha de nacimiento no puede ser en el futuro",
+    };
+  }
+
+  if (!(await consumeFreeRegistrationRateLimit(profile?.id ?? null))) {
+    return {
+      success: false,
+      message: "Demasiados intentos seguidos. Esperá un rato e intentá de nuevo.",
     };
   }
 

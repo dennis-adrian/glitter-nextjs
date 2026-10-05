@@ -4,6 +4,8 @@ import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { generateQrBuffer } from "@/app/lib/utils";
+import { consumeTicketCreationRateLimit } from "@/app/lib/tickets/creation-rate-limit";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
 import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
@@ -30,6 +32,19 @@ export async function createTicket(data: {
   numberOfVisitors?: number;
 }) {
   const { date, visitor, festival } = data;
+
+  // Keyed on the address the confirmation mail goes to.
+  const allowed = await consumeTicketCreationRateLimit({
+    userId: (await getCurrentBaseProfile())?.id ?? null,
+    email: visitor.email,
+  });
+  if (!allowed) {
+    return {
+      success: false,
+      message: "Demasiados intentos seguidos. Esperá un rato e intentá de nuevo.",
+      ticket: null,
+    };
+  }
 
   let createdTicket: TicketBase;
   try {

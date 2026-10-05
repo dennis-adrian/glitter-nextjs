@@ -8,10 +8,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * whether the QR's `cid:` reference still resolves.
  */
 
-const { insertedTicket, afterCallbacks } = vi.hoisted(() => ({
+const {
+  insertedTicket,
+  afterCallbacks,
+  transactionsOpened,
+  consumeTicketCreationRateLimit,
+  getCurrentBaseProfile,
+} = vi.hoisted(() => ({
   insertedTicket: { current: null as Record<string, unknown> | null },
   /** Work `createTicket` handed to `after`, run once the response is out. */
   afterCallbacks: [] as Array<() => unknown>,
+  transactionsOpened: { count: 0 },
+  consumeTicketCreationRateLimit: vi.fn(),
+  getCurrentBaseProfile: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -21,6 +30,10 @@ vi.mock("next/server", () => ({
     afterCallbacks.push(callback);
   },
 }));
+vi.mock("@/app/lib/tickets/creation-rate-limit", () => ({
+  consumeTicketCreationRateLimit,
+}));
+vi.mock("@/app/lib/users/helpers", () => ({ getCurrentBaseProfile }));
 vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
 }));
@@ -40,7 +53,10 @@ vi.mock("@/db", () => {
 
   return {
     db: {
-      transaction: async (run: (transaction: typeof tx) => unknown) => run(tx),
+      transaction: async (run: (transaction: typeof tx) => unknown) => {
+        transactionsOpened.count += 1;
+        return run(tx);
+      },
     },
   };
 });
@@ -77,6 +93,11 @@ async function runAfterResponse() {
 describe("createTicket email", () => {
   beforeEach(() => {
     afterCallbacks.length = 0;
+    transactionsOpened.count = 0;
+    consumeTicketCreationRateLimit.mockReset();
+    consumeTicketCreationRateLimit.mockResolvedValue(true);
+    getCurrentBaseProfile.mockReset();
+    getCurrentBaseProfile.mockResolvedValue(null);
     insertedTicket.current = {
       id: 1,
       visitorId: 1,
@@ -194,6 +215,53 @@ describe("createTicket email", () => {
     expect(consoleError).toHaveBeenCalledWith("Ticket email failed", {
       ticketId: 1,
       errorType: "Error",
+    });
+  });
+});
+
+describe("createTicket rate limit", () => {
+  beforeEach(() => {
+    afterCallbacks.length = 0;
+    transactionsOpened.count = 0;
+    consumeTicketCreationRateLimit.mockReset();
+    getCurrentBaseProfile.mockReset();
+    getCurrentBaseProfile.mockResolvedValue(null);
+  });
+
+  it("refuses a caller over the limit before numbering a ticket or sending mail", async () => {
+    consumeTicketCreationRateLimit.mockResolvedValue(false);
+
+    const result = await registerVisitor();
+
+    expect(result).toEqual({
+      success: false,
+      message: "Demasiados intentos seguidos. Esperá un rato e intentá de nuevo.",
+      ticket: null,
+    });
+    expect(transactionsOpened.count).toBe(0);
+    expect(afterCallbacks).toHaveLength(0);
+  });
+
+  it("limits an anonymous caller by address and the address the mail goes to", async () => {
+    consumeTicketCreationRateLimit.mockResolvedValue(false);
+
+    await registerVisitor();
+
+    expect(consumeTicketCreationRateLimit).toHaveBeenCalledWith({
+      userId: null,
+      email: "visitor@example.com",
+    });
+  });
+
+  it("limits a signed-in caller, such as staff at the door, by their account", async () => {
+    consumeTicketCreationRateLimit.mockResolvedValue(false);
+    getCurrentBaseProfile.mockResolvedValue({ id: 42 });
+
+    await registerVisitor();
+
+    expect(consumeTicketCreationRateLimit).toHaveBeenCalledWith({
+      userId: 42,
+      email: "visitor@example.com",
     });
   });
 });
