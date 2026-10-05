@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { recipientAddress, unsubscribe } from "@/app/lib/emails/suppressions";
 import { UNSUBSCRIBE_PAGE_PATH } from "@/app/lib/emails/unsubscribe-links";
+import { loggableError } from "@/app/lib/errors/loggable-error";
 import { verifyUnsubscribeToken } from "@/app/lib/emails/unsubscribe-tokens";
 
 /**
@@ -27,7 +28,10 @@ export async function POST(request: NextRequest) {
     // A recipient that no longer exists has nothing left to unsubscribe.
     if (address) await unsubscribe(address, subject.topic);
   } catch (error) {
-    console.error("Error processing one-click unsubscribe", error);
+    console.error("Error processing one-click unsubscribe", {
+      topic: subject.topic,
+      error: loggableError(error),
+    });
     return new Response(null, {
       status: 500,
       headers: { "Cache-Control": "no-store" },

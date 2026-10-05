@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, sql, type SQL } from "drizzle-orm";
 
 import type { EmailTopic } from "@/app/lib/emails/topics";
 import type { UnsubscribeRecipient } from "@/app/lib/emails/unsubscribe-tokens";
@@ -29,19 +29,31 @@ export function emailKey(address: string) {
 const DETAIL_MAX_LENGTH = 500;
 
 /**
- * Stops all bulk mail to `address`. A complaint outranks a bounce: webhooks
- * can arrive late and out of order, and a later bounce must not erase that
- * the person reported us.
+ * Stops all bulk mail to `address`, as of `eventAt`: when Resend created the
+ * event that reported it. Webhooks repeat and arrive out of order, so:
+ *
+ * - after a lift, only a suppression that happened later applies again;
+ * - a complaint outranks a bounce, whenever either arrives: a bounce never
+ *   erases that the person reported us.
  */
 export async function recordSuppression(input: {
   address: string;
   reason: SuppressionReason;
   resendEmailId?: string | null;
   detail?: string | null;
+  eventAt?: Date | null;
 }) {
   const key = emailKey(input.address);
   if (!key) return;
   const now = new Date();
+  const eventAt = input.eventAt ?? now;
+  const existing = emailSuppressions;
+  // A bounce after an active complaint changes nothing but the clock.
+  const keepComplaint = sql`(
+    ${existing.liftedAt} is null
+    and ${existing.reason} = 'complaint'
+    and excluded.reason = 'bounce'
+  )`;
   await db
     .insert(emailSuppressions)
     .values({
@@ -49,26 +61,84 @@ export async function recordSuppression(input: {
       reason: input.reason,
       resendEmailId: input.resendEmailId ?? null,
       detail: input.detail?.slice(0, DETAIL_MAX_LENGTH) ?? null,
+      lastEventAt: eventAt,
+      liftedAt: null,
       createdAt: now,
       updatedAt: now,
     })
     .onConflictDoUpdate({
       target: emailSuppressions.emailKey,
       set: {
-        reason: sql`excluded.reason`,
-        resendEmailId: sql`excluded.resend_email_id`,
-        detail: sql`excluded.detail`,
+        reason: sql`case when ${keepComplaint} then ${existing.reason} else excluded.reason end`,
+        resendEmailId: sql`case when ${keepComplaint} then ${existing.resendEmailId} else excluded.resend_email_id end`,
+        detail: sql`case when ${keepComplaint} then ${existing.detail} else excluded.detail end`,
+        lastEventAt: sql`greatest(excluded.last_event_at, ${existing.lastEventAt})`,
+        liftedAt: null,
         updatedAt: now,
       },
-      setWhere: sql`not (${emailSuppressions.reason} = 'complaint' and excluded.reason = 'bounce')`,
+      setWhere: sql`(
+        (${existing.liftedAt} is not null and excluded.last_event_at > ${existing.liftedAt})
+        or (
+          ${existing.liftedAt} is null
+          and (
+            excluded.reason = 'complaint'
+            or excluded.last_event_at >= coalesce(${existing.lastEventAt}, '-infinity'::timestamp)
+          )
+        )
+      )`,
     });
 }
 
-/** Resend lifted its own suppression of `address`: follow it. */
-export async function removeSuppression(address: string) {
-  const key = emailKey(address);
+/**
+ * Resend lifted its own suppression of `address` at `eventAt`: bulk mail may
+ * reach it again. Kept as a lifted row rather than deleted, so a late copy of
+ * an older bounce or complaint is recognised and ignored; and a lift older
+ * than the newest suppression changes nothing.
+ */
+export async function liftSuppression(input: {
+  address: string;
+  /** What Resend had suppressed it for; only kept for the record. */
+  reason: SuppressionReason;
+  eventAt?: Date | null;
+}) {
+  const key = emailKey(input.address);
   if (!key) return;
-  await db.delete(emailSuppressions).where(eq(emailSuppressions.emailKey, key));
+  const now = new Date();
+  const eventAt = input.eventAt ?? now;
+  await db
+    .insert(emailSuppressions)
+    .values({
+      emailKey: key,
+      reason: input.reason,
+      lastEventAt: eventAt,
+      liftedAt: eventAt,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: emailSuppressions.emailKey,
+      set: {
+        lastEventAt: sql`excluded.last_event_at`,
+        liftedAt: sql`excluded.lifted_at`,
+        updatedAt: now,
+      },
+      setWhere: sql`excluded.last_event_at >= coalesce(${emailSuppressions.lastEventAt}, '-infinity'::timestamp)`,
+    });
+}
+
+/** The address bounced or reported us, and Resend has not lifted it. */
+export async function isSuppressed(address: string) {
+  const [row] = await db
+    .select({ id: emailSuppressions.id })
+    .from(emailSuppressions)
+    .where(
+      and(
+        eq(emailSuppressions.emailKey, emailKey(address)),
+        isNull(emailSuppressions.liftedAt),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
 }
 
 export async function unsubscribe(address: string, topic: EmailTopic) {
@@ -135,6 +205,7 @@ export function reachableByBulkMail(address: SQL, topic: EmailTopic) {
     not exists (
       select 1 from ${emailSuppressions}
       where ${emailSuppressions.emailKey} = lower(trim(${address}))
+        and ${emailSuppressions.liftedAt} is null
     )
     and not exists (
       select 1 from ${emailUnsubscribes}
@@ -155,11 +226,13 @@ export function bulkMailExclusion(address: SQL, topic: EmailTopic) {
       when exists (
         select 1 from ${emailSuppressions}
         where ${emailSuppressions.emailKey} = lower(trim(${address}))
+          and ${emailSuppressions.liftedAt} is null
           and ${emailSuppressions.reason} = 'bounce'
       ) then 'bounced'
       when exists (
         select 1 from ${emailSuppressions}
         where ${emailSuppressions.emailKey} = lower(trim(${address}))
+          and ${emailSuppressions.liftedAt} is null
           and ${emailSuppressions.reason} = 'complaint'
       ) or exists (
         select 1 from ${emailUnsubscribes}

@@ -130,6 +130,7 @@ describe("suppressionChanges", () => {
         reason: "bounce",
         resendEmailId: "em_123",
         detail: "NoEmail: The recipient's mailbox does not exist.",
+        eventAt: new Date("2026-10-04T12:00:00.000Z"),
       },
     ]);
   });
@@ -209,7 +210,30 @@ describe("suppressionChanges", () => {
         type: "suppression.removed",
         data: { id: "s_1", email: "a@example.test", origin: "bounce" },
       }),
-    ).toEqual([{ action: "lift", address: "a@example.test" }]);
+    ).toEqual([
+      {
+        action: "lift",
+        address: "a@example.test",
+        reason: "bounce",
+        eventAt: null,
+      },
+    ]);
+  });
+
+  /** Retries and replays keep the envelope's time; ordering relies on it. */
+  it("dates each change by when Resend created the event", () => {
+    const [change] = suppressionChanges({
+      type: "email.complained",
+      created_at: "2026-10-04T15:30:00.000Z",
+      data: { ...base, to: ["a@example.test"] },
+    });
+    expect(change!.eventAt).toEqual(new Date("2026-10-04T15:30:00.000Z"));
+    const [undated] = suppressionChanges({
+      type: "email.complained",
+      created_at: "not a date",
+      data: { to: ["a@example.test"] },
+    });
+    expect(undated!.eventAt).toBeNull();
   });
 
   it("ignores other events and malformed payloads", () => {

@@ -5255,6 +5255,17 @@ export const emailSuppressions = pgTable(
     resendEmailId: text("resend_email_id"),
     /** What the receiving server answered, for a bounce. */
     detail: text("detail"),
+    /**
+     * When Resend created the newest event applied to this row. Webhooks can
+     * repeat and arrive out of order; an older event never overrides it.
+     */
+    lastEventAt: timestamp("last_event_at"),
+    /**
+     * Resend lifted the suppression: the address may be mailed again. The row
+     * stays, so a late copy of the event that suppressed it is recognised
+     * as older and ignored.
+     */
+    liftedAt: timestamp("lifted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

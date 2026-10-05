@@ -16,9 +16,15 @@ Both are keyed by `lower(trim(address))`, so they cover every case variant of
 an address, both the `visitors` and `users` tables, and survive a deleted
 profile.
 
-- A complaint outranks a bounce: a late bounce never overwrites it.
 - Transient bounces (full mailbox, greylisting) are ignored, so the next
   mailing tries again.
+- Webhooks repeat and arrive out of order, so each row keeps the time of the
+  newest Resend event applied to it (`last_event_at`, from the event's
+  `created_at`, which retries keep). An older event never overrides a newer
+  one, and a complaint outranks a bounce whichever arrives first.
+- When Resend lifts a suppression, the row is kept with `lifted_at` set
+  rather than deleted, so a late retry of the bounce it lifted is ignored.
+  Only active rows (`lifted_at is null`) block mail.
 - The invitation dialog shows how many people are skipped and why.
 
 Topics (`email_topic` enum, labels in `app/lib/emails/topics.ts`):
@@ -48,14 +54,19 @@ links in emails already sent**; the page then points people to support.
 `POST /api/webhooks/resend` (`app/api/webhooks/resend/route.ts`) verifies the
 Svix signature by hand (the pinned `resend` 4.1.1 has no helper), then records
 or lifts suppressions. It answers 500 on a database error so Resend retries,
-and 500 when the secret is not set.
+and 500 when the secret is not set (an empty value counts as not set).
+
+The unsubscribe page tells people whose address is suppressed that bulk mail
+stays blocked, instead of offering to resubscribe them.
 
 Setup, once per environment that should receive events:
 
 1. Resend dashboard → Webhooks → Add endpoint:
    `https://www.glitter.com.bo/api/webhooks/resend`.
-2. Events: `email.bounced`, `email.complained`, `email.suppressed`, and
-   optionally `suppression.added` and `suppression.removed`.
+2. Events: `email.bounced`, `email.complained`, `email.suppressed`,
+   `suppression.added` and `suppression.removed`. The last one is what lets
+   an address removed from Resend's suppression list be mailed again here
+   too; nothing else in the app lifts a suppression.
 3. Copy the signing secret (`whsec_…`) into the environment as
    `RESEND_WEBHOOK_SECRET`, then redeploy.
 

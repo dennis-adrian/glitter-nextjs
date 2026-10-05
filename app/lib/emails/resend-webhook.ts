@@ -57,8 +57,15 @@ export type SuppressionChange =
       reason: SuppressionReason;
       resendEmailId: string | null;
       detail: string | null;
+      /** When Resend created the event; null if it did not say. */
+      eventAt: Date | null;
     }
-  | { action: "lift"; address: string };
+  | {
+      action: "lift";
+      address: string;
+      reason: SuppressionReason;
+      eventAt: Date | null;
+    };
 
 type Data = Record<string, unknown>;
 
@@ -69,6 +76,19 @@ function text(value: unknown) {
 function recipients(data: Data) {
   const to = Array.isArray(data.to) ? data.to : [data.to];
   return to.map(text).filter((address): address is string => !!address);
+}
+
+/**
+ * When Resend created the event: the envelope's `created_at`, which stays the
+ * same across retries and replays, unlike the delivery's svix-timestamp.
+ */
+function eventTime(event: Data, data: Data) {
+  for (const value of [event.created_at, data.created_at]) {
+    if (typeof value !== "string") continue;
+    const time = new Date(value);
+    if (!Number.isNaN(time.getTime())) return time;
+  }
+  return null;
 }
 
 function joined(...parts: unknown[]) {
@@ -89,6 +109,7 @@ export function suppressionChanges(event: unknown): SuppressionChange[] {
   if (typeof type !== "string" || !data || typeof data !== "object") return [];
   const payload = data as Data;
   const resendEmailId = text(payload.email_id);
+  const eventAt = eventTime(event as Data, payload);
 
   const suppress = (
     addresses: string[],
@@ -101,6 +122,7 @@ export function suppressionChanges(event: unknown): SuppressionChange[] {
       reason,
       resendEmailId,
       detail,
+      eventAt,
     }));
 
   switch (type) {
@@ -135,12 +157,21 @@ export function suppressionChanges(event: unknown): SuppressionChange[] {
           reason: payload.origin === "complaint" ? "complaint" : "bounce",
           resendEmailId: text(payload.source_id),
           detail: joined("Resend", payload.origin),
+          eventAt,
         },
       ];
     }
     case "suppression.removed": {
       const address = text(payload.email);
-      return address ? [{ action: "lift", address }] : [];
+      if (!address) return [];
+      return [
+        {
+          action: "lift",
+          address,
+          reason: payload.origin === "complaint" ? "complaint" : "bounce",
+          eventAt,
+        },
+      ];
     }
     default:
       return [];

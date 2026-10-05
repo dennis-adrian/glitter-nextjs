@@ -9,6 +9,7 @@ import {
 } from "@/app/components/ui/card";
 import { maskEmail } from "@/app/lib/emails/mask-email";
 import {
+  isSuppressed,
   isUnsubscribed,
   recipientAddress,
 } from "@/app/lib/emails/suppressions";
@@ -37,6 +38,7 @@ export default async function Page(props: {
           maskedEmail={maskEmail(address)}
           topicLabel={EMAIL_TOPIC_LABELS[subject.topic]}
           unsubscribed={await isUnsubscribed(address, subject.topic)}
+          blocked={await isSuppressed(address)}
         />
       ) : (
         <Card className="w-full max-w-lg">

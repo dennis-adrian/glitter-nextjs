@@ -2059,6 +2059,13 @@
       "when": 1791157763731,
       "tag": "0294_email_suppressions_and_unsubscribes",
       "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1791160187164,
+      "tag": "0295_email_suppression_event_order",
+      "breakpoints": true
     }
   ]
 }

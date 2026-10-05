@@ -132,14 +132,21 @@ function signedWebhook(event: unknown, overrides: Record<string, string> = {}) {
   });
 }
 
+/** A fixed point in time plus `minutes`, so tests choose the event order. */
+const T0 = Date.parse("2026-10-04T12:00:00.000Z");
+function at(minutes: number) {
+  return new Date(T0 + minutes * 60_000).toISOString();
+}
+
 function emailEvent(
   type: string,
   to: string[],
   data: Record<string, unknown> = {},
+  createdAt = new Date().toISOString(),
 ) {
   return {
     type,
-    created_at: new Date().toISOString(),
+    created_at: createdAt,
     data: {
       email_id: `em_${suffix()}`,
       from: "Equipo Glitter <equipo@productoraglitter.com>",
@@ -255,6 +262,102 @@ describeDatabase("bulk mail suppressions", () => {
         .from(emailSuppressions)
         .where(eq(emailSuppressions.emailKey, email.toLowerCase()));
       expect(rows).toHaveLength(1);
+    });
+
+    describe("events arriving late or out of order", () => {
+      const when = (minutes: number) => new Date(at(minutes));
+
+      it("ignores a late copy of a bounce that a lift already cleared", async () => {
+        const email = address("late-retry");
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(0),
+        });
+        await suppressions.liftSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(5),
+        });
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(0),
+        });
+        expect(await suppressions.isSuppressed(email)).toBe(false);
+      });
+
+      it("keeps a lift that arrives before the bounce it lifted", async () => {
+        const email = address("lift-first");
+        await suppressions.liftSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(5),
+        });
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(0),
+        });
+        expect(await suppressions.isSuppressed(email)).toBe(false);
+      });
+
+      it("suppresses again on a bounce after the lift", async () => {
+        const email = address("bounces-again");
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(0),
+        });
+        await suppressions.liftSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(5),
+        });
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "bounce",
+          resendEmailId: "em_new",
+          eventAt: when(10),
+        });
+        expect(await suppressionFor(email)).toMatchObject({
+          reason: "bounce",
+          resendEmailId: "em_new",
+          liftedAt: null,
+        });
+      });
+
+      it("ignores a lift older than the newest suppression", async () => {
+        const email = address("stale-lift");
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(10),
+        });
+        await suppressions.liftSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(5),
+        });
+        expect(await suppressions.isSuppressed(email)).toBe(true);
+      });
+
+      it("lets a complaint outrank a bounce whichever arrives first", async () => {
+        const email = address("complaint-late");
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "bounce",
+          eventAt: when(10),
+        });
+        await suppressions.recordSuppression({
+          address: email,
+          reason: "complaint",
+          eventAt: when(5),
+        });
+        expect(await suppressionFor(email)).toMatchObject({
+          reason: "complaint",
+        });
+      });
     });
 
     it("keeps long bounce messages to a sane length", async () => {
@@ -392,32 +495,44 @@ describeDatabase("bulk mail suppressions", () => {
 
     it("is safe to deliver twice, and follows a suppression lifted in Resend", async () => {
       const email = address("twice");
-      const event = emailEvent("email.suppressed", [email], {
-        suppressed: {
-          type: "OnAccountSuppressionList",
-          reason: "previous_bounce",
+      const event = emailEvent(
+        "email.suppressed",
+        [email],
+        {
+          suppressed: {
+            type: "OnAccountSuppressionList",
+            reason: "previous_bounce",
+          },
         },
+        at(0),
+      );
+      expect((await webhook.POST(signedWebhook(event))).status).toBe(200);
+      expect((await webhook.POST(signedWebhook(event))).status).toBe(200);
+      expect(await suppressionFor(email)).toMatchObject({
+        reason: "bounce",
+        liftedAt: null,
       });
-      expect((await webhook.POST(signedWebhook(event))).status).toBe(200);
-      expect((await webhook.POST(signedWebhook(event))).status).toBe(200);
-      expect(await suppressionFor(email)).toMatchObject({ reason: "bounce" });
 
       const lifted = await webhook.POST(
         signedWebhook({
           type: "suppression.removed",
-          created_at: new Date().toISOString(),
-          data: {
-            id: "s_1",
-            email,
-            origin: "bounce",
-            created_at: new Date().toISOString(),
-          },
+          created_at: at(5),
+          data: { id: "s_1", email, origin: "bounce", created_at: at(5) },
         }),
       );
       expect(lifted.status).toBe(200);
-      expect(await suppressionFor(email)).toBeNull();
-    });
+      expect((await suppressionFor(email))!.liftedAt).not.toBeNull();
+      expect(await suppressions.isSuppressed(email)).toBe(false);
+      expect(await exclusion(email, "visitor_invitations")).toEqual({
+        excluded: null,
+        reachable: true,
+      });
 
+      // Resend retries the original event after the lift: it is older, so
+      // the address stays mailable.
+      expect((await webhook.POST(signedWebhook(event))).status).toBe(200);
+      expect(await suppressions.isSuppressed(email)).toBe(false);
+    });
     it("refuses an unsigned or tampered event, and records nothing", async () => {
       const email = address("forged");
       const event = emailEvent("email.complained", [email]);

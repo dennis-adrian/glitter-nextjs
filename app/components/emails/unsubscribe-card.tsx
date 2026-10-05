@@ -25,6 +25,12 @@ type UnsubscribeCardProps = {
   /** What they stop receiving: "las invitaciones para acreditarte…". */
   topicLabel: string;
   unsubscribed: boolean;
+  /**
+   * Mail to this address bounced or was reported as spam: no bulk mail goes
+   * to it whatever they choose here, so offering to resubscribe would
+   * promise mail that never comes.
+   */
+  blocked: boolean;
 };
 
 /**
@@ -62,12 +68,28 @@ export default function UnsubscribeCard(props: UnsubscribeCardProps) {
             : `Dejarás de recibir ${props.topicLabel} en ${props.maskedEmail}.`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">
-        Seguirás recibiendo los correos que pidas tú, como tus entradas o
-        reservas.
+      <CardContent className="grid gap-3 text-sm text-muted-foreground">
+        <p>
+          Seguirás recibiendo los correos que pidas tú, como tus entradas o
+          reservas.
+        </p>
+        {props.blocked ? (
+          <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
+            Por ahora no enviamos correos masivos a esta dirección porque un
+            mensaje anterior no se pudo entregar o fue marcado como spam. Si
+            quieres volver a recibirlos, escríbenos a{" "}
+            <a
+              href="mailto:soporte@productoraglitter.com"
+              className="font-medium underline"
+            >
+              soporte@productoraglitter.com
+            </a>
+            .
+          </p>
+        ) : null}
       </CardContent>
       <CardFooter>
-        {unsubscribed ? (
+        {unsubscribed && props.blocked ? null : unsubscribed ? (
           <Button
             variant="outline"
             disabled={pending}

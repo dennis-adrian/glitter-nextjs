@@ -3,9 +3,10 @@ import {
   verifyResendWebhook,
 } from "@/app/lib/emails/resend-webhook";
 import {
+  liftSuppression,
   recordSuppression,
-  removeSuppression,
 } from "@/app/lib/emails/suppressions";
+import { loggableError } from "@/app/lib/errors/loggable-error";
 import { serverEnv } from "@/env";
 
 /** Far more than any Resend event; refuses a flood before hashing it. */
@@ -58,13 +59,13 @@ export async function POST(request: Request) {
       if (change.action === "suppress") {
         await recordSuppression(change);
       } else {
-        await removeSuppression(change.address);
+        await liftSuppression(change);
       }
     }
   } catch (error) {
     console.error("Error applying Resend webhook", {
       type: (event as { type?: unknown })?.type,
-      error,
+      error: loggableError(error),
     });
     return Response.json({ error: "processing_failed" }, { status: 500 });
   }

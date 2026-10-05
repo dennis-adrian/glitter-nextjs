@@ -38,6 +38,7 @@ import {
   birthdateForStorage,
   visitorDetailsSchema,
 } from "@/app/lib/visitors/visitor-details-schema";
+import { loggableError } from "@/app/lib/errors/loggable-error";
 import { db } from "@/db";
 import { visitors } from "@/db/schema";
 
@@ -129,7 +130,7 @@ export async function startVisitorRegistration(input: {
     await startVisitorSession(visitorId);
     return { success: true, status: "returning", view };
   } catch (error) {
-    console.error("Error starting visitor registration", error);
+    console.error("Error starting visitor registration", loggableError(error));
     return { success: false, message: GENERIC_ERROR };
   }
 }
@@ -209,7 +210,7 @@ export async function registerVisitor(input: {
     await startVisitorSession(visitorId);
     return { success: true, view };
   } catch (error) {
-    console.error("Error registering visitor", error);
+    console.error("Error registering visitor", loggableError(error));
     return { success: false, message: GENERIC_ERROR };
   }
 }
@@ -282,7 +283,7 @@ async function claim(input: {
       view,
     };
   } catch (error) {
-    console.error("Error claiming ticket", error);
+    console.error("Error claiming ticket", loggableError(error));
     return { success: false, message: "No se pudo crear la entrada" };
   }
 }
@@ -333,7 +334,8 @@ export async function claimDoorTicket(input: {
   return claim({
     festivalId: input.festivalId,
     mode: "door",
-    pickDate: (festival, now) => festivalDateOn(festival, now)?.startDate ?? null,
+    pickDate: (festival, now) =>
+      festivalDateOn(festival, now)?.startDate ?? null,
     numberOfVisitors: numberOfVisitors.data,
   });
 }
@@ -376,7 +378,7 @@ export async function requestTicketHistoryLink(input: {
       after(() => sendTicketHistoryLinkEmail(visitorId));
     }
   } catch (error) {
-    console.error("Error requesting ticket history link", error);
+    console.error("Error requesting ticket history link", loggableError(error));
     return { success: false, message: GENERIC_ERROR };
   }
 
