@@ -79,17 +79,6 @@ export function formatDateWithTime(date: Date): string {
   return formatDateTime(date);
 }
 
-export function getWeekdayFromDate(
-  date: Date,
-  format: "long" | "short" = "long",
-): string {
-  if (format === "short") {
-    return formatDate(date).weekdayShort || "";
-  }
-
-  return formatDate(date).weekdayLong || "";
-}
-
 export function slugify(input: string): string {
   return input
     .normalize("NFKD") // strip accents

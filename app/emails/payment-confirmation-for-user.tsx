@@ -57,7 +57,7 @@ export default function PaymentConfirmationForUserEmailTemplate(
                 {standCount > 1 ? "los espacios" : "el espacio"}{" "}
                 <strong>{standLabel}</strong>{" "}
                 en el festival{" "}
-                <strong>{props.invoice.reservation.festival.name}</strong>
+                <strong>{props.invoice.reservation.festival.name}</strong>.
               </Text>
             )}
             <Text style={styles.text}>
@@ -66,7 +66,7 @@ export default function PaymentConfirmationForUserEmailTemplate(
             </Text>
             <Text style={styles.text}>
               También recordá que podés ver tu perfil en cualquier momento
-              haciendo clic en el botón
+              haciendo clic en el botón.
             </Text>
             <Button href={`${baseUrl}/my_profile`} style={styles.button}>
               Ir a mi perfil

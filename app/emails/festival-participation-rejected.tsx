@@ -45,7 +45,12 @@ export default function FestivalParticipationRejectedEmailTemplate({
             {reason ? (
               <>
                 <Text style={styles.text}>El motivo que registramos es:</Text>
-                <Text style={styles.standoutText}>{reason}</Text>
+                {/* Typed in a textarea, so keep the admin's line breaks. */}
+                <Text
+                  style={{ ...styles.standoutText, whiteSpace: "pre-line" }}
+                >
+                  {reason}
+                </Text>
               </>
             ) : null}
             <Text style={styles.text}>

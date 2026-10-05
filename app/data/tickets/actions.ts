@@ -159,7 +159,6 @@ export async function updateTicket(id: number, status: TicketBase["status"]) {
   }
 
   revalidatePath("/dashboard/festivals");
-  revalidatePath("/visitors");
   return {
     success: true,
     error: null,

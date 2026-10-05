@@ -25,6 +25,14 @@ describe("FestivalParticipationRejectedEmailTemplate", () => {
     expect(html).toContain("El cupo de ilustración está completo.");
   });
 
+  it("keeps the line breaks the admin typed in the reason", () => {
+    const html = render({ reason: "Línea uno\nLínea dos" });
+
+    expect(html).toContain("white-space:pre-line");
+    expect(html).toContain("Línea uno");
+    expect(html).toContain("Línea dos");
+  });
+
   it("leaves the reason block out when there is none", () => {
     const html = render();
 

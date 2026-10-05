@@ -14,8 +14,8 @@ describe("canResendTicket", () => {
   });
 
   /**
-   * The page is public, so a signed-out viewer should learn only that the
-   * action is restricted, not anything about the ticket.
+   * The action is reachable by anyone, so a caller who is not staff should
+   * learn only that it is restricted, not anything about the ticket.
    */
   it("refuses non-staff first, even when other blockers also apply", () => {
     expect(

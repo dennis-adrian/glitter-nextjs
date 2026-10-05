@@ -4,10 +4,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Participants and visitors are written to in voseo (tenés, podés, completá),
- * and each email keeps one grammatical person throughout. Tuteo slips in one
- * line at a time and ends up mixed with the voseo around it: the payment
- * reminder once opened "Recuerda hacer el pago" above "Si tenés alguna duda".
+ * Participants and visitors are written to in voseo (tenés, podés, completá,
+ * and in the negative no compartás, no te preocupés), and each email keeps
+ * one grammatical person throughout. Tuteo slips in one line at a time and
+ * ends up mixed with the voseo around it: the payment reminder once opened
+ * "Recuerda hacer el pago" above "Si tenés alguna duda".
  *
  * This is a backstop, not a proof. Lower-case imperatives mid-sentence
  * (ahorra, abre, crea) read the same as third person, so they are left to
@@ -39,6 +40,11 @@ const TUTEO =
 // Case-sensitive: capitalised, these open a sentence and can only be a command.
 const TUTEO_IMPERATIVE =
   /(?<!\p{L})(Recuerda|Completa|Muestra|Guarda|Sube|Abre|Usa|Evita|Ingresa|Revisa|Elige|Accede|Visita|Crea|Descarga|Presenta|Confirma|Selecciona|Envía|Paga|Agrega|Actualiza|Alístate)(?!\p{L})/gu;
+// Negative commands take the voseo subjunctive (no compartás, no te
+// preocupés). "que no …" is left out: a subordinate clause keeps the
+// standard form, like the "que completes" the rule already allows.
+const TUTEO_NEGATIVE =
+  /(?<!(?<!\p{L})que\s+)(?<!\p{L})no\s+(?:(?:te|lo|la|los|las|le|les|nos|me)\s+)*(?:compartas|preocupes|olvides|dudes|dejes|pierdas|esperes|respondas|reenvíes|uses|borres|confundas|cierres|intentes)(?!\p{L})/giu;
 
 function templateFiles(dir = EMAILS_DIR, prefix = ""): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -65,9 +71,21 @@ describe("email templates", () => {
       for (const match of source.matchAll(TUTEO_IMPERATIVE)) {
         offenders.push(`${file}: ${match[0]}`);
       }
+      for (const match of source.matchAll(TUTEO_NEGATIVE)) {
+        offenders.push(`${file}: ${match[0].replace(/\s+/g, " ")}`);
+      }
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  it("tells a tuteo negative command from voseo and from a subordinate clause", () => {
+    const hits = (text: string) => [...text.matchAll(TUTEO_NEGATIVE)].length;
+    expect(hits("No lo compartas")).toBe(1);
+    expect(hits("no te\n    preocupes")).toBe(1);
+    expect(hits("No lo compartás")).toBe(0);
+    expect(hits("no te preocupés")).toBe(0);
+    expect(hits("te pedimos que no lo compartas")).toBe(0);
   });
 
   it("finds the files it is meant to scan", () => {

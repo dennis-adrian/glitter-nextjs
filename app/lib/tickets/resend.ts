@@ -1,8 +1,8 @@
 /**
  * Whether staff may resend a festival ticket email.
  *
- * Pure, like `app/lib/programs/support.ts`, so the visitor tickets page and
- * the resend action agree on when the button is offerable.
+ * Pure, like `app/lib/programs/support.ts`, so the dashboard tickets table
+ * and the resend action agree on when the action is offerable.
  */
 
 export type TicketResendBlocker =
@@ -29,8 +29,8 @@ export type TicketResendCheck =
   | { allowed: false; blocker: TicketResendBlocker };
 
 /**
- * Checked in this order, so a signed-out viewer learns only that the action
- * is restricted.
+ * Checked in this order, so a caller who is not staff learns only that the
+ * action is restricted.
  *
  * The festival must be the active one: the email's "Ver mi entrada" link
  * leads to that festival's registration page, which dead-ends otherwise. A
@@ -51,7 +51,7 @@ export function canResendTicket(
   return { allowed: true };
 }
 
-/** The reason shown under a disabled resend button, or undefined if allowed. */
+/** The reason shown under a disabled resend action, or undefined if allowed. */
 export function getTicketResendDisabledReason(
   subject: TicketResendSubject,
 ): string | undefined {

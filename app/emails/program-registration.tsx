@@ -146,7 +146,7 @@ export default function ProgramRegistrationEmailTemplate({
                 <Hr style={{ margin: "16px 0" }} />
                 <Text style={{ ...styles.text, fontSize: "12px" }}>
                   Guardá este enlace: es la única forma de recuperar tu entrada
-                  si perdés este correo. <strong>No lo compartas</strong> —
+                  si perdés este correo. <strong>No lo compartás</strong> —
                   cualquier persona que lo tenga puede ver y usar tu entrada.
                 </Text>
               </>

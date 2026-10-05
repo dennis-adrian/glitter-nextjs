@@ -1,40 +1,44 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { Loader2Icon, SendIcon } from "lucide-react";
-
-import { Form } from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
-import { resendTicketEmail } from "@/app/lib/tickets/resend-actions";
+import { Loader2Icon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 
-type SendEmailFormProps = {
-  ticketId: number;
-  /** Why this viewer cannot resend; shown under the disabled button. */
+import { Button } from "@/app/components/ui/button";
+import { Form } from "@/app/components/ui/form";
+import { requestProfileReview } from "@/app/lib/users/actions";
+
+type RequestReviewFormProps = {
+  profileId: number;
+  /** Why the profile cannot ask yet; shown under the disabled button. */
   disabledReason?: string;
 };
 
 const FAILURE_MESSAGE =
-  "No pudimos reenviar la entrada. Intentá de nuevo en unos minutos.";
+  "No pudimos pedir la nueva revisión. Intentá de nuevo en unos minutos.";
 
-export default function SendEmailForm(props: SendEmailFormProps) {
+/**
+ * Sends a rejected profile back to review. On success the server revalidates
+ * the page, which then renders the pending state instead of this button.
+ */
+export default function RequestReviewForm({
+  profileId,
+  disabledReason,
+}: RequestReviewFormProps) {
   const form = useForm();
-  const { disabledReason } = props;
 
   const action: () => void = form.handleSubmit(async () => {
     let res;
     try {
-      res = await resendTicketEmail(props.ticketId);
+      res = await requestProfileReview(profileId);
     } catch (error) {
-      console.error("Error resending ticket email", error);
+      console.error("Error requesting profile review", error);
       toast.error(FAILURE_MESSAGE);
       return;
     }
 
     if (res.success) {
-      toast.success("Entrada reenviada", {
-        description: res.message,
-      });
+      toast.success("Solicitud enviada", { description: res.message });
     } else {
       toast.error(res.message);
     }
@@ -57,8 +61,8 @@ export default function SendEmailForm(props: SendEmailFormProps) {
             </>
           ) : (
             <>
-              <SendIcon className="mr-2 h-4 w-4" />
-              Reenviar entrada por correo
+              <RotateCcwIcon className="mr-2 h-4 w-4" />
+              Pedir una nueva revisión
             </>
           )}
         </Button>

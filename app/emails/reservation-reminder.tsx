@@ -50,7 +50,7 @@ export default function ReservationReminderTemplate(
             <Text style={styles.text}>
               Te recordamos que tu reserva para{" "}
               {standCount > 1 ? "los espacios" : "el espacio"}{" "}
-              <strong>{standLabel}</strong> para nuestro próximo festival{" "}
+              <strong>{standLabel}</strong> en nuestro próximo festival{" "}
               <strong>{task.reservation.festival.name}</strong> aún está
               pendiente de pago.
             </Text>
@@ -67,9 +67,9 @@ export default function ReservationReminderTemplate(
             </Text>
             <Text style={styles.text}>
               Si ya hiciste tu pago, subiste el comprobante a la página web y
-              estás esperando confirmación, podés ignorar este correo. Las
-              reservas pueden tomar hasta 48 horas en confirmarse pero el
-              registro del pago evitará que sea eliminada.
+              estás esperando confirmación, podés ignorar este correo. Tu
+              reserva puede tardar hasta 48 horas en confirmarse, pero haber
+              subido el comprobante evita que se cancele.
             </Text>
             <Text style={styles.text}>
               Si tenés alguna duda, escribinos a{" "}

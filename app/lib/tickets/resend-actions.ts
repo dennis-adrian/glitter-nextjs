@@ -11,6 +11,7 @@ import {
 import { buildTicketEmail } from "@/app/lib/tickets/ticket-email";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
 
@@ -23,11 +24,11 @@ const FAILURE_MESSAGE =
 /**
  * Mails a festival ticket again, to the address stored on its visitor.
  *
- * Staff only: the visitor tickets page is public and keyed by a sequential
- * id, so an open trigger would let anyone mail every visitor. Rate-limited
- * per ticket so repeated clicks cannot flood one inbox.
+ * Staff only: any server action can be called directly, and ticket ids are
+ * sequential, so an open trigger would let anyone mail every visitor.
+ * Rate-limited per ticket so repeated clicks cannot flood one inbox.
  *
- * Awaits the send instead of deferring it, because the button reports the
+ * Awaits the send instead of deferring it, because the dashboard reports the
  * real outcome.
  */
 export async function resendTicketEmail(
@@ -93,7 +94,6 @@ export async function resendTicketEmail(
   }
 
   const now = new Date();
-  let errorType: string | null = null;
   try {
     const result = await sendEmail(
       await buildTicketEmail({
@@ -105,13 +105,13 @@ export async function resendTicketEmail(
       // click.
       { idempotencyKey: `ticket-resend-${ticket.id}-${now.getTime()}` },
     );
-    if (result.error) errorType = result.error.name;
+    assertSent(result);
   } catch (error) {
-    errorType = error instanceof Error ? error.name : typeof error;
-  }
-  if (errorType !== null) {
     // The type only: a provider message can echo the recipient.
-    console.error("Ticket resend email failed", { ticketId, errorType });
+    console.error("Ticket resend email failed", {
+      ticketId,
+      errorType: sendFailureType(error),
+    });
     return { success: false, message: FAILURE_MESSAGE };
   }
 

@@ -36,4 +36,12 @@ describe("ActivityProofReviewEmail", () => {
     expect(html).toContain("subilo nuevamente");
     expect(html).not.toContain("subila");
   });
+
+  /** The subject already says "Fuiste removido/a"; preview and body agree. */
+  it("matches the removal subject", () => {
+    const html = render({ status: "rejected_removed" });
+
+    expect(html).toContain("Fuiste removido/a de la actividad");
+    expect(html).not.toContain("Has sido");
+  });
 });

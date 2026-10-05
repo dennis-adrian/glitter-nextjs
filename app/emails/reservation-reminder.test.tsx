@@ -51,4 +51,14 @@ describe("ReservationReminderTemplate", () => {
     expect(html).not.toContain("Recuerda");
     expect(html).not.toContain("no dudes");
   });
+
+  it("reads naturally", () => {
+    const html = render();
+
+    expect(html).toContain("en nuestro próximo festival");
+    expect(html).not.toContain("para nuestro próximo festival");
+    expect(html).toContain(
+      "Tu reserva puede tardar hasta 48 horas en confirmarse, pero haber subido el comprobante evita que se cancele.",
+    );
+  });
 });

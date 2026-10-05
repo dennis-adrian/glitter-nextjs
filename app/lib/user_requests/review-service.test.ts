@@ -301,6 +301,46 @@ describe("reviewFestivalParticipationRequest", () => {
       }),
     );
   });
+
+  it.each([
+    ["an approval", "accepted", "cupo"],
+    ["a rejection with a blank reason", "rejected", "   "],
+  ] as const)("queues no reason for %s", async (_label, status, reason) => {
+    requireAdminMock.mockResolvedValue({
+      id: 1,
+      role: "admin",
+    });
+    previewSelect({
+      id: 4,
+      userId: 8,
+      festivalId: 10,
+      type: "festival_participation",
+      status: "pending",
+    });
+    const tx = reviewTx({
+      request: {
+        id: 4,
+        userId: 8,
+        festivalId: 10,
+        type: "festival_participation",
+        status: "pending",
+      },
+      email: "ada@example.com",
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await reviewFestivalParticipationRequest({
+      requestId: 4,
+      status,
+      reason,
+    });
+
+    expect(result.success).toBe(true);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock.mock.calls[0][1].payload).not.toHaveProperty("reason");
+  });
 });
 
 describe("reviewBecomeArtistRequest", () => {

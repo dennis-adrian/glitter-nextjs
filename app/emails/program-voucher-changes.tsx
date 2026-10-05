@@ -48,9 +48,7 @@ export default function ProgramVoucherChangesEmailTemplate({
               <strong>{sessionTitle}</strong> y necesitamos que nos mandes otro.
             </Text>
 
-            <Section style={reasonBox}>
-              <Text style={{ ...styles.text, margin: 0 }}>{reason}</Text>
-            </Section>
+            <Text style={styles.standoutText}>{reason}</Text>
 
             <Text style={styles.text}>
               <strong>Tu cupo sigue reservado.</strong> Subí un nuevo
@@ -87,14 +85,6 @@ export default function ProgramVoucherChangesEmailTemplate({
     </Html>
   );
 }
-
-const reasonBox = {
-  border: "1px solid #dedede",
-  borderLeft: "4px solid #7c3aed",
-  borderRadius: "8px",
-  padding: "12px 16px",
-  margin: "16px 0",
-};
 
 ProgramVoucherChangesEmailTemplate.PreviewProps = {
   attendeeName: "María Pérez",

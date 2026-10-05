@@ -40,7 +40,7 @@ export default function VerificationConfirmationEmailTemplate(
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {props.name}!</Text>
             <Text style={styles.text}>
-              ¡Felicidades! Tu cuenta ha sido verificada
+              ¡Felicidades! Tu cuenta ha sido verificada.
             </Text>
             {!props.festival ? (
               <RegularBody category={props.category} baseUrl={baseUrl} />

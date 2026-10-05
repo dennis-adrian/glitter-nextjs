@@ -81,7 +81,7 @@ export default function ProgramWaitlistInvitationEmailTemplate({
 
             <Text style={{ ...styles.text, fontSize: "12px" }}>
               Pasado ese plazo el cupo vuelve a estar disponible para otras
-              personas. <strong>No compartas este enlace</strong> — quien lo
+              personas. <strong>No compartás este enlace</strong> — quien lo
               tenga puede tomar el cupo.
             </Text>
           </Section>

@@ -1,10 +1,10 @@
 import * as styles from "@/app/emails/styles";
 import {
   Body,
-  Button,
   Container,
   Head,
   Html,
+  Link,
   Preview,
   Section,
   Text,
@@ -43,7 +43,7 @@ export default function SubcategoryUpdateEmailTemplate(
             <Text style={styles.text}>
               Ante cualquier consulta podés comunicarte con nosotros al correo
               electrónico{" "}
-              <Button
+              <Link
                 href="mailto:soporte@productoraglitter.com"
                 style={{
                   color: "#15c",
@@ -51,7 +51,8 @@ export default function SubcategoryUpdateEmailTemplate(
                 }}
               >
                 soporte@productoraglitter.com
-              </Button>
+              </Link>
+              .
             </Text>
           </Section>
         </Container>

@@ -43,15 +43,21 @@ export default function ProfileRejectionEmailTemplate(
               La razón por la que tu perfil no pudo ser verificado te la
               describimos a continuación:
             </Text>
-            <Text style={styles.standoutText}>{props.reason}</Text>
+            {/* Typed in a textarea, so keep the admin's line breaks. */}
+            <Text style={{ ...styles.standoutText, whiteSpace: "pre-line" }}>
+              {props.reason}
+            </Text>
             <Text style={styles.text}>
-              Corregí tus datos desde tu perfil y después escribinos a{" "}
-              <span style={styles.email}>soporte@productoraglitter.com</span>{" "}
-              para que lo volvamos a revisar.
+              Corregí tus datos desde tu perfil y después usá el botón «Pedir
+              una nueva revisión» para avisarnos que ya está listo.
             </Text>
             <Button href={`${baseUrl}/my_profile`} style={styles.button}>
               Corregir mi perfil
             </Button>
+            <Text style={styles.text}>
+              Si tenés alguna duda, escribinos a{" "}
+              <span style={styles.email}>soporte@productoraglitter.com</span>.
+            </Text>
           </Section>
         </Container>
         <EmailFooter />

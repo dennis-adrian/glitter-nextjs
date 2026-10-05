@@ -14,9 +14,11 @@ export default function RegularBody(props: RegularBodyProps) {
       <Text style={styles.text}>
         Cuando lancemos un nuevo evento con espacio para{" "}
         <strong>
-          {getCategoryOccupationLabel(props.category, { singular: false })}{" "}
+          {getCategoryOccupationLabel(props.category, {
+            singular: false,
+          }).toLowerCase()}
         </strong>
-        recibirás una notificación para hacer tu reserva.
+        , vas a recibir una notificación para hacer tu reserva.
       </Text>
       <Text style={styles.text}>
         ¡No te olvidés de seguir nuestras redes para enterarte sobre nuevos

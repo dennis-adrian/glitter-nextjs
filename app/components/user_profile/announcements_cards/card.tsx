@@ -21,7 +21,7 @@ export default async function Card({ profile }: { profile: ProfileType }) {
 
   if (profile.status !== "verified") {
     if (isProfileComplete(profile)) {
-      return <PendingVerificationCard />;
+      return <PendingVerificationCard forAdmin />;
     }
   }
 

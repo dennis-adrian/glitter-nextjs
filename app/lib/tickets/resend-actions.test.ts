@@ -241,9 +241,34 @@ describe("resendTicketEmail", () => {
     expect(ours).toEqual([
       [
         "Ticket resend email failed",
-        { ticketId: 7, errorType: "validation_error" },
+        { ticketId: 7, errorType: "resend:validation_error" },
       ],
     ]);
+  });
+
+  /**
+   * The key already went out with another body, so the visitor has the
+   * email; calling it a failure would only invite a pointless retry.
+   */
+  it("counts an already-used idempotency key as sent", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            name: "invalid_idempotent_request",
+            message: "Same idempotency key used with a different payload",
+            statusCode: 409,
+          }),
+          { status: 409, headers: { "content-type": "application/json" } },
+        ),
+    );
+
+    await expect(resendTicketEmail(7)).resolves.toEqual({
+      success: true,
+      message: "Enviamos la entrada a visitor@example.com.",
+    });
   });
 
   it("reports a network failure truthfully", async () => {

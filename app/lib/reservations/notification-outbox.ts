@@ -152,6 +152,12 @@ async function deliverJob(
     reservation.invoices[0];
   const owner = invoice?.user ?? reservation.participants[0]?.user;
   const standLabel = formatStandLabel(reservation.stand);
+  // Stands still occupied: two for a full table. Not for a release, which
+  // retires every member before its email is built.
+  const activeStandCount = Math.max(
+    1,
+    reservation.members.filter((member) => member.releasedAt == null).length,
+  );
   const festival = reservation.festival;
 
   if (kind === "reservation_created") {
@@ -228,11 +234,7 @@ async function deliverJob(
           festivalId: reservation.festivalId,
           festivalName: festival.name,
           standLabel: reservationStandLabel(reservation),
-          standCount: Math.max(
-            1,
-            reservation.members.filter((member) => member.releasedAt == null)
-              .length,
-          ),
+          standCount: activeStandCount,
           reservationId: reservation.id,
         }),
       });
@@ -244,7 +246,8 @@ async function deliverJob(
       subject: `Reserva confirmada para el festival ${festival.name}`,
       react: ReservationConfirmationEmailTemplate({
         profile: owner,
-        standLabel,
+        standLabel: reservationStandLabel(reservation),
+        standCount: activeStandCount,
         festival,
       }),
     });
@@ -263,12 +266,13 @@ async function deliverJob(
     await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
-      subject: "Tu reserva fue rechazada",
+      subject: "Tu reserva fue cancelada",
       react: ReservationRejectionEmailTemplate({
         festival,
         profile: recipient,
         stand: reservation.stand,
         standLabel: reservationStandLabel(reservation),
+        standCount: activeStandCount,
         reason: rejectionReasonFromPayload(payload),
       }),
     });
@@ -280,12 +284,13 @@ async function deliverJob(
       await sendJobEmail(idempotencyKey, {
         to: [recipientEmail],
         from: FROM,
-        subject: "Tu reserva fue rechazada",
+        subject: "Tu reserva fue cancelada",
         react: ReservationRejectionEmailTemplate({
           festival,
           profile: owner,
           stand: reservation.stand,
           standLabel: reservationStandLabel(reservation),
+          standCount: activeStandCount,
           reason: rejectionReasonFromPayload(payload),
         }),
       });
@@ -358,7 +363,17 @@ async function deliverJob(
     if (!recipient) throw new Error("release_recipient_missing");
     if (!releasedBy) throw new Error("release_owner_missing");
 
-    const standCount = Math.max(1, reservation.members.length);
+    // Every member is retired by now, so `reservationStandLabel` would fall
+    // back to one half. The job names what this release freed; one enqueued
+    // before it did falls back to the whole membership.
+    const releasedStandIds = payloadNumberArray(payload, "releasedStandIds");
+    const released = reservation.members
+      .filter(
+        (member) =>
+          !releasedStandIds || releasedStandIds.includes(member.standId),
+      )
+      .sort((a, b) => a.position - b.position);
+    const standCount = Math.max(1, released.length);
     await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
@@ -372,7 +387,12 @@ async function deliverJob(
         isOwner: recipient.id === releasedBy.id,
         festivalId: reservation.festivalId,
         festivalName: festival.name,
-        standLabel: reservationStandLabel(reservation),
+        standLabel:
+          released.length > 0
+            ? released
+                .map((member) => formatStandLabel(member.stand))
+                .join(" y ")
+            : standLabel,
         standCount,
         creditPrice: payloadAmount(payload, "creditPrice") ?? 0,
       }),
@@ -429,6 +449,15 @@ function payloadNumber(payload: unknown, key: string): number | null {
   if (!payload || typeof payload !== "object") return null;
   const value = (payload as Record<string, unknown>)[key];
   return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+function payloadNumberArray(payload: unknown, key: string): number[] | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = (payload as Record<string, unknown>)[key];
+  return Array.isArray(value) &&
+    value.every((item) => typeof item === "number" && Number.isInteger(item))
     ? value
     : null;
 }

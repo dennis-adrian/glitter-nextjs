@@ -11,11 +11,13 @@ const profile = {
   email: "ana@example.com",
 };
 
-function render() {
+function render(
+  reason = "El perfil de Instagram que agregaste no tiene publicaciones",
+) {
   return renderToStaticMarkup(
     ProfileRejectionEmailTemplate({
       profile,
-      reason: "El perfil de Instagram que agregaste no tiene publicaciones",
+      reason,
     } as Parameters<typeof ProfileRejectionEmailTemplate>[0]),
   );
 }
@@ -27,6 +29,14 @@ describe("ProfileRejectionEmailTemplate", () => {
     );
   });
 
+  it("keeps the line breaks the admin typed in the reason", () => {
+    const html = render("Línea uno\nLínea dos");
+
+    expect(html).toContain("white-space:pre-line");
+    expect(html).toContain("Línea uno");
+    expect(html).toContain("Línea dos");
+  });
+
   it("links to the profile so they can correct it", () => {
     const html = render();
 
@@ -35,15 +45,23 @@ describe("ProfileRejectionEmailTemplate", () => {
   });
 
   /**
-   * Saving a profile that was already complete does not notify admins, so the
-   * participant has to ask for the new review themselves.
+   * Saving a corrected profile does not notify admins: the participant asks
+   * for the new review with the button on their profile.
    */
   it("says how to get a new review", () => {
     const html = render();
 
     expect(html).toContain("Corregí tus datos desde tu perfil");
+    expect(html).toContain("Pedir una nueva revisión");
+    expect(html).toContain("para avisarnos que ya está listo.");
+    expect(html).not.toContain("para que lo volvamos a revisar");
+  });
+
+  it("keeps soporte as the contact for questions", () => {
+    const html = render();
+
+    expect(html).toContain("Si tenés alguna duda");
     expect(html).toContain("soporte@productoraglitter.com");
-    expect(html).toContain("volvamos a revisar");
   });
 
   it("speaks in voseo", () => {

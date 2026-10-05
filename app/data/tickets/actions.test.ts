@@ -59,6 +59,8 @@ vi.mock("@/db", () => {
   };
 });
 
+import { revalidatePath } from "next/cache";
+
 import {
   createTicket,
   updateTicket,
@@ -225,15 +227,15 @@ describe("createTicket email", () => {
 });
 
 /**
- * Both are server actions, reachable by a direct POST from anyone, and the
- * public visitor tickets page renders a check-in button. Only the staff gate
- * inside the action keeps a stranger from checking tickets in.
+ * Both are server actions, reachable by a direct POST from anyone. Only the
+ * staff gate inside the action keeps a stranger from checking tickets in.
  */
 describe("ticket status actions", () => {
   beforeEach(() => {
     requireStaffMock.mockReset().mockResolvedValue(null);
     updateMock.mockReset();
     selectMock.mockReset();
+    vi.mocked(revalidatePath).mockClear();
   });
 
   it("refuses to check in a ticket for a non-staff caller", async () => {
@@ -263,5 +265,8 @@ describe("ticket status actions", () => {
       error: null,
     });
     expect(where).toHaveBeenCalledOnce();
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([
+      ["/dashboard/festivals"],
+    ]);
   });
 });

@@ -54,11 +54,11 @@ export default function TicketEmailTemplate({
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>
               {visitor.firstName}, ya tenés tu entrada para el festival{" "}
-              <strong>{festival.name}</strong>
+              <strong>{festival.name}</strong>.
             </Text>
             <Text style={styles.text}>
               No te olvidés de mostrar el código en puerta para poder ingresar
-              al evento
+              al evento.
             </Text>
             <Section style={ticketContainer}>
               {festival.mascotUrl && (
@@ -120,7 +120,7 @@ export default function TicketEmailTemplate({
                 <div style={qrWrapper}>
                   <Img
                     src="cid:ticket-qrcode"
-                    alt="codigo qr"
+                    alt="Código QR de tu entrada"
                     height={200}
                     width={200}
                     style={qrImage}
@@ -132,8 +132,8 @@ export default function TicketEmailTemplate({
               </Section>
             </Section>
             <Text style={{ ...styles.text, marginTop: "16px" }}>
-              Si tenés problemas viendo el código, podés hacer clic en el botón
-              e ingresar con tu correo electrónico para descargar tu entrada
+              Si tenés problemas para ver el código, hacé clic en el botón e
+              ingresá con tu correo electrónico para descargar tu entrada.
             </Text>
             <Link
               href={`${baseUrl}/festivals/${festival.id}/registration`}

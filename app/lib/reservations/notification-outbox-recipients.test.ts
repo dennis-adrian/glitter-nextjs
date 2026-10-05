@@ -64,6 +64,12 @@ const STAND = {
   standNumber: 48,
   standCategory: "illustration",
 };
+const STAND_B49 = {
+  id: 6,
+  label: "B",
+  standNumber: 49,
+  standCategory: "illustration",
+};
 
 function reservationFixture() {
   return {
@@ -98,6 +104,21 @@ function reservationFixture() {
         user: ANA,
         dueAt: new Date("2026-10-07T22:00:00.000Z"),
         payments: [],
+      },
+    ],
+  };
+}
+
+function fullTableFixture() {
+  return {
+    ...reservationFixture(),
+    members: [
+      { position: 0, standId: STAND.id, releasedAt: null, stand: STAND },
+      {
+        position: 1,
+        standId: STAND_B49.id,
+        releasedAt: null,
+        stand: STAND_B49,
       },
     ],
   };
@@ -165,6 +186,17 @@ describe("attemptReservationNotificationJob", () => {
       );
       expect(html).toContain("¡Hola Ana Ilustra!");
     });
+
+    it("names both halves of a full table in the owner's confirmation", async () => {
+      findReservationMock.mockResolvedValue(fullTableFixture());
+      queueJob({ kind: "settlement_approved", recipientEmail: ANA.email });
+
+      await attemptReservationNotificationJob(1);
+
+      const { html } = await sentEmail();
+      expect(html).toContain("los espacios");
+      expect(html).toContain("B48 y B49");
+    });
   });
 
   describe("reservation_rejected", () => {
@@ -177,10 +209,26 @@ describe("attemptReservationNotificationJob", () => {
 
       await attemptReservationNotificationJob(1);
 
-      const { html } = await sentEmail();
+      const { subject, html } = await sentEmail();
+      // The body says the reservation was cancelled; the subject agrees.
+      expect(subject).toBe("Tu reserva fue cancelada");
       expect(html).toContain("Carla Dibuja");
       expect(html).not.toContain("¡Hola Ana Ilustra");
       expect(html).toContain("El pago no llegó a tiempo");
+      expect(html).toContain("el espacio está disponible nuevamente");
+    });
+
+    it("frees both halves of a full table in the copy", async () => {
+      findReservationMock.mockResolvedValue(fullTableFixture());
+      queueJob({ kind: "reservation_rejected", recipientEmail: CARLA.email });
+
+      await attemptReservationNotificationJob(1);
+
+      const { html } = await sentEmail();
+      expect(html).toContain("los espacios");
+      expect(html).toContain("B48 y B49");
+      expect(html).toContain("los espacios están disponibles nuevamente");
+      expect(html).not.toContain("el espacio está disponible");
     });
 
     it("retries rather than mailing someone who is not on the reservation", async () => {
@@ -198,6 +246,69 @@ describe("attemptReservationNotificationJob", () => {
           lastError: "rejection_recipient_missing",
         }),
       );
+    });
+  });
+
+  describe("settlement_rejected", () => {
+    it("cancels a rejected reservation under the same subject as its body", async () => {
+      findReservationMock.mockResolvedValue({
+        ...reservationFixture(),
+        status: "rejected",
+      });
+      queueJob({
+        kind: "settlement_rejected",
+        recipientEmail: ANA.email,
+        payload: { reason: "Comprobante ilegible" },
+      });
+
+      await attemptReservationNotificationJob(1);
+
+      const { subject, html } = await sentEmail();
+      expect(subject).toBe("Tu reserva fue cancelada");
+      expect(html).toContain("Comprobante ilegible");
+    });
+
+    it("sends nothing when the proof was only sent back for correction", async () => {
+      findReservationMock.mockResolvedValue({
+        ...reservationFixture(),
+        status: "pending",
+      });
+      queueJob({ kind: "settlement_rejected", recipientEmail: ANA.email });
+
+      await attemptReservationNotificationJob(1);
+
+      expect(sendEmailMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reservation_released", () => {
+    /**
+     * A release retires every member before the job runs, so the label cannot
+     * come from the members still occupied: it would name one half.
+     */
+    it("names both released halves of a full table", async () => {
+      const releasedAt = new Date();
+      const fullTable = fullTableFixture();
+      findReservationMock.mockResolvedValue({
+        ...fullTable,
+        status: "released",
+        members: fullTable.members.map((member) => ({ ...member, releasedAt })),
+      });
+      queueJob({
+        kind: "reservation_released",
+        recipientEmail: ANA.email,
+        payload: {
+          creditPrice: 40,
+          releasedStandIds: [STAND.id, STAND_B49.id],
+        },
+      });
+
+      await attemptReservationNotificationJob(1);
+
+      const { subject, html } = await sentEmail();
+      expect(subject).toBe("Liberaste tu reserva");
+      expect(html).toContain("reserva de los espacios");
+      expect(html).toContain("B48 y B49");
     });
   });
 

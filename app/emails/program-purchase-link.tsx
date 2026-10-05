@@ -66,7 +66,7 @@ export default function ProgramPurchaseLinkEmailTemplate({
 
             <Text style={{ ...styles.text, fontSize: "12px" }}>
               <strong>El enlace anterior dejó de funcionar.</strong> Usá este y
-              no lo compartas — cualquier persona que lo tenga puede ver tu
+              no lo compartás — cualquier persona que lo tenga puede ver tu
               inscripción.
             </Text>
           </Section>
