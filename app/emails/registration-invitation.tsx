@@ -53,7 +53,7 @@ export default function RegistrationInvitationEmailTemplate(
           </Section>
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.titleWithBanner}>
-              ¡Evita colas para ingresar al evento!
+              ¡Evitá colas para ingresar al evento!
             </Text>
             <Text style={styles.text}>
               Este{" "}
@@ -77,7 +77,7 @@ export default function RegistrationInvitationEmailTemplate(
               ingresar al evento.
             </Text>
             <Text style={styles.text}>
-              ¡Evita colas y ahorra tiempo durante el registro en puerta! Haz
+              ¡Evitá colas y ahorrá tiempo durante el registro en puerta! Hacé
               clic en el botón para adquirir tu boleto virtual. El ingreso al
               evento no tiene costo.
             </Text>

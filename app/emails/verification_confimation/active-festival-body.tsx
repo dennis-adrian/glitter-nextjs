@@ -26,7 +26,7 @@ export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
         condiciones dándole al botón lila a continuación
       </Text>
       <Text style={styles.text}>
-        Si tienes dudas o problemas con la reserva, comunícate con nosotros al
+        Si tenés dudas o problemas con la reserva, comunicate con nosotros al
         correo{" "}
         <Link
           href="mailto:soporte@productoraglitter.com"

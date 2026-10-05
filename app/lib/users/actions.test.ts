@@ -11,6 +11,9 @@ const transactionMock = vi.hoisted(() => vi.fn());
 const findFirstUserMock = vi.hoisted(() => vi.fn());
 const findFirstSocialMock = vi.hoisted(() => vi.fn());
 const deleteFilesMock = vi.hoisted(() => vi.fn());
+const fetchUserProfileByIdMock = vi.hoisted(() => vi.fn());
+const fetchAdminUsersMock = vi.hoisted(() => vi.fn());
+const sendEmailMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   buildWhereClauseForProfileFetching: vi.fn(),
@@ -20,8 +23,8 @@ vi.mock("@/app/lib/users/helpers", () => ({
 }));
 
 vi.mock("@/app/api/users/actions", () => ({
-  fetchAdminUsers: vi.fn().mockResolvedValue([]),
-  fetchUserProfileById: vi.fn().mockResolvedValue(null),
+  fetchAdminUsers: fetchAdminUsersMock,
+  fetchUserProfileById: fetchUserProfileByIdMock,
 }));
 
 vi.mock("@/db", () => ({
@@ -40,7 +43,7 @@ vi.mock("@/app/server/uploadthing", () => ({
   utapi: { deleteFiles: deleteFilesMock },
 }));
 
-vi.mock("@/app/vendors/resend", () => ({ sendEmail: vi.fn() }));
+vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/emails/profile-completion", () => ({ default: vi.fn() }));
 vi.mock("@/app/emails/subcategory-update", () => ({ default: vi.fn() }));
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
@@ -80,6 +83,11 @@ beforeEach(() => {
   findFirstUserMock.mockReset();
   findFirstSocialMock.mockReset();
   deleteFilesMock.mockReset();
+  fetchUserProfileByIdMock.mockReset();
+  fetchUserProfileByIdMock.mockResolvedValue(null);
+  fetchAdminUsersMock.mockReset();
+  fetchAdminUsersMock.mockResolvedValue([]);
+  sendEmailMock.mockReset();
 });
 
 describe("updateProfile", () => {
@@ -159,6 +167,98 @@ describe("updateProfile", () => {
       updateProfile(OWNER.id, { phoneNumber: "70000000" }),
     ).resolves.toMatchObject({ success: true });
     expect(set.mock.calls[0][0]).toHaveProperty("phoneNumber", "70000000");
+  });
+});
+
+describe("updateProfile admin notice", () => {
+  const COMPLETE_PROFILE = {
+    id: 7,
+    status: "pending",
+    displayName: "Ana Ilustra",
+    email: "ana@example.com",
+    bio: "Ilustradora",
+    imageUrl: "https://utfs.io/f/ana",
+    firstName: "Ana",
+    lastName: "Paz",
+    birthdate: new Date("1995-05-05"),
+    phoneNumber: "70000000",
+    gender: "female",
+    country: "BO",
+    category: "illustration",
+    profileSubcategories: [{ subcategoryId: 1 }],
+    userSocials: [{ type: "instagram", username: "ana" }],
+  };
+  const INCOMPLETE_PROFILE = { ...COMPLETE_PROFILE, phoneNumber: null };
+
+  /** Serves the profile as read before the write, then as read after it. */
+  function profileGoesFrom(before: object, after: object) {
+    fetchUserProfileByIdMock
+      .mockResolvedValueOnce(before)
+      .mockResolvedValueOnce(after);
+  }
+
+  beforeEach(() => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    captureUpdate();
+    fetchAdminUsersMock.mockResolvedValue([{ email: "admin@example.com" }]);
+  });
+
+  it("tells admins on the save that completes the profile", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock.mock.calls[0][0].to).toEqual(["admin@example.com"]);
+  });
+
+  it("stays quiet when an already-complete profile is saved again", async () => {
+    profileGoesFrom(COMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await expect(
+      updateProfile(OWNER.id, { bio: "Ilustradora y muralista" }),
+    ).resolves.toMatchObject({ success: true });
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet while the profile is still incomplete", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, INCOMPLETE_PROFILE);
+
+    await updateProfile(OWNER.id, { bio: "Ilustradora" });
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("never asks admins to review a verified profile", async () => {
+    profileGoesFrom(
+      { ...INCOMPLETE_PROFILE, status: "verified" },
+      { ...COMPLETE_PROFILE, status: "verified" },
+    );
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("tells admins when a rejected profile is completed again", async () => {
+    profileGoesFrom(
+      { ...INCOMPLETE_PROFILE, status: "rejected" },
+      { ...COMPLETE_PROFILE, status: "rejected" },
+    );
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("judges completeness from the row as it was before this save", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(fetchUserProfileByIdMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateMock.mock.invocationCallOrder[0],
+    );
   });
 });
 

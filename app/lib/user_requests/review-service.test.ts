@@ -255,6 +255,52 @@ describe("reviewFestivalParticipationRequest", () => {
     );
     expect(scheduleJobsMock).toHaveBeenCalledWith([7]);
   });
+
+  /**
+   * `user_requests` has no reason column, so the job payload is the only
+   * place the reason survives until the email is rendered.
+   */
+  it("rejects a pending festival participation request and queues the reason", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: 1,
+      role: "admin",
+    });
+    previewSelect({
+      id: 4,
+      userId: 8,
+      festivalId: 10,
+      type: "festival_participation",
+      status: "pending",
+    });
+    const tx = reviewTx({
+      request: {
+        id: 4,
+        userId: 8,
+        festivalId: 10,
+        type: "festival_participation",
+        status: "pending",
+      },
+      email: "ada@example.com",
+    });
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await reviewFestivalParticipationRequest({
+      requestId: 4,
+      status: "rejected",
+      reason: "cupo",
+    });
+
+    expect(result.success).toBe(true);
+    expect(enqueueMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        kind: "festival_participation_rejected",
+        payload: expect.objectContaining({ reason: "cupo" }),
+      }),
+    );
+  });
 });
 
 describe("reviewBecomeArtistRequest", () => {

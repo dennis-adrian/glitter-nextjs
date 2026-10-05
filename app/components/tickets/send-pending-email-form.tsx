@@ -1,27 +1,38 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { CheckIcon, Loader2Icon, SendIcon } from "lucide-react";
+import { Loader2Icon, SendIcon } from "lucide-react";
 
 import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-import { sendTicketEmail } from "@/app/data/tickets/actions";
+import { resendTicketEmail } from "@/app/lib/tickets/resend-actions";
 import { toast } from "sonner";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type SendEmailFormProps = {
-  visitor: VisitorWithTickets;
-  festival: FestivalBase;
+  ticketId: number;
+  /** Why this viewer cannot resend; shown under the disabled button. */
+  disabledReason?: string;
 };
+
+const FAILURE_MESSAGE =
+  "No pudimos reenviar la entrada. Intentá de nuevo en unos minutos.";
 
 export default function SendEmailForm(props: SendEmailFormProps) {
   const form = useForm();
+  const { disabledReason } = props;
 
   const action: () => void = form.handleSubmit(async () => {
-    const res = await sendTicketEmail(props.visitor, props.festival);
+    let res;
+    try {
+      res = await resendTicketEmail(props.ticketId);
+    } catch (error) {
+      console.error("Error resending ticket email", error);
+      toast.error(FAILURE_MESSAGE);
+      return;
+    }
+
     if (res.success) {
-      toast.success("Entrada enviado", {
+      toast.success("Entrada reenviada", {
         description: res.message,
       });
     } else {
@@ -34,7 +45,8 @@ export default function SendEmailForm(props: SendEmailFormProps) {
       <form className="w-full" onSubmit={action}>
         <Button
           className="w-full"
-          disabled={form.formState.isSubmitting}
+          disabled={disabledReason != null || form.formState.isSubmitting}
+          title={disabledReason}
           type="submit"
           variant="outline"
         >
@@ -46,10 +58,13 @@ export default function SendEmailForm(props: SendEmailFormProps) {
           ) : (
             <>
               <SendIcon className="mr-2 h-4 w-4" />
-              Enviar entrada por correo
+              Reenviar entrada por correo
             </>
           )}
         </Button>
+        {disabledReason && (
+          <p className="mt-2 text-xs text-muted-foreground">{disabledReason}</p>
+        )}
       </form>
     </Form>
   );

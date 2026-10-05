@@ -65,7 +65,7 @@ export default function PaymentConfirmationForUserEmailTemplate(
               Recibirás un correo cuando tu reserva sea confirmada.
             </Text>
             <Text style={styles.text}>
-              También recuerda que puedes ver tu perfil en cualquier momento
+              También recordá que podés ver tu perfil en cualquier momento
               haciendo clic en el botón
             </Text>
             <Button href={`${baseUrl}/my_profile`} style={styles.button}>

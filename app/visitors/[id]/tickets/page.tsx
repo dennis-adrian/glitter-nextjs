@@ -1,5 +1,3 @@
-"use server";
-
 import { CalendarDaysIcon, CheckIcon, TicketIcon } from "lucide-react";
 
 import { fetchVisitor } from "@/app/data/visitors/actions";
@@ -18,6 +16,8 @@ import { TicketStatusPill } from "@/app/components/tickets/status-pill";
 import CheckInForm from "@/app/components/tickets/checkin-form";
 import SendEmailForm from "@/app/components/tickets/send-pending-email-form";
 import { fetchActiveFestivalBase } from "@/app/lib/festivals/actions";
+import { getTicketResendDisabledReason } from "@/app/lib/tickets/resend";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -31,6 +31,8 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   }
 
   const activeFestival = await fetchActiveFestivalBase();
+  // This page is public; its actions are staff-only and say so when disabled.
+  const staff = await requireAdminOrFestivalAdmin();
   // TODO: Why is sorting not working in the drizzle query?
   let tickets = visitor.tickets.sort((a, b) => (a.date < b.date ? -1 : 1));
   if (activeFestival) {
@@ -75,14 +77,24 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
               <CardFooter>
                 <div className="flex flex-col w-full gap-2">
                   {ticket.status === "pending" && (
-                    <CheckInForm id={ticket.id} />
-                  )}
-                  {activeFestival && (
-                    <SendEmailForm
-                      visitor={visitor}
-                      festival={activeFestival}
+                    <CheckInForm
+                      id={ticket.id}
+                      disabledReason={
+                        staff
+                          ? undefined
+                          : "Solo un administrador puede confirmar la asistencia."
+                      }
                     />
                   )}
+                  <SendEmailForm
+                    ticketId={ticket.id}
+                    disabledReason={getTicketResendDisabledReason({
+                      isStaff: staff !== null,
+                      festivalIsActive:
+                        ticket.festivalId === activeFestival?.id,
+                      ticketNumber: ticket.ticketNumber,
+                    })}
+                  />
                 </div>
               </CardFooter>
             </Card>

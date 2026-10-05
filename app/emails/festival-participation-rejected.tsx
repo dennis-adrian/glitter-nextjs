@@ -18,11 +18,13 @@ import {
 interface FestivalParticipationRejectedTemplateProps {
   profile: BaseProfile;
   festival: Pick<FestivalBase, "id" | "name" | "festivalType">;
+  reason?: string;
 }
 
 export default function FestivalParticipationRejectedEmailTemplate({
   profile,
   festival,
+  reason,
 }: FestivalParticipationRejectedTemplateProps) {
   const userName = getUserName(profile);
 
@@ -40,9 +42,14 @@ export default function FestivalParticipationRejectedEmailTemplate({
               <strong>{festival.name}</strong>. Lamentablemente, tu postulación
               no fue aprobada en esta ocasión.
             </Text>
+            {reason ? (
+              <>
+                <Text style={styles.text}>El motivo que registramos es:</Text>
+                <Text style={styles.standoutText}>{reason}</Text>
+              </>
+            ) : null}
             <Text style={styles.text}>
-              Si tienes preguntas o quisieras más información, comunícate con
-              nosotros al correo{" "}
+              Si tenés preguntas o querés más información, escribinos a{" "}
               <Link
                 href="mailto:soporte@productoraglitter.com"
                 style={{
@@ -52,7 +59,7 @@ export default function FestivalParticipationRejectedEmailTemplate({
               >
                 soporte@productoraglitter.com
               </Link>{" "}
-              para que podamos ayudarte.
+              y te ayudamos.
             </Text>
           </Section>
         </Container>
@@ -72,4 +79,5 @@ FestivalParticipationRejectedEmailTemplate.PreviewProps = {
     name: "Glitter 10ma edición",
     festivalType: "glitter",
   },
+  reason: "El cupo del sector de ilustración ya está completo.",
 } as FestivalParticipationRejectedTemplateProps;

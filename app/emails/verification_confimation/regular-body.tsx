@@ -19,11 +19,11 @@ export default function RegularBody(props: RegularBodyProps) {
         recibirás una notificación para hacer tu reserva.
       </Text>
       <Text style={styles.text}>
-        ¡No te olvides seguir nuestras redes para enterarte sobre nuevos
+        ¡No te olvidés de seguir nuestras redes para enterarte sobre nuevos
         eventos!
       </Text>
       <Text style={styles.text}>
-        Y recuerda que siempre puedes visitar nuestra página y ver si tenemos
+        Y recordá que siempre podés visitar nuestra página y ver si tenemos
         novedades.
       </Text>
       <Button href={props.baseUrl} style={styles.button}>

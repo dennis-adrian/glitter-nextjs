@@ -7,6 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
+import ReservationConfirmationForAdminsEmailTemplate from "@/app/emails/reservation-confirmation-for-admins";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
@@ -18,6 +19,7 @@ import ReservationReleasedTemplate from "@/app/emails/reservation-released";
 import LatePartnerAddedTemplate from "@/app/emails/late-partner-added";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { getUserName } from "@/app/lib/users/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
@@ -198,6 +200,30 @@ async function deliverJob(
   }
 
   if (kind === "settlement_approved" && owner) {
+    // Admins are only enqueued for this kind by `applyInvoiceCredits`, where
+    // credits confirmed the reservation without anyone approving it. They get
+    // a notice about the participant, not the participant's own confirmation.
+    const isOwner = owner.email?.toLowerCase() === recipientEmail.toLowerCase();
+    if (!isOwner) {
+      await sendEmail({
+        to: [recipientEmail],
+        from: FROM,
+        subject: `${getUserName(owner) || "Un participante"} confirmó su reserva con créditos`,
+        react: ReservationConfirmationForAdminsEmailTemplate({
+          participant: owner,
+          festivalId: reservation.festivalId,
+          festivalName: festival.name,
+          standLabel: reservationStandLabel(reservation),
+          standCount: Math.max(
+            1,
+            reservation.members.filter((member) => member.releasedAt == null)
+              .length,
+          ),
+          reservationId: reservation.id,
+        }),
+      });
+      return;
+    }
     await sendEmail({
       to: [recipientEmail],
       from: FROM,
@@ -211,14 +237,22 @@ async function deliverJob(
     return;
   }
 
-  if (kind === "reservation_rejected" && owner) {
+  if (kind === "reservation_rejected") {
+    // Every participant gets one, so each is greeted by their own name.
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    // Same reasoning as the late-partner branch below: a silent return would
+    // mark the job completed and lose the reason.
+    if (!recipient) throw new Error("rejection_recipient_missing");
     await sendEmail({
       to: [recipientEmail],
       from: FROM,
       subject: "Tu reserva fue rechazada",
       react: ReservationRejectionEmailTemplate({
         festival,
-        profile: owner,
+        profile: recipient,
         stand: reservation.stand,
         standLabel: reservationStandLabel(reservation),
         reason: rejectionReasonFromPayload(payload),
@@ -333,12 +367,24 @@ async function deliverJob(
   }
 
   if (kind === "deadline_extended" && owner) {
+    // Sent to every participant, but only the payer can upload the voucher.
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    // Same reasoning as the late-partner branch above.
+    if (!recipient) throw new Error("extension_recipient_missing");
+    const isOwner = recipient.id === owner.id;
     await sendEmail({
       to: [recipientEmail],
       from: FROM,
-      subject: "Se extendió el plazo de pago de tu reserva",
+      subject: isOwner
+        ? "Se extendió el plazo de pago de tu reserva"
+        : "Se extendió el plazo de pago de la reserva que compartís",
       react: ReservationPaymentExtensionTemplate({
-        profile: owner,
+        recipient,
+        owner,
+        isOwner,
         reservation: {
           id: reservation.id,
           festivalId: reservation.festivalId,
@@ -431,6 +477,7 @@ async function deliverEnrollmentJob(
       react: FestivalParticipationRejectedEmailTemplate({
         profile,
         festival,
+        reason: rejectionReasonFromPayload(payload),
       }),
     });
     return;

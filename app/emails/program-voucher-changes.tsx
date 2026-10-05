@@ -53,7 +53,7 @@ export default function ProgramVoucherChangesEmailTemplate({
             </Section>
 
             <Text style={styles.text}>
-              <strong>Tu cupo sigue reservado.</strong> Sube un nuevo
+              <strong>Tu cupo sigue reservado.</strong> Subí un nuevo
               comprobante y lo revisamos de nuevo.
             </Text>
 
@@ -76,7 +76,7 @@ export default function ProgramVoucherChangesEmailTemplate({
               </>
             ) : (
               <Text style={styles.text}>
-                Abre el enlace que te enviamos cuando reservaste tu cupo para
+                Abrí el enlace que te enviamos cuando reservaste tu cupo para
                 subir el nuevo comprobante.
               </Text>
             )}
@@ -100,6 +100,6 @@ ProgramVoucherChangesEmailTemplate.PreviewProps = {
   attendeeName: "María Pérez",
   sessionTitle: "Cómo vivir del arte",
   reason:
-    "El comprobante que subiste no muestra el monto ni la fecha de la transferencia. Mándanos una captura completa donde se vean los dos.",
+    "El comprobante que subiste no muestra el monto ni la fecha de la transferencia. Mandanos una captura completa donde se vean los dos.",
   secureLinkUrl: "http://localhost:3000/programs/purchases/12?token=preview",
 } as ProgramVoucherChangesEmailProps;

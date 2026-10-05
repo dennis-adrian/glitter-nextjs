@@ -1,8 +1,10 @@
 import EmailFooter from "@/app/emails/email-footer";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import * as styles from "@/app/emails/styles";
+import { previewDate } from "@/app/emails/preview-dates";
 import {
   Body,
+  Button,
   Container,
   Head,
   Html,
@@ -30,12 +32,14 @@ export default function ReservationReminderTemplate(
   const standCount = (task.reservation.members ?? []).filter(
     (member) => member.releasedAt == null,
   ).length;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const paymentsUrl = `${baseUrl}/profiles/${task.profile.id}/festivals/${task.reservation.festivalId}/reservations/${task.reservation.id}/payments`;
 
   return (
     <Html>
       <Head />
       <Preview>
-        Recuerda hacer el pago de tu reserva para{" "}
+        Recordá hacer el pago de tu reserva para{" "}
         {task.reservation.festival.name}
       </Preview>
       <Body style={styles.main}>
@@ -68,10 +72,12 @@ export default function ReservationReminderTemplate(
               registro del pago evitará que sea eliminada.
             </Text>
             <Text style={styles.text}>
-              Si tenés alguna duda, no dudes en contactarnos a nuesto correo
-              electrónico{" "}
-              <span style={styles.email}>soporte@productoraglitter.com</span>
+              Si tenés alguna duda, escribinos a{" "}
+              <span style={styles.email}>soporte@productoraglitter.com</span>.
             </Text>
+            <Button href={paymentsUrl} style={styles.button}>
+              Completar el pago
+            </Button>
           </Section>
         </Container>
         <EmailFooter />
@@ -83,10 +89,13 @@ export default function ReservationReminderTemplate(
 ReservationReminderTemplate.PreviewProps = {
   task: {
     profile: {
+      id: 1,
       displayName: "John Doe",
     },
-    dueDate: new Date("2024-07-07T18:00:00"),
+    dueDate: previewDate(1, 18),
     reservation: {
+      id: 42,
+      festivalId: 7,
       festival: {
         name: "Festival de prueba",
       },

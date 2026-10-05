@@ -43,7 +43,7 @@ export default function ProfileDeletionTemplate(
               tu cuenta fue eliminada automáticamente.
             </Text>
             <Text style={styles.text}>
-              Si aún deseas participar de nuestros eventos, por favor crea un
+              Si aún deseás participar de nuestros eventos, por favor creá un
               nuevo perfil.
             </Text>
             <Button href={`${baseUrl}/sign_up`} style={styles.button}>

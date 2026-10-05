@@ -41,7 +41,7 @@ export default function SubcategoryUpdateEmailTemplate(
               enlazadas con tu perfil Glitter.
             </Text>
             <Text style={styles.text}>
-              Ante cualquier consulta puedes comunicarte con nosotros al correo
+              Ante cualquier consulta podés comunicarte con nosotros al correo
               electrónico{" "}
               <Button
                 href="mailto:soporte@productoraglitter.com"

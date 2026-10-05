@@ -2,14 +2,13 @@
 
 import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { generateQrBuffer } from "@/app/lib/utils";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
-import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
+import { VisitorBase } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
-import TicketEmailTemplate from "@/app/emails/ticket";
-import { getTicketCode } from "@/app/lib/tickets/utils";
+import { buildTicketEmail } from "@/app/lib/tickets/ticket-email";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
@@ -100,27 +99,9 @@ export async function createTicket(data: {
     };
   }
 
-  const qrBuffer = await generateQrBuffer(
-    getTicketCode(festival.festivalCode || "", createdTicket.ticketNumber || 0),
+  sendEmail(
+    await buildTicketEmail({ visitor, festival, ticket: createdTicket }),
   );
-  sendEmail({
-    from: "Equipo Glitter <entradas@productoraglitter.com>",
-    to: [visitor.email],
-    subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
-    react: TicketEmailTemplate({
-      visitor,
-      festival,
-      ticket: createdTicket,
-    }) as React.ReactElement,
-    attachments: [
-      {
-        filename: "qrcode.png",
-        content: qrBuffer,
-        // Resolves the template's `cid:ticket-qrcode` image.
-        contentId: "ticket-qrcode",
-      },
-    ],
-  });
 
   revalidatePath(`/festivals/${festival.id}/registration`);
   return {
@@ -144,6 +125,13 @@ export async function fetchTicket(
 }
 
 export async function updateTicket(id: number, status: TicketBase["status"]) {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return {
+      success: false,
+      error: "Solo un administrador puede actualizar entradas.",
+    };
+  }
+
   try {
     await db.update(tickets).set({ status }).where(eq(tickets.id, id));
   } catch (error) {
@@ -163,6 +151,13 @@ export async function updateTicket(id: number, status: TicketBase["status"]) {
 }
 
 export async function verifyTicket(ticketNumber: number, festivalId: number) {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return {
+      success: false,
+      message: "Solo un administrador puede verificar entradas.",
+    };
+  }
+
   try {
     const [ticket] = await db
       .select()
@@ -225,36 +220,6 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
     success: true,
     message: "Entrada verificada correctamente",
   };
-}
-
-export async function sendTicketEmail(
-  visitor: VisitorWithTickets,
-  festival: FestivalBase,
-) {
-  try {
-    // const { error, data } = await sendEmail({
-    //   from: "Equipo Glitter <entradas@productoraglitter.com>",
-    //   to: [visitor.email],
-    //   subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
-    //   react: TicketEmailTemplate({
-    //     visitor,
-    //     festival,
-    //   }) as React.ReactElement,
-    // });
-
-    // if (error) throw new Error(error.message);
-
-    return {
-      success: true,
-      message: `Se envió el correo a ${visitor.email}`,
-    };
-  } catch (error) {
-    console.error("Error sending pending emails", error);
-    return {
-      success: false,
-      message: "No se pudo enviar el correo con la entrada",
-    };
-  }
 }
 
 export async function fetchTicketsByFestival(festivalId: number) {

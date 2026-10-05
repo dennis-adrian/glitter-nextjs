@@ -566,7 +566,7 @@ export async function sendSessionDayReminderEmail(
         to: [input.attendeeEmail],
         subject: isSingle
           ? `Hoy es tu ${SESSION_TYPE_LABELS[first.sessionType].toLowerCase()}: ${first.sessionTitle}`
-          : `Hoy tienes ${input.lines.length} sesiones con Glitter`,
+          : `Hoy tenés ${input.lines.length} sesiones con Glitter`,
         react: ProgramSessionReminderEmailTemplate({
           attendeeName: input.attendeeName,
           sessions: input.lines.map((line) => ({

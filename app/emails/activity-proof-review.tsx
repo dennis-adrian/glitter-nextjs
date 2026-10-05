@@ -94,7 +94,8 @@ export default function ActivityProofReviewEmail({
                   <Text style={styles.standoutText}>{adminFeedback}</Text>
                 )}
                 <Text style={styles.text}>
-                  Por favor ingresa al sitio web y súbelo nuevamente.
+                  Por favor ingresá al sitio web y{" "}
+                  {materialArticle === "la" ? "subila" : "subilo"} nuevamente.
                 </Text>
                 <Button href={activityUrl} style={styles.buttonWithBanner}>
                   Subir {materialLabel} nuevamente

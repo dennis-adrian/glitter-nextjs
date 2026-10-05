@@ -8,7 +8,14 @@ import { Button } from "@/components/ui/button";
 import { updateTicket } from "@/app/data/tickets/actions";
 import { toast } from "sonner";
 
-export default function CheckInForm({ id }: { id: number }) {
+export default function CheckInForm({
+  id,
+  disabledReason,
+}: {
+  id: number;
+  /** Why this viewer cannot check in; shown under the disabled button. */
+  disabledReason?: string;
+}) {
   const form = useForm();
 
   async function onSubmit() {
@@ -27,7 +34,8 @@ export default function CheckInForm({ id }: { id: number }) {
       <form className="w-full" onSubmit={form.handleSubmit(onSubmit)}>
         <Button
           className="w-full"
-          disabled={form.formState.isSubmitting}
+          disabled={disabledReason != null || form.formState.isSubmitting}
+          title={disabledReason}
           type="submit"
         >
           {form.formState.isSubmitting ? (
@@ -42,6 +50,9 @@ export default function CheckInForm({ id }: { id: number }) {
             </>
           )}
         </Button>
+        {disabledReason && (
+          <p className="mt-2 text-xs text-muted-foreground">{disabledReason}</p>
+        )}
       </form>
     </Form>
   );

@@ -8,14 +8,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * whether the QR's `cid:` reference still resolves.
  */
 
-const { insertedTicket } = vi.hoisted(() => ({
-  insertedTicket: { current: null as Record<string, unknown> | null },
-}));
+const { insertedTicket, requireStaffMock, updateMock, selectMock } = vi.hoisted(
+  () => ({
+    insertedTicket: { current: null as Record<string, unknown> | null },
+    requireStaffMock: vi.fn(),
+    updateMock: vi.fn(),
+    selectMock: vi.fn(),
+  }),
+);
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
+}));
+vi.mock("@/app/lib/users/helpers", () => ({
+  requireAdminOrFestivalAdmin: requireStaffMock,
 }));
 vi.mock("@/db", () => {
   const tx = {
@@ -34,11 +42,17 @@ vi.mock("@/db", () => {
   return {
     db: {
       transaction: async (run: (transaction: typeof tx) => unknown) => run(tx),
+      update: updateMock,
+      select: selectMock,
     },
   };
 });
 
-import { createTicket } from "@/app/data/tickets/actions";
+import {
+  createTicket,
+  updateTicket,
+  verifyTicket,
+} from "@/app/data/tickets/actions";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import { generateQrBuffer } from "@/app/lib/utils";
 
@@ -51,6 +65,8 @@ const fetchMock = vi.fn();
 
 describe("createTicket email", () => {
   beforeEach(() => {
+    // Registration is public: creating a ticket must not need staff.
+    requireStaffMock.mockReset().mockResolvedValue(null);
     insertedTicket.current = {
       id: 1,
       visitorId: 1,
@@ -94,6 +110,7 @@ describe("createTicket email", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body)) as {
       to: string[];
+      subject: string;
       html: string;
       attachments: {
         filename: string;
@@ -104,6 +121,11 @@ describe("createTicket email", () => {
 
     expect(url).toBe("https://api.resend.com/emails");
     expect(body.to).toEqual(["visitor@example.com"]);
+    // Visitors are written to in voseo, subject and body alike.
+    expect(body.subject).toBe(
+      `Ya tenés tu entrada para ingresar al festival ${preview.festival.name}`,
+    );
+    expect(body.html).toContain("ya tenés tu entrada");
     expect(body.attachments).toHaveLength(1);
 
     const [attachment] = body.attachments;
@@ -117,5 +139,47 @@ describe("createTicket email", () => {
     );
     // Gmail on Android inverts the QR without these.
     expect(body.html).toContain('name="color-scheme" content="only light"');
+  });
+});
+
+/**
+ * Both are server actions, reachable by a direct POST from anyone, and the
+ * public visitor tickets page renders a check-in button. Only the staff gate
+ * inside the action keeps a stranger from checking tickets in.
+ */
+describe("ticket status actions", () => {
+  beforeEach(() => {
+    requireStaffMock.mockReset().mockResolvedValue(null);
+    updateMock.mockReset();
+    selectMock.mockReset();
+  });
+
+  it("refuses to check in a ticket for a non-staff caller", async () => {
+    await expect(updateTicket(1, "checked_in")).resolves.toEqual({
+      success: false,
+      error: "Solo un administrador puede actualizar entradas.",
+    });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to verify a ticket for a non-staff caller", async () => {
+    await expect(verifyTicket(2, 12)).resolves.toEqual({
+      success: false,
+      message: "Solo un administrador puede verificar entradas.",
+    });
+    expect(selectMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("lets staff check a ticket in", async () => {
+    requireStaffMock.mockResolvedValue({ id: 1, role: "festival_admin" });
+    const where = vi.fn().mockResolvedValue(undefined);
+    updateMock.mockReturnValue({ set: () => ({ where }) });
+
+    await expect(updateTicket(1, "checked_in")).resolves.toEqual({
+      success: true,
+      error: null,
+    });
+    expect(where).toHaveBeenCalledOnce();
   });
 });

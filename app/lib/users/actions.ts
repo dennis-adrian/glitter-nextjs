@@ -195,6 +195,10 @@ export async function updateProfile(
   }
 
   try {
+    // Read before the write, so the admin notice below can tell the save that
+    // completes a profile from later edits to an already-complete one.
+    const wasComplete = isProfileComplete(await fetchUserProfileById(userId));
+
     await db
       .update(users)
       .set({
@@ -203,7 +207,7 @@ export async function updateProfile(
       })
       .where(eq(users.id, userId));
 
-    await verifyProfileCompletion(userId);
+    await verifyProfileCompletion(userId, wasComplete);
   } catch (error) {
     console.error("Error updating profile", error);
     return {
@@ -337,7 +341,7 @@ export async function upsertUserSocialProfiles(
 
 // Not exported: every export of a "use server" module is a server action, and
 // this one fans out admin email from a bare profile id.
-async function verifyProfileCompletion(userId: number) {
+async function verifyProfileCompletion(userId: number, wasComplete: boolean) {
   const fullProfile = await fetchUserProfileById(userId);
   if (fullProfile && isProfileComplete(fullProfile)) {
     await db
@@ -350,9 +354,13 @@ async function verifyProfileCompletion(userId: number) {
         ),
       );
 
-    // we only want to send the email hopefully once, for the profile to be verified
-    // once verified we don't care to send it again
-    if (fullProfile.status === "pending" || fullProfile.status === "rejected") {
+    // Admins hear about a profile once: on the save that completes it. Edits to
+    // a profile that was already complete are not a new review, and verified
+    // profiles need none.
+    if (
+      !wasComplete &&
+      (fullProfile.status === "pending" || fullProfile.status === "rejected")
+    ) {
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((admin) => admin.email);
       await sendEmail({

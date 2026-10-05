@@ -32,7 +32,7 @@ export default function VerificationConfirmationEmailTemplate(
     <Html>
       <Head />
       <Preview>
-        Tu perfil ha sido verificado y ya puedes participar en nuestros eventos
+        Tu perfil ha sido verificado y ya podés participar en nuestros eventos
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>

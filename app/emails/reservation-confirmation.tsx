@@ -76,7 +76,7 @@ export default function ReservationConfirmationEmailTemplate(
               <Link href={whatsAppGroupLink || baseUrl}>este enlace</Link>
             </Text>
             <Text style={styles.text}>
-              Puedes ver la página del evento en cualquier momento y ver a los
+              Podés ver la página del evento en cualquier momento y ver a los
               demás participantes que estarán presentes.
             </Text>
             <Button

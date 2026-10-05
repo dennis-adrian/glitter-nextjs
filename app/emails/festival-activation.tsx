@@ -41,7 +41,7 @@ export default function FestivalActivationEmailTemplate({
   return (
     <Html>
       <Head />
-      <Preview>Alístate para participar en nuestro próximo festival</Preview>
+      <Preview>Alistate para participar en nuestro próximo festival</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader festivalType={festival.festivalType} />
@@ -56,8 +56,8 @@ export default function FestivalActivationEmailTemplate({
               términos y condiciones haciendo clic en el botón debajo del texto.
             </Text>
             <Text style={styles.text}>
-              Si tienes dudas o problemas con la reserva, comunícate con
-              nosotros al correo{" "}
+              Si tenés dudas o problemas con la reserva, comunicate con nosotros
+              al correo{" "}
               <Link
                 href="mailto:soporte@productoraglitter.com"
                 style={{

@@ -12,7 +12,11 @@ vi.mock("@/app/vendors/resend", () => ({
   sendEmail: sendEmailMock,
 }));
 
-import { sendAdminNewSignupEmail } from "@/app/lib/programs/notifications";
+import {
+  sendAdminNewSignupEmail,
+  sendSessionDayReminderEmail,
+  type SessionDayReminderLine,
+} from "@/app/lib/programs/notifications";
 
 describe("sendAdminNewSignupEmail", () => {
   beforeEach(() => {
@@ -85,5 +89,67 @@ describe("sendAdminNewSignupEmail", () => {
 
     expect(result).toBe(true);
     expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendSessionDayReminderEmail", () => {
+  const line: SessionDayReminderLine = {
+    sessionTitle: "Taller de ilustración",
+    sessionType: "workshop",
+    programName: "Glitter Academy",
+    startsAt: new Date("2026-08-10T19:00:00.000Z"),
+    endsAt: new Date("2026-08-10T21:00:00.000Z"),
+    venueName: "Casa Glitter",
+    room: null,
+    ticketCode: "GLT-8F3K2A",
+  };
+
+  beforeEach(() => {
+    sendEmailMock.mockReset();
+    sendEmailMock.mockResolvedValue({ data: { id: "email-1" } });
+  });
+
+  // The body already speaks in voseo; a tuteo subject mixed the two.
+  it("writes a several-session subject in voseo, like the body", async () => {
+    const result = await sendSessionDayReminderEmail({
+      attendeeName: "María Pérez",
+      attendeeEmail: "maria@example.com",
+      lines: [line, { ...line, ticketCode: "GLT-9D1P7Q" }],
+      hasAccount: true,
+      idempotencyKey: "program-session-reminder-test",
+    });
+
+    expect(result).toBe(true);
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["maria@example.com"],
+        subject: "Hoy tenés 2 sesiones con Glitter",
+      }),
+      { idempotencyKey: "program-session-reminder-test" },
+    );
+
+    const payload = sendEmailMock.mock.calls[0]?.[0] as {
+      react: React.ReactElement;
+    };
+    const html = await render(payload.react);
+    expect(html).toContain("hoy tenés");
+    expect(html).toContain("/my_programs");
+  });
+
+  it("names the session in a single-session subject", async () => {
+    await sendSessionDayReminderEmail({
+      attendeeName: "María Pérez",
+      attendeeEmail: "maria@example.com",
+      lines: [line],
+      hasAccount: false,
+      idempotencyKey: "program-session-reminder-test",
+    });
+
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: "Hoy es tu taller: Taller de ilustración",
+      }),
+      { idempotencyKey: "program-session-reminder-test" },
+    );
   });
 });
