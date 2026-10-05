@@ -12,7 +12,7 @@ import {
   Row,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import EmailFooter from "@/app/emails/email-footer";

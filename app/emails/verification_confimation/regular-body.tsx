@@ -1,7 +1,7 @@
 import { UserCategory } from "@/app/api/users/definitions";
 import * as styles from "@/app/emails/styles";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { Button, Text } from "@react-email/components";
+import { Button, Text } from "react-email";
 
 type RegularBodyProps = {
   category: UserCategory;

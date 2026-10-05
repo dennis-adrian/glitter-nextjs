@@ -48,7 +48,8 @@ export default async function UserOrderPage(props: {
 
   const order = await fetchOrder(validatedParams.data.orderId);
 
-  if (!order) {
+  // The route names the profile, so its order must belong to that profile.
+  if (!order || order.userId !== validatedParams.data.profileId) {
     return notFound();
   }
 

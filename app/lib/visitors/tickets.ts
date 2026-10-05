@@ -10,6 +10,7 @@ import { getTicketCode } from "@/app/lib/tickets/utils";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { ticketHistoryToken } from "@/app/lib/visitors/session";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import { tickets, visitors } from "@/db/schema";
 
@@ -111,15 +112,7 @@ export async function sendTicketIssuedEmail(
       getTicketCode(festival.festivalCode || "", ticket.ticketNumber || 0),
     );
 
-    // `content_id` is what the email's `cid:` image points at. The SDK passes
-    // attachments through untouched but does not type that field.
-    const qrAttachment = {
-      filename: "qrcode.png",
-      content: qrBuffer,
-      content_id: "ticket-qrcode",
-    };
-
-    const { error } = await sendEmail({
+    const result = await sendEmail({
       from: TICKETS_FROM,
       to: [visitor.email],
       subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
@@ -129,11 +122,21 @@ export async function sendTicketIssuedEmail(
         ticket,
         ticketsUrl: ticketHistoryUrl(visitor.id),
       }) as React.ReactElement,
-      attachments: [qrAttachment],
+      attachments: [
+        {
+          filename: "qrcode.png",
+          content: qrBuffer,
+          // Resolves the template's `cid:ticket-qrcode` image.
+          contentId: "ticket-qrcode",
+        },
+      ],
     });
-    if (error) throw new Error(error.message);
+    assertSent(result);
   } catch (error) {
-    console.error("Error sending ticket email", { ticketId: ticket.id, error });
+    console.error("Ticket email failed", {
+      ticketId: ticket.id,
+      errorType: sendFailureType(error),
+    });
   }
 }
 
@@ -146,7 +149,7 @@ export async function sendTicketHistoryLinkEmail(visitorId: number) {
     });
     if (!visitor) return;
 
-    const { error } = await sendEmail({
+    const result = await sendEmail({
       from: TICKETS_FROM,
       to: [visitor.email],
       subject: "Tus entradas de Productora Glitter",
@@ -155,8 +158,11 @@ export async function sendTicketHistoryLinkEmail(visitorId: number) {
         ticketsUrl: ticketHistoryUrl(visitor.id),
       }) as React.ReactElement,
     });
-    if (error) throw new Error(error.message);
+    assertSent(result);
   } catch (error) {
-    console.error("Error sending ticket history link", { visitorId, error });
+    console.error("Ticket history link email failed", {
+      visitorId,
+      errorType: sendFailureType(error),
+    });
   }
 }

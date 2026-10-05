@@ -1,44 +1,16 @@
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import type { VisitorActivity } from "@/app/components/festivals/public-festival-activities";
 import FestivalVisitorExplorer from "@/app/components/festivals/festival-visitor-explorer";
-import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
-import {
-  fetchFestivalSectors,
-  fetchPublicFestivalParticipants,
-} from "@/app/lib/festival_sectors/actions";
-import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
+import { fetchPublicFestivalParticipants } from "@/app/lib/festival_sectors/actions";
+import { toPublicMapSectors } from "@/app/lib/festival_sectors/public";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
+import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/queries";
 import {
   getMapActivityData,
   getVisibleActivityParticipants,
 } from "@/app/lib/maps/activity-data";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
-
-function toPublicMapSectors(
-  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
-): FestivalSectorWithStandsWithReservationsWithParticipants[] {
-  return sectors.map((sector) => ({
-    ...sector,
-    stands: sector.stands.map((stand) => ({
-      ...stand,
-      reservations: stand.reservations.map((reservation) => ({
-        ...reservation,
-        participants: reservation.participants.map((participant) => ({
-          ...participant,
-          user: {
-            id: participant.user.id,
-            displayName: participant.user.displayName,
-            imageUrl: participant.user.imageUrl,
-            category: participant.user.category,
-            userSocials: [],
-            profileSubcategories: participant.user.profileSubcategories ?? [],
-          },
-        })),
-        externalParticipants: reservation.externalParticipants,
-      })),
-    })),
-  })) as unknown as FestivalSectorWithStandsWithReservationsWithParticipants[];
-}
 
 export default async function FestivalVisitorDiscovery({
   festivalId,

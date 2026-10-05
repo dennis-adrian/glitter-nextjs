@@ -58,8 +58,9 @@ links in emails already sent**; the page then points people to support.
 ## Bounces and complaints: Resend webhook
 
 `POST /api/webhooks/resend` (`app/api/webhooks/resend/route.ts`) verifies the
-Svix signature by hand (the pinned `resend` 4.1.1 has no helper), then records
-or lifts suppressions. It answers 500 on a database error so Resend retries,
+Svix signature by hand (`app/lib/emails/resend-webhook.ts`, written before the
+SDK had a helper; `resend` 6.x's `resend.webhooks.verify` checks the same
+signature), then records or lifts suppressions. It answers 500 on a database error so Resend retries,
 and 500 when the secret is not set (an empty value counts as not set).
 
 The unsubscribe page tells people whose address is suppressed that bulk mail

@@ -176,4 +176,30 @@ describe("validateAndApplyDiscountCode lock order", () => {
     expect(lockStandRows).toHaveBeenCalledWith(tx, [8]);
     expect(select).toHaveBeenCalledTimes(2);
   });
+
+  it("refuses another participant's invoice before taking any lock", async () => {
+    currentProfileMock.mockResolvedValue({ id: 6, role: "user" });
+    const select = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        selectChain([{ id: 10, userId: 5, festivalId: 3, standId: 8 }]),
+      );
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback({ select }),
+    );
+
+    const result = await validateAndApplyDiscountCode({
+      code: "SAVE10",
+      invoiceId: 10,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "Código de descuento inválido o inactivo.",
+    });
+    expect(lockParticipants).not.toHaveBeenCalled();
+    expect(lockFestivalRow).not.toHaveBeenCalled();
+    expect(lockStandRows).not.toHaveBeenCalled();
+    expect(select).toHaveBeenCalledTimes(1);
+  });
 });

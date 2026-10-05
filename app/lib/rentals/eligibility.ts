@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { and, asc, eq } from "drizzle-orm";
 
@@ -132,12 +132,4 @@ export async function assertRentalEligibility(
     userId,
     contexts,
   };
-}
-
-export async function canUserRent(
-  userId: number | null | undefined,
-): Promise<boolean> {
-  if (!userId) return false;
-  const result = await assertRentalEligibility(userId);
-  return result.eligible;
 }

@@ -3,17 +3,13 @@
 import { cookies } from "next/headers";
 import { after } from "next/server";
 import {
-  orderBundleItems,
-  orderBundles,
   orderEvents,
   orderAdjustmentItems,
   orderAdjustments,
   orderReturns,
   orderItems,
   orders,
-  productContentSections,
   products,
-  productVariantOptionValues,
   productVariants,
   users,
 } from "@/db/schema";
@@ -22,6 +18,8 @@ import {
   OrderWithRelations,
   type AdminOrderAdjustmentProduct,
   type AdminOrderListRow,
+  type OrderItemWithRelations,
+  type VoucherReviewOrder,
 } from "@/app/lib/orders/definitions";
 import {
   ORDER_TAB_VALUES,
@@ -47,37 +45,11 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
 import { sendEmail } from "@/app/vendors/resend";
-import { fetchAdminUsers } from "@/app/api/users/actions";
-import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
-import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
+import { assertSent } from "@/app/vendors/resend-result";
 import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import { getVariantLabel } from "@/app/lib/products/variants";
-import { loadBundleCatalog } from "@/app/lib/merch/bundles";
-import {
-  bundleComponentStockErrors,
-  bundleDemandLines,
-  bundleLockTargets,
-  describeOrderBundle,
-  lockBundleRecordsForCheckout,
-  planBundleOrderItems,
-  resolveOrderBundles,
-  type BundleOrderRequest,
-  type ResolvedOrderBundle,
-} from "@/app/lib/orders/bundle-lines";
-import { assertRentalEligibility } from "@/app/lib/rentals/eligibility";
-import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
-import {
-  consumeLineStockInTx,
-  getAvailableStockForLine,
-  validateCombinedSharedStockDemand,
-} from "@/app/lib/rentals/order-stock";
-import { getStockPoolForTransaction } from "@/app/lib/rentals/stock";
-import {
-  buildRentalContentSectionsSnapshot,
-  filterContentSectionsForMode,
-} from "@/app/lib/rentals/validation";
-import type { ProductTransactionType } from "@/app/lib/rentals/types";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import {
   captureServerEvent,
@@ -89,7 +61,6 @@ import {
   getOrderItemDisplayName,
   getOrderStatusLabel,
   getProductPriceAtPurchase,
-  getRentalPriceAtPurchase,
   splitOrderItemsByBundle,
   toAdminOrderListRow,
 } from "@/app/lib/orders/utils";
@@ -102,7 +73,6 @@ import {
 import { DateTime } from "luxon";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { applyOrderAdjustment } from "@/app/lib/orders/adjustments";
-import { resolveUnitCost } from "@/app/lib/products/cost";
 import {
   BULK_ORDER_STATUS_LIMIT,
   canTransitionOrderStatus,
@@ -111,8 +81,6 @@ import { restoreEffectiveOrderStockInTx } from "@/app/lib/orders/cancellation";
 import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
 import {
   storeCategorySchema,
-  SUPPLIES_UNVERIFIED_CAUSE,
-  SUPPLIES_VERIFIED_MESSAGE,
   toConcreteStoreCategory,
   type StoreCategory,
   type StoreCategoryScope,
@@ -180,100 +148,12 @@ function revalidateStoreOrderViews() {
   revalidatePath("/dashboard/store/analytics");
 }
 
-export async function sendOrderEmails(emailData: {
-  orderId: number;
-  customerEmail: string;
-  customerName: string;
-  products: {
-    id: number;
-    name: string;
-    quantity: number;
-    price: number;
-    status: "available" | "presale" | "sale";
-    availableDate: Date | null;
-    transactionType?: ProductTransactionType;
-    components?: string[];
-  }[];
-  total: number;
-}) {
-  // 1. Send to user
-  const { orderId, customerEmail, customerName, products, total } = emailData;
-
-  await sendEmail({
-    to: [customerEmail],
-    from: "Glitter Store <reservas@productoraglitter.com>",
-    subject: `Tu orden #${orderId} ha sido recibida`,
-    react: OrderConfirmationForUsersEmailTemplate({
-      customerName,
-      orderId: String(orderId),
-      products,
-      total,
-    }) as React.ReactElement,
-  });
-
-  // 2. Fetch admins
-  const admins = await fetchAdminUsers();
-  const adminEmails = admins.map((a) => a.email).filter(Boolean);
-
-  if (adminEmails.length > 0) {
-    await sendEmail({
-      to: adminEmails,
-      from: "Glitter Store <store@productoraglitter.com>",
-      replyTo: "soporte@productoraglitter.com",
-      subject: `Nueva orden #${orderId} de ${customerName || "Cliente"}`,
-      react: OrderConfirmationForAdminsEmailTemplate({
-        customerName,
-        orderId: String(orderId),
-        products,
-        total,
-      }) as React.ReactElement,
-    });
-  }
-}
-
-export type CreateOrderInTxResult = {
-  orderId: number;
-  mappedProducts: {
-    id: number;
-    name: string;
-    quantity: number;
-    price: number;
-    status: "available" | "presale" | "sale";
-    availableDate: Date | null;
-    transactionType: ProductTransactionType;
-    /** Contents of a bundle entry, one "2 × Producto (Talla: M)" per line. */
-    components?: string[];
-  }[];
-  totalAmount: number;
-};
-
-export type { BundleOrderRequest };
-
-type OrderTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-export type OrderLineInput = {
-  productId: number;
-  productVariantId: number | null;
-  quantity: number;
-  transactionType?: ProductTransactionType;
-  rentalFestivalId?: number | null;
-  rentalReservationId?: number | null;
-};
-
-type ResolvedOrderLine = {
-  product: typeof products.$inferSelect;
-  productVariantId: number | null;
-  productVariantLabel: string | null;
-  quantity: number;
-  unitPrice: number;
-  transactionType: ProductTransactionType;
-  rentalFestivalId: number | null;
-  rentalReservationId: number | null;
-  rentalStockModeSnapshot: "shared" | "separate" | null;
-  rentalContentSectionsSnapshot: ReturnType<
-    typeof buildRentalContentSectionsSnapshot
-  > | null;
-};
+export type {
+  BundleOrderRequest,
+  CreateGuestOrderInTxResult,
+  CreateOrderInTxResult,
+  OrderLineInput,
+} from "@/app/lib/orders/create-order";
 
 const orderRelations = {
   customer: {
@@ -316,762 +196,48 @@ const orderRelations = {
   },
 } as const;
 
-function mergeOrderLines(lines: OrderLineInput[]): OrderLineInput[] {
-  const merged = new Map<string, OrderLineInput>();
-
-  for (const line of lines) {
-    const transactionType = line.transactionType ?? "purchase";
-    const key = `${line.productId}:${line.productVariantId ?? "base"}:${transactionType}`;
-    const existing = merged.get(key);
-    if (existing) {
-      existing.quantity += line.quantity;
-      continue;
-    }
-    merged.set(key, {
-      productId: line.productId,
-      productVariantId: line.productVariantId ?? null,
-      quantity: line.quantity,
-      transactionType,
-      rentalFestivalId: line.rentalFestivalId ?? null,
-      rentalReservationId: line.rentalReservationId ?? null,
-    });
-  }
-
-  return Array.from(merged.values());
-}
-
-type ProductRow = typeof products.$inferSelect;
-type VariantRow = typeof productVariants.$inferSelect;
-
-type ResolvedOrder = {
-  lines: ResolvedOrderLine[];
-  bundles: ResolvedOrderBundle[];
-  productMap: Map<number, ProductRow>;
-  variantMap: Map<number, VariantRow>;
-};
-
-function sortedUnique(values: readonly number[]) {
-  return [...new Set(values)].sort((a, b) => a - b);
-}
-
-async function resolveOrderLines(
-  tx: OrderTx,
-  lines: OrderLineInput[],
-  bundleRequests: readonly BundleOrderRequest[] = [],
-): Promise<ResolvedOrder> {
-  if (lines.length === 0 && bundleRequests.length === 0) {
-    throw new Error("No order items provided");
-  }
-
-  const normalizedLines = mergeOrderLines(lines);
-  for (const line of normalizedLines) {
-    if (line.quantity <= 0) {
-      throw new Error(
-        `Invalid quantity for product ${line.productId}/${line.productVariantId ?? "base"}`,
-      );
-    }
-  }
-
-  // Bundles first (share lock), then every product and variant row in id
-  // order, so concurrent checkouts and adjustments cannot deadlock.
-  const bundleRecords = await lockBundleRecordsForCheckout(tx, bundleRequests);
-  const bundleTargets = bundleLockTargets(bundleRecords);
-  const lineProductIds = sortedUnique(
-    normalizedLines.map((line) => line.productId),
-  );
-  const productIds = sortedUnique([
-    ...lineProductIds,
-    ...bundleTargets.productIds,
-  ]);
-  const variantIds = sortedUnique([
-    ...normalizedLines
-      .map((line) => line.productVariantId)
-      .filter((value): value is number => value != null),
-    ...bundleTargets.variantIds,
-  ]);
-
-  const lockedProducts =
-    productIds.length > 0
-      ? await tx
-          .select()
-          .from(products)
-          .where(inArray(products.id, productIds))
-          .orderBy(asc(products.id))
-          .for("update")
-      : [];
-
-  if (lockedProducts.length !== productIds.length) {
-    const foundIds = new Set(lockedProducts.map((product) => product.id));
-    const missingIds = productIds.filter((id) => !foundIds.has(id));
-    throw new Error(`Products not found: ${missingIds.join(", ")}`);
-  }
-
-  const lockedVariants =
-    variantIds.length > 0
-      ? await tx
-          .select()
-          .from(productVariants)
-          .where(inArray(productVariants.id, variantIds))
-          .orderBy(asc(productVariants.id))
-          .for("update")
-      : [];
-
-  const productsWithVariants = new Set(
-    lineProductIds.length > 0
-      ? (
-          await tx
-            .select({ productId: productVariants.productId })
-            .from(productVariants)
-            .where(inArray(productVariants.productId, lineProductIds))
-        ).map((row) => row.productId)
-      : [],
-  );
-
-  if (lockedVariants.length !== variantIds.length) {
-    const foundIds = new Set(lockedVariants.map((variant) => variant.id));
-    const missingIds = variantIds.filter((id) => !foundIds.has(id));
-    throw new Error(`Variants not found: ${missingIds.join(", ")}`);
-  }
-
-  const variantSelections =
-    variantIds.length > 0
-      ? await tx.query.productVariantOptionValues.findMany({
-          where: inArray(productVariantOptionValues.variantId, variantIds),
-          with: {
-            option: true,
-            optionValue: true,
-          },
-        })
-      : [];
-
-  const productMap = new Map(
-    lockedProducts.map((product) => [product.id, product]),
-  );
-  const variantMap = new Map(
-    lockedVariants.map((variant) => [variant.id, variant]),
-  );
-  const selectionsByVariantId = new Map<number, typeof variantSelections>();
-
-  for (const selection of variantSelections) {
-    const entries = selectionsByVariantId.get(selection.variantId) ?? [];
-    entries.push(selection);
-    selectionsByVariantId.set(selection.variantId, entries);
-  }
-
-  // The rows are locked, so this read reflects exactly what will be sold.
-  const resolvedBundles =
-    bundleRecords.length > 0 || bundleRequests.length > 0
-      ? resolveOrderBundles(
-          bundleRequests,
-          bundleRecords,
-          await loadBundleCatalog(tx, bundleTargets.productIds),
-        )
-      : [];
-  // Individual lines and bundle components compete for the same stock.
-  const demandLines = [
-    ...normalizedLines.map((entry) => ({
-      productId: entry.productId,
-      productVariantId: entry.productVariantId ?? null,
-      quantity: entry.quantity,
-      transactionType: entry.transactionType ?? "purchase",
-    })),
-    ...bundleDemandLines(resolvedBundles),
-  ];
-
-  const stockValidationErrors: string[] = [];
-  const resolvedLines: ResolvedOrderLine[] = [];
-  const contentSectionsByProductId = new Map<
-    number,
-    (typeof productContentSections)["$inferSelect"][]
-  >();
-
-  for (const productId of lineProductIds) {
-    const sections = await tx.query.productContentSections.findMany({
-      where: eq(productContentSections.productId, productId),
-    });
-    contentSectionsByProductId.set(productId, sections);
-  }
-
-  for (const line of normalizedLines) {
-    const transactionType = line.transactionType ?? "purchase";
-    const product = productMap.get(line.productId);
-    if (!product) {
-      throw new Error(`Product ${line.productId} not found`);
-    }
-
-    if (transactionType === "purchase" && !product.isPurchasable) {
-      throw new Error(`${product.name} no está disponible para compra.`);
-    }
-
-    if (transactionType === "rental" && !product.isRentable) {
-      throw new Error(`${product.name} no está disponible para alquiler.`);
-    }
-
-    let variant = null;
-    let productVariantLabel: string | null = null;
-    let unitPrice =
-      transactionType === "rental"
-        ? getRentalPriceAtPurchase(product)
-        : getProductPriceAtPurchase(product);
-
-    if (line.productVariantId != null) {
-      const matchedVariant = variantMap.get(line.productVariantId);
-      if (!matchedVariant || matchedVariant.productId !== product.id) {
-        throw new Error(
-          `Variant ${line.productVariantId} does not belong to product ${product.id}`,
-        );
-      }
-
-      if (!matchedVariant.isVisible) {
-        throw new Error(`${product.name} - variante no disponible`, {
-          cause: "variant_unavailable",
-        });
-      }
-
-      variant = matchedVariant;
-      productVariantLabel =
-        getVariantLabel({
-          selections: selectionsByVariantId.get(variant.id) ?? [],
-        }) ?? null;
-      unitPrice =
-        transactionType === "rental"
-          ? getRentalPriceAtPurchase(product)
-          : getProductPriceAtPurchase(product, variant);
-    } else if (productsWithVariants.has(product.id)) {
-      throw new Error(`${product.name} - selecciona una variante`, {
-        cause: "variant_required",
-      });
-    }
-
-    const sharedRemaining = validateCombinedSharedStockDemand(
-      demandLines,
-      product,
-      variant,
-    );
-
-    const usesSharedPool =
-      getStockPoolForTransaction(product, transactionType) === "sale";
-    const availableStock = usesSharedPool
-      ? sharedRemaining
-      : getAvailableStockForLine(product, variant, transactionType);
-
-    const stockInsufficient = usesSharedPool
-      ? availableStock < 0
-      : line.quantity > availableStock;
-
-    if (stockInsufficient) {
-      const label = productVariantLabel
-        ? `${product.name} (${productVariantLabel})`
-        : product.name;
-      stockValidationErrors.push(`${label} - stock insuficiente`);
-    }
-
-    const rentalSections =
-      transactionType === "rental"
-        ? filterContentSectionsForMode(
-            contentSectionsByProductId.get(product.id) ?? [],
-            "rental",
-            line.productVariantId ?? null,
-          )
-        : [];
-
-    resolvedLines.push({
-      product,
-      productVariantId: line.productVariantId ?? null,
-      productVariantLabel,
-      quantity: line.quantity,
-      unitPrice,
-      transactionType,
-      rentalFestivalId:
-        transactionType === "rental" ? (line.rentalFestivalId ?? null) : null,
-      rentalReservationId:
-        transactionType === "rental"
-          ? (line.rentalReservationId ?? null)
-          : null,
-      rentalStockModeSnapshot:
-        transactionType === "rental" ? product.rentalStockMode : null,
-      rentalContentSectionsSnapshot:
-        transactionType === "rental"
-          ? buildRentalContentSectionsSnapshot(rentalSections)
-          : null,
-    });
-  }
-
-  stockValidationErrors.push(
-    ...bundleComponentStockErrors(
-      resolvedBundles,
-      resolvedLines,
-      demandLines,
-      productMap,
-      variantMap,
-    ),
-  );
-
-  if (stockValidationErrors.length > 0) {
-    throw new Error(`Stock insuficiente: ${stockValidationErrors.join(", ")}`, {
-      cause: "stock_insufficient",
-    });
-  }
-
-  return {
-    lines: resolvedLines,
-    bundles: resolvedBundles,
-    productMap,
-    variantMap,
-  };
-}
-
-async function consumeOrderItemStock(
-  tx: OrderTx,
-  product: typeof products.$inferSelect,
-  productVariantId: number | null,
-  quantity: number,
-  transactionType: ProductTransactionType,
-  variantMap: Map<number, typeof productVariants.$inferSelect>,
-  rentalStockModeSnapshot: "shared" | "separate" | null,
-) {
-  const variant =
-    productVariantId != null
-      ? (variantMap.get(productVariantId) ?? null)
-      : null;
-  await consumeLineStockInTx(
-    tx,
-    product,
-    variant,
-    quantity,
-    transactionType,
-    rentalStockModeSnapshot,
-  );
-}
-
-async function consumeResolvedOrderLineStock(
-  tx: OrderTx,
-  line: ResolvedOrderLine,
-  variantMap: Map<number, typeof productVariants.$inferSelect>,
-) {
-  await consumeOrderItemStock(
-    tx,
-    line.product,
-    line.productVariantId,
-    line.quantity,
-    line.transactionType,
-    variantMap,
-    line.rentalStockModeSnapshot,
-  );
+function isStoreStaff(role: string | null | undefined) {
+  return role === "admin" || role === "festival_admin";
 }
 
 /**
- * The order total: individual lines at their unit price plus each bundle's
- * exact paid amount in cents.
+ * An order for its owner, or for staff: both dashboard roles can open the
+ * order detail page (the rentals list links there for festival admins too).
+ * Everyone else gets null, which callers already treat as "not found".
+ *
+ * A non-staff caller's ownership is checked against the bare order row
+ * first, so probing other customers' order ids never runs the full
+ * relational load.
  */
-function resolvedOrderTotal(resolved: ResolvedOrder) {
-  const lineTotal = resolved.lines.reduce(
-    (sum, line) => sum + line.unitPrice * line.quantity,
-    0,
-  );
-  const bundleCents = resolved.bundles.reduce(
-    (sum, bundle) => sum + bundle.unitPriceCents * bundle.quantity,
-    0,
-  );
-  return lineTotal + bundleCents / 100;
-}
-
-/**
- * Writes the order lines and deducts stock. Bundle components become regular
- * order lines priced at their allocated share of the bundle, linked to an
- * immutable bundle snapshot, so totals, adjustments, returns and reports all
- * use what was actually paid.
- */
-async function persistResolvedOrderLines(
-  tx: OrderTx,
-  orderId: number,
-  resolved: ResolvedOrder,
-  options: { rentalContext: boolean },
-) {
-  const { variantMap, productMap } = resolved;
-  for (const line of resolved.lines) {
-    await tx.insert(orderItems).values({
-      productId: line.product.id,
-      productVariantId: line.productVariantId,
-      productVariantLabel: line.productVariantLabel,
-      quantity: line.quantity,
-      priceAtPurchase: line.unitPrice,
-      unitCostAtPurchase: resolveUnitCost(
-        line.product.unitCost,
-        line.productVariantId != null
-          ? variantMap.get(line.productVariantId)?.unitCost
-          : null,
-      ),
-      productNameAtPurchase: line.product.name,
-      transactionType: line.transactionType,
-      storeCategoryAtPurchase: line.product.storeCategory,
-      ...(options.rentalContext
-        ? {
-            rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
-            rentalStockModeSnapshot: line.rentalStockModeSnapshot,
-            rentalFestivalId: line.rentalFestivalId,
-            rentalReservationId: line.rentalReservationId,
-          }
-        : {}),
-      orderId,
-    });
-  }
-
-  for (const bundle of resolved.bundles) {
-    const [orderBundle] = await tx
-      .insert(orderBundles)
-      .values({
-        orderId,
-        bundleId: bundle.bundleId,
-        bundleVersion: bundle.bundleVersion,
-        nameSnapshot: bundle.name,
-        slugSnapshot: bundle.slug,
-        imageUrlSnapshot: bundle.imageUrl,
-        quantity: bundle.quantity,
-        unitPriceCents: bundle.unitPriceCents,
-        separateUnitPriceCents: bundle.separateUnitPriceCents,
-        totalCents: bundle.unitPriceCents * bundle.quantity,
-      })
-      .returning({ id: orderBundles.id });
-    for (const planned of planBundleOrderItems(bundle)) {
-      const { component } = planned;
-      const product = productMap.get(component.productId)!;
-      const [orderItem] = await tx
-        .insert(orderItems)
-        .values({
-          orderId,
-          productId: component.productId,
-          productVariantId: component.productVariantId,
-          productVariantLabel: component.variantLabel,
-          quantity: planned.unitsPerBundle * bundle.quantity,
-          priceAtPurchase: planned.paidUnitCents / 100,
-          unitCostAtPurchase: resolveUnitCost(
-            product.unitCost,
-            component.productVariantId != null
-              ? variantMap.get(component.productVariantId)?.unitCost
-              : null,
-          ),
-          productNameAtPurchase: product.name,
-          transactionType: "purchase",
-          storeCategoryAtPurchase: product.storeCategory,
-        })
-        .returning({ id: orderItems.id });
-      await tx.insert(orderBundleItems).values({
-        orderBundleId: orderBundle.id,
-        orderId,
-        orderItemId: orderItem.id,
-        unitsPerBundle: planned.unitsPerBundle,
-        listUnitPriceCents: planned.unitListCents,
-        paidUnitPriceCents: planned.paidUnitCents,
-      });
-    }
-  }
-
-  for (const line of resolved.lines) {
-    await consumeResolvedOrderLineStock(tx, line, variantMap);
-  }
-  // Any failing component rejects the whole order, bundle included.
-  for (const bundle of resolved.bundles) {
-    for (const component of bundle.components) {
-      await consumeOrderItemStock(
-        tx,
-        productMap.get(component.productId)!,
-        component.productVariantId,
-        component.quantity * bundle.quantity,
-        "purchase",
-        variantMap,
-        null,
-      );
-    }
-  }
-}
-
-function mapResolvedOrderForEmail(resolved: ResolvedOrder) {
-  return [
-    ...resolved.lines.map((line) => ({
-      id: line.product.id,
-      name: getOrderItemDisplayName({
-        product: line.product,
-        productVariantLabel: line.productVariantLabel,
-      }),
-      quantity: line.quantity,
-      price: line.unitPrice,
-      status: line.product.status,
-      availableDate: line.product.availableDate || null,
-      transactionType: line.transactionType,
-    })),
-    ...resolved.bundles.map(describeOrderBundle),
-  ];
-}
-
-export async function createOrderInTx(
-  tx: OrderTx,
-  lines: OrderLineInput[],
-  userId: number,
-  _customerEmail: string,
-  _customerName: string,
-  bundles: readonly BundleOrderRequest[] = [],
-): Promise<CreateOrderInTxResult> {
-  // Kept in the transaction API for callers that already have customer
-  // snapshots; order ownership is derived from the persisted user profile.
-  void _customerEmail;
-  void _customerName;
-
-  let orderLines = lines;
-  const rentalLines = orderLines.filter(
-    (line) => (line.transactionType ?? "purchase") === "rental",
-  );
-  if (rentalLines.length > 0) {
-    const rentalContexts = new Set(
-      rentalLines.map((line) => line.rentalFestivalId),
-    );
-    if (rentalContexts.size > 1) {
-      throw new Error(
-        "Todos los productos de alquiler deben usar el mismo festival.",
-        { cause: "multiple_rental_contexts" },
-      );
-    }
-
-    const [sampleRentalLine] = rentalLines;
-    const eligibility = await assertRentalEligibility(
-      userId,
-      sampleRentalLine.rentalFestivalId ?? undefined,
-      sampleRentalLine.rentalReservationId ?? undefined,
-    );
-    if (!eligibility.eligible) {
-      throw new Error(eligibility.message, { cause: "rental_ineligible" });
-    }
-
-    orderLines = orderLines.map((line) => {
-      if ((line.transactionType ?? "purchase") !== "rental") return line;
-      const resolvedContext = resolveRentalLineContext(
-        eligibility.contexts,
-        line.rentalFestivalId,
-        line.rentalReservationId,
-      );
-      if (!resolvedContext.ok) {
-        throw new Error(resolvedContext.message, {
-          cause: resolvedContext.cause,
-        });
-      }
-      return {
-        ...line,
-        rentalFestivalId: resolvedContext.context.festivalId,
-        rentalReservationId: resolvedContext.context.reservationId,
-      };
-    });
-  }
-
-  const resolved = await resolveOrderLines(tx, orderLines, bundles);
-  const totalAmount = resolvedOrderTotal(resolved);
-
-  const [order] = await tx
-    .insert(orders)
-    .values({
-      userId,
-      totalAmount,
-      paymentDueDate: sql`now() + interval '2 days'`,
-    })
-    .returning();
-
-  await tx.insert(orderEvents).values({
-    orderId: order.id,
-    type: "created",
-    revision: order.revision,
-    actorId: userId,
-    payload: { legacy: false },
-  });
-
-  await persistResolvedOrderLines(tx, order.id, resolved, {
-    rentalContext: true,
-  });
-
-  return {
-    orderId: order.id,
-    mappedProducts: mapResolvedOrderForEmail(resolved),
-    totalAmount,
-  };
-}
-
-export type CreateGuestOrderInTxResult = CreateOrderInTxResult & {
-  guestOrderToken: string;
-};
-
-export async function createGuestOrderInTx(
-  tx: OrderTx,
-  lines: OrderLineInput[],
-  guestName: string,
-  guestEmail: string,
-  guestPhone: string,
-  bundles: readonly BundleOrderRequest[] = [],
-): Promise<CreateGuestOrderInTxResult> {
-  if (lines.some((line) => (line.transactionType ?? "purchase") === "rental")) {
-    throw new Error(
-      "Los productos de alquiler requieren una cuenta verificada.",
-      {
-        cause: "rental_ineligible",
-      },
-    );
-  }
-
-  const resolved = await resolveOrderLines(tx, lines, bundles);
-  // Authoritative supplies gate: guests are never verified accounts. The
-  // storefront check is only early feedback; direct callers land here.
-  if (
-    resolved.lines.some((line) => line.product.storeCategory === "supplies")
-  ) {
-    throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
-      cause: SUPPLIES_UNVERIFIED_CAUSE,
-    });
-  }
-  const totalAmount = resolvedOrderTotal(resolved);
-
-  // Generate a cryptographically random token for guest order tracking
-  const { randomBytes } = await import("crypto");
-  const guestOrderToken = randomBytes(32).toString("hex");
-
-  const [order] = await tx
-    .insert(orders)
-    .values({
-      userId: null,
-      guestName,
-      guestEmail,
-      guestPhone,
-      guestOrderToken,
-      totalAmount,
-      paymentDueDate: sql`now() + interval '2 days'`,
-    })
-    .returning();
-
-  await tx.insert(orderEvents).values({
-    orderId: order.id,
-    type: "created",
-    revision: order.revision,
-    actorId: null,
-    payload: { legacy: false, guest: true },
-  });
-
-  await persistResolvedOrderLines(tx, order.id, resolved, {
-    rentalContext: false,
-  });
-
-  return {
-    orderId: order.id,
-    mappedProducts: mapResolvedOrderForEmail(resolved),
-    totalAmount,
-    guestOrderToken,
-  };
-}
-
-export async function sendGuestOrderEmails(emailData: {
-  orderId: number;
-  guestOrderToken: string;
-  customerEmail: string;
-  customerName: string;
-  products: {
-    id: number;
-    name: string;
-    quantity: number;
-    price: number;
-    status: "available" | "presale" | "sale";
-    availableDate: Date | null;
-    transactionType?: ProductTransactionType;
-  }[];
-  total: number;
-}) {
-  const {
-    orderId,
-    guestOrderToken,
-    customerEmail,
-    customerName,
-    products,
-    total,
-  } = emailData;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const trackingUrl = `${baseUrl}/orders/${orderId}?token=${guestOrderToken}`;
-
-  await sendEmail({
-    to: [customerEmail],
-    from: "Glitter Store <reservas@productoraglitter.com>",
-    subject: `Tu orden #${orderId} ha sido recibida`,
-    react: OrderConfirmationForUsersEmailTemplate({
-      customerName,
-      orderId: String(orderId),
-      products,
-      total,
-      trackingUrl,
-    }) as React.ReactElement,
-  });
-
-  const admins = await fetchAdminUsers();
-  const adminEmails = admins.map((a) => a.email).filter(Boolean);
-
-  if (adminEmails.length > 0) {
-    await sendEmail({
-      to: adminEmails,
-      from: "Glitter Store <store@productoraglitter.com>",
-      replyTo: "soporte@productoraglitter.com",
-      subject: `Nueva orden #${orderId} de ${customerName || "Cliente"} (invitado)`,
-      react: OrderConfirmationForAdminsEmailTemplate({
-        customerName,
-        orderId: String(orderId),
-        products,
-        total,
-      }) as React.ReactElement,
-    });
-  }
-}
-
-export async function createOrder(
-  lines: OrderLineInput[],
-  userId: number,
-  customerEmail: string,
-  customerName: string,
-) {
-  let result: CreateOrderInTxResult | null = null;
-
-  try {
-    result = await db.transaction((tx) =>
-      createOrderInTx(tx, lines, userId, customerEmail, customerName),
-    );
-
-    try {
-      await sendOrderEmails({
-        orderId: result.orderId,
-        customerEmail,
-        customerName,
-        products: result.mappedProducts,
-        total: result.totalAmount,
-      });
-    } catch (emailError) {
-      console.error("Failed to send order emails", emailError);
-    }
-
-    return {
-      success: true,
-      message: "Orden creada correctamente.",
-      details: { orderId: result.orderId },
-    };
-  } catch (error) {
-    console.error(error);
-    if (error instanceof Error && error.cause === "stock_insufficient") {
-      return {
-        success: false,
-        message: error.message,
-        details: null,
-      };
-    }
-    return {
-      success: false,
-      message: "No se pudo crear la orden.",
-      details: null,
-    };
-  }
-}
-
 export async function fetchOrder(
   orderId: number,
 ): Promise<OrderWithRelations | null> {
+  const actor = await getCurrentUserProfile();
+  if (!actor) return null;
+  const isStaff = isStoreStaff(actor.role);
+
+  if (!isStaff) {
+    try {
+      const [row] = await db
+        .select({ userId: orders.userId })
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .limit(1);
+      if (!row || row.userId !== actor.id) return null;
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  }
+
+  const order = await loadOrder(orderId);
+  if (!order) return null;
+  if (order.userId !== actor.id && !isStaff) return null;
+  return order;
+}
+
+/** Unauthorized read for code that has already decided who may see the order. */
+async function loadOrder(orderId: number): Promise<OrderWithRelations | null> {
   try {
     const order = await db.query.orders.findFirst({
       with: orderRelations,
@@ -1136,9 +302,9 @@ async function withEffectiveOrderItems(order: OrderWithRelations) {
   return projected;
 }
 
-async function withEffectiveOrders(
-  orderRows: readonly OrderWithRelations[],
-): Promise<OrderWithRelations[]> {
+async function withEffectiveOrders<
+  T extends Omit<OrderWithRelations, "customer">,
+>(orderRows: readonly T[]): Promise<T[]> {
   if (orderRows.length === 0) return [];
   const adjustments = await db.query.orderAdjustments.findMany({
     where: inArray(
@@ -1190,58 +356,42 @@ async function withEffectiveOrders(
       })),
       adjustmentLines,
     );
-    return {
-      ...order,
-      orderItems: lines.map((line) => {
-        if (line.baseOrderItemId != null) {
-          return {
-            ...baseById.get(line.baseOrderItemId)!,
-            quantity: line.quantity,
-            adjustmentItemId: null,
-          };
-        }
-        const source = adjustmentById.get(line.adjustmentItemId!)!;
+    const effectiveItems: OrderItemWithRelations[] = lines.map((line) => {
+      if (line.baseOrderItemId != null) {
         return {
-          id: -source.id,
-          orderId: order.id,
-          productId: line.productId,
-          productVariantId: line.productVariantId,
-          productVariantLabel: line.variantLabel,
+          ...baseById.get(line.baseOrderItemId)!,
           quantity: line.quantity,
-          priceAtPurchase: line.unitPrice,
-          unitCostAtPurchase: line.unitCost,
-          productNameAtPurchase: line.productName,
-          transactionType: line.transactionType,
-          storeCategoryAtPurchase: line.storeCategory,
-          rentalContentSectionsSnapshot: null,
-          rentalStockModeSnapshot: null,
-          rentalFestivalId: null,
-          rentalReservationId: null,
-          rentalReturnedQuantity: 0,
-          updatedAt: source.createdAt,
-          createdAt: source.createdAt,
-          product: source.product,
-          variant: source.variant,
-          adjustmentItemId: source.id,
-          bundleAllocation: null,
+          adjustmentItemId: null,
         };
-      }),
-    };
-  });
-}
-
-export async function fetchOrdersByUserId(userId: number) {
-  try {
-    const rows = await db.query.orders.findMany({
-      where: eq(orders.userId, userId),
-      orderBy: [desc(orders.createdAt)],
-      with: orderRelations,
+      }
+      const source = adjustmentById.get(line.adjustmentItemId!)!;
+      return {
+        id: -source.id,
+        orderId: order.id,
+        productId: line.productId,
+        productVariantId: line.productVariantId,
+        productVariantLabel: line.variantLabel,
+        quantity: line.quantity,
+        priceAtPurchase: line.unitPrice,
+        unitCostAtPurchase: line.unitCost,
+        productNameAtPurchase: line.productName,
+        transactionType: line.transactionType,
+        storeCategoryAtPurchase: line.storeCategory,
+        rentalContentSectionsSnapshot: null,
+        rentalStockModeSnapshot: null,
+        rentalFestivalId: null,
+        rentalReservationId: null,
+        rentalReturnedQuantity: 0,
+        updatedAt: source.createdAt,
+        createdAt: source.createdAt,
+        product: source.product,
+        variant: source.variant,
+        adjustmentItemId: source.id,
+        bundleAllocation: null,
+      };
     });
-    return withEffectiveOrders(rows);
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+    return { ...order, orderItems: effectiveItems };
+  });
 }
 
 // ─── Order count aggregate ────────────────────────────────────────────────────
@@ -1258,6 +408,11 @@ const ORDER_TAB_DEFAULT: Record<OrderTabValue, number> =
 export async function fetchOrderCountsByUserId(
   userId: number,
 ): Promise<Record<OrderTabValue, number>> {
+  const actor = await getCurrentUserProfile();
+  if (!actor || (actor.id !== userId && actor.role !== "admin")) {
+    return { ...ORDER_TAB_DEFAULT };
+  }
+
   try {
     const rows = await db
       .select({ status: orders.status, count: count() })
@@ -1281,7 +436,10 @@ export async function fetchOrderCountsByUserId(
 export async function fetchOrdersByUserIdAndStatus(
   userId: number,
   status: OrderStatus,
-) {
+): Promise<OrderWithRelations[]> {
+  const actor = await getCurrentUserProfile();
+  if (!actor || (actor.id !== userId && actor.role !== "admin")) return [];
+
   try {
     const rows = await db.query.orders.findMany({
       where: and(eq(orders.userId, userId), eq(orders.status, status)),
@@ -1694,6 +852,9 @@ function buildRentalFilterSql(filter: RentalOrderFilter) {
 }
 
 export async function fetchPendingVoucherCount(): Promise<number> {
+  const actor = await getCurrentUserProfile();
+  if (!actor || !isStoreStaff(actor.role)) return 0;
+
   try {
     const result = await db
       .select({ count: count() })
@@ -1706,12 +867,38 @@ export async function fetchPendingVoucherCount(): Promise<number> {
   }
 }
 
-export async function fetchPendingVoucherReviewOrders() {
+/**
+ * The queue's customer is narrowed to what VoucherQueue renders: the rows
+ * go to a client component that festival admins open too.
+ */
+const voucherReviewRelations = {
+  ...orderRelations,
+  customer: {
+    columns: {
+      id: true,
+      displayName: true,
+      firstName: true,
+      lastName: true,
+      imageUrl: true,
+      email: true,
+      phoneNumber: true,
+      status: true,
+    },
+    with: orderRelations.customer.with,
+  },
+} as const;
+
+export async function fetchPendingVoucherReviewOrders(): Promise<
+  VoucherReviewOrder[]
+> {
+  const actor = await getCurrentUserProfile();
+  if (!actor || !isStoreStaff(actor.role)) return [];
+
   try {
     const rows = await db.query.orders.findMany({
       where: eq(orders.status, "payment_verification"),
       orderBy: [desc(orders.voucherSubmittedAt)],
-      with: orderRelations,
+      with: voucherReviewRelations,
     });
     return withEffectiveOrders(rows);
   } catch (error) {
@@ -1814,7 +1001,8 @@ async function applyOrderStatusChange(
 }
 
 async function sendOrderPaymentConfirmationEmail(orderId: number) {
-  const orderAfter = await fetchOrder(orderId);
+  // Runs inside after(), past the caller's own authorization.
+  const orderAfter = await loadOrder(orderId);
   if (!orderAfter) return;
 
   const recipientEmail = orderAfter.customer?.email ?? orderAfter.guestEmail;
@@ -1827,7 +1015,7 @@ async function sendOrderPaymentConfirmationEmail(orderId: number) {
     "";
 
   try {
-    await sendEmail({
+    const result = await sendEmail({
       to: [recipientEmail],
       from: "Glitter Store <reservas@productoraglitter.com>",
       subject: `Tu pago de la orden #${orderId} fue confirmado`,
@@ -1837,6 +1025,7 @@ async function sendOrderPaymentConfirmationEmail(orderId: number) {
         total: orderAfter.totalAmount,
       }) as React.ReactElement,
     });
+    assertSent(result);
   } catch (emailError) {
     console.error("Failed to send payment confirmation email", emailError);
   }
@@ -2109,7 +1298,7 @@ export async function submitOrderPaymentVoucher(
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((a) => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
-        await sendEmail({
+        const result = await sendEmail({
           to: adminEmails,
           from: "Glitter Store <store@productoraglitter.com>",
           subject: `Nuevo comprobante de pago — orden #${orderId}`,
@@ -2119,6 +1308,7 @@ export async function submitOrderPaymentVoucher(
             orderId: String(orderId),
           }) as React.ReactElement,
         });
+        assertSent(result);
       }
     } catch (adminEmailError) {
       console.error("[submitOrderVoucher] Admin notification email failed", {
@@ -2231,7 +1421,7 @@ export async function submitGuestOrderPaymentVoucher(
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((a) => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
-        await sendEmail({
+        const result = await sendEmail({
           to: adminEmails,
           from: "Glitter Store <store@productoraglitter.com>",
           subject: `Nuevo comprobante de pago — orden #${orderId}`,
@@ -2240,6 +1430,7 @@ export async function submitGuestOrderPaymentVoucher(
             orderId: String(orderId),
           }) as React.ReactElement,
         });
+        assertSent(result);
       }
     } catch (adminEmailError) {
       console.error(
@@ -2729,8 +1920,15 @@ export async function updateOrder(
   bundles: UpdateOrderBundleInput[] = [],
 ): Promise<UpdateOrderResult> {
   const currentUser = await getCurrentUserProfile();
-  const order = await fetchOrder(orderId);
-  if (!currentUser || !order || order.userId !== currentUser.id) {
+  if (!currentUser) {
+    return {
+      success: false,
+      cause: "forbidden",
+      message: "No tienes permiso para editar este pedido.",
+    };
+  }
+  const order = await loadOrder(orderId);
+  if (!order || order.userId !== currentUser.id) {
     return {
       success: false,
       cause: "forbidden",
@@ -2978,7 +2176,7 @@ export async function adminAdjustOrder(rawInput: AdminAdjustOrderInput) {
     return { success: false, message: "El ajuste contiene datos inválidos." };
   }
   const input = parsed.data;
-  const order = await fetchOrder(input.orderId);
+  const order = await loadOrder(input.orderId);
   if (!order) return { success: false, message: "Pedido no encontrado." };
   if (order.revision !== input.expectedRevision) {
     return {
@@ -3116,7 +2314,7 @@ export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
       message: "La devolución contiene datos inválidos.",
     };
   const input = parsed.data;
-  const order = await fetchOrder(input.orderId);
+  const order = await loadOrder(input.orderId);
   if (!order) return { success: false, message: "Pedido no encontrado." };
   if (!["paid", "delivered"].includes(order.status)) {
     return {

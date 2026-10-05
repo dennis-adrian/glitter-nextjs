@@ -8,8 +8,8 @@ import type { SuppressionReason } from "@/app/lib/emails/suppressions";
  * Resend signs its webhooks the Svix way: HMAC-SHA256 over
  * `${svix-id}.${svix-timestamp}.${raw body}`, keyed with the base64 secret
  * after its `whsec_` prefix, sent as space-separated `v1,<base64>` entries
- * (two of them while a secret is being rotated). The resend SDK pinned here
- * (4.1.1) has no helper for it.
+ * (two of them while a secret is being rotated). Written before the SDK had a
+ * helper; `resend.webhooks.verify` in 6.x checks the same signature.
  */
 
 /** How far a signed timestamp may be from our clock, as Svix allows. */

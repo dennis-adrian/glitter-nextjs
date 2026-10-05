@@ -1,7 +1,7 @@
 import * as styles from "@/app/emails/styles";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { getFestivalLogo } from "@/app/lib/utils";
-import { Img, Section } from "@react-email/components";
+import { Img, Section } from "react-email";
 
 type EmailHeaderProps = {
   festivalType?: FestivalBase["festivalType"];

@@ -1,6 +1,6 @@
 "use server";
 
-import { render } from "@react-email/render";
+import { render } from "react-email";
 import { and, asc, eq, exists, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 

@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { deleteFile } from "@/app/lib/uploadthing/actions";
+import { deleteStoredFile } from "@/app/lib/uploadthing/storage";
 import { NewQrCode, qrCodeFormSchema } from "./definitions";
 
 export type QrCodeMutationResult = {
@@ -28,7 +28,7 @@ async function deleteFreshUploadOnDbFailure(
   logLabel: string,
 ) {
   if (!url) return;
-  const deleteResult = await deleteFile(url);
+  const deleteResult = await deleteStoredFile(url);
   if (!deleteResult.success) {
     console.error(logLabel, { url, error: deleteResult.error });
   }
@@ -73,7 +73,10 @@ export async function getQrCodeForAmount(amount: number) {
   return amount === 0 ? null : await getQRCode(0);
 }
 
-export async function fetchQrCodes() {
+export async function fetchQrCodes(): Promise<QrCodeRecord[]> {
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") return [];
+
   try {
     return await db.query.qrCodes.findMany({
       orderBy: [asc(qrCodes.expirationDate)],
@@ -85,6 +88,11 @@ export async function fetchQrCodes() {
 }
 
 export async function fetchQrCode(id: number): Promise<FetchQrCodeResult> {
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") {
+    return { found: false };
+  }
+
   try {
     const qr = await db.query.qrCodes.findFirst({
       where: eq(qrCodes.id, id),
@@ -171,7 +179,7 @@ export async function updateQrCode(
       .where(eq(qrCodes.id, id));
 
     if (previousQrCodeUrl) {
-      const deleteResult = await deleteFile(previousQrCodeUrl);
+      const deleteResult = await deleteStoredFile(previousQrCodeUrl);
       if (!deleteResult.success) {
         console.error("Failed to delete previous QR file from storage", {
           url: previousQrCodeUrl,
@@ -249,7 +257,7 @@ export async function deleteQrCode(id: number): Promise<QrCodeMutationResult> {
 
   let fileDeletionError: string | undefined;
   if (deletedUrl) {
-    const deleteResult = await deleteFile(deletedUrl);
+    const deleteResult = await deleteStoredFile(deletedUrl);
     if (!deleteResult.success) {
       console.error("Failed to delete QR file from storage", {
         url: deletedUrl,

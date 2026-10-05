@@ -1,6 +1,6 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
+import type { FestivalAvailableUser } from "@/app/lib/festivals/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { sendParticipantInvitationsToUsers } from "@/app/lib/festivals/invitations";
@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 type SendEmailsFormProps = {
-  users: BaseProfile[];
+  users: Pick<FestivalAvailableUser, "id">[];
   festivalId: number;
 };
 

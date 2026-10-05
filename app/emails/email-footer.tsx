@@ -1,6 +1,6 @@
 import * as styles from "@/app/emails/styles";
 import { GLITTER_ISOTYPE_DARK_50X50_URL } from "@/app/lib/constants";
-import { Container, Img, Link, Text } from "@react-email/components";
+import { Container, Img, Link, Text } from "react-email";
 
 type EmailFooterProps = {
   /** Bulk mail only: where the reader stops receiving this kind of email. */

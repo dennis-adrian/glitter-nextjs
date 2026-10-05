@@ -10,7 +10,7 @@ const sendEmailMock = vi.hoisted(() => vi.fn());
 
 // `requireAdmin` itself stays real: only the Clerk session and the profile
 // lookup behind it are faked, so these tests exercise the actual gate.
-vi.mock("@/app/lib/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   getCurrentClerkUser: currentClerkUserMock,
   cachedFetchUserProfileByClerkId: fetchProfileByClerkIdMock,
   cachedFetchBaseUserProfileByClerkId: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("@/app/emails/verification_confimation/email-template", () => ({
   default: vi.fn(),
 }));
 vi.mock("@/app/emails/profile-rejection", () => ({ default: vi.fn() }));
-vi.mock("@/app/lib/festivals/actions", () => ({
+vi.mock("@/app/lib/festivals/queries", () => ({
   fetchFestival: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/app/lib/festivals/utils", () => ({
@@ -73,6 +73,16 @@ const PARTICIPANT = { id: 7, role: "artist" };
 const TARGET = { id: 7, status: "pending", email: "ana@example.com" };
 const UNAUTHORIZED = { success: false, message: "No autorizado" };
 
+const REJECTED_SEND = {
+  data: null,
+  error: {
+    name: "validation_error",
+    statusCode: 422,
+    message: "Invalid `to` field.",
+  },
+  headers: null,
+};
+
 function signedInAs(profile: unknown) {
   currentClerkUserMock.mockResolvedValue({ id: "clerk_1" });
   fetchProfileByClerkIdMock.mockResolvedValue(profile);
@@ -84,6 +94,11 @@ beforeEach(() => {
   transactionMock.mockReset();
   updateStatusWithAuditMock.mockReset();
   sendEmailMock.mockReset();
+  sendEmailMock.mockResolvedValue({
+    data: { id: "email-1" },
+    error: null,
+    headers: null,
+  });
 });
 
 describe.each([
@@ -118,7 +133,7 @@ describe.each([
 });
 
 describe("verifyProfile as an admin", () => {
-  it("verifies the profile and audits it under the acting admin", async () => {
+  beforeEach(() => {
     signedInAs(ADMIN);
     transactionMock.mockImplementation(
       async (callback: (tx: unknown) => unknown) =>
@@ -136,7 +151,9 @@ describe("verifyProfile as an admin", () => {
           }),
         }),
     );
+  });
 
+  it("verifies the profile and audits it under the acting admin", async () => {
     await expect(verifyProfile(TARGET.id, "illustrator")).resolves.toEqual({
       success: true,
       message: "Perfil verificado",
@@ -151,6 +168,32 @@ describe("verifyProfile as an admin", () => {
       }),
     );
     expect(sendEmailMock).toHaveBeenCalled();
+  });
+
+  // The verification is committed before the email goes out; reporting it as
+  // failed would send the admin to retry something already done.
+  it.each([
+    ["rejected", () => sendEmailMock.mockResolvedValue(REJECTED_SEND)],
+    [
+      "timed out",
+      () =>
+        sendEmailMock.mockRejectedValue(new Error("Resend request timed out")),
+    ],
+  ])("still reports success when the email is %s", async (_, failSend) => {
+    failSend();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    await expect(verifyProfile(TARGET.id, "illustrator")).resolves.toEqual({
+      success: true,
+      message: "Perfil verificado",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "Error sending profile verification email",
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
   });
 });
 
@@ -199,6 +242,29 @@ describe("rejectProfile as an admin", () => {
         createdByUserId: ADMIN.id,
       }),
     );
+  });
+
+  it("still reports the rejection when its email is rejected", async () => {
+    signedInAs(ADMIN);
+    transactionMock.mockImplementation(
+      async (callback: (tx: unknown) => unknown) =>
+        callback({
+          query: { users: { findFirst: vi.fn().mockResolvedValue(TARGET) } },
+        }),
+    );
+    sendEmailMock.mockResolvedValue(REJECTED_SEND);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    await expect(
+      rejectProfile(TARGET as never, "Perfil incompleto"),
+    ).resolves.toMatchObject({ success: true });
+    expect(consoleError).toHaveBeenCalledWith(
+      "Error sending profile rejection email",
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
   });
 
   it.each(["verified", "paused", "banned", "rejected"] as const)(

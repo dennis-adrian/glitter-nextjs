@@ -1,8 +1,6 @@
 "use server";
 
-// Every export is a public server action (the map editor imports them from
-// the browser), so each checks the caller itself.
-
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { standsHaveReservations } from "@/app/lib/reservations/members";
 import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
@@ -16,7 +14,6 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import {
   MapElementTemplate,
   MapTemplate,
@@ -279,20 +276,18 @@ export async function exportSectorAsTemplate(
   }
 }
 
-// Save template to database
+// Save template to database. The author is whoever is signed in, never an id
+// the browser sends.
 export async function saveMapTemplate(
   template: MapTemplate,
   festivalId?: number,
 ): Promise<{ success: boolean; templateId?: number; message: string }> {
   const actor = await requireAdminOrFestivalAdmin();
-  if (!actor) {
-    return { success: false, message: "No autorizado" };
-  }
+  if (!actor) return { success: false, message: "No autorizado" };
 
   try {
     // Validate template structure
     mapTemplateSchema.parse(template);
-
 
     const [created] = await db
       .insert(mapTemplates)
@@ -300,7 +295,6 @@ export async function saveMapTemplate(
         name: template.metadata.name,
         description: template.metadata.description ?? null,
         templateData: template,
-        // The signed-in admin, not the clerkId the browser sent.
         createdByUserId: actor.id,
         createdFromFestivalId: festivalId ?? null,
       })

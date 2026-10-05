@@ -1,9 +1,6 @@
 "use server";
 
-import {
-  BaseProfile,
-  ParticipationWithParticipantWithInfractionsAndReservations,
-} from "@/app/api/users/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 import { db } from "@/db";
@@ -15,7 +12,6 @@ import {
   festivalStatusEvents,
   festivals,
   festivalSectors,
-  infractions,
   reservationFeatureActions,
   reservationParticipants,
   stands,
@@ -37,13 +33,12 @@ import {
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
-  FestivalActivityWithDetailsAndParticipants,
+  FestivalAvailableUser,
   FestivalBase,
   PublicFestivalPage,
   FestivalWithDates,
   FestivalWithDatesAndSectors,
   FestivalWithTicketsAndDates,
-  FullFestival,
 } from "./definitions";
 import {
   recordFestivalCreatedStatus,
@@ -54,7 +49,10 @@ import {
   lockFestivalTermsDocument,
 } from "@/app/lib/reservations/locks";
 import { recalculateReservationEligibleAtForFestival } from "@/app/lib/sanctions/festival-counting";
-import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import {
+  requireAdminOrFestivalAdmin,
+  requireProfileOwnerOrStaff,
+} from "@/app/lib/users/helpers";
 
 function isValidFestivalStatus(
   status: unknown,
@@ -590,10 +588,13 @@ export async function updateFestival(
   }
 }
 
+/** Staff only: an activity with every participant's profile and proofs. */
 export async function fetchFestivalActivityForReview(
   festivalId: number,
   activityId: number,
 ) {
+  if (!(await requireAdminOrFestivalAdmin())) return undefined;
+
   try {
     return await db.query.festivalActivities.findFirst({
       where: and(
@@ -639,36 +640,12 @@ export async function fetchPublishedActiveFestivals(): Promise<
   }
 }
 
-export async function fetchFestivalActivitiesByFestivalId(
-  festivalId: number,
-): Promise<FestivalActivityWithDetailsAndParticipants[]> {
-  try {
-    return (await db.query.festivalActivities.findMany({
-      where: eq(festivalActivities.festivalId, festivalId),
-      with: {
-        details: {
-          with: {
-            participants: {
-              with: {
-                proofs: true,
-                user: true,
-              },
-            },
-            votes: true,
-          },
-        },
-        waitlistEntries: { with: { user: true } },
-      },
-    })) as FestivalActivityWithDetailsAndParticipants[];
-  } catch (error) {
-    console.error("Error fetching festival activities by festival id", error);
-    throw error;
-  }
-}
-
+/** Staff only: any festival, drafts included, with its stand occupancy. */
 export async function fetchFestivalWithDatesAndSectors(
   id: number,
 ): Promise<FestivalWithDatesAndSectors | null> {
+  if (!(await requireAdminOrFestivalAdmin())) return null;
+
   try {
     const festival = await db.query.festivals.findFirst({
       where: eq(festivals.id, id),
@@ -725,79 +702,12 @@ export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates 
   }
 }
 
-export async function fetchFestival({
-  acceptedUsersOnly = false,
-  id,
-}: {
-  acceptedUsersOnly?: boolean;
-  id?: number;
-}): Promise<FullFestival | null | undefined> {
-  const whereCondition = acceptedUsersOnly
-    ? { where: eq(userRequests.status, "accepted") }
-    : {};
-
-  const festivalWhereCondition = id
-    ? { where: eq(festivals.id, id) }
-    : { where: eq(festivals.status, "active") };
-
-  try {
-    return await db.query.festivals.findFirst({
-      ...festivalWhereCondition,
-      with: {
-        festivalDates: true,
-        userRequests: {
-          with: {
-            user: {
-              with: {
-                participations: {
-                  with: {
-                    reservation: {
-                      with: {
-                        stand: true,
-                        festival: true,
-                      },
-                    },
-                  },
-                },
-                userRequests: true,
-              },
-            },
-          },
-          ...whereCondition,
-        },
-        standReservations: true,
-        festivalSectors: {
-          with: {
-            stands: true,
-          },
-        },
-        festivalActivities: {
-          with: {
-            details: {
-              with: {
-                participants: {
-                  with: {
-                    user: true,
-                    proofs: true,
-                  },
-                },
-                votes: true,
-              },
-            },
-            waitlistEntries: { with: { user: true } },
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching festival", error);
-    throw error;
-  }
-}
-
+/** Staff only: every ticket of the festival with its visitor. */
 export async function fetchFestivalWithTicketsAndDates(
   id: number,
 ): Promise<FestivalWithTicketsAndDates | null | undefined> {
+  if (!(await requireAdminOrFestivalAdmin())) return null;
+
   try {
     return await db.query.festivals.findFirst({
       where: eq(festivals.id, id),
@@ -863,7 +773,10 @@ export async function fetchPublicFestivalPage(
   });
 }
 
+/** Staff only: every festival, drafts included. */
 export async function fetchFestivals(): Promise<FestivalWithDates[]> {
+  if (!(await requireAdminOrFestivalAdmin())) return [];
+
   try {
     return await db.query.festivals.findMany({
       with: {
@@ -1062,10 +975,13 @@ export async function archiveFestival(festivalId: number) {
 }
 
 /**
- * The verified participants of the festival's categories, for the
- * "Participantes habilitados" page. Server-only: it returns whole profiles.
+ * Staff only: the verified profiles a festival's sectors can take, narrowed to
+ * what the invitation screens render and send to (`FestivalAvailableUser`).
+ * A client component calls this, so every column here reaches the browser.
  */
-export async function getFestivalAvailableUsers(festivalId: number) {
+export async function getFestivalAvailableUsers(
+  festivalId: number,
+): Promise<FestivalAvailableUser[]> {
   const actor = await requireAdminOrFestivalAdmin();
   if (!actor || !isValidFestivalId(festivalId)) {
     return [];
@@ -1089,7 +1005,12 @@ export async function getFestivalAvailableUsers(festivalId: number) {
     if (categories.length === 0) return [];
 
     return await db
-      .select()
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        email: users.email,
+        category: users.category,
+      })
       .from(users)
       .where(
         and(eq(users.status, "verified"), inArray(users.category, categories)),
@@ -1280,61 +1201,6 @@ export async function updateFestivalParticipantTerms(
   };
 }
 
-export async function fetchFestivalParticipants(
-  festivalId: number,
-  confirmedOnly = false,
-): Promise<ParticipationWithParticipantWithInfractionsAndReservations[]> {
-  const whereCondition = confirmedOnly
-    ? and(
-        eq(standReservations.festivalId, festivalId),
-        eq(standReservations.status, "accepted"),
-      )
-    : eq(standReservations.festivalId, festivalId);
-
-  try {
-    const participantsWithReservationsSubquery = db
-      .select({ id: standReservations.id })
-      .from(standReservations)
-      .where(whereCondition);
-
-    return await db.query.reservationParticipants.findMany({
-      where: inArray(
-        reservationParticipants.reservationId,
-        participantsWithReservationsSubquery,
-      ),
-      with: {
-        user: {
-          with: {
-            infractions: {
-              where: eq(infractions.festivalId, festivalId),
-              with: {
-                type: true,
-              },
-            },
-          },
-        },
-        reservation: {
-          with: {
-            stand: true,
-            // A full table holds two stands; `stand` alone names only the one
-            // the participant picked first.
-            members: { with: { stand: true } },
-            festival: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    // Rethrown, not swallowed. Returning [] asserted the festival had no
-    // participants, so a query that could not run rendered as an empty table
-    // and read as a plausible answer — that is how an unresolvable `users`
-    // relation sat here undetected. The route's error boundary says what
-    // happened instead.
-    console.error("Error fetching festival participants", error);
-    throw error;
-  }
-}
-
 /**
  * Fetch all participants that have enrolled in a festival
  * @param festivalId - The id of the festival
@@ -1343,6 +1209,8 @@ export async function fetchFestivalParticipants(
 export async function fetchEnrolledParticipants(
   festivalId: number,
 ): Promise<BaseProfile[]> {
+  if (!(await requireAdminOrFestivalAdmin())) return [];
+
   try {
     const participantsWithReservationsSubquery = db
       .select({ userId: reservationParticipants.userId })
@@ -1390,10 +1258,13 @@ export async function fetchEnrolledParticipants(
   }
 }
 
+/** The profile itself, or staff: a profile's enrollment in a festival. */
 export async function fetchProfileEnrollmentInFestival(
   profileId: number,
   festivalId: number,
 ) {
+  if (!(await requireProfileOwnerOrStaff(profileId))) return undefined;
+
   try {
     return await db.query.userRequests.findFirst({
       where: and(
@@ -1408,9 +1279,12 @@ export async function fetchProfileEnrollmentInFestival(
   }
 }
 
+/** Staff only: every profile accepted into the festival. */
 export async function fetchAllFestivalEnrolledUsers(
   festivalId: number,
 ): Promise<BaseProfile[]> {
+  if (!(await requireAdminOrFestivalAdmin())) return [];
+
   try {
     const result = await db
       .selectDistinctOn([userRequests.userId], { user: users })

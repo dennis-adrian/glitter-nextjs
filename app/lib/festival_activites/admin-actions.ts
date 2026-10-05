@@ -19,9 +19,11 @@ import {
 import { and, asc, count, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
-import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
+import { promoteFromWaitlist } from "@/app/lib/festival_activites/waitlist-promotion";
+import { wasRemovedFromActivity } from "@/app/lib/festival_activites/queries";
 import { validateCouponBookHeaderImageInput } from "@/app/lib/festival_activites/coupon-book-header-image";
 import {
   getMaterialConfig,
@@ -620,7 +622,7 @@ export async function reviewActivityParticipantProof(
             rejected_resubmit: `Tu ${materialConfig.label} necesita correcciones - ${activity.name}`,
             rejected_removed: `Fuiste removido/a de la actividad - ${activity.name}`,
           };
-          await sendEmail({
+          const result = await sendEmail({
             to: [user.email],
             from: "Equipo Glitter <equipo@productoraglitter.com>",
             subject: subjects[status],
@@ -638,6 +640,7 @@ export async function reviewActivityParticipantProof(
               materialPastParticiple: materialConfig.pastParticiple,
             }),
           });
+          assertSent(result);
         }
       }
     } catch (emailError) {
@@ -752,7 +755,7 @@ export async function removeActivityParticipant(
         });
         if (festival) {
           const materialConfig = getMaterialConfig(activity.type);
-          await sendEmail({
+          const result = await sendEmail({
             to: [user.email],
             from: "Equipo Glitter <equipo@productoraglitter.com>",
             subject: `Fuiste removido/a de la actividad - ${activity.name}`,
@@ -770,6 +773,7 @@ export async function removeActivityParticipant(
               materialPastParticiple: materialConfig.pastParticiple,
             }),
           });
+          assertSent(result);
         }
       }
     } catch (emailError) {
@@ -1122,6 +1126,16 @@ export async function notifyWaitlistEntry(
         };
       }
 
+      // A removal from any variant bars the whole activity, so the invitation
+      // could never be accepted. Staff restore the participant instead.
+      if (await wasRemovedFromActivity(tx, entry.activityId, entry.userId)) {
+        return {
+          ok: false as const,
+          message:
+            "El participante fue removido de esta actividad. Restauralo desde la lista de participantes.",
+        };
+      }
+
       // 2. Guard: already has an active invitation window
       const now = new Date();
       if (
@@ -1218,7 +1232,7 @@ export async function notifyWaitlistEntry(
     const activityUrl = `${baseUrl}/profiles/${entry.userId}/festivals/${festivalId}/activity/${activity.id}`;
 
     try {
-      await sendEmail({
+      const result = await sendEmail({
         from: "Actividades del Festival <no-reply@productoraglitter.com>",
         to: [entry.user.email],
         subject: `Tenés un cupo disponible en ${activity.name}`,
@@ -1233,6 +1247,7 @@ export async function notifyWaitlistEntry(
           activityUrl,
         }),
       });
+      assertSent(result);
     } catch (emailError) {
       console.error("Error sending waitlist invitation email:", emailError);
       return { success: false, message: "Error al enviar la notificación" };
