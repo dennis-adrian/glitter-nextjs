@@ -94,6 +94,15 @@ export type FestivalWithDatesAndSectors = FestivalBase & {
 };
 export type FestivalSector = typeof festivalSectors.$inferSelect;
 
+/**
+ * A verified profile eligible for a festival's activation email, as the
+ * dashboard lists it. Only what the list renders: the rows reach the browser.
+ */
+export type FestivalAvailableUser = Pick<
+  BaseProfile,
+  "id" | "displayName" | "email" | "category"
+>;
+
 export type RecentSharedStandPartner = BaseProfile & {
   isEligible: boolean;
   isReserved: boolean;

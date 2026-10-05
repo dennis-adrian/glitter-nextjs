@@ -1,24 +1,25 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { sendUserEmailsTemp } from "@/app/lib/festivals/actions";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 type SendEmailsFormProps = {
-  users: BaseProfile[];
+  userIds: number[];
   festivalId: number;
 };
 
 export default function SendEmailsForm({
-  users,
+  userIds,
   festivalId,
 }: SendEmailsFormProps) {
   const form = useForm();
 
   const action = form.handleSubmit(async () => {
-    await sendUserEmailsTemp(users, festivalId);
+    const res = await sendUserEmailsTemp(userIds, festivalId);
+    if (!res.success) toast.error(res.message);
   });
 
   return (

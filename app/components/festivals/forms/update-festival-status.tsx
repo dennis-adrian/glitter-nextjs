@@ -29,18 +29,18 @@ export default function ActivateFestivalForm({
       if (status === "active") {
         const loadingToast = toast.loading("Enviando correos...");
         const availableUsers = await getFestivalAvailableUsers(festival.id);
-        const gastronomyUsers = availableUsers.filter(
-          (user) => user.category === "gastronomy",
-        );
-        await sendUserEmailsTemp(gastronomyUsers, festival.id);
-        const entrepreneurshipUsers = availableUsers.filter(
-          (user) => user.category === "entrepreneurship",
-        );
-        await sendUserEmailsTemp(entrepreneurshipUsers, festival.id);
-        const illustrationUsers = availableUsers.filter(
-          (user) => user.category === "illustration",
-        );
-        await sendUserEmailsTemp(illustrationUsers, festival.id);
+        const gastronomyUserIds = availableUsers
+          .filter((user) => user.category === "gastronomy")
+          .map((user) => user.id);
+        await sendUserEmailsTemp(gastronomyUserIds, festival.id);
+        const entrepreneurshipUserIds = availableUsers
+          .filter((user) => user.category === "entrepreneurship")
+          .map((user) => user.id);
+        await sendUserEmailsTemp(entrepreneurshipUserIds, festival.id);
+        const illustrationUserIds = availableUsers
+          .filter((user) => user.category === "illustration")
+          .map((user) => user.id);
+        await sendUserEmailsTemp(illustrationUserIds, festival.id);
         toast.dismiss(loadingToast);
       }
       onSuccess();

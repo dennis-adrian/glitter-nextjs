@@ -1,6 +1,6 @@
-import { BaseProfile } from "@/app/api/users/definitions";
 import UsersBuckets from "@/app/dashboard/festivals/[id]/allowed_participants/users-buckets";
 import { getFestivalAvailableUsers } from "@/app/lib/festivals/actions";
+import { FestivalAvailableUser } from "@/app/lib/festivals/definitions";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -26,7 +26,7 @@ export default async function AllowedParticipantsPage(props: {
       acc[user.category] = [...(acc[user.category] || []), user];
       return acc;
     },
-    {} as { [key: string]: BaseProfile[] },
+    {} as { [key: string]: FestivalAvailableUser[] },
   );
 
   // join all users already grouped and ordered by category
@@ -39,7 +39,10 @@ export default async function AllowedParticipantsPage(props: {
       <h1 className="text-xl md:text-2xl font-bold">
         Participantes Habilitados
       </h1>
-      <UsersBuckets users={allUsersOrderedByCategory} festivalId={params.id} />
+      <UsersBuckets
+        users={allUsersOrderedByCategory}
+        festivalId={validatedParams.data.id}
+      />
     </div>
   );
 }

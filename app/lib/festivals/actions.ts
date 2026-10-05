@@ -31,6 +31,7 @@ import { and, desc, eq, inArray, not, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   FestivalActivityWithDetailsAndParticipants,
+  FestivalAvailableUser,
   FestivalBase,
   PublicFestivalPage,
   FestivalWithDates,
@@ -864,25 +865,41 @@ export async function archiveFestival(festivalId: number) {
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
-export async function getFestivalAvailableUsers(festivalId: number) {
-  try {
-    const sectors = await db.query.festivalSectors.findMany({
-      with: {
-        stands: true,
-      },
-      where: eq(festivalSectors.festivalId, festivalId),
-    });
+async function fetchFestivalAvailableCategories(festivalId: number) {
+  const sectors = await db.query.festivalSectors.findMany({
+    with: {
+      stands: true,
+    },
+    where: eq(festivalSectors.festivalId, festivalId),
+  });
 
-    const categories = [
-      ...new Set(
-        sectors.flatMap((sector) =>
-          getFestivalSectorAllowedCategories(sector, true),
-        ),
+  return [
+    ...new Set(
+      sectors.flatMap((sector) =>
+        getFestivalSectorAllowedCategories(sector, true),
       ),
-    ];
+    ),
+  ];
+}
+
+export async function getFestivalAvailableUsers(
+  festivalId: number,
+): Promise<FestivalAvailableUser[]> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    throw new Error("No autorizado");
+  }
+
+  try {
+    const categories = await fetchFestivalAvailableCategories(festivalId);
 
     return await db
-      .select()
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        email: users.email,
+        category: users.category,
+      })
       .from(users)
       .where(
         and(eq(users.status, "verified"), inArray(users.category, categories)),
@@ -892,19 +909,61 @@ export async function getFestivalAvailableUsers(festivalId: number) {
     throw error;
   }
 }
+
+/**
+ * Takes ids rather than profiles: the address and name an email goes out with
+ * are read here, so a caller can only pick among the festival's eligible
+ * profiles, never supply its own recipient.
+ */
 export async function sendUserEmailsTemp(
-  users: BaseProfile[],
+  userIds: number[],
   festivalId: number,
 ) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (
+    !Number.isInteger(festivalId) ||
+    festivalId <= 0 ||
+    !Array.isArray(userIds) ||
+    !userIds.every((id) => Number.isInteger(id) && id > 0)
+  ) {
+    return { success: false, message: "Solicitud inválida" };
+  }
+  if (userIds.length === 0) {
+    return { success: true, message: "No hay correos para enviar" };
+  }
+
   try {
-    const verifiedUsers = users.filter((user) => user.status === "verified");
     const festivalWithDates = await fetchFestivalWithDates(festivalId);
+    if (!festivalWithDates) {
+      return { success: false, message: "Festival no encontrado" };
+    }
+
+    const categories = await fetchFestivalAvailableCategories(festivalId);
+    const recipients = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          inArray(users.id, userIds),
+          eq(users.status, "verified"),
+          inArray(users.category, categories),
+        ),
+      );
+
     await queueEmails<BaseProfile>(
-      verifiedUsers,
-      festivalWithDates!,
+      recipients,
+      festivalWithDates,
       sendEmailToUsers,
     );
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error sending festival activation emails", error);
+    return { success: false, message: "Error al enviar los correos" };
+  }
+
+  return { success: true, message: "Correos enviados" };
 }
 // ------ END
 
@@ -988,12 +1047,27 @@ export async function updateFestivalRegistration(
   publicRegistrationValue: FestivalBase["publicRegistration"],
   festivalId: FestivalBase["id"],
 ) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (
+    typeof publicRegistrationValue !== "boolean" ||
+    !Number.isInteger(festivalId) ||
+    festivalId <= 0
+  ) {
+    return { success: false, message: "Festival inválido" };
+  }
+
   try {
     const [updatedFestival] = await db
       .update(festivals)
       .set({ publicRegistration: publicRegistrationValue })
       .where(eq(festivals.id, festivalId))
       .returning({ festivalId: festivals.id });
+    if (!updatedFestival) {
+      return { success: false, message: "Festival no encontrado" };
+    }
 
     const festivalWithDates = await fetchFestivalWithDates(
       updatedFestival.festivalId,
@@ -1065,7 +1139,9 @@ export async function updateFestivalParticipantTerms(
   };
 }
 
-export async function queueEmails<T>(
+// Not exported: every export of a "use server" module is a server action any
+// client can call, and these send mail to whatever recipient they are handed.
+async function queueEmails<T>(
   entities: T[],
   festival: FestivalWithDates,
   callback: (entity: T, festival: FestivalWithDates) => Promise<void>,
@@ -1080,7 +1156,7 @@ export async function queueEmails<T>(
   }
 }
 
-export async function sendEmailToVisitors(
+async function sendEmailToVisitors(
   emails: string[],
   festival: FestivalWithDates,
 ) {
@@ -1104,7 +1180,7 @@ export async function sendEmailToVisitors(
   }
 }
 
-export async function sendEmailToUsers(
+async function sendEmailToUsers(
   user: BaseProfile,
   festival: FestivalWithDates,
 ) {
