@@ -90,7 +90,8 @@ admins send the invitations but do not decide who receives them.
 - **Bloqueados**: active suppressions, with the bounce message and whose
   address it is. "Desbloquear" lifts it here (recording the admin) and asks
   Resend to remove it from its own list (`DELETE /suppressions/{email}`,
-  production only, since previews share the Resend account). If Resend
+  everywhere but local development; that list is account-wide, so
+  unblocking from staging also unblocks the address for production). If Resend
   refuses, for example because its suppressions API is not enabled for the
   account, the page says so: remove it in Resend → Suppressions, or the next
   mailing blocks it again.

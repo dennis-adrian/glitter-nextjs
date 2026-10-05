@@ -123,7 +123,7 @@ export async function unblockEmail(input: {
         return {
           success: true,
           warning: remaining ? true : undefined,
-          message: `${key} quedó desbloqueado. Este entorno no es producción, así que no se cambió nada en Resend.${remaining}`,
+          message: `${key} quedó desbloqueado. En desarrollo no se cambia nada en Resend.${remaining}`,
         };
       case "failed":
         console.error("Resend did not lift a suppression", {

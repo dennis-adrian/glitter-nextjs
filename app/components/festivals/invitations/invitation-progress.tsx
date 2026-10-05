@@ -103,8 +103,8 @@ export default function InvitationProgress({
 
       {state.simulated ? (
         <p className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
-          Este entorno no es producción: no se envió ningún correo real. Los
-          números muestran lo que se habría enviado.
+          Entorno de desarrollo: no se envió ningún correo real. Los números
+          muestran lo que se habría enviado.
         </p>
       ) : null}
 

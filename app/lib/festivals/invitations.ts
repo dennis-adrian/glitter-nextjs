@@ -707,7 +707,7 @@ export async function sendParticipantInvitationsToUsers(
       skipped,
       message:
         "simulated" in response
-          ? `Este entorno no es producción: no se envió ningún correo (habrían sido ${valid.length}${omitted}).`
+          ? `Entorno de desarrollo: no se envió ningún correo (habrían sido ${valid.length}${omitted}).`
           : `Se enviaron ${valid.length} invitaciones${omitted}.`,
     };
   } catch (error) {
