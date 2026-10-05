@@ -471,9 +471,6 @@ export async function applyOrderAdjustmentWithDatabase(
     }
     for (const addition of additions) {
       const product = productsById.get(addition.productId)!;
-      if (!product.isPurchasable) {
-        fail(`${product.name} no está disponible para compra.`, "unavailable");
-      }
       const variant =
         addition.productVariantId == null
           ? null
@@ -515,12 +512,23 @@ export async function applyOrderAdjustmentWithDatabase(
         rentalReturnedQuantity: 0,
       });
     }
-    // Every unit added or raised is a new sale, so a hidden product, even one
-    // hidden after the order was placed, can only go down.
+    // Every unit added or raised is a new sale under checkout's rules, so a
+    // line whose product was hidden, or stopped being offered for the line's
+    // transaction, after the order was placed can only go down.
     for (const change of changes) {
+      if (change.quantityDelta <= 0) continue;
       const product = productsById.get(change.productId)!;
-      if (change.quantityDelta > 0 && !product.isVisible) {
+      if (!product.isVisible) {
         fail(`${product.name} ya no está disponible.`, "unavailable");
+      }
+      if (change.transactionType === "purchase" && !product.isPurchasable) {
+        fail(`${product.name} no está disponible para compra.`, "unavailable");
+      }
+      if (change.transactionType === "rental" && !product.isRentable) {
+        fail(
+          `${product.name} no está disponible para alquiler.`,
+          "unavailable",
+        );
       }
     }
     if (changes.length === 0)
