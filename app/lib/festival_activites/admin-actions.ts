@@ -23,6 +23,7 @@ import { assertSent } from "@/app/vendors/resend-result";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { promoteFromWaitlist } from "@/app/lib/festival_activites/waitlist-promotion";
+import { wasRemovedFromActivity } from "@/app/lib/festival_activites/queries";
 import { validateCouponBookHeaderImageInput } from "@/app/lib/festival_activites/coupon-book-header-image";
 import {
   getMaterialConfig,
@@ -1122,6 +1123,16 @@ export async function notifyWaitlistEntry(
         return {
           ok: false as const,
           message: "La entrada en la lista de espera no existe",
+        };
+      }
+
+      // A removal from any variant bars the whole activity, so the invitation
+      // could never be accepted. Staff restore the participant instead.
+      if (await wasRemovedFromActivity(tx, entry.activityId, entry.userId)) {
+        return {
+          ok: false as const,
+          message:
+            "El participante fue removido de esta actividad. Restauralo desde la lista de participantes.",
         };
       }
 

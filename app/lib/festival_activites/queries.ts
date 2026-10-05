@@ -7,7 +7,7 @@ import "server-only";
  * to authorize first.
  */
 
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import {
@@ -138,6 +138,38 @@ export async function fetchFestivalActivityForStaff(activityId: number) {
   if (!staff) return null;
 
   return queryFestivalActivity(activityId, { withRealNames: true });
+}
+
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Whether staff removed the profile from any variant of the activity. A
+ * removal bars the whole activity, not only the variant it happened in: the
+ * profile may not enroll in another variant, join the waitlist or take a
+ * waitlist slot. Only staff restore a removed participant.
+ */
+export async function wasRemovedFromActivity(
+  executor: DbOrTx,
+  activityId: number,
+  userId: number,
+): Promise<boolean> {
+  const [removed] = await executor
+    .select({ id: festivalActivityParticipants.id })
+    .from(festivalActivityParticipants)
+    .innerJoin(
+      festivalActivityDetails,
+      eq(festivalActivityDetails.id, festivalActivityParticipants.detailsId),
+    )
+    .where(
+      and(
+        eq(festivalActivityDetails.activityId, activityId),
+        eq(festivalActivityParticipants.userId, userId),
+        isNotNull(festivalActivityParticipants.removedAt),
+      ),
+    )
+    .limit(1);
+
+  return removed !== undefined;
 }
 
 /** The profile id that owns an activity participation, or null when there is none. */

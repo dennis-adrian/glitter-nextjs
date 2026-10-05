@@ -8,9 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * is still recorded as sent.
  */
 
-const { dbMock, currentProfile } = vi.hoisted(() => ({
+const { dbMock, currentProfile, wasRemovedFromActivity } = vi.hoisted(() => ({
   dbMock: { transaction: vi.fn(), select: vi.fn(), update: vi.fn() },
   currentProfile: vi.fn(),
+  wasRemovedFromActivity: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -24,6 +25,9 @@ vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfile,
 }));
 vi.mock("@/app/lib/users/queries", () => ({ fetchAdminUsers: vi.fn() }));
+vi.mock("@/app/lib/festival_activites/queries", () => ({
+  wasRemovedFromActivity,
+}));
 vi.mock("@/app/lib/festivals/actions", () => ({ fetchBaseFestival: vi.fn() }));
 vi.mock("@/app/lib/uploadthing/storage", () => ({
   attemptStorageCleanupJob: vi.fn(),
@@ -89,6 +93,7 @@ describe("notifyWaitlistEntry", () => {
 
   beforeEach(() => {
     currentProfile.mockResolvedValue({ id: 1, role: "admin" });
+    wasRemovedFromActivity.mockResolvedValue(false);
     dbMock.transaction.mockImplementation(async (run) =>
       run({
         query: {

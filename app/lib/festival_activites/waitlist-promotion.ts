@@ -16,6 +16,7 @@ import { db } from "@/db";
 import {
   festivalActivities,
   festivalActivityDetails,
+  festivalActivityParticipants,
   festivalActivityWaitlist,
   festivals,
   users,
@@ -71,6 +72,17 @@ export async function promoteFromWaitlist(
 						WHERE ${festivalActivityWaitlist.activityId} = ${activityId}
 							AND ${festivalActivityWaitlist.notifiedAt} IS NULL
 							${variant.category ? sql`AND ${users.category} = ${variant.category}` : sql``}
+							-- A removal from any variant bars the whole activity, so the
+							-- invitation could never be accepted; skip to the next person.
+							AND NOT EXISTS (
+								SELECT 1
+								FROM ${festivalActivityParticipants}
+								INNER JOIN ${festivalActivityDetails}
+									ON ${festivalActivityDetails.id} = ${festivalActivityParticipants.detailsId}
+								WHERE ${festivalActivityDetails.activityId} = ${activityId}
+									AND ${festivalActivityParticipants.userId} = ${festivalActivityWaitlist.userId}
+									AND ${festivalActivityParticipants.removedAt} IS NOT NULL
+							)
 						ORDER BY ${festivalActivityWaitlist.position} ASC
 						LIMIT 1
 						FOR UPDATE SKIP LOCKED

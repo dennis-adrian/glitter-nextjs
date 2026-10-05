@@ -37,6 +37,7 @@ import {
   fetchActivityParticipationOwnerId,
   fetchParticipationPreviewDataBatch,
   type ParticipationPreviewData,
+  wasRemovedFromActivity,
 } from "@/app/lib/festival_activites/queries";
 import {
   getCurrentUserProfile,
@@ -75,6 +76,9 @@ async function fetchVerifiedActivityProfile(profileId: number) {
 
 const inactiveParticipantMessage =
   "Tu perfil debe estar verificado y activo para participar en actividades.";
+
+const removedParticipantMessage =
+  "No podés volver a inscribirte después de haber sido removido";
 
 /** A vote the rules refuse; its message is shown to the voter as is. */
 class VoteRejectedError extends Error {}
@@ -396,6 +400,12 @@ export async function enrollInActivity(
       };
     }
 
+    // A removal from any variant bars the whole activity; only staff can
+    // restore a removed participant.
+    if (await wasRemovedFromActivity(db, dbActivity.id, activeProfile.id)) {
+      return { success: false, message: removedParticipantMessage };
+    }
+
     const { participationLimit } = dbDetails;
 
     if (participationLimit && participationLimit > 0) {
@@ -420,11 +430,7 @@ export async function enrollInActivity(
               message: "Ya estás inscrito en esta actividad",
             };
           }
-          return {
-            success: false,
-            message:
-              "No podés volver a inscribirte después de haber sido removido",
-          };
+          return { success: false, message: removedParticipantMessage };
         }
 
         const currentParticipantsCount = await tx
@@ -653,6 +659,10 @@ export async function enrollInBestStandActivity(
           message:
             "El registro para la actividad no está disponible en este momento",
         };
+      }
+
+      if (await wasRemovedFromActivity(tx, activityId, forProfileId)) {
+        return { success: false, message: removedParticipantMessage };
       }
 
       const [alreadyEnrolled] = await tx
@@ -1071,18 +1081,15 @@ export async function joinActivityWaitlist(
       return { success: false, message: "Ya estás inscrito en esta actividad" };
     }
 
-    // A removed participant may not come back on their own, which
-    // `enrollInActivity` refuses too; only staff can restore them.
+    // A removal from any variant bars the whole activity, as in
+    // `enrollInActivity`; only staff can restore a removed participant.
     const wasRemoved = activity.details.some((detail) =>
       detail.participants.some(
         (p) => p.userId === activeProfile.id && p.removedAt !== null,
       ),
     );
     if (wasRemoved) {
-      return {
-        success: false,
-        message: "No podés volver a inscribirte después de haber sido removido",
-      };
+      return { success: false, message: removedParticipantMessage };
     }
 
     // Check all limited variants the profile can join are actually full
@@ -1362,23 +1369,25 @@ export async function enrollFromWaitlistInvitation(
           ),
         );
 
+      // Accepting an invitation must not undo a removal from any variant of
+      // the activity; only staff can restore a removed participant.
       if (existing) {
-        if (!existing.removedAt) {
-          throw new Error("Ya estás inscrito en esta actividad");
-        }
-        // Accepting an invitation must not undo a removal; only staff can
-        // restore a removed participant.
         throw new Error(
-          "No podés volver a inscribirte después de haber sido removido",
+          existing.removedAt
+            ? removedParticipantMessage
+            : "Ya estás inscrito en esta actividad",
         );
-      } else {
-        // Verify capacity one more time
-        await ensureCapacityAvailable();
-        await tx.insert(festivalActivityParticipants).values({
-          userId,
-          detailsId: entry.notifiedForDetailId!,
-        });
       }
+      if (await wasRemovedFromActivity(tx, entry.activityId, userId)) {
+        throw new Error(removedParticipantMessage);
+      }
+
+      // Verify capacity one more time
+      await ensureCapacityAvailable();
+      await tx.insert(festivalActivityParticipants).values({
+        userId,
+        detailsId: entry.notifiedForDetailId!,
+      });
 
       await tx
         .delete(festivalActivityWaitlist)
