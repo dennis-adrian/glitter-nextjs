@@ -77,6 +77,8 @@ export type AdminOrderAdjustmentProduct = {
   stock: number;
   /** Current catalog category, shown as a badge next to search results. */
   storeCategory: StoreCategory;
+  /** Hidden products are listed but cannot be added. */
+  isVisible: boolean;
   requiresVariant: boolean;
   variants: AdminOrderAdjustmentVariant[];
 };

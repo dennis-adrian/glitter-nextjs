@@ -69,6 +69,11 @@ export default function GuestCartItemRow({
       subtotal={subtotal}
       warnings={
         <>
+          {stockIssue?.isUnavailable && (
+            <span className="inline-block text-xs text-destructive font-medium mt-1">
+              Ya no está disponible
+            </span>
+          )}
           {stockIssue?.isOutOfStock && (
             <span className="inline-block text-xs text-destructive font-medium mt-1">
               Sin stock

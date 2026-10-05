@@ -16,6 +16,7 @@ import {
 } from "@/app/lib/cart/definitions";
 import {
   bundleLineCapNotice,
+  isCartLineUnavailable,
   MERGED_BUNDLE_LINES_NOTICE,
   toGuestCartBundle,
 } from "@/app/lib/cart/utils";
@@ -107,6 +108,8 @@ export type GuestStockValidationResult = {
   productVariantId: number | null;
   /** Units this line may hold once the cart's bundles are served. */
   stock: number;
+  /** Checkout refuses the product itself, e.g. it was hidden. */
+  isUnavailable: boolean;
   isOutOfStock: boolean;
   quantityExceedsStock: boolean;
 };
@@ -292,6 +295,9 @@ async function getCartStockLimit(
   return Math.max(0, poolStock - sharedDemand);
 }
 
+/** Follows a checkout refusal naming a product the cart must drop. */
+const UNAVAILABLE_LINE_HINT = "Quitalo del carrito para continuar.";
+
 const GUEST_BUNDLE_INVALID_MESSAGE =
   "Este combo no es válido. Quitalo del carrito.";
 const GUEST_BUNDLE_LIMIT_MESSAGE = `Tu carrito admite hasta ${MAX_GUEST_CART_BUNDLE_LINES} combos distintos. Quitá alguno para continuar.`;
@@ -446,22 +452,26 @@ async function checkGuestItemStock(
         quantity: item.quantity,
       });
 
-      const stock = resolved
-        ? Math.max(
-            0,
-            getProductVariantStock(resolved.product, resolved.variant) -
-              (bundleDemand.get(
-                stockResourceKey(item.productId, item.productVariantId),
-              ) ?? 0),
-          )
-        : 0;
+      const isUnavailable =
+        resolved != null && isCartLineUnavailable(resolved.product);
+      const stock =
+        resolved && !isUnavailable
+          ? Math.max(
+              0,
+              getProductVariantStock(resolved.product, resolved.variant) -
+                (bundleDemand.get(
+                  stockResourceKey(item.productId, item.productVariantId),
+                ) ?? 0),
+            )
+          : 0;
 
       return {
         lineKey: item.lineKey,
         productId: item.productId,
         productVariantId: item.productVariantId,
         stock,
-        isOutOfStock: stock === 0,
+        isUnavailable,
+        isOutOfStock: !isUnavailable && stock === 0,
         quantityExceedsStock: stock > 0 && item.quantity > stock,
       };
     }),
@@ -651,6 +661,14 @@ export async function addToCart(
     if (!resolved) {
       const currentCount = await fetchCartItemCount();
       return { success: false, newCount: currentCount };
+    }
+
+    if (!resolved.product.isVisible) {
+      return {
+        success: false,
+        newCount: await fetchCartItemCount(),
+        message: "Este producto ya no está disponible.",
+      };
     }
 
     if (
@@ -1799,6 +1817,14 @@ export async function checkoutCart(input?: {
           profileId: null,
         };
       }
+      if (err.cause === "product_unavailable") {
+        return {
+          success: false,
+          message: `${err.message} ${UNAVAILABLE_LINE_HINT}`,
+          orderId: null,
+          profileId: null,
+        };
+      }
       if (
         err.cause === "variant_required" ||
         err.cause === "variant_unavailable" ||
@@ -1960,6 +1986,12 @@ export async function checkoutGuestCart(
     console.error("checkoutGuestCart error:", err);
     if (err instanceof Error && err.cause === "stock_insufficient") {
       return { success: false, message: err.message };
+    }
+    if (err instanceof Error && err.cause === "product_unavailable") {
+      return {
+        success: false,
+        message: `${err.message} ${UNAVAILABLE_LINE_HINT}`,
+      };
     }
     if (
       err instanceof Error &&

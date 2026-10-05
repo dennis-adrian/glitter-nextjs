@@ -515,6 +515,14 @@ export async function applyOrderAdjustmentWithDatabase(
         rentalReturnedQuantity: 0,
       });
     }
+    // Every unit added or raised is a new sale, so a hidden product, even one
+    // hidden after the order was placed, can only go down.
+    for (const change of changes) {
+      const product = productsById.get(change.productId)!;
+      if (change.quantityDelta > 0 && !product.isVisible) {
+        fail(`${product.name} ya no está disponible.`, "unavailable");
+      }
+    }
     if (changes.length === 0)
       fail("No hay cambios para aplicar.", "invalid_input");
 

@@ -33,8 +33,15 @@ vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentBaseProfile: vi.fn(),
 }));
 
-import { checkoutGuestCart } from "@/app/lib/cart/actions";
+import {
+  addToCart,
+  checkoutCart,
+  checkoutGuestCart,
+  validateGuestCartStock,
+} from "@/app/lib/cart/actions";
+import { fetchProduct } from "@/app/lib/products/actions";
 import { SUPPLIES_VERIFIED_MESSAGE } from "@/app/lib/store/category";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 
 const guestItems = [
   { lineKey: "1:base", productId: 1, productVariantId: null, quantity: 1 },
@@ -88,6 +95,86 @@ describe("checkoutGuestCart supplies gate", () => {
     expect(result).toEqual({
       success: false,
       message: SUPPLIES_VERIFIED_MESSAGE,
+    });
+  });
+});
+
+const hiddenTote = {
+  id: 1,
+  name: "Tote",
+  stock: 5,
+  storeCategory: "merch",
+  isVisible: false,
+  isPurchasable: true,
+  isRentable: false,
+  variants: [],
+};
+
+const unavailableError = () =>
+  new Error("Tote ya no está disponible.", { cause: "product_unavailable" });
+
+describe("hidden products", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findClosedSection.mockResolvedValue(null);
+    vi.mocked(getCurrentBaseProfile).mockResolvedValue({
+      id: 5,
+      email: "compradora@example.test",
+      displayName: "Compradora",
+      status: "verified",
+    } as Awaited<ReturnType<typeof getCurrentBaseProfile>>);
+    vi.mocked(fetchProduct).mockResolvedValue(
+      hiddenTote as unknown as Awaited<ReturnType<typeof fetchProduct>>,
+    );
+  });
+
+  it("flags a guest line whose product was hidden", async () => {
+    const [check] = await validateGuestCartStock(guestItems);
+
+    expect(check).toMatchObject({
+      lineKey: "1:base",
+      stock: 0,
+      isUnavailable: true,
+      isOutOfStock: false,
+      quantityExceedsStock: false,
+    });
+  });
+
+  it("refuses to add a hidden product to a signed-in cart", async () => {
+    const result = await addToCart({
+      productId: 1,
+      productVariantId: null,
+      quantity: 1,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      message: "Este producto ya no está disponible.",
+    });
+  });
+
+  it("tells a signed-in buyer which product to drop", async () => {
+    transaction.mockRejectedValue(unavailableError());
+
+    const result = await checkoutCart();
+
+    expect(result).toMatchObject({
+      success: false,
+      message:
+        "Tote ya no está disponible. Quitalo del carrito para continuar.",
+    });
+  });
+
+  it("tells a guest which product to drop", async () => {
+    selectRows.mockResolvedValue([{ storeCategory: "merch" }]);
+    transaction.mockRejectedValue(unavailableError());
+
+    const result = await checkoutGuestCart(guestItems, ...contact);
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "Tote ya no está disponible. Quitalo del carrito para continuar.",
     });
   });
 });

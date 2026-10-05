@@ -1105,4 +1105,96 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
       .where(eq(orders.id, fixture.orderId));
     expect(order).toMatchObject({ status: "pending", totalAmount: 20 });
   });
+
+  it("refuses to add a hidden product without writing", async () => {
+    const fixture = await createFixture();
+    await integrationDb!
+      .update(products)
+      .set({ isVisible: false })
+      .where(eq(products.id, fixture.variantProductId));
+
+    await expect(
+      applyOrderAdjustmentWithDatabase(adjustmentDatabase(), {
+        orderId: fixture.orderId,
+        actorUserId: fixture.actorId,
+        actorRole: "admin",
+        expectedRevision: 1,
+        reason: "Add hidden product",
+        allowedStatuses: ["pending"],
+        items: [],
+        additions: [
+          {
+            productId: fixture.variantProductId,
+            productVariantId: fixture.variantId,
+            quantity: 1,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      cause: "unavailable",
+      message: expect.stringContaining("ya no está disponible"),
+    });
+
+    const [order] = await integrationDb!
+      .select()
+      .from(orders)
+      .where(eq(orders.id, fixture.orderId));
+    const [variant] = await integrationDb!
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.id, fixture.variantId));
+    const adjustments = await integrationDb!
+      .select()
+      .from(orderAdjustments)
+      .where(eq(orderAdjustments.orderId, fixture.orderId));
+    expect(order).toMatchObject({ totalAmount: 40, revision: 1 });
+    expect(variant.stock).toBe(6);
+    expect(adjustments).toHaveLength(0);
+  });
+
+  it("refuses to raise a line whose product was hidden after the order", async () => {
+    const fixture = await createFixture();
+    await integrationDb!
+      .update(products)
+      .set({ isVisible: false })
+      .where(eq(products.id, fixture.baseProductId));
+
+    await expect(
+      applyOrderAdjustmentWithDatabase(
+        adjustmentDatabase(),
+        baseAdjustment(fixture, 1),
+      ),
+    ).rejects.toMatchObject({ cause: "unavailable" });
+
+    const [order] = await integrationDb!
+      .select()
+      .from(orders)
+      .where(eq(orders.id, fixture.orderId));
+    const [product] = await integrationDb!
+      .select()
+      .from(products)
+      .where(eq(products.id, fixture.baseProductId));
+    expect(order).toMatchObject({ totalAmount: 40, revision: 1 });
+    expect(product.stock).toBe(10);
+  });
+
+  it("still lowers a line whose product was hidden after the order", async () => {
+    const fixture = await createFixture();
+    await integrationDb!
+      .update(products)
+      .set({ isVisible: false })
+      .where(eq(products.id, fixture.baseProductId));
+
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      baseAdjustment(fixture, -1),
+    );
+
+    const [product] = await integrationDb!
+      .select()
+      .from(products)
+      .where(eq(products.id, fixture.baseProductId));
+    expect(result).toMatchObject({ totalDelta: -20, newTotal: 20 });
+    expect(product.stock).toBe(11);
+  });
 });

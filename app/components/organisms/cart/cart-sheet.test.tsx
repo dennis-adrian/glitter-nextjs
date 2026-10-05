@@ -432,3 +432,71 @@ it("flags the stock a checkout attempt found when it drops the guest's only bund
   expect(mocks.push).not.toHaveBeenCalled();
   expect(mocks.cart.guestBundles).toEqual([]);
 });
+
+it("flags a signed-in line whose product was hidden and blocks checkout", async () => {
+  setCart({ isAuthenticated: true });
+  actions.fetchCartWithItems.mockResolvedValue({
+    success: true,
+    data: {
+      id: 1,
+      items: [
+        {
+          id: 3,
+          cartId: 1,
+          productId: 7,
+          productVariantId: null,
+          quantity: 1,
+          transactionType: "purchase",
+          rentalFestivalId: null,
+          rentalReservationId: null,
+          product: {
+            ...tote,
+            isVisible: false,
+            isPurchasable: true,
+            isRentable: false,
+            rentalStockMode: "shared",
+            discount: 0,
+            discountUnit: "percentage",
+          },
+          variant: null,
+        },
+      ],
+      bundles: [],
+    },
+  });
+  render(<CartSheet />);
+  await screen.findByText("Ya no está disponible");
+  expect(screen.queryByText("Sin stock")).toBeNull();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Proceder al pago",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+});
+
+it("stops a guest checkout attempt on a line whose product was hidden", async () => {
+  setCart({ guestItems: [guestItem] });
+  actions.validateGuestCartStock.mockResolvedValue([
+    {
+      lineKey: guestItem.lineKey,
+      productId: 7,
+      productVariantId: null,
+      stock: 0,
+      isUnavailable: true,
+      isOutOfStock: false,
+      quantityExceedsStock: false,
+    },
+  ]);
+  render(<CartSheet />);
+  fireEvent.click(screen.getByRole("button", { name: "Proceder al pago" }));
+  await screen.findByText("Ya no está disponible");
+  expect(screen.queryByText("Sin stock")).toBeNull();
+  expect(
+    screen.getByText(
+      "Revisá tu carrito, algunos productos cambiaron de disponibilidad.",
+    ),
+  ).toBeTruthy();
+  expect(mocks.push).not.toHaveBeenCalled();
+});
