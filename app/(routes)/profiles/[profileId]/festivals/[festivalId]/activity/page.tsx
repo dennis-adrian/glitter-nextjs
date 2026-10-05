@@ -21,19 +21,19 @@ type ParticipantsActivityPageProps = {
 export default async function ParticipantsActivityPage({
   params,
 }: ParticipantsActivityPageProps) {
-  const { profileId, festivalId } = await params;
-  const validatedParams = ParamsSchema.safeParse({
-    profileId,
-    festivalId,
-  });
+  // Route params arrive as strings whatever the props type says; only the
+  // parsed values are numbers. The proof removal action compares the festival
+  // id strictly, so a raw param refused every participant's own design.
+  const validatedParams = ParamsSchema.safeParse(await params);
 
   if (!validatedParams.success) {
     return notFound();
   }
 
+  const { profileId, festivalId } = validatedParams.data;
   const festival = await getFestivalById(festivalId);
   const currentProfile = await getCurrentUserProfile();
-  await protectRoute(currentProfile || undefined, Number(profileId));
+  await protectRoute(currentProfile || undefined, profileId);
 
   let forProfile: BaseProfile | null | undefined;
 
