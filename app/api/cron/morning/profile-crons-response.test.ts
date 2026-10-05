@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const handlers = vi.hoisted(() => ({
   handleDeletionEmails: vi.fn(),
@@ -46,16 +46,27 @@ const ROUTES = [
   ],
 ] as const;
 
+const SECRET = "cron-secret-for-tests";
+
 beforeEach(() => {
+  vi.stubEnv("CRON_SECRET", SECRET);
   for (const handler of Object.values(handlers)) {
     handler.mockReset();
     handler.mockResolvedValue([TASK]);
   }
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe.each(ROUTES)("%s cron route", (_name, GET, handler, countKey) => {
   it("answers with a count, not profile rows", async () => {
-    const response = await GET();
+    const response = await GET(
+      new Request("https://example.test/api/cron/morning/job", {
+        headers: { authorization: `Bearer ${SECRET}` },
+      }),
+    );
     const body = await response.text();
 
     expect(response.status).toBe(200);
