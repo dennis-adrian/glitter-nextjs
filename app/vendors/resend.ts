@@ -163,3 +163,66 @@ export async function sendBatchEmails(
     clearTimeout(timeout);
   }
 }
+
+export type ResendSuppressionRemoval =
+  /** Resend took the address off its suppression list. */
+  | { outcome: "removed" }
+  /** Resend had no suppression for it: nothing to do there. */
+  | { outcome: "not_listed" }
+  /** Resend refused or failed; it may still block the address. */
+  | { outcome: "failed"; message: string }
+  /** Not production: the shared Resend account was left alone. */
+  | { outcome: "skipped" };
+
+/**
+ * Takes `address` off Resend's own suppression list, so mail to it is
+ * delivered again. Without this, an address unblocked only on our side is
+ * blocked again by Resend, and so by us, on the next mailing.
+ *
+ * Production only, like `sendBatchEmails`: previews share the Resend account,
+ * and must not change who it delivers to. resend 4.1.1 has no suppressions
+ * client, and its generic `delete` takes no abort signal, so this is a plain
+ * request with the same ten-second limit as the rest.
+ */
+export async function removeResendSuppression(
+  address: string,
+): Promise<ResendSuppressionRemoval> {
+  if (serverEnv.VERCEL_ENV !== "production") return { outcome: "skipped" };
+
+  const baseUrl = process.env.RESEND_BASE_URL || "https://api.resend.com";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error("Resend request timed out"));
+  }, RESEND_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/suppressions/${encodeURIComponent(address)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${serverEnv.RESEND_API_KEY}` },
+        signal: controller.signal,
+      },
+    );
+    if (response.ok) return { outcome: "removed" };
+    if (response.status === 404) return { outcome: "not_listed" };
+
+    let message = `Resend respondió ${response.status}`;
+    try {
+      const body = (await response.json()) as { message?: unknown };
+      if (typeof body.message === "string" && body.message) {
+        message = body.message;
+      }
+    } catch {
+      // The status alone is enough to report.
+    }
+    return { outcome: "failed", message };
+  } catch (error) {
+    return {
+      outcome: "failed",
+      message: error instanceof Error ? error.message : "Error desconocido",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

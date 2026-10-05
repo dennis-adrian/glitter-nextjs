@@ -29,6 +29,7 @@ import {
   ImagesIcon,
   LibraryBigIcon,
   LogOutIcon,
+  MailXIcon,
   MicIcon,
   PackageIcon,
   QrCodeIcon,
@@ -367,6 +368,10 @@ const MobileSidebar = ({
                 <MobileSidebarItem href="/dashboard/feature_flags">
                   <ToggleLeftIcon className="mr-2 h-6 w-6" />
                   Funcionalidades
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/emails">
+                  <MailXIcon className="mr-2 h-6 w-6" />
+                  Correos bloqueados
                 </MobileSidebarItem>
               </div>
             </>

@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { type EmailTopic, isEmailTopic } from "@/app/lib/emails/topics";
+import { isMailingTopic, type MailingTopic } from "@/app/lib/emails/topics";
 
 /**
  * The token in an unsubscribe link: which person, and which topic of bulk
@@ -26,11 +26,11 @@ export type UnsubscribeRecipient = {
   id: number;
 };
 
-export type UnsubscribeSubject = UnsubscribeRecipient & { topic: EmailTopic };
+export type UnsubscribeSubject = UnsubscribeRecipient & { topic: MailingTopic };
 
 type TokenPayload = {
   /** Topic. */
-  t: EmailTopic;
+  t: MailingTopic;
   /** "v" for a visitor, "u" for a user. */
   r: "v" | "u";
   /** Row id. */
@@ -79,7 +79,7 @@ export function verifyUnsubscribeToken(
   } catch {
     return null;
   }
-  if (!isEmailTopic(payload.t)) return null;
+  if (!isMailingTopic(payload.t)) return null;
   if (payload.r !== "v" && payload.r !== "u") return null;
   if (
     typeof payload.i !== "number" ||

@@ -5237,6 +5237,11 @@ export const emailTopicEnum = pgEnum("email_topic", [
   "visitor_invitations",
   /** Participants told a festival they can join is open. */
   "participant_invitations",
+  /**
+   * Every kind of bulk mail, including topics added later: for someone who
+   * asked to stop all of it, set by an admin.
+   */
+  "all",
 ]);
 
 /**
@@ -5266,6 +5271,10 @@ export const emailSuppressions = pgTable(
      * as older and ignored.
      */
     liftedAt: timestamp("lifted_at"),
+    /** The admin who unblocked it; null when Resend lifted it. */
+    liftedByUserId: integer("lifted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -5286,6 +5295,10 @@ export const emailUnsubscribes = pgTable(
     /** `lower(trim(address))`. */
     emailKey: text("email_key").notNull(),
     topic: emailTopicEnum("topic").notNull(),
+    /** The admin who added it for them; null when they did it themselves. */
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [

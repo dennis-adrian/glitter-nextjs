@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { EmailTopic } from "@/app/lib/emails/topics";
+import type { MailingTopic } from "@/app/lib/emails/topics";
 import {
   signUnsubscribeToken,
   type UnsubscribeRecipient,
@@ -25,7 +25,7 @@ function baseUrl() {
  */
 export function unsubscribeLinks(
   recipient: UnsubscribeRecipient,
-  topic: EmailTopic,
+  topic: MailingTopic,
 ) {
   const token = encodeURIComponent(
     signUnsubscribeToken({ ...recipient, topic }),

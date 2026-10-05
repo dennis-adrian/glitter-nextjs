@@ -30,7 +30,7 @@ import {
   bulkMailExclusion,
   reachableByBulkMail,
 } from "@/app/lib/emails/suppressions";
-import type { EmailTopic } from "@/app/lib/emails/topics";
+import type { MailingTopic } from "@/app/lib/emails/topics";
 import { unsubscribeLinks } from "@/app/lib/emails/unsubscribe-links";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { sendBatchEmails } from "@/app/vendors/resend";
@@ -51,7 +51,7 @@ const PARTICIPANT_FROM = "Productora Glitter <eventos@productoraglitter.com>";
 const INVITATION_TOPICS = {
   visitor_registration: "visitor_invitations",
   participant_activation: "participant_invitations",
-} as const satisfies Record<InvitationKind, EmailTopic>;
+} as const satisfies Record<InvitationKind, MailingTopic>;
 
 const FestivalIdSchema = z.number().int().positive();
 const KindSchema = z.enum(INVITATION_KINDS);

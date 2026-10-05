@@ -444,6 +444,83 @@ describeDatabase("bulk mail suppressions", () => {
       await suppressions.resubscribe(email, "participant_invitations");
       expect(await unsubscribedTopics(email)).toEqual([]);
     });
+
+    it("skips every topic for someone unsubscribed from all bulk mail, until they resubscribe from a link", async () => {
+      const email = address("all-mail");
+      await suppressions.unsubscribe(email, "all");
+
+      for (const topic of [
+        "visitor_invitations",
+        "participant_invitations",
+      ] as const) {
+        expect(await exclusion(email, topic)).toEqual({
+          excluded: "opted_out",
+          reachable: false,
+        });
+        expect(await suppressions.isUnsubscribed(email, topic)).toBe(true);
+      }
+
+      // Their latest choice, from one of our emails, is to receive mail.
+      await suppressions.resubscribe(email, "visitor_invitations");
+      expect(await unsubscribedTopics(email)).toEqual([]);
+      expect(await exclusion(email, "participant_invitations")).toEqual({
+        excluded: null,
+        reachable: true,
+      });
+    });
+  });
+
+  describe("who lifted a suppression", () => {
+    const when = (minutes: number) => new Date(at(minutes));
+
+    it("keeps the admin who unblocked it when Resend confirms, and forgets them if it is blocked again", async () => {
+      const email = address("admin-lift");
+      const [admin] = await integrationDb!
+        .insert(users)
+        .values({
+          clerkId: `clerk-${suffix()}`,
+          email: address("admin"),
+          role: "admin",
+          status: "verified",
+        })
+        .returning();
+      created.users.push(admin!.id);
+
+      await suppressions.recordSuppression({
+        address: email,
+        reason: "bounce",
+        eventAt: when(0),
+      });
+      await suppressions.liftSuppression({
+        address: email,
+        reason: "bounce",
+        eventAt: when(5),
+        liftedByUserId: admin!.id,
+      });
+      expect(await suppressionFor(email)).toMatchObject({
+        liftedByUserId: admin!.id,
+      });
+
+      // Resend's own suppression.removed for the same lift, a moment later.
+      await suppressions.liftSuppression({
+        address: email,
+        reason: "bounce",
+        eventAt: when(6),
+      });
+      expect(await suppressionFor(email)).toMatchObject({
+        liftedByUserId: admin!.id,
+      });
+
+      await suppressions.recordSuppression({
+        address: email,
+        reason: "bounce",
+        eventAt: when(10),
+      });
+      expect(await suppressionFor(email)).toMatchObject({
+        liftedAt: null,
+        liftedByUserId: null,
+      });
+    });
   });
 
   describe("Resend webhook", () => {

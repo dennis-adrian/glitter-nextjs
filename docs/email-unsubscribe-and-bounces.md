@@ -10,7 +10,7 @@ themselves (their ticket, a reservation, a payment) are not affected.
 | Table | Filled by | Effect |
 |---|---|---|
 | `email_suppressions` | Resend webhook: permanent bounces, spam complaints, Resend's own suppressions | No bulk mail at all to that address |
-| `email_unsubscribes` | The "Darme de baja" link in the email, or the inbox's own unsubscribe button | No bulk mail of that **topic** to that address |
+| `email_unsubscribes` | The "Darme de baja" link in the email, the inbox's own unsubscribe button, or an admin on `/dashboard/emails` | No bulk mail of that **topic** (or, for `all`, of any topic) to that address |
 
 Both are keyed by `lower(trim(address))`, so they cover every case variant of
 an address, both the `visitors` and `users` tables, and survive a deleted
@@ -66,7 +66,7 @@ Setup, once per environment that should receive events:
 2. Events: `email.bounced`, `email.complained`, `email.suppressed`,
    `suppression.added` and `suppression.removed`. The last one is what lets
    an address removed from Resend's suppression list be mailed again here
-   too; nothing else in the app lifts a suppression.
+   too. The admin page below is the other way to lift one.
 3. Copy the signing secret (`whsec_…`) into the environment as
    `RESEND_WEBHOOK_SECRET`, then redeploy.
 
@@ -75,12 +75,35 @@ reports each refused send as `email.suppressed`, so the old undeliverable
 addresses in the visitor list are recorded here the next time an invitation
 goes out, and skipped after that.
 
+## Admin page: `/dashboard/emails`
+
+"Correos bloqueados", in the admin Dashboard menu. Admins only: festival
+admins send the invitations but do not decide who receives them.
+
+- **Bloqueados**: active suppressions, with the bounce message and whose
+  address it is. "Desbloquear" lifts it here (recording the admin) and asks
+  Resend to remove it from its own list (`DELETE /suppressions/{email}`,
+  production only, since previews share the Resend account). If Resend
+  refuses, for example because its suppressions API is not enabled for the
+  account, the page says so: remove it in Resend → Suppressions, or the next
+  mailing blocks it again.
+- **Bajas**: unsubscribes by topic, and who added each one. "Quitar baja"
+  removes exactly that row. "Dar de baja un correo" adds one for someone who
+  asked by other means; "Todos los correos masivos" uses the `all` topic,
+  which also covers topics added later.
+- **Desbloqueados**: lifted suppressions, and whether an admin or Resend
+  lifted them.
+
+Search matches the address or the name of the visitor or participant it
+belongs to.
+
 ## Adding a topic (newsletter, merch promotions)
 
 1. Add the value to `emailTopicEnum` in `db/schema.ts` and generate a
    migration (`pnpm generate --name …`). A new enum label cannot be used in
    the same transaction that adds it; see `scripts/migrate.ts`.
-2. Add its label to `EMAIL_TOPIC_LABELS`.
+2. Add its labels to `EMAIL_TOPIC_LABELS` and `EMAIL_TOPIC_SHORT_LABELS`.
+   People unsubscribed from `all` are skipped automatically.
 3. When building each email: `unsubscribeLinks(recipient, topic)` gives the
    `headers` and the footer `pageUrl` (pass it to `EmailFooter`).
 4. When choosing recipients: filter with

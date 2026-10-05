@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 
-import type { EmailTopic } from "@/app/lib/emails/topics";
+import type { EmailTopic, MailingTopic } from "@/app/lib/emails/topics";
 import type { UnsubscribeRecipient } from "@/app/lib/emails/unsubscribe-tokens";
 import { db } from "@/db";
 import {
@@ -14,9 +14,9 @@ import {
 
 /**
  * Who bulk mailings skip: addresses that bounced for good or reported us as
- * spam (every mailing), and people who unsubscribed from one topic. Single
- * emails someone triggers themselves (their ticket, a reservation, a payment)
- * are not affected.
+ * spam (every mailing), and people who unsubscribed from one topic or, the
+ * `all` topic, from every one. Single emails someone triggers themselves
+ * (their ticket, a reservation, a payment) are not affected.
  */
 
 export type SuppressionReason = "bounce" | "complaint";
@@ -74,6 +74,7 @@ export async function recordSuppression(input: {
         detail: sql`case when ${keepComplaint} then ${existing.detail} else excluded.detail end`,
         lastEventAt: sql`greatest(excluded.last_event_at, ${existing.lastEventAt})`,
         liftedAt: null,
+        liftedByUserId: null,
         updatedAt: now,
       },
       setWhere: sql`(
@@ -90,21 +91,26 @@ export async function recordSuppression(input: {
 }
 
 /**
- * Resend lifted its own suppression of `address` at `eventAt`: bulk mail may
- * reach it again. Kept as a lifted row rather than deleted, so a late copy of
- * an older bounce or complaint is recognised and ignored; and a lift older
- * than the newest suppression changes nothing.
+ * Lifts the suppression of `address` as of `eventAt`: bulk mail may reach it
+ * again. Done by Resend (its webhook) or by an admin (`liftedByUserId`).
+ *
+ * Kept as a lifted row rather than deleted, so a late copy of an older
+ * bounce or complaint is recognised and ignored; and a lift older than the
+ * newest suppression changes nothing. Resend confirming an admin's lift
+ * keeps the admin as the one who lifted it.
  */
 export async function liftSuppression(input: {
   address: string;
-  /** What Resend had suppressed it for; only kept for the record. */
+  /** What it had been suppressed for; only kept for the record. */
   reason: SuppressionReason;
   eventAt?: Date | null;
+  liftedByUserId?: number | null;
 }) {
   const key = emailKey(input.address);
   if (!key) return;
   const now = new Date();
   const eventAt = input.eventAt ?? now;
+  const existing = emailSuppressions;
   await db
     .insert(emailSuppressions)
     .values({
@@ -112,6 +118,7 @@ export async function liftSuppression(input: {
       reason: input.reason,
       lastEventAt: eventAt,
       liftedAt: eventAt,
+      liftedByUserId: input.liftedByUserId ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -120,9 +127,14 @@ export async function liftSuppression(input: {
       set: {
         lastEventAt: sql`excluded.last_event_at`,
         liftedAt: sql`excluded.lifted_at`,
+        liftedByUserId: sql`case
+          when excluded.lifted_by_user_id is not null then excluded.lifted_by_user_id
+          when ${existing.liftedAt} is not null then ${existing.liftedByUserId}
+          else null
+        end`,
         updatedAt: now,
       },
-      setWhere: sql`excluded.last_event_at >= coalesce(${emailSuppressions.lastEventAt}, '-infinity'::timestamp)`,
+      setWhere: sql`excluded.last_event_at >= coalesce(${existing.lastEventAt}, '-infinity'::timestamp)`,
     });
 }
 
@@ -141,16 +153,30 @@ export async function isSuppressed(address: string) {
   return Boolean(row);
 }
 
-export async function unsubscribe(address: string, topic: EmailTopic) {
+/**
+ * Stops `topic` (or, for `all`, every kind of bulk mail) to `address`. An
+ * admin doing it for someone passes their own id; already being unsubscribed
+ * changes nothing, including who did it.
+ */
+export async function unsubscribe(
+  address: string,
+  topic: EmailTopic,
+  createdByUserId: number | null = null,
+) {
   const key = emailKey(address);
   if (!key) return;
   await db
     .insert(emailUnsubscribes)
-    .values({ emailKey: key, topic })
+    .values({ emailKey: key, topic, createdByUserId })
     .onConflictDoNothing();
 }
 
-export async function resubscribe(address: string, topic: EmailTopic) {
+/**
+ * The person asked, from a link in one of our emails, to get `topic` again.
+ * An earlier "stop everything" goes too: their latest choice is to receive
+ * mail from us.
+ */
+export async function resubscribe(address: string, topic: MailingTopic) {
   const key = emailKey(address);
   if (!key) return;
   await db
@@ -158,19 +184,36 @@ export async function resubscribe(address: string, topic: EmailTopic) {
     .where(
       and(
         eq(emailUnsubscribes.emailKey, key),
-        eq(emailUnsubscribes.topic, topic),
+        inArray(emailUnsubscribes.topic, [topic, "all"]),
       ),
     );
 }
 
-export async function isUnsubscribed(address: string, topic: EmailTopic) {
+/** Removes exactly one unsubscribe row, as an admin choosing it. */
+export async function deleteUnsubscribe(address: string, topic: EmailTopic) {
+  const key = emailKey(address);
+  if (!key) return 0;
+  const removed = await db
+    .delete(emailUnsubscribes)
+    .where(
+      and(
+        eq(emailUnsubscribes.emailKey, key),
+        eq(emailUnsubscribes.topic, topic),
+      ),
+    )
+    .returning({ id: emailUnsubscribes.id });
+  return removed.length;
+}
+
+/** Whether `topic` mail skips `address` because they unsubscribed from it. */
+export async function isUnsubscribed(address: string, topic: MailingTopic) {
   const [row] = await db
     .select({ id: emailUnsubscribes.id })
     .from(emailUnsubscribes)
     .where(
       and(
         eq(emailUnsubscribes.emailKey, emailKey(address)),
-        eq(emailUnsubscribes.topic, topic),
+        inArray(emailUnsubscribes.topic, [topic, "all"]),
       ),
     )
     .limit(1);
@@ -200,7 +243,7 @@ export async function recipientAddress(recipient: UnsubscribeRecipient) {
  * reach. Correlated on the normalized address, so every case variant of a
  * suppressed address is skipped too.
  */
-export function reachableByBulkMail(address: SQL, topic: EmailTopic) {
+export function reachableByBulkMail(address: SQL, topic: MailingTopic) {
   return sql`(
     not exists (
       select 1 from ${emailSuppressions}
@@ -210,7 +253,7 @@ export function reachableByBulkMail(address: SQL, topic: EmailTopic) {
     and not exists (
       select 1 from ${emailUnsubscribes}
       where ${emailUnsubscribes.emailKey} = lower(trim(${address}))
-        and ${emailUnsubscribes.topic} = ${topic}
+        and ${emailUnsubscribes.topic} in (${topic}, 'all')
     )
   )`;
 }
@@ -220,7 +263,7 @@ export function reachableByBulkMail(address: SQL, topic: EmailTopic) {
  * mail), `opted_out` (they unsubscribed or reported us), or null when it
  * does not. For the counts shown before sending.
  */
-export function bulkMailExclusion(address: SQL, topic: EmailTopic) {
+export function bulkMailExclusion(address: SQL, topic: MailingTopic) {
   return sql<"bounced" | "opted_out" | null>`(
     case
       when exists (
@@ -237,7 +280,7 @@ export function bulkMailExclusion(address: SQL, topic: EmailTopic) {
       ) or exists (
         select 1 from ${emailUnsubscribes}
         where ${emailUnsubscribes.emailKey} = lower(trim(${address}))
-          and ${emailUnsubscribes.topic} = ${topic}
+          and ${emailUnsubscribes.topic} in (${topic}, 'all')
       ) then 'opted_out'
       else null
     end

@@ -403,6 +403,12 @@ const NavbarNavigationMenu = ({
                 >
                   Activa o esconde funcionalidades y da acceso anticipado
                 </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Correos bloqueados"
+                  href="/dashboard/emails"
+                >
+                  Rebotes, reportes de spam y bajas de los correos masivos
+                </NavigationMenuListItem>
                 <NavigationMenuListItem title="Blog" href="/dashboard/blog">
                   Artículos, revisión editorial y categorías
                 </NavigationMenuListItem>

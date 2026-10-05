@@ -7,7 +7,11 @@ vi.mock("../../env", () => ({
 }));
 
 import { serverEnv } from "../../env";
-import { sendBatchEmails, sendEmail } from "@/app/vendors/resend";
+import {
+  removeResendSuppression,
+  sendBatchEmails,
+  sendEmail,
+} from "@/app/vendors/resend";
 
 const payload = {
   from: "Glitter <test@example.com>",
@@ -143,5 +147,69 @@ describe("sendBatchEmails", () => {
     await expect(
       sendBatchEmails(Array.from({ length: 101 }, () => payload)),
     ).rejects.toThrow("at most 100");
+  });
+});
+
+describe("removeResendSuppression", () => {
+  const env = serverEnv as { VERCEL_ENV?: string };
+
+  afterEach(() => {
+    delete env.VERCEL_ENV;
+    vi.unstubAllGlobals();
+  });
+
+  it("leaves the shared Resend account alone outside production", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    for (const environment of [undefined, "development", "preview"]) {
+      env.VERCEL_ENV = environment;
+      expect(await removeResendSuppression("ana@example.com")).toEqual({
+        outcome: "skipped",
+      });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes the address from Resend's list in production", async () => {
+    env.VERCEL_ENV = "production";
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await removeResendSuppression("Ana+x@example.com")).toEqual({
+      outcome: "removed",
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.resend.com/suppressions/Ana%2Bx%40example.com");
+    expect(init.method).toBe("DELETE");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer re_test");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("tells a missing suppression apart from a refusal", async () => {
+    env.VERCEL_ENV = "production";
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          json: async () => ({ message: "Suppressions are not enabled" }),
+        })
+        .mockRejectedValueOnce(new Error("network down")),
+    );
+
+    expect(await removeResendSuppression("a@example.com")).toEqual({
+      outcome: "not_listed",
+    });
+    expect(await removeResendSuppression("a@example.com")).toEqual({
+      outcome: "failed",
+      message: "Suppressions are not enabled",
+    });
+    expect(await removeResendSuppression("a@example.com")).toEqual({
+      outcome: "failed",
+      message: "network down",
+    });
   });
 });

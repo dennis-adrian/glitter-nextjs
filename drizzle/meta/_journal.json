@@ -2066,6 +2066,13 @@
       "when": 1791160187164,
       "tag": "0295_email_suppression_event_order",
       "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1791162132061,
+      "tag": "0296_email_admin_actions",
+      "breakpoints": true
     }
   ]
 }
