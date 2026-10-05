@@ -1,9 +1,15 @@
-"use server";
+import "server-only";
+
+/**
+ * Cron work for activity waitlists. It checks nobody's role, so it must never
+ * sit in a "use server" module, where every export is a public endpoint; the
+ * cron route is its only caller.
+ */
 
 import { db } from "@/db";
 import { festivalActivityWaitlist } from "@/db/schema";
 import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
-import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
+import { promoteFromWaitlist } from "@/app/lib/festival_activites/waitlist-promotion";
 
 export async function processExpiredWaitlistNotifications() {
   const now = new Date();

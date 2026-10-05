@@ -8,8 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * whether the QR's `cid:` reference still resolves.
  */
 
-const { insertedTicket, afterCallbacks } = vi.hoisted(() => ({
+const { insertedTicket, afterCallbacks, stored } = vi.hoisted(() => ({
   insertedTicket: { current: null as Record<string, unknown> | null },
+  // createTicket reads the visitor and festival itself rather than trusting
+  // the caller, so the mail is built from these rows.
+  stored: {
+    visitor: null as Record<string, unknown> | null,
+    festival: null as Record<string, unknown> | null,
+  },
   /** Work `createTicket` handed to `after`, run once the response is out. */
   afterCallbacks: [] as Array<() => unknown>,
 }));
@@ -40,6 +46,10 @@ vi.mock("@/db", () => {
 
   return {
     db: {
+      query: {
+        visitors: { findFirst: async () => stored.visitor },
+        festivals: { findFirst: async () => stored.festival },
+      },
       transaction: async (run: (transaction: typeof tx) => unknown) => run(tx),
     },
   };
@@ -49,8 +59,6 @@ import { createTicket } from "@/app/data/tickets/actions";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import { generateQrBuffer } from "@/app/lib/utils";
 
-type CreateTicketInput = Parameters<typeof createTicket>[0];
-
 const preview = TicketEmailTemplate.PreviewProps;
 const date = new Date("2026-10-09T15:00:00.000Z");
 
@@ -59,12 +67,8 @@ const fetchMock = vi.fn();
 function registerVisitor() {
   return createTicket({
     date,
-    visitor: {
-      ...preview.visitor,
-      id: 1,
-      email: "visitor@example.com",
-    } as CreateTicketInput["visitor"],
-    festival: preview.festival,
+    email: "visitor@example.com",
+    festivalId: preview.festival.id,
     numberOfVisitors: 2,
   });
 }
@@ -77,6 +81,16 @@ async function runAfterResponse() {
 describe("createTicket email", () => {
   beforeEach(() => {
     afterCallbacks.length = 0;
+    stored.visitor = {
+      ...preview.visitor,
+      id: 1,
+      email: "visitor@example.com",
+    };
+    // The ticket's date has to be one of the festival's own dates.
+    stored.festival = {
+      ...preview.festival,
+      festivalDates: [{ startDate: date }],
+    };
     insertedTicket.current = {
       id: 1,
       visitorId: 1,

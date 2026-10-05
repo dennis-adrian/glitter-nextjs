@@ -12,7 +12,7 @@ import {
 } from "@/app/components/form/input-validators";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { VisitorBase, createVisitor } from "@/app/data/visitors/actions";
+import { createVisitor } from "@/app/data/visitors/actions";
 import { genderOptions } from "@/app/lib/utils";
 import { dateToString, stringToUTCDate } from "@/app/utils/dateUtils";
 import { genderEnum } from "@/db/schema";
@@ -42,24 +42,17 @@ const FormSchema = z.object({
   phoneNumber: phoneValidator(),
 });
 
-export default function VisitorRegistrationForm({
-  email,
-  visitor,
-}: {
-  email: string;
-  visitor: VisitorBase | undefined | null;
-}) {
+export default function VisitorRegistrationForm({ email }: { email: string }) {
   const router = useRouter();
   const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      birthdate:
-        visitor?.birthdate || DateTime.now().minus({ years: 10 }).toJSDate(),
+      birthdate: DateTime.now().minus({ years: 10 }).toJSDate(),
       email: email,
-      firstName: visitor?.firstName || "",
-      gender: visitor?.gender || "other",
-      lastName: visitor?.lastName || "",
-      phoneNumber: visitor?.phoneNumber || "",
+      firstName: "",
+      gender: "other",
+      lastName: "",
+      phoneNumber: "",
     },
   });
 

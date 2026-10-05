@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { badges } from "@/db/schema";
 import { revalidatePath } from "next/cache";
@@ -7,6 +8,11 @@ import { NewBadge } from "./definitions";
 import { asc } from "drizzle-orm";
 
 export async function createBadge(badge: NewBadge) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db.insert(badges).values(badge);
   } catch (error) {

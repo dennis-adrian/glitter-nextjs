@@ -1,5 +1,5 @@
 "use client";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { PlusCircleIcon } from "lucide-react";
 import { useState } from "react";
 import { BaseProfile } from "@/app/api/users/definitions";
@@ -15,7 +15,7 @@ export default function VisitorTickets({
   festival,
   currentUser,
 }: {
-  visitor: VisitorWithTickets;
+  visitor: PublicVisitor;
   festival: FestivalWithDates;
   currentUser?: BaseProfile | null;
 }) {

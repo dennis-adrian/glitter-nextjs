@@ -32,15 +32,24 @@ export default function ActivateFestivalForm({
         const gastronomyUsers = availableUsers.filter(
           (user) => user.category === "gastronomy",
         );
-        await sendUserEmailsTemp(gastronomyUsers, festival.id);
+        await sendUserEmailsTemp(
+          gastronomyUsers.map((user) => user.id),
+          festival.id,
+        );
         const entrepreneurshipUsers = availableUsers.filter(
           (user) => user.category === "entrepreneurship",
         );
-        await sendUserEmailsTemp(entrepreneurshipUsers, festival.id);
+        await sendUserEmailsTemp(
+          entrepreneurshipUsers.map((user) => user.id),
+          festival.id,
+        );
         const illustrationUsers = availableUsers.filter(
           (user) => user.category === "illustration",
         );
-        await sendUserEmailsTemp(illustrationUsers, festival.id);
+        await sendUserEmailsTemp(
+          illustrationUsers.map((user) => user.id),
+          festival.id,
+        );
         toast.dismiss(loadingToast);
       }
       onSuccess();

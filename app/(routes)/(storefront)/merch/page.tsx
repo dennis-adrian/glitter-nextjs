@@ -1,6 +1,6 @@
 import MerchStorefront from "@/app/components/organisms/store/merch-storefront";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
-import { fetchProducts } from "@/app/lib/products/actions";
+import { fetchProducts } from "@/app/lib/products/queries";
 import { fetchMerchCollections } from "@/app/lib/merch/collections";
 import { fetchPublicBundles } from "@/app/lib/merch/bundles";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";

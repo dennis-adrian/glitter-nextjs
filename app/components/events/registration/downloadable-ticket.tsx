@@ -4,7 +4,7 @@ import { useRef } from "react";
 import * as htmlToImage from "html-to-image";
 import Ticket from "@/app/components/events/registration/ticket";
 import { TicketBase } from "@/app/data/tickets/actions";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { DownloadIcon } from "lucide-react";
@@ -12,7 +12,7 @@ import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type DownloadableTicketProps = {
   ticket: TicketBase;
-  visitor: VisitorWithTickets;
+  visitor: PublicVisitor;
   festival: FestivalBase;
 };
 export default function DownloadableTicket(props: DownloadableTicketProps) {

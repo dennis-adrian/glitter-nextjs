@@ -7,19 +7,16 @@ import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { sendTicketEmail } from "@/app/data/tickets/actions";
 import { toast } from "sonner";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type SendEmailFormProps = {
-  visitor: VisitorWithTickets;
-  festival: FestivalBase;
+  visitorId: number;
 };
 
 export default function SendEmailForm(props: SendEmailFormProps) {
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-    const res = await sendTicketEmail(props.visitor, props.festival);
+    const res = await sendTicketEmail(props.visitorId);
     if (res.success) {
       toast.success("Entrada enviado", {
         description: res.message,

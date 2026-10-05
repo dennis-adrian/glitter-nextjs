@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import ActivityVotingResults from "@/app/components/festivals/festival_activities/activity-voting-results";
-import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivityForStaff } from "@/app/lib/festival_activites/queries";
 import { fetchFestivalReservationStandRefs } from "@/app/lib/reservations/queries";
 
 const ParamsSchema = z.object({
@@ -20,7 +20,7 @@ export default async function Page({ params }: ResultsPageProps) {
 
   const { id: festivalId, activityId } = validatedParams.data;
 
-  const activity = await fetchFestivalActivity(activityId);
+  const activity = await fetchFestivalActivityForStaff(activityId);
   if (!activity || activity.festivalId !== festivalId) return notFound();
   if (!activity.allowsVoting) return notFound();
 

@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { fetchParticipantProducts } from "@/app/lib/participant_products/actions";
+import { fetchParticipantProducts } from "@/app/lib/participant_products/queries";
 
 type SubmittedProductsCardProps = {
   profileId: number;

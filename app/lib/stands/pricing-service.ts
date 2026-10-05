@@ -4,6 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 
 import { validateFullTablePair } from "@/app/lib/stands/full-table-pairs";
 import { loadStandGroupMembers } from "@/app/lib/stands/full-table-health";
+import { lockStandGroupRows } from "@/app/lib/stands/group-service";
 import { lockStandRows } from "@/app/lib/reservations/locks";
 import { roundMoney } from "@/app/lib/reservations/money";
 import { db } from "@/db";
@@ -38,32 +39,8 @@ export type StandPriceResult =
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-/**
- * Locks the given `stand_groups` rows in ascending id order and returns their
- * types.
- *
- * Groups are locked before stands because `setStandGroupFullTable` does the
- * same; taking the two tables in opposite orders is how the price editor and
- * the full-table switch would deadlock on the same table.
- */
-async function lockStandGroupTypes(tx: DbTx, groupIds: readonly number[]) {
-  const types = new Map<number, string>();
-  for (const groupId of [...new Set(groupIds)].sort((a, b) => a - b)) {
-    const [group] = await tx
-      .select({ type: standGroups.type })
-      .from(standGroups)
-      .where(eq(standGroups.id, groupId))
-      .limit(1)
-      .for("update");
-    if (group) types.set(groupId, group.type);
-  }
-  return types;
-}
-
 function isTwoDecimals(value: number) {
-  return (
-    Number.isFinite(value) && Math.abs(roundMoney(value) - value) < 1e-9
-  );
+  return Number.isFinite(value) && Math.abs(roundMoney(value) - value) < 1e-9;
 }
 
 /**
@@ -127,8 +104,7 @@ export async function updateStandPrices(
       } else if (update.sharedPrice < update.individualPrice) {
         problems.push({
           standId: update.standId,
-          message:
-            "El precio compartido no puede ser menor que el individual.",
+          message: "El precio compartido no puede ser menor que el individual.",
         });
       }
     }
@@ -146,7 +122,7 @@ export async function updateStandPrices(
       .select({ standGroupId: stands.standGroupId })
       .from(stands)
       .where(inArray(stands.id, standIds));
-    const groupTypes = await lockStandGroupTypes(
+    const groupTypes = await lockStandGroupRows(
       tx,
       preliminary
         .map((row) => row.standGroupId)
@@ -168,7 +144,9 @@ export async function updateStandPrices(
       return {
         ok: false as const,
         code: "STANDS_NOT_FOUND" as const,
-        problems: [{ standId: null, message: "No se encontraron todos los espacios." }],
+        problems: [
+          { standId: null, message: "No se encontraron todos los espacios." },
+        ],
       };
     }
 
@@ -179,8 +157,7 @@ export async function updateStandPrices(
       if (update.sharedPrice != null && row?.standCategory !== "illustration") {
         storedProblems.push({
           standId: update.standId,
-          message:
-            "Solo los espacios de ilustración tienen precio compartido.",
+          message: "Solo los espacios de ilustración tienen precio compartido.",
         });
       }
       // An omitted shared price keeps the stored one, which the new individual
@@ -321,7 +298,8 @@ export async function guardLegacySinglePriceEdit(
   if (individualPrice < 0 || !isTwoDecimals(individualPrice)) {
     return {
       ok: false,
-      message: "El precio individual debe ser 0 o más, con hasta dos decimales.",
+      message:
+        "El precio individual debe ser 0 o más, con hasta dos decimales.",
     };
   }
 

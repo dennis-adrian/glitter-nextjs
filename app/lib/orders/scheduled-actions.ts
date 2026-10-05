@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import OrderCancellationTemplate from "@/app/emails/order-cancellation";
 import OrderPaymentReminderTemplate from "@/app/emails/order-payment-reminder";

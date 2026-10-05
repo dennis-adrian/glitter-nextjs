@@ -3,7 +3,7 @@
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { createTicket } from "@/app/data/tickets/actions";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { Loader2Icon } from "lucide-react";
@@ -12,9 +12,9 @@ import { toast } from "sonner";
 
 type EventDayTicketCreationFormProps = {
   festival: FestivalWithDates;
-  visitor: VisitorWithTickets;
+  visitor: PublicVisitor;
   numberOfVisitors?: number;
-  onSuccess: (visitor: VisitorWithTickets) => void;
+  onSuccess: (visitor: PublicVisitor) => void;
 };
 
 export default function EventDayTicketCreationForm(
@@ -35,8 +35,8 @@ export default function EventDayTicketCreationForm(
     }
     const res = await createTicket({
       date: ticketDate.startDate,
-      visitor: props.visitor,
-      festival: props.festival,
+      email: props.visitor.email,
+      festivalId: props.festival.id,
       numberOfVisitors: props.numberOfVisitors || 1,
     });
 
