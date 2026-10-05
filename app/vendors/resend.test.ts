@@ -104,7 +104,17 @@ describe("sendBatchEmails", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await sendBatchEmails(
-      [payload, { ...payload, replyTo: "visitantes@example.com" }],
+      [
+        payload,
+        {
+          ...payload,
+          replyTo: "visitantes@example.com",
+          headers: {
+            "List-Unsubscribe": "<https://example.com/u?token=t>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        },
+      ],
       { idempotencyKey: "festival-invitation/x" },
     );
 
@@ -117,6 +127,11 @@ describe("sendBatchEmails", () => {
     // The batch endpoint only knows the API's snake_case name.
     expect(body[1].reply_to).toBe("visitantes@example.com");
     expect(body[1].replyTo).toBeUndefined();
+    // Unsubscribe headers travel per email, under the same name.
+    expect(body[1].headers).toEqual({
+      "List-Unsubscribe": "<https://example.com/u?token=t>",
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
     expect(new Headers(init.headers).get("Idempotency-Key")).toBe(
       "festival-invitation/x",
     );

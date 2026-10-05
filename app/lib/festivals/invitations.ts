@@ -11,6 +11,7 @@ import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/h
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import {
   INVITATION_KINDS,
+  type InvitationAudience,
   type InvitationAudienceResult,
   type InvitationBatchResult,
   type InvitationKind,
@@ -25,6 +26,12 @@ import {
   resendOutcome,
   safeGreetingName,
 } from "@/app/lib/festivals/invitation-helpers";
+import {
+  bulkMailExclusion,
+  reachableByBulkMail,
+} from "@/app/lib/emails/suppressions";
+import type { EmailTopic } from "@/app/lib/emails/topics";
+import { unsubscribeLinks } from "@/app/lib/emails/unsubscribe-links";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { sendBatchEmails } from "@/app/vendors/resend";
 import { db } from "@/db";
@@ -39,6 +46,12 @@ import {
 const VISITOR_FROM = "Equipo Glitter <equipo@productoraglitter.com>";
 const VISITOR_REPLY_TO = "visitantes@productoraglitter.com";
 const PARTICIPANT_FROM = "Productora Glitter <eventos@productoraglitter.com>";
+
+/** Which unsubscribe list each mailing honours. */
+const INVITATION_TOPICS = {
+  visitor_registration: "visitor_invitations",
+  participant_activation: "participant_invitations",
+} as const satisfies Record<InvitationKind, EmailTopic>;
 
 const FestivalIdSchema = z.number().int().positive();
 const KindSchema = z.enum(INVITATION_KINDS);
@@ -141,6 +154,18 @@ function invitableParticipant(categories: BaseProfile["category"][]) {
 }
 
 /**
+ * Leaves out participants whose address bounced, who reported us as spam,
+ * or who unsubscribed from these announcements. Kept apart from
+ * `invitableParticipant` so the count can say why someone was left out.
+ */
+function reachableParticipant() {
+  return reachableByBulkMail(
+    sql`${users.email}`,
+    INVITATION_TOPICS.participant_activation,
+  );
+}
+
+/**
  * Visitors are unique by email only as typed, so one person can hold several
  * rows ("Ana@…" and "ana@…"). Both CTEs work on the normalized address: a
  * person is reached once, through their oldest row, and not at all when any
@@ -217,6 +242,12 @@ async function readVisitorPage(
           join tickets t on t.visitor_id = rv.id
           where t.festival_id = ${festivalId}
         )`,
+        // Filtered here, never in the window above, so page bounds stay put
+        // when someone unsubscribes or bounces mid-run.
+        reachableByBulkMail(
+          sql`${visitors.email}`,
+          INVITATION_TOPICS.visitor_registration,
+        ),
       ),
     )
     .orderBy(asc(visitors.id));
@@ -244,7 +275,13 @@ async function readParticipantPage(
       : await db
           .select()
           .from(users)
-          .where(and(inArray(users.id, ids), invitableParticipant(categories)))
+          .where(
+            and(
+              inArray(users.id, ids),
+              invitableParticipant(categories),
+              reachableParticipant(),
+            ),
+          )
           .orderBy(asc(users.id));
 
   return { size: ids.length, lastId: ids[ids.length - 1]!, recipients };
@@ -255,24 +292,32 @@ async function buildVisitorEmails(
   festival: FestivalWithDates,
 ) {
   return Promise.all(
-    recipients.map(async (visitor) => ({
-      from: VISITOR_FROM,
-      to: [visitor.email],
-      replyTo: VISITOR_REPLY_TO,
-      subject: `Pre-registro abierto: ${festival.name}`,
-      html: await render(
-        RegistrationInvitationEmailTemplate({
-          festival,
-          // Anyone can register a visitor with any name; only a plain name
-          // goes into a mail sent from our domain.
-          visitorName: safeGreetingName(visitor.firstName),
-        }),
-      ),
-      tags: [
-        { name: "category", value: "festival_registration_invitation" },
-        { name: "festival_id", value: String(festival.id) },
-      ],
-    })),
+    recipients.map(async (visitor) => {
+      const unsubscribe = unsubscribeLinks(
+        { kind: "visitor", id: visitor.id },
+        INVITATION_TOPICS.visitor_registration,
+      );
+      return {
+        from: VISITOR_FROM,
+        to: [visitor.email],
+        replyTo: VISITOR_REPLY_TO,
+        subject: `Pre-registro abierto: ${festival.name}`,
+        headers: unsubscribe.headers,
+        html: await render(
+          RegistrationInvitationEmailTemplate({
+            festival,
+            // Anyone can register a visitor with any name; only a plain name
+            // goes into a mail sent from our domain.
+            visitorName: safeGreetingName(visitor.firstName),
+            unsubscribeUrl: unsubscribe.pageUrl,
+          }),
+        ),
+        tags: [
+          { name: "category", value: "festival_registration_invitation" },
+          { name: "festival_id", value: String(festival.id) },
+        ],
+      };
+    }),
   );
 }
 
@@ -281,17 +326,51 @@ async function buildParticipantEmails(
   festival: FestivalWithDates,
 ) {
   return Promise.all(
-    recipients.map(async (profile) => ({
-      from: PARTICIPANT_FROM,
-      to: [profile.email],
-      subject: `¡Hola ${profile.displayName || ""}! Te invitamos a participar en ${festival.name}`,
-      html: await render(FestivalActivationEmailTemplate({ profile, festival })),
-      tags: [
-        { name: "category", value: "festival_activation_invitation" },
-        { name: "festival_id", value: String(festival.id) },
-      ],
-    })),
+    recipients.map(async (profile) => {
+      const unsubscribe = unsubscribeLinks(
+        { kind: "user", id: profile.id },
+        INVITATION_TOPICS.participant_activation,
+      );
+      return {
+        from: PARTICIPANT_FROM,
+        to: [profile.email],
+        subject: `¡Hola ${profile.displayName || ""}! Te invitamos a participar en ${festival.name}`,
+        headers: unsubscribe.headers,
+        html: await render(
+          FestivalActivationEmailTemplate({
+            profile,
+            festival,
+            unsubscribeUrl: unsubscribe.pageUrl,
+          }),
+        ),
+        tags: [
+          { name: "category", value: "festival_activation_invitation" },
+          { name: "festival_id", value: String(festival.id) },
+        ],
+      };
+    }),
   );
+}
+
+function emptyAudience(): InvitationAudience {
+  return {
+    recipients: 0,
+    alreadyRegistered: 0,
+    invalidEmails: 0,
+    bounced: 0,
+    optedOut: 0,
+  };
+}
+
+/** Sorts one candidate the way the send would treat them. */
+function countReachable(
+  audience: InvitationAudience,
+  row: { email: string; excluded: "bounced" | "opted_out" | null },
+) {
+  if (row.excluded === "bounced") audience.bounced += 1;
+  else if (row.excluded === "opted_out") audience.optedOut += 1;
+  else if (!isDeliverableEmail(row.email)) audience.invalidEmails += 1;
+  else audience.recipients += 1;
 }
 
 /**
@@ -320,42 +399,41 @@ export async function fetchInvitationAudience(
         ${visitorAudienceCtes(festivalId)}
         select
           v.email,
-          lower(trim(v.email)) in (select email_key from registered) as registered
+          lower(trim(v.email)) in (select email_key from registered) as registered,
+          ${bulkMailExclusion(sql`v.email`, INVITATION_TOPICS.visitor_registration)} as excluded
         from visitors v
         join canonical c on c.id = v.id
       `);
-      const rows = result.rows as { email: string; registered: boolean }[];
-      const audience = { recipients: 0, alreadyRegistered: 0, invalidEmails: 0 };
+      const rows = result.rows as {
+        email: string;
+        registered: boolean;
+        excluded: "bounced" | "opted_out" | null;
+      }[];
+      const audience = emptyAudience();
       for (const row of rows) {
         if (row.registered) audience.alreadyRegistered += 1;
-        else if (!isDeliverableEmail(row.email)) audience.invalidEmails += 1;
-        else audience.recipients += 1;
+        else countReachable(audience, row);
       }
       return { success: true, audience };
     }
 
     const categories = await festivalCategories(festivalId);
     if (categories.length === 0) {
-      return {
-        success: true,
-        audience: { recipients: 0, alreadyRegistered: 0, invalidEmails: 0 },
-      };
+      return { success: true, audience: emptyAudience() };
     }
     const rows = await db
-      .select({ email: users.email })
+      .select({
+        email: users.email,
+        excluded: bulkMailExclusion(
+          sql`${users.email}`,
+          INVITATION_TOPICS.participant_activation,
+        ),
+      })
       .from(users)
       .where(invitableParticipant(categories));
-    const invalidEmails = rows.filter(
-      (row) => !isDeliverableEmail(row.email),
-    ).length;
-    return {
-      success: true,
-      audience: {
-        recipients: rows.length - invalidEmails,
-        alreadyRegistered: 0,
-        invalidEmails,
-      },
-    };
+    const audience = emptyAudience();
+    for (const row of rows) countReachable(audience, row);
+    return { success: true, audience };
   } catch (error) {
     console.error("Error counting invitation audience", error);
     return {
@@ -593,14 +671,21 @@ export async function sendParticipantInvitationsToUsers(
         : await db
             .select()
             .from(users)
-            .where(and(inArray(users.id, ids), invitableParticipant(categories)))
+            .where(
+              and(
+                inArray(users.id, ids),
+                invitableParticipant(categories),
+                reachableParticipant(),
+              ),
+            )
             .orderBy(asc(users.id));
     const { valid } = partitionRecipients(rows);
     const skipped = ids.length - valid.length;
     if (valid.length === 0) {
       return {
         success: false,
-        message: "Ninguna de las personas seleccionadas puede recibir la invitación.",
+        message:
+          "Ninguna de las personas seleccionadas puede recibir la invitación.",
       };
     }
 

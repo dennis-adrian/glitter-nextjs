@@ -24,6 +24,10 @@ export type InvitationAudience = {
   alreadyRegistered: number;
   /** Rows left out because their address cannot receive mail. */
   invalidEmails: number;
+  /** People left out because mail to their address bounced for good. */
+  bounced: number;
+  /** People left out because they unsubscribed or reported us as spam. */
+  optedOut: number;
 };
 
 export type InvitationAudienceResult =

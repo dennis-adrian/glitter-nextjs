@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ExternalLinkIcon,
-  InfoIcon,
-  QrCodeIcon,
-  SendIcon,
-} from "lucide-react";
+import { ExternalLinkIcon, InfoIcon, QrCodeIcon, SendIcon } from "lucide-react";
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
@@ -50,24 +45,41 @@ function people(count: number, one: string, many: string) {
   return `${count.toLocaleString("es-BO")} ${count === 1 ? one : many}`;
 }
 
-function visitorAudienceNote(audience: InvitationAudience) {
-  const parts = [
-    audience.alreadyRegistered > 0
-      ? `${people(audience.alreadyRegistered, "visitante ya tiene", "visitantes ya tienen")} entrada`
-      : null,
-    audience.invalidEmails > 0
-      ? `${people(audience.invalidEmails, "correo no es válido", "correos no son válidos")}`
-      : null,
-  ].filter(Boolean);
-  return parts.length > 0
-    ? `No se envía a quienes ya están acreditados ni a correos inválidos: ${parts.join(" y ")}.`
-    : null;
+/** "a", "a y b", "a, b y c". */
+function listJoin(parts: string[]) {
+  if (parts.length <= 1) return parts.join("");
+  return `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1]}`;
 }
 
-function invalidEmailsNote(audience: InvitationAudience) {
-  return audience.invalidEmails > 0
-    ? `${people(audience.invalidEmails, "correo no es válido y se omite", "correos no son válidos y se omiten")}.`
-    : null;
+/** Who a mailing leaves out, and why; null when nobody is. */
+function skippedNote(audience: InvitationAudience) {
+  const parts = [
+    audience.alreadyRegistered > 0
+      ? people(
+          audience.alreadyRegistered,
+          "visitante que ya tiene entrada",
+          "visitantes que ya tienen entrada",
+        )
+      : null,
+    audience.optedOut > 0
+      ? people(
+          audience.optedOut,
+          "persona que se dio de baja",
+          "personas que se dieron de baja",
+        )
+      : null,
+    audience.bounced > 0
+      ? people(
+          audience.bounced,
+          "correo que ya no recibe mensajes",
+          "correos que ya no reciben mensajes",
+        )
+      : null,
+    audience.invalidEmails > 0
+      ? people(audience.invalidEmails, "correo no válido", "correos no válidos")
+      : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? `No se envía a ${listJoin(parts)}.` : null;
 }
 
 type SettingRowProps = {
@@ -101,7 +113,10 @@ function SettingRow({
       <div className="min-w-0 space-y-1">
         <Label
           htmlFor={id}
-          className={cn("text-sm font-medium", disabled && "text-muted-foreground")}
+          className={cn(
+            "text-sm font-medium",
+            disabled && "text-muted-foreground",
+          )}
         >
           {label}
         </Label>
@@ -173,7 +188,7 @@ export default function FestivalSettingsCard({
     kind: "visitor_registration",
     optionLabel: (audience) =>
       `Invitar por correo a ${people(audience.recipients, "visitante", "visitantes")} de festivales anteriores`,
-    audienceNote: visitorAudienceNote,
+    audienceNote: skippedNote,
   };
 
   const dialog = (() => {
@@ -195,7 +210,7 @@ export default function FestivalSettingsCard({
                 kind: "participant_activation",
                 optionLabel: (audience: InvitationAudience) =>
                   `Invitar por correo a ${people(audience.recipients, "participante verificado", "participantes verificados")} de las categorías del festival`,
-                audienceNote: invalidEmailsNote,
+                audienceNote: skippedNote,
               } satisfies FestivalSettingInvitation,
             }
           : {
@@ -336,7 +351,10 @@ export default function FestivalSettingsCard({
                 : null
             }
             onToggle={() =>
-              open({ type: "registration", enable: !festival.publicRegistration })
+              open({
+                type: "registration",
+                enable: !festival.publicRegistration,
+              })
             }
           >
             {registrationOpen ? (
@@ -356,7 +374,10 @@ export default function FestivalSettingsCard({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <ExternalLinkIcon className="mr-2 h-3.5 w-3.5" aria-hidden />
+                    <ExternalLinkIcon
+                      className="mr-2 h-3.5 w-3.5"
+                      aria-hidden
+                    />
                     Ver formulario
                   </Link>
                 </Button>
@@ -375,7 +396,10 @@ export default function FestivalSettingsCard({
                 : null
             }
             onToggle={() =>
-              open({ type: "event-day", enable: !festival.eventDayRegistration })
+              open({
+                type: "event-day",
+                enable: !festival.eventDayRegistration,
+              })
             }
           >
             {registrationOpen && festival.eventDayRegistration ? (
@@ -391,7 +415,10 @@ export default function FestivalSettingsCard({
                   </p>
                 ) : null}
                 <Button asChild size="sm" variant="outline">
-                  <a href={`/dashboard/festivals/${festival.id}/door-qr`} download>
+                  <a
+                    href={`/dashboard/festivals/${festival.id}/door-qr`}
+                    download
+                  >
                     <QrCodeIcon className="mr-2 h-3.5 w-3.5" aria-hidden />
                     Descargar QR
                   </a>
@@ -402,7 +429,10 @@ export default function FestivalSettingsCard({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <ExternalLinkIcon className="mr-2 h-3.5 w-3.5" aria-hidden />
+                    <ExternalLinkIcon
+                      className="mr-2 h-3.5 w-3.5"
+                      aria-hidden
+                    />
                     Ver formulario de puerta
                   </Link>
                 </Button>

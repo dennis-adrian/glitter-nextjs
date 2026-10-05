@@ -24,6 +24,8 @@ interface RegistrationInvitationEmailTemplateProps {
   festival: FestivalWithDates;
   /** The visitor's first name, when we have one, for the greeting. */
   visitorName?: string | null;
+  /** Where this visitor stops receiving these invitations. */
+  unsubscribeUrl?: string;
 }
 
 export default function RegistrationInvitationEmailTemplate(
@@ -97,7 +99,7 @@ export default function RegistrationInvitationEmailTemplate(
             </Button>
           </Section>
         </Container>
-        <EmailFooter />
+        <EmailFooter unsubscribeUrl={props.unsubscribeUrl} />
       </Body>
     </Html>
   );
@@ -105,6 +107,7 @@ export default function RegistrationInvitationEmailTemplate(
 
 RegistrationInvitationEmailTemplate.PreviewProps = {
   visitorName: "Camila",
+  unsubscribeUrl: "http://localhost:3000/email/unsubscribe?token=preview",
   festival: {
     id: 1,
     name: "Glitter 5ta Edición - Max el Caimán",

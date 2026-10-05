@@ -2052,6 +2052,13 @@
       "when": 1790720572146,
       "tag": "0293_upgrade_full_table_operation",
       "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1791157763731,
+      "tag": "0294_email_suppressions_and_unsubscribes",
+      "breakpoints": true
     }
   ]
 }

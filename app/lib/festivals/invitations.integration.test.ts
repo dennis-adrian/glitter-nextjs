@@ -15,6 +15,8 @@ import {
 
 import * as schema from "@/db/schema";
 import {
+  emailSuppressions,
+  emailUnsubscribes,
   festivalDates,
   festivalSectors,
   festivalStatusEvents,
@@ -68,6 +70,8 @@ let ADMIN: { id: number; role: "admin" };
 const RUN_ID = "6f0c6c1e-8f64-4a8e-9a54-3b1f0c3f2a11";
 
 const created = {
+  /** Normalized addresses given suppression or unsubscribe rows. */
+  emailKeys: [] as string[],
   festivals: [] as number[],
   visitors: [] as number[],
   users: [] as number[],
@@ -116,6 +120,33 @@ async function createVisitors(tag: string, emails: string[]) {
   return rows;
 }
 
+async function suppress(email: string, reason: "bounce" | "complaint") {
+  const emailKey = email.trim().toLowerCase();
+  created.emailKeys.push(emailKey);
+  await integrationDb!.insert(emailSuppressions).values({ emailKey, reason });
+}
+
+async function optOut(
+  email: string,
+  topic: "visitor_invitations" | "participant_invitations",
+) {
+  const emailKey = email.trim().toLowerCase();
+  created.emailKeys.push(emailKey);
+  await integrationDb!.insert(emailUnsubscribes).values({ emailKey, topic });
+}
+
+/** Every email Resend was handed, across every batch call. */
+function mailed() {
+  return sendBatchEmails.mock.calls.flatMap(
+    ([emails]) =>
+      emails as {
+        to: string[];
+        html: string;
+        headers?: Record<string, string>;
+      }[],
+  );
+}
+
 /** Every recipient Resend was handed, across every batch call. */
 function mailedTo() {
   return sendBatchEmails.mock.calls.flatMap(([emails]) =>
@@ -123,7 +154,10 @@ function mailedTo() {
   );
 }
 
-async function sendAll(festivalId: number, kind: "visitor_registration" | "participant_activation") {
+async function sendAll(
+  festivalId: number,
+  kind: "visitor_registration" | "participant_activation",
+) {
   let cursor: number | null = 0;
   let sent = 0;
   let skipped = 0;
@@ -191,6 +225,15 @@ describeDatabase("festival registration and invitation actions", () => {
     if (visitorIds.length > 0) {
       await db.delete(visitors).where(inArray(visitors.id, visitorIds));
     }
+    const emailKeys = created.emailKeys.splice(0);
+    if (emailKeys.length > 0) {
+      await db
+        .delete(emailSuppressions)
+        .where(inArray(emailSuppressions.emailKey, emailKeys));
+      await db
+        .delete(emailUnsubscribes)
+        .where(inArray(emailUnsubscribes.emailKey, emailKeys));
+    }
     const userIds = created.users.splice(0);
     if (userIds.length > 0) {
       await db.delete(users).where(inArray(users.id, userIds));
@@ -215,7 +258,10 @@ describeDatabase("festival registration and invitation actions", () => {
       const festival = await createFestival();
       requireAdminOrFestivalAdmin.mockResolvedValue(null);
 
-      const result = await actions.updateFestivalRegistration(festival.id, true);
+      const result = await actions.updateFestivalRegistration(
+        festival.id,
+        true,
+      );
 
       expect(result).toEqual({ success: false, message: "No autorizado" });
       const row = await integrationDb!.query.festivals.findFirst({
@@ -355,7 +401,11 @@ describeDatabase("festival registration and invitation actions", () => {
           `invalid ${tag}@example.test`,
         ]);
       await integrationDb!.insert(tickets).values([
-        { date: new Date(), visitorId: registered!.id, festivalId: festival.id },
+        {
+          date: new Date(),
+          visitorId: registered!.id,
+          festivalId: festival.id,
+        },
         {
           date: new Date(),
           visitorId: otherFestivalOnly!.id,
@@ -590,6 +640,89 @@ describeDatabase("festival registration and invitation actions", () => {
     });
   });
 
+  describe("visitor invitations and unsubscribes", () => {
+    it("skips visitors who bounced, reported spam or unsubscribed, in the count and the send", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [invited, bounced, complained, unsubscribed, otherTopic] =
+        await createVisitors(tag, [
+          `invited-${tag}@example.test`,
+          `Bounced-${tag}@example.test`,
+          `complained-${tag}@example.test`,
+          `unsubscribed-${tag}@example.test`,
+          `other-topic-${tag}@example.test`,
+        ]);
+
+      const before = await invitations.fetchInvitationAudience(
+        festival.id,
+        "visitor_registration",
+      );
+      await suppress(bounced!.email, "bounce");
+      await suppress(complained!.email, "complaint");
+      await optOut(unsubscribed!.email, "visitor_invitations");
+      // Opting out of participant mail says nothing about visitor mail.
+      await optOut(otherTopic!.email, "participant_invitations");
+      const after = await invitations.fetchInvitationAudience(
+        festival.id,
+        "visitor_registration",
+      );
+
+      if (!before.success || !after.success) throw new Error("count failed");
+      expect(
+        after.audience.bounced - before.audience.bounced,
+      ).toBeGreaterThanOrEqual(1);
+      expect(
+        after.audience.optedOut - before.audience.optedOut,
+      ).toBeGreaterThanOrEqual(2);
+
+      await sendAll(festival.id, "visitor_registration");
+
+      expect(
+        mailedTo()
+          .filter((email) => email.includes(tag))
+          .sort(),
+      ).toEqual([invited!.email, otherTopic!.email].sort());
+    });
+
+    it("lets every visitor unsubscribe from the email itself and from their inbox's button", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [visitor] = await createVisitors(tag, [
+        `links-${tag}@example.test`,
+      ]);
+
+      await sendAll(festival.id, "visitor_registration");
+
+      const email = mailed().find((sent) => sent.to[0] === visitor!.email);
+      expect(email).toBeDefined();
+      expect(email!.headers?.["List-Unsubscribe-Post"]).toBe(
+        "List-Unsubscribe=One-Click",
+      );
+      const header = email!.headers?.["List-Unsubscribe"] ?? "";
+      const oneClickUrl = new URL(header.replace(/^<|>$/g, ""));
+      expect(oneClickUrl.pathname).toBe("/api/email/unsubscribe");
+
+      const { verifyUnsubscribeToken } =
+        await import("@/app/lib/emails/unsubscribe-tokens");
+      expect(
+        verifyUnsubscribeToken(oneClickUrl.searchParams.get("token")),
+      ).toEqual({
+        kind: "visitor",
+        id: visitor!.id,
+        topic: "visitor_invitations",
+      });
+      // The footer links the page for the same person and topic.
+      expect(email!.html).toContain(
+        `/email/unsubscribe?token=${encodeURIComponent(oneClickUrl.searchParams.get("token")!)}`,
+      );
+      expect(email!.html).toContain("Darme de baja");
+    });
+  });
+
   describe("participant invitations", () => {
     it("mails verified participants of the festival's categories who can open the terms", async () => {
       requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
@@ -642,12 +775,43 @@ describeDatabase("festival registration and invitation actions", () => {
       await makeUser("nosubcategory", {}, false);
       await makeUser("pending", { status: "pending" }, true);
       await makeUser("gastronomy", { category: "gastronomy" }, true);
+      const unsubscribed = await makeUser("unsubscribed", {}, true);
+      await optOut(unsubscribed.email, "participant_invitations");
+      const bounced = await makeUser("bounced", {}, true);
+      await suppress(bounced.email, "bounce");
+      const visitorTopicOnly = await makeUser("visitortopic", {}, true);
+      await optOut(visitorTopicOnly.email, "visitor_invitations");
+
+      const audience = await invitations.fetchInvitationAudience(
+        festival.id,
+        "participant_activation",
+      );
+      // Counts cover the whole database, which other suites share.
+      if (!audience.success) throw new Error(audience.message);
+      expect(audience.audience.recipients).toBeGreaterThanOrEqual(2);
+      expect(audience.audience.bounced).toBeGreaterThanOrEqual(1);
+      expect(audience.audience.optedOut).toBeGreaterThanOrEqual(1);
 
       await sendAll(festival.id, "participant_activation");
 
-      expect(mailedTo().filter((email) => email.includes(tag))).toEqual([
-        invited.email,
-      ]);
+      expect(
+        mailedTo()
+          .filter((email) => email.includes(tag))
+          .sort(),
+      ).toEqual([invited.email, visitorTopicOnly.email].sort());
+      const email = mailed().find((sent) => sent.to[0] === invited.email);
+      expect(email?.headers?.["List-Unsubscribe"]).toMatch(
+        /\/api\/email\/unsubscribe\?token=/,
+      );
+
+      // Picking them by hand does not override their choice either.
+      sendBatchEmails.mockClear();
+      const manual = await invitations.sendParticipantInvitationsToUsers(
+        festival.id,
+        [invited.id, unsubscribed.id, bounced.id],
+      );
+      expect(manual).toMatchObject({ success: true, sent: 1, skipped: 2 });
+      expect(mailedTo()).toEqual([invited.email]);
     });
   });
 
@@ -700,7 +864,9 @@ describeDatabase("festival registration and invitation actions", () => {
       requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
       const tag = suffix();
       const festival = await createFestival({ status: "draft" });
-      const [visitor] = await createVisitors(tag, [`ticket-${tag}@example.test`]);
+      const [visitor] = await createVisitors(tag, [
+        `ticket-${tag}@example.test`,
+      ]);
       await integrationDb!.insert(tickets).values({
         date: new Date(),
         visitorId: visitor!.id,
