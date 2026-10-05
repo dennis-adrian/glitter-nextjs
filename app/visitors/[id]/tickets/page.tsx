@@ -1,8 +1,7 @@
-"use server";
-
 import { CalendarDaysIcon, CheckIcon, TicketIcon } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { fetchVisitor } from "@/app/data/visitors/actions";
+import { fetchVisitor } from "@/app/data/visitors/queries";
 
 import {
   Card,
@@ -18,8 +17,16 @@ import { TicketStatusPill } from "@/app/components/tickets/status-pill";
 import CheckInForm from "@/app/components/tickets/checkin-form";
 import SendEmailForm from "@/app/components/tickets/send-pending-email-form";
 import { fetchActiveFestivalBase } from "@/app/lib/festivals/actions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
+/**
+ * A visitor's tickets, with check-in. Staff only: it shows the visitor's name
+ * and email, and visitor ids are sequential.
+ */
 export default async function Page(props: { params: Promise<{ id: string }> }) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) redirect("/");
+
   const params = await props.params;
   const visitor = await fetchVisitor(parseInt(params.id));
   if (!visitor) {
@@ -77,12 +84,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
                   {ticket.status === "pending" && (
                     <CheckInForm id={ticket.id} />
                   )}
-                  {activeFestival && (
-                    <SendEmailForm
-                      visitor={visitor}
-                      festival={activeFestival}
-                    />
-                  )}
+                  {activeFestival && <SendEmailForm visitorId={visitor.id} />}
                 </div>
               </CardFooter>
             </Card>

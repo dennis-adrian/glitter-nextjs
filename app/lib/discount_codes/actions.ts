@@ -174,7 +174,14 @@ export async function validateAndApplyDiscountCode({
         .where(eq(invoices.id, parsed.data.invoiceId))
         .limit(1);
 
-      if (!invoicePreview) {
+      // Ownership before the festival-wide locks: someone else's invoice id
+      // must not hold up the festival's reservation writes, and gets the same
+      // answer as a missing invoice.
+      if (
+        !invoicePreview ||
+        (invoicePreview.userId !== currentUser.id &&
+          currentUser.role !== "admin")
+      ) {
         return {
           success: false,
           message: "Código de descuento inválido o inactivo.",

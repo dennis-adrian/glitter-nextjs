@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import StandManageTable from "@/app/components/maps/admin/stand-manage-table";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
-import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
 import { fetchFullTableGroups } from "@/app/lib/stands/full-table-queries";
 
 const ParamsSchema = z.object({

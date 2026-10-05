@@ -11,7 +11,6 @@ import {
 } from "@/app/lib/festival-terms/queries";
 import {
   createInitialFestivalTermsDraft,
-  ensureDefaultFestivalTerms,
   insertFestivalTermsSections,
 } from "@/app/lib/festival-terms/persist";
 import { publishDraftSchema, saveDraftSchema } from "@/app/lib/festival-terms/schema";
@@ -26,8 +25,6 @@ function revalidateTermsPaths() {
   revalidatePath("/dashboard/terms");
   revalidatePath("/festivals", "layout");
 }
-
-export { ensureDefaultFestivalTerms };
 
 export async function getFestivalTermsAdminState() {
   const profile = await requireAdmin();

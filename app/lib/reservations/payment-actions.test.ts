@@ -18,12 +18,15 @@ vi.mock("@/app/lib/reservations/payment-service", () => ({
   submitZeroValueInvoiceForReview: vi.fn(),
 }));
 
+const getCurrentUserProfileMock = vi.hoisted(() => vi.fn());
+const canMutateAdminReservationsMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: vi.fn(),
+  getCurrentUserProfile: getCurrentUserProfileMock,
 }));
 
 vi.mock("@/app/lib/reservations/policy", () => ({
-  canMutateAdminReservations: vi.fn(),
+  canMutateAdminReservations: canMutateAdminReservationsMock,
 }));
 
 vi.mock("@/app/lib/reservations/admin-service", () => ({
@@ -61,11 +64,40 @@ describe("adminConfirmReservationByReservationIdAction", () => {
     adminConfirmReservationMock.mockReset();
     findSubmittedSettlementInvoiceIdForReservationMock.mockReset();
     selectMock.mockReset();
+    getCurrentUserProfileMock.mockReset();
+    canMutateAdminReservationsMock.mockReset();
+    getCurrentUserProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    canMutateAdminReservationsMock.mockImplementation(
+      (actor: { role: string } | null) => actor?.role === "admin",
+    );
     adminConfirmReservationMock.mockResolvedValue({
       success: true,
       message: "La reserva fue confirmada.",
     });
   });
+
+  it.each([
+    ["a signed-out visitor", null],
+    ["a festival admin", { id: 2, role: "festival_admin" }],
+    ["a participant", { id: 5, role: "user" }],
+  ])(
+    "refuses %s before looking up the reservation",
+    async (_label, profile) => {
+      getCurrentUserProfileMock.mockResolvedValue(profile);
+
+      const result = await adminConfirmReservationByReservationIdAction({
+        reservationId: 4,
+        idempotencyKey: CONFIRM_KEY,
+      });
+
+      expect(result).toEqual({ success: false, message: "No autorizado." });
+      expect(
+        findSubmittedSettlementInvoiceIdForReservationMock,
+      ).not.toHaveBeenCalled();
+      expect(selectMock).not.toHaveBeenCalled();
+      expect(adminConfirmReservationMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("confirms the invoice linked to the submitted settlement, not another invoice on the reservation", async () => {
     findSubmittedSettlementInvoiceIdForReservationMock.mockResolvedValue(20);

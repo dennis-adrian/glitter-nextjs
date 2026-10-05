@@ -45,11 +45,13 @@ import {
 import {
   createGuestOrderInTx,
   createOrderInTx,
+  type OrderLineInput,
+} from "@/app/lib/orders/create-order";
+import {
   sendGuestOrderEmails,
   sendOrderEmails,
-  type OrderLineInput,
-} from "@/app/lib/orders/actions";
-import { fetchProduct } from "@/app/lib/products/actions";
+} from "@/app/lib/orders/order-emails";
+import { fetchProduct } from "@/app/lib/products/queries";
 import { getProductVariantStock } from "@/app/lib/products/variants";
 import { assertRentalEligibility } from "@/app/lib/rentals/eligibility";
 import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
@@ -1542,7 +1544,7 @@ export async function planGuestBundleAdd(
   }
 }
 
-export async function fetchCartWithItemsForCheckout(
+async function fetchCartWithItemsForCheckout(
   tx: CartTx,
   userId: number,
 ): Promise<CartCheckoutSnapshot | null> {
@@ -1589,7 +1591,7 @@ export async function fetchCartWithItemsForCheckout(
   };
 }
 
-export async function clearCartInTx(tx: CartTx, cartId: number): Promise<void> {
+async function clearCartInTx(tx: CartTx, cartId: number): Promise<void> {
   await tx.delete(cartItems).where(eq(cartItems.cartId, cartId));
   await tx.delete(cartBundles).where(eq(cartBundles.cartId, cartId));
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
-import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
 import { fetchInvoicesByFestival } from "@/app/data/invoices/actions";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
 import AdminOverviewMap from "@/app/components/maps/admin/admin-overview-map";

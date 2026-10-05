@@ -60,6 +60,9 @@ let resolveFullTableCompanion: (typeof import("@/app/lib/reservations/full-table
 let declareFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["declareFullTablePair"];
 let dissolveFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["dissolveFullTablePair"];
 let findMalformedFullTableGroups: (typeof import("@/app/lib/stands/full-table-health"))["findMalformedFullTableGroups"];
+let createVisualGroup: (typeof import("@/app/lib/stands/group-service"))["createVisualGroup"];
+let ungroupVisualStands: (typeof import("@/app/lib/stands/group-service"))["ungroupVisualStands"];
+let deleteStandsWithGroups: (typeof import("@/app/lib/stands/group-service"))["deleteStandsWithGroups"];
 let updateStandPrices: (typeof import("@/app/lib/stands/pricing-service"))["updateStandPrices"];
 let guardLegacySinglePriceEdit: (typeof import("@/app/lib/stands/pricing-service"))["guardLegacySinglePriceEdit"];
 
@@ -129,6 +132,8 @@ describeDatabase("setStandGroupFullTable", () => {
       await import("@/app/lib/stands/full-table-health"));
     ({ updateStandPrices, guardLegacySinglePriceEdit } =
       await import("@/app/lib/stands/pricing-service"));
+    ({ createVisualGroup, ungroupVisualStands, deleteStandsWithGroups } =
+      await import("@/app/lib/stands/group-service"));
 
     try {
       await integrationDb!
@@ -192,6 +197,61 @@ describeDatabase("setStandGroupFullTable", () => {
     return row?.price;
   }
 
+  /** One reservation over `standIds`, in order; `released` ones no longer occupy. */
+  async function book(
+    festivalId: number,
+    standIds: number[],
+    released: number[] = [],
+  ) {
+    const [reservation] = await integrationDb!
+      .insert(standReservations)
+      .values({ standId: standIds[0], festivalId, status: "accepted" })
+      .returning({ id: standReservations.id });
+    createdReservationIds.push(reservation!.id);
+    await integrationDb!.insert(standReservationStands).values(
+      standIds.map((standId, position) => ({
+        reservationId: reservation!.id,
+        standId,
+        position,
+        releasedAt: released.includes(standId) ? new Date() : null,
+      })),
+    );
+    return reservation!.id;
+  }
+
+  async function holdStand(
+    festivalId: number,
+    standId: number,
+    expiresAt: Date,
+  ) {
+    const suffix = randomUUID();
+    const [holder] = await integrationDb!
+      .insert(users)
+      .values({
+        clerkId: `ft-holder-${suffix}`,
+        email: `ft-holder-${suffix}@example.test`,
+        displayName: `FT Holder ${suffix}`,
+        status: "verified",
+      })
+      .returning({ id: users.id });
+    createdUserIds.push(holder!.id);
+    const [hold] = await integrationDb!
+      .insert(standHolds)
+      .values({
+        standId,
+        userId: holder!.id,
+        festivalId,
+        // `stand_holds_expires_after_created` forbids an expiry before creation.
+        createdAt: new Date(expiresAt.getTime() - 10 * 60_000),
+        expiresAt,
+      })
+      .returning({ id: standHolds.id });
+    await integrationDb!
+      .insert(standHoldMembers)
+      .values({ holdId: hold!.id, standId, position: 0 })
+      .onConflictDoNothing();
+  }
+
   it("declares a matching illustration pair a full table", async () => {
     const { groupId } = await createPair();
 
@@ -249,24 +309,83 @@ describeDatabase("setStandGroupFullTable", () => {
     ]);
   });
 
-  it("refuses to reconfigure a pair with a live reservation", async () => {
+  it("declares a group with one half booked on its own", async () => {
     const { groupId, standIds } = await createPair();
     const [festivalId] = createdFestivalIds.slice(-1);
-    const [reservation] = await integrationDb!
-      .insert(standReservations)
-      .values({ standId: standIds[0], festivalId, status: "accepted" })
-      .returning({ id: standReservations.id });
-    createdReservationIds.push(reservation!.id);
-    // Occupancy is resolved through membership, so the fixture has to create
-    // the member row the real writers create.
-    await integrationDb!
-      .insert(standReservationStands)
-      .values({ reservationId: reservation!.id, standId: standIds[0] });
+    const reservationId = await book(festivalId, [standIds[0]]);
 
     const result = await setStandGroupFullTable({ groupId, enabled: true });
 
-    expect(result).toMatchObject({ ok: false, code: "OCCUPIED" });
+    expect(result).toMatchObject({ ok: true, type: "full_table" });
+    expect(
+      await integrationDb!
+        .select({
+          standId: standReservationStands.standId,
+          releasedAt: standReservationStands.releasedAt,
+        })
+        .from(standReservationStands)
+        .where(eq(standReservationStands.reservationId, reservationId)),
+    ).toEqual([{ standId: standIds[0], releasedAt: null }]);
+  });
+
+  it("refuses to declare a group one reservation occupies whole", async () => {
+    const { groupId, standIds } = await createPair();
+    const [festivalId] = createdFestivalIds.slice(-1);
+    await book(festivalId, standIds);
+
+    expect(
+      await setStandGroupFullTable({ groupId, enabled: true }),
+    ).toMatchObject({ ok: false, code: "BOOKED_AS_TABLE" });
     expect(await groupType(groupId)).toBe("visual_group");
+  });
+
+  it("refuses to retype a group someone is holding, in either direction", async () => {
+    const { groupId, standIds } = await createPair();
+    const [festivalId] = createdFestivalIds.slice(-1);
+    await holdStand(
+      festivalId,
+      standIds[1],
+      new Date(Date.now() + 10 * 60_000),
+    );
+
+    expect(
+      await setStandGroupFullTable({ groupId, enabled: true }),
+    ).toMatchObject({ ok: false, code: "HELD" });
+    expect(await groupType(groupId)).toBe("visual_group");
+
+    await integrationDb!
+      .update(standGroups)
+      .set({ type: "full_table", fullTablePrice: 700 })
+      .where(eq(standGroups.id, groupId));
+    expect(
+      await setStandGroupFullTable({ groupId, enabled: false }),
+    ).toMatchObject({ ok: false, code: "HELD" });
+    expect(await fullTablePriceOf(groupId)).toBe(700);
+  });
+
+  it("returns a table with one half booked to a visual group", async () => {
+    const { groupId, standIds } = await createPair();
+    const [festivalId] = createdFestivalIds.slice(-1);
+    await setStandGroupFullTable({ groupId, enabled: true });
+    await book(festivalId, [standIds[0]]);
+
+    expect(
+      await setStandGroupFullTable({ groupId, enabled: false }),
+    ).toMatchObject({ ok: true, type: "visual_group" });
+  });
+
+  it("refuses to return a table booked as a whole to a visual group", async () => {
+    const { groupId, standIds } = await createPair();
+    const [festivalId] = createdFestivalIds.slice(-1);
+    await setStandGroupFullTable({ groupId, enabled: true });
+    await setFullTablePrice({ groupId, price: 700 });
+    await book(festivalId, standIds);
+
+    expect(
+      await setStandGroupFullTable({ groupId, enabled: false }),
+    ).toMatchObject({ ok: false, code: "BOOKED_AS_TABLE" });
+    expect(await groupType(groupId)).toBe("full_table");
+    expect(await fullTablePriceOf(groupId)).toBe(700);
   });
 
   it("reports a pair that became malformed after it was declared", async () => {
@@ -619,28 +738,6 @@ describeDatabase("setStandGroupFullTable", () => {
       };
     }
 
-    /** One reservation over `standIds`, in order; `released` ones no longer occupy. */
-    async function book(
-      festivalId: number,
-      standIds: number[],
-      released: number[] = [],
-    ) {
-      const [reservation] = await integrationDb!
-        .insert(standReservations)
-        .values({ standId: standIds[0], festivalId, status: "accepted" })
-        .returning({ id: standReservations.id });
-      createdReservationIds.push(reservation!.id);
-      await integrationDb!.insert(standReservationStands).values(
-        standIds.map((standId, position) => ({
-          reservationId: reservation!.id,
-          standId,
-          position,
-          releasedAt: released.includes(standId) ? new Date() : null,
-        })),
-      );
-      return reservation!.id;
-    }
-
     async function declaredTable() {
       const lone = await loneStands();
       const declared = await declareFullTablePair({ standIds: lone.standIds });
@@ -938,39 +1035,6 @@ describeDatabase("setStandGroupFullTable", () => {
       expect(await groupType(groupId)).toBeUndefined();
     });
 
-    async function holdStand(
-      festivalId: number,
-      standId: number,
-      expiresAt: Date,
-    ) {
-      const suffix = randomUUID();
-      const [holder] = await integrationDb!
-        .insert(users)
-        .values({
-          clerkId: `ft-holder-${suffix}`,
-          email: `ft-holder-${suffix}@example.test`,
-          displayName: `FT Holder ${suffix}`,
-          status: "verified",
-        })
-        .returning({ id: users.id });
-      createdUserIds.push(holder!.id);
-      const [hold] = await integrationDb!
-        .insert(standHolds)
-        .values({
-          standId,
-          userId: holder!.id,
-          festivalId,
-          // `stand_holds_expires_after_created` forbids an expiry before creation.
-          createdAt: new Date(expiresAt.getTime() - 10 * 60_000),
-          expiresAt,
-        })
-        .returning({ id: standHolds.id });
-      await integrationDb!
-        .insert(standHoldMembers)
-        .values({ holdId: hold!.id, standId, position: 0 })
-        .onConflictDoNothing();
-    }
-
     it("refuses to dissolve a table someone is holding", async () => {
       const { festivalId, standIds, groupId } = await declaredTable();
       await holdStand(
@@ -993,6 +1057,216 @@ describeDatabase("setStandGroupFullTable", () => {
 
       expect(await dissolveFullTablePair({ groupId })).toEqual({ ok: true });
       expect(await groupType(groupId)).toBeUndefined();
+    });
+
+    it("declares a pair with one half booked on its own, leaving the booking alone", async () => {
+      const { festivalId, standIds } = await loneStands();
+      const reservationId = await book(festivalId, [standIds[0]]);
+
+      const result = await declareFullTablePair({ standIds });
+      if (!result.ok) throw new Error(`expected a table, got ${result.code}`);
+      createdGroupIds.push(result.groupId);
+
+      expect(await groupType(result.groupId)).toBe("full_table");
+      expect(await trackGroupOf(standIds[1])).toBe(result.groupId);
+      expect(
+        await integrationDb!
+          .select({
+            standId: standReservationStands.standId,
+            releasedAt: standReservationStands.releasedAt,
+          })
+          .from(standReservationStands)
+          .where(eq(standReservationStands.reservationId, reservationId)),
+      ).toEqual([{ standId: standIds[0], releasedAt: null }]);
+    });
+
+    it("puts back a table split by mistake while a half is booked", async () => {
+      const { festivalId, standIds, groupId } = await declaredTable();
+      await setFullTablePrice({ groupId, price: 700 });
+      await book(festivalId, [standIds[0]]);
+
+      expect(await dissolveFullTablePair({ groupId })).toEqual({ ok: true });
+      const redeclared = await declareFullTablePair({ standIds });
+      if (!redeclared.ok) {
+        throw new Error(`expected a table, got ${redeclared.code}`);
+      }
+      createdGroupIds.push(redeclared.groupId);
+
+      expect(await groupType(redeclared.groupId)).toBe("full_table");
+      // The price lived on the group the split deleted.
+      expect(await fullTablePriceOf(redeclared.groupId)).toBeNull();
+    });
+
+    it("declares a pair whose halves are booked separately", async () => {
+      const { festivalId, standIds } = await loneStands();
+      await book(festivalId, [standIds[0]]);
+      await book(festivalId, [standIds[1]]);
+
+      const result = await declareFullTablePair({ standIds });
+      if (!result.ok) throw new Error(`expected a table, got ${result.code}`);
+      createdGroupIds.push(result.groupId);
+    });
+
+    it("refuses to declare around a reservation that occupies two stands", async () => {
+      const { festivalId, standIds } = await loneStands([{}, {}, {}]);
+      await book(festivalId, [standIds[0], standIds[2]]);
+
+      expect(
+        await declareFullTablePair({ standIds: [standIds[0], standIds[1]] }),
+      ).toMatchObject({ ok: false, code: "BOOKED_AS_TABLE" });
+      expect(await trackGroupOf(standIds[0])).toBeNull();
+    });
+
+    it("refuses to declare a pair someone is holding, and declares once it expires", async () => {
+      const held = await loneStands();
+      await holdStand(
+        held.festivalId,
+        held.standIds[1],
+        new Date(Date.now() + 10 * 60_000),
+      );
+      expect(
+        await declareFullTablePair({ standIds: held.standIds }),
+      ).toMatchObject({ ok: false, code: "HELD" });
+      expect(await trackGroupOf(held.standIds[0])).toBeNull();
+
+      const expired = await loneStands();
+      await holdStand(
+        expired.festivalId,
+        expired.standIds[1],
+        new Date(Date.now() - 60_000),
+      );
+      const result = await declareFullTablePair({ standIds: expired.standIds });
+      if (!result.ok) throw new Error(`expected a table, got ${result.code}`);
+      createdGroupIds.push(result.groupId);
+    });
+
+    describe("map editor commands", () => {
+      it("refuses to group a full-table half with another stand", async () => {
+        const { sectorId, standIds, groupId } = await declaredTable();
+        await setFullTablePrice({ groupId, price: 700 });
+        const [loose] = await integrationDb!
+          .insert(stands)
+          .values({
+            standNumber: 9,
+            label: "B",
+            festivalSectorId: sectorId,
+            standCategory: "illustration",
+            individualPrice: 200,
+            sharedPrice: 300,
+            positionLeft: 22,
+            positionTop: 10,
+          })
+          .returning({ id: stands.id });
+
+        expect(
+          await createVisualGroup({ standIds: [standIds[1], loose!.id] }),
+        ).toMatchObject({ ok: false, code: "FULL_TABLE_MEMBER" });
+        expect(await createVisualGroup({ standIds })).toMatchObject({
+          ok: false,
+          code: "FULL_TABLE_MEMBER",
+        });
+
+        expect(await groupType(groupId)).toBe("full_table");
+        expect(await fullTablePriceOf(groupId)).toBe(700);
+        expect(await trackGroupOf(standIds[0])).toBe(groupId);
+        expect(await trackGroupOf(standIds[1])).toBe(groupId);
+      });
+
+      it("still regroups a visual-group member and prunes what it leaves", async () => {
+        const { standIds, groupId } = await createPair();
+        const [sector] = await integrationDb!
+          .select({ id: stands.festivalSectorId })
+          .from(stands)
+          .where(eq(stands.id, standIds[0]));
+        const [loose] = await integrationDb!
+          .insert(stands)
+          .values({
+            standNumber: 3,
+            label: "A",
+            festivalSectorId: sector!.id,
+            standCategory: "illustration",
+            individualPrice: 200,
+            sharedPrice: 300,
+            positionLeft: 16,
+            positionTop: 10,
+          })
+          .returning({ id: stands.id });
+
+        const result = await createVisualGroup({
+          standIds: [standIds[1], loose!.id],
+        });
+        if (!result.ok) throw new Error(`expected a group, got ${result.code}`);
+
+        expect(await groupType(groupId)).toBeUndefined();
+        expect(await trackGroupOf(standIds[0])).toBeNull();
+        expect(await trackGroupOf(standIds[1])).toBe(result.groupId);
+        expect(await trackGroupOf(loose!.id)).toBe(result.groupId);
+      });
+
+      it("refuses to ungroup a full-table half, however the table is occupied", async () => {
+        const free = await declaredTable();
+        expect(
+          await ungroupVisualStands({ standIds: [free.standIds[0]] }),
+        ).toMatchObject({
+          ok: false,
+          code: "FULL_TABLE_MEMBER",
+          fullTableStandLabels: ["B1"],
+        });
+
+        const booked = await declaredTable();
+        await book(booked.festivalId, booked.standIds);
+        expect(
+          await ungroupVisualStands({ standIds: [booked.standIds[1]] }),
+        ).toMatchObject({ ok: false, code: "FULL_TABLE_MEMBER" });
+
+        for (const table of [free, booked]) {
+          expect(await groupType(table.groupId)).toBe("full_table");
+          expect(await trackGroupOf(table.standIds[0])).toBe(table.groupId);
+          expect(await trackGroupOf(table.standIds[1])).toBe(table.groupId);
+        }
+      });
+
+      it("refuses a mixed selection whole, and still ungroups visual groups", async () => {
+        const visual = await createPair();
+        const table = await declaredTable();
+
+        expect(
+          await ungroupVisualStands({
+            standIds: [visual.standIds[0], table.standIds[0]],
+          }),
+        ).toMatchObject({ ok: false, code: "FULL_TABLE_MEMBER" });
+        expect(await trackGroupOf(visual.standIds[0])).toBe(visual.groupId);
+
+        expect(
+          await ungroupVisualStands({ standIds: [visual.standIds[0]] }),
+        ).toEqual({ ok: true });
+        expect(await groupType(visual.groupId)).toBeUndefined();
+        expect(await trackGroupOf(visual.standIds[1])).toBeNull();
+      });
+
+      it("refuses to delete a full-table half and prunes visual groups it deletes from", async () => {
+        const table = await declaredTable();
+        expect(
+          await deleteStandsWithGroups({ standIds: [table.standIds[0]] }),
+        ).toMatchObject({ ok: false, code: "FULL_TABLE_MEMBER" });
+        expect(await trackGroupOf(table.standIds[0])).toBe(table.groupId);
+
+        const visual = await createPair();
+        expect(
+          await deleteStandsWithGroups({ standIds: [visual.standIds[0]] }),
+        ).toEqual({ ok: true, deleted: 1 });
+        expect(await groupType(visual.groupId)).toBeUndefined();
+        expect(await trackGroupOf(visual.standIds[1])).toBeNull();
+      });
+
+      it("still refuses to delete a booked stand", async () => {
+        const { festivalId, standIds } = await loneStands();
+        await book(festivalId, [standIds[0]]);
+
+        expect(
+          await deleteStandsWithGroups({ standIds: [standIds[0]] }),
+        ).toEqual({ ok: false, code: "HAS_RESERVATIONS" });
+      });
     });
 
     it("refuses to dissolve a group that is not a full table", async () => {

@@ -25,9 +25,9 @@ export default function SubmittedProductCard({
 }: SubmittedProductCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDeleteProduct = async (product: ParticipantProduct) => {
+  const handleDeleteProduct = async (productId: number) => {
     setIsDeleting(true);
-    const result = await deleteParticipantProduct(product);
+    const result = await deleteParticipantProduct(productId);
     if (result.success) {
       toast.success(result.message);
     } else {
@@ -43,7 +43,7 @@ export default function SubmittedProductCard({
           <Button
             size="sm"
             className="bg-red-500 hover:bg-red-600 focus:bg-red-600 text-white font-normal"
-            onClick={() => handleDeleteProduct(product)}
+            onClick={() => handleDeleteProduct(product.id)}
             disabled={isDeleting}
           >
             <span>{isDeleting ? "Eliminando..." : "Eliminar"}</span>
