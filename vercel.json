@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/morning/orphanedProductImages",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/morning/orderCancellations",
+      "schedule": "0 * * * *"
     }
   ]
 }
