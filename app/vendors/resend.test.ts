@@ -90,11 +90,37 @@ describe("sendEmail", () => {
 
     const { url, init, headers } = sentRequest(fetchMock);
     expect(url).toBe("https://api.resend.com/emails");
-    expect(headers.get("Idempotency-Key")).toBe("program-signup-42");
+    expect(headers.get("Idempotency-Key")).toBe("production:program-signup-42");
     expect(headers.get("Authorization")).toBe("Bearer re_test");
     expect(headers.get("Content-Type")).toBe("application/json");
     expect(headers.get("User-Agent")).toMatch(/^resend-node:/);
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("scopes the idempotency key to the environment", async () => {
+    serverEnv.VERCEL_ENV = "preview";
+    const fetchMock = vi.fn().mockResolvedValue(resendReply({ id: "email-1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendEmail(payload, { idempotencyKey: "program-signup-42" });
+
+    // Preview numbers purchases in its own database; unscoped, its
+    // `program-signup-42` would collide with production's.
+    expect(sentRequest(fetchMock).headers.get("Idempotency-Key")).toBe(
+      "preview:program-signup-42",
+    );
+  });
+
+  it("hashes a key that would pass Resend's 256-character limit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(resendReply({ id: "email-1" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const longKey = `reservation:${"x".repeat(250)}@example.com`;
+
+    await sendEmail(payload, { idempotencyKey: longKey });
+
+    const sentKey = sentRequest(fetchMock).headers.get("Idempotency-Key");
+    expect(sentKey).toMatch(/^production:sha256:[0-9a-f]{64}$/);
+    expect(sentKey!.length).toBeLessThanOrEqual(256);
   });
 
   it("omits the Idempotency-Key header when no key is given", async () => {

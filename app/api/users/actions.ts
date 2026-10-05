@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache";
 import { BaseProfile, ProfileType, UserCategory } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import EmailTemplate from "@/app/emails/verification_confimation/email-template";
 import {
   getFestivalAvaibleStandsByCategory,
@@ -663,19 +664,26 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
 
     const festivalCategories = getFestivalCategories(activeFestival);
 
-    await sendEmail({
-      to: [updatedUser.email],
-      from: "Equipo Glitter <equipo@productoraglitter.com>",
-      subject: "Perfil verificado",
-      react: EmailTemplate({
-        name: updatedUser.displayName || "Usuario",
-        category: updatedUser.category,
-        festival: festivalCategories.includes(updatedUser.category)
-          ? activeFestival
-          : null,
-        isFestivalFull: availableStands.length === 0,
-      }) as React.ReactElement,
-    });
+    // The verification is committed; a failed notice must not report it as
+    // failed.
+    try {
+      const result = await sendEmail({
+        to: [updatedUser.email],
+        from: "Equipo Glitter <equipo@productoraglitter.com>",
+        subject: "Perfil verificado",
+        react: EmailTemplate({
+          name: updatedUser.displayName || "Usuario",
+          category: updatedUser.category,
+          festival: festivalCategories.includes(updatedUser.category)
+            ? activeFestival
+            : null,
+          isFestivalFull: availableStands.length === 0,
+        }) as React.ReactElement,
+      });
+      assertSent(result);
+    } catch (error) {
+      console.error("Error sending profile verification email", error);
+    }
   } catch (error) {
     console.error("Error verifying profile", error);
     return {
@@ -818,15 +826,22 @@ export async function rejectProfile(
     }
     const existingProfile = outcome.profile;
 
-    await sendEmail({
-      to: [existingProfile.email],
-      from: "Equipo Glitter <equipo@productoraglitter.com>",
-      subject: "No pudimos verificar tu perfil",
-      react: ProfileRejectionEmailTemplate({
-        profile: existingProfile,
-        reason: rejectReason,
-      }) as React.ReactElement,
-    });
+    // The rejection is committed; a failed notice must not report it as
+    // failed.
+    try {
+      const result = await sendEmail({
+        to: [existingProfile.email],
+        from: "Equipo Glitter <equipo@productoraglitter.com>",
+        subject: "No pudimos verificar tu perfil",
+        react: ProfileRejectionEmailTemplate({
+          profile: existingProfile,
+          reason: rejectReason,
+        }) as React.ReactElement,
+      });
+      assertSent(result);
+    } catch (error) {
+      console.error("Error sending profile rejection email", error);
+    }
   } catch (error) {
     console.error("Error rejecting profile", error);
     return {

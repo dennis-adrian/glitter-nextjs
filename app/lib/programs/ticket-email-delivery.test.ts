@@ -105,7 +105,7 @@ describe("program ticket emails", () => {
     const { url, headers } = sentRequest();
     expect(url).toBe("https://api.resend.com/emails");
     expect(headers.get("Idempotency-Key")).toBe(
-      "program-registration-12-GLT-8F3K2A",
+      "production:program-registration-12-GLT-8F3K2A",
     );
     expect(headers.get("Authorization")).toBe("Bearer re_test");
   });
@@ -120,7 +120,7 @@ describe("program ticket emails", () => {
     expect(sent).toBe(true);
     await expectInlineQr(ticket.ticketCode);
     expect(sentRequest().headers.get("Idempotency-Key")).toBe(
-      "program-payment-approved-12-GLT-8F3K2A-support-1",
+      "production:program-payment-approved-12-GLT-8F3K2A-support-1",
     );
   });
 });

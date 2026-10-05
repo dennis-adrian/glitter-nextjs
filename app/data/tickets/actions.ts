@@ -2,10 +2,12 @@
 
 import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
 import { VisitorBase } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { buildTicketEmail } from "@/app/lib/tickets/ticket-email";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -99,9 +101,23 @@ export async function createTicket(data: {
     };
   }
 
-  sendEmail(
-    await buildTicketEmail({ visitor, festival, ticket: createdTicket }),
-  );
+  // After the response, so registration does not wait on the mail provider.
+  // Unlike a floating promise, `after` keeps the function alive until the send
+  // settles. The ticket is already committed, so a failed send is logged
+  // rather than turned into a failed registration.
+  after(async () => {
+    try {
+      const result = await sendEmail(
+        await buildTicketEmail({ visitor, festival, ticket: createdTicket }),
+      );
+      assertSent(result);
+    } catch (error) {
+      console.error("Ticket email failed", {
+        ticketId: createdTicket.id,
+        errorType: sendFailureType(error),
+      });
+    }
+  });
 
   revalidatePath(`/festivals/${festival.id}/registration`);
   return {

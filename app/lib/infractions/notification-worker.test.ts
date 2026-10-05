@@ -117,6 +117,36 @@ describe("disciplinary notification worker", () => {
     expect(writtenValues[1]?.nextAttemptAt).toBeInstanceOf(Date);
   });
 
+  it("completes a job whose key already went out with another body", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const writtenValues: Array<Record<string, unknown>> = [];
+    mockUpdateResults([[job], [{ id: job.id }]], writtenValues);
+    // A retry after a timeout whose first request did land, re-rendered from
+    // data that changed in between.
+    sendEmailMock.mockResolvedValue({
+      data: null,
+      error: {
+        name: "invalid_idempotent_request",
+        statusCode: 409,
+        message: "This idempotency key has already been used.",
+      },
+    });
+
+    await expect(
+      attemptDisciplinaryNotificationJob(job.id),
+    ).resolves.toMatchObject({
+      success: true,
+      outcome: "completed",
+    });
+
+    expect(writtenValues[1]).toMatchObject({
+      status: "completed",
+      lastError: null,
+    });
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
   it("marks the durable job completed after successful delivery", async () => {
     const writtenValues: Array<Record<string, unknown>> = [];
     mockUpdateResults([[job], [{ id: job.id }]], writtenValues);

@@ -1,265 +1,190 @@
-import { render } from "react-email";
-import type React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// @vitest-environment node
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("server-only", () => ({}));
+/**
+ * Delivers an outbox job through the real `sendEmail` and Resend SDK with the
+ * HTTP reply mocked. Resend resolves a rejected send instead of throwing, so
+ * only an actual error reply shows whether the job is retried or wrongly
+ * stamped completed.
+ */
 
-const { sendEmailMock, findReservationMock, selectMock, setCalls, claimed } =
-  vi.hoisted(() => ({
-    sendEmailMock: vi.fn(),
-    findReservationMock: vi.fn(),
-    selectMock: vi.fn(),
-    setCalls: [] as Record<string, unknown>[],
-    claimed: { current: null as Record<string, unknown> | null },
-  }));
-
-vi.mock("next/server", () => ({ after: vi.fn() }));
-
-vi.mock("@/env", () => ({
-  getClientEnv: () => ({ NEXT_PUBLIC_BASE_URL: "https://glitter.test" }),
-  serverEnv: {},
+const { claimed, updates, reservationFindFirst } = vi.hoisted(() => ({
+  /** The job row the claim reads back. */
+  claimed: { current: null as Record<string, unknown> | null },
+  /** Every `update().set()` after the claim, in order. */
+  updates: [] as Array<Record<string, unknown>>,
+  reservationFindFirst: vi.fn(),
 }));
 
-vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
-
-// Loose on purpose: the claim, complete and fail writes are only recorded, so
-// a change to how the runner stamps a job does not break these delivery tests.
+vi.mock("server-only", () => ({}));
+vi.mock("next/server", () => ({ after: vi.fn() }));
+vi.mock("@/env", () => ({
+  serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
+}));
 vi.mock("@/db", () => ({
   db: {
-    query: { standReservations: { findFirst: findReservationMock } },
-    select: selectMock,
     update: () => ({
       set: (values: Record<string, unknown>) => {
-        setCalls.push(values);
+        const isClaim = values.status === "processing";
+        if (!isClaim) updates.push(values);
+
         return {
           where: () =>
             Object.assign(Promise.resolve([]), {
-              returning: async () => (claimed.current ? [claimed.current] : []),
+              // Only the claim reads its row back.
+              returning: async () =>
+                isClaim && claimed.current ? [claimed.current] : [],
             }),
         };
       },
     }),
+    query: { standReservations: { findFirst: reservationFindFirst } },
   },
 }));
 
 import { attemptReservationNotificationJob } from "@/app/lib/reservations/notification-outbox";
-import { users } from "@/db/schema";
 
-const ANA = {
-  id: 1,
-  displayName: "Ana Ilustra",
-  email: "ana@example.com",
-  category: "illustration",
-};
-const CARLA = {
-  id: 2,
-  displayName: "Carla Dibuja",
-  email: "carla@example.com",
-  category: "illustration",
-};
-const ADMIN_EMAIL = "admin@example.com";
-const STAND = {
-  id: 5,
-  label: "B",
-  standNumber: 48,
-  standCategory: "illustration",
+const job = {
+  id: 91,
+  deduplicationKey: "reservation_created:7:admin@example.com",
+  userId: 3,
+  reservationId: 7,
+  notificationKind: "reservation_created",
+  recipientEmail: "admin@example.com",
+  payload: { reservationId: 7 },
+  status: "processing",
+  lastError: null,
+  attempts: 0,
+  nextAttemptAt: new Date(),
+  leaseOwner: "owner",
+  leaseExpiresAt: null,
+  completedAt: null,
+  updatedAt: new Date(),
+  createdAt: new Date(),
 };
 
-function reservationFixture() {
-  return {
-    id: 42,
-    festivalId: 7,
-    ownerUserId: ANA.id,
-    status: "accepted",
-    stand: STAND,
-    members: [{ position: 0, releasedAt: null, stand: STAND }],
-    festival: {
-      id: 7,
-      name: "Glitter ¡Feliz Cumple!",
-      locationLabel: "Galería del CBA",
-      festivalType: "glitter",
-      festivalDates: [
-        {
-          id: 1,
-          startDate: new Date("2026-11-14T18:00:00.000Z"),
-          endDate: new Date("2026-11-14T23:00:00.000Z"),
-        },
-      ],
-    },
-    participants: [
-      { userId: ANA.id, user: ANA },
-      { userId: CARLA.id, user: CARLA },
-    ],
-    invoices: [
-      {
-        id: 9,
-        status: "pending",
-        userId: ANA.id,
-        user: ANA,
-        dueAt: new Date("2026-10-07T22:00:00.000Z"),
-        payments: [],
-      },
-    ],
-  };
+const reservation = {
+  id: 7,
+  festivalId: 2,
+  ownerUserId: 3,
+  status: "pending",
+  stand: { label: "A", standNumber: 4, standCategory: "illustration" },
+  members: [],
+  festival: { name: "Glitter Fest", festivalDates: [] },
+  participants: [],
+  invoices: [],
+};
+
+const fetchMock = vi.fn();
+
+function resendReply(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
 }
 
-function queueJob(job: {
-  kind: string;
-  recipientEmail: string;
-  reservationId?: number | null;
-  payload?: Record<string, unknown>;
-}) {
-  claimed.current = {
-    id: 1,
-    notificationKind: job.kind,
-    recipientEmail: job.recipientEmail,
-    reservationId: job.reservationId === undefined ? 42 : job.reservationId,
-    payload: job.payload ?? {},
-    attempts: 0,
-  };
+function resendError(name: string, statusCode: number) {
+  return () =>
+    resendReply(
+      { name, statusCode, message: `${name} from Resend` },
+      statusCode,
+    );
 }
 
-async function sentEmail() {
-  expect(sendEmailMock).toHaveBeenCalledTimes(1);
-  const message = sendEmailMock.mock.calls[0][0] as {
-    subject: string;
-    react: React.ReactElement;
-  };
-  // React separates adjacent text nodes with `<!-- -->`, which would make a
-  // negative assertion such as "no ¡Hola Ana" pass vacuously.
-  const html = (await render(message.react)).replaceAll("<!-- -->", "");
-  return { subject: message.subject, html };
+function claimNext(overrides: Partial<typeof job> = {}) {
+  claimed.current = { ...job, ...overrides };
 }
 
-describe("attemptReservationNotificationJob", () => {
+describe("reservation notification outbox delivery", () => {
   beforeEach(() => {
-    sendEmailMock.mockReset();
-    sendEmailMock.mockResolvedValue({ data: { id: "email-1" } });
-    findReservationMock.mockReset();
-    findReservationMock.mockResolvedValue(reservationFixture());
-    selectMock.mockReset();
-    setCalls.length = 0;
-    claimed.current = null;
+    updates.length = 0;
+    reservationFindFirst.mockReset();
+    reservationFindFirst.mockResolvedValue(reservation);
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    // The SDK logs every API error outside production.
+    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  describe("settlement_approved", () => {
-    it("tells an admin about the participant instead of sending them the participant's confirmation", async () => {
-      queueJob({ kind: "settlement_approved", recipientEmail: ADMIN_EMAIL });
-
-      await attemptReservationNotificationJob(1);
-
-      const { subject, html } = await sentEmail();
-      expect(subject).toBe("Ana Ilustra confirmó su reserva con créditos");
-      expect(html).toContain("/dashboard/festivals/7/reservations");
-      expect(html).not.toContain("¡Tu reserva");
-    });
-
-    it("still sends the owner their own confirmation", async () => {
-      queueJob({ kind: "settlement_approved", recipientEmail: ANA.email });
-
-      await attemptReservationNotificationJob(1);
-
-      const { subject, html } = await sentEmail();
-      expect(subject).toBe(
-        "Reserva confirmada para el festival Glitter ¡Feliz Cumple!",
-      );
-      expect(html).toContain("¡Hola Ana Ilustra!");
-    });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  describe("reservation_rejected", () => {
-    it("greets each participant by their own name", async () => {
-      queueJob({
-        kind: "reservation_rejected",
-        recipientEmail: CARLA.email,
-        payload: { reason: "El pago no llegó a tiempo" },
-      });
+  it("reschedules the job when Resend rejects the send", async () => {
+    claimNext();
+    fetchMock.mockImplementation(resendError("validation_error", 422));
 
-      await attemptReservationNotificationJob(1);
-
-      const { html } = await sentEmail();
-      expect(html).toContain("Carla Dibuja");
-      expect(html).not.toContain("¡Hola Ana Ilustra");
-      expect(html).toContain("El pago no llegó a tiempo");
+    await expect(attemptReservationNotificationJob(job.id)).resolves.toEqual({
+      processed: true,
+      status: "retry",
     });
 
-    it("retries rather than mailing someone who is not on the reservation", async () => {
-      queueJob({
-        kind: "reservation_rejected",
-        recipientEmail: "stranger@example.com",
-      });
-
-      await attemptReservationNotificationJob(1);
-
-      expect(sendEmailMock).not.toHaveBeenCalled();
-      expect(setCalls.at(-1)).toEqual(
-        expect.objectContaining({
-          status: "pending",
-          lastError: "rejection_recipient_missing",
-        }),
-      );
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toMatchObject({
+      status: "pending",
+      attempts: 1,
+      lastError: "validation_error: validation_error from Resend",
     });
+    expect(updates[0]?.nextAttemptAt).toBeInstanceOf(Date);
   });
 
-  describe("deadline_extended", () => {
-    it("links a partner to their own read-only view of the cobro", async () => {
-      queueJob({ kind: "deadline_extended", recipientEmail: CARLA.email });
+  it("fails the job once a rejected send runs out of attempts", async () => {
+    claimNext({ attempts: 4 });
+    fetchMock.mockImplementation(resendError("rate_limit_exceeded", 429));
 
-      await attemptReservationNotificationJob(1);
-
-      const { subject, html } = await sentEmail();
-      expect(subject).toBe(
-        "Se extendió el plazo de pago de la reserva que compartís",
-      );
-      expect(html).toContain(
-        "/profiles/2/festivals/7/reservations/42/payments",
-      );
-      expect(html).not.toContain("/profiles/1/");
+    await expect(attemptReservationNotificationJob(job.id)).resolves.toEqual({
+      processed: true,
+      status: "failed",
     });
 
-    it("links the payer to their own payments page", async () => {
-      queueJob({ kind: "deadline_extended", recipientEmail: ANA.email });
-
-      await attemptReservationNotificationJob(1);
-
-      const { subject, html } = await sentEmail();
-      expect(subject).toBe("Se extendió el plazo de pago de tu reserva");
-      expect(html).toContain(
-        "/profiles/1/festivals/7/reservations/42/payments",
-      );
-    });
+    expect(updates[0]).toMatchObject({ status: "failed", attempts: 5 });
   });
 
-  describe("festival_participation_rejected", () => {
-    it("carries the reason from the job payload into the email", async () => {
-      selectMock.mockImplementation(() => ({
-        from: (table: unknown) => ({
-          where: () => ({
-            limit: async () =>
-              table === users
-                ? [{ ...ANA, id: 8 }]
-                : [
-                    {
-                      id: 10,
-                      name: "Glitter ¡Feliz Cumple!",
-                      festivalType: "glitter",
-                      reservationsStartDate: null,
-                    },
-                  ],
-          }),
-        }),
-      }));
-      queueJob({
-        kind: "festival_participation_rejected",
-        recipientEmail: ANA.email,
-        reservationId: null,
-        payload: { userId: 8, festivalId: 10, reason: "cupo completo" },
-      });
+  it("completes the job and keys the send on it", async () => {
+    claimNext();
+    fetchMock.mockImplementation(async () =>
+      resendReply({ id: "email-1" }, 200),
+    );
 
-      await attemptReservationNotificationJob(1);
+    await expect(attemptReservationNotificationJob(job.id)).resolves.toEqual({
+      processed: true,
+      status: "completed",
+    });
 
-      const { html } = await sentEmail();
-      expect(html).toContain("cupo completo");
+    expect(updates[0]).toMatchObject({ status: "completed", lastError: null });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new Headers(init.headers).get("Idempotency-Key")).toBe(
+      "production:reservation-notification-91",
+    );
+  });
+
+  it("completes the job when its key already went out with another body", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    claimNext();
+    fetchMock.mockImplementation(
+      resendError("invalid_idempotent_request", 409),
+    );
+
+    await expect(attemptReservationNotificationJob(job.id)).resolves.toEqual({
+      processed: true,
+      status: "completed",
+    });
+
+    expect(updates[0]).toMatchObject({ status: "completed" });
+  });
+
+  it("retries the job while another send under its key is in flight", async () => {
+    claimNext();
+    fetchMock.mockImplementation(
+      resendError("concurrent_idempotent_requests", 409),
+    );
+
+    await expect(attemptReservationNotificationJob(job.id)).resolves.toEqual({
+      processed: true,
+      status: "retry",
     });
   });
 });

@@ -208,7 +208,10 @@ describe("resendTicketEmail", () => {
     expect(body.html).toContain('name="color-scheme" content="only light"');
 
     const headers = new Headers(init.headers);
-    expect(headers.get("Idempotency-Key")).toMatch(/^ticket-resend-7-\d+$/);
+    // `sendEmail` scopes every key to the environment it runs in.
+    expect(headers.get("Idempotency-Key")).toMatch(
+      /^production:ticket-resend-7-\d+$/,
+    );
   });
 
   it("reports a rejected send truthfully, logging only the error type", async () => {
