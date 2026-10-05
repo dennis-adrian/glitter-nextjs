@@ -1,6 +1,6 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.79.0",
+  "version": "2.80.0",
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "engines": {
@@ -68,7 +68,7 @@
     "@radix-ui/react-switch": "^1.1.2",
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.2.12",
-    "@react-email/components": "^0.0.32",
+    "@react-email/render": "2.1.0",
     "@sparticuz/chromium": "^138.0.2",
     "@tanstack/react-table": "^8.15.3",
     "@uploadthing/react": "^7.1.5",
@@ -98,13 +98,13 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-dropzone": "^14.2.3",
-    "react-email": "^5.2.8",
+    "react-email": "6.11.0",
     "react-hook-form": "^7.71.1",
     "react-international-phone": "^4.5.0",
     "react-tooltip": "^5.29.1",
     "react-zoom-pan-pinch": "^3.7.0",
     "recharts": "^2.15.0",
-    "resend": "^4.1.1",
+    "resend": "6.32.0",
     "sanitize-html": "2.17.7",
     "server-only": "^0.0.1",
     "sonner": "^1.7.2",
@@ -115,8 +115,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@react-email/preview-server": "^5.2.8",
-    "@react-email/render": "^1.0.4",
+    "@react-email/ui": "6.11.0",
     "@storybook/addon-a11y": "^10.5.10",
     "@storybook/addon-docs": "^10.5.10",
     "@storybook/addon-vitest": "^10.5.10",

@@ -1,6 +1,6 @@
 import * as styles from "@/app/emails/styles";
 import { GLITTER_ISOTYPE_DARK_50X50_URL } from "@/app/lib/constants";
-import { Container, Img, Text } from "@react-email/components";
+import { Container, Img, Text } from "react-email";
 
 export default function EmailFooter() {
   return (

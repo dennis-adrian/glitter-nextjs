@@ -26,6 +26,7 @@ import {
   sanctionStatusLabel,
   sanctionTypeLabel,
 } from "@/app/lib/sanctions/mappers";
+import { getSendError } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   disciplinaryNotificationJobs,
@@ -620,8 +621,9 @@ export async function deliverDisciplinaryNotificationPayload(
           { idempotencyKey },
         );
 
-  if (result.error) {
-    return { success: false, error: errorMessage(result.error) };
+  const sendError = getSendError(result);
+  if (sendError) {
+    return { success: false, error: errorMessage(sendError) };
   }
   return { success: true };
 }

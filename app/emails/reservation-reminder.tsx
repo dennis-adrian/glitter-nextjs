@@ -9,7 +9,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { ScheduledTaskWithProfileAndReservation } from "@/app/lib/profile_tasks/definitions";
 import EmailHeader from "@/app/emails/email-header";
 import { getUserName } from "@/app/lib/users/utils";

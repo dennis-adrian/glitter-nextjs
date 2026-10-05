@@ -14,7 +14,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { DateTime } from "luxon";
 
 type ReservationPaymentExtensionTemplateProps = {
