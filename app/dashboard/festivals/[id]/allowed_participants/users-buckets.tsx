@@ -1,6 +1,6 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
+import type { FestivalAvailableUser } from "@/app/lib/festivals/definitions";
 import {
   Table,
   TableBody,
@@ -27,7 +27,7 @@ export default function UsersBuckets({
   users,
   festivalId,
 }: {
-  users: BaseProfile[];
+  users: FestivalAvailableUser[];
   festivalId: number;
 }) {
   const [bucketAmount, setBucketAmount] = useState(10);
@@ -40,7 +40,7 @@ export default function UsersBuckets({
       acc[bucketIndex].push(user);
       return acc;
     },
-    [] as { [key: number]: BaseProfile[] },
+    [] as { [key: number]: FestivalAvailableUser[] },
   );
 
   return (

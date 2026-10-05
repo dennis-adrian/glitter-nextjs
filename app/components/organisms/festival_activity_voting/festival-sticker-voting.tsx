@@ -133,7 +133,6 @@ export default function FestivalStickerVoting({
         })}
         {selectedVotingItem && (
           <ConfirmVoteModal
-            currentProfile={currentProfile}
             open={!!selectedVotingItem}
             onOpenChange={(open) => {
               if (!open) {

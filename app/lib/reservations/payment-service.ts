@@ -3,7 +3,7 @@ import { activeReservationStandIds } from "@/app/lib/reservations/members";
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-import { fetchAdminUsers } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
 import { invoiceCreditPlan } from "@/app/lib/credits/balances";
 import {
   createCreditTopUpForRequirementInTx,
@@ -32,6 +32,7 @@ import {
 import {
   canMutateAdminReservations,
   canSubmitInvoiceSettlement,
+  occupiesStandCapacity,
 } from "@/app/lib/reservations/policy";
 import {
   adminConfirmReservationSchema,
@@ -54,7 +55,7 @@ import {
   claimRequest,
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
-import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/actions";
+import { enqueueStorageCleanupJob } from "@/app/lib/uploadthing/storage";
 import { isOverAllocated, type InvoiceTender } from "@/app/lib/payments/tender";
 import {
   loadInvoiceTenders,
@@ -639,6 +640,11 @@ export async function submitZeroValueInvoiceForReview(
       ) {
         return finish(reservationFailure("INVOICE_NOT_OWNED"));
       }
+      // Submitting moves the reservation to verification_payment, which would
+      // bring a cancelled one back onto stands it already gave up.
+      if (!occupiesStandCapacity(reservation.status)) {
+        return finish(reservationFailure("INVOICE_NOT_PENDING"));
+      }
       if (invoice.status === "verification_payment") {
         return finish(reservationFailure("PAYMENT_ALREADY_SUBMITTED"));
       }
@@ -1138,6 +1144,12 @@ export async function settleInvoiceShortfall(input: unknown): Promise<
       if (aggregate.kind !== "ok") return fail(aggregateUnavailable(aggregate));
       const { invoice, reservation } = aggregate;
 
+      // Cancelling keeps any invoice that has payments, still open. Settling it
+      // would move a cancelled reservation back to accepted, onto stands that
+      // may since have been split, re-paired or booked by someone else.
+      if (!occupiesStandCapacity(reservation.status)) {
+        return fail(adminReservationFailure("INVOICE_NOT_PENDING"));
+      }
       if (
         invoice.status !== "pending" &&
         invoice.status !== "verification_payment"
@@ -1952,6 +1964,12 @@ export async function adminConfirmReservation(
           invoiceId: invoice.id,
           jobIds: [],
         });
+      }
+      // The submissions inserted below move the reservation to
+      // verification_payment before approval checks it, so a cancelled one
+      // has to be refused here or it comes back as accepted.
+      if (!occupiesStandCapacity(reservation.status)) {
+        return finish(reservationFailure("INVOICE_NOT_PENDING"));
       }
 
       let submission = await findSubmittedSettlementInTx(tx, invoice.id);

@@ -26,7 +26,7 @@ export default async function EditOrderPage(props: {
   await protectRoute(currentUser || undefined, profileId);
 
   const order = await fetchOrder(orderId);
-  if (!order) {
+  if (!order || order.userId !== profileId) {
     return notFound();
   }
 

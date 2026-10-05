@@ -5,10 +5,12 @@ import Link from "next/link";
 import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Heading from "@/app/components/atoms/heading";
-import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
+import EnrollBestStandForm, {
+  type BestStandFestivalParticipant,
+} from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
 import { isActivityInVotingWindow } from "@/app/components/participant_dashboard/activity-card/utils";
 import { Button } from "@/app/components/ui/button";
-import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
+import { fetchFestivalParticipants } from "@/app/lib/festivals/queries";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import BestStandDisclaimer from "./best-stand-disclaimer";
@@ -24,10 +26,25 @@ export default async function BestStandActivityPage({
   currentProfile,
   forProfile,
 }: BestStandActivityPageProps) {
-  const confirmedParticipants = await fetchFestivalParticipants(
-    activity.festivalId,
-    true,
-  );
+  // Only who holds which stand goes to the client form; the rows also carry
+  // every participant's contact details and infractions.
+  const confirmedParticipants: BestStandFestivalParticipant[] = (
+    await fetchFestivalParticipants(activity.festivalId, true)
+  ).map((participant) => ({
+    user: { id: participant.user.id },
+    reservation: participant.reservation
+      ? {
+          standId: participant.reservation.standId,
+          stand: participant.reservation.stand
+            ? {
+                id: participant.reservation.stand.id,
+                label: participant.reservation.stand.label,
+                standNumber: participant.reservation.stand.standNumber,
+              }
+            : null,
+        }
+      : null,
+  }));
 
   const activityVariantForProfile = activity.details.find(
     (detail) => detail.category === forProfile.category,

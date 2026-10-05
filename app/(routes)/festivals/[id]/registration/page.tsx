@@ -1,11 +1,12 @@
 import { RedirectButton } from "@/app/components/redirect-button";
 import ResourceNotFound from "@/app/components/resource-not-found";
-import { fetchVisitor, fetchVisitorByEmail } from "@/app/data/visitors/actions";
+import { fetchPublicVisitorByEmail } from "@/app/data/visitors/queries";
 import VisitorRegistrationForm from "@/app/components/events/registration/visitor-registration-form";
 import ThirdStep from "@/app/components/events/registration/steps/third-step";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import EmailCard from "@/app/components/events/registration/email-card";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 
 export const metadata: Metadata = {
@@ -18,21 +19,17 @@ export default async function Page(props: {
   searchParams: Promise<{
     email?: string;
     step?: string;
-    visitorId?: string;
   }>;
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
   const step = searchParams.step || "1";
   const email = searchParams.email || "";
-  const visitorId = searchParams.visitorId || "";
   const festival = await fetchFestivalWithDates(parseInt(params.id));
-  let visitor = null;
-  if (visitorId) {
-    visitor = await fetchVisitor(parseInt(visitorId));
-  } else if (email) {
-    visitor = await fetchVisitorByEmail(email);
-  }
+  // Found by the email the visitor typed, never by an id in the URL: ids are
+  // sequential, and anyone can open this page. Only the name and the tickets
+  // come back.
+  const visitor = email ? await fetchPublicVisitorByEmail(email) : null;
 
   if (!festival) return <ResourceNotFound />;
 
@@ -63,6 +60,14 @@ export default async function Page(props: {
     );
   }
 
+  // An address that is already registered has nothing left to fill in; its
+  // tickets are the next step.
+  if (step === "2" && visitor) {
+    redirect(
+      `/festivals/${festival.id}/registration?${new URLSearchParams({ email, step: "3" })}`,
+    );
+  }
+
   const profile = await getCurrentUserProfile();
 
   return (
@@ -80,7 +85,7 @@ export default async function Page(props: {
                 <h1 className="mb-2 text-xl font-semibold sm:text-2xl">
                   Datos Personales
                 </h1>
-                <VisitorRegistrationForm email={email} visitor={visitor} />
+                <VisitorRegistrationForm email={email} />
               </>
             )}
             {step === "3" && visitor && (

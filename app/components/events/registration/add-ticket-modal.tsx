@@ -8,7 +8,7 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
-import { VisitorBase } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { FestivalBase, FestivalDate } from "@/app/lib/festivals/definitions";
 
@@ -16,7 +16,7 @@ type AddTicketModalProps = {
   festival: FestivalBase;
   festivalDates: FestivalDate[];
   open: boolean;
-  visitor: VisitorBase;
+  visitor: PublicVisitor;
   onOpenChange: (open: boolean) => void;
 };
 export default function AddTicketModal(props: AddTicketModalProps) {

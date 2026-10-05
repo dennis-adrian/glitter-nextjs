@@ -1,10 +1,10 @@
 import DownloadableTicket from "@/app/components/events/registration/downloadable-ticket";
 import { TicketBase } from "@/app/data/tickets/actions";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type TicketsProps = {
-  visitor: VisitorWithTickets;
+  visitor: PublicVisitor;
   tickets: TicketBase[];
   festival: FestivalBase;
 };

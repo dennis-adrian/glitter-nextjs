@@ -8,10 +8,8 @@ import {
 } from "@/app/components/festivals/participants/enrolledColumns";
 import FestivalRequestsTable from "@/app/components/festivals/requests/table";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import {
-  fetchEnrolledParticipants,
-  fetchFestivalParticipants,
-} from "@/app/lib/festivals/actions";
+import { fetchEnrolledParticipants } from "@/app/lib/festivals/actions";
+import { fetchFestivalParticipants } from "@/app/lib/festivals/queries";
 import { fetchInfractionTypes } from "@/app/lib/infractions/actions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 

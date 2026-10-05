@@ -286,6 +286,16 @@ export async function checkSlugAvailability(
   const base = slugifyName(candidate);
   if (!base) return { available: false, suggestion: "" };
 
+  // Only the post's editors may probe slugs, or this answers "is that title
+  // taken?" for every unpublished draft.
+  const post = await db.query.posts.findFirst({
+    where: eq(posts.id, postId),
+    columns: { authorId: true, status: true },
+  });
+  if (!post || !canEditPost(profile, post)) {
+    return { available: false, suggestion: "" };
+  }
+
   const suggestion = await ensureUniquePostSlug(db, base, postId);
   return { available: suggestion === base, suggestion };
 }

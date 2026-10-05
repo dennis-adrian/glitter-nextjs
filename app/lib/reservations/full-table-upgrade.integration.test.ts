@@ -54,11 +54,11 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueReservationNotification: vi.fn().mockResolvedValue(null),
   scheduleReservationNotificationJobs: vi.fn(),
 }));
-vi.mock("@/app/lib/uploadthing/actions", () => ({
+vi.mock("@/app/lib/uploadthing/storage", () => ({
   enqueueStorageCleanupJob: cleanupMock,
 }));
-vi.mock("@/app/api/users/actions", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/app/api/users/actions")>()),
+vi.mock("@/app/lib/users/queries", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/lib/users/queries")>()),
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));
 

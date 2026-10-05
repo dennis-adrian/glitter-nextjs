@@ -32,7 +32,7 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/app/api/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   fetchAdminUsers: vi.fn().mockResolvedValue([]),
 }));
 
@@ -112,7 +112,7 @@ vi.mock("@/app/lib/reservations/admin-service", () => ({
   applyReservationCancellation: applyReservationCancellationMock,
 }));
 
-vi.mock("@/app/lib/uploadthing/actions", () => ({
+vi.mock("@/app/lib/uploadthing/storage", () => ({
   enqueueStorageCleanupJob: vi.fn(),
 }));
 
@@ -127,6 +127,7 @@ import {
   correctSettlementProof,
   findSubmittedSettlementInvoiceIdForReservation,
   rejectInvoiceSettlement,
+  settleInvoiceShortfall,
   submitPaymentProof,
   submitZeroValueInvoiceForReview,
 } from "@/app/lib/reservations/payment-service";
@@ -928,6 +929,110 @@ describe("adminConfirmReservation", () => {
       "credit_account",
       "stand",
     ]);
+  });
+});
+
+// Cancelling keeps an invoice that has payments open, so these commands can be
+// reached on a reservation that has already given its stands back. Each one
+// moves the reservation to verification_payment, which would revive it.
+describe("payment commands on a closed reservation", () => {
+  const idempotencyKey = "11111111-1111-4111-8111-111111111111";
+
+  beforeEach(() => {
+    lockCallOrder.current = [];
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    claimRequestMock.mockReset();
+    completeRequestMock.mockReset();
+    abandonRequestMock.mockReset();
+    insertEventMock.mockReset();
+    scheduleJobsMock.mockReset();
+    claimRequestMock.mockResolvedValue({ kind: "claimed" });
+  });
+
+  function closedTx(status: string, amount: number) {
+    const tx = createTx({
+      invoice: {
+        id: 9,
+        userId: 8,
+        status: "pending",
+        amount,
+        reservationId: 4,
+      },
+      reservation: { standId: 7, status },
+      payments: [
+        {
+          id: 3,
+          invoiceId: 9,
+          amount: 100,
+          date: new Date("2026-09-01T00:00:00Z"),
+          voucherUrl: "https://example.test/voucher.png",
+          fileKey: "voucher-key",
+          createdAt: new Date("2026-09-01T00:00:00Z"),
+          updatedAt: new Date("2026-09-01T00:00:00Z"),
+        },
+      ],
+      approvedCashAmount: 100,
+    });
+    transactionMock.mockImplementation(
+      async (callback: (tx: unknown) => unknown) => callback(tx),
+    );
+    return tx;
+  }
+
+  it.each(["rejected", "cancelled", "released"])(
+    "does not settle a shortfall on a %s reservation",
+    async (status) => {
+      currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+      const tx = closedTx(status, 150);
+
+      const result = await settleInvoiceShortfall({
+        invoiceId: 9,
+        reason: "Pagó la mitad",
+        idempotencyKey,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        code: "INVOICE_NOT_PENDING",
+      });
+      expect(tx.updates).toEqual([]);
+      expect(insertEventMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not confirm a cancelled reservation from its unreviewed proof", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const tx = closedTx("rejected", 100);
+
+    const result = await adminConfirmReservation({
+      invoiceId: 9,
+      idempotencyKey,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "INVOICE_NOT_PENDING",
+    });
+    expect(tx.inserted).toEqual([]);
+    expect(tx.updates).toEqual([]);
+  });
+
+  it("does not take a zero-value request on a cancelled reservation", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    const tx = closedTx("rejected", 0);
+
+    const result = await submitZeroValueInvoiceForReview({
+      invoiceId: 9,
+      idempotencyKey,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "INVOICE_NOT_PENDING",
+    });
+    expect(tx.inserted).toEqual([]);
+    expect(tx.updates).toEqual([]);
   });
 });
 

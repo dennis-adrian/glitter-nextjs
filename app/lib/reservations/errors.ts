@@ -33,6 +33,7 @@ export const RESERVATION_ERROR_CODES = [
   "FULL_TABLE_ACCESS_INACTIVE",
   "FULL_TABLE_NOT_DOWNGRADABLE",
   "FULL_TABLE_HOLD_ACTIVE",
+  "FULL_TABLE_HOLD_SPLIT",
   "FULL_TABLE_NOT_UPGRADABLE",
   "FULL_TABLE_UPGRADE_NO_TABLE",
   "FULL_TABLE_COMPANION_TAKEN",
@@ -132,6 +133,8 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
       "Esta reserva no se puede reducir a media mesa: tiene que ocupar los dos espacios, y su cobro no puede tener pagos aprobados o registrados, créditos aplicados ni un comprobante o una solicitud en revisión. Revisá el cobro y volvé a intentarlo.",
     FULL_TABLE_HOLD_ACTIVE:
       "Tenés una mesa completa en espera. Cancelá esa selección antes de desactivarla.",
+    FULL_TABLE_HOLD_SPLIT:
+      "Esta mesa ya no se ofrece completa. Liberamos los espacios que tenías en espera: volvé al mapa y elegí de nuevo.",
     // The upgrade codes are admin-only: the command is a global admin's, so
     // these are written for the operator looking at somebody's reservation.
     FULL_TABLE_NOT_UPGRADABLE:

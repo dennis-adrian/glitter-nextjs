@@ -1,7 +1,7 @@
 import Heading from "@/app/components/atoms/heading";
 import InvoicePaymentSuccess from "@/app/components/organisms/payments/invoice-payment-success";
 import { fetchInvoice } from "@/app/data/invoices/actions";
-import { fetchFeaturedProducts } from "@/app/lib/products/actions";
+import { fetchFeaturedProducts } from "@/app/lib/products/queries";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { CheckCircleIcon } from "lucide-react";
 import { notFound } from "next/navigation";

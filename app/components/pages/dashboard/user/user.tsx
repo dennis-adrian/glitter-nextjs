@@ -1,4 +1,4 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import CreditAccountPanel from "@/app/components/credits/admin/credit-account-panel";
 import { notFound } from "next/navigation";
 import PrivateProfile from "@/app/components/user_profile/private_profile/overview";

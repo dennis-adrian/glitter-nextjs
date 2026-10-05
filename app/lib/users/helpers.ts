@@ -3,7 +3,7 @@ import {
   cachedFetchBaseUserProfileByClerkId,
   cachedFetchUserProfileByClerkId,
   getCurrentClerkUser,
-} from "@/app/lib/users/actions";
+} from "@/app/lib/users/queries";
 import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/navbar-profile";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";

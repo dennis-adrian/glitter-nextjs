@@ -4,7 +4,7 @@ import { Form } from "@/app/components/ui/form";
 import {
   createVisitor,
   NewVisitor,
-  VisitorWithTickets,
+  PublicVisitor,
 } from "@/app/data/visitors/actions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { genderOptions } from "@/app/lib/utils";
@@ -23,7 +23,7 @@ type GenderFormProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
   visitor: NewVisitor;
-  onSuccess: (visitor: VisitorWithTickets) => void;
+  onSuccess: (visitor: PublicVisitor) => void;
 };
 export default function GenderForm(props: GenderFormProps) {
   const form = useForm({
@@ -46,7 +46,10 @@ export default function GenderForm(props: GenderFormProps) {
     if (res.success) {
       toast.success("Guardamos tu información correctamente");
       props.onSuccess({
-        ...res.visitor!,
+        id: res.visitor!.id,
+        firstName: res.visitor!.firstName,
+        lastName: res.visitor!.lastName,
+        email: res.visitor!.email,
         tickets: [],
       });
     } else {

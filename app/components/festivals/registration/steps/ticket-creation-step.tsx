@@ -2,16 +2,16 @@
 
 import EventDayTicketCreationForm from "@/app/components/events/registration/event-day-ticket-creation-form";
 import Tickets from "@/app/components/events/registration/tickets";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 
 type TicketCreationStepProps = {
   festival: FestivalWithDates;
-  visitor?: VisitorWithTickets | null;
+  visitor?: PublicVisitor | null;
   numberOfVisitors?: number;
-  onSuccess: (visitor: VisitorWithTickets) => void;
+  onSuccess: (visitor: PublicVisitor) => void;
 };
 
 export default function TicketCreationStep(props: TicketCreationStepProps) {

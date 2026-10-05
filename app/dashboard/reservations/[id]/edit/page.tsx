@@ -36,7 +36,7 @@ import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import ResourceNotFound from "@/app/components/resource-not-found";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
-import { fetchFestival } from "@/app/lib/festivals/actions";
+import { fetchFestival } from "@/app/lib/festivals/queries";
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
