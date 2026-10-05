@@ -106,11 +106,10 @@ export type SendBatchOptions = { idempotencyKey?: string };
  * mailing to thousands of people costs a few dozen requests instead of
  * thousands. The batch is atomic: one invalid address fails all of it.
  *
- * Like `sendEmail`, it has a ten-second timeout that rejects, takes an
+ * Like `sendEmail`, it has a ten-second timeout that rejects and takes an
  * optional idempotency key, which Resend honours for 24 hours so a retried
- * batch is not delivered twice, and only skips Resend in local development.
- * Staging (preview) deployments really send: the admin confirms each mailing
- * before it goes out.
+ * batch is not delivered twice. Also like it, only local development skips
+ * Resend: staging (preview) deployments send real mail.
  */
 /** Strict validation, the SDK's default: the whole batch fails or sends. */
 type BatchResponse = CreateBatchResponse<CreateBatchRequestOptions>;

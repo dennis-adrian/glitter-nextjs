@@ -106,6 +106,21 @@ admins send the invitations but do not decide who receives them.
 Search matches the address or the name of the visitor or participant it
 belongs to.
 
+## Environments
+
+Only local development (`VERCEL_ENV=development`) skips Resend: it logs
+what it would send and the invitation screens say so. Staging (preview) and
+production really send, bulk invitations included, so on staging:
+
+- the invitations reach whoever is in the staging database;
+- an unsubscribe from a staging email is recorded in the staging database
+  only, so it does not stop production's mailings;
+- "Desbloquear" also removes the address from Resend's suppression list,
+  which is account-wide: if staging and production share the Resend
+  account, that unblocks it for production too;
+- the Bloqueados tab only fills if a Resend webhook endpoint points at
+  staging, with its own `RESEND_WEBHOOK_SECRET`.
+
 ## Adding a topic (newsletter, merch promotions)
 
 1. Add the value to `emailTopicEnum` in `db/schema.ts` and generate a

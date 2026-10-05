@@ -74,7 +74,7 @@ export type InvitationBatchResult =
       failures: InvitationPageFailure[];
       /** Where the next call resumes, or null once every page was read. */
       nextCursor: number | null;
-      /** Outside production nothing is mailed; the counts are what would be. */
+      /** Local development mails nobody; the counts are what would be. */
       simulated: boolean;
     }
   | { success: false; message: string };
