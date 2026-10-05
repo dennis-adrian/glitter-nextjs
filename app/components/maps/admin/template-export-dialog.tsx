@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Download, Save } from "lucide-react";
 import { toast } from "sonner";
-import { useUser } from "@clerk/nextjs";
 
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -38,7 +37,6 @@ export default function TemplateExportDialog({
   festivalId,
   sectors,
 }: TemplateExportDialogProps) {
-  const { user } = useUser();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedSectorIds, setSelectedSectorIds] = useState<Set<number>>(
@@ -138,17 +136,12 @@ export default function TemplateExportDialog({
       return;
     }
 
-    if (!user?.id) {
-      toast.error("Debes iniciar sesión para guardar plantillas");
-      return;
-    }
-
     setIsSaving(true);
     try {
       const template = await exportTemplate();
       if (!template) return;
 
-      const result = await saveMapTemplate(template, user.id, festivalId);
+      const result = await saveMapTemplate(template, festivalId);
 
       if (result.success) {
         toast.success(result.message);
@@ -265,8 +258,7 @@ export default function TemplateExportDialog({
               isSaving ||
               isExporting ||
               selectedSectorIds.size === 0 ||
-              !name.trim() ||
-              !user?.id
+              !name.trim()
             }
           >
             <Save className="h-4 w-4 mr-2" />

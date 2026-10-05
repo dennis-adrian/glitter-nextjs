@@ -51,6 +51,30 @@ export type OrderWithRelations = BaseOrder & {
     | null;
 };
 
+/**
+ * The customer fields the payment review queue renders (name, avatar,
+ * verification badge, contact and subcategories). The queue is a client
+ * component open to festival admins, so nothing else of the profile is sent.
+ */
+export type VoucherReviewCustomer = Pick<
+  BaseProfile,
+  | "id"
+  | "displayName"
+  | "firstName"
+  | "lastName"
+  | "imageUrl"
+  | "email"
+  | "phoneNumber"
+  | "status"
+> & {
+  profileSubcategories: ProfileSubcategoryWithSubcategory[];
+};
+
+export type VoucherReviewOrder = Omit<OrderWithRelations, "customer"> & {
+  // null for guest orders (userId is null)
+  customer: VoucherReviewCustomer | null;
+};
+
 export type OrderStatus = BaseOrder["status"];
 
 /**

@@ -5,6 +5,7 @@ import { mapElements } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { MapElementBase } from "./definitions";
 
 const mapElementTypeValues = [
@@ -46,6 +47,10 @@ export async function createMapElement(
   message: string;
   element?: MapElementBase;
 }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsed = createMapElementSchema.parse(input);
 
@@ -90,6 +95,10 @@ const positionSchema = z.object({
 export async function updateMapElementPositions(
   positions: { id: number; positionLeft: number; positionTop: number }[],
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsed = z.array(positionSchema).min(1).parse(positions);
 
@@ -136,6 +145,10 @@ export async function updateMapElement(
   message: string;
   element?: MapElementBase;
 }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsed = updateMapElementSchema.parse(input);
 
@@ -182,6 +195,10 @@ const deleteMapElementsSchema = z.array(z.number().int().positive()).min(1);
 export async function deleteMapElements(
   ids: number[],
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsed = deleteMapElementsSchema.parse(ids);
 

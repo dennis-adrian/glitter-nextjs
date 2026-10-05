@@ -1,8 +1,8 @@
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import type { PublicVisitor } from "@/app/data/visitors/actions";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export function getVisitorFestivalTickets(
-  visitor: VisitorWithTickets,
+  visitor: Pick<PublicVisitor, "tickets">,
   festival: FestivalBase,
 ) {
   const festivalTickets = visitor.tickets.filter(

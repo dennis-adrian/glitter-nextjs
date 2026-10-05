@@ -11,14 +11,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   insertedTicket,
   afterCallbacks,
-  transactionsOpened,
+  stored,
+  dbCalls,
   consumeTicketCreationRateLimit,
   getCurrentBaseProfile,
 } = vi.hoisted(() => ({
   insertedTicket: { current: null as Record<string, unknown> | null },
+  // createTicket reads the visitor and festival itself rather than trusting
+  // the caller, so the mail is built from these rows.
+  stored: {
+    visitor: null as Record<string, unknown> | null,
+    festival: null as Record<string, unknown> | null,
+  },
   /** Work `createTicket` handed to `after`, run once the response is out. */
   afterCallbacks: [] as Array<() => unknown>,
-  transactionsOpened: { count: 0 },
+  dbCalls: { lookups: 0, transactions: 0 },
   consumeTicketCreationRateLimit: vi.fn(),
   getCurrentBaseProfile: vi.fn(),
 }));
@@ -53,8 +60,22 @@ vi.mock("@/db", () => {
 
   return {
     db: {
+      query: {
+        visitors: {
+          findFirst: async () => {
+            dbCalls.lookups += 1;
+            return stored.visitor;
+          },
+        },
+        festivals: {
+          findFirst: async () => {
+            dbCalls.lookups += 1;
+            return stored.festival;
+          },
+        },
+      },
       transaction: async (run: (transaction: typeof tx) => unknown) => {
-        transactionsOpened.count += 1;
+        dbCalls.transactions += 1;
         return run(tx);
       },
     },
@@ -65,8 +86,6 @@ import { createTicket } from "@/app/data/tickets/actions";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import { generateQrBuffer } from "@/app/lib/utils";
 
-type CreateTicketInput = Parameters<typeof createTicket>[0];
-
 const preview = TicketEmailTemplate.PreviewProps;
 const date = new Date("2026-10-09T15:00:00.000Z");
 
@@ -75,12 +94,8 @@ const fetchMock = vi.fn();
 function registerVisitor() {
   return createTicket({
     date,
-    visitor: {
-      ...preview.visitor,
-      id: 1,
-      email: "visitor@example.com",
-    } as CreateTicketInput["visitor"],
-    festival: preview.festival,
+    email: "visitor@example.com",
+    festivalId: preview.festival.id,
     numberOfVisitors: 2,
   });
 }
@@ -93,11 +108,22 @@ async function runAfterResponse() {
 describe("createTicket email", () => {
   beforeEach(() => {
     afterCallbacks.length = 0;
-    transactionsOpened.count = 0;
+    dbCalls.lookups = 0;
+    dbCalls.transactions = 0;
     consumeTicketCreationRateLimit.mockReset();
     consumeTicketCreationRateLimit.mockResolvedValue(true);
     getCurrentBaseProfile.mockReset();
     getCurrentBaseProfile.mockResolvedValue(null);
+    stored.visitor = {
+      ...preview.visitor,
+      id: 1,
+      email: "visitor@example.com",
+    };
+    // The ticket's date has to be one of the festival's own dates.
+    stored.festival = {
+      ...preview.festival,
+      festivalDates: [{ startDate: date }],
+    };
     insertedTicket.current = {
       id: 1,
       visitorId: 1,
@@ -222,13 +248,14 @@ describe("createTicket email", () => {
 describe("createTicket rate limit", () => {
   beforeEach(() => {
     afterCallbacks.length = 0;
-    transactionsOpened.count = 0;
+    dbCalls.lookups = 0;
+    dbCalls.transactions = 0;
     consumeTicketCreationRateLimit.mockReset();
     getCurrentBaseProfile.mockReset();
     getCurrentBaseProfile.mockResolvedValue(null);
   });
 
-  it("refuses a caller over the limit before numbering a ticket or sending mail", async () => {
+  it("refuses a caller over the limit before any lookup, ticket or mail", async () => {
     consumeTicketCreationRateLimit.mockResolvedValue(false);
 
     const result = await registerVisitor();
@@ -238,7 +265,7 @@ describe("createTicket rate limit", () => {
       message: "Demasiados intentos seguidos. Esperá un rato e intentá de nuevo.",
       ticket: null,
     });
-    expect(transactionsOpened.count).toBe(0);
+    expect(dbCalls).toEqual({ lookups: 0, transactions: 0 });
     expect(afterCallbacks).toHaveLength(0);
   });
 

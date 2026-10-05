@@ -21,12 +21,12 @@ and one second-checkout self-deadlock in the credit purchase path.
 **Severity: high — data integrity.** Verified by an AST-ish sweep of every
 `.transaction(` block in the repo; these are all four hits.
 
-| Site                                                                                     | Transaction opens                            | The awaited I/O                |
-| ---------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------ |
-| [`app/lib/festival_activites/actions.ts:1173`](../app/lib/festival_activites/actions.ts) | 1115 (`promoteFromWaitlist`, 1090)           | `sendEmail` (Resend)           |
-| [`app/lib/profile_tasks/actions.ts:172`](../app/lib/profile_tasks/actions.ts)            | 155 (`handleReminderEmails`, 151)            | `queueEmails` → `sendEmail`    |
-| [`app/lib/profile_tasks/actions.ts:599`](../app/lib/profile_tasks/actions.ts)            | 571 (`handleReservationReminderEmails`, 567) | `queueEmails` → `sendEmail`    |
-| [`app/lib/products/scheduled-actions.ts:42`](../app/lib/products/scheduled-actions.ts)   | 34 (`handleOrphanedProductImages`, 8)        | `utapi.deleteFiles`, in a loop |
+| Site                                                                                                          | Transaction opens                            | The awaited I/O                |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------ |
+| [`app/lib/festival_activites/waitlist-promotion.ts:113`](../app/lib/festival_activites/waitlist-promotion.ts) | 55 (`promoteFromWaitlist`, 23)               | `sendEmail` (Resend)           |
+| [`app/lib/profile_tasks/actions.ts:172`](../app/lib/profile_tasks/actions.ts)                                 | 155 (`handleReminderEmails`, 151)            | `queueEmails` → `sendEmail`    |
+| [`app/lib/profile_tasks/actions.ts:599`](../app/lib/profile_tasks/actions.ts)                                 | 571 (`handleReservationReminderEmails`, 567) | `queueEmails` → `sendEmail`    |
+| [`app/lib/products/scheduled-actions.ts:42`](../app/lib/products/scheduled-actions.ts)                        | 34 (`handleOrphanedProductImages`, 8)        | `utapi.deleteFiles`, in a loop |
 
 Why it matters: a transaction stays open across a network call it does not
 control. The database connection sits idle-in-transaction holding whatever

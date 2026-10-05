@@ -14,7 +14,7 @@ import StepDescription from "@/app/components/festivals/registration/steps/step-
 import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { RegistrationType } from "@/app/components/festivals/registration/types";
 import { stepsDescription } from "@/app/components/festivals/registration/utils";
-import { NewVisitor, VisitorWithTickets } from "@/app/data/visitors/actions";
+import { NewVisitor, PublicVisitor } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
@@ -50,7 +50,7 @@ export default function RegistrationSteps(props: {
   );
   const [newVisitor, setNewVisitor] = useState<NewVisitor>(initialNewVisitor);
   const [returningVisitor, setReturningVisitor] =
-    useState<VisitorWithTickets | null>(null);
+    useState<PublicVisitor | null>(null);
 
   useEffect(() => {
     if (registrationInfo.type === "individual") {
@@ -74,7 +74,7 @@ export default function RegistrationSteps(props: {
 
   const handleVisitorSearch = (
     email: string,
-    visitor?: VisitorWithTickets | null,
+    visitor?: PublicVisitor | null,
   ) => {
     if (visitor) {
       setReturningVisitor(visitor);
@@ -179,7 +179,7 @@ export default function RegistrationSteps(props: {
           festival={props.festival}
           numberOfVisitors={registrationInfo.numberOfVisitors}
           visitor={newVisitor}
-          onSuccess={(visitor: VisitorWithTickets) => {
+          onSuccess={(visitor: PublicVisitor) => {
             setReturningVisitor(visitor);
             setRegistrationInfo({ ...registrationInfo, step: 7 });
           }}

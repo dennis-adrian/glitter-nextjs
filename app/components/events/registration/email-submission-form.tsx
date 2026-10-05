@@ -11,10 +11,7 @@ import { z } from "zod";
 
 import { Loader2Icon, SendHorizonalIcon } from "lucide-react";
 
-import {
-  VisitorWithTickets,
-  fetchVisitorByEmail,
-} from "@/app/data/visitors/actions";
+import { fetchVisitorByEmail } from "@/app/data/visitors/actions";
 import { Button } from "@/app/components/ui/button";
 import {
   Form,
@@ -48,13 +45,7 @@ export default function EmailSubmissionForm() {
       is_returning_visitor: !!visitor,
     });
     if (visitor) {
-      router.push(
-        `?${new URLSearchParams({
-          email: data.email,
-          step: "3",
-          visitorId: visitor.id.toString(),
-        })}`,
-      );
+      router.push(`?${new URLSearchParams({ email: data.email, step: "3" })}`);
     } else {
       router.push(`?${new URLSearchParams({ email: data.email, step: "2" })}`);
     }

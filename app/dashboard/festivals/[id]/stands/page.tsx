@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { getFestivalById } from "@/app/lib/festivals/helpers";
-import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
+import { fetchFullTableGroups } from "@/app/lib/stands/full-table-queries";
 import StandPositionEditor from "@/app/components/maps/admin/stand-position-editor";
 
 const ParamsSchema = z.object({
@@ -19,9 +20,10 @@ export default async function StandPositionsPage({
     return notFound();
   }
   const { id } = parsed.data;
-  const [festival, sectors] = await Promise.all([
+  const [festival, sectors, fullTableGroups] = await Promise.all([
     getFestivalById(id),
     fetchFestivalSectors(id),
+    fetchFullTableGroups(id),
   ]);
 
   if (!festival) {
@@ -37,7 +39,11 @@ export default async function StandPositionsPage({
         Arrastra los espacios para reposicionarlos. Usa scroll para acercar o
         alejar.
       </p>
-      <StandPositionEditor festivalId={id} sectors={sectors} />
+      <StandPositionEditor
+        festivalId={id}
+        sectors={sectors}
+        fullTableGroupIds={fullTableGroups.map((group) => group.id)}
+      />
     </div>
   );
 }

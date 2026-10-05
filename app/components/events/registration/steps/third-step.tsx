@@ -5,13 +5,13 @@ import EventDayTicketCreationForm from "@/app/components/events/registration/eve
 import Tickets from "@/app/components/events/registration/tickets";
 import VisitorTickets from "@/app/components/events/registration/visitor-tickets";
 import { hasTicketForTheDay } from "@/app/data/tickets/utils";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { PublicVisitor } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 type ThirdStepProps = {
   festival: FestivalWithDates;
-  visitor: VisitorWithTickets;
+  visitor: PublicVisitor;
   profile?: BaseProfile | null;
 };
 

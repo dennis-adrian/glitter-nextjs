@@ -149,6 +149,10 @@ export async function cancelReservationForInvoiceAction(input: unknown) {
 export async function adminConfirmReservationByReservationIdAction(
   input: unknown,
 ) {
+  const actor = await getCurrentUserProfile();
+  if (!canMutateAdminReservations(actor)) {
+    return { success: false, message: "No autorizado." };
+  }
   const parsed = parseUnknown(adminConfirmByReservationSchema, input);
   if (!parsed.success) {
     return { success: false, message: "Datos inválidos." };

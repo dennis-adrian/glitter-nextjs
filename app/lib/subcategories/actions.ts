@@ -1,24 +1,11 @@
 "use server";
 
-import {
-  NewSubcategory,
-  Subcategory,
-} from "@/app/lib/subcategories/definitions";
+import { NewSubcategory } from "@/app/lib/subcategories/definitions";
 import { deleteCategory } from "@/app/lib/categories/actions";
 import { requireAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { subcategories } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { cache } from "react";
-
-export const fetchSubcategories = cache(async (): Promise<Subcategory[]> => {
-  try {
-    return await db.query.subcategories.findMany();
-  } catch (error) {
-    console.error("Error fetching subcategories", error);
-    return [];
-  }
-});
 
 function revalidateLegacyPaths() {
   revalidatePath("/dashboard/subcategories");

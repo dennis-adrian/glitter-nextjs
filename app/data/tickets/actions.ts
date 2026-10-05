@@ -5,15 +5,17 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { consumeTicketCreationRateLimit } from "@/app/lib/tickets/creation-rate-limit";
-import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
+import {
+  getCurrentBaseProfile,
+  requireAdminOrFestivalAdmin,
+} from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { tickets } from "@/db/schema";
-import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
+import { festivals, tickets, visitors } from "@/db/schema";
+import type { VisitorBase } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import { getTicketCode } from "@/app/lib/tickets/utils";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
@@ -25,18 +27,59 @@ export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
  */
 const TICKET_NUMBER_LOCK_NAMESPACE = 4711;
 
+/** The most people one ticket admits: the family registration stops at ten. */
+const MAX_VISITORS_PER_TICKET = 10;
+
+/** Longest address a mailbox can have; anything longer names no visitor. */
+const MAX_EMAIL_LENGTH = 320;
+
+/**
+ * Public: anyone registering for a festival creates their own ticket.
+ *
+ * The visitor is named by the email they typed, never by id: visitor ids are
+ * sequential, so an id-keyed action let anyone loop over every visitor and
+ * mail each one a ticket. Keyed on the address, a caller reaches only the
+ * addresses they already know. The festival is named by id. Both rows are read
+ * here, because the confirmation mail goes to the visitor's stored address and
+ * prints the festival's stored name, place and mascot — taken from the caller,
+ * this sent mail anywhere from the festival's address with any content.
+ */
 export async function createTicket(data: {
   date: Date;
-  visitor: VisitorBase;
-  festival: FestivalBase;
+  email: string;
+  festivalId: number;
   numberOfVisitors?: number;
 }) {
-  const { date, visitor, festival } = data;
+  const invalid = {
+    success: false,
+    message: "No se pudo crear la entrada",
+    ticket: null,
+  };
+  const date = new Date(data.date);
+  // Matched exactly, as the registration looked the visitor up, so not
+  // trimmed or lowercased here.
+  const email = data.email;
+  if (
+    typeof email !== "string" ||
+    email.length === 0 ||
+    email.length > MAX_EMAIL_LENGTH ||
+    !Number.isInteger(data.festivalId) ||
+    data.festivalId <= 0 ||
+    Number.isNaN(date.getTime())
+  ) {
+    return invalid;
+  }
+  const numberOfVisitors = Math.min(
+    Math.max(Math.trunc(Number(data.numberOfVisitors) || 1), 1),
+    MAX_VISITORS_PER_TICKET,
+  );
 
-  // Keyed on the address the confirmation mail goes to.
+  // Before the lookups, so a flood costs no reads and probing which addresses
+  // belong to visitors is throttled too. The email key is the address the
+  // confirmation goes to: the visitor is matched on it exactly.
   const allowed = await consumeTicketCreationRateLimit({
     userId: (await getCurrentBaseProfile())?.id ?? null,
-    email: visitor.email,
+    email,
   });
   if (!allowed) {
     return {
@@ -44,6 +87,30 @@ export async function createTicket(data: {
       message: "Demasiados intentos seguidos. Esperá un rato e intentá de nuevo.",
       ticket: null,
     };
+  }
+
+  const loaded = await Promise.all([
+    db.query.visitors.findFirst({ where: eq(visitors.email, email) }),
+    db.query.festivals.findFirst({
+      where: eq(festivals.id, data.festivalId),
+      with: { festivalDates: true },
+    }),
+  ]).catch((error) => {
+    console.error(error);
+    return null;
+  });
+  if (!loaded) return invalid;
+  const [visitor, festival] = loaded;
+
+  // Both registration forms send one of the festival's own start dates.
+  if (
+    !visitor ||
+    !festival ||
+    !festival.festivalDates.some(
+      (festivalDate) => festivalDate.startDate.getTime() === date.getTime(),
+    )
+  ) {
+    return invalid;
   }
 
   let createdTicket: TicketBase;
@@ -94,7 +161,7 @@ export async function createTicket(data: {
           visitorId: visitor.id,
           festivalId: festival.id,
           ticketNumber: ticketNumber,
-          numberOfVisitors: data.numberOfVisitors || 1,
+          numberOfVisitors,
         })
         .returning();
     });
@@ -164,20 +231,12 @@ export async function createTicket(data: {
   };
 }
 
-export async function fetchTicket(
-  id: number,
-): Promise<TicketBase | undefined | null> {
-  try {
-    return await db.query.tickets.findFirst({
-      where: eq(tickets.id, id),
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
-
 export async function updateTicket(id: number, status: TicketBase["status"]) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, error: "No autorizado" };
+  }
+
   try {
     await db.update(tickets).set({ status }).where(eq(tickets.id, id));
   } catch (error) {
@@ -197,6 +256,11 @@ export async function updateTicket(id: number, status: TicketBase["status"]) {
 }
 
 export async function verifyTicket(ticketNumber: number, festivalId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const [ticket] = await db
       .select()
@@ -261,11 +325,26 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
   };
 }
 
-export async function sendTicketEmail(
-  visitor: VisitorWithTickets,
-  festival: FestivalBase,
-) {
+/**
+ * Staff only. Takes the visitor by id and reads the address here: if sending is
+ * switched back on, the recipient and the festival printed in the mail must come
+ * from the database, never from the caller.
+ */
+export async function sendTicketEmail(visitorId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
+    const visitor = await db.query.visitors.findFirst({
+      where: eq(visitors.id, visitorId),
+      columns: { email: true },
+    });
+    if (!visitor) throw new Error("Visitor not found");
+
+    // Sending is disabled. To switch it back on, load the ticket and festival
+    // by id as createTicket does, then:
     // const { error, data } = await sendEmail({
     //   from: "Equipo Glitter <entradas@productoraglitter.com>",
     //   to: [visitor.email],
@@ -291,11 +370,20 @@ export async function sendTicketEmail(
   }
 }
 
+/** Staff only: the latest check-ins, with the name each ticket was issued to. */
 export async function fetchTicketsByFestival(festivalId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return [];
+
   try {
     return await db.query.tickets.findMany({
       with: {
-        visitor: true,
+        visitor: {
+          columns: {
+            firstName: true,
+            lastName: true,
+          },
+        },
         festival: true,
       },
       where: and(
@@ -312,6 +400,9 @@ export async function fetchTicketsByFestival(festivalId: number) {
 }
 
 export async function fetchVerifiedTicketsByFestivalTotal(festivalId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return 0;
+
   try {
     const result = await db
       .select({

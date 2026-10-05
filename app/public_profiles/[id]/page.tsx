@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";

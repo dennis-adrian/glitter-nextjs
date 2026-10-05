@@ -11,7 +11,7 @@ import {
 import { Input } from "@/app/components/ui/input";
 import {
   fetchVisitorByEmail,
-  VisitorWithTickets,
+  PublicVisitor,
 } from "@/app/data/visitors/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
@@ -25,7 +25,7 @@ const FormSchema = z.object({
 });
 
 type EmailFormProps = {
-  onSubmit: (email: string, visitor?: VisitorWithTickets | null) => void;
+  onSubmit: (email: string, visitor?: PublicVisitor | null) => void;
 };
 
 export default function EmailForm(props: EmailFormProps) {

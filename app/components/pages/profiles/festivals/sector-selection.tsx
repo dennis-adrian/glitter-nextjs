@@ -1,8 +1,9 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import SectorSelectionClient from "@/app/components/festivals/reservations/sector-selection-client";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
-import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
+import { toPublicMapSectors } from "@/app/lib/festival_sectors/public";
+import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/queries";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getSelfServicePageDenial } from "@/app/lib/reservations/entry";
@@ -55,10 +56,12 @@ export default async function SectorSelectionPage(
     subcategoryIds,
     forProfile.participationType,
   );
-  const sectors =
+  // The stand cards show no occupants, so nobody's profile goes to the client.
+  const sectors = toPublicMapSectors(
     currentProfile?.role === "admin"
       ? fetchedSectors
-      : stripHiddenReservationsFromSectors(fetchedSectors);
+      : stripHiddenReservationsFromSectors(fetchedSectors),
+  );
 
   return (
     <SectorSelectionClient
