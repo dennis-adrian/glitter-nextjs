@@ -19,9 +19,9 @@ export const EMAIL_ADMIN_TAB_LABELS: Record<EmailAdminTab, string> = {
 /** One line under each tab: what being on it means. */
 export const EMAIL_ADMIN_TAB_DESCRIPTIONS: Record<EmailAdminTab, string> = {
   blocked:
-    "No reciben ningún correo masivo: el correo rebotó o la persona lo marcó como spam.",
+    "Resend no les entrega ningún correo, ni siquiera entradas o reservas: el correo rebotó o la persona lo marcó como spam.",
   unsubscribed:
-    "Pidieron dejar de recibir un tipo de correo masivo, o todos. Los demás siguen llegando.",
+    "Pidieron dejar de recibir un tipo de correo masivo, o todos. Sus entradas, reservas y pedidos les siguen llegando.",
   lifted: "Estuvieron bloqueados y se desbloquearon, en Resend o desde aquí.",
 };
 

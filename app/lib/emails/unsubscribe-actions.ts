@@ -1,7 +1,9 @@
 "use server";
 
 import {
+  deleteUnsubscribe,
   isSuppressed,
+  isUnsubscribedFromAll,
   recipientAddress,
   resubscribe,
   unsubscribe,
@@ -12,7 +14,8 @@ import { loggableError } from "@/app/lib/errors/loggable-error";
 /**
  * The buttons on the unsubscribe page. The token from the email is the only
  * credential: whoever holds the link may change that one person's choice for
- * that one topic, nothing else.
+ * the topic it names, and, when the page showed them unsubscribed from all
+ * bulk mail, undo that too. Nothing else.
  */
 
 type UnsubscribeActionResult = { success: boolean; message: string };
@@ -52,15 +55,24 @@ export async function undoUnsubscribe(
   try {
     const target = await resolve(token);
     if (!target) return INVALID_LINK;
+    // The page said "todos nuestros correos masivos" when this was set, so
+    // undoing it is what the person was shown and chose.
+    const fromAll = await isUnsubscribedFromAll(target.address);
+    if (fromAll) await deleteUnsubscribe(target.address, "all");
     await resubscribe(target.address, target.topic);
     if (await isSuppressed(target.address)) {
       return {
         success: true,
         message:
-          "Quitamos tu baja, pero esta dirección está bloqueada por un rebote o un reporte de spam. Escríbenos para volver a recibir estos correos.",
+          "Quitamos tu baja, pero esta dirección está bloqueada por un rebote o un reporte de spam. Escríbenos para volver a recibir correos.",
       };
     }
-    return { success: true, message: "Volverás a recibir estos correos." };
+    return {
+      success: true,
+      message: fromAll
+        ? "Volverás a recibir nuestros correos."
+        : "Volverás a recibir estos correos.",
+    };
   } catch (error) {
     console.error("Error resubscribing", loggableError(error));
     return {

@@ -24,11 +24,19 @@ type UnsubscribeCardProps = {
   maskedEmail: string;
   /** What they stop receiving: "las invitaciones para acreditarte…". */
   topicLabel: string;
+  /** How "every kind of bulk mail" reads, for an all-mail opt-out. */
+  allTopicsLabel: string;
+  /** Unsubscribed from the link's topic. */
   unsubscribed: boolean;
   /**
-   * Mail to this address bounced or was reported as spam: no bulk mail goes
-   * to it whatever they choose here, so offering to resubscribe would
-   * promise mail that never comes.
+   * Unsubscribed from all bulk mail, usually by asking support. The page then
+   * says so, so that undoing it is a choice about all of it, not one topic.
+   */
+  unsubscribedFromAll: boolean;
+  /**
+   * Mail to this address bounced or was reported as spam: Resend delivers
+   * nothing to it, so offering to resubscribe would promise mail that never
+   * comes.
    */
   blocked: boolean;
 };
@@ -38,14 +46,20 @@ type UnsubscribeCardProps = {
  * email, and offers to undo it right after.
  */
 export default function UnsubscribeCard(props: UnsubscribeCardProps) {
-  const [unsubscribed, setUnsubscribed] = useState(props.unsubscribed);
+  const [fromAll, setFromAll] = useState(props.unsubscribedFromAll);
+  const [topicOnly, setTopicOnly] = useState(props.unsubscribed);
   const [pending, startTransition] = useTransition();
+  const unsubscribed = fromAll || topicOnly;
+  const label = fromAll ? props.allTopicsLabel : props.topicLabel;
 
   function run(action: typeof confirmUnsubscribe, next: boolean) {
     startTransition(async () => {
       const result = await action(props.token);
       if (result.success) {
-        setUnsubscribed(next);
+        // Undoing lifts the all-mail opt-out too; subscribing again is
+        // always for this link's topic.
+        setFromAll(false);
+        setTopicOnly(next);
         toast.success(result.message);
       } else {
         toast.error(result.message);
@@ -64,20 +78,17 @@ export default function UnsubscribeCard(props: UnsubscribeCardProps) {
         </CardTitle>
         <CardDescription>
           {unsubscribed
-            ? `Ya no enviaremos ${props.topicLabel} a ${props.maskedEmail}.`
-            : `Dejarás de recibir ${props.topicLabel} en ${props.maskedEmail}.`}
+            ? `Ya no enviaremos ${label} a ${props.maskedEmail}.`
+            : `Dejarás de recibir ${label} en ${props.maskedEmail}.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 text-sm text-muted-foreground">
-        <p>
-          Seguirás recibiendo los correos que pidas tú, como tus entradas o
-          reservas.
-        </p>
         {props.blocked ? (
           <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
-            Por ahora no enviamos correos masivos a esta dirección porque un
-            mensaje anterior no se pudo entregar o fue marcado como spam. Si
-            quieres volver a recibirlos, escríbenos a{" "}
+            Por ahora no podemos enviarte ningún correo, ni siquiera tus
+            entradas o reservas, porque un mensaje anterior no se pudo entregar
+            o fue marcado como spam. Si quieres volver a recibirlos, escríbenos
+            a{" "}
             <a
               href="mailto:soporte@productoraglitter.com"
               className="font-medium underline"
@@ -86,7 +97,12 @@ export default function UnsubscribeCard(props: UnsubscribeCardProps) {
             </a>
             .
           </p>
-        ) : null}
+        ) : (
+          <p>
+            Seguirás recibiendo los correos que pidas tú, como tus entradas o
+            reservas.
+          </p>
+        )}
       </CardContent>
       <CardFooter>
         {unsubscribed && props.blocked ? null : unsubscribed ? (

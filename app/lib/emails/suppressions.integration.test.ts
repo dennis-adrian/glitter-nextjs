@@ -445,7 +445,7 @@ describeDatabase("bulk mail suppressions", () => {
       expect(await unsubscribedTopics(email)).toEqual([]);
     });
 
-    it("skips every topic for someone unsubscribed from all bulk mail, until they resubscribe from a link", async () => {
+    it("skips every topic for someone unsubscribed from all bulk mail, and a one-topic resubscribe keeps it", async () => {
       const email = address("all-mail");
       await suppressions.unsubscribe(email, "all");
 
@@ -460,12 +460,13 @@ describeDatabase("bulk mail suppressions", () => {
         expect(await suppressions.isUnsubscribed(email, topic)).toBe(true);
       }
 
-      // Their latest choice, from one of our emails, is to receive mail.
+      // Asking for one topic back says nothing about the others.
+      await suppressions.unsubscribe(email, "visitor_invitations");
       await suppressions.resubscribe(email, "visitor_invitations");
-      expect(await unsubscribedTopics(email)).toEqual([]);
+      expect(await unsubscribedTopics(email)).toEqual(["all"]);
       expect(await exclusion(email, "participant_invitations")).toEqual({
-        excluded: null,
-        reachable: true,
+        excluded: "opted_out",
+        reachable: false,
       });
     });
   });
@@ -732,6 +733,30 @@ describeDatabase("bulk mail suppressions", () => {
       expect(await actions.confirmUnsubscribe("nope")).toMatchObject({
         success: false,
       });
+    });
+
+    it("lifts an all-mail opt-out only when the page showed it as such", async () => {
+      const visitor = await createVisitor(address("all-page"));
+      await suppressions.unsubscribe(visitor.email, "all");
+      await suppressions.unsubscribe(visitor.email, "participant_invitations");
+      const token = tokens.signUnsubscribeToken({
+        kind: "visitor",
+        id: visitor.id,
+        topic: "visitor_invitations",
+      });
+
+      // The page reads "todos nuestros correos masivos" for this person.
+      expect(await suppressions.isUnsubscribedFromAll(visitor.email)).toBe(
+        true,
+      );
+      expect(await actions.undoUnsubscribe(token)).toMatchObject({
+        success: true,
+        message: "Volverás a recibir nuestros correos.",
+      });
+      // Their separate choice about participant mail stays.
+      expect(await unsubscribedTopics(visitor.email)).toEqual([
+        "participant_invitations",
+      ]);
     });
 
     it("has nothing to do for a recipient that no longer exists", async () => {

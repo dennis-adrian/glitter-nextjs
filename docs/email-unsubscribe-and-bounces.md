@@ -2,8 +2,11 @@
 
 Who a bulk mailing skips, and how that list fills itself. A bulk mailing is
 one we send to a whole list at once (today: the two festival invitations in
-`app/lib/festivals/invitations.ts`). Single emails a person triggers
-themselves (their ticket, a reservation, a payment) are not affected.
+`app/lib/festivals/invitations.ts`). An unsubscribe never affects single
+emails a person triggers themselves (their ticket, a reservation, a
+payment). A bounce or spam complaint does, but not through this app: Resend
+keeps such addresses on its account-wide suppression list and delivers
+nothing to them, transactional mail included, until they are unblocked.
 
 ## What is skipped
 
@@ -37,7 +40,10 @@ Topics (`email_topic` enum, labels in `app/lib/emails/topics.ts`):
 Every bulk email carries:
 
 - a footer link to `/email/unsubscribe?token=…`, a page that asks before
-  unsubscribing (link scanners open every link) and offers to undo it;
+  unsubscribing (link scanners open every link) and offers to undo it. For
+  someone an admin unsubscribed from all bulk mail, the page says "todos
+  nuestros correos masivos", and undoing it there lifts that; otherwise a
+  link only ever changes its own topic;
 - `List-Unsubscribe: <https://…/api/email/unsubscribe?token=…>` and
   `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). Gmail, Yahoo
   and others show their own "Unsubscribe" button and POST there; it takes
@@ -88,7 +94,8 @@ admins send the invitations but do not decide who receives them.
   account, the page says so: remove it in Resend → Suppressions, or the next
   mailing blocks it again.
 - **Bajas**: unsubscribes by topic, and who added each one. "Quitar baja"
-  removes exactly that row. "Dar de baja un correo" adds one for someone who
+  removes exactly that row, and says so when another one still keeps the
+  mail from going out. "Dar de baja un correo" adds one for someone who
   asked by other means; "Todos los correos masivos" uses the `all` topic,
   which also covers topics added later.
 - **Desbloqueados**: lifted suppressions, and whether an admin or Resend

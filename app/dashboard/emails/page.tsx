@@ -10,6 +10,7 @@ import {
   EmailAdminSearchParamsSchema,
 } from "@/app/lib/emails/admin-definitions";
 import { fetchEmailAdminPage } from "@/app/lib/emails/admin-queries";
+import { serverEnv } from "@/env";
 
 export const metadata: Metadata = {
   title: "Correos bloqueados",
@@ -48,8 +49,7 @@ export default async function EmailsAdminPage(props: {
           <h1 className="text-2xl font-bold md:text-3xl">Correos bloqueados</h1>
           <p className="text-sm text-muted-foreground">
             A quiénes no les llegan nuestros correos masivos, como las
-            invitaciones a festivales, y por qué. Las entradas, reservas y
-            pedidos les siguen llegando.
+            invitaciones a festivales, y por qué.
           </p>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
@@ -75,6 +75,8 @@ export default async function EmailsAdminPage(props: {
           rows={page.rows}
           rowCount={page.total}
           searching={params.query !== ""}
+          // Only production changes Resend; previews share its account.
+          resendSynced={serverEnv.VERCEL_ENV === "production"}
         />
       </div>
     </div>

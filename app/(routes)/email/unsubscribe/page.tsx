@@ -11,6 +11,7 @@ import { maskEmail } from "@/app/lib/emails/mask-email";
 import {
   isSuppressed,
   isUnsubscribed,
+  isUnsubscribedFromAll,
   recipientAddress,
 } from "@/app/lib/emails/suppressions";
 import { EMAIL_TOPIC_LABELS } from "@/app/lib/emails/topics";
@@ -37,7 +38,9 @@ export default async function Page(props: {
           token={token}
           maskedEmail={maskEmail(address)}
           topicLabel={EMAIL_TOPIC_LABELS[subject.topic]}
+          allTopicsLabel={EMAIL_TOPIC_LABELS.all}
           unsubscribed={await isUnsubscribed(address, subject.topic)}
+          unsubscribedFromAll={await isUnsubscribedFromAll(address)}
           blocked={await isSuppressed(address)}
         />
       ) : (

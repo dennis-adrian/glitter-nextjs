@@ -24,6 +24,7 @@ import type { EmailAdminActionResult } from "@/app/lib/emails/admin-definitions"
  */
 export default function EmailAdminActionButton({
   label,
+  ariaLabel,
   pendingLabel,
   title,
   description,
@@ -33,6 +34,8 @@ export default function EmailAdminActionButton({
   run,
 }: {
   label: string;
+  /** The button's name for screen readers: which row it acts on. */
+  ariaLabel: string;
   pendingLabel: string;
   title: string;
   description: ReactNode;
@@ -51,6 +54,10 @@ export default function EmailAdminActionButton({
         const result = await run();
         if (!result.success) {
           toast.error(result.message);
+          // Usually the row changed elsewhere (another admin, Resend): show
+          // the list as it is now rather than a button that keeps failing.
+          setOpen(false);
+          router.refresh();
           return;
         }
         if (result.warning) {
@@ -73,6 +80,7 @@ export default function EmailAdminActionButton({
         size="sm"
         variant="outline"
         className="w-full sm:w-auto"
+        aria-label={ariaLabel}
         onClick={() => setOpen(true)}
       >
         {label}

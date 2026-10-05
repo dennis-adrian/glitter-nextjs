@@ -173,20 +173,55 @@ export async function unsubscribe(
 
 /**
  * The person asked, from a link in one of our emails, to get `topic` again.
- * An earlier "stop everything" goes too: their latest choice is to receive
- * mail from us.
+ * Only that topic: an opt-out from all bulk mail stays until they are shown
+ * it and undo it as such (`undoUnsubscribe`), or an admin removes it.
  */
 export async function resubscribe(address: string, topic: MailingTopic) {
-  const key = emailKey(address);
-  if (!key) return;
-  await db
-    .delete(emailUnsubscribes)
+  await deleteUnsubscribe(address, topic);
+}
+
+/** Whether `address` is unsubscribed from every kind of bulk mail. */
+export async function isUnsubscribedFromAll(address: string) {
+  const [row] = await db
+    .select({ id: emailUnsubscribes.id })
+    .from(emailUnsubscribes)
     .where(
       and(
-        eq(emailUnsubscribes.emailKey, key),
-        inArray(emailUnsubscribes.topic, [topic, "all"]),
+        eq(emailUnsubscribes.emailKey, emailKey(address)),
+        eq(emailUnsubscribes.topic, "all"),
       ),
-    );
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/**
+ * Everything that still keeps bulk mail from `address`: an active
+ * suppression and every unsubscribe. For telling an admin what is left after
+ * they lift one of them.
+ */
+export async function remainingOptOuts(address: string) {
+  const key = emailKey(address);
+  const [suppression, unsubscribes] = await Promise.all([
+    db
+      .select({ reason: emailSuppressions.reason })
+      .from(emailSuppressions)
+      .where(
+        and(
+          eq(emailSuppressions.emailKey, key),
+          isNull(emailSuppressions.liftedAt),
+        ),
+      )
+      .limit(1),
+    db
+      .select({ topic: emailUnsubscribes.topic })
+      .from(emailUnsubscribes)
+      .where(eq(emailUnsubscribes.emailKey, key)),
+  ]);
+  return {
+    suppression: suppression[0]?.reason ?? null,
+    topics: unsubscribes.map((row) => row.topic),
+  };
 }
 
 /** Removes exactly one unsubscribe row, as an admin choosing it. */

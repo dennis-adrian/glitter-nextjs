@@ -12,6 +12,7 @@ import {
   deleteUnsubscribe,
   emailKey,
   liftSuppression,
+  remainingOptOuts,
   unsubscribe,
 } from "@/app/lib/emails/suppressions";
 import {
@@ -39,6 +40,30 @@ const INVALID: EmailAdminActionResult = {
   success: false,
   message: "Datos inválidos",
 };
+
+/**
+ * What still keeps bulk mail from `key` after a change, as a sentence for
+ * the admin, or "" when nothing does.
+ */
+async function stillOptedOut(key: string) {
+  const { suppression, topics } = await remainingOptOuts(key);
+  const parts: string[] = [];
+  if (suppression) {
+    parts.push(
+      suppression === "complaint"
+        ? "sigue bloqueado por un reporte de spam"
+        : "sigue bloqueado por un rebote",
+    );
+  }
+  if (topics.length > 0) {
+    parts.push(
+      `sigue dado de baja de: ${topics
+        .map((topic) => EMAIL_TOPIC_SHORT_LABELS[topic].toLowerCase())
+        .join(", ")}`,
+    );
+  }
+  return parts.length > 0 ? ` Ojo: ${parts.join(" y ")}.` : "";
+}
 
 const EmailKeySchema = z
   .string()
@@ -84,18 +109,21 @@ export async function unblockEmail(input: {
     });
     const resend = await removeResendSuppression(key);
     revalidatePath(PAGE_PATH);
+    const remaining = await stillOptedOut(key);
 
     switch (resend.outcome) {
       case "removed":
       case "not_listed":
         return {
           success: true,
-          message: `${key} volverá a recibir correos masivos.`,
+          warning: remaining ? true : undefined,
+          message: `${key} quedó desbloqueado.${remaining}`,
         };
       case "skipped":
         return {
           success: true,
-          message: `${key} quedó desbloqueado. Este entorno no es producción, así que no se cambió nada en Resend.`,
+          warning: remaining ? true : undefined,
+          message: `${key} quedó desbloqueado. Este entorno no es producción, así que no se cambió nada en Resend.${remaining}`,
         };
       case "failed":
         console.error("Resend did not lift a suppression", {
@@ -174,9 +202,11 @@ export async function removeUnsubscribe(input: {
       adminId: admin.id,
       topic: topic.data,
     });
+    const remaining = await stillOptedOut(key.data);
     return {
       success: true,
-      message: `${key.data} volverá a recibir: ${EMAIL_TOPIC_SHORT_LABELS[topic.data].toLowerCase()}.`,
+      warning: remaining ? true : undefined,
+      message: `Quitamos la baja de ${key.data}: ${EMAIL_TOPIC_SHORT_LABELS[topic.data].toLowerCase()}.${remaining}`,
     };
   } catch (error) {
     console.error("Error removing an unsubscribe", loggableError(error));

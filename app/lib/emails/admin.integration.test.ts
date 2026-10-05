@@ -214,6 +214,7 @@ describeDatabase("blocked-emails admin", () => {
       expect(result).toMatchObject({ success: true });
       expect(result.warning).toBeUndefined();
       expect(removeResendSuppression).toHaveBeenCalledWith(email.toLowerCase());
+      expect(result.message).not.toContain("Ojo");
       const row = await suppressionFor(email);
       expect(row?.liftedAt).not.toBeNull();
       expect(row?.liftedByUserId).toBe(ADMIN.id);
@@ -236,6 +237,22 @@ describeDatabase("blocked-emails admin", () => {
       expect(result).toMatchObject({ success: true, warning: true });
       expect(result.message).toContain("Resend → Suppressions");
       expect(await suppressions.isSuppressed(email)).toBe(false);
+    });
+
+    it("tells the admin when the person is still unsubscribed", async () => {
+      const email = address("still-out");
+      await suppressions.recordSuppression({
+        address: email,
+        reason: "bounce",
+      });
+      await suppressions.unsubscribe(email, "visitor_invitations");
+
+      const result = await actions.unblockEmail({ emailKey: email });
+
+      expect(result).toMatchObject({ success: true, warning: true });
+      expect(result.message).toContain(
+        "sigue dado de baja de: invitaciones a visitantes",
+      );
     });
 
     it("says so for an address that is not blocked, without calling Resend", async () => {
@@ -279,7 +296,7 @@ describeDatabase("blocked-emails admin", () => {
       await suppressions.unsubscribe(email, "visitor_invitations");
       await suppressions.unsubscribe(email, "all");
 
-      await actions.removeUnsubscribe({
+      const result = await actions.removeUnsubscribe({
         emailKey: email,
         topic: "visitor_invitations",
       });
@@ -287,6 +304,11 @@ describeDatabase("blocked-emails admin", () => {
       expect((await unsubscribesFor(email)).map((row) => row.topic)).toEqual([
         "all",
       ]);
+      // The admin is told the mail still will not go out.
+      expect(result).toMatchObject({ success: true, warning: true });
+      expect(result.message).toContain(
+        "sigue dado de baja de: todos los correos masivos",
+      );
     });
 
     it("refuses an invalid address or topic", async () => {

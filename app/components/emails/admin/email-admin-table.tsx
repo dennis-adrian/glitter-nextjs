@@ -17,6 +17,7 @@ import type {
 } from "@/app/lib/emails/admin-definitions";
 import { EMAIL_TOPIC_SHORT_LABELS } from "@/app/lib/emails/topics";
 import { formatDateWithTime } from "@/app/lib/formatters";
+import { cn } from "@/lib/utils";
 
 const REASON_LABELS = { bounce: "Rebote", complaint: "Spam" } as const;
 const REASON_VARIANTS: Record<"bounce" | "complaint", BadgeVariant> = {
@@ -66,7 +67,14 @@ function EmailCell({ row }: { row: EmailAdminRow }) {
   );
 }
 
-function ReasonCell({ row }: { row: EmailAdminRow }) {
+function ReasonCell({
+  row,
+  fullDetail = false,
+}: {
+  row: EmailAdminRow;
+  /** Phones have no hover to read a clamped message: show all of it. */
+  fullDetail?: boolean;
+}) {
   if (row.kind === "unsubscribed") {
     return (
       <Badge variant={row.topic === "all" ? "secondary" : "outline"}>
@@ -81,7 +89,10 @@ function ReasonCell({ row }: { row: EmailAdminRow }) {
       </Badge>
       {row.detail ? (
         <p
-          className="line-clamp-2 text-xs text-muted-foreground"
+          className={cn(
+            "text-xs text-muted-foreground",
+            !fullDetail && "line-clamp-2",
+          )}
           title={row.detail}
         >
           {row.detail}
@@ -110,12 +121,19 @@ function byLabel(row: EmailAdminRow) {
   return row.liftedBy ? row.liftedBy.name : "Resend";
 }
 
-function RowAction({ row }: { row: EmailAdminRow }) {
+function RowAction({
+  row,
+  resendSynced,
+}: {
+  row: EmailAdminRow;
+  resendSynced: boolean;
+}) {
   if (row.kind === "blocked") {
     const spam = row.reason === "complaint";
     return (
       <EmailAdminActionButton
         label="Desbloquear"
+        ariaLabel={`Desbloquear ${row.emailKey}`}
         pendingLabel="Desbloqueando…"
         title={`¿Desbloquear ${row.emailKey}?`}
         confirmLabel="Desbloquear"
@@ -125,8 +143,9 @@ function RowAction({ row }: { row: EmailAdminRow }) {
         description={
           <>
             <p>
-              Volverá a recibir las invitaciones y demás correos masivos,
-              también en Resend.
+              {resendSynced
+                ? "Volverá a recibir correos: lo quitamos de la lista de bloqueados aquí y en Resend."
+                : "Volverá a recibir correos según esta lista. Este entorno no es producción, así que no se cambia nada en Resend."}
             </p>
             <p>
               {spam
@@ -143,6 +162,7 @@ function RowAction({ row }: { row: EmailAdminRow }) {
     return (
       <EmailAdminActionButton
         label="Quitar baja"
+        ariaLabel={`Quitar la baja de ${row.emailKey}: ${label}`}
         pendingLabel="Quitando…"
         title={`¿Quitar la baja de ${row.emailKey}?`}
         confirmLabel="Quitar baja"
@@ -165,7 +185,10 @@ function RowAction({ row }: { row: EmailAdminRow }) {
   return null;
 }
 
-function buildColumns(tab: EmailAdminTab): ColumnDef<EmailAdminRow>[] {
+function buildColumns(
+  tab: EmailAdminTab,
+  resendSynced: boolean,
+): ColumnDef<EmailAdminRow>[] {
   const columns: ColumnDef<EmailAdminRow>[] = [
     {
       id: "email",
@@ -212,7 +235,7 @@ function buildColumns(tab: EmailAdminTab): ColumnDef<EmailAdminRow>[] {
       header: () => <span className="sr-only">Acciones</span>,
       cell: ({ row }) => (
         <div className="flex justify-end">
-          <RowAction row={row.original} />
+          <RowAction row={row.original} resendSynced={resendSynced} />
         </div>
       ),
       enableSorting: false,
@@ -234,18 +257,21 @@ export default function EmailAdminTable({
   rows,
   rowCount,
   searching,
+  resendSynced,
 }: {
   tab: EmailAdminTab;
   rows: EmailAdminRow[];
   rowCount: number;
   /** A search is applied: an empty list means no match, not good news. */
   searching: boolean;
+  /** Unblocking also changes Resend here (production only). */
+  resendSynced: boolean;
 }) {
   return (
     <DataTable
       // Each tab is its own list, with its own page.
       key={tab}
-      columns={buildColumns(tab)}
+      columns={buildColumns(tab, resendSynced)}
       data={rows}
       columnTitles={columnTitles}
       getRowId={(row) =>
@@ -258,11 +284,11 @@ export default function EmailAdminTable({
       renderMobileRow={(row) => (
         <div className="space-y-2 rounded-md border bg-background p-3 text-sm">
           <EmailCell row={row} />
-          <ReasonCell row={row} />
+          <ReasonCell row={row} fullDetail />
           <p className="text-xs text-muted-foreground">
             {formatDateWithTime(when(row))} · {byLabel(row)}
           </p>
-          <RowAction row={row} />
+          <RowAction row={row} resendSynced={resendSynced} />
         </div>
       )}
       emptyMessage={
