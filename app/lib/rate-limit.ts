@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { lt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -8,6 +10,24 @@ import { actionRateLimits } from "@/db/schema";
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60 * 60 * 1_000;
 let nextCleanupAt = 0;
+
+/**
+ * A stable, non-reversible name for the caller's network address, for keying
+ * rate limits on anonymous callers.
+ *
+ * Only headers the hosting platform sets are read: Vercel overwrites
+ * `x-real-ip` and `x-forwarded-for` with the connecting address. Headers it
+ * passes through as sent, such as `cf-connecting-ip` (the site is not behind
+ * Cloudflare), would let a script pick a new address for every request.
+ */
+export function callerFingerprint(requestHeaders: Pick<Headers, "get">) {
+  const forwardedIp = requestHeaders.get("x-forwarded-for")?.split(",")[0];
+  const clientIdentifier =
+    requestHeaders.get("x-real-ip")?.trim() ||
+    forwardedIp?.trim() ||
+    `unknown:${requestHeaders.get("user-agent") ?? "no-user-agent"}`;
+  return createHash("sha256").update(clientIdentifier).digest("hex");
+}
 
 async function cleanupStaleRateLimits(now: Date) {
   if (now.getTime() < nextCleanupAt) return;
