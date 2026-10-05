@@ -32,11 +32,18 @@ const mocks = vi.hoisted(() => {
     transaction: vi.fn(async (run: (t: typeof tx) => unknown) => run(tx)),
     sendEmail: vi.fn(),
     ticketTemplate: vi.fn<(props: unknown) => null>(() => null),
+    /** Work `createTicket` handed to `after`, run once the response is out. */
+    afterCallbacks: [] as Array<() => unknown>,
   };
 });
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/server", () => ({
+  after: (callback: () => unknown) => {
+    mocks.afterCallbacks.push(callback);
+  },
+}));
 vi.mock("@/app/lib/users/helpers", () => ({
   requireAdminOrFestivalAdmin: vi.fn(async () => null),
 }));
@@ -72,11 +79,24 @@ const storedFestival = {
   festivalDates: [{ startDate: festivalDay }],
 };
 
+/** Runs what `after` deferred, as Next does once the response is sent. */
+async function runAfterResponse() {
+  await Promise.all(
+    mocks.afterCallbacks.splice(0).map((callback) => callback()),
+  );
+}
+
 describe("createTicket", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.afterCallbacks.length = 0;
     mocks.findVisitor.mockResolvedValue(storedVisitor);
     mocks.findFestival.mockResolvedValue(storedFestival);
+    mocks.sendEmail.mockResolvedValue({
+      data: { id: "email-1" },
+      error: null,
+      headers: null,
+    });
   });
 
   it("mails the stored visitor about the stored festival, whatever the caller sends", async () => {
@@ -90,6 +110,7 @@ describe("createTicket", () => {
     } as Parameters<typeof createTicket>[0]);
 
     expect(result).toMatchObject({ success: true });
+    await runAfterResponse();
     expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
     expect(mocks.sendEmail.mock.calls[0][0]).toMatchObject({
       to: ["ana@example.com"],

@@ -11,6 +11,7 @@ import {
   users,
 } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import { and, eq } from "drizzle-orm";
 import { BaseProfile } from "@/app/api/users/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
@@ -228,24 +229,30 @@ export async function createUserEnrollment(params: {
     const adminEmails = admins.map((admin) => admin.email);
     if (admins.length > 0) {
       // Names and dates come from the rows, never from the caller, since they
-      // land in the subject and body of a mail sent to every admin.
-      await sendEmail({
-        to: [...adminEmails],
-        from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
-        subject: `${profile.displayName || "Usuario"} se ha inscrito a ${festival.name || "Festival"}`,
-        react: TermsAcceptanceEmailTemplate({
-          profile: {
-            id: profileId,
-            displayName: profile.displayName || "Usuario",
-            category: profile.category,
-          },
-          festival: {
-            id: festivalId,
-            name: festival.name,
-            reservationsStartDate: festival.reservationsStartDate,
-          },
-        }) as React.ReactElement,
-      });
+      // land in the subject and body of a mail sent to every admin. The
+      // request is committed; a failed notice must not report it as failed.
+      try {
+        const result = await sendEmail({
+          to: [...adminEmails],
+          from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
+          subject: `${profile.displayName || "Usuario"} se ha inscrito a ${festival.name || "Festival"}`,
+          react: TermsAcceptanceEmailTemplate({
+            profile: {
+              id: profileId,
+              displayName: profile.displayName || "Usuario",
+              category: profile.category,
+            },
+            festival: {
+              id: festivalId,
+              name: festival.name,
+              reservationsStartDate: festival.reservationsStartDate,
+            },
+          }) as React.ReactElement,
+        });
+        assertSent(result);
+      } catch (error) {
+        console.error("Error sending participation request email", error);
+      }
     }
   } catch (error) {
     console.error(error);

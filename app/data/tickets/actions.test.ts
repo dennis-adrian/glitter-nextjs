@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * whether the QR's `cid:` reference still resolves.
  */
 
-const { insertedTicket, stored } = vi.hoisted(() => ({
+const { insertedTicket, afterCallbacks, stored } = vi.hoisted(() => ({
   insertedTicket: { current: null as Record<string, unknown> | null },
   // createTicket reads the visitor and festival itself rather than trusting
   // the caller, so the mail is built from these rows.
@@ -16,10 +16,17 @@ const { insertedTicket, stored } = vi.hoisted(() => ({
     visitor: null as Record<string, unknown> | null,
     festival: null as Record<string, unknown> | null,
   },
+  /** Work `createTicket` handed to `after`, run once the response is out. */
+  afterCallbacks: [] as Array<() => unknown>,
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/server", () => ({
+  after: (callback: () => unknown) => {
+    afterCallbacks.push(callback);
+  },
+}));
 vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
 }));
@@ -57,17 +64,23 @@ const date = new Date("2026-10-09T15:00:00.000Z");
 
 const fetchMock = vi.fn();
 
+function registerVisitor() {
+  return createTicket({
+    date,
+    email: "visitor@example.com",
+    festivalId: preview.festival.id,
+    numberOfVisitors: 2,
+  });
+}
+
+/** Runs what `after` deferred, as Next does once the response is sent. */
+async function runAfterResponse() {
+  await Promise.all(afterCallbacks.splice(0).map((callback) => callback()));
+}
+
 describe("createTicket email", () => {
   beforeEach(() => {
-    insertedTicket.current = {
-      id: 1,
-      visitorId: 1,
-      festivalId: preview.festival.id,
-      status: "pending",
-      date,
-      numberOfVisitors: 2,
-      ticketNumber: 2,
-    };
+    afterCallbacks.length = 0;
     stored.visitor = {
       ...preview.visitor,
       id: 1,
@@ -77,6 +90,15 @@ describe("createTicket email", () => {
     stored.festival = {
       ...preview.festival,
       festivalDates: [{ startDate: date }],
+    };
+    insertedTicket.current = {
+      id: 1,
+      visitorId: 1,
+      festivalId: preview.festival.id,
+      status: "pending",
+      date,
+      numberOfVisitors: 2,
+      ticketNumber: 2,
     };
     fetchMock.mockReset();
     fetchMock.mockImplementation(
@@ -90,20 +112,19 @@ describe("createTicket email", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("sends the QR as the inline image the template references", async () => {
-    const result = await createTicket({
-      date,
-      email: "visitor@example.com",
-      festivalId: preview.festival.id,
-      numberOfVisitors: 2,
-    });
+    const result = await registerVisitor();
 
     expect(result.success).toBe(true);
-    // The send is not awaited by createTicket.
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    // Deferred until the response is out, not left floating.
+    expect(fetchMock).not.toHaveBeenCalled();
+    await runAfterResponse();
+    expect(fetchMock).toHaveBeenCalledOnce();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body)) as {
@@ -131,5 +152,62 @@ describe("createTicket email", () => {
     );
     // Gmail on Android inverts the QR without these.
     expect(body.html).toContain('name="color-scheme" content="only light"');
+  });
+
+  it("logs a send Resend rejects instead of passing it as delivered", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            statusCode: 422,
+            name: "validation_error",
+            message: "Invalid `to` field.",
+          }),
+          { status: 422, headers: { "content-type": "application/json" } },
+        ),
+    );
+
+    const result = await registerVisitor();
+    expect(result.success).toBe(true);
+    await runAfterResponse();
+
+    expect(consoleError).toHaveBeenCalledWith("Ticket email failed", {
+      ticketId: 1,
+      errorType: "resend:validation_error",
+    });
+  });
+
+  it("contains the send's timeout rejection", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    // Resend never answers, so `sendEmail` aborts and rejects at ten seconds.
+    fetchMock.mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    );
+
+    await registerVisitor();
+    // Only the clock `sendEmail` arms; the QR encoder needs real I/O.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const sending = runAfterResponse();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    // A rejection escaping here would be an unhandled one in production.
+    await expect(sending).resolves.toBeUndefined();
+    expect(consoleError).toHaveBeenCalledWith("Ticket email failed", {
+      ticketId: 1,
+      errorType: "Error",
+    });
   });
 });

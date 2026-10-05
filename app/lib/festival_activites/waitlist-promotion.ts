@@ -11,6 +11,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   festivalActivities,
@@ -110,7 +111,7 @@ export async function promoteFromWaitlist(
         process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
       const activityUrl = `${baseUrl}/profiles/${claimedEntry.userId}/festivals/${variant.festivalId}/activity/${activityId}`;
 
-      await sendEmail({
+      const result = await sendEmail({
         from: "Actividades del Festival <no-reply@productoraglitter.com>",
         to: [nextUser.userEmail],
         subject: `Tenés un cupo disponible en ${variant.activityName}`,
@@ -125,6 +126,11 @@ export async function promoteFromWaitlist(
           activityUrl,
         }),
       });
+      // Throwing rolls back the claim above, as a timeout already does: marked
+      // notified without an email, the person would lose their place once the
+      // window expired. Nothing retries on its own; the next freed seat or an
+      // admin's manual invite reaches them.
+      assertSent(result);
     });
   } catch (error) {
     console.error("Error promoting from waitlist", error);

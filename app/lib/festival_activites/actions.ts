@@ -14,6 +14,7 @@ import {
   FestivalBase,
 } from "@/app/lib/festivals/definitions";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   festivalActivities,
@@ -89,6 +90,39 @@ function hasUploadedDesign() {
     where ${festivalActivityParticipantProofs.participationId} = ${festivalActivityParticipants.id}
       and ${festivalActivityParticipantProofs.imageUrl} is not null
   )`;
+}
+
+/**
+ * Tells admins about a new enrollment. The enrollment is already committed, so
+ * a failure here is logged rather than reported as a failed enrollment, which
+ * a retry would only meet with "Ya estás inscrito".
+ */
+async function notifyAdminsOfEnrollment(input: {
+  festivalId: FestivalBase["id"];
+  activityName: string;
+  userDisplayName: string | null;
+}) {
+  try {
+    // Fetched here because passing down the whole festival is too cumbersome.
+    const festival = await fetchBaseFestival(input.festivalId);
+    const admins = await fetchAdminUsers();
+    const adminEmails = admins.map((admin) => admin.email);
+
+    const result = await sendEmail({
+      from: "Actividades del Festival <no-reply@productoraglitter.com>",
+      to: [...adminEmails],
+      subject: "Inscripción a una actividad del festival",
+      react: FestivalActivityRegistrationEmail({
+        festivalActivityName: input.activityName,
+        userDisplayName: input.userDisplayName,
+        festivalName: festival?.name,
+        festivalType: festival?.festivalType,
+      }),
+    });
+    assertSent(result);
+  } catch (error) {
+    console.error("Error notifying admins of activity enrollment", error);
+  }
 }
 
 export const addFestivalActivityVote = async (
@@ -457,25 +491,10 @@ export async function enrollInActivity(
         return result;
       }
 
-      /**
-       * Fetching user and festival here because passing down the whole user and
-       * festival object is too cumbersome
-       */
-      const festival = await fetchBaseFestival(festivalId);
-
-      const admins = await fetchAdminUsers();
-      const adminEmails = admins.map((admin) => admin.email);
-
-      await sendEmail({
-        from: "Actividades del Festival <no-reply@productoraglitter.com>",
-        to: [...adminEmails],
-        subject: "Inscripción a una actividad del festival",
-        react: FestivalActivityRegistrationEmail({
-          festivalActivityName: dbActivity.name,
-          userDisplayName: activeProfile.displayName,
-          festivalName: festival?.name,
-          festivalType: festival?.festivalType,
-        }),
+      await notifyAdminsOfEnrollment({
+        festivalId,
+        activityName: dbActivity.name,
+        userDisplayName: activeProfile.displayName,
       });
 
       revalidatePath(
@@ -517,20 +536,10 @@ export async function enrollInActivity(
         return result;
       }
 
-      const festival = await fetchBaseFestival(festivalId);
-      const admins = await fetchAdminUsers();
-      const adminEmails = admins.map((admin) => admin.email);
-
-      await sendEmail({
-        from: "Actividades del Festival <no-reply@productoraglitter.com>",
-        to: [...adminEmails],
-        subject: "Inscripción a una actividad del festival",
-        react: FestivalActivityRegistrationEmail({
-          festivalActivityName: dbActivity.name,
-          userDisplayName: activeProfile.displayName,
-          festivalName: festival?.name,
-          festivalType: festival?.festivalType,
-        }),
+      await notifyAdminsOfEnrollment({
+        festivalId,
+        activityName: dbActivity.name,
+        userDisplayName: activeProfile.displayName,
       });
 
       revalidatePath(

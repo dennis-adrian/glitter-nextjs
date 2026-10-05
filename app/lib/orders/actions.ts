@@ -46,6 +46,7 @@ import { revalidatePath } from "next/cache";
 import { cache } from "react";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/lib/users/queries";
+import { assertSent } from "@/app/vendors/resend-result";
 import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import { getVariantLabel } from "@/app/lib/products/variants";
@@ -1014,7 +1015,7 @@ async function sendOrderPaymentConfirmationEmail(orderId: number) {
     "";
 
   try {
-    await sendEmail({
+    const result = await sendEmail({
       to: [recipientEmail],
       from: "Glitter Store <reservas@productoraglitter.com>",
       subject: `Tu pago de la orden #${orderId} fue confirmado`,
@@ -1024,6 +1025,7 @@ async function sendOrderPaymentConfirmationEmail(orderId: number) {
         total: orderAfter.totalAmount,
       }) as React.ReactElement,
     });
+    assertSent(result);
   } catch (emailError) {
     console.error("Failed to send payment confirmation email", emailError);
   }
@@ -1296,7 +1298,7 @@ export async function submitOrderPaymentVoucher(
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((a) => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
-        await sendEmail({
+        const result = await sendEmail({
           to: adminEmails,
           from: "Glitter Store <store@productoraglitter.com>",
           subject: `Nuevo comprobante de pago — orden #${orderId}`,
@@ -1306,6 +1308,7 @@ export async function submitOrderPaymentVoucher(
             orderId: String(orderId),
           }) as React.ReactElement,
         });
+        assertSent(result);
       }
     } catch (adminEmailError) {
       console.error("[submitOrderVoucher] Admin notification email failed", {
@@ -1418,7 +1421,7 @@ export async function submitGuestOrderPaymentVoucher(
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((a) => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
-        await sendEmail({
+        const result = await sendEmail({
           to: adminEmails,
           from: "Glitter Store <store@productoraglitter.com>",
           subject: `Nuevo comprobante de pago — orden #${orderId}`,
@@ -1427,6 +1430,7 @@ export async function submitGuestOrderPaymentVoucher(
             orderId: String(orderId),
           }) as React.ReactElement,
         });
+        assertSent(result);
       }
     } catch (adminEmailError) {
       console.error(
