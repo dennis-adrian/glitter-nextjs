@@ -75,8 +75,8 @@ export default async function EmailsAdminPage(props: {
           rows={page.rows}
           rowCount={page.total}
           searching={params.query !== ""}
-          // Only production changes Resend; previews share its account.
-          resendSynced={serverEnv.VERCEL_ENV === "production"}
+          // Only local development leaves Resend alone.
+          resendSynced={serverEnv.VERCEL_ENV !== "development"}
         />
       </div>
     </div>

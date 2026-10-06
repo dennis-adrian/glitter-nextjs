@@ -242,18 +242,38 @@ describe("sendBatchEmails", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not reach Resend outside production, and says so", async () => {
+  it("does not reach Resend in development, and says so", async () => {
+    serverEnv.VERCEL_ENV = "development";
     vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    for (const environment of ["development", "preview"]) {
-      serverEnv.VERCEL_ENV = environment;
-      const response = await sendBatchEmails([payload, payload]);
-      expect(response.error).toBeNull();
-      expect("simulated" in response && response.simulated).toBe(true);
-    }
+    const response = await sendBatchEmails([payload, payload]);
+    expect(response.error).toBeNull();
+    expect("simulated" in response && response.simulated).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("really sends from staging, under staging's own idempotency keys", async () => {
+    serverEnv.VERCEL_ENV = "preview";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(resendReply({ data: [{ id: "a" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails([payload], {
+      idempotencyKey: "festival-invitation/x",
+    });
+
+    expect(response.error).toBeNull();
+    expect("simulated" in response).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const { url, headers } = sentRequest(fetchMock);
+    expect(url).toBe("https://api.resend.com/emails/batch");
+    // Never the same key as production's mailing of the same page.
+    expect(headers.get("Idempotency-Key")).toBe(
+      "preview:festival-invitation/x",
+    );
   });
 
   it("posts one batch with its scoped idempotency key and unsubscribe headers", async () => {
@@ -331,35 +351,37 @@ describe("removeResendSuppression", () => {
     vi.unstubAllGlobals();
   });
 
-  it("leaves the shared Resend account alone outside production", async () => {
+  it("leaves Resend alone in development", async () => {
+    serverEnv.VERCEL_ENV = "development";
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    for (const environment of ["development", "preview"]) {
-      serverEnv.VERCEL_ENV = environment;
-      expect(await removeResendSuppression("ana@example.com")).toEqual({
-        outcome: "skipped",
-      });
-    }
+    expect(await removeResendSuppression("ana@example.com")).toEqual({
+      outcome: "skipped",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("deletes the address from Resend's list in production", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
-    vi.stubGlobal("fetch", fetchMock);
+  it.each(["production", "preview"])(
+    "deletes the address from Resend's list in %s",
+    async (environment) => {
+      serverEnv.VERCEL_ENV = environment;
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      vi.stubGlobal("fetch", fetchMock);
 
-    expect(await removeResendSuppression("Ana+x@example.com")).toEqual({
-      outcome: "removed",
-    });
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      "https://api.resend.com/suppressions/Ana%2Bx%40example.com",
-    );
-    expect(init.method).toBe("DELETE");
-    expect(new Headers(init.headers).get("Authorization")).toBe(
-      "Bearer re_test",
-    );
-    expect(init.signal).toBeInstanceOf(AbortSignal);
-  });
+      expect(await removeResendSuppression("Ana+x@example.com")).toEqual({
+        outcome: "removed",
+      });
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(
+        "https://api.resend.com/suppressions/Ana%2Bx%40example.com",
+      );
+      expect(init.method).toBe("DELETE");
+      expect(new Headers(init.headers).get("Authorization")).toBe(
+        "Bearer re_test",
+      );
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    },
+  );
 
   it("tells a missing suppression apart from a refusal", async () => {
     vi.stubGlobal(

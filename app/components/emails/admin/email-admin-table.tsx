@@ -145,7 +145,7 @@ function RowAction({
             <p>
               {resendSynced
                 ? "Volverá a recibir correos: lo quitamos de la lista de bloqueados aquí y en Resend."
-                : "Volverá a recibir correos según esta lista. Este entorno no es producción, así que no se cambia nada en Resend."}
+                : "Volverá a recibir correos según esta lista. En desarrollo no se cambia nada en Resend."}
             </p>
             <p>
               {spam
@@ -264,7 +264,7 @@ export default function EmailAdminTable({
   rowCount: number;
   /** A search is applied: an empty list means no match, not good news. */
   searching: boolean;
-  /** Unblocking also changes Resend here (production only). */
+  /** Unblocking also changes Resend here (everywhere but development). */
   resendSynced: boolean;
 }) {
   return (

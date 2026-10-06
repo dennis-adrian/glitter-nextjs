@@ -108,9 +108,8 @@ export type SendBatchOptions = { idempotencyKey?: string };
  *
  * Like `sendEmail`, it has a ten-second timeout that rejects and takes an
  * optional idempotency key, which Resend honours for 24 hours so a retried
- * batch is not delivered twice. Unlike it, it only sends from production: a
- * batch goes to a whole list of real people, and a preview deployment must
- * never mail them.
+ * batch is not delivered twice. Also like it, only local development skips
+ * Resend: staging (preview) deployments send real mail.
  */
 /** Strict validation, the SDK's default: the whole batch fails or sends. */
 type BatchResponse = CreateBatchResponse<CreateBatchRequestOptions>;
@@ -125,9 +124,9 @@ export async function sendBatchEmails(
     );
   }
 
-  if (serverEnv.VERCEL_ENV !== "production") {
-    // Counts only: a batch is a slice of a real mailing list, and preview
-    // logs are no place for it.
+  if (serverEnv.VERCEL_ENV === "development") {
+    // Counts only: a batch is a slice of a real mailing list, and dev logs
+    // are no place for it.
     console.log(
       `[${serverEnv.VERCEL_ENV}] Not sending a batch of ${payload.length} emails. First subject:`,
       payload[0]?.subject,
@@ -176,7 +175,7 @@ export type ResendSuppressionRemoval =
   | { outcome: "not_listed" }
   /** Resend refused or failed; it may still block the address. */
   | { outcome: "failed"; message: string }
-  /** Not production: the shared Resend account was left alone. */
+  /** Local development: Resend was left alone. */
   | { outcome: "skipped" };
 
 /**
@@ -184,15 +183,15 @@ export type ResendSuppressionRemoval =
  * delivered again. Without this, an address unblocked only on our side is
  * blocked again by Resend, and so by us, on the next mailing.
  *
- * Production only, like `sendBatchEmails`: previews share the Resend account,
- * and must not change who it delivers to. resend 4.1.1 has no suppressions
- * client, and its generic `delete` takes no abort signal, so this is a plain
- * request with the same ten-second limit as the rest.
+ * Skipped only in local development, like the sends. Resend's suppression
+ * list is account-wide, so unblocking from staging also unblocks the address
+ * for production when both use the same Resend account. A plain request, with
+ * the same ten-second limit as the rest.
  */
 export async function removeResendSuppression(
   address: string,
 ): Promise<ResendSuppressionRemoval> {
-  if (serverEnv.VERCEL_ENV !== "production") return { outcome: "skipped" };
+  if (serverEnv.VERCEL_ENV === "development") return { outcome: "skipped" };
 
   const baseUrl = process.env.RESEND_BASE_URL || "https://api.resend.com";
   const controller = new AbortController();

@@ -45,7 +45,7 @@ Environment notes for this VM (the startup update script already runs `pnpm inst
   - `CLOUD_AGENT_ALL_SECRET_NAMES` is the full dashboard list. `CLOUD_AGENT_INJECTED_SECRET_NAMES` is only the subset copied onto **this** process; missing names often still exist on a parent `/proc/<pid>/environ` (commonly the `/exec-daemon/node` supervisor).
   - Before `pnpm dev`, `pnpm seed`, sourcing `.env.local`, or any Clerk-backed check, run `pnpm env:sync`. That rewrites git-ignored `.env.local` from process/parent secrets plus local Postgres and refuses to write placeholders when a real value exists. `pnpm dev` / `pnpm migrate` / `pnpm seed` already run this first.
   - If `pnpm env:sync` prints `clerk=missing`, stop and say the dashboard Clerk secrets are unavailable. Never fabricate well-formed fake keys so the app "boots".
-  - Resend and PostHog stay no-ops unless `VERCEL_ENV` is production. Do not treat a redacted `VERCEL_ENV` as a missing secret.
+  - Resend is a no-op only when `VERCEL_ENV` is development: staging (preview) deployments send real email, bulk invitations included. PostHog stays a no-op unless `VERCEL_ENV` is production. Do not treat a redacted `VERCEL_ENV` as a missing secret.
 - Apply migrations after schema changes: `pnpm migrate` (dev DB), or `pnpm migrate:test` for the disposable Docker Postgres. `migrate:test` builds its own connection string from `compose.test.yml`'s fixed credentials and `GLITTER_TEST_DB_PORT`, so there is nothing to export and `.env.local` cannot redirect it at a real database.
 
 ```bash
