@@ -47,7 +47,13 @@ export type RegisterVisitorResult =
   | RegistrationFailure;
 
 export type ClaimTicketResult =
-  | { success: true; message: string; view: VisitorRegistrationView }
+  | {
+      success: true;
+      message: string;
+      view: VisitorRegistrationView;
+      /** False when the visitor already held a ticket for that day. */
+      issued: boolean;
+    }
   | RegistrationFailure;
 
 export type TicketHistoryLinkResult = { success: boolean; message: string };

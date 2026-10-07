@@ -9,6 +9,8 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
 import type { FestivalDate } from "@/app/lib/festivals/definitions";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { claimTicket } from "@/app/lib/visitors/registration-actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
@@ -46,6 +48,12 @@ export default function AddTicketForm({
     const res = await claimTicket({ festivalId, date: data.selectedDate });
 
     if (res.success) {
+      if (res.issued) {
+        captureClientEvent(POSTHOG_EVENTS.VISITOR_TICKET_CLAIMED, {
+          festival_id: festivalId,
+          festival_date: data.selectedDate,
+        });
+      }
       toast.success(res.message);
       onSuccess();
       router.refresh();
