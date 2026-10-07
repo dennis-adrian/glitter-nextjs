@@ -4,6 +4,7 @@ import { CircleAlertIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import InvitationEmailPreview from "@/app/components/festivals/invitations/invitation-email-preview";
 import InvitationProgress from "@/app/components/festivals/invitations/invitation-progress";
 import { useInvitationSender } from "@/app/components/festivals/invitations/use-invitation-sender";
 import { Button } from "@/app/components/ui/button";
@@ -202,7 +203,13 @@ export default function FestivalSettingDialog({
           </DrawerDialogDescription>
         </DrawerDialogHeader>
 
-        <div className={cn("space-y-4", !isDesktop && "px-4 pb-6")}>
+        <div
+          className={cn(
+            "space-y-4",
+            // The drawer caps its height; the email preview needs room to scroll.
+            !isDesktop && "min-h-0 overflow-y-auto px-4 pb-6",
+          )}
+        >
           {notice && !sendingOrDone ? (
             <p className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <CircleAlertIcon
@@ -257,6 +264,14 @@ export default function FestivalSettingDialog({
                 </div>
               )}
             </div>
+          ) : null}
+
+          {invitation && !sendingOrDone ? (
+            <InvitationEmailPreview
+              festivalId={invitation.festivalId}
+              kind={invitation.kind}
+              disabled={busy}
+            />
           ) : null}
 
           {sendingOrDone ? (

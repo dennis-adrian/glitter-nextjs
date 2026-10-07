@@ -6,7 +6,9 @@ import { z } from "zod";
 
 import type { BaseProfile } from "@/app/api/users/definitions";
 import FestivalActivationEmailTemplate from "@/app/emails/festival-activation";
-import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
+import RegistrationInvitationEmailTemplate, {
+  registrationInvitationSubject,
+} from "@/app/emails/registration-invitation";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import {
@@ -16,6 +18,7 @@ import {
   type InvitationBatchResult,
   type InvitationKind,
   type InvitationPageFailure,
+  type InvitationPreviewResult,
 } from "@/app/lib/festivals/invitation-definitions";
 import {
   INVITATION_MAX_PAGES_PER_CALL,
@@ -31,7 +34,10 @@ import {
   reachableByBulkMail,
 } from "@/app/lib/emails/suppressions";
 import type { MailingTopic } from "@/app/lib/emails/topics";
-import { unsubscribeLinks } from "@/app/lib/emails/unsubscribe-links";
+import {
+  UNSUBSCRIBE_PAGE_PATH,
+  unsubscribeLinks,
+} from "@/app/lib/emails/unsubscribe-links";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { sendBatchEmails } from "@/app/vendors/resend";
 import { db } from "@/db";
@@ -76,6 +82,13 @@ const BatchInputSchema = z.object({
     .max(INVITATION_MAX_PAGES_PER_CALL)
     .default(INVITATION_MAX_PAGES_PER_CALL),
 });
+
+function participantInvitationSubject(
+  profile: Pick<BaseProfile, "displayName">,
+  festival: Pick<FestivalWithDates, "name">,
+) {
+  return `¡Hola ${profile.displayName || ""}! Te invitamos a participar en ${festival.name}`;
+}
 
 type VisitorRecipient = { id: number; email: string; firstName: string | null };
 
@@ -301,7 +314,7 @@ async function buildVisitorEmails(
         from: VISITOR_FROM,
         to: [visitor.email],
         replyTo: VISITOR_REPLY_TO,
-        subject: `Pre-registro abierto: ${festival.name}`,
+        subject: registrationInvitationSubject(festival),
         headers: unsubscribe.headers,
         html: await render(
           RegistrationInvitationEmailTemplate({
@@ -334,7 +347,7 @@ async function buildParticipantEmails(
       return {
         from: PARTICIPANT_FROM,
         to: [profile.email],
-        subject: `¡Hola ${profile.displayName || ""}! Te invitamos a participar en ${festival.name}`,
+        subject: participantInvitationSubject(profile, festival),
         headers: unsubscribe.headers,
         html: await render(
           FestivalActivationEmailTemplate({
@@ -439,6 +452,69 @@ export async function fetchInvitationAudience(
     return {
       success: false,
       message: "No se pudo calcular a quiénes se enviará la invitación.",
+    };
+  }
+}
+
+/**
+ * The mailing as it would reach one recipient, for the admin to check before
+ * sending. It is addressed to the admin, so the greeting has a real name, and
+ * it renders whatever the festival holds now — a missing poster or address
+ * shows here exactly as it would in the inbox. Sends nothing.
+ */
+export async function previewInvitationEmail(
+  festivalId: number,
+  kind: InvitationKind,
+): Promise<InvitationPreviewResult> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return { success: false, message: "No autorizado" };
+  if (
+    !FestivalIdSchema.safeParse(festivalId).success ||
+    !KindSchema.safeParse(kind).success
+  ) {
+    return { success: false, message: "Solicitud inválida" };
+  }
+
+  try {
+    const festival = await loadFestival(festivalId);
+    if (!festival) {
+      return { success: false, message: "Festival no encontrado" };
+    }
+    // Never a working link: its token is refused, so following it from the
+    // preview lands on the "invalid link" page and unsubscribes nobody.
+    const unsubscribeUrl = `${(process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/+$/, "")}${UNSUBSCRIBE_PAGE_PATH}?token=preview`;
+
+    if (kind === "visitor_registration") {
+      return {
+        success: true,
+        from: VISITOR_FROM,
+        subject: registrationInvitationSubject(festival),
+        html: await render(
+          RegistrationInvitationEmailTemplate({
+            festival,
+            visitorName: safeGreetingName(actor.firstName),
+            unsubscribeUrl,
+          }),
+        ),
+      };
+    }
+    return {
+      success: true,
+      from: PARTICIPANT_FROM,
+      subject: participantInvitationSubject(actor, festival),
+      html: await render(
+        FestivalActivationEmailTemplate({
+          profile: actor,
+          festival,
+          unsubscribeUrl,
+        }),
+      ),
+    };
+  } catch (error) {
+    console.error("Error rendering an invitation preview", error);
+    return {
+      success: false,
+      message: "No se pudo generar la vista previa del correo.",
     };
   }
 }
