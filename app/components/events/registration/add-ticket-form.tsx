@@ -7,12 +7,14 @@ import {
   FormLabel,
 } from "@/app/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
-import { createTicket } from "@/app/data/tickets/actions";
-import { PublicVisitor } from "@/app/data/visitors/actions";
-import { FestivalBase, FestivalDate } from "@/app/lib/festivals/definitions";
+import type { FestivalDate } from "@/app/lib/festivals/definitions";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
+import { claimTicket } from "@/app/lib/visitors/registration-actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -22,18 +24,19 @@ const FormSchema = z.object({
 });
 
 type AddTicketFormProps = {
-  festival: FestivalBase;
+  festivalId: number;
+  festivalName: string;
   festivalDates: FestivalDate[];
-  visitor: PublicVisitor;
   onSuccess: () => void;
 };
 
 export default function AddTicketForm({
-  festival,
+  festivalId,
+  festivalName,
   festivalDates,
-  visitor,
   onSuccess,
 }: AddTicketFormProps) {
+  const router = useRouter();
   const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -42,23 +45,21 @@ export default function AddTicketForm({
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const date = DateTime.fromISO(data.selectedDate);
-    if (!date.isValid) {
-      toast.error("La fecha seleccionada no es válida");
-      return;
-    }
-
-    const res = await createTicket({
-      date: date.toJSDate(),
-      festivalId: festival.id,
-      email: visitor.email,
-    });
+    const res = await claimTicket({ festivalId, date: data.selectedDate });
 
     if (res.success) {
+      if (res.issued) {
+        captureClientEvent(POSTHOG_EVENTS.VISITOR_TICKET_CLAIMED, {
+          festival_id: festivalId,
+          festival_date: data.selectedDate,
+        });
+      }
       toast.success(res.message);
       onSuccess();
+      router.refresh();
     } else {
       toast.error(res.message);
+      if (res.restart) router.push("?step=1");
     }
   });
 
@@ -90,7 +91,7 @@ export default function AddTicketForm({
                           />
                         </FormControl>
                         <FormLabel className="flex flex-col gap-4 justify-center text-foreground text-center font-normal">
-                          <span className="">{festival.name}</span>
+                          <span className="">{festivalName}</span>
                           <span className="flex flex-col font-semibold">
                             <span className="text-base capitalize">
                               {formattedDate.weekdayLong}

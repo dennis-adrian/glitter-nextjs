@@ -103,6 +103,11 @@ export const footerText = {
   textAlign: "center" as const,
 };
 
+export const footerLink = {
+  color: "#6a737d",
+  textDecoration: "underline",
+};
+
 export const standoutText = {
   padding: "16px",
   backgroundColor: "#f2f3f3",

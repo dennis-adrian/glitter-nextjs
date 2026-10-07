@@ -131,3 +131,34 @@ describe("SingleImageUploadField poster variant", () => {
     expect(onUploadingChange).toHaveBeenNthCalledWith(1, true);
   });
 });
+
+describe("SingleImageUploadField accept", () => {
+  it("refuses a file the accept list leaves out, even past the picker", () => {
+    const upload = vi.fn();
+
+    render(
+      <SingleImageUploadField
+        onChange={vi.fn()}
+        upload={upload}
+        accept="image/jpeg,image/png"
+      />,
+    );
+
+    // "All files" in the picker, or a drop, gets past `accept`.
+    fireEvent.change(fileInput(), {
+      target: {
+        files: [
+          new File([new Uint8Array([1])], "poster.webp", {
+            type: "image/webp",
+          }),
+        ],
+      },
+    });
+
+    expect(
+      screen.getByText("Usá una imagen en formato JPG o PNG."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Subir imagen" })).toBeNull();
+    expect(upload).not.toHaveBeenCalled();
+  });
+});

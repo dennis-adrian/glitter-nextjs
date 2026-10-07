@@ -129,7 +129,7 @@ export function SingleImageUploadField({
   }
 
   function chooseFile(file: File) {
-    const validationError = validateImage(file, maxSize);
+    const validationError = validateImage(file, maxSize, accept);
     if (validationError) {
       setError(validationError);
       return;

@@ -42,6 +42,11 @@ type FestivalFeatureConfigRowProps = {
   scope: FestivalFeatureScope;
   canEdit: boolean;
   /**
+   * Why the row is read-only when it is not about permission, such as an
+   * archived festival. Shown instead of the permission note.
+   */
+  readOnlyReason?: string | null;
+  /**
    * What this scope's category still needs before participants are offered a
    * table, or null where the feature has no inventory of its own. Enabling and
    * pricing is not enough to make an offer appear, and every remaining gate is
@@ -56,6 +61,7 @@ export default function FestivalFeatureConfigRow({
   festivalId,
   scope,
   canEdit,
+  readOnlyReason,
   readiness,
   creditsLaunched,
 }: FestivalFeatureConfigRowProps) {
@@ -221,7 +227,8 @@ export default function FestivalFeatureConfigRow({
         </Button>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Solo un administrador general puede cambiar esta configuración.
+          {readOnlyReason ??
+            "Solo un administrador general puede cambiar esta configuración."}
         </p>
       )}
     </div>

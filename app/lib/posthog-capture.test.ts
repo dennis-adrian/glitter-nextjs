@@ -9,18 +9,25 @@ import {
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
 vi.mock("posthog-js", () => ({
-  default: { capture: vi.fn(), identify: vi.fn(), reset: vi.fn() },
+  default: {
+    capture: vi.fn(),
+    identify: vi.fn(),
+    reset: vi.fn(),
+    get_property: vi.fn(),
+  },
 }));
 
 const capture = vi.mocked(posthog.capture);
 const identify = vi.mocked(posthog.identify);
 const reset = vi.mocked(posthog.reset);
+const getProperty = vi.mocked(posthog.get_property);
 
 afterEach(() => {
   vi.restoreAllMocks();
   capture.mockReset();
   identify.mockReset();
   reset.mockReset();
+  getProperty.mockReset();
 });
 
 describe("captureClientEvent", () => {
@@ -70,7 +77,32 @@ describe("identifyClientUser", () => {
 });
 
 describe("resetClientIdentity", () => {
+  it("clears an identity that identify set", () => {
+    getProperty.mockReturnValue("identified");
+
+    resetClientIdentity();
+
+    expect(getProperty).toHaveBeenCalledWith("$user_state");
+    expect(reset).toHaveBeenCalledOnce();
+  });
+
+  /**
+   * Every signed-out page load calls this. Resetting an anonymous visitor
+   * dropped the utm_* params their landing pageview stored and gave the rest of
+   * their visit a new id, so a campaign could never be credited with anything.
+   */
+  it("leaves an anonymous visitor, and their campaign params, alone", () => {
+    getProperty.mockReturnValue("anonymous");
+    resetClientIdentity();
+
+    getProperty.mockReturnValue(undefined);
+    resetClientIdentity();
+
+    expect(reset).not.toHaveBeenCalled();
+  });
+
   it("does not throw when reset throws", () => {
+    getProperty.mockReturnValue("identified");
     reset.mockImplementation(() => {
       throw new Error("boom");
     });
