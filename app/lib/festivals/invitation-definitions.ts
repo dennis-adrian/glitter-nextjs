@@ -78,3 +78,11 @@ export type InvitationBatchResult =
       simulated: boolean;
     }
   | { success: false; message: string };
+
+/**
+ * A mailing as one recipient would get it, for the admin to check before
+ * sending. Rendered for the admin themselves, so the greeting shows a name.
+ */
+export type InvitationPreviewResult =
+  | { success: true; from: string; subject: string; html: string }
+  | { success: false; message: string };

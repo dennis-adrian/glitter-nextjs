@@ -2,6 +2,9 @@ import posthog from "posthog-js";
 
 import type { PostHogEvent } from "@/app/lib/posthog-events";
 
+/** Where posthog-js records whether `identify` ran ("anonymous" | "identified"). */
+const USER_STATE = "$user_state";
+
 /**
  * `posthog.capture` is not exception-safe: the SDK invokes every `before_send`
  * hook without a `try`, so a throw there escapes into the caller.
@@ -45,9 +48,19 @@ export function identifyClientUser(
   }
 }
 
-/** Sign-out counterpart to {@link identifyClientUser}. */
+/**
+ * Sign-out counterpart to {@link identifyClientUser}: clears an identity that
+ * `identify` set, and nothing else.
+ *
+ * An anonymous visitor has nothing to clear, and resetting them is costly:
+ * `reset()` wipes the stored campaign params (`utm_*`), issues a new distinct
+ * id and starts a new session. Run on every signed-out page load, it split the
+ * pageview that landed a visitor from an email from everything they did next,
+ * so no registration could be traced back to the campaign that brought it.
+ */
 export function resetClientIdentity(): void {
   try {
+    if (posthog.get_property(USER_STATE) !== "identified") return;
     posthog.reset();
   } catch (error) {
     console.error("[posthog] reset failed", error);

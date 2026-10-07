@@ -4,6 +4,7 @@ import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
+import type { FestivalArtworkType } from "@/app/lib/festivals/artwork";
 import { fetchUserProfile } from "@/app/lib/users/queries";
 import {
   getCreditTopUpUploadTarget,
@@ -32,12 +33,22 @@ const f = createUploadthing();
 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
+  // JPEG and PNG only: the poster is embedded in the visitor invitation
+  // email, and WebP or SVG break in Outlook and Gmail.
   festivalArtwork: f({
-    image: { maxFileSize: "4MB", maxFileCount: 1 },
-  })
-    .middleware(async () => {
+    "image/jpeg": { maxFileSize: "4MB", maxFileCount: 1 },
+    "image/png": { maxFileSize: "4MB", maxFileCount: 1 },
+  } satisfies Record<
+    FestivalArtworkType,
+    { maxFileSize: "4MB"; maxFileCount: number }
+  >)
+    .middleware(async ({ files }) => {
       const profile = await requireAdminOrFestivalAdmin();
       if (!profile) throw new UploadThingError("No autorizado");
+      // The count is per type, so a JPEG and a PNG would pass it together.
+      if (files.length !== 1) {
+        throw new UploadThingError("Subí una sola imagen.");
+      }
       return { userId: profile.id };
     })
     .onUploadComplete(({ file }) => ({

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef } from "react";
 
+import { FESTIVAL_ARTWORK_ACCEPT } from "@/app/lib/festivals/artwork";
 import { useUploadThing } from "@/app/vendors/uploadthing";
 import { SingleImageUploadField } from "@/stories/uploads/components/single-image-upload-field";
 import type {
@@ -62,7 +63,9 @@ export default function FestivalPosterUpload({
       onChange={(image) => onChange(image?.url ?? null)}
       upload={upload}
       label="Póster"
-      description="JPG, PNG o WebP · formato vertical 3:4 recomendado"
+      description="JPG o PNG · formato vertical 3:4 recomendado"
+      // The poster goes out in email too, where WebP and SVG break.
+      accept={FESTIVAL_ARTWORK_ACCEPT}
       emptyLabel="Todavía no añadiste un póster"
       confirmLabel="Subir póster"
       previewShape="portrait"

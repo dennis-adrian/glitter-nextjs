@@ -258,7 +258,7 @@ describeDatabase("visitor registration actions", () => {
       festivalId: festival.id,
       date: tomorrow.toISOString(),
     });
-    expect(claimed).toMatchObject({ success: true });
+    expect(claimed).toMatchObject({ success: true, issued: true });
     if (!claimed.success) throw new Error(claimed.message);
     expect(claimed.view.tickets).toHaveLength(1);
     expect(claimed.view.tickets[0]).toMatchObject({
@@ -505,6 +505,7 @@ describeDatabase("visitor registration actions", () => {
       expect(again).toMatchObject({
         success: true,
         message: "Ya tenías una entrada para este día",
+        issued: false,
       });
 
       const rows = await integrationDb!

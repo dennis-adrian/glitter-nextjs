@@ -272,6 +272,7 @@ async function claim(input: {
         success: true,
         message: "Ya tenías una entrada para este día",
         view,
+        issued: false,
       };
     }
 
@@ -281,6 +282,7 @@ async function claim(input: {
       success: true,
       message: "¡Listo! Te enviamos tu entrada por correo",
       view,
+      issued: true,
     };
   } catch (error) {
     console.error("Error claiming ticket", loggableError(error));
