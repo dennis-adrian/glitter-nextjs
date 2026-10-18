@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import {
   Select,
@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/app/components/ui/button";
+import TextareaInput from "@/app/components/form/fields/textarea";
 
 const FormSchema = z.object({
   status: z.enum(["accepted", "rejected"], {
@@ -34,6 +35,7 @@ const FormSchema = z.object({
         ? "Debés elegir aprobar o rechazar la solicitud."
         : undefined,
   }),
+  reason: z.string().max(1000).optional(),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
@@ -46,15 +48,25 @@ function defaultReviewStatus(
   return undefined;
 }
 
-export default function UserRequestForm({ request }: { request: UserRequest }) {
+export default function ReviewRequestForm({
+  request,
+}: {
+  request: UserRequest;
+}) {
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       status: defaultReviewStatus(request.status),
+      reason: "",
     },
   });
+  const status = useWatch({ control: form.control, name: "status" });
+  const isPending = request.status === "pending";
 
   async function onSubmit(data: FormValues) {
+    // A value typed before switching to "Aprobado" stays in form state; only
+    // a rejection carries it.
+    const reason = data.status === "rejected" ? data.reason?.trim() : undefined;
     const result =
       request.type === "become_artist"
         ? await reviewBecomeArtistRequest({
@@ -64,6 +76,7 @@ export default function UserRequestForm({ request }: { request: UserRequest }) {
         : await reviewFestivalParticipationRequest({
             requestId: request.id,
             status: data.status,
+            ...(reason ? { reason } : {}),
           });
     if (result.success) {
       toast("La solicitud ha sido actualizada.");
@@ -87,7 +100,7 @@ export default function UserRequestForm({ request }: { request: UserRequest }) {
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Elige una opción" />
+                    <SelectValue placeholder="Elegí una opción" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -99,6 +112,21 @@ export default function UserRequestForm({ request }: { request: UserRequest }) {
             </FormItem>
           )}
         />
+        {request.type === "festival_participation" && status === "rejected" && (
+          <TextareaInput
+            formControl={form.control}
+            name="reason"
+            label="Motivo (opcional)"
+            placeholder="Ej: El cupo del sector de ilustración ya está completo."
+            maxLength={1000}
+            disabled={!isPending}
+            description={
+              isPending
+                ? "Lo va a ver el participante en el correo."
+                : "Esta solicitud ya fue revisada. El motivo solo se envía al rechazar una solicitud pendiente."
+            }
+          />
+        )}
         <Button type="submit">Guardar cambios</Button>
       </form>
     </Form>

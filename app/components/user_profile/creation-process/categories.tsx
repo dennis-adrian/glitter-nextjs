@@ -61,11 +61,11 @@ export default function Categories({
         ¿En qué categoría te gustaría participar?
       </h3>
       <p className="text-muted-foreground text-sm md:text-base">
-        Elige la categoría que mejor describa tu perfil o tu negocio
+        Elegí la categoría que mejor describa tu perfil o tu negocio.
       </p>
       <div className="border-2 rounded-lg p-3 shadow-md mt-2">
         <p className="text-sm md:text-base leading-4 md:leading-5">
-          Selecciona una opción para ver las categorías disponibles
+          Seleccioná una opción para ver las categorías disponibles.
         </p>
         <div className="flex flex-wrap w-full gap-2 mt-3">
           {categoriesWithLabel.map((category) => {

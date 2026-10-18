@@ -63,7 +63,9 @@ export async function reviewFestivalParticipationRequest(
   if (!parsed.success) {
     return { success: false, message: "Datos inválidos." };
   }
-  const { requestId, status, reason } = parsed.data;
+  const { requestId, status } = parsed.data;
+  const reason =
+    parsed.data.status === "rejected" ? parsed.data.reason : undefined;
 
   const preview = await loadRequestPreview(requestId);
   if (!preview) {

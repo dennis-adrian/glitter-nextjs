@@ -41,7 +41,9 @@ describe("ReservationReleasedTemplate", () => {
 
     expect(html).toContain("Carla Dibuja");
     expect(html).toContain("Ana Ilustra");
-    expect(html).toContain("compartían");
+    expect(html).toContain(
+      "<strong>Ana Ilustra</strong> liberó la reserva del espacio <strong>B48</strong> que compartían en <strong>Glitter ¡Feliz Cumple!</strong>.",
+    );
     // The fee is the owner's alone, so a partner is never shown a price.
     expect(html).not.toContain("40 créditos");
     expect(html).not.toContain("no se devuelven");
@@ -63,9 +65,17 @@ describe("ReservationReleasedTemplate", () => {
   it("speaks of two spaces when a full table was released", () => {
     const html = render({ standLabel: "B48 y B49", standCount: 2 });
 
-    expect(html).toContain("los espacios");
+    expect(html).toContain("reserva de los espacios");
     expect(html).toContain("B48 y B49");
     expect(html).toContain("Esos espacios volvieron");
+  });
+
+  it("contracts de + el in both versions", () => {
+    for (const isOwner of [true, false]) {
+      const html = render({ isOwner, recipient: isOwner ? OWNER : PARTNER });
+      expect(html).toContain("reserva del espacio");
+      expect(html).not.toContain("de el ");
+    }
   });
 
   /** A release is a choice the participant made, never a sanction (PRD §3). */

@@ -54,6 +54,7 @@ function sentBody() {
     url,
     body: JSON.parse(String(init.body)) as {
       to: string[];
+      subject: string;
       html: string;
       attachments?: {
         filename: string;
@@ -107,6 +108,11 @@ describe("ticket emails", () => {
     const { url, body } = sentBody();
     expect(url).toBe("https://api.resend.com/emails");
     expect(body.to).toEqual(["visitor@example.com"]);
+    // Visitors are written to in voseo, subject and body alike.
+    expect(body.subject).toBe(
+      `Ya tenés tu entrada para ingresar al festival ${festival.name}`,
+    );
+    expect(body.html).toContain("ya tenés tu entrada");
     expect(body.attachments).toHaveLength(1);
 
     const [attachment] = body.attachments!;

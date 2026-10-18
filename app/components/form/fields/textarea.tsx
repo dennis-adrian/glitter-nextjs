@@ -1,5 +1,6 @@
 import {
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -12,6 +13,8 @@ import { UseFormReturn } from "react-hook-form";
 const DEFAULT_MAX_LENGTH = 2000;
 
 export default function TextareaInput({
+  description,
+  disabled,
   formControl,
   label,
   maxLength,
@@ -19,6 +22,8 @@ export default function TextareaInput({
   placeholder,
   required,
 }: {
+  description?: string;
+  disabled?: boolean;
   formControl: UseFormReturn<any>["control"];
   label: string;
   maxLength?: number;
@@ -30,6 +35,9 @@ export default function TextareaInput({
     <FormField
       control={formControl}
       name={name}
+      // On the field rather than the textarea: `{...field}` carries its own
+      // `disabled`, which would override a prop set before the spread.
+      disabled={disabled}
       render={({ field }) => (
         <FormItem className="grid gap-2">
           <FormLabel>
@@ -44,6 +52,7 @@ export default function TextareaInput({
               {...field}
             />
           </FormControl>
+          {description && <FormDescription>{description}</FormDescription>}
           <FormMessage />
         </FormItem>
       )}

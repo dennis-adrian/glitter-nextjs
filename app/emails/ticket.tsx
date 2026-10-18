@@ -48,18 +48,18 @@ export default function TicketEmailTemplate({
         <meta name="color-scheme" content="only light" />
         <meta name="supported-color-schemes" content="only light" />
       </Head>
-      <Preview>Muestra tu entrada en puerta para ingresar al evento</Preview>
+      <Preview>Mostrá tu entrada en puerta para ingresar al evento</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>
-              {visitor.firstName}, ya tienes tu entrada para el festival{" "}
-              <strong>{festival.name}</strong>
+              {visitor.firstName}, ya tenés tu entrada para el festival{" "}
+              <strong>{festival.name}</strong>.
             </Text>
             <Text style={styles.text}>
-              No te olvides mostrar el código en puerta para poder ingresar al
-              evento
+              No te olvidés de mostrar el código en puerta para poder ingresar
+              al evento.
             </Text>
             <Section style={ticketContainer}>
               {festival.mascotUrl && (
@@ -121,7 +121,7 @@ export default function TicketEmailTemplate({
                 <div style={qrWrapper}>
                   <Img
                     src="cid:ticket-qrcode"
-                    alt="codigo qr"
+                    alt="Código QR de tu entrada"
                     height={200}
                     width={200}
                     style={qrImage}
@@ -133,8 +133,8 @@ export default function TicketEmailTemplate({
               </Section>
             </Section>
             <Text style={{ ...styles.text, marginTop: "16px" }}>
-              Si tienes problemas viendo el código, abre tus entradas para
-              descargarla. El enlace es personal: no lo compartas.
+              Si tenés problemas para ver el código, descargá tu entrada desde
+              «Ver mis entradas». Ese enlace es personal: no lo compartás.
             </Text>
             <Link href={ticketsUrl} style={styles.button}>
               Ver mis entradas

@@ -66,7 +66,7 @@ export default function ProfilePicUpload({
       <UploadThingImageButton
         endpoint="profilePicture"
         hasImage={Boolean(imageUrl)}
-        buttonLabel="Elige una imagen"
+        buttonLabel="Elegí una imagen"
         changeLabel="Cambiar imagen"
         onUploading={onUploading}
         transformFiles={(files) =>

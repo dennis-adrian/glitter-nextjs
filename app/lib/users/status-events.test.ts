@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  latestRejectionReason,
   logUserStatusEvent,
   updateUserStatusWithAudit,
   verificationReasonForStatus,
@@ -116,5 +117,34 @@ describe("updateUserStatusWithAudit", () => {
     ).rejects.toThrow(/expected status "pending"/);
 
     expect(tx.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("latestRejectionReason", () => {
+  function txReturning(rows: { reason: string | null }[]) {
+    const limit = vi.fn().mockResolvedValue(rows);
+    const orderBy = vi.fn(() => ({ limit }));
+    const where = vi.fn(() => ({ orderBy }));
+    return {
+      tx: {
+        select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })),
+      },
+      limit,
+    };
+  }
+
+  it("returns the reason of the newest rejection", async () => {
+    const { tx, limit } = txReturning([{ reason: "Faltan publicaciones" }]);
+
+    await expect(latestRejectionReason(tx as never, 5)).resolves.toBe(
+      "Faltan publicaciones",
+    );
+    expect(limit).toHaveBeenCalledWith(1);
+  });
+
+  it("returns null when the profile was never rejected", async () => {
+    const { tx } = txReturning([]);
+
+    await expect(latestRejectionReason(tx as never, 5)).resolves.toBeNull();
   });
 });
