@@ -30,7 +30,7 @@ export default async function ProfileCreationPage() {
               Por favor, intenta nuevamente con los mismos datos o contactate
               con nuestro equipo de soporte{" "}
               <Link
-                className="underline text-blue-500"
+                className="underline text-blue-500 dark:text-blue-400"
                 href="mailto:soporte@productoraglitter.com"
               >
                 soporte@productoraglitter.com

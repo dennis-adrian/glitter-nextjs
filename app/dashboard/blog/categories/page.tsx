@@ -14,7 +14,7 @@ export default async function DashboardBlogCategoriesPage() {
         </p>
       </div>
 
-      <section className="border rounded-md bg-white p-5">
+      <section className="border rounded-md bg-card p-5">
         <h2 className="text-lg font-semibold mb-4">Nueva categoría</h2>
         <CategoryForm />
       </section>

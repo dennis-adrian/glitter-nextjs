@@ -49,12 +49,12 @@ export default function FestivalParticipationApprovedEmailTemplate({
               Tu postulación para participar en el festival{" "}
               <strong>{festival.name}</strong> ha sido aprobada.{" "}
               {reservationsOpen
-                ? "Ya puedes continuar con el proceso de reserva de tu espacio."
+                ? "Ya podés continuar con el proceso de reserva de tu espacio."
                 : `Podrás hacer tu reserva a partir del ${formattedStartDate}.`}
             </Text>
             <Text style={styles.text}>
-              Si tienes dudas o problemas con la reserva, comunícate con
-              nosotros al correo{" "}
+              Si tenés dudas o problemas con la reserva, comunicate con nosotros
+              al correo{" "}
               <Link
                 href="mailto:soporte@productoraglitter.com"
                 style={{

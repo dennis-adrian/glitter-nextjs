@@ -453,7 +453,9 @@ export default function HoldConfirmationClient({
             <p
               className={cn(
                 "text-xs text-amber-800",
-                remainingSeconds <= 30 ? "text-destructive" : "text-amber-800",
+                remainingSeconds <= 30
+                  ? "text-destructive"
+                  : "text-amber-800 dark:text-amber-200",
               )}
             >
               Te quedan
@@ -461,7 +463,9 @@ export default function HoldConfirmationClient({
             <div
               className={cn(
                 "flex items-center gap-1",
-                remainingSeconds <= 30 ? "text-destructive" : "text-amber-800",
+                remainingSeconds <= 30
+                  ? "text-destructive"
+                  : "text-amber-800 dark:text-amber-200",
               )}
             >
               <TimerIcon className={`h-5 w-5`} />

@@ -42,7 +42,7 @@ export default function BundleCard({
             bundle.inStock ? "aspect-square" : "aspect-square opacity-60"
           }
         />
-        <span className="absolute left-3 top-3 rounded-full bg-brand-ink px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+        <span className="absolute left-3 top-3 rounded-full bg-brand-deep px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
           Combo
         </span>
         {!bundle.inStock && (

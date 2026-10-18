@@ -102,7 +102,11 @@ function Decision({ row }: { row: CreditPurchaseRow }) {
     return (
       <div className="min-w-44 space-y-0.5 text-xs">
         <p
-          className={cn(spent > 0 ? "text-amber-700" : "text-muted-foreground")}
+          className={cn(
+            spent > 0
+              ? "text-amber-700 dark:text-amber-300"
+              : "text-muted-foreground",
+          )}
         >
           {spent > 0 ? (
             <>
@@ -113,7 +117,13 @@ function Decision({ row }: { row: CreditPurchaseRow }) {
             "No usó créditos desde el envío"
           )}
         </p>
-        <p className={cn(after < 0 ? "text-red-600" : "text-muted-foreground")}>
+        <p
+          className={cn(
+            after < 0
+              ? "text-red-600 dark:text-red-400"
+              : "text-muted-foreground",
+          )}
+        >
           Si se rechaza, queda en{" "}
           <CreditAmount amount={after} className="font-medium" />
         </p>

@@ -48,7 +48,7 @@ export default function FestivalActivityContent({
                 setTerm(e.target.value);
               }}
             />
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
               <SearchIcon aria-hidden="true" className="h-4 w-4" />
             </div>
           </div>

@@ -909,10 +909,13 @@ export async function applyInvoiceCredits(input: unknown): Promise<
             reservationId: reservation.id,
             ownerUserId: invoice.userId,
             ownerEmail,
-            adminEmails: admins.map((admin) => ({
-              id: admin.id,
-              email: admin.email,
-            })),
+            // An admin paying their own cobro already gets the owner's copy.
+            adminEmails: admins
+              .filter((admin) => admin.id !== invoice.userId)
+              .map((admin) => ({
+                id: admin.id,
+                email: admin.email,
+              })),
             payload: { invoiceId: invoice.id },
           })),
         );

@@ -97,10 +97,10 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
         className={cn(
           "tabular-nums",
           stock === 0
-            ? "border-red-300 text-red-700"
+            ? "border-red-300 text-red-700 dark:border-red-800 dark:text-red-300"
             : isLowStock
-              ? "border-amber-300 text-amber-700"
-              : "border-green-300 text-green-700",
+              ? "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-300"
+              : "border-green-300 text-green-700 dark:border-green-800 dark:text-green-300",
         )}
       >
         {stock} unid. / {product.variants?.length ?? 0} variantes
@@ -168,10 +168,10 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
       className={cn(
         "cursor-pointer tabular-nums",
         stock === 0
-          ? "border-red-300 text-red-600"
+          ? "border-red-300 text-red-600 dark:border-red-800 dark:text-red-400"
           : isLowStock
-            ? "border-amber-300 text-amber-600"
-            : "border-green-300 text-green-600",
+            ? "border-amber-300 text-amber-600 dark:border-amber-800 dark:text-amber-400"
+            : "border-green-300 text-green-600 dark:border-green-800 dark:text-green-400",
       )}
       onClick={handleBadgeClick}
     >

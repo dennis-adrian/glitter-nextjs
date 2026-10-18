@@ -18,18 +18,27 @@ const badgeVariants = cva(
         // Three-part, like every categorical badge on the page (tint fill, mid
         // border, deep text). A transparent border made this the odd one out.
         secondary:
-          "border-secondary-200 bg-secondary text-secondary-foreground",
+          "border-secondary-200 bg-secondary text-secondary-foreground dark:border-secondary-800",
         destructive:
           "border-transparent bg-destructive text-destructive-foreground",
         outline: "text-foreground",
-        dark: "border-transparent bg-gray-900 text-white",
-        illustration: "bg-purple-100 border border-purple-300 text-purple-900",
-        entrepreneurship: "bg-pink-100 border border-pink-300 text-pink-900",
-        gastronomy: "bg-orange-100 border border-orange-300 text-orange-900",
-        green: "bg-green-100 border border-green-300 text-green-900",
-        amber: "bg-amber-100 border border-amber-300 text-amber-900",
-        red: "bg-red-100 border border-red-300 text-red-900",
-        orange: "bg-orange-100 border border-orange-300 text-orange-900",
+        // Inverts with the theme so it stays the high-contrast badge.
+        dark: "border-transparent bg-gray-900 text-white dark:bg-foreground dark:text-background",
+        // The tinted variants keep the same three parts on a dark ground: a
+        // deep translucent fill, a darker border and pale text.
+        illustration:
+          "bg-purple-100 border border-purple-300 text-purple-900 dark:bg-purple-950/60 dark:border-purple-800 dark:text-purple-200",
+        entrepreneurship:
+          "bg-pink-100 border border-pink-300 text-pink-900 dark:bg-pink-950/60 dark:border-pink-800 dark:text-pink-200",
+        gastronomy:
+          "bg-orange-100 border border-orange-300 text-orange-900 dark:bg-orange-950/60 dark:border-orange-800 dark:text-orange-200",
+        green:
+          "bg-green-100 border border-green-300 text-green-900 dark:bg-green-950/60 dark:border-green-800 dark:text-green-200",
+        amber:
+          "bg-amber-100 border border-amber-300 text-amber-900 dark:bg-amber-950/60 dark:border-amber-800 dark:text-amber-200",
+        red: "bg-red-100 border border-red-300 text-red-900 dark:bg-red-950/60 dark:border-red-800 dark:text-red-200",
+        orange:
+          "bg-orange-100 border border-orange-300 text-orange-900 dark:bg-orange-950/60 dark:border-orange-800 dark:text-orange-200",
       },
       size: {
         default: "text-xs",

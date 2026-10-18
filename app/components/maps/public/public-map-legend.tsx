@@ -1,7 +1,8 @@
 const legendItems = [
 	{
 		label: "Disponible",
-		color: "bg-violet-200/60 border-violet-500/60",
+		color:
+			"bg-violet-200/60 border-violet-500/60 dark:bg-(--map-available-fill) dark:border-(--map-available-stroke)",
 	},
 	{
 		label: "Ocupado",

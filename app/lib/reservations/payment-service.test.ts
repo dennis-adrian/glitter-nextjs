@@ -131,6 +131,7 @@ import {
   submitPaymentProof,
   submitZeroValueInvoiceForReview,
 } from "@/app/lib/reservations/payment-service";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
 import {
   creditTopUps,
   invoiceSettlementSubmissions,
@@ -764,6 +765,35 @@ describe("applyInvoiceCredits", () => {
       expect.objectContaining({ kind: "settlement_approved" }),
     );
     expect(scheduleJobsMock).toHaveBeenCalledWith([44]);
+  });
+
+  /**
+   * Nobody approves a credit settlement, so the admins hear about it from the
+   * outbox. An admin who paid their own cobro already gets the owner's copy;
+   * enqueueing them as an admin too would match the owner's email twice.
+   */
+  it("tells the admins about a credit settlement, except an admin who paid it", async () => {
+    currentProfileMock.mockResolvedValue({ id: 8, role: "user" });
+    creditBalancesMock.mockResolvedValue({ spendableBalance: 150 });
+    vi.mocked(fetchAdminUsers).mockResolvedValueOnce([
+      { id: 8, email: "owner@example.com" },
+      { id: 3, email: "admin@example.com" },
+    ] as Awaited<ReturnType<typeof fetchAdminUsers>>);
+    installPendingInvoiceTransaction();
+
+    await applyInvoiceCredits({
+      invoiceId: 9,
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(enqueueNotificationsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: "settlement_approved",
+        ownerUserId: 8,
+        adminEmails: [{ id: 3, email: "admin@example.com" }],
+      }),
+    );
   });
 
   it("keeps a partially credit-funded invoice pending for the voucher remainder", async () => {

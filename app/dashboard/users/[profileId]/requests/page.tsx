@@ -2,7 +2,7 @@ import { formatDateTime } from "@/app/lib/formatters";
 import { fetchRequestsByUserId } from "@/app/api/user_requests/actions";
 
 import { Badge } from "@/app/components/ui/badge";
-import Form from "./form";
+import ReviewRequestForm from "@/app/components/user_requests/review-request-form";
 import {
   Card,
   CardContent,
@@ -47,7 +47,7 @@ export default async function Page(props: {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Form request={request} />
+            <ReviewRequestForm request={request} />
           </CardContent>
         </Card>
       ))}

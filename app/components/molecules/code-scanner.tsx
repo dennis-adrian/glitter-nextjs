@@ -222,14 +222,14 @@ export default function CodeScanner({
 
   if (error) {
     return (
-      <div className="relative rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 pr-11 text-sm text-amber-900">
+      <div className="relative rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 pr-11 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
         {error}
         {onClose ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-1 top-1 h-8 w-8 text-amber-900 hover:bg-amber-200 hover:text-amber-900"
+            className="absolute right-1 top-1 h-8 w-8 text-amber-900 hover:bg-amber-200 hover:text-amber-900 dark:text-amber-100 dark:hover:bg-amber-900/60 dark:hover:text-amber-100"
             onClick={onClose}
             aria-label="Cerrar la cámara"
           >
@@ -263,7 +263,7 @@ export default function CodeScanner({
           size="icon"
           // Sits above the busy overlay: closing has to stay reachable even
           // while a scan is being verified, or a stuck request traps the camera.
-          className="absolute right-2 top-2 z-10 h-9 w-9 rounded-full bg-black/60 text-white hover:bg-black/80 hover:text-white"
+          className="absolute right-2 top-2 z-10 h-9 w-9 rounded-full bg-black/60 text-white hover:bg-black/80 hover:text-white dark:hover:text-white"
           onClick={onClose}
           aria-label="Cerrar la cámara"
         >

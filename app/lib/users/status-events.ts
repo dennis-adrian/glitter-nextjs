@@ -1,7 +1,7 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import { db } from "@/db";
 import { userStatusEvents, users } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 export type UserStatus = BaseProfile["status"];
 
@@ -93,4 +93,27 @@ export async function updateUserStatusWithAudit(
     reason,
     createdByUserId,
   });
+}
+
+/**
+ * The reason recorded on the profile's most recent rejection, or null when it
+ * was never rejected or the admin left none.
+ */
+export async function latestRejectionReason(
+  tx: StatusEventTx,
+  userId: number,
+): Promise<string | null> {
+  const [event] = await tx
+    .select({ reason: userStatusEvents.reason })
+    .from(userStatusEvents)
+    .where(
+      and(
+        eq(userStatusEvents.userId, userId),
+        eq(userStatusEvents.toStatus, "rejected"),
+      ),
+    )
+    .orderBy(desc(userStatusEvents.createdAt), desc(userStatusEvents.id))
+    .limit(1);
+
+  return event?.reason ?? null;
 }

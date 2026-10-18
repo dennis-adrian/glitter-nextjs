@@ -208,14 +208,14 @@ export default function OrdersBulkActions({
             </DialogDescription>
           </DialogHeader>
           {skipped > 0 && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
               {skipped} {skipped === 1 ? "pedido" : "pedidos"} se{" "}
               {skipped === 1 ? "omitirá" : "omitirán"}.{" "}
               {confirming?.requirement}
             </p>
           )}
           {overLimit && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-900 dark:bg-red-950/40 dark:text-red-100">
               Solo puedes actualizar hasta {BULK_ORDER_STATUS_LIMIT} pedidos a
               la vez. Reduce la selección.
             </p>

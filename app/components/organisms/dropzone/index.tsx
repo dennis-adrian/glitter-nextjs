@@ -273,7 +273,7 @@ export function Dropzone({
             </div>
             {isUploading ? (
               <div className="w-4 h-4">
-                <Loader2Icon className="w-4 h-4 animate-spin text-primary-700" />
+                <Loader2Icon className="w-4 h-4 animate-spin text-primary-700 dark:text-primary-300" />
               </div>
             ) : (
               <button
@@ -289,7 +289,7 @@ export function Dropzone({
           {isUploading && (
             <Progress
               indicatorClassName="bg-primary-700"
-              className="h-1 bg-primary-50"
+              className="h-1 bg-primary-50 dark:bg-primary-950/40"
               value={uploadProgress}
             />
           )}

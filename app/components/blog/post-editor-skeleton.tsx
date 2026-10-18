@@ -46,7 +46,7 @@ export default function PostEditorSkeleton() {
             <Skeleton className="h-12 w-3/4 md:h-14" />
           </div>
 
-          <div className="space-y-3 bg-white px-[54px] pt-6">
+          <div className="space-y-3 bg-card px-[54px] pt-6">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-11/12" />
             <Skeleton className="h-4 w-10/12" />

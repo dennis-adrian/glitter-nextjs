@@ -20,7 +20,7 @@ export default function PostDetail({ post, previewBanner, gateReason }: Props) {
   return (
     <article className="mx-auto max-w-3xl px-4 py-8">
       {previewBanner && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           <EyeIcon className="h-4 w-4" />
           <span>Vista previa — estos cambios aún no se han publicado.</span>
         </div>

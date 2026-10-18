@@ -47,6 +47,12 @@ const serverSchema = z
 
     // Email
     RESEND_API_KEY: z.string().min(1),
+    // Signs Resend's webhook (whsec_…); without it the webhook refuses events.
+    // An empty `RESEND_WEBHOOK_SECRET=` (as copied from .env.example) is unset.
+    RESEND_WEBHOOK_SECRET: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
 
     // File storage
     UPLOADTHING_TOKEN: z.string().min(1),

@@ -27,7 +27,7 @@ function Amount({ amount, className }: { amount: number; className?: string }) {
     <CreditAmount
       amount={amount}
       className={cn(
-        amount < 0 && "text-red-600",
+        amount < 0 && "text-red-600 dark:text-red-400",
         amount === 0 && "text-muted-foreground",
         className,
       )}

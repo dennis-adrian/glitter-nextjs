@@ -421,7 +421,7 @@ async function sendReminderEmails(
   const { data, error } = await sendEmail({
     from: "Equipo de Glitter <no-reply@productoraglitter.com>",
     to: [task.profile.email],
-    subject: "Completa tu perfil para participar de nuestros eventos",
+    subject: "Completá tu perfil para participar de nuestros eventos",
     react: ProfileCompletionReminderTemplate({
       task,
     }) as React.ReactElement,

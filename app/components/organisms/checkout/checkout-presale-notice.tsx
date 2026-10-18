@@ -39,21 +39,27 @@ export function CheckoutPresaleNotice({
   if (items.length === 0 && bundleComponents.length === 0) return null;
 
   return (
-    <Card className="border-amber-200 bg-amber-50">
+    <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
       <CardContent className="p-6 space-y-3">
-        <Heading level={4} className="flex items-center gap-2 text-amber-800">
+        <Heading
+          level={4}
+          className="flex items-center gap-2 text-amber-800 dark:text-amber-200"
+        >
           <TriangleAlertIcon className="h-4 w-4" />
           Productos en pre-venta
         </Heading>
         <ul className="space-y-1">
           {items.map((item) => (
-            <li key={item.key} className="text-sm text-amber-900">
+            <li
+              key={item.key}
+              className="text-sm text-amber-900 dark:text-amber-100"
+            >
               <span className="font-medium">
                 {item.productVariantLabel
                   ? `${item.product.name} (${item.productVariantLabel})`
                   : item.product.name}
               </span>
-              <span className="text-amber-700">
+              <span className="text-amber-700 dark:text-amber-300">
                 {" "}
                 -{" "}
                 {item.product.availableDate
@@ -63,9 +69,12 @@ export function CheckoutPresaleNotice({
             </li>
           ))}
           {bundleComponents.map((component) => (
-            <li key={component.key} className="text-sm text-amber-900">
+            <li
+              key={component.key}
+              className="text-sm text-amber-900 dark:text-amber-100"
+            >
               <span className="font-medium">{component.name}</span>
-              <span className="text-amber-700">
+              <span className="text-amber-700 dark:text-amber-300">
                 {" "}
                 - {availabilityLabel(component.availableDate)}
               </span>

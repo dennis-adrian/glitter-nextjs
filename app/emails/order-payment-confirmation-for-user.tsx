@@ -39,7 +39,7 @@ export default function OrderPaymentConfirmationForUserEmailTemplate(
               Estamos preparando tu pedido.
             </Text>
             <Text style={styles.text}>
-              Puedes ver el detalle de tu orden haciendo clic en el botón.
+              Podés ver el detalle de tu orden haciendo clic en el botón.
             </Text>
             <Button href={`${baseUrl}/my_orders`} style={styles.button}>
               Ver mi orden

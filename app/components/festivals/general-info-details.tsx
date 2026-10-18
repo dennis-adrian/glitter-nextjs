@@ -72,7 +72,7 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
           dates.length > 0 &&
           dates.map((date) => <DateLabel key={date.id} date={date} />)}
         <div className="flex gap-2 items-center">
-          <div className="w-12 h-12 bg-white rounded-sm border flex justify-center items-center">
+          <div className="w-12 h-12 bg-card rounded-sm border flex justify-center items-center">
             <MapPinIcon className="w-7 h-7 text-muted-foreground" />
           </div>
           <div className="flex flex-col">
@@ -94,7 +94,7 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          <div className="w-12 h-12 bg-white rounded-sm border flex justify-center items-center">
+          <div className="w-12 h-12 bg-card rounded-sm border flex justify-center items-center">
             <TicketIcon className="w-7 h-7 text-muted-foreground" />
           </div>
           Entrada libre al evento

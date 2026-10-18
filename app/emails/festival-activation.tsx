@@ -21,11 +21,14 @@ import EmailFooter from "@/app/emails/email-footer";
 interface FestivalActivationTemplateProps {
   profile: BaseProfile;
   festival: FestivalBase;
+  /** Where this participant stops receiving these announcements. */
+  unsubscribeUrl?: string;
 }
 
 export default function FestivalActivationEmailTemplate({
   profile,
   festival,
+  unsubscribeUrl,
 }: FestivalActivationTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(profile);
@@ -41,7 +44,7 @@ export default function FestivalActivationEmailTemplate({
   return (
     <Html>
       <Head />
-      <Preview>Alístate para participar en nuestro próximo festival</Preview>
+      <Preview>Alistate para participar en nuestro próximo festival</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader festivalType={festival.festivalType} />
@@ -56,8 +59,8 @@ export default function FestivalActivationEmailTemplate({
               términos y condiciones haciendo clic en el botón debajo del texto.
             </Text>
             <Text style={styles.text}>
-              Si tienes dudas o problemas con la reserva, comunícate con
-              nosotros al correo{" "}
+              Si tenés dudas o problemas con la reserva, comunicate con nosotros
+              al correo{" "}
               <Link
                 href="mailto:soporte@productoraglitter.com"
                 style={{
@@ -77,7 +80,7 @@ export default function FestivalActivationEmailTemplate({
             </Button>
           </Section>
         </Container>
-        <EmailFooter />
+        <EmailFooter unsubscribeUrl={unsubscribeUrl} />
       </Body>
     </Html>
   );
@@ -94,4 +97,5 @@ FestivalActivationEmailTemplate.PreviewProps = {
     reservationsStartDate: new Date("2024-08-12 12:00:00"),
     festivalType: "twinkler",
   },
+  unsubscribeUrl: "http://localhost:3000/email/unsubscribe?token=preview",
 } as FestivalActivationTemplateProps;

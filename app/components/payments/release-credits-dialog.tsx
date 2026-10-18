@@ -75,7 +75,7 @@ export default function ReleaseCreditsDialog({
     >
       <DrawerDialogContent isDesktop={isDesktop} className="sm:max-w-md">
         <DrawerDialogHeader isDesktop={isDesktop}>
-          <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-700">
+          <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300">
             <CoinsIcon className="h-5 w-5" />
           </div>
           <DrawerDialogTitle isDesktop={isDesktop}>

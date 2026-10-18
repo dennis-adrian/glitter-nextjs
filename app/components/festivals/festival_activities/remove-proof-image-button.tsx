@@ -92,7 +92,7 @@ export default function RemoveProofImageButton({
           size="sm"
           disabled={isDeleting}
           className={cn(
-            "bg-red-50 hover:bg-red-100 text-red-800 border-red-300",
+            "bg-red-50 hover:bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:hover:bg-red-900/40 dark:text-red-200 dark:border-red-800",
             className,
           )}
         >

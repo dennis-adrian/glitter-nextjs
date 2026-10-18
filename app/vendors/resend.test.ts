@@ -9,7 +9,11 @@ const serverEnv = vi.hoisted(() => ({
 
 vi.mock("../../env", () => ({ serverEnv }));
 
-import { sendEmail } from "@/app/vendors/resend";
+import {
+  removeResendSuppression,
+  sendBatchEmails,
+  sendEmail,
+} from "@/app/vendors/resend";
 
 const payload = {
   from: "Glitter <test@example.com>",
@@ -227,5 +231,182 @@ describe("sendEmail", () => {
 
     expect(result).toEqual({ data: null, error: null, headers: null });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendBatchEmails", () => {
+  afterEach(() => {
+    serverEnv.VERCEL_ENV = "production";
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("does not reach Resend in development, and says so", async () => {
+    serverEnv.VERCEL_ENV = "development";
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails([payload, payload]);
+    expect(response.error).toBeNull();
+    expect("simulated" in response && response.simulated).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("really sends from staging, under staging's own idempotency keys", async () => {
+    serverEnv.VERCEL_ENV = "preview";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(resendReply({ data: [{ id: "a" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails([payload], {
+      idempotencyKey: "festival-invitation/x",
+    });
+
+    expect(response.error).toBeNull();
+    expect("simulated" in response).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const { url, headers } = sentRequest(fetchMock);
+    expect(url).toBe("https://api.resend.com/emails/batch");
+    // Never the same key as production's mailing of the same page.
+    expect(headers.get("Idempotency-Key")).toBe(
+      "preview:festival-invitation/x",
+    );
+  });
+
+  it("posts one batch with its scoped idempotency key and unsubscribe headers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(resendReply({ data: [{ id: "a" }, { id: "b" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails(
+      [
+        payload,
+        {
+          ...payload,
+          replyTo: "visitantes@example.com",
+          headers: {
+            "List-Unsubscribe": "<https://example.com/u?token=t>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        },
+      ],
+      { idempotencyKey: "festival-invitation/x" },
+    );
+
+    expect(response.error).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const { url, init, headers } = sentRequest(fetchMock);
+    expect(url).toBe("https://api.resend.com/emails/batch");
+    const body = JSON.parse(String(init.body));
+    expect(body).toHaveLength(2);
+    // The SDK maps replyTo to the API's name; a pre-mapped field would be lost.
+    expect(body[1].reply_to).toBe("visitantes@example.com");
+    expect(body[1].headers).toEqual({
+      "List-Unsubscribe": "<https://example.com/u?token=t>",
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
+    expect(headers.get("Idempotency-Key")).toBe(
+      "production:festival-invitation/x",
+    );
+    expect(headers.get("Authorization")).toBe("Bearer re_test");
+    expect(headers.get("x-batch-validation")).toBe("strict");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("rejects when the batch request times out, so the page is retried with the same key", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init?: RequestInit) => {
+        const signal = init?.signal ?? undefined;
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal?.reason), {
+            once: true,
+          });
+        });
+      }),
+    );
+
+    const request = sendBatchEmails([payload]);
+    const rejection = expect(request).rejects.toThrow("Resend request timed out");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejection;
+  });
+
+  it("refuses more emails than one Resend batch holds", async () => {
+    await expect(
+      sendBatchEmails(Array.from({ length: 101 }, () => payload)),
+    ).rejects.toThrow("at most 100");
+  });
+});
+
+describe("removeResendSuppression", () => {
+  afterEach(() => {
+    serverEnv.VERCEL_ENV = "production";
+    vi.unstubAllGlobals();
+  });
+
+  it("leaves Resend alone in development", async () => {
+    serverEnv.VERCEL_ENV = "development";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await removeResendSuppression("ana@example.com")).toEqual({
+      outcome: "skipped",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["production", "preview"])(
+    "deletes the address from Resend's list in %s",
+    async (environment) => {
+      serverEnv.VERCEL_ENV = environment;
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      vi.stubGlobal("fetch", fetchMock);
+
+      expect(await removeResendSuppression("Ana+x@example.com")).toEqual({
+        outcome: "removed",
+      });
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(
+        "https://api.resend.com/suppressions/Ana%2Bx%40example.com",
+      );
+      expect(init.method).toBe("DELETE");
+      expect(new Headers(init.headers).get("Authorization")).toBe(
+        "Bearer re_test",
+      );
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    },
+  );
+
+  it("tells a missing suppression apart from a refusal", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          json: async () => ({ message: "Suppressions are not enabled" }),
+        })
+        .mockRejectedValueOnce(new Error("network down")),
+    );
+
+    expect(await removeResendSuppression("a@example.com")).toEqual({
+      outcome: "not_listed",
+    });
+    expect(await removeResendSuppression("a@example.com")).toEqual({
+      outcome: "failed",
+      message: "Suppressions are not enabled",
+    });
+    expect(await removeResendSuppression("a@example.com")).toEqual({
+      outcome: "failed",
+      message: "network down",
+    });
   });
 });

@@ -143,7 +143,7 @@ export default function CartItemRow({
             </span>
           )}
           {warnings.quantityExceedsStock && (
-            <span className="inline-block text-xs text-amber-600 font-medium mt-1">
+            <span className="inline-block text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
               Solo quedan {warnings.availableStock}
             </span>
           )}

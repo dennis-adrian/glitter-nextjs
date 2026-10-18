@@ -349,7 +349,7 @@ export default function AdminAdjustOrderForm({
           {additions.map((item) => (
             <div
               key={item.key}
-              className="flex items-center gap-3 rounded-lg border border-purple-200 bg-purple-50/40 p-3"
+              className="flex items-center gap-3 rounded-lg border border-purple-200 bg-purple-50/40 p-3 dark:border-purple-900 dark:bg-purple-950/40"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">

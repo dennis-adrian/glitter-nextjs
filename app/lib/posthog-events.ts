@@ -24,6 +24,12 @@ export const POSTHOG_EVENTS = {
   // Visitor registration
   VISITOR_EMAIL_SUBMITTED: "visitor_email_submitted",
   VISITOR_REGISTRATION_COMPLETED: "visitor_registration_completed",
+  /**
+   * A new online ticket — the conversion an invitation email is after.
+   * Returning visitors skip the details step, so for them this is the only
+   * sign they registered; a repeat claim of a day they hold does not count.
+   */
+  VISITOR_TICKET_CLAIMED: "visitor_ticket_claimed",
   // Live acts
   LIVE_ACT_CATEGORY_SELECTED: "live_act_category_selected",
   LIVE_ACT_SUBMITTED: "live_act_submitted",

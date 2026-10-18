@@ -6,97 +6,89 @@ import DateInput from "@/app/components/form/fields/date";
 import PhoneInput from "@/app/components/form/fields/phone";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
-import {
-  birthdateValidator,
-  phoneValidator,
-} from "@/app/components/form/input-validators";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { createVisitor } from "@/app/data/visitors/actions";
+import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
 import { genderOptions } from "@/app/lib/utils";
-import { dateToString, stringToUTCDate } from "@/app/utils/dateUtils";
-import { genderEnum } from "@/db/schema";
+import { registerVisitor } from "@/app/lib/visitors/registration-actions";
+import { visitorDetailsSchema } from "@/app/lib/visitors/visitor-details-schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightCircleIcon } from "lucide-react";
-import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
 
-const FormSchema = z.object({
-  birthdate: birthdateValidator({
-    minAge: 10,
-    minAgeMessage: "Debes tener al menos 10 años para registrarte",
-  }),
-  email: z.email({
-    error: "El correo electronico no es valido",
-  }),
-  firstName: z.string().min(2, {
-    error: "El nombre tiene que tener al menos dos letras",
-  }),
-  gender: z.enum([...genderEnum.enumValues]),
-  lastName: z.string().min(2, {
-    error: "El apellido tiene que tener al menos dos letras",
-  }),
-  phoneNumber: phoneValidator(),
-});
-
-export default function VisitorRegistrationForm({ email }: { email: string }) {
+export default function VisitorRegistrationForm({
+  festivalId,
+  email,
+}: {
+  festivalId: number;
+  /** Shown read-only: the server already holds it from the email step. */
+  email: string;
+}) {
   const router = useRouter();
   const form = useForm({
-    resolver: zodResolver(FormSchema),
+    resolver: zodResolver(visitorDetailsSchema),
     defaultValues: {
-      birthdate: DateTime.now().minus({ years: 10 }).toJSDate(),
-      email: email,
+      birthdate: "",
       firstName: "",
-      gender: "other",
+      gender: "other" as const,
       lastName: "",
       phoneNumber: "",
     },
   });
 
   const action = form.handleSubmit(async (data) => {
-    const stringBirthdate = dateToString(data.birthdate);
-    const birthdate = stringToUTCDate(stringBirthdate);
-
-    const res = await createVisitor({
-      ...data,
-      birthdate,
+    const res = await registerVisitor({
+      festivalId,
+      mode: "online",
+      email,
+      details: data,
     });
 
     if (res.success) {
       captureClientEvent(POSTHOG_EVENTS.VISITOR_REGISTRATION_COMPLETED, {
         gender: data.gender,
       });
-      router.push(`?${new URLSearchParams({ email: data.email, step: "3" })}`);
-    } else {
-      toast.error(res.error);
+      router.push("?step=3");
+      return;
     }
+
+    toast.error(res.message);
+    // An error keeps the submit button usable for another try.
+    form.setError("root", { message: res.message });
+    if (res.restart) router.push("?step=1");
   });
 
   return (
     <Form {...form}>
       <form onSubmit={action} className="grid items-start gap-4 md:gap-6">
-        <TextInput
-          bottomBorderOnly
-          name="email"
-          label="Email"
-          type="email"
-          disabled
-        />
+        <div className="grid gap-2">
+          <Label htmlFor="visitor-email">Email</Label>
+          <Input
+            id="visitor-email"
+            bottomBorderOnly
+            type="email"
+            value={email}
+            disabled
+            readOnly
+          />
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextInput
             bottomBorderOnly
             name="firstName"
             label="Nombre"
             type="text"
+            autoComplete="given-name"
           />
           <TextInput
             bottomBorderOnly
             name="lastName"
             label="Apellido"
             type="text"
+            autoComplete="family-name"
           />
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -105,6 +97,7 @@ export default function VisitorRegistrationForm({ email }: { email: string }) {
             formControl={form.control}
             name="birthdate"
             label="Fecha de nacimiento"
+            autoComplete="bday"
           />
           <PhoneInput bottomBorderOnly name="phoneNumber" label="Teléfono" />
           <SelectInput

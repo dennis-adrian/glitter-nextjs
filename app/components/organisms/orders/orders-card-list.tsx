@@ -140,7 +140,8 @@ function OrderCard({
         selectionMode && "cursor-pointer",
         // A soft tint, not an edge stripe: the "Vencido" pill already labels
         // the state, so the card only needs to be findable in a scan.
-        isOverdue && "border-red-200 bg-red-50/30",
+        isOverdue &&
+          "border-red-200 bg-red-50/30 dark:border-red-900 dark:bg-red-950/40",
         selectionMode && isSelected && "border-primary bg-primary/5",
       )}
       role={selectionMode ? "checkbox" : undefined}
@@ -197,7 +198,7 @@ function OrderCard({
                 {showOverdueBadge && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-red-300 bg-red-50 text-red-600"
+                    className="gap-1 border-red-300 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
                   >
                     <AlertTriangleIcon className="h-3 w-3" />
                     Vencido
@@ -206,7 +207,7 @@ function OrderCard({
                 {hasPendingVoucher && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-blue-300 bg-blue-50 text-blue-600"
+                    className="gap-1 border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
                   >
                     <ReceiptIcon className="h-3 w-3" />
                     Comprobante

@@ -4,15 +4,13 @@ import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useForm } from "react-hook-form";
 
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import { Loader2Icon, SendHorizonalIcon } from "lucide-react";
+import { SendHorizonalIcon } from "lucide-react";
 
-import { fetchVisitorByEmail } from "@/app/data/visitors/actions";
-import { Button } from "@/app/components/ui/button";
 import {
   Form,
   FormControl,
@@ -23,6 +21,7 @@ import {
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
 import SubmitButton from "@/app/components/simple-submit-button";
+import { startVisitorRegistration } from "@/app/lib/visitors/registration-actions";
 
 const FormSchema = z.object({
   email: z.email({
@@ -30,7 +29,11 @@ const FormSchema = z.object({
   }),
 });
 
-export default function EmailSubmissionForm() {
+export default function EmailSubmissionForm({
+  festivalId,
+}: {
+  festivalId: number;
+}) {
   const router = useRouter();
   const form = useForm({
     resolver: zodResolver(FormSchema),
@@ -40,15 +43,21 @@ export default function EmailSubmissionForm() {
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const visitor = await fetchVisitorByEmail(data.email);
-    captureClientEvent(POSTHOG_EVENTS.VISITOR_EMAIL_SUBMITTED, {
-      is_returning_visitor: !!visitor,
+    const result = await startVisitorRegistration({
+      festivalId,
+      email: data.email,
+      mode: "online",
     });
-    if (visitor) {
-      router.push(`?${new URLSearchParams({ email: data.email, step: "3" })}`);
-    } else {
-      router.push(`?${new URLSearchParams({ email: data.email, step: "2" })}`);
+    if (!result.success) {
+      form.setError("email", { message: result.message });
+      return;
     }
+
+    captureClientEvent(POSTHOG_EVENTS.VISITOR_EMAIL_SUBMITTED, {
+      is_returning_visitor: result.status === "returning",
+    });
+    // Who the visitor is now lives in a signed cookie, not in the URL.
+    router.push(`?step=${result.status === "returning" ? "3" : "2"}`);
   });
 
   return (
@@ -67,6 +76,7 @@ export default function EmailSubmissionForm() {
                 <FormControl>
                   <Input
                     type="email"
+                    autoComplete="email"
                     placeholder="ejemplo@mail.com"
                     {...field}
                   />
@@ -76,9 +86,13 @@ export default function EmailSubmissionForm() {
           />
           <SubmitButton
             className=" mt-4"
-            disabled={form.formState.isSubmitting}
+            disabled={
+              form.formState.isSubmitting || form.formState.isSubmitSuccessful
+            }
             label="Continuar"
-            loading={form.formState.isSubmitting}
+            loading={
+              form.formState.isSubmitting || form.formState.isSubmitSuccessful
+            }
           >
             <span className="flex items-center gap-2">
               Continuar

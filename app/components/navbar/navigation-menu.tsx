@@ -185,6 +185,19 @@ const NavbarNavigationMenu = ({
                 asChild
                 className={navigationMenuTriggerStyle()}
               >
+                <Link href="/dashboard/festivals">
+                  <div className="flex items-center">
+                    <CalendarIcon className="w-4 h-4 mr-1" />
+                    Festivales
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
                 <Link href="/dashboard/infractions?limit=25&offset=0">
                   <div className="flex items-center">
                     <CircleAlertIcon className="w-4 h-4 mr-1" />
@@ -389,6 +402,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/feature_flags"
                 >
                   Activa o esconde funcionalidades y da acceso anticipado
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Correos bloqueados"
+                  href="/dashboard/emails"
+                >
+                  Rebotes, reportes de spam y bajas de los correos masivos
                 </NavigationMenuListItem>
                 <NavigationMenuListItem title="Blog" href="/dashboard/blog">
                   Artículos, revisión editorial y categorías

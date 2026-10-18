@@ -147,7 +147,7 @@ export default function CreditAdjustDialog({
               disabled={isPending}
             />
             {!amountValid && amount.trim() !== "" && (
-              <p className="text-xs text-red-600">
+              <p className="text-xs text-red-600 dark:text-red-400">
                 Ingresá una cantidad mayor a 0, con hasta dos decimales.
               </p>
             )}

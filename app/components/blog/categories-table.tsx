@@ -49,14 +49,14 @@ export default function CategoriesTable({
 
   if (categories.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground border rounded-md bg-white">
+      <div className="text-center py-12 text-muted-foreground border rounded-md bg-card">
         Aún no hay categorías. Crea la primera arriba.
       </div>
     );
   }
 
   return (
-    <div className="border rounded-md bg-white overflow-hidden">
+    <div className="border rounded-md bg-card overflow-hidden">
       <ul className="divide-y">
         {categories.map((c) => (
           <li key={c.id} className="flex items-center gap-3 p-4">

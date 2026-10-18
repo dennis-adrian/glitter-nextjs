@@ -20,7 +20,7 @@ const FormSchema = z
     birthdate: birthdateValidator({
       minAge: 16,
       minAgeMessage:
-        "Debes tener al menos 16 años para participar de nuestros eventos",
+        "Debés tener al menos 16 años para participar de nuestros eventos",
     }),
     gender: z.enum([...genderEnum.enumValues], {
       error: (issue) =>
@@ -102,7 +102,7 @@ export default function PersonalInfoForm(props: PersonalInfoFormProps) {
           label="Género"
           name="gender"
           options={genderOptions}
-          placeholder="Elige una opción"
+          placeholder="Elegí una opción"
           variant="quiet"
         />
         <SelectInput
@@ -110,7 +110,7 @@ export default function PersonalInfoForm(props: PersonalInfoFormProps) {
           label="País de residencia"
           name="country"
           options={countryOptions}
-          placeholder="Elige una opción"
+          placeholder="Elegí una opción"
           variant="quiet"
         />
         {country === "BO" && (
@@ -119,7 +119,7 @@ export default function PersonalInfoForm(props: PersonalInfoFormProps) {
             label="Departamento de residencia"
             name="state"
             options={stateOptions}
-            placeholder="Elige una opción"
+            placeholder="Elegí una opción"
             variant="quiet"
           />
         )}

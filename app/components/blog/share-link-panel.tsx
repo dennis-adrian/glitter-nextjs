@@ -142,7 +142,9 @@ export default function ShareLinkPanel({ postId, initialLink }: Props) {
             </div>
             <p
               className={`flex items-center gap-1.5 text-xs ${
-                link.isExpired ? "text-amber-600" : "text-muted-foreground"
+                link.isExpired
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-muted-foreground"
               }`}
             >
               <LinkIcon className="h-3 w-3 shrink-0" />

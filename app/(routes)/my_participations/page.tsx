@@ -61,7 +61,7 @@ export default async function Page() {
         {isProfileInActiveFestival && activeFestival ? (
           <div className="flex flex-col gap-2">
             {currentProfile.shouldSubmitProducts && (
-              <div className=" flex flex-col gap-1 items-center bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm p-3">
+              <div className=" flex flex-col gap-1 items-center bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm p-3 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
                 <p>
                   Subí imágenes de lo que ofrecerás en el festival presionando
                   el botón a continuación
@@ -77,10 +77,10 @@ export default async function Page() {
               </div>
             )}
             {bestStandActivity && (
-              <div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+              <div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
                 <CircleAlertIcon className="w-6 h-6 text-amber-500 shrink-0" />
                 <div>
-                  <p className="text-sm text-amber-800 flex-1">
+                  <p className="text-sm text-amber-800 flex-1 dark:text-amber-200">
                     Ya podés votar por tu stand favorito en la actividad de{" "}
                     <strong>Iconic Stand</strong>
                   </p>
@@ -97,10 +97,10 @@ export default async function Page() {
               </div>
             )}
             {festivalStickerActivity && (
-              <div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+              <div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
                 <CircleAlertIcon className="w-6 h-6 text-amber-500 shrink-0" />
                 <div>
-                  <p className="text-sm text-amber-800 flex-1">
+                  <p className="text-sm text-amber-800 flex-1 dark:text-amber-200">
                     Ya podés votar por tu <strong>Sticker Navideño</strong>{" "}
                     favorito
                   </p>
@@ -126,8 +126,8 @@ export default async function Page() {
             />
           </div>
         ) : (
-          <div className="md:text-center p-6 bg-gray-100 rounded-lg">
-            <p className="text-gray-500 text-sm md:text-base">
+          <div className="md:text-center p-6 bg-muted rounded-lg">
+            <p className="text-muted-foreground text-sm md:text-base">
               No tienes ninguna participación confirmada en el festival actual.
             </p>
           </div>
