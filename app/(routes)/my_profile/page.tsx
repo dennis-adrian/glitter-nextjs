@@ -23,14 +23,15 @@ export default async function Page() {
             No encontramos los datos de tu perfil
           </h1>
           <p className="text-sm text-muted-foreground">
-            Este puede ser un error temporal. Intenta nuevamente con los mismos
-            datos o contáctate con nuestro equipo de soporte{" "}
+            Esto puede ser un error temporal. Intentá de nuevo con los mismos
+            datos o contactate con nuestro equipo de soporte en{" "}
             <Link
               className="underline text-blue-500"
               href="mailto:soporte@productoraglitter.com"
             >
               soporte@productoraglitter.com
             </Link>
+            .
           </p>
           <TryAgainForm />
         </div>

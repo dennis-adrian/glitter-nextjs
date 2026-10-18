@@ -27,7 +27,7 @@ const FormSchema = z.object({
       error: "La bio/descripción tiene que tener al menos 10 letras",
     })
     .max(80, {
-      error: "La bio/descripción no puede tener mas de 80 letras",
+      error: "La bio/descripción no puede tener más de 80 caracteres",
     }),
 });
 

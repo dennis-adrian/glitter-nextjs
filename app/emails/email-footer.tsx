@@ -22,7 +22,7 @@ export default function EmailFooter({ unsubscribeUrl }: EmailFooterProps) {
       </Text>
       {unsubscribeUrl ? (
         <Text style={{ ...styles.footerText, marginTop: "8px" }}>
-          ¿No quieres recibir más correos como este?{" "}
+          ¿No querés recibir más correos como este?{" "}
           <Link href={unsubscribeUrl} style={styles.footerLink}>
             Darme de baja
           </Link>

@@ -7,6 +7,7 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import { formatFullDate, formatDateWithTime } from "@/app/lib/formatters";
 import ActionsCell from "./cells/actions";
+import TicketRowActions from "./cells/row-actions";
 
 export const columnTitles = {
   id: "ID",
@@ -16,7 +17,12 @@ export const columnTitles = {
   creationDate: "Fecha de creación",
 };
 
-export const columns: ColumnDef<TicketWithVisitor>[] = [
+export type TicketRow = TicketWithVisitor & {
+  /** Why staff cannot resend this ticket; undefined when they can. */
+  resendDisabledReason?: string;
+};
+
+export const columns: ColumnDef<TicketRow>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -94,5 +100,17 @@ export const columns: ColumnDef<TicketWithVisitor>[] = [
       />
     ),
     cell: ({ row }) => formatDateWithTime(row.original.createdAt),
+  },
+  {
+    id: "actions",
+    header: () => <span className="sr-only">Acciones</span>,
+    cell: ({ row }) => (
+      <TicketRowActions
+        ticketId={row.original.id}
+        resendDisabledReason={row.original.resendDisabledReason}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
   },
 ];

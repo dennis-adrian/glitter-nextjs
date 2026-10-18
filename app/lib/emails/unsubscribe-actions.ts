@@ -44,7 +44,7 @@ export async function confirmUnsubscribe(
     console.error("Error unsubscribing", loggableError(error));
     return {
       success: false,
-      message: "No pudimos darte de baja. Intenta de nuevo.",
+      message: "No pudimos darte de baja. Intentá de nuevo.",
     };
   }
 }
@@ -64,7 +64,7 @@ export async function undoUnsubscribe(
       return {
         success: true,
         message:
-          "Quitamos tu baja, pero esta dirección está bloqueada por un rebote o un reporte de spam. Escríbenos para volver a recibir correos.",
+          "Quitamos tu baja, pero esta dirección está bloqueada por un rebote o un reporte de spam. Escribinos para volver a recibir correos.",
       };
     }
     return {
@@ -77,7 +77,7 @@ export async function undoUnsubscribe(
     console.error("Error resubscribing", loggableError(error));
     return {
       success: false,
-      message: "No pudimos guardar el cambio. Intenta de nuevo.",
+      message: "No pudimos guardar el cambio. Intentá de nuevo.",
     };
   }
 }

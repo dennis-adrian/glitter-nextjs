@@ -6,6 +6,8 @@ import VerificationStatusLabel from "@/app/components/atoms/verification-status-
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
+import RequestReviewForm from "@/app/components/user_profile/request-review-form";
+import { profileReviewBlocker } from "@/app/lib/users/profile-review";
 
 type RestrictedStatus = "pending" | "rejected" | "banned";
 
@@ -40,8 +42,8 @@ const STATUS_CONFIG: Record<
     cardClass: "border-yellow-200 bg-yellow-50/40",
     title: "Tu perfil fue rechazado",
     description:
-      "Encontramos algunos problemas con tu perfil que impiden verificarlo. Actualizá tu información y volvé a solicitar la verificación.",
-    ctaLabel: "Actualizar mi perfil",
+      "Encontramos algunos problemas con tu perfil que impiden verificarlo. Revisá el motivo en el correo que te enviamos, corregí tus datos y pedí una nueva revisión.",
+    ctaLabel: "Corregir mi perfil",
   },
   banned: {
     icon: BanIcon,
@@ -109,6 +111,12 @@ export default function RestrictedDashboard({ profile, status }: Props) {
               <Button asChild className="w-full">
                 <Link href="/my_profile">{ctaLabel}</Link>
               </Button>
+            )}
+            {status === "rejected" && (
+              <RequestReviewForm
+                profileId={profile.id}
+                disabledReason={profileReviewBlocker(profile)}
+              />
             )}
           </CardContent>
         </Card>

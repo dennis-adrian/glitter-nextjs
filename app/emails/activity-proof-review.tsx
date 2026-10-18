@@ -54,7 +54,7 @@ export default function ActivityProofReviewEmail({
   const previews: Record<Exclude<ProofStatus, "pending_review">, string> = {
     approved: `¡Tu ${materialLabel} fue ${materialPastParticiple}!`,
     rejected_resubmit: `Tu ${materialLabel} necesita correcciones`,
-    rejected_removed: "Has sido removido de la actividad",
+    rejected_removed: "Fuiste removido/a de la actividad",
   };
 
   return (
@@ -94,7 +94,8 @@ export default function ActivityProofReviewEmail({
                   <Text style={styles.standoutText}>{adminFeedback}</Text>
                 )}
                 <Text style={styles.text}>
-                  Por favor ingresa al sitio web y súbelo nuevamente.
+                  Por favor ingresá al sitio web y{" "}
+                  {materialArticle === "la" ? "subila" : "subilo"} nuevamente.
                 </Text>
                 <Button href={activityUrl} style={styles.buttonWithBanner}>
                   Subir {materialLabel} nuevamente
@@ -105,7 +106,7 @@ export default function ActivityProofReviewEmail({
             {status === "rejected_removed" && (
               <>
                 <Text style={styles.text}>
-                  Has sido removido/a de la actividad{" "}
+                  Fuiste removido/a de la actividad{" "}
                   <strong>{activityName}</strong> del festival{" "}
                   <strong>{festivalName}</strong>.
                 </Text>
