@@ -2151,6 +2151,7 @@ export async function fetchAdminOrderAdjustmentProducts(): Promise<
     price: getProductPriceAtPurchase(product),
     stock: product.stock ?? 0,
     storeCategory: product.storeCategory,
+    isVisible: product.isVisible,
     requiresVariant: product.variants.length > 0,
     variants: product.variants
       .filter((variant) => variant.isVisible)

@@ -15,10 +15,12 @@ import type {
 } from "@/app/lib/merch/bundle-definitions";
 import { buildBundleSelectionKey } from "@/app/lib/merch/bundle-pricing";
 import { MAX_CART_BUNDLE_QUANTITY } from "@/app/lib/merch/bundle-schema";
+import type { BaseProduct } from "@/app/lib/products/definitions";
 import {
   getAvailableStockForTransaction,
   getTransactionPoolRemainingStock,
 } from "@/app/lib/rentals/stock";
+import type { ProductTransactionType } from "@/app/lib/rentals/types";
 import {
   getProductVariantStock,
   productHasVariants,
@@ -30,6 +32,20 @@ export function buildCartLineKey(
   transactionType: "purchase" | "rental" = "purchase",
 ): string {
   return `${productId}:${productVariantId ?? "base"}:${transactionType}`;
+}
+
+/**
+ * Whether checkout refuses a line's product outright: hidden from the
+ * storefront, or not offered for the line's transaction.
+ */
+export function isCartLineUnavailable(
+  product: Pick<BaseProduct, "isVisible" | "isPurchasable" | "isRentable">,
+  transactionType: ProductTransactionType = "purchase",
+): boolean {
+  if (!product.isVisible) return true;
+  return transactionType === "rental"
+    ? !product.isRentable
+    : !product.isPurchasable;
 }
 
 function isInvalidCartVariantLine(item: CartItemWithProduct): boolean {
@@ -328,7 +344,10 @@ export function getCartItemAvailableStock(
   allItems: CartItemWithProduct[],
   bundleDemand: readonly BundleDemandLine[] = [],
 ): number {
-  if (isInvalidCartVariantLine(item)) {
+  if (
+    isCartLineUnavailable(item.product, item.transactionType) ||
+    isInvalidCartVariantLine(item)
+  ) {
     return 0;
   }
 
@@ -359,12 +378,23 @@ export function getCartItemWarnings(
   allItems: CartItemWithProduct[] = [item],
   bundleDemand: readonly BundleDemandLine[] = [],
 ): {
+  isUnavailable: boolean;
   isOutOfStock: boolean;
   quantityExceedsStock: boolean;
   availableStock: number;
 } {
+  if (isCartLineUnavailable(item.product, item.transactionType)) {
+    return {
+      isUnavailable: true,
+      isOutOfStock: false,
+      quantityExceedsStock: false,
+      availableStock: 0,
+    };
+  }
+
   if (isInvalidCartVariantLine(item)) {
     return {
+      isUnavailable: false,
       isOutOfStock: true,
       quantityExceedsStock: false,
       availableStock: 0,
@@ -373,6 +403,7 @@ export function getCartItemWarnings(
 
   const stock = getCartItemAvailableStock(item, allItems, bundleDemand);
   return {
+    isUnavailable: false,
     isOutOfStock: stock === 0,
     quantityExceedsStock: stock > 0 && item.quantity > stock,
     availableStock: stock,
