@@ -65,7 +65,7 @@ export default function PublicMapStandCard({
 			ref={cardRef}
 			className="fixed bottom-6 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom-4 fade-in-0 duration-150"
 		>
-			<div className="bg-white rounded-lg shadow-2xl border-t-4 border-primary overflow-hidden">
+			<div className="bg-card rounded-lg shadow-2xl border-t-4 border-primary overflow-hidden">
 				{/* Header */}
 				<div className="p-4 pb-3 border-b border-border">
 					<div className="flex items-center gap-2 flex-wrap mb-3">
@@ -91,8 +91,8 @@ export default function PublicMapStandCard({
 									onClick={() => setActiveTab(index)}
 									className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all shrink-0 ${
 										index === clampedTab
-											? "bg-white shadow-sm border-primary"
-											: "bg-gray-50 hover:bg-gray-100 border-border"
+											? "bg-card shadow-sm border-primary"
+											: "bg-muted/50 hover:bg-muted border-border"
 									}`}
 								>
 									<Avatar className="w-6 h-6">
@@ -128,7 +128,7 @@ export default function PublicMapStandCard({
 							{currentParticipant.kind === "external" && (
 								<Badge
 									variant="outline"
-									className="mt-2 rounded-full border-teal-600 text-teal-700"
+									className="mt-2 rounded-full border-teal-600 text-teal-700 dark:text-teal-300"
 								>
 									{currentParticipant.categoryLabel}
 								</Badge>
@@ -197,7 +197,7 @@ export default function PublicMapStandCard({
 											href={link.href}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="flex items-center gap-2 text-sm hover:underline font-medium text-teal-700"
+											className="flex items-center gap-2 text-sm hover:underline font-medium text-teal-700 dark:text-teal-300"
 										>
 											{link.label}
 										</a>

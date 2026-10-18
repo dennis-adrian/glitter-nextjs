@@ -41,7 +41,7 @@ export function UpcomingFestivalCard({
   );
 
   return (
-    <Card className="w-full shadow-lg border-green-100 mx-auto">
+    <Card className="w-full shadow-lg border-green-100 dark:border-green-900 mx-auto">
       <CardHeader className="bg-gradient-to-r from-[#679F39] to-[#9FBB70] text-white rounded-t-lg">
         <div className="flex justify-between items-start">
           <div>
@@ -104,7 +104,7 @@ export function UpcomingFestivalCard({
             <TeamTabContent reservation={reservation} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 No hay personas en tu equipo para esta reserva.
               </p>
             </div>

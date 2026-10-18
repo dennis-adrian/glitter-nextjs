@@ -126,7 +126,7 @@ function SettingRow({
         {lockedReason ? (
           <p
             id={reasonId}
-            className="flex items-start gap-1.5 text-xs text-amber-800"
+            className="flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-200"
           >
             <InfoIcon className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
             {lockedReason}
@@ -405,7 +405,7 @@ export default function FestivalSettingsCard({
             {registrationOpen && festival.eventDayRegistration ? (
               <>
                 {!isFestivalDayToday ? (
-                  <p className="flex basis-full items-start gap-1.5 text-xs text-amber-800">
+                  <p className="flex basis-full items-start gap-1.5 text-xs text-amber-800 dark:text-amber-200">
                     <InfoIcon
                       className="mt-px h-3.5 w-3.5 shrink-0"
                       aria-hidden

@@ -98,7 +98,7 @@ export default function SectorCard({
         {availableStands > 0 ? (
           <>
             <CheckCircle2Icon className="h-4 w-4 text-green-600" />
-            <span className="text-sm text-green-700">
+            <span className="text-sm text-green-700 dark:text-green-300">
               {availableStands} stands disponibles
             </span>
           </>

@@ -83,7 +83,7 @@ export default function ParticipantsModal({
               return (
                 <div
                   key={`${participant.standId}-${index}`}
-                  className="flex flex-col gap-2 border border-gray-200 rounded-md p-4"
+                  className="flex flex-col gap-2 border border-border rounded-md p-4"
                 >
                   {standImage && (
                     <Image

@@ -54,7 +54,7 @@ export default function Search({
           type="search"
           onChange={(e) => handleSearch(e.target.value)}
         />
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 peer-focus:text-primary">
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground peer-focus:text-primary">
           {isPending ? (
             <div aria-label="buscando...">
               <SpinnerIcon

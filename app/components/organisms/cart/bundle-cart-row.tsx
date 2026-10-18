@@ -119,7 +119,7 @@ export function BundleCartRow({
           <p
             className={
               issue === "stock_insufficient"
-                ? "mt-1 text-xs font-medium text-amber-600"
+                ? "mt-1 text-xs font-medium text-amber-600 dark:text-amber-400"
                 : "mt-1 text-xs font-medium text-destructive"
             }
           >

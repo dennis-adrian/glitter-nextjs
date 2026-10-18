@@ -37,7 +37,7 @@ export default function UserSanctionCard({
     >
       <div className="flex items-start gap-2">
         <div className="p-2 rounded-lg bg-amber-500/10">
-          <ScaleIcon className="w-5 h-5 text-amber-800" />
+          <ScaleIcon className="w-5 h-5 text-amber-800 dark:text-amber-200" />
         </div>
         <div className="min-w-0 space-y-1">
           <p className="font-medium text-sm">

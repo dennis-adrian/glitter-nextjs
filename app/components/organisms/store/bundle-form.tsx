@@ -518,7 +518,10 @@ export default function BundleForm({
                     </fieldset>
                   )}
                   {componentIssues.map((issue) => (
-                    <p key={issue.code} className="text-xs text-amber-700">
+                    <p
+                      key={issue.code}
+                      className="text-xs text-amber-700 dark:text-amber-300"
+                    >
                       {issue.message}
                     </p>
                   ))}
@@ -624,7 +627,7 @@ export default function BundleForm({
           </p>
           {evaluation.issues.length > 0 && (
             <ul
-              className="list-disc space-y-1 pl-5 text-sm text-amber-700"
+              className="list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-300"
               aria-live="polite"
             >
               {[

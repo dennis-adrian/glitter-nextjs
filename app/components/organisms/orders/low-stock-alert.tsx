@@ -46,14 +46,14 @@ export default function LowStockAlert({
     .join(" · ");
 
   return (
-    <Card className="border-amber-200">
+    <Card className="border-amber-200 dark:border-amber-900">
       <CardHeader className="gap-1 p-4 pb-2">
         <div className="flex items-center gap-2">
           <AlertTriangleIcon
             aria-hidden="true"
             className="h-5 w-5 shrink-0 text-amber-600"
           />
-          <CardTitle className="text-base text-amber-700">
+          <CardTitle className="text-base text-amber-700 dark:text-amber-300">
             Inventario por reponer
           </CardTitle>
         </div>
@@ -76,7 +76,7 @@ export default function LowStockAlert({
                 variant={product.stock === 0 ? "destructive" : "outline"}
                 className={
                   product.stock !== 0 && product.stock !== null
-                    ? "tabular-nums text-amber-600 border-amber-300"
+                    ? "tabular-nums text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-800"
                     : "tabular-nums"
                 }
               >
@@ -89,7 +89,7 @@ export default function LowStockAlert({
       <CardFooter className="justify-end p-4 pt-0">
         <Link
           href={allProductsHref}
-          className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 underline-offset-4 hover:underline"
+          className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 dark:text-amber-300 underline-offset-4 hover:underline"
         >
           Ver {affectedProductCount}{" "}
           {affectedProductCount === 1 ? "producto" : "productos"}

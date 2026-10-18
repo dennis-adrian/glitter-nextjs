@@ -51,9 +51,9 @@ export default function FestivalStickerVoting({
 
   if (hasParticipantVoted) {
     return (
-      <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-md p-3 text-emerald-800">
+      <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-md p-3 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-200">
         <CircleCheckIcon className="w-5 h-5 text-emerald-500" />
-        <p className="text-sm text-emerald-800">
+        <p className="text-sm text-emerald-800 dark:text-emerald-200">
           Ya votaste por tu sticker navideño favorito
         </p>
       </div>
@@ -68,9 +68,9 @@ export default function FestivalStickerVoting({
 
   if (!isVotingOpen) {
     return (
-      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
         <CircleAlertIcon className="w-5 h-5 text-amber-500" />
-        <p className="text-sm text-amber-800">
+        <p className="text-sm text-amber-800 dark:text-amber-200">
           La votación para el sticker navideño ya finalizó
         </p>
       </div>
@@ -89,7 +89,7 @@ export default function FestivalStickerVoting({
           return (
             <div
               key={participant.id}
-              className="flex flex-col gap-2 border border-gray-200 rounded-md p-4"
+              className="flex flex-col gap-2 border border-border rounded-md p-4"
             >
               {participantImage && (
                 <Image

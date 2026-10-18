@@ -45,7 +45,9 @@ export default function UsersBuckets({
 
   return (
     <div className="my-4">
-      <p className="text-gray-500">Cantidad de participantes por bucket:</p>
+      <p className="text-muted-foreground">
+        Cantidad de participantes por bucket:
+      </p>
       <Select
         value={bucketAmount.toString()}
         onValueChange={(value) => setBucketAmount(parseInt(value))}

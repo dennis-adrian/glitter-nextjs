@@ -6,7 +6,10 @@ import { DateTime } from "luxon";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
-import { getAdminOverviewColors } from "@/app/components/maps/map-utils";
+import {
+  getAdminOverviewColors,
+  mapColor,
+} from "@/app/components/maps/map-utils";
 import type { JointGroup } from "@/app/lib/stands/groups";
 import MapSurface from "@/app/components/maps/map-surface";
 import MapToolbar from "@/app/components/maps/map-toolbar";
@@ -29,38 +32,38 @@ type AdminOverviewMapProps = {
 
 const LEGEND_ITEMS = [
   {
-    color: "rgba(255, 255, 255, 0.9)",
-    border: "rgba(209, 213, 219, 0.6)",
+    color: mapColor("open-fill", "rgba(255, 255, 255, 0.9)"),
+    border: mapColor("open-stroke", "rgba(209, 213, 219, 0.6)"),
     label: "Disponible",
     countKey: "disponible" as const,
   },
   {
-    color: "rgba(229, 231, 235, 0.35)",
-    border: "rgba(209, 213, 219, 0.4)",
+    color: mapColor("unavailable-fill", "rgba(229, 231, 235, 0.35)"),
+    border: mapColor("unavailable-stroke", "rgba(209, 213, 219, 0.4)"),
     label: "Deshabilitado",
     countKey: "deshabilitado" as const,
   },
   {
-    color: "rgba(251, 191, 36, 0.6)",
-    border: "rgba(217, 119, 6, 0.8)",
+    color: mapColor("held-fill", "rgba(251, 191, 36, 0.6)"),
+    border: mapColor("held-stroke", "rgba(217, 119, 6, 0.8)"),
     label: "En espera",
     countKey: "enEspera" as const,
   },
   {
-    color: "rgba(134, 239, 172, 0.7)",
-    border: "rgba(34, 197, 94, 0.9)",
+    color: mapColor("pending-fill", "rgba(134, 239, 172, 0.7)"),
+    border: mapColor("pending-stroke", "rgba(34, 197, 94, 0.9)"),
     label: "Pago pendiente",
     countKey: "pagoPendiente" as const,
   },
   {
-    color: "rgba(252, 165, 165, 0.7)",
-    border: "rgba(220, 38, 38, 0.9)",
+    color: mapColor("overdue-fill", "rgba(252, 165, 165, 0.7)"),
+    border: mapColor("overdue-stroke", "rgba(220, 38, 38, 0.9)"),
     label: "Atrasado",
     countKey: "atrasado" as const,
   },
   {
-    color: "rgba(96, 165, 250, 0.7)",
-    border: "rgba(37, 99, 235, 0.9)",
+    color: mapColor("verifying-fill", "rgba(96, 165, 250, 0.7)"),
+    border: mapColor("verifying-stroke", "rgba(37, 99, 235, 0.9)"),
     label: "Pagado por confirmar",
     countKey: "pagadoPorConfirmar" as const,
   },

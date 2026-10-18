@@ -40,7 +40,7 @@ function ParticipantLink({
   return (
     <Link
       href={`/public_profiles/${participant.id}`}
-      className="group/participant flex min-w-0 items-center gap-3 rounded-xl border bg-background p-3 transition hover:border-primary-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="group/participant flex min-w-0 items-center gap-3 rounded-xl border bg-background p-3 transition hover:border-primary-300 hover:shadow-sm dark:hover:border-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <Avatar className="size-10 shrink-0">
         <AvatarImage
@@ -50,7 +50,7 @@ function ParticipantLink({
         />
       </Avatar>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold group-hover/participant:text-primary-700">
+        <span className="block truncate text-sm font-semibold group-hover/participant:text-primary-700 dark:group-hover/participant:text-primary-300">
           {participant.displayName}
         </span>
         <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
@@ -128,7 +128,7 @@ export default function PublicFestivalActivities({
                         ? () => onFilterByActivity(filterableType)
                         : undefined
                     }
-                    className="mt-3 inline-flex items-center text-sm font-semibold text-primary-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="mt-3 inline-flex items-center text-sm font-semibold text-primary-700 dark:text-primary-300 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     {filterableType && onFilterByActivity
                       ? "Ver participantes en el mapa"
@@ -168,7 +168,7 @@ export default function PublicFestivalActivities({
 
                     {remainingParticipants.length > 0 ? (
                       <details className="group mt-3">
-                        <summary className="cursor-pointer list-none rounded-lg py-2 text-sm font-semibold text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <summary className="cursor-pointer list-none rounded-lg py-2 text-sm font-semibold text-primary-700 dark:text-primary-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                           <span className="group-open:hidden">
                             Ver {remainingParticipants.length} más
                           </span>

@@ -12,7 +12,7 @@ export default function Loading() {
           height={80}
           loading="eager"
         />
-        <div className="flex items-center gap-2 text-primary-500">
+        <div className="flex items-center gap-2 text-primary-500 dark:text-primary-400">
           <Loader2Icon className="w-4 h-4 animate-spin" />
           <p>Cargando perfil...</p>
         </div>

@@ -186,7 +186,7 @@ export default async function ProgramPromoCodeDetailPage({ params }: Props) {
                               {formatMoney(redemption.discountAmountSnapshot)}
                             </p>
                             {redemption.higherPriceAcceptedAt ? (
-                              <p className="text-xs font-medium text-amber-700">
+                              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
                                 Precio mayor aceptado
                               </p>
                             ) : null}

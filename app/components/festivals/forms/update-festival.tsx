@@ -581,7 +581,7 @@ export default function UpdateFestivalForm({
                           variant="ghost"
                           size="sm"
                           onClick={() => remove(index)}
-                          className="text-red-500 hover:text-red-700"
+                          className="text-red-500 hover:text-red-700 dark:hover:text-red-300"
                         >
                           <TrashIcon className="h-4 w-4" />
                         </Button>
@@ -663,7 +663,7 @@ export default function UpdateFestivalForm({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveSector(index)}
-                          className="text-red-500 hover:text-red-700"
+                          className="text-red-500 hover:text-red-700 dark:hover:text-red-300"
                         >
                           <TrashIcon className="h-4 w-4" />
                         </Button>

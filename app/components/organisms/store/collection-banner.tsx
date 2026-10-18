@@ -50,7 +50,7 @@ export default function CollectionBanner({
         size="sm"
         className={
           lightText
-            ? "relative z-10 mt-6 bg-white text-brand-ink hover:bg-white/90"
+            ? "relative z-10 mt-6 bg-white text-brand-deep hover:bg-white/90"
             : "relative z-10 mt-6"
         }
       >
@@ -71,7 +71,7 @@ export default function CollectionBanner({
         aria-label={`Colección ${collection.name}`}
         className={
           lightText
-            ? "relative isolate overflow-hidden rounded-2xl bg-brand-ink text-white"
+            ? "relative isolate overflow-hidden rounded-2xl bg-brand-deep text-white"
             : "relative isolate overflow-hidden rounded-2xl bg-background text-foreground"
         }
       >
@@ -90,7 +90,7 @@ export default function CollectionBanner({
           className={
             lightText
               ? "pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-black/90 via-black/60 to-transparent md:block"
-              : "pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-white/95 via-white/60 to-transparent md:block"
+              : "pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-white/95 via-white/60 to-transparent dark:from-background/95 dark:via-background/60 md:block"
           }
         />
         <div className="relative p-6 md:flex md:min-h-[360px] md:w-1/2 md:flex-col md:items-start md:justify-center md:p-9 lg:min-h-[460px] lg:p-12">

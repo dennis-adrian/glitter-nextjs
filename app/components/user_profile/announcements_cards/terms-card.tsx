@@ -12,7 +12,9 @@ type TermsCardProps = {
   profile: ProfileType;
 };
 
-export function TermsCard(props: TermsCardProps & { isReacceptance?: boolean }) {
+export function TermsCard(
+  props: TermsCardProps & { isReacceptance?: boolean },
+) {
   const festivalCategories = getFestivalCategories(props.festival);
   if (
     props.profile.category &&
@@ -38,7 +40,7 @@ export function TermsCard(props: TermsCardProps & { isReacceptance?: boolean }) 
       }
       footer={
         <RedirectButton
-          className="text-amber-900 underline"
+          className="text-amber-900 dark:text-amber-100 underline"
           variant="link"
           size="sm"
           href={`/festivals/${props.festival.id}/terms`}

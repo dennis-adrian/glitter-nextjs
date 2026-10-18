@@ -28,7 +28,7 @@ function FestivalArtwork({ festival }: { festival: PublicFestivalPage }) {
         href={artwork}
         target="_blank"
         rel="noreferrer"
-        className="group relative block aspect-4/5 w-24 shrink-0 overflow-hidden rounded-xl bg-primary-100 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-32"
+        className="group relative block aspect-4/5 w-24 shrink-0 overflow-hidden rounded-xl bg-accent shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-32"
         aria-label={`Ver afiche completo de ${festival.name}`}
       >
         <Image
@@ -137,7 +137,10 @@ export default function FestivalPageHero({
 
   return (
     <>
-      <section id="entrada" className="border-b bg-primary-50/70">
+      <section
+        id="entrada"
+        className="border-b bg-primary-50/70 dark:bg-primary-950/40"
+      >
         <div className="container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
           <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_17rem] md:items-start">
             <div className="flex min-w-0 gap-4 sm:gap-5">
@@ -150,7 +153,7 @@ export default function FestivalPageHero({
                 <div className="mt-4 space-y-2 text-sm">
                   <p className="flex items-start gap-2">
                     <CalendarDaysIcon
-                      className="mt-0.5 size-4 shrink-0 text-primary-700"
+                      className="mt-0.5 size-4 shrink-0 text-primary-700 dark:text-primary-300"
                       aria-hidden="true"
                     />
                     <span>
@@ -159,7 +162,7 @@ export default function FestivalPageHero({
                   </p>
                   <p className="flex items-start gap-2">
                     <MapPinIcon
-                      className="mt-0.5 size-4 shrink-0 text-primary-700"
+                      className="mt-0.5 size-4 shrink-0 text-primary-700 dark:text-primary-300"
                       aria-hidden="true"
                     />
                     <span>
@@ -173,7 +176,7 @@ export default function FestivalPageHero({
             <div className="flex flex-wrap gap-x-5 gap-y-2 md:col-start-1 md:row-start-2 md:pl-37">
               <Link
                 href="#mapa"
-                className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 dark:text-primary-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <MapIcon className="mr-1.5 size-4" aria-hidden="true" />
                 Mapa y participantes
@@ -181,7 +184,7 @@ export default function FestivalPageHero({
               {festival.festivalActivities.length > 0 ? (
                 <Link
                   href="#actividades"
-                  className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 dark:text-primary-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <SparklesIcon className="mr-1.5 size-4" aria-hidden="true" />
                   Actividades
@@ -192,7 +195,7 @@ export default function FestivalPageHero({
                   href={festival.locationUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 dark:text-primary-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Cómo llegar
                   <ArrowUpRightIcon
@@ -204,7 +207,7 @@ export default function FestivalPageHero({
             </div>
 
             <div className="rounded-xl border bg-background p-4 shadow-sm md:col-start-2 md:row-span-2 md:row-start-1">
-              <div className="flex items-center gap-2 text-primary-700">
+              <div className="flex items-center gap-2 text-primary-700 dark:text-primary-300">
                 <TicketIcon className="size-4" aria-hidden="true" />
                 <p className="text-xs font-bold uppercase tracking-[0.14em]">
                   Tu entrada
