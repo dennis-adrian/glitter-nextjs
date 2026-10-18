@@ -59,13 +59,13 @@ const MINUTE = 60 * 1000;
  */
 const PER_ADDRESS_LIMIT = { limit: 300, windowMs: 10 * MINUTE };
 const TOO_MANY_REQUESTS =
-  "Demasiados intentos. Espera unos minutos e intenta de nuevo.";
+  "Demasiados intentos. Esperá unos minutos e intentá de nuevo.";
 const SESSION_EXPIRED: RegistrationFailure = {
   success: false,
-  message: "Tu sesión expiró. Ingresa tu correo nuevamente.",
+  message: "Tu sesión expiró. Ingresá tu correo nuevamente.",
   restart: true,
 };
-const GENERIC_ERROR = "Algo salió mal. Intenta nuevamente.";
+const GENERIC_ERROR = "Algo salió mal. Intentá nuevamente.";
 const MAX_PARTY_SIZE = 10;
 
 const festivalIdSchema = z.number().int().positive();
@@ -156,7 +156,7 @@ export async function registerVisitor(input: {
   if (!details.success) {
     return {
       success: false,
-      message: details.error.issues[0]?.message ?? "Revisa tus datos",
+      message: details.error.issues[0]?.message ?? "Revisá tus datos",
     };
   }
 
@@ -252,7 +252,7 @@ async function claim(input: {
     if (!date) {
       return {
         success: false,
-        message: "Esa fecha ya no está disponible. Elige otra.",
+        message: "Esa fecha ya no está disponible. Elegí otra.",
       };
     }
 
@@ -342,7 +342,7 @@ export async function claimDoorTicket(input: {
   });
 }
 
-/** "¿No eres tú?": forget the visitor this browser was acting as. */
+/** "¿No sos …?": forget the visitor this browser was acting as. */
 export async function forgetVisitor() {
   await endVisitorSession();
 }
@@ -387,6 +387,6 @@ export async function requestTicketHistoryLink(input: {
   return {
     success: true,
     message:
-      "Si ese correo tiene entradas, te enviamos un enlace para verlas. Revisa tu bandeja de entrada y la carpeta de spam.",
+      "Si ese correo tiene entradas, te enviamos un enlace para verlas. Revisá tu bandeja de entrada y la carpeta de spam.",
   };
 }

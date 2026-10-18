@@ -30,7 +30,7 @@ const FormSchema = z
     birthdate: birthdateValidator({
       minAge: 16,
       minAgeMessage:
-        "Debes tener al menos 16 años para participar de nuestros eventos",
+        "Debés tener al menos 16 años para participar de nuestros eventos",
     }),
     firstName: z.string().trim().min(2, {
       error: "El nombre tiene que tener al menos dos letras",
@@ -129,12 +129,12 @@ export default function PrivateProfileForm({
         <TextInput
           bottomBorderOnly
           name="firstName"
-          label="Ingresa tu nombre"
+          label="Ingresá tu nombre"
         />
         <TextInput
           bottomBorderOnly
           name="lastName"
-          label="Ingresa tu apellido"
+          label="Ingresá tu apellido"
         />
         <DateInput
           bottomBorderOnly
@@ -152,7 +152,7 @@ export default function PrivateProfileForm({
           label="Género"
           name="gender"
           options={genderOptions}
-          placeholder="Elige una opción"
+          placeholder="Elegí una opción"
           variant="quiet"
         />
         <SelectInput
@@ -160,7 +160,7 @@ export default function PrivateProfileForm({
           label="País de residencia"
           name="country"
           options={countryOptions}
-          placeholder="Elige una opción"
+          placeholder="Elegí una opción"
           variant="quiet"
         />
         {country === "BO" && (
@@ -169,7 +169,7 @@ export default function PrivateProfileForm({
             label="Departamento de residencia"
             name="state"
             options={stateOptions}
-            placeholder="Elige una opción"
+            placeholder="Elegí una opción"
             variant="quiet"
           />
         )}

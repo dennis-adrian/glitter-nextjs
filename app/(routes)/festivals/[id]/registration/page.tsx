@@ -18,7 +18,7 @@ import {
 
 export const metadata: Metadata = {
   title: "Registro para evento",
-  description: "Adquiere tu entrada para nuestro próximo festival",
+  description: "Adquirí tu entrada para nuestro próximo festival",
   robots: { index: false, follow: false },
 };
 

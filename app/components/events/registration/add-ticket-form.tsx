@@ -66,7 +66,7 @@ export default function AddTicketForm({
   return (
     <Form {...form}>
       <form onSubmit={action} className="grid gap-3">
-        <h2 className="text-lg font-medium">Elige el día que asistirás</h2>
+        <h2 className="text-lg font-medium">Elegí el día que vas a asistir</h2>
         <FormField
           control={form.control}
           name="selectedDate"

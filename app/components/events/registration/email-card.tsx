@@ -31,7 +31,7 @@ export default function EmailCard(props: EmailCardProps) {
         />
         {props.continueAs ? (
           <p className="mt-4 rounded-md border bg-muted/50 p-3 text-sm">
-            ¿Eres {props.continueAs}?{" "}
+            ¿Sos {props.continueAs}?{" "}
             <Link href="?step=3" className="font-medium underline">
               Ver tus entradas
             </Link>

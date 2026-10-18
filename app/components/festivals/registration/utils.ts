@@ -1,7 +1,7 @@
 export const stepsDescription = [
   {
-    title: "¿Cómo vienes al evento?",
-    description: "Elige la opción que mejor refleje tu situación",
+    title: "¿Cómo venís al evento?",
+    description: "Elegí la opción que mejor refleje tu situación",
   },
   {
     title: "¿Cuántas personas ingresarán?",
@@ -16,7 +16,7 @@ export const stepsDescription = [
   {
     title: "¿Cuál es tu nombre?",
     description:
-      "Parece que es la primera vez que visitas uno de nuestros eventos, queremos saber cómo te llamas",
+      "Parece que es la primera vez que visitás uno de nuestros eventos, queremos saber cómo te llamás",
   },
   {
     title: "¿Cuándo es tu cumpleaños?",
@@ -29,8 +29,8 @@ export const stepsDescription = [
       "No te enviaremos spam, no vendemos nada más que eventos llenos de arte. Sólo te avisaremos cuando tengamos algo nuevo que te pueda interesar",
   },
   {
-    title: "¿Cómo te identificas?",
+    title: "¿Cómo te identificás?",
     description:
-      "Queremos crear un ambiente donde todas las personas se sientan cómodas. Elige la opción que más te identifique",
+      "Queremos crear un ambiente donde todas las personas se sientan cómodas. Elegí la opción que más te identifique",
   },
 ];

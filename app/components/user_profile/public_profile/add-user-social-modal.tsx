@@ -103,7 +103,7 @@ export default function AddUserSocialModal({
           <DialogHeader>
             <DialogTitle>Agregar red social</DialogTitle>
             <DialogDescription>
-              Agrega una nueva red social a tu perfil.
+              Agregá una nueva red social a tu perfil.
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -121,7 +121,7 @@ export default function AddUserSocialModal({
                   ),
                   value: option.value,
                 }))}
-                placeholder="Selecciona una plataforma"
+                placeholder="Seleccioná una plataforma"
               />
               <SocialMediaInput
                 formControl={form.control}

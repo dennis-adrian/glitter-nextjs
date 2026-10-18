@@ -18,7 +18,7 @@ import { z } from "zod";
 
 const FormSchema = z.object({
   email: z.email({
-    error: "El correo electronico no es valido",
+    error: "El correo electrónico no es válido",
   }),
 });
 
