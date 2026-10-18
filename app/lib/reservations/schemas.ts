@@ -200,17 +200,6 @@ export const extendDeadlineSchema = z.object({
   dueAt: z.coerce.date(),
 });
 
-export const discountCodeMutationSchema = z.object({
-  code: z.string().trim().min(1).max(64),
-  discountUnit: z.enum(["percentage", "amount"]),
-  discountValue: moneyAmountSchema,
-  maxUses: z.number().int().positive().nullable().optional(),
-  expiresAt: z.coerce.date(),
-  isActive: z.boolean().optional(),
-  festivalId: positiveIntSchema.nullable().optional(),
-  userId: positiveIntSchema.nullable().optional(),
-});
-
 export function parseUnknown<T>(
   schema: z.ZodType<T>,
   input: unknown,

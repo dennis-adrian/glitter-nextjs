@@ -1,31 +1,26 @@
 import DiscountCodeForm from "@/app/components/organisms/discount_codes/discount-code-form";
-import { fetchProfiles } from "@/app/api/users/actions";
 import { fetchFestivals } from "@/app/lib/festivals/actions";
 import { getFestivalsOptions } from "@/app/lib/festivals/utils";
+import { requireAdmin } from "@/app/lib/users/helpers";
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Nuevo código de descuento",
+};
 
 export default async function AddDiscountCodePage() {
-  const [festivals, users] = await Promise.all([
-    fetchFestivals(),
-    fetchProfiles(),
-  ]);
+  // Discount codes are global-admin only; the dashboard layout also admits
+  // festival admins, and a layout is not a boundary.
+  if (!(await requireAdmin())) redirect("/dashboard");
 
-  const festivalsOptions = getFestivalsOptions(festivals);
-  const usersOptions = users.map((user) => ({
-    value: user.id.toString(),
-    displayName: user.displayName,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-  }));
+  const festivals = await fetchFestivals();
 
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-2xl font-bold mb-4">Agregar código de descuento</h1>
-      <div className="max-w-lg">
-        <DiscountCodeForm
-          festivalsOptions={festivalsOptions}
-          usersOptions={usersOptions}
-        />
+      <h1 className="text-2xl font-bold mb-4">Nuevo código de descuento</h1>
+      <div className="max-w-xl">
+        <DiscountCodeForm festivalsOptions={getFestivalsOptions(festivals)} />
       </div>
     </div>
   );

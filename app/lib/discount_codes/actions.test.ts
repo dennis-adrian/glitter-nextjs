@@ -41,6 +41,7 @@ vi.mock("@/app/lib/reservations/locks", () => ({
 import {
   createDiscountCode,
   fetchDiscountCodes,
+  updateDiscountCode,
   validateAndApplyDiscountCode,
 } from "@/app/lib/discount_codes/actions";
 import {
@@ -201,5 +202,181 @@ describe("validateAndApplyDiscountCode lock order", () => {
     expect(lockFestivalRow).not.toHaveBeenCalled();
     expect(lockStandRows).not.toHaveBeenCalled();
     expect(select).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** A query builder that resolves to `rows` however it is chained. */
+function chain(rows: unknown[]) {
+  const builder: Record<string, unknown> = {};
+  for (const method of ["from", "where", "innerJoin", "limit", "for"]) {
+    builder[method] = vi.fn(() => builder);
+  }
+  builder.then = (
+    resolve: (value: unknown) => unknown,
+    reject: (reason: unknown) => unknown,
+  ) => Promise.resolve(rows).then(resolve, reject);
+  return builder;
+}
+
+describe("discount code admin validation", () => {
+  const validInput = {
+    code: "VIP2026",
+    discountUnit: "percentage" as const,
+    discountValue: 10,
+    maxUses: null,
+    festivalId: null,
+    audience: "everyone" as const,
+    userIds: [],
+    expiresAt: new Date(Date.now() + 86_400_000),
+    isActive: true,
+  };
+
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+  });
+
+  it.each([
+    [
+      "a reserved code with nobody on it",
+      { audience: "selected_users" as const, userIds: [] },
+      "Elegí al menos un usuario.",
+    ],
+    [
+      "a percentage above 100",
+      { discountValue: 150 },
+      "Un porcentaje no puede superar el 100%.",
+    ],
+    [
+      "a code participants could not type",
+      { code: "VIP 2026" },
+      "Usá solo letras, números, guiones o guiones bajos en el código.",
+    ],
+    [
+      "a code that has already expired",
+      { expiresAt: new Date(Date.now() - 1000) },
+      "La fecha de vencimiento tiene que ser futura.",
+    ],
+    [
+      "a code longer than participants can apply",
+      { code: "A".repeat(65) },
+      "Datos de código inválidos.",
+    ],
+  ])("refuses %s before writing anything", async (_label, patch, message) => {
+    await expect(
+      createDiscountCode({ ...validInput, ...patch }),
+    ).resolves.toEqual({ success: false, message });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a limit below the uses a code already has", async () => {
+    const update = vi.fn();
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback({
+          select: vi.fn(() => chain([{ code: "vip2026", currentUses: 6 }])),
+          update,
+        }),
+    );
+
+    await expect(
+      updateDiscountCode(3, { ...validInput, maxUses: 5 }),
+    ).resolves.toEqual({
+      success: false,
+      message:
+        "El límite de usos no puede ser menor a los 6 usos que ya tiene.",
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("validateAndApplyDiscountCode audience", () => {
+  const invoiceRow = {
+    id: 10,
+    originalAmount: 400,
+    discountAmount: 0,
+    amount: 400,
+    discountCodeId: null,
+    status: "pending",
+    userId: 5,
+    festivalId: 3,
+  };
+  const reservedCode = {
+    id: 21,
+    code: "vip",
+    discountUnit: "percentage",
+    discountValue: 25,
+    maxUses: null,
+    currentUses: 0,
+    festivalId: null,
+    audience: "selected_users",
+    expiresAt: new Date(Date.now() + 86_400_000),
+    isActive: true,
+  };
+
+  function transactionWith(assignedRows: unknown[]) {
+    const update = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+    }));
+    const select = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        chain([{ id: 10, userId: 5, festivalId: 3, standId: 8 }]),
+      )
+      .mockImplementationOnce(() => chain([invoiceRow]))
+      .mockImplementationOnce(() => chain([]))
+      .mockImplementationOnce(() => chain([reservedCode]))
+      .mockImplementationOnce(() => chain(assignedRows));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback({ select, update }),
+    );
+    return { select, update };
+  }
+
+  beforeEach(() => {
+    currentProfileMock.mockReset();
+    transactionMock.mockReset();
+    consumeActionRateLimitMock.mockReset();
+    consumeActionRateLimitMock.mockResolvedValue(true);
+  });
+
+  it("refuses a reserved code on the invoice of someone not on its list", async () => {
+    currentProfileMock.mockResolvedValue({ id: 5, role: "user" });
+    const { select, update } = transactionWith([]);
+
+    await expect(
+      validateAndApplyDiscountCode({ code: "VIP", invoiceId: 10 }),
+    ).resolves.toEqual({
+      success: false,
+      message: "Código de descuento inválido o inactivo.",
+    });
+    expect(select).toHaveBeenCalledTimes(5);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("applies a reserved code for someone on its list", async () => {
+    currentProfileMock.mockResolvedValue({ id: 5, role: "user" });
+    const { update } = transactionWith([{ id: 99 }]);
+
+    await expect(
+      validateAndApplyDiscountCode({ code: "VIP", invoiceId: 10 }),
+    ).resolves.toMatchObject({
+      success: true,
+      discountAmount: 100,
+      newAmount: 300,
+    });
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
+  it("holds an admin applying on someone's behalf to the owner's place on the list", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+    const { update } = transactionWith([]);
+
+    await expect(
+      validateAndApplyDiscountCode({ code: "VIP", invoiceId: 10 }),
+    ).resolves.toMatchObject({ success: false });
+    expect(update).not.toHaveBeenCalled();
   });
 });
