@@ -9,6 +9,7 @@ import {
 import { BlockNoteView } from "@blocknote/shadcn";
 import { es } from "@blocknote/core/locales";
 import type { Block } from "@blocknote/core";
+import { useTheme } from "next-themes";
 
 import "@blocknote/shadcn/style.css";
 
@@ -68,6 +69,7 @@ export default function RichTextEditorInner({
   uploadFile,
   className,
 }: RichTextEditorInnerProps) {
+  const { resolvedTheme } = useTheme();
   const editor = useCreateBlockNote({
     schema: schemaForVariant(variant) as never,
     dictionary: {
@@ -94,7 +96,7 @@ export default function RichTextEditorInner({
       <BlockNoteView
         editor={editor}
         editable={editable}
-        theme="light"
+        theme={resolvedTheme === "dark" ? "dark" : "light"}
         slashMenu={false}
         onChange={async () => {
           const html = await editor.blocksToHTMLLossy(editor.document);

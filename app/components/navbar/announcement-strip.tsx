@@ -133,7 +133,7 @@ export default function AnnouncementStrip({
     <section
       ref={stripRef}
       aria-label="Anuncios"
-      className="border-b border-white/15 bg-brand-ink px-5 py-2 text-center text-sm text-white sm:px-8"
+      className="border-b border-white/15 bg-brand-deep px-5 py-2 text-center text-sm text-white sm:px-8"
     >
       <ul
         aria-live={display === "rotating" ? "polite" : undefined}

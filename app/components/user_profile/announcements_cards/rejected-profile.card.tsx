@@ -15,7 +15,7 @@ export default function RejectedProfileCard({
 }) {
   return (
     <BaseCard
-      className="bg-red-100 text-red-900 border-red-300"
+      className="bg-red-100 text-red-900 border-red-300 dark:bg-red-900/40 dark:text-red-100 dark:border-red-800"
       content={
         profile
           ? "Tu perfil fue rechazado. Revisá el motivo en el correo que te enviamos, corregí tus datos y pedí una nueva revisión."

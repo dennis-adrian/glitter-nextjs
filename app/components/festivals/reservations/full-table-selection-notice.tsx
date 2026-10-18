@@ -95,15 +95,15 @@ export default function FullTableSelectionNotice({
   if (selection.kind !== "fallback") return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+    <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
       <div className="w-20 shrink-0">
         <FullTableGraphic variant="companion-unavailable" />
       </div>
       <div>
-        <p className="text-sm font-semibold text-amber-900">
+        <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
           La mesa completa ya no está disponible
         </p>
-        <p className="mt-1 text-sm text-amber-800">
+        <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
           {companionLabel
             ? `El espacio ${companionLabel} ya está ocupado. `
             : "La otra mitad no está disponible. "}

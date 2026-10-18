@@ -21,9 +21,11 @@ export default function SaveIndicator({ status, errorMessage }: Props) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs",
-        isGreen && "border-primary-700 text-primary-700",
+        isGreen &&
+          "border-primary-700 text-primary-700 dark:border-primary-400 dark:text-primary-300",
         status === "saving" && "text-muted-foreground",
-        status === "error" && "border-red-200 text-red-700",
+        status === "error" &&
+          "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300",
       )}
       title={status === "error" ? errorMessage : undefined}
     >

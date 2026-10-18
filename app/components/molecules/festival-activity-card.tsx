@@ -60,10 +60,10 @@ export default function FestivalActivityCard({
           </div>
           {isUserInActivity &&
             (isUserRemoved ? (
-              <div className="flex flex-col gap-1 border border-red-200 text-red-800 bg-red-50 rounded-md p-3 text-sm">
+              <div className="flex flex-col gap-1 border border-red-200 text-red-800 bg-red-50 rounded-md p-3 text-sm dark:border-red-900 dark:text-red-200 dark:bg-red-950/40">
                 <p className="font-medium">Fuiste removido de la actividad</p>
                 {userParticipation?.removalReason && (
-                  <p className="text-xs text-red-700">
+                  <p className="text-xs text-red-700 dark:text-red-300">
                     {userParticipation.removalReason}
                   </p>
                 )}
@@ -72,18 +72,18 @@ export default function FestivalActivityCard({
               activity.proofType &&
               (!hasUploadedProof ? (
                 proofUploadExpired ? (
-                  <div className="flex gap-2 md:gap-3 text-sm border border-stone-200 text-stone-800 bg-stone-50 rounded-md p-3">
+                  <div className="flex gap-2 md:gap-3 text-sm border border-border text-foreground bg-muted/50 rounded-md p-3">
                     <CircleAlertIcon className="w-5 h-5 shrink-0" />
                     <p>{getProofUploadExpiredMessage(activity.type)}</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2 md:gap-3 text-sm border border-amber-200 text-amber-900 bg-amber-50 rounded-md p-3">
+                  <div className="flex flex-col gap-2 md:gap-3 text-sm border border-amber-200 text-amber-900 bg-amber-50 rounded-md p-3 dark:border-amber-900 dark:text-amber-100 dark:bg-amber-950/40">
                     <div className="flex gap-2 md:gap-3">
-                      <CircleAlertIcon className="w-5 h-5 text-amber-900" />
+                      <CircleAlertIcon className="w-5 h-5 text-amber-900 dark:text-amber-100" />
                       <div className="flex flex-col gap-1 md:gap-2">
                         <p>{getProofUploadReminderMessage(activity.type)}</p>
                         {activity.proofUploadLimitDate && (
-                          <p className="text-yellow-700">
+                          <p className="text-yellow-700 dark:text-yellow-300">
                             Tenés hasta el{" "}
                             <DateSpan
                               date={activity.proofUploadLimitDate}
@@ -111,7 +111,7 @@ export default function FestivalActivityCard({
               ) : (
                 <div className="flex items-center gap-2 mt-2">
                   <CheckCircleIcon className="w-4 h-4 text-green-600" />
-                  <p className="text-sm text-green-600">
+                  <p className="text-sm text-green-600 dark:text-green-400">
                     Subiste {getMaterialConfig(activity.type).uploadTarget}.
                   </p>
                 </div>
@@ -122,7 +122,7 @@ export default function FestivalActivityCard({
               href={`/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity/${activity.id}`}
               size="sm"
               variant="outline"
-              className="w-full md:w-28 border-emerald-500 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-500 focus:text-emerald-500"
+              className="w-full md:w-28 border-emerald-500 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-500 focus:text-emerald-500 dark:text-emerald-400 dark:hover:bg-emerald-900/40"
               loadingText=""
             >
               Ver más

@@ -108,13 +108,13 @@ export default function SlugField({
         </p>
       )}
       {status.kind === "free" && (
-        <p className="flex items-center gap-1.5 text-xs text-emerald-600">
+        <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
           <CheckIcon className="size-3" />
           Disponible
         </p>
       )}
       {status.kind === "taken" && (
-        <p className="flex items-start gap-1.5 text-xs text-amber-600">
+        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
           <TriangleAlertIcon className="mt-px size-3 shrink-0" />
           <span>
             Ya hay un artículo con ese slug. Si lo dejás así, se publicará como{" "}

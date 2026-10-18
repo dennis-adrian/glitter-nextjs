@@ -1,11 +1,12 @@
 "use client";
 
+import ThemeImage from "@/app/components/atoms/theme-image";
+import { ModeToggle } from "@/app/components/mode-toggle";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
 import SessionButtons from "@/app/components/navbar/session-buttons";
 import { useNavbarProfile } from "@/app/components/navbar/use-navbar-profile";
 import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 import { MenuIcon } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 
 type Props = {
@@ -43,13 +44,17 @@ export default function NavbarClient({
               aria-label="Productora Glitter, inicio"
               className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary"
             >
-              <Image
-                src="/img/logo/glitter-logo-full-primary-1696x739.png"
+              <ThemeImage
+                srcLight="/img/logo/glitter-logo-full-primary-1696x739.png"
+                srcDark="/img/logo/glitter-logo-full-white-1696x741.png"
                 alt="Productora Glitter"
                 width={1696}
                 height={739}
                 sizes="(min-width: 1280px) 120px, (min-width: 640px) 108px, 88px"
-                priority
+                // Both wordmarks are a few KB; fetching the hidden one too
+                // beats holding back the page's largest paint.
+                loading="eager"
+                fetchPriority="high"
                 className="h-auto w-[88px] object-contain sm:w-[108px] xl:w-[120px]"
               />
             </Link>
@@ -61,7 +66,10 @@ export default function NavbarClient({
               blogEnabled={blogEnabled}
             />
           </li>
-          <li className="flex shrink-0 justify-self-end">
+          <li className="flex shrink-0 items-center gap-2 justify-self-end">
+            {/* No room beside the session buttons on the narrowest phones;
+                the mobile menu carries the same control there. */}
+            <ModeToggle className="hidden sm:inline-flex" />
             <SessionButtons
               profile={profile}
               creditsEnabled={creditsEnabled}

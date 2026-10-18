@@ -167,7 +167,7 @@ export default function PurchaseReviewCard({
 
       <CardContent className="space-y-4">
         {promo ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-950">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-950 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-100">
             <span>
               <strong>{promo.code}</strong> · {promo.partnerName} ·{" "}
               {promo.discountPercent}%

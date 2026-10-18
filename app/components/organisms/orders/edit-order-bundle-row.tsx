@@ -42,7 +42,7 @@ export default function EditOrderBundleRow({
         bundle.isRemoved ? "opacity-50" : ""
       }`}
     >
-      <div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
+      <div className="h-20 w-20 rounded-md overflow-hidden bg-muted shrink-0">
         <Image
           src={bundle.imageUrl}
           alt=""
@@ -85,7 +85,7 @@ export default function EditOrderBundleRow({
               <button
                 type="button"
                 onClick={() => onUndoRemove(bundle.orderBundleId)}
-                className="text-xs text-purple-600 hover:underline"
+                className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
               >
                 Deshacer
               </button>
@@ -132,7 +132,7 @@ export default function EditOrderBundleRow({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                  className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/40"
                   onClick={() => onRemove(bundle.orderBundleId)}
                   aria-label={`Eliminar combo ${bundle.name}`}
                 >

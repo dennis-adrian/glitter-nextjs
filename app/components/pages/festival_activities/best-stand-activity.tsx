@@ -61,14 +61,14 @@ export default async function BestStandActivityPage({
         <p>{activity.description}</p>
       </section>
       {!activityVariantForProfile && (
-        <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
+        <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
           <AlertCircleIcon className="w-6 h-6 shrink-0" />
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">
               Esta actividad no está disponible para tu categoría
               {categoryLabel ? ` (${categoryLabel})` : ""}
             </p>
-            <p className="text-xs text-amber-700">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
               Stand Icónico se organiza por categoría (Ilustración, Gastronomía
               y Emprendimiento creativo). En esta edición, la actividad no está
               habilitada para la categoría de tu perfil. Sí vas a poder votar

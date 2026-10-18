@@ -86,7 +86,7 @@ export default function EnrollRedirectButton({
 
   if (!activity.details?.length) {
     return (
-      <div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-muted-foreground">
+      <div className="flex flex-col text-center border border-border rounded-md p-4 bg-muted/50 text-muted-foreground">
         <p className="text-sm">Inscripción no disponible</p>
       </div>
     );
@@ -307,7 +307,7 @@ export default function EnrollRedirectButton({
     }
 
     return (
-      <div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-gray-800">
+      <div className="flex flex-col text-center border border-border rounded-md p-4 bg-muted/50 text-foreground">
         <p className="text-sm">
           La actividad ya ha llegado al límite de inscripciones
         </p>
@@ -317,12 +317,12 @@ export default function EnrollRedirectButton({
 
   if (justEnrolled && newParticipationId) {
     return (
-      <div className="flex flex-col gap-4 rounded-md border border-emerald-200 bg-emerald-50 p-4">
-        <div className="flex items-center gap-2 text-emerald-800">
+      <div className="flex flex-col gap-4 rounded-md border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
+        <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
           <CheckCircle2Icon className="w-5 h-5" />
           <p className="text-sm font-medium">¡Inscripción exitosa!</p>
         </div>
-        <p className="text-sm text-emerald-700">
+        <p className="text-sm text-emerald-700 dark:text-emerald-300">
           Completá los detalles de tu promoción para finalizar tu participación.
         </p>
         <CouponBookProofModal
@@ -361,10 +361,12 @@ export default function EnrollRedirectButton({
       const removalMessage =
         proof?.adminFeedback ?? userParticipation?.removalReason ?? null;
       return (
-        <div className="flex flex-col gap-1 border border-red-200 rounded-md p-4 bg-red-50 text-red-800">
+        <div className="flex flex-col gap-1 border border-red-200 rounded-md p-4 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           <p className="text-sm font-medium">Fuiste removido de la actividad</p>
           {removalMessage && (
-            <p className="text-xs text-red-700">{removalMessage}</p>
+            <p className="text-xs text-red-700 dark:text-red-300">
+              {removalMessage}
+            </p>
           )}
         </div>
       );
@@ -381,7 +383,7 @@ export default function EnrollRedirectButton({
       );
 
       return (
-        <div className="flex flex-col gap-3 text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+        <div className="flex flex-col gap-3 text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           <p className="text-sm">Tu información está en revisión</p>
           {proof?.imageUrl && (
             <div className="relative mx-auto w-40 aspect-square overflow-hidden rounded-md bg-white">
@@ -410,7 +412,7 @@ export default function EnrollRedirectButton({
     // Approved
     if (proofDisplayState === "approved") {
       return (
-        <div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
+        <div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
           <p className="text-sm">Participación confirmada</p>
         </div>
       );
@@ -421,7 +423,7 @@ export default function EnrollRedirectButton({
     // No proof required
     if (!proofType) {
       return (
-        <div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
+        <div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
           <p className="text-sm">Ya estás inscrito en esta actividad</p>
         </div>
       );
@@ -435,7 +437,7 @@ export default function EnrollRedirectButton({
     // cannot upload or resubmit anymore.
     if (proofUploadExpired) {
       return (
-        <div className="border border-stone-200 rounded-md p-4 bg-stone-50 text-stone-800">
+        <div className="border border-border rounded-md p-4 bg-muted/50 text-foreground">
           <p className="text-sm">
             {getProofUploadExpiredMessage(activity.type)}
           </p>
@@ -447,7 +449,7 @@ export default function EnrollRedirectButton({
     if (userParticipation) {
       if (proofType === "text" || proofType === "both") {
         return (
-          <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+          <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             <p>
               {proofDisplayState === "rejected_resubmit"
                 ? "Se solicitaron correcciones en los detalles de tu promoción"
@@ -472,7 +474,7 @@ export default function EnrollRedirectButton({
 
       // image or both — image upload
       return (
-        <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+        <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           <p>
             Ya estás inscrito. {getProofUploadReminderMessage(activity.type)}.
           </p>
@@ -486,7 +488,7 @@ export default function EnrollRedirectButton({
     }
 
     return (
-      <div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
+      <div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
         <p className="text-sm">Ya estás inscrito en esta actividad</p>
       </div>
     );

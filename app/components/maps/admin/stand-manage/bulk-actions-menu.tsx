@@ -112,7 +112,7 @@ function DisabledReason({ reason }: { reason: string }) {
 function confirmationNote(count: number) {
   if (count <= CONFIRMATION_THRESHOLD) return null;
   return (
-    <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
       Vas a aplicar este cambio a <strong>{count}</strong> espacios. Verifica
       antes de guardar.
     </p>
@@ -493,7 +493,7 @@ export default function StandBulkActionsMenu({
         onOpenChange={(next) => setDialog(next ? "price" : null)}
         notice={
           addedCompanions.length > 0 ? (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
               Las dos mitades de una mesa completa deben quedar al mismo precio,
               así que este cambio también alcanza a{" "}
               <strong>
@@ -639,7 +639,7 @@ export default function StandBulkActionsMenu({
           </p>
 
           {declareReason == null && bookedSelectedRows.length > 0 && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
               {bookedSelectedRows.length === 1
                 ? `${standDisplayLabel(bookedSelectedRows[0])} tiene una reserva vigente. Declarar la mesa no la cambia: sigue en ese espacio, con el mismo precio. Mientras siga vigente, la mesa no se ofrece entera y el otro espacio se reserva como media mesa. Cuando la mesa tenga precio, esa reserva se va a poder ampliar a mesa completa.`
                 : `${bookedSelectedRows.map(standDisplayLabel).join(" y ")} tienen reservas vigentes distintas. Declarar la mesa no las cambia: cada una sigue en su espacio, con el mismo precio. La mesa no se ofrece entera mientras alguna siga vigente.`}
@@ -756,7 +756,7 @@ export default function StandBulkActionsMenu({
           </ul>
 
           {bookedDissolveMembers.length > 0 && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
               {bookedDissolveMembers.map(standDisplayLabel).join(" y ")}{" "}
               {bookedDissolveMembers.length === 1
                 ? "tiene una reserva vigente. La reserva no cambia, pero deja de poder ampliarse a mesa completa. Si te equivocaste, podés volver a declarar la mesa enseguida."

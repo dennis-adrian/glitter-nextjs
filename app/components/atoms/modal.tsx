@@ -57,17 +57,19 @@ export const Modal = ({ isOpen, onClose, children, title }: ModalProps) => {
     >
       <div
         ref={modalRef}
-        className={`pointer-events-auto relative w-full max-w-lg transform rounded-lg bg-white p-6 shadow-xl transition-all duration-300 ${
+        className={`pointer-events-auto relative w-full max-w-lg transform rounded-lg bg-card p-6 text-card-foreground shadow-xl transition-all duration-300 ${
           isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
         }`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
         {title && (
-          <h2 className="mb-4 text-xl font-semibold text-gray-900">{title}</h2>
+          <h2 className="mb-4 text-xl font-semibold text-foreground">
+            {title}
+          </h2>
         )}
         <button
-          className="absolute right-4 top-4 text-gray-500 hover:text-gray-700"
+          className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
           onClick={onClose}
           aria-label="Close modal"
         >

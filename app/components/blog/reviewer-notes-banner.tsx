@@ -27,7 +27,7 @@ export default function ReviewerNotesBanner({
         : "El equipo de revisión solicitó cambios";
 
   return (
-    <Alert className="border-amber-300 bg-amber-50">
+    <Alert className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40">
       <MessageSquareWarning className="h-4 w-4 text-amber-600" />
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription className="whitespace-pre-line">

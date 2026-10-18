@@ -94,7 +94,7 @@ export default function UploadStickerDesignModal({
       return (
         <div className="flex flex-col gap-2 items-center justify-center h-36">
           <CheckCircleIcon className="w-10 h-10 text-green-500" />
-          <p className="text-sm text-green-500">
+          <p className="text-sm text-green-500 dark:text-green-400">
             {uploadedFiles.length === 1
               ? "Diseño subido correctamente"
               : `Diseños subidos correctamente`}

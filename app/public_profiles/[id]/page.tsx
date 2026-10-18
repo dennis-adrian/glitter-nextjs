@@ -25,7 +25,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         <FullProfile profileId={profile.id} />
       </Suspense>
       <Image
-        className="h-[120px] lg:h-[200px] w-full rounded-lg bg-gray-100"
+        className="h-[120px] lg:h-[200px] w-full rounded-lg bg-muted"
         src="/img/profile-default-banner.png"
         alt="Banner de usuario"
         width={1024}

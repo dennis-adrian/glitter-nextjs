@@ -81,7 +81,7 @@ export default function CreditDebtsDataTable({
         row.original.debtAmount > 0 ? (
           <CreditAmount
             amount={row.original.debtAmount}
-            className="font-medium text-red-600"
+            className="font-medium text-red-600 dark:text-red-400"
           />
         ) : (
           <span className="text-muted-foreground">—</span>
@@ -110,7 +110,7 @@ export default function CreditDebtsDataTable({
           <span title="No coincide con el libro; el libro manda.">
             <CreditAmount
               amount={row.original.cachedBalance}
-              className="text-amber-700"
+              className="text-amber-700 dark:text-amber-300"
             />
           </span>
         ) : (
@@ -183,13 +183,13 @@ export default function CreditDebtsDataTable({
               amount={row.ledgerBalance}
               className={
                 row.debtAmount > 0
-                  ? "shrink-0 font-semibold text-red-600"
+                  ? "shrink-0 font-semibold text-red-600 dark:text-red-400"
                   : "shrink-0 font-semibold"
               }
             />
           </div>
           {row.hasDrift && (
-            <p className="text-xs text-amber-700">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
               El saldo en caché no coincide con el libro.
             </p>
           )}

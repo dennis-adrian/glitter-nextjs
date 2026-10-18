@@ -219,11 +219,11 @@ export default function RegisterInfractionForm({
           />
         )}
         {duplicates.length > 0 && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm space-y-2">
-            <p className="font-medium text-amber-900">
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm space-y-2 dark:border-amber-800 dark:bg-amber-950/40">
+            <p className="font-medium text-amber-900 dark:text-amber-100">
               Posibles infracciones duplicadas (últimas 24 h)
             </p>
-            <ul className="list-disc pl-4 space-y-1 text-amber-900">
+            <ul className="list-disc pl-4 space-y-1 text-amber-900 dark:text-amber-100">
               {duplicates.map((duplicate) => (
                 <li key={duplicate.id}>
                   #{duplicate.id} · {duplicate.type.label} ·{" "}

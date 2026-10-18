@@ -101,7 +101,7 @@ export default async function Page(props: {
           backHref="/my_profile"
         />
         <div className="p-20">
-          <p className="text-center text-2xl font-bold text-gray-500">
+          <p className="text-center text-2xl font-bold text-muted-foreground">
             No tenés pagos pendientes
           </p>
         </div>

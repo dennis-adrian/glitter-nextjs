@@ -75,7 +75,7 @@ export default function GuestCartItemRow({
             </span>
           )}
           {!stockIssue?.isOutOfStock && stockIssue?.quantityExceedsStock && (
-            <span className="inline-block text-xs text-amber-600 font-medium mt-1">
+            <span className="inline-block text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
               {stockIssue.stock === 1
                 ? "Solo queda 1 disponible"
                 : `Solo quedan ${stockIssue.stock} disponibles`}
