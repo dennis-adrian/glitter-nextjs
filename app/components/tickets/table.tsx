@@ -3,6 +3,7 @@ import { columnTitles, columns } from "@/app/components/tickets/columns";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { getTicketResendDisabledReason } from "@/app/lib/tickets/resend";
 
 type UsersTableProps = {
   festival: FestivalWithDates;
@@ -12,11 +13,22 @@ type UsersTableProps = {
 };
 export default function TicketsTable(props: UsersTableProps) {
   const dates = props.festival.festivalDates;
+  const festivalIsActive = props.festival.status === "active";
+  // The dashboard layout admits only staff; the action checks again.
+  const rows = props.tickets.map((ticket) => ({
+    ...ticket,
+    resendDisabledReason: getTicketResendDisabledReason({
+      isStaff: true,
+      festivalIsActive,
+      ticketNumber: ticket.ticketNumber,
+    }),
+  }));
+
   return (
     <DataTable
       columns={columns}
       columnTitles={columnTitles}
-      data={props.tickets}
+      data={rows}
       filters={[
         {
           columnId: "date",

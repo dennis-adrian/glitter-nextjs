@@ -79,6 +79,17 @@ export function isProfileComplete(profile?: ProfileType | null) {
   );
 }
 
+/**
+ * The avatar Clerk assigns at sign-up, or one left on the retired EdgeStore
+ * bucket. Either way the participant hasn't uploaded a picture we can show.
+ */
+export function hasPlaceholderProfilePicture(profile: ProfileType) {
+  return (
+    !!profile.imageUrl?.includes("clerk") ||
+    !!profile.imageUrl?.includes("edgestore")
+  );
+}
+
 const requiredProfileFields = [
   { key: "bio", label: "Bio", isPublic: true },
   { key: "imageUrl", label: "Imagen de perfil", isPublic: true },
@@ -110,10 +121,7 @@ export function getMissingProfileFieldsKeys(profile: ProfileType) {
     missingFields.push("category");
   }
 
-  if (
-    profile.imageUrl?.includes("clerk") ||
-    profile.imageUrl?.includes("edgestore")
-  ) {
+  if (hasPlaceholderProfilePicture(profile)) {
     missingFields.push("imageUrl");
   }
 
@@ -156,11 +164,7 @@ export function getMissingProfileFields(profile: ProfileType) {
     });
   }
 
-  if (
-    imageField &&
-    (profile.imageUrl?.includes("clerk") ||
-      profile.imageUrl?.includes("edgestore"))
-  ) {
+  if (imageField && hasPlaceholderProfilePicture(profile)) {
     missingFields.push(imageField);
   }
 

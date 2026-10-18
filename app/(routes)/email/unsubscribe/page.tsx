@@ -48,7 +48,7 @@ export default async function Page(props: {
           <CardHeader>
             <CardTitle>Este enlace no es válido</CardTitle>
             <CardDescription>
-              Si quieres dejar de recibir nuestros correos, escríbenos a{" "}
+              Si querés dejar de recibir nuestros correos, escribinos a{" "}
               <a
                 href="mailto:soporte@productoraglitter.com"
                 className="font-medium underline"

@@ -87,7 +87,7 @@ export default function CompleteProfileModal({
       >
         <DialogHeader>
           <DialogTitle className="text-center text-lg md:text-xl">
-            Completa tu perfil
+            Completá tu perfil
           </DialogTitle>
         </DialogHeader>
         <div>{renderContent()}</div>

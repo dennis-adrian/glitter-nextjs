@@ -41,7 +41,7 @@ export default function ProgramPurchaseLinkEmailTemplate({
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>
-              {buyerName}, aquí tienes un enlace nuevo para ver tu inscripción a{" "}
+              {buyerName}, aquí tenés un enlace nuevo para ver tu inscripción a{" "}
               <strong>{sessionTitle}</strong>.
             </Text>
 
@@ -52,7 +52,7 @@ export default function ProgramPurchaseLinkEmailTemplate({
             </Section>
 
             <Text style={{ ...styles.text, fontSize: "12px" }}>
-              ¿No funciona el botón? Copia y pega este enlace:
+              ¿No funciona el botón? Copiá y pegá este enlace:
             </Text>
             <Text
               style={{
@@ -65,8 +65,8 @@ export default function ProgramPurchaseLinkEmailTemplate({
             </Text>
 
             <Text style={{ ...styles.text, fontSize: "12px" }}>
-              <strong>El enlace anterior dejó de funcionar.</strong> Usa este y
-              no lo compartas — cualquier persona que lo tenga puede ver tu
+              <strong>El enlace anterior dejó de funcionar.</strong> Usá este y
+              no lo compartás — cualquier persona que lo tenga puede ver tu
               inscripción.
             </Text>
           </Section>

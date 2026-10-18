@@ -9,8 +9,8 @@ export default function UserSocialsStep(props: UserSocialsStepProps) {
   return (
     <>
       <StepDescription
-        title="Agrega al menos una red social"
-        description="Agrega al menos tu usuario de Instagram para validar que tu perfil coincide con la categoria que elegiste y para compartirlo con nuestro público."
+        title="Agregá al menos una red social"
+        description="Agregá al menos tu usuario de Instagram para validar que tu perfil coincide con la categoría que elegiste y para compartirlo con nuestro público."
       />
       <UserSocialsForm profile={props.profile} />
     </>
