@@ -126,6 +126,11 @@ export default async function CreditAccountPanel({
                         {entry.reason}
                       </p>
                     )}
+                    {entry.internalNote && (
+                      <p className="text-xs text-muted-foreground">
+                        Nota interna: {entry.internalNote}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {formatDateWithTime(entry.createdAt)}
                     </p>

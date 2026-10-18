@@ -51,6 +51,12 @@ export const FEATURE_FLAGS = {
       "Billetera de créditos para participantes: `/my_credits`, la página explicativa y la compra de créditos para funciones opcionales como la mesa completa. La cola de revisión del panel de administración no depende de esta bandera.",
     defaultVisibility: "hidden",
   },
+  notifications: {
+    label: "Notificaciones en la app",
+    description:
+      "La campana del menú, `/my_notifications` y el detalle de cada notificación. Las notificaciones se guardan para todos aunque la bandera esté oculta, así que al publicarla cada participante ve lo que ya recibió. Los correos, la billetera y el aviso de regalos de créditos no dependen de esta bandera.",
+    defaultVisibility: "admin_only",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

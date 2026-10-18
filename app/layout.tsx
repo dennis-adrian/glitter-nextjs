@@ -10,6 +10,7 @@ import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
 import { Toaster } from "@/components/ui/sonner";
 import { figtree, gabarito } from "@/ui/fonts";
 
+import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
 import Navbar from "@/app/components/navbar/navbar";
 import FooterServer from "@/app/components/footer-server";
 
@@ -50,6 +51,9 @@ export default function RootLayout({
           >
             <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
               <Navbar />
+            </Suspense>
+            <Suspense fallback={null}>
+              <CreditGiftCelebration />
             </Suspense>
             <main className="min-h-[calc(100vh-76px-180px)] md:min-h-[calc(100vh-76px-290px)] lg:min-h-[calc(100vh-84px-290px)]">
               {children}

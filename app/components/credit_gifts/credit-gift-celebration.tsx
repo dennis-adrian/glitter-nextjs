@@ -1,0 +1,39 @@
+import CreditGiftCelebrationBanner from "@/app/components/credit_gifts/credit-gift-celebration-banner";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import {
+  fetchPendingGiftCelebration,
+  type PendingCelebration,
+  resolveInboxViewer,
+} from "@/app/lib/notifications/queries";
+
+async function loadPendingCelebration(): Promise<PendingCelebration | null> {
+  try {
+    const viewer = await resolveInboxViewer();
+    if (!viewer || viewer.role !== "user") return null;
+    if (!(await isFeatureEnabled("credits", viewer))) return null;
+    return await fetchPendingGiftCelebration(viewer.id);
+  } catch (error) {
+    console.error("Failed to load the credit gift banner", {
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return null;
+  }
+}
+
+/**
+ * Gifts not yet celebrated, as one banner. Follows the `credits` flag, not the
+ * inbox one: it points at the wallet, and it is how a gift reaches
+ * participants before the bell does.
+ *
+ * A failed read renders nothing rather than taking the page down with it.
+ */
+export default async function CreditGiftCelebration() {
+  const pending = await loadPendingCelebration();
+  if (!pending) return null;
+  return (
+    <CreditGiftCelebrationBanner
+      notificationIds={pending.notificationIds}
+      totalCredits={pending.totalCredits}
+    />
+  );
+}

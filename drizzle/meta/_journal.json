@@ -2073,6 +2073,13 @@
       "when": 1791162132061,
       "tag": "0296_email_admin_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1792301479468,
+      "tag": "0297_in_app_notifications",
+      "breakpoints": true
     }
   ]
 }

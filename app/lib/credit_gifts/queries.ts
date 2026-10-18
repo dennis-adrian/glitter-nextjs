@@ -1,0 +1,391 @@
+import "server-only";
+
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+
+import {
+  CREDIT_GIFT_SKIP_REASONS,
+  type CreditGiftOccasion,
+  type CreditGiftRecipientOption,
+  type CreditGiftSkipReason,
+} from "@/app/lib/credit_gifts/definitions";
+import { classifyCreditGiftRecipients } from "@/app/lib/credit_gifts/service";
+import { userSearchCondition } from "@/app/lib/credits/admin-queries";
+import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getUserName } from "@/app/lib/users/utils";
+import { db } from "@/db";
+import {
+  creditGiftDetails,
+  creditLedgerEntries,
+  notificationCampaignRecipients,
+  notificationCampaigns,
+  notificationDeliveries,
+  notifications,
+  users,
+} from "@/db/schema";
+
+async function canViewCreditGifts() {
+  const actor = await getCurrentUserProfile();
+  return canViewAdminReservationData(actor);
+}
+
+function toOption(
+  row: {
+    id: number;
+    displayName: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    imageUrl: string | null;
+    status: string;
+  },
+  reason: CreditGiftSkipReason | null | undefined,
+): CreditGiftRecipientOption {
+  return {
+    id: row.id,
+    name: getUserName(row) || row.email,
+    email: row.email,
+    imageUrl: row.imageUrl,
+    status: row.status,
+    skipReason: reason ? CREDIT_GIFT_SKIP_REASONS[reason] : null,
+  };
+}
+
+const optionColumns = {
+  id: users.id,
+  displayName: users.displayName,
+  firstName: users.firstName,
+  lastName: users.lastName,
+  email: users.email,
+  imageUrl: users.imageUrl,
+  status: users.status,
+};
+
+/** Participants matching a name or email, with whether a gift would reach them. */
+export async function searchCreditGiftRecipients(
+  query: string,
+): Promise<CreditGiftRecipientOption[]> {
+  const term = query.trim();
+  if (term.length < 2 || term.length > 100) return [];
+  if (!(await canViewCreditGifts())) return [];
+
+  const rows = await db
+    .select(optionColumns)
+    .from(users)
+    .where(and(eq(users.role, "user"), userSearchCondition(term)))
+    .orderBy(asc(users.displayName), asc(users.id))
+    .limit(8);
+  const reasons = await classifyCreditGiftRecipients(rows.map((row) => row.id));
+  return rows.map((row) => toOption(row, reasons.get(row.id)));
+}
+
+export type CreditGiftCounts = {
+  total: number;
+  pending: number;
+  granted: number;
+  skipped: number;
+  failed: number;
+  revoked: number;
+  read: number;
+};
+
+const countColumns = {
+  total: sql<number>`count(${notificationCampaignRecipients.id})::int`,
+  pending: sql<number>`count(*) filter (where ${notificationCampaignRecipients.status} = 'pending')::int`,
+  granted: sql<number>`count(*) filter (where ${notificationCampaignRecipients.status} = 'granted')::int`,
+  skipped: sql<number>`count(*) filter (where ${notificationCampaignRecipients.status} = 'skipped')::int`,
+  failed: sql<number>`count(*) filter (where ${notificationCampaignRecipients.status} = 'failed')::int`,
+  revoked: sql<number>`count(*) filter (where ${notificationCampaignRecipients.revokedAt} is not null)::int`,
+  read: sql<number>`count(*) filter (where ${notifications.readAt} is not null)::int`,
+};
+
+export type CreditGiftListRow = {
+  id: number;
+  title: string;
+  occasion: CreditGiftOccasion;
+  amountPerRecipient: number;
+  status: "processing" | "completed";
+  createdAt: Date;
+  createdByName: string | null;
+  counts: CreditGiftCounts;
+};
+
+export async function listCreditGifts(): Promise<CreditGiftListRow[] | null> {
+  if (!(await canViewCreditGifts())) return null;
+
+  const rows = await db
+    .select({
+      id: notificationCampaigns.id,
+      title: notificationCampaigns.title,
+      status: notificationCampaigns.status,
+      createdAt: notificationCampaigns.createdAt,
+      occasion: creditGiftDetails.occasion,
+      amountPerRecipient: creditGiftDetails.amountPerRecipient,
+      creatorDisplayName: users.displayName,
+      creatorFirstName: users.firstName,
+      creatorLastName: users.lastName,
+      ...countColumns,
+    })
+    .from(notificationCampaigns)
+    .innerJoin(
+      creditGiftDetails,
+      eq(creditGiftDetails.campaignId, notificationCampaigns.id),
+    )
+    .leftJoin(users, eq(users.id, notificationCampaigns.createdByUserId))
+    .leftJoin(
+      notificationCampaignRecipients,
+      eq(notificationCampaignRecipients.campaignId, notificationCampaigns.id),
+    )
+    .leftJoin(
+      notifications,
+      eq(notifications.id, notificationCampaignRecipients.notificationId),
+    )
+    .where(eq(notificationCampaigns.type, "credit_gift"))
+    .groupBy(notificationCampaigns.id, creditGiftDetails.campaignId, users.id)
+    .orderBy(
+      desc(notificationCampaigns.createdAt),
+      desc(notificationCampaigns.id),
+    )
+    .limit(200);
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    occasion: row.occasion,
+    amountPerRecipient: Number(row.amountPerRecipient),
+    status: row.status,
+    createdAt: row.createdAt,
+    createdByName:
+      getUserName({
+        displayName: row.creatorDisplayName,
+        firstName: row.creatorFirstName,
+        lastName: row.creatorLastName,
+      }) || null,
+    counts: {
+      total: Number(row.total),
+      pending: Number(row.pending),
+      granted: Number(row.granted),
+      skipped: Number(row.skipped),
+      failed: Number(row.failed),
+      revoked: Number(row.revoked),
+      read: Number(row.read),
+    },
+  }));
+}
+
+export type CreditGiftEmailState =
+  | "none"
+  | "pending"
+  | "sent"
+  | "failed"
+  | "skipped";
+
+export type CreditGiftRecipientRow = {
+  userId: number;
+  name: string;
+  email: string;
+  status: "pending" | "granted" | "skipped" | "failed";
+  skippedReason: string | null;
+  readAt: Date | null;
+  emailState: CreditGiftEmailState;
+  /** How many times the notice was mailed again by hand. */
+  resendCount: number;
+  ledgerBalance: number;
+  revokedAt: Date | null;
+  processedAt: Date | null;
+};
+
+export type CreditGiftDetail = {
+  id: number;
+  title: string;
+  message: string;
+  occasion: CreditGiftOccasion;
+  amountPerRecipient: number;
+  internalNote: string;
+  status: "processing" | "completed";
+  createdAt: Date;
+  completedAt: Date | null;
+  createdByName: string | null;
+  counts: CreditGiftCounts & { emailsSent: number; emailsFailed: number };
+  recipients: CreditGiftRecipientRow[];
+};
+
+function emailStateOf(status: string | undefined): CreditGiftEmailState {
+  switch (status) {
+    case "sent":
+      return "sent";
+    case "failed":
+      return "failed";
+    case "skipped":
+      return "skipped";
+    case "pending":
+    case "processing":
+      return "pending";
+    default:
+      return "none";
+  }
+}
+
+export async function fetchCreditGift(
+  campaignId: number,
+): Promise<CreditGiftDetail | null> {
+  if (!(await canViewCreditGifts())) return null;
+
+  const [gift] = await db
+    .select({
+      id: notificationCampaigns.id,
+      title: notificationCampaigns.title,
+      message: notificationCampaigns.message,
+      status: notificationCampaigns.status,
+      createdAt: notificationCampaigns.createdAt,
+      completedAt: notificationCampaigns.completedAt,
+      occasion: creditGiftDetails.occasion,
+      amountPerRecipient: creditGiftDetails.amountPerRecipient,
+      internalNote: creditGiftDetails.internalNote,
+      creatorDisplayName: users.displayName,
+      creatorFirstName: users.firstName,
+      creatorLastName: users.lastName,
+    })
+    .from(notificationCampaigns)
+    .innerJoin(
+      creditGiftDetails,
+      eq(creditGiftDetails.campaignId, notificationCampaigns.id),
+    )
+    .leftJoin(users, eq(users.id, notificationCampaigns.createdByUserId))
+    .where(
+      and(
+        eq(notificationCampaigns.id, campaignId),
+        eq(notificationCampaigns.type, "credit_gift"),
+      ),
+    )
+    .limit(1);
+  if (!gift) return null;
+
+  const recipientRows = await db
+    .select({
+      userId: notificationCampaignRecipients.userId,
+      status: notificationCampaignRecipients.status,
+      skippedReason: notificationCampaignRecipients.skippedReason,
+      notificationId: notificationCampaignRecipients.notificationId,
+      revokedAt: notificationCampaignRecipients.revokedAt,
+      processedAt: notificationCampaignRecipients.processedAt,
+      readAt: notifications.readAt,
+      displayName: users.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+    })
+    .from(notificationCampaignRecipients)
+    .innerJoin(users, eq(users.id, notificationCampaignRecipients.userId))
+    .leftJoin(
+      notifications,
+      eq(notifications.id, notificationCampaignRecipients.notificationId),
+    )
+    .where(eq(notificationCampaignRecipients.campaignId, campaignId))
+    .orderBy(asc(users.displayName), asc(users.id));
+
+  const userIds = recipientRows.map((row) => row.userId);
+  const notificationIds = recipientRows
+    .map((row) => row.notificationId)
+    .filter((id): id is number => id != null);
+
+  const [balanceRows, deliveryRows] = await Promise.all([
+    userIds.length
+      ? db
+          .select({
+            userId: creditLedgerEntries.userId,
+            balance: sql<number>`coalesce(sum(${creditLedgerEntries.amount}), 0)`,
+          })
+          .from(creditLedgerEntries)
+          .where(inArray(creditLedgerEntries.userId, userIds))
+          .groupBy(creditLedgerEntries.userId)
+      : Promise.resolve([]),
+    notificationIds.length
+      ? db
+          .select({
+            notificationId: notificationDeliveries.notificationId,
+            status: notificationDeliveries.status,
+            resendOfDeliveryId: notificationDeliveries.resendOfDeliveryId,
+            createdAt: notificationDeliveries.createdAt,
+            id: notificationDeliveries.id,
+          })
+          .from(notificationDeliveries)
+          .where(
+            inArray(notificationDeliveries.notificationId, notificationIds),
+          )
+          .orderBy(
+            asc(notificationDeliveries.createdAt),
+            asc(notificationDeliveries.id),
+          )
+      : Promise.resolve([]),
+  ]);
+
+  const balanceByUser = new Map(
+    balanceRows.map((row) => [row.userId, Number(row.balance)]),
+  );
+  // The latest attempt is what the admin needs to know about, and only the
+  // first delivery of each notification is the gift notice itself.
+  const latestDelivery = new Map<number, string>();
+  const resends = new Map<number, number>();
+  for (const row of deliveryRows) {
+    if (row.notificationId == null) continue;
+    latestDelivery.set(row.notificationId, row.status);
+    if (row.resendOfDeliveryId != null) {
+      resends.set(
+        row.notificationId,
+        (resends.get(row.notificationId) ?? 0) + 1,
+      );
+    }
+  }
+
+  const recipients: CreditGiftRecipientRow[] = recipientRows.map((row) => ({
+    userId: row.userId,
+    name: getUserName(row) || row.email,
+    email: row.email,
+    status: row.status,
+    skippedReason: row.skippedReason,
+    readAt: row.readAt,
+    emailState:
+      row.notificationId != null
+        ? emailStateOf(latestDelivery.get(row.notificationId))
+        : "none",
+    resendCount:
+      row.notificationId != null ? (resends.get(row.notificationId) ?? 0) : 0,
+    ledgerBalance: balanceByUser.get(row.userId) ?? 0,
+    revokedAt: row.revokedAt,
+    processedAt: row.processedAt,
+  }));
+
+  const counts = {
+    total: recipients.length,
+    pending: recipients.filter((row) => row.status === "pending").length,
+    granted: recipients.filter((row) => row.status === "granted").length,
+    skipped: recipients.filter((row) => row.status === "skipped").length,
+    failed: recipients.filter((row) => row.status === "failed").length,
+    revoked: recipients.filter((row) => row.revokedAt != null).length,
+    read: recipients.filter((row) => row.readAt != null).length,
+    emailsSent: recipients.filter((row) => row.emailState === "sent").length,
+    emailsFailed: recipients.filter((row) => row.emailState === "failed")
+      .length,
+  };
+
+  return {
+    id: gift.id,
+    title: gift.title,
+    message: gift.message,
+    occasion: gift.occasion,
+    amountPerRecipient: Number(gift.amountPerRecipient),
+    internalNote: gift.internalNote,
+    status: gift.status,
+    createdAt: gift.createdAt,
+    completedAt: gift.completedAt,
+    createdByName:
+      getUserName({
+        displayName: gift.creatorDisplayName,
+        firstName: gift.creatorFirstName,
+        lastName: gift.creatorLastName,
+      }) || null,
+    counts,
+    recipients,
+  };
+}

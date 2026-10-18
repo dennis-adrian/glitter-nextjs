@@ -155,6 +155,19 @@ function Movement({ row }: { row: CreditLedgerRow }) {
         )}
       </div>
       {row.reason && <p className="text-muted-foreground">{row.reason}</p>}
+      {row.internalNote && (
+        <p className="text-xs text-muted-foreground">
+          Nota interna: {row.internalNote}
+        </p>
+      )}
+      {row.creditGiftId != null && (
+        <Link
+          href={`/dashboard/credits/gifts/${row.creditGiftId}`}
+          className="text-xs text-primary hover:underline"
+        >
+          Ver el regalo
+        </Link>
+      )}
       <EntryContext row={row} />
       {row.actor && (
         <p className="text-xs text-muted-foreground">Por {row.actor.name}</p>
