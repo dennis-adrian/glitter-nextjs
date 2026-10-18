@@ -1,6 +1,7 @@
 "use server";
 
 import { Subcategory } from "@/app/lib/subcategories/definitions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   festivalSectors,
@@ -78,6 +79,10 @@ export async function addStandSubcategory(
   subcategoryId: number,
   festivalId: number,
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const existing = await db.query.standSubcategories.findFirst({
       where: and(
@@ -105,6 +110,10 @@ export async function removeStandSubcategory(
   subcategoryId: number,
   festivalId: number,
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db
       .delete(standSubcategories)
@@ -128,6 +137,10 @@ export async function setStandSubcategoriesBulk(
   subcategoryIds: number[],
   festivalId: number,
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   if (standIds.length === 0) {
     return { success: false, message: "No se seleccionaron stands" };
   }

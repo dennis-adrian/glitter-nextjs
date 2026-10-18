@@ -10,7 +10,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 

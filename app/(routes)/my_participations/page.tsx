@@ -3,9 +3,10 @@ import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/a
 import { UpcomingFestivalCard } from "@/app/components/organisms/upcoming-festival";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { profileHasReservationMade } from "@/app/helpers/next_event";
-import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
+import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/queries";
 import { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
+import { withoutParticipantRoster } from "@/app/lib/festivals/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
   ArrowRightIcon,
@@ -116,7 +117,10 @@ export default async function Page() {
               </div>
             )}
             <UpcomingFestivalCard
-              festival={activeFestival}
+              festival={withoutParticipantRoster(
+                activeFestival,
+                currentProfile.id,
+              )}
               profile={currentProfile}
               reservation={confirmedReservationInActiveFestival}
             />

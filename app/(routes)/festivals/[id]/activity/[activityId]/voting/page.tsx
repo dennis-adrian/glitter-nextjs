@@ -1,7 +1,7 @@
 import Title from "@/app/components/atoms/heading";
 import BestStandActivityVoting from "@/app/components/organisms/festival_activity_voting/best-stand-activity-voting";
 import FestivalStickerVoting from "@/app/components/organisms/festival_activity_voting/festival-sticker-voting";
-import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/queries";
 import { fetchFestivalReservationStandRefs } from "@/app/lib/reservations/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";

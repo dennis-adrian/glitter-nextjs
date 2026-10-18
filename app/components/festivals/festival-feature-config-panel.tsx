@@ -9,6 +9,8 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 type FestivalFeatureConfigPanelProps = {
   festivalId: number;
+  /** Archived festivals keep their configuration as it was. */
+  readOnly?: boolean;
 };
 
 /**
@@ -19,6 +21,7 @@ type FestivalFeatureConfigPanelProps = {
  */
 export default async function FestivalFeatureConfigPanel({
   festivalId,
+  readOnly = false,
 }: FestivalFeatureConfigPanelProps) {
   const [actor, scopes, creditsRevealed, readiness] = await Promise.all([
     getCurrentUserProfile(),
@@ -26,7 +29,7 @@ export default async function FestivalFeatureConfigPanel({
     isFeatureLaunched("credits"),
     fetchFullTableReadinessByCategory(festivalId),
   ]);
-  const canEdit = canMutateAdminReservations(actor);
+  const canEdit = !readOnly && canMutateAdminReservations(actor);
 
   // Enabling a feature here is necessary but not sufficient: every one of them
   // is paid for in credits, and the `credits` flag is what reveals credits to
@@ -38,7 +41,7 @@ export default async function FestivalFeatureConfigPanel({
     !creditsRevealed && scopes.some((scope) => scope.config?.enabled);
 
   return (
-    <section className="mt-6 space-y-3">
+    <section className="space-y-3">
       <div>
         <h2 className="text-lg font-semibold">Funciones de reserva</h2>
         <p className="text-sm text-muted-foreground">
@@ -66,6 +69,11 @@ export default async function FestivalFeatureConfigPanel({
             festivalId={festivalId}
             scope={scope}
             canEdit={canEdit}
+            readOnlyReason={
+              readOnly
+                ? "El festival está archivado: su configuración ya no se puede cambiar."
+                : null
+            }
             readiness={scope.category ? readiness[scope.category] : null}
             creditsLaunched={creditsRevealed}
           />

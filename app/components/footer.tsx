@@ -59,7 +59,7 @@ export default function Footer({
             </ul>
           </div>
           <div>
-            <h3 className="text-lg font-bold mb-4">Conéctate con nosotros</h3>
+            <h3 className="text-lg font-bold mb-4">Conectate con nosotros</h3>
             <div className="flex space-x-4">
               <Link
                 target="_blank"

@@ -350,7 +350,7 @@ export async function submitPurchaseVoucher(
     });
     return {
       success: false,
-      message: "No pudimos registrar el comprobante. Intenta de nuevo.",
+      message: "No pudimos registrar el comprobante. Intentá de nuevo.",
     };
   }
 }

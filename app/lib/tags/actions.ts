@@ -1,6 +1,7 @@
 "use server";
 
 import { NewTag, Tag } from "@/app/lib/tags/definitions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { tags } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -15,7 +16,16 @@ export async function fetchTags(): Promise<Tag[]> {
   }
 }
 
+/**
+ * Staff: /dashboard/tags is linked from the admin menu only, but the page itself
+ * admits festival admins too.
+ */
 export async function createTag(tag: NewTag) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     let category = tag.category;
     if (tag.category === "new_artist") {
@@ -42,7 +52,13 @@ export async function createTag(tag: NewTag) {
   };
 }
 
+/** Staff, as `createTag`. Deleting a tag removes it from every profile. */
 export async function deleteTag(tagId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db.delete(tags).where(eq(tags.id, tagId));
   } catch (error) {

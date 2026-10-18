@@ -81,6 +81,41 @@ export async function resolveFullTableCompanion(
   };
 }
 
+/**
+ * Whether these stands are exactly the two halves of one declared full table.
+ *
+ * Structural only, unlike `resolveFullTableCompanion`: a table unpriced after a
+ * hold was taken still confirms at the price the hold snapshotted.
+ */
+export async function isDeclaredFullTablePair(
+  tx: DbTx,
+  standIds: readonly number[],
+): Promise<boolean> {
+  const ids = [...new Set(standIds)];
+  if (ids.length !== 2) return false;
+
+  const rows = await tx
+    .select({ groupId: stands.standGroupId, groupType: standGroups.type })
+    .from(stands)
+    .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
+    .where(inArray(stands.id, ids));
+  const groupId = rows[0]?.groupId;
+  if (
+    rows.length !== 2 ||
+    groupId == null ||
+    rows[1].groupId !== groupId ||
+    rows[0].groupType !== "full_table"
+  ) {
+    return false;
+  }
+
+  const members = await tx
+    .select({ id: stands.id })
+    .from(stands)
+    .where(eq(stands.standGroupId, groupId));
+  return members.length === 2;
+}
+
 /** Stands that nothing currently holds or occupies. */
 export async function availableStandIds(
   tx: DbTx,

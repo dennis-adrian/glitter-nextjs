@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canCompleteOccurrence,
   canRescheduleOccurrence,
+  hasOccurrenceEnded,
   resolveEffectiveVenueId,
   resolveOccurrenceState,
   resolveSessionPublishability,
@@ -13,6 +14,13 @@ import {
 const NOW = new Date("2026-08-01T12:00:00.000Z");
 const EARLIER = new Date("2026-07-01T12:00:00.000Z");
 const LATER = new Date("2026-09-01T12:00:00.000Z");
+/** After every other constant, so the default occurrence is not over. */
+const ENDS_AT = new Date("2026-10-01T14:00:00.000Z");
+const HOUR_MS = 60 * 60 * 1000;
+
+function hoursFromNow(hours: number): Date {
+  return new Date(NOW.getTime() + hours * HOUR_MS);
+}
 
 function stateInput(
   overrides: Partial<OccurrenceStateInput> = {},
@@ -21,6 +29,7 @@ function stateInput(
     programStatus: "published",
     sessionStatus: "published",
     lifecycleStatus: "scheduled",
+    endsAt: ENDS_AT,
     salesStartAt: null,
     salesEndAt: null,
     salesClosedAt: null,
@@ -127,6 +136,105 @@ describe("resolveOccurrenceState", () => {
   });
 });
 
+describe("resolveOccurrenceState once the occurrence's own time arrives", () => {
+  const inProgress = { endsAt: hoursFromNow(1) };
+  const over = { endsAt: hoursFromNow(-1) };
+
+  it("keeps selling while the occurrence runs, so late arrivals can sign up", () => {
+    const resolved = resolveOccurrenceState(stateInput(inProgress), NOW);
+
+    expect(resolved.state).toBe("on_sale");
+    expect(resolved.isPurchasable).toBe(true);
+  });
+
+  it("reports an occurrence that is over but was never finalized as ended", () => {
+    const resolved = resolveOccurrenceState(stateInput(over), NOW);
+
+    expect(resolved.state).toBe("ended");
+    expect(resolved.isPurchasable).toBe(false);
+    expect(resolved.isPubliclyVisible).toBe(true);
+  });
+
+  it("treats the end as the first moment the occurrence is over", () => {
+    const oneMsBefore = new Date(NOW.getTime() - 1);
+
+    expect(
+      resolveOccurrenceState(stateInput({ endsAt: NOW }), oneMsBefore).state,
+    ).toBe("on_sale");
+    expect(resolveOccurrenceState(stateInput({ endsAt: NOW }), NOW).state).toBe(
+      "ended",
+    );
+  });
+
+  it("does not let a sales window set past the end keep selling", () => {
+    expect(
+      resolveOccurrenceState(stateInput({ ...over, salesEndAt: LATER }), NOW)
+        .state,
+    ).toBe("ended");
+  });
+
+  it("does not report a finished occurrence as sales not started", () => {
+    // A misconfigured window that opens after the end must not read as
+    // "Ventas próximamente" for something that already happened.
+    expect(
+      resolveOccurrenceState(stateInput({ ...over, salesStartAt: LATER }), NOW)
+        .state,
+    ).toBe("ended");
+  });
+
+  it("still honors a closed sales window while the occurrence runs", () => {
+    expect(
+      resolveOccurrenceState(
+        stateInput({ ...inProgress, salesClosedAt: EARLIER }),
+        NOW,
+      ).state,
+    ).toBe("sales_closed");
+    expect(
+      resolveOccurrenceState(
+        stateInput({ ...inProgress, salesEndAt: EARLIER }),
+        NOW,
+      ).state,
+    ).toBe("sales_closed");
+  });
+
+  it("still reports draft, cancelled, and completed first", () => {
+    expect(
+      resolveOccurrenceState(
+        stateInput({ ...over, programStatus: "draft" }),
+        NOW,
+      ).state,
+    ).toBe("draft");
+    expect(
+      resolveOccurrenceState(
+        stateInput({ ...over, lifecycleStatus: "cancelled" }),
+        NOW,
+      ).state,
+    ).toBe("cancelled");
+    expect(
+      resolveOccurrenceState(
+        stateInput({ ...over, lifecycleStatus: "completed" }),
+        NOW,
+      ).state,
+    ).toBe("completed");
+  });
+
+  it("sells again when rescheduled into the future, and not when moved within the past", () => {
+    const movedForward = resolveOccurrenceState(
+      stateInput({ rescheduledAt: EARLIER }),
+      NOW,
+    );
+    expect(movedForward.state).toBe("on_sale");
+    expect(movedForward.wasRescheduled).toBe(true);
+
+    const stillPast = resolveOccurrenceState(
+      stateInput({ ...over, rescheduledAt: EARLIER }),
+      NOW,
+    );
+    expect(stillPast.state).toBe("ended");
+    expect(stillPast.wasRescheduled).toBe(true);
+  });
+});
+
 describe("resolveEffectiveVenueId", () => {
   it("prefers occurrence, then session, then program default", () => {
     expect(resolveEffectiveVenueId(1, 2, 3)).toBe(1);
@@ -225,6 +333,12 @@ describe("occurrence transition guards", () => {
     expect(canCompleteOccurrence(LATER, "scheduled", NOW)).toBe(false);
     expect(canCompleteOccurrence(endsAt, "cancelled", NOW)).toBe(false);
     expect(canCompleteOccurrence(endsAt, "completed", NOW)).toBe(false);
+  });
+
+  it("counts an occurrence as ended from its end time on", () => {
+    expect(hasOccurrenceEnded(NOW, new Date(NOW.getTime() - 1))).toBe(false);
+    expect(hasOccurrenceEnded(NOW, NOW)).toBe(true);
+    expect(hasOccurrenceEnded(EARLIER, NOW)).toBe(true);
   });
 
   it("reschedules only a scheduled occurrence", () => {

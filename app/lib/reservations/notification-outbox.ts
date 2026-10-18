@@ -7,6 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
+import ReservationConfirmationForAdminsEmailTemplate from "@/app/emails/reservation-confirmation-for-admins";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
@@ -18,8 +19,10 @@ import ReservationReleasedTemplate from "@/app/emails/reservation-released";
 import LatePartnerAddedTemplate from "@/app/emails/late-partner-added";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { getUserName } from "@/app/lib/users/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   enqueueReservationNotification,
@@ -111,11 +114,24 @@ function rejectionReasonFromPayload(payload: unknown): string | undefined {
   return reason || undefined;
 }
 
+/**
+ * Sends one job's email, throwing when Resend rejects it so the job is retried
+ * instead of stamped completed: Resend resolves a rejection rather than
+ * throwing, and only a throw reaches the retry branch.
+ */
+async function sendJobEmail(
+  idempotencyKey: string,
+  email: Parameters<typeof sendEmail>[0],
+) {
+  assertSent(await sendEmail(email, { idempotencyKey }));
+}
+
 async function deliverJob(
   kind: string,
   recipientEmail: string,
   reservationId: number,
   payload: unknown,
+  idempotencyKey: string,
 ) {
   const reservation = await db.query.standReservations.findFirst({
     where: eq(standReservations.id, reservationId),
@@ -136,10 +152,16 @@ async function deliverJob(
     reservation.invoices[0];
   const owner = invoice?.user ?? reservation.participants[0]?.user;
   const standLabel = formatStandLabel(reservation.stand);
+  // Stands still occupied: two for a full table. Not for a release, which
+  // retires every member before its email is built.
+  const activeStandCount = Math.max(
+    1,
+    reservation.members.filter((member) => member.releasedAt == null).length,
+  );
   const festival = reservation.festival;
 
   if (kind === "reservation_created") {
-    await sendEmail({
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
       subject: "Nueva reserva creada",
@@ -170,7 +192,7 @@ async function deliverJob(
     const isOwner =
       owner?.email?.toLowerCase() === recipientEmail.toLowerCase();
     if (isOwner) {
-      await sendEmail({
+      await sendJobEmail(idempotencyKey, {
         to: [recipientEmail],
         from: FROM,
         subject:
@@ -182,7 +204,7 @@ async function deliverJob(
         }),
       });
     } else {
-      await sendEmail({
+      await sendJobEmail(idempotencyKey, {
         to: [recipientEmail],
         from: FROM,
         subject:
@@ -198,29 +220,59 @@ async function deliverJob(
   }
 
   if (kind === "settlement_approved" && owner) {
-    await sendEmail({
+    // Admins are only enqueued for this kind by `applyInvoiceCredits`, where
+    // credits confirmed the reservation without anyone approving it. They get
+    // a notice about the participant, not the participant's own confirmation.
+    const isOwner = owner.email?.toLowerCase() === recipientEmail.toLowerCase();
+    if (!isOwner) {
+      await sendJobEmail(idempotencyKey, {
+        to: [recipientEmail],
+        from: FROM,
+        subject: `${getUserName(owner) || "Un participante"} confirmó su reserva con créditos`,
+        react: ReservationConfirmationForAdminsEmailTemplate({
+          participant: owner,
+          festivalId: reservation.festivalId,
+          festivalName: festival.name,
+          standLabel: reservationStandLabel(reservation),
+          standCount: activeStandCount,
+          reservationId: reservation.id,
+        }),
+      });
+      return;
+    }
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
       subject: `Reserva confirmada para el festival ${festival.name}`,
       react: ReservationConfirmationEmailTemplate({
         profile: owner,
-        standLabel,
+        standLabel: reservationStandLabel(reservation),
+        standCount: activeStandCount,
         festival,
       }),
     });
     return;
   }
 
-  if (kind === "reservation_rejected" && owner) {
-    await sendEmail({
+  if (kind === "reservation_rejected") {
+    // Every participant gets one, so each is greeted by their own name.
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    // Same reasoning as the late-partner branch below: a silent return would
+    // mark the job completed and lose the reason.
+    if (!recipient) throw new Error("rejection_recipient_missing");
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
-      subject: "Tu reserva fue rechazada",
+      subject: "Tu reserva fue cancelada",
       react: ReservationRejectionEmailTemplate({
         festival,
-        profile: owner,
+        profile: recipient,
         stand: reservation.stand,
         standLabel: reservationStandLabel(reservation),
+        standCount: activeStandCount,
         reason: rejectionReasonFromPayload(payload),
       }),
     });
@@ -229,15 +281,16 @@ async function deliverJob(
 
   if (kind === "settlement_rejected") {
     if (reservation.status === "rejected" && owner) {
-      await sendEmail({
+      await sendJobEmail(idempotencyKey, {
         to: [recipientEmail],
         from: FROM,
-        subject: "Tu reserva fue rechazada",
+        subject: "Tu reserva fue cancelada",
         react: ReservationRejectionEmailTemplate({
           festival,
           profile: owner,
           stand: reservation.stand,
           standLabel: reservationStandLabel(reservation),
+          standCount: activeStandCount,
           reason: rejectionReasonFromPayload(payload),
         }),
       });
@@ -272,7 +325,7 @@ async function deliverJob(
     if (!partnerUser) throw new Error("late_partner_partner_missing");
 
     const isOwner = recipient.id === ownerUser.id;
-    await sendEmail({
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
       subject: isOwner
@@ -310,8 +363,18 @@ async function deliverJob(
     if (!recipient) throw new Error("release_recipient_missing");
     if (!releasedBy) throw new Error("release_owner_missing");
 
-    const standCount = Math.max(1, reservation.members.length);
-    await sendEmail({
+    // Every member is retired by now, so `reservationStandLabel` would fall
+    // back to one half. The job names what this release freed; one enqueued
+    // before it did falls back to the whole membership.
+    const releasedStandIds = payloadNumberArray(payload, "releasedStandIds");
+    const released = reservation.members
+      .filter(
+        (member) =>
+          !releasedStandIds || releasedStandIds.includes(member.standId),
+      )
+      .sort((a, b) => a.position - b.position);
+    const standCount = Math.max(1, released.length);
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
       subject:
@@ -324,7 +387,12 @@ async function deliverJob(
         isOwner: recipient.id === releasedBy.id,
         festivalId: reservation.festivalId,
         festivalName: festival.name,
-        standLabel: reservationStandLabel(reservation),
+        standLabel:
+          released.length > 0
+            ? released
+                .map((member) => formatStandLabel(member.stand))
+                .join(" y ")
+            : standLabel,
         standCount,
         creditPrice: payloadAmount(payload, "creditPrice") ?? 0,
       }),
@@ -333,12 +401,24 @@ async function deliverJob(
   }
 
   if (kind === "deadline_extended" && owner) {
-    await sendEmail({
+    // Sent to every participant, but only the payer can upload the voucher.
+    const recipient = reservation.participants.find(
+      (participant) =>
+        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    )?.user;
+    // Same reasoning as the late-partner branch above.
+    if (!recipient) throw new Error("extension_recipient_missing");
+    const isOwner = recipient.id === owner.id;
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: FROM,
-      subject: "Se extendió el plazo de pago de tu reserva",
+      subject: isOwner
+        ? "Se extendió el plazo de pago de tu reserva"
+        : "Se extendió el plazo de pago de la reserva que compartís",
       react: ReservationPaymentExtensionTemplate({
-        profile: owner,
+        recipient,
+        owner,
+        isOwner,
         reservation: {
           id: reservation.id,
           festivalId: reservation.festivalId,
@@ -373,6 +453,15 @@ function payloadNumber(payload: unknown, key: string): number | null {
     : null;
 }
 
+function payloadNumberArray(payload: unknown, key: string): number[] | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = (payload as Record<string, unknown>)[key];
+  return Array.isArray(value) &&
+    value.every((item) => typeof item === "number" && Number.isInteger(item))
+    ? value
+    : null;
+}
+
 /** Money, so unlike `payloadNumber` it accepts zero and two-decimal amounts. */
 function payloadAmount(payload: unknown, key: string): number | null {
   if (!payload || typeof payload !== "object") return null;
@@ -384,6 +473,7 @@ async function deliverEnrollmentJob(
   kind: ReservationNotificationKind,
   recipientEmail: string,
   payload: unknown,
+  idempotencyKey: string,
 ) {
   const userId = payloadNumber(payload, "userId");
   const festivalId = payloadNumber(payload, "festivalId");
@@ -411,7 +501,7 @@ async function deliverEnrollmentJob(
   }
 
   if (kind === "festival_participation_approved") {
-    await sendEmail({
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: ENROLLMENT_FROM,
       subject: `Tu postulación para ${festival.name} fue aprobada`,
@@ -424,13 +514,14 @@ async function deliverEnrollmentJob(
   }
 
   if (kind === "festival_participation_rejected") {
-    await sendEmail({
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: ENROLLMENT_FROM,
       subject: `Tu postulación para ${festival.name}`,
       react: FestivalParticipationRejectedEmailTemplate({
         profile,
         festival,
+        reason: rejectionReasonFromPayload(payload),
       }),
     });
     return;
@@ -464,6 +555,7 @@ async function deliverCreditJob(
   kind: string,
   recipientEmail: string,
   payload: unknown,
+  idempotencyKey: string,
 ) {
   const topUpId = payloadNumber(payload, "topUpId");
   if (topUpId == null) throw new Error("credit_payload_missing");
@@ -488,7 +580,7 @@ async function deliverCreditJob(
 
   if (kind === "credit_top_up_rejected") {
     const debtAmount = Math.max(0, payloadAmount(payload, "debtAmount") ?? 0);
-    await sendEmail({
+    await sendJobEmail(idempotencyKey, {
       to: [recipientEmail],
       from: CREDITS_FROM,
       subject: "No pudimos confirmar tu compra de créditos",
@@ -511,18 +603,23 @@ export async function attemptReservationNotificationJob(jobId: number) {
   if (!job) return { processed: false as const };
 
   const now = new Date();
+  // One key per job, so a retry after a timeout whose first request did land
+  // is deduplicated by Resend instead of delivered twice.
+  const idempotencyKey = `reservation-notification-${job.id}`;
   try {
     if (isEnrollmentNotificationKind(job.notificationKind)) {
       await deliverEnrollmentJob(
         job.notificationKind as ReservationNotificationKind,
         job.recipientEmail,
         job.payload,
+        idempotencyKey,
       );
     } else if (isCreditNotificationKind(job.notificationKind)) {
       await deliverCreditJob(
         job.notificationKind,
         job.recipientEmail,
         job.payload,
+        idempotencyKey,
       );
     } else {
       if (!job.reservationId) {
@@ -533,6 +630,7 @@ export async function attemptReservationNotificationJob(jobId: number) {
         job.recipientEmail,
         job.reservationId,
         job.payload,
+        idempotencyKey,
       );
     }
     await db

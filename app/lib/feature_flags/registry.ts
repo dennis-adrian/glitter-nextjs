@@ -22,15 +22,15 @@ export type FeatureFlagDefinition = {
  */
 export const FEATURE_FLAGS = {
   paid_programs: {
-    label: "Programas y sesiones pagas",
+    label: "Charlas y talleres",
     description:
-      "Catálogo público de programas (Glitter Week): charlas, talleres, compra de entradas, Week Pass y check-in.",
+      "Catálogo público de programas y sesiones, gratuitas o pagas: inscripción, compra de entradas, Mis inscripciones y check-in con QR. Si se oculta, quienes ya se inscribieron dejan de ver su entrada y el equipo no puede hacer check-in.",
     defaultVisibility: "hidden",
   },
   programs_nav_entry: {
-    label: "Semana Glitter en el menú",
+    label: "Charlas y Talleres en el menú",
     description:
-      "Muestra el acceso a Semana Glitter en el menú principal. Independiente de `paid_programs`, para poder abrir las inscripciones por enlace directo antes de anunciarlas en el sitio. El acceso solo aparece si ambas están visibles.",
+      "Muestra el acceso a Charlas y Talleres en el menú principal. Independiente de `paid_programs`, para poder abrir las inscripciones por enlace directo antes de anunciarlas en el sitio. El acceso solo aparece si ambas están visibles.",
     defaultVisibility: "hidden",
   },
   blog: {

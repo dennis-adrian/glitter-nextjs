@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -30,6 +33,27 @@ describe("isAllowedProgramArtworkUrl", () => {
   });
 });
 
+describe("DEFAULT_PROGRAM_ARTWORK", () => {
+  it("is a same-origin PNG, not an SVG crawlers may skip", () => {
+    expect(DEFAULT_PROGRAM_ARTWORK).toBe(
+      "/img/programs/program-og-default.png",
+    );
+    expect(isAllowedProgramArtworkUrl(DEFAULT_PROGRAM_ARTWORK)).toBe(true);
+  });
+
+  it("exists under public/ at the 1200x630 og:image size", () => {
+    const png = readFileSync(
+      path.join(process.cwd(), "public", DEFAULT_PROGRAM_ARTWORK),
+    );
+
+    // The IHDR chunk stores width and height right after the 8-byte signature
+    // and the chunk's length and type.
+    expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
+    expect(png.readUInt32BE(16)).toBe(1200);
+    expect(png.readUInt32BE(20)).toBe(630);
+  });
+});
+
 describe("resolveProgramArtwork", () => {
   it("uses the program banner from the database", () => {
     const bannerUrl = "https://glitter.ufs.sh/f/program-banner";
@@ -44,9 +68,11 @@ describe("resolveProgramArtwork", () => {
   });
 
   it.each([null, undefined, "", "https://example.com/banner.jpg"])(
-    "uses the placeholder when the program has no allowed banner: %s",
+    "uses the default artwork when the program has no allowed banner: %s",
     (bannerUrl) => {
-      expect(resolveProgramArtwork(bannerUrl)).toBe(DEFAULT_PROGRAM_ARTWORK);
+      expect(resolveProgramArtwork(bannerUrl)).toBe(
+        "/img/programs/program-og-default.png",
+      );
     },
   );
 });

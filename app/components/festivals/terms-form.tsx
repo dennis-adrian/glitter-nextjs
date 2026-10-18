@@ -76,10 +76,7 @@ export default function TermsForm({
     startTransition(async () => {
       const res = await createUserEnrollment({
         profileId: profile.id,
-        profileDisplayName: profile.displayName,
         festivalId: festival.id,
-        festivalName: festival.name,
-        festivalReservationsStartDate: festival.reservationsStartDate,
       });
 
       if (res.success) {

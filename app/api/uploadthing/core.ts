@@ -4,7 +4,8 @@ import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
-import { fetchUserProfile } from "@/app/api/users/actions";
+import type { FestivalArtworkType } from "@/app/lib/festivals/artwork";
+import { fetchUserProfile } from "@/app/lib/users/queries";
 import {
   getCreditTopUpUploadTarget,
   submitCreditTopUpVoucher,
@@ -22,6 +23,7 @@ import {
 } from "@/app/lib/programs/vouchers";
 import { submitPaymentProof } from "@/app/lib/reservations/payment-service";
 import { signProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
+import { signUploadReceipt } from "@/app/lib/uploadthing/upload-receipt";
 import { db } from "@/db";
 import { invoices, orders, productImages, sessionPurchases } from "@/db/schema";
 
@@ -31,12 +33,22 @@ const f = createUploadthing();
 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
+  // JPEG and PNG only: the poster is embedded in the visitor invitation
+  // email, and WebP or SVG break in Outlook and Gmail.
   festivalArtwork: f({
-    image: { maxFileSize: "4MB", maxFileCount: 1 },
-  })
-    .middleware(async () => {
+    "image/jpeg": { maxFileSize: "4MB", maxFileCount: 1 },
+    "image/png": { maxFileSize: "4MB", maxFileCount: 1 },
+  } satisfies Record<
+    FestivalArtworkType,
+    { maxFileSize: "4MB"; maxFileCount: number }
+  >)
+    .middleware(async ({ files }) => {
       const profile = await requireAdminOrFestivalAdmin();
       if (!profile) throw new UploadThingError("No autorizado");
+      // The count is per type, so a JPEG and a PNG would pass it together.
+      if (files.length !== 1) {
+        throw new UploadThingError("Subí una sola imagen.");
+      }
       return { userId: profile.id };
     })
     .onUploadComplete(({ file }) => ({
@@ -328,26 +340,20 @@ export const ourFileRouter = {
           "You must be logged in to upload a profile picture",
         );
 
-      // Return userId to be used in onUploadComplete
-      return { userId: user.id };
-      // This code runs on your server before upload
-      // const user = await auth(req);
-
-      // If you throw, the user will not be able to upload
-      // if (!user) throw new UploadThingError("Unauthorized");
-
       // Whatever is returned here is accessible in onUploadComplete as `metadata`
-      // return { userId: user.id };
-      return {};
+      return { userId: user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      // This code RUNS ON YOUR SERVER after upload
-      // console.log("Upload complete for userId:", metadata.userId);
-
-      // console.log("file url", file.url);
-
       // !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
-      return { uploadedBy: metadata.userId };
+      const imageUrl = (file as { url: string }).url;
+      return {
+        uploadedBy: metadata.userId,
+        imageUrl,
+        // `createParticipantProduct` only accepts a URL with this receipt,
+        // which binds it to the authenticated uploader. It signs the Clerk id
+        // because this route never loads a profile.
+        receipt: signUploadReceipt("imageUploader", metadata.userId, imageUrl),
+      };
     }),
   storeOrderPayment: f({ image: { maxFileSize: "4MB" } })
     .middleware(async ({ req }) => {
@@ -467,9 +473,18 @@ export const ourFileRouter = {
     })
     .onUploadComplete(async ({ metadata, file }) => {
       // !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
+      const imageUrl = (file as { url: string }).url;
       return {
         uploadedBy: metadata.userId,
-        imageUrl: (file as { url: string }).url,
+        imageUrl,
+        // `addFestivalActivityParticipantProof` only accepts a URL with this
+        // receipt, which binds it to the authenticated uploader. It signs the
+        // Clerk id because this route never loads a profile.
+        receipt: signUploadReceipt(
+          "festivalActivityParticipantProof",
+          metadata.userId,
+          imageUrl,
+        ),
       };
     }),
   qrCode: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })

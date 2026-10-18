@@ -6,7 +6,7 @@ import {
   extendReservationPaymentDeadline,
   updateReservationPartner,
 } from "@/app/lib/reservations/admin-service";
-import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
+import { fetchAdminUsers, fetchBaseProfileById } from "@/app/lib/users/queries";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import {

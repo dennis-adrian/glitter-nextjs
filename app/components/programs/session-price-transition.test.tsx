@@ -18,6 +18,21 @@ describe("SessionPriceTransition", () => {
     expect(screen.getByText("Bs 60,00")).toBeTruthy();
   });
 
+  it("says a free price in words", () => {
+    render(<SessionPriceTransition price={0} previousPrice={0} />);
+
+    expect(screen.getByText("Sin costo")).toBeTruthy();
+    expect(screen.queryByText("Bs 0,00")).toBeNull();
+  });
+
+  it("shows a participant's free price against the public one", () => {
+    render(<SessionPriceTransition price={0} previousPrice={50} />);
+
+    expect(
+      screen.getByLabelText("Antes Bs 50,00; ahora sin costo"),
+    ).toBeTruthy();
+  });
+
   it("shows one price when there is no discount", () => {
     render(<SessionPriceTransition price={75} previousPrice={75} />);
 

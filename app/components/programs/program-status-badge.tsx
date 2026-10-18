@@ -18,6 +18,7 @@ const VARIANT_BY_STATE: Record<
   sales_not_started: "amber",
   sales_closed: "secondary",
   completed: "secondary",
+  ended: "secondary",
   cancelled: "red",
   draft: "outline",
 };

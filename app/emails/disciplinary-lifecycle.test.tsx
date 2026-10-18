@@ -5,7 +5,7 @@ import {
   type ReactNode,
 } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Text } from "@react-email/components";
+import { Text } from "react-email";
 import { describe, expect, it } from "vitest";
 
 import InfractionLifecycleEmail from "@/app/emails/infraction-lifecycle";

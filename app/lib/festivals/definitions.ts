@@ -19,6 +19,16 @@ import {
 } from "@/db/schema";
 
 export type FestivalBase = typeof festivals.$inferSelect;
+
+/**
+ * A verified profile a festival's sectors can take, as the staff invitation
+ * screens list it: who they are, where the invitation goes, and the category
+ * that sorts them into a mailing. Never their phone, birthdate or account ids.
+ */
+export type FestivalAvailableUser = Pick<
+  BaseProfile,
+  "id" | "displayName" | "email" | "category"
+>;
 type UserRequest = typeof userRequests.$inferSelect & {
   user: ProfileWithParticipationsAndRequests;
 };
@@ -35,8 +45,19 @@ export type FullFestival = Festival & {
 
 export type WaitlistEntry = typeof festivalActivityWaitlist.$inferSelect;
 
+/**
+ * The profile fields an activity's participant and waitlist rows carry. An
+ * activity reaches client components on pages any signed-in user can open, so
+ * it never carries contact or identity data. Staff screens add the real name.
+ */
+export type ActivityProfile = Pick<
+  BaseProfile,
+  "id" | "displayName" | "imageUrl" | "category" | "status"
+> &
+  Partial<Pick<BaseProfile, "firstName" | "lastName">>;
+
 export type WaitlistEntryWithUser = WaitlistEntry & {
-  user: BaseProfile;
+  user: ActivityProfile;
   status?: "waiting" | "invited" | "expired";
   serverStatus?: "waiting" | "invited" | "expired";
 };
@@ -47,7 +68,7 @@ export type FestivalActivityWithDetailsAndParticipants = FestivalActivity & {
 };
 
 export type ParticipantWithUserAndProofs = FestivalActivityParticipant & {
-  user: BaseProfile;
+  user: ActivityProfile;
   proofs: (typeof festivalActivityParticipantProofs.$inferSelect)[];
 };
 

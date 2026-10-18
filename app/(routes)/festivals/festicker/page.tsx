@@ -11,7 +11,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { DateTime } from "luxon";
+import { isFestivalDay } from "@/app/lib/festivals/utils";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -36,18 +36,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Page() {
   const festival = await getActiveFestival();
   const isFesticker = festival?.festivalType === "festicker";
-  const festivalStartDate = festival?.festivalDates[0].startDate;
-  const festivalEndDate = festival?.festivalDates[0].endDate;
-  let isEventDay = false;
+  // Any of the festival's days, not just the first; the door form only
+  // opens when the dashboard enabled it.
+  const atTheDoor =
+    !!festival?.eventDayRegistration &&
+    isFestivalDay(festival?.festivalDates ?? []);
 
-  if (festivalStartDate && festivalEndDate) {
-    const formattedStartDate = DateTime.fromJSDate(festivalStartDate);
-    const formattedEndDate = DateTime.fromJSDate(festivalEndDate);
-    isEventDay =
-      DateTime.now() > formattedStartDate && DateTime.now() < formattedEndDate;
-  }
-
-  const registrationUrl = isEventDay
+  const registrationUrl = atTheDoor
     ? `/festivals/${festival?.id}/event_day_registration`
     : `/festivals/${festival?.id}/registration`;
 

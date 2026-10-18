@@ -1,7 +1,7 @@
 import ResponsiveProductsView from "@/app/components/organisms/products/responsive-products-view";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import { Button } from "@/app/components/ui/button";
-import { fetchProducts } from "@/app/lib/products/actions";
+import { fetchProducts } from "@/app/lib/products/queries";
 import {
   isLowStockFilter,
   isProductLowStock,

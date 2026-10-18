@@ -37,6 +37,7 @@ export default async function OccurrenceCheckInPage({ params }: Props) {
   if (!occurrence) notFound();
 
   const { session } = occurrence;
+  // Null for a standalone session: the line then names only the type.
   const { program } = session;
   const isCancelled = occurrence.lifecycleStatus === "cancelled";
 
@@ -55,7 +56,8 @@ export default async function OccurrenceCheckInPage({ params }: Props) {
           {" — "}
           {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
           {" · "}
-          {program.name} · {SESSION_TYPE_LABELS[session.type]}
+          {program ? `${program.name} · ` : ""}
+          {SESSION_TYPE_LABELS[session.type]}
           {occurrence.venue ? ` · ${occurrence.venue.name}` : ""}
           {occurrence.room ? ` · ${occurrence.room}` : ""}
         </p>

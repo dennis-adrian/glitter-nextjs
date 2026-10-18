@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import StandaloneSessionsSection from "@/app/components/dashboard/programs/standalone-sessions-section";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -9,7 +10,10 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { formatDisplayDate } from "@/app/lib/formatters";
-import { fetchProgramsForAdmin } from "@/app/lib/programs/data";
+import {
+  fetchProgramsForAdmin,
+  fetchStandaloneSessionsForAdmin,
+} from "@/app/lib/programs/data";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
 import { redirect } from "next/navigation";
@@ -18,7 +22,11 @@ export default async function ProgramsDashboardPage() {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) redirect("/dashboard");
 
-  const programs = await fetchProgramsForAdmin();
+  const [programs, standaloneSessions] = await Promise.all([
+    fetchProgramsForAdmin(),
+    fetchStandaloneSessionsForAdmin(),
+  ]);
+  const now = new Date();
 
   return (
     <div className="container p-3 md:p-6 flex flex-col gap-6">
@@ -26,7 +34,7 @@ export default async function ProgramsDashboardPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">Programas</h1>
           <p className="text-sm text-muted-foreground">
-            Charlas y talleres agrupados en programas como Glitter Week.
+            Programas como Glitter Week, y charlas o talleres sueltos.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -38,6 +46,11 @@ export default async function ProgramsDashboardPage() {
           </Button>
           <Button asChild variant="outline">
             <Link href="/dashboard/programs/speakers">Expositores</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/programs/sessions/new">
+              Nueva charla o taller suelto
+            </Link>
           </Button>
           <Button asChild>
             <Link href="/dashboard/programs/new">Nuevo programa</Link>
@@ -98,6 +111,8 @@ export default async function ProgramsDashboardPage() {
           })}
         </div>
       )}
+
+      <StandaloneSessionsSection sessions={standaloneSessions} now={now} />
     </div>
   );
 }

@@ -163,7 +163,12 @@ export async function checkInTicket(
    * would re-render the scanner itself on every successful scan.
    */
   revalidatePath(`/dashboard/programs/occurrences/${occurrenceId}`);
-  revalidatePath(`/dashboard/programs/${target.session.programId}/enrollments`);
+  // A standalone session has no program roster to refresh.
+  if (target.session.programId !== null) {
+    revalidatePath(
+      `/dashboard/programs/${target.session.programId}/enrollments`,
+    );
+  }
 
   return {
     success: true,

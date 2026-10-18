@@ -209,7 +209,8 @@ export async function sendSessionDayReminders(
       programSessions,
       eq(programSessions.id, sessionOccurrences.sessionId),
     )
-    .innerJoin(programs, eq(programs.id, programSessions.programId))
+    // Left, not inner: a standalone session's attendees get their reminder too.
+    .leftJoin(programs, eq(programs.id, programSessions.programId))
     .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
     .where(
       and(

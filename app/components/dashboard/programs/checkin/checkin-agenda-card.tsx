@@ -37,7 +37,8 @@ export default function CheckInAgendaCard({ entry, showDate }: Props) {
             {formatDisplayDate(ends, DateTime.TIME_SIMPLE)}
           </p>
           <p className="text-xs text-muted-foreground break-words">
-            {entry.programName} · {SESSION_TYPE_LABELS[entry.sessionType]}
+            {entry.programName ? `${entry.programName} · ` : ""}
+            {SESSION_TYPE_LABELS[entry.sessionType]}
             {entry.venueName ? ` · ${entry.venueName}` : ""}
             {entry.room ? ` · ${entry.room}` : ""}
           </p>

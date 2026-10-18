@@ -1,6 +1,6 @@
 import ProductForm from "@/app/components/organisms/products/product-form";
 import ProductContentSectionsEditor from "@/app/components/organisms/products/product-content-sections-editor";
-import { fetchProduct } from "@/app/lib/products/actions";
+import { fetchProduct } from "@/app/lib/products/queries";
 import { fetchCollectionEditorData } from "@/app/lib/merch/collections";
 import { notFound } from "next/navigation";
 

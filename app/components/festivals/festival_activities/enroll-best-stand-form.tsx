@@ -16,10 +16,8 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import {
-  BaseProfile,
-  ParticipationWithParticipantWithInfractionsAndReservations,
-} from "@/app/api/users/definitions";
+import { StandBase } from "@/app/api/stands/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
 import ConsentFormField from "@/app/components/molecules/consent-form-field";
 import SubmitButton from "@/app/components/simple-submit-button";
@@ -58,10 +56,23 @@ const FormSchema = z.object({
     ),
 });
 
+/**
+ * Who holds which stand at the festival: all this form needs to tell whether a
+ * stand partner already enrolled the stand. Nothing else about the other
+ * participants reaches the browser.
+ */
+export type BestStandFestivalParticipant = {
+  user: { id: number };
+  reservation: {
+    standId: number;
+    stand: Pick<StandBase, "id" | "label" | "standNumber"> | null;
+  } | null;
+};
+
 type EnrollBestStandFormProps = {
   forProfile: BaseProfile;
   activity: FestivalActivityWithDetailsAndParticipants;
-  festivalParticipants: ParticipationWithParticipantWithInfractionsAndReservations[];
+  festivalParticipants: BestStandFestivalParticipant[];
   activityVariantForProfile?: ActivityDetailsWithParticipants;
 };
 

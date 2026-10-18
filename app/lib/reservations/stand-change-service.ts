@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import {
   reservationFailure,
@@ -23,6 +23,19 @@ import {
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
 import {
+  coveredAmountForInvoices,
+  invoicesHaveProofUnderReview,
+  invoicesHaveTender,
+  liveReservationIdForStand,
+  readReservationInvoices,
+  refundOverpaymentAsCredits,
+  reopenReservationForBalance,
+  repriceLiveInvoices,
+  standChangeRefundedAmount,
+  standHasLiveHold,
+  type ReservationInvoiceRow,
+} from "@/app/lib/reservations/reservation-repricing";
+import {
   isMovableReservationStatus,
   repriceInvoice,
   resolveStandChangePricing,
@@ -30,24 +43,10 @@ import {
   type MovableReservationStatus,
   type StandChangeSettlement,
 } from "@/app/lib/reservations/stand-change";
-import { grantCreditsInTx } from "@/app/lib/credits/service";
 import { roundMoney } from "@/app/lib/reservations/money";
-import { getInvoiceTenderTotalsInTx } from "@/app/lib/reservations/payment-service";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import {
-  creditLedgerEntries,
-  invoiceCreditAllocations,
-  invoiceSettlementSubmissions,
-  invoices,
-  payments,
-  scheduledTasks,
-  standHoldMembers,
-  standHolds,
-  standReservationStands,
-  standReservations,
-  stands,
-} from "@/db/schema";
+import { standReservationStands, standReservations, stands } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -135,196 +134,6 @@ async function hasRetiredMemberOnStand(
   return row != null;
 }
 
-async function standHasLiveHold(
-  tx: DbTx,
-  standId: number,
-  now: Date,
-): Promise<boolean> {
-  const [row] = await tx
-    .select({ id: standHoldMembers.id })
-    .from(standHoldMembers)
-    .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
-    .where(
-      and(
-        eq(standHoldMembers.standId, standId),
-        sql`${standHolds.expiresAt} > ${now}`,
-      ),
-    )
-    .limit(1);
-  return row != null;
-}
-
-/** The live reservation occupying a stand, if any. */
-async function liveReservationIdForStand(
-  tx: DbTx,
-  standId: number,
-  excludeReservationId: number,
-): Promise<number | null> {
-  const [row] = await tx
-    .select({ reservationId: standReservationStands.reservationId })
-    .from(standReservationStands)
-    .where(
-      and(
-        eq(standReservationStands.standId, standId),
-        isNull(standReservationStands.releasedAt),
-        inArray(standReservationStands.reservationStatus, [
-          "pending",
-          "verification_payment",
-          "accepted",
-        ]),
-        ne(standReservationStands.reservationId, excludeReservationId),
-      ),
-    )
-    .limit(1);
-  return row?.reservationId ?? null;
-}
-
-type InvoiceRow = {
-  id: number;
-  status: string;
-  discountAmount: number;
-  amount: number;
-};
-
-/** How long a reopened balance gets to be paid — the booking interval. */
-const PAYMENT_WINDOW_DAYS = 5;
-const REMINDER_LEAD_DAYS = 1;
-
-async function readReservationInvoices(
-  tx: DbTx,
-  reservationId: number,
-): Promise<InvoiceRow[]> {
-  return tx
-    .select({
-      id: invoices.id,
-      status: invoices.status,
-      discountAmount: invoices.discountAmount,
-      amount: invoices.amount,
-    })
-    .from(invoices)
-    .where(eq(invoices.reservationId, reservationId));
-}
-
-/**
- * Whether a voucher is in flight against any of these invoices.
- *
- * The one settlement state a price change still cannot pass. A submitted
- * comprobante was uploaded for the old total, and repricing under it would
- * leave the reviewer comparing it against a number that moved after it was
- * sent. Approved payments and confirmed credit allocations are different: they
- * are settled facts, and §4.6 resolves them arithmetically.
- */
-async function invoicesHaveProofUnderReview(
-  tx: DbTx,
-  invoiceIds: readonly number[],
-): Promise<boolean> {
-  if (invoiceIds.length === 0) return false;
-  const [submission] = await tx
-    .select({ id: invoiceSettlementSubmissions.id })
-    .from(invoiceSettlementSubmissions)
-    .where(
-      and(
-        inArray(invoiceSettlementSubmissions.invoiceId, [...invoiceIds]),
-        eq(invoiceSettlementSubmissions.status, "submitted"),
-      ),
-    )
-    .limit(1);
-  return submission != null;
-}
-
-/**
- * Whether any money at all sits against these invoices.
- *
- * Cheaper and blunter than the tender totals, and used only in the preview
- * pass: it decides whether the credit-account lock has to be taken, which the
- * canonical order forces before stands and therefore before prices are known.
- */
-async function invoicesHaveTender(
-  tx: DbTx,
-  invoiceIds: readonly number[],
-): Promise<boolean> {
-  if (invoiceIds.length === 0) return false;
-  const ids = [...invoiceIds];
-  const [payment] = await tx
-    .select({ id: payments.id })
-    .from(payments)
-    .where(inArray(payments.invoiceId, ids))
-    .limit(1);
-  if (payment) return true;
-  const [allocation] = await tx
-    .select({ id: invoiceCreditAllocations.id })
-    .from(invoiceCreditAllocations)
-    .where(inArray(invoiceCreditAllocations.invoiceId, ids))
-    .limit(1);
-  return allocation != null;
-}
-
-/** Approved cash plus confirmed credits across a reservation's invoices. */
-async function coveredAmountForInvoices(
-  tx: DbTx,
-  invoiceRows: readonly InvoiceRow[],
-): Promise<number> {
-  let covered = 0;
-  for (const invoice of invoiceRows) {
-    const totals = await getInvoiceTenderTotalsInTx(tx, invoice);
-    covered += totals.coveredAmount;
-  }
-  return roundMoney(covered);
-}
-
-/**
- * Marks a refund grant as belonging to a reservation, so later moves find it.
- *
- * The command's idempotency key already names the reservation, but a key is an
- * identifier, not a field to query on. This is the field.
- */
-const STAND_CHANGE_REFUND_RESERVATION_KEY = "standChangeRefundReservationId";
-
-/**
- * What earlier stand changes have already handed back for this reservation.
- *
- * Coverage is computed from payments and credit allocations, and a refund
- * touches neither — it posts a grant into the participant's wallet. So without
- * this, every move re-measures the same coverage an earlier move already paid
- * out against: 500 → 300 refunds 200 and then 300 → 200 refunds another 200,
- * against 500 that was only ever tendered once. Moving back up is the mirror
- * image — 500 → 300 → 500 would read as fully covered on a stand the
- * participant no longer has the money for, because the 200 is in their wallet
- * now.
- *
- * Reversed grants are excluded, the same rule `computeInvoiceTender` applies to
- * allocations: an admin who undoes the refund from the wallet has put the
- * coverage back, and the reservation is covered again.
- *
- * Keyed on the reservation rather than the owner, because it is the
- * reservation's coverage being restated — a reservation whose owner changed
- * still had the money handed back exactly once.
- */
-async function standChangeRefundedAmount(
-  tx: DbTx,
-  reservationId: number,
-): Promise<number> {
-  const [row] = await tx
-    .select({
-      amount: sql<string>`coalesce(sum(${creditLedgerEntries.amount}), 0)`,
-    })
-    .from(creditLedgerEntries)
-    .where(
-      and(
-        eq(creditLedgerEntries.type, "admin_grant"),
-        sql`${creditLedgerEntries.metadata} ->> '${sql.raw(
-          STAND_CHANGE_REFUND_RESERVATION_KEY,
-        )}' = ${String(reservationId)}`,
-        sql`NOT EXISTS (
-          SELECT 1
-          FROM ${creditLedgerEntries} r
-          WHERE r.reverses_entry_id = ${creditLedgerEntries.id}
-        )`,
-      ),
-    );
-  return roundMoney(Number(row?.amount ?? 0));
-}
-
 type SidePlan = {
   reservation: MovableReservation;
   fromStandId: number;
@@ -337,7 +146,7 @@ type SidePlan = {
     | "confirmed"
     | "disabled";
   pricing: ReturnType<typeof resolveStandChangePricing>;
-  invoices: InvoiceRow[];
+  invoices: ReservationInvoiceRow[];
   /**
    * Approved cash plus confirmed credits before the move, less whatever
    * earlier stand changes already refunded out of it.
@@ -370,35 +179,32 @@ async function applySidePointerAndMoney(tx: DbTx, plan: SidePlan, now: Date) {
 
   if (!plan.pricing.priceChanged) return;
 
-  // Every live invoice is repriced, `paid` ones included: a paid invoice whose
-  // stand got more expensive is exactly the case that has a balance to carry,
-  // and skipping it would leave the reservation owing nothing on paper.
-  for (const invoice of plan.invoices) {
-    if (invoice.status === "cancelled") continue;
-    const repriced = repriceInvoice(
-      plan.pricing.priceAmount,
-      invoice.discountAmount,
-    );
-    await tx
-      .update(invoices)
-      .set({
-        ...repriced,
-        // A balance reopens the invoice; anything else keeps the status the
-        // move found, so a fully covered reservation stays paid.
-        ...(plan.settlement.kind === "balance_due"
-          ? { status: "pending" as const }
-          : {}),
-        updatedAt: now,
-      })
-      .where(eq(invoices.id, invoice.id));
-  }
+  await repriceLiveInvoices(tx, {
+    invoices: plan.invoices,
+    priceAmount: plan.pricing.priceAmount,
+    settlement: plan.settlement,
+    now,
+  });
 
   if (plan.settlement.kind === "balance_due") {
-    await reopenReservationForBalance(tx, plan, now);
+    await reopenReservationForBalance(
+      tx,
+      {
+        reservationId: plan.reservation.id,
+        ownerUserId: plan.reservation.ownerUserId,
+      },
+      now,
+    );
     return;
   }
   if (plan.settlement.kind === "overpaid") {
-    await refundOverpaymentAsCredits(tx, plan);
+    await refundOverpaymentAsCredits(tx, {
+      reservationId: plan.reservation.id,
+      ownerUserId: plan.reservation.ownerUserId,
+      refundAmount: plan.settlement.refundAmount,
+      reason: `Cambio de espacio: diferencia a favor de la reserva #${plan.reservation.id}`,
+      idempotencyKey: `stand-change-refund:${plan.requestKey}:${plan.reservation.id}`,
+    });
   }
 }
 
@@ -418,111 +224,6 @@ function effectiveStandStatus(plan: SidePlan): SidePlan["carriedStandStatus"] {
     return "reserved";
   }
   return plan.carriedStandStatus;
-}
-
-/**
- * Reopens a reservation whose new stand costs more than has been covered.
- *
- * The reservation goes back to `pending` and its stand to `reserved`, because
- * `accepted` means paid and this one no longer is. The deadline is a fresh
- * window measured from the move rather than the original booking: the
- * participant is being asked for money they did not owe when the first clock
- * started, and inheriting a completed task's dates would make the balance
- * overdue the moment it exists.
- */
-async function reopenReservationForBalance(
-  tx: DbTx,
-  plan: SidePlan,
-  now: Date,
-) {
-  await tx
-    .update(standReservations)
-    .set({ status: "pending", updatedAt: now })
-    .where(eq(standReservations.id, plan.reservation.id));
-
-  const dueAt = new Date(
-    now.getTime() + PAYMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-  );
-  const reminderAt = new Date(
-    dueAt.getTime() - REMINDER_LEAD_DAYS * 24 * 60 * 60 * 1000,
-  );
-
-  await tx
-    .update(invoices)
-    .set({ dueAt, updatedAt: now })
-    .where(
-      and(
-        eq(invoices.reservationId, plan.reservation.id),
-        ne(invoices.status, "cancelled"),
-      ),
-    );
-
-  // An open task means the reservation was still unpaid and already had a
-  // clock; it gets the new window rather than a second row, because two open
-  // tasks would mean two reminders for one balance. A completed task is
-  // history — its `completed_at` told the truth — so that case inserts.
-  const [openTask] = await tx
-    .select({ id: scheduledTasks.id })
-    .from(scheduledTasks)
-    .where(
-      and(
-        eq(scheduledTasks.reservationId, plan.reservation.id),
-        eq(scheduledTasks.taskType, "stand_reservation"),
-        isNull(scheduledTasks.completedAt),
-      ),
-    )
-    .limit(1);
-
-  if (openTask) {
-    await tx
-      .update(scheduledTasks)
-      .set({ dueDate: dueAt, reminderTime: reminderAt, updatedAt: now })
-      .where(eq(scheduledTasks.id, openTask.id));
-    return;
-  }
-
-  const ownerUserId = plan.reservation.ownerUserId;
-  if (ownerUserId != null) {
-    await tx.insert(scheduledTasks).values({
-      dueDate: dueAt,
-      reminderTime: reminderAt,
-      profileId: ownerUserId,
-      reservationId: plan.reservation.id,
-      taskType: "stand_reservation",
-    });
-  }
-}
-
-/**
- * Hands back what a cheaper stand left overpaid, as credits.
- *
- * Credits rather than cash because they are the only refund instrument this
- * product has: there is no payout path, and inventing one from a stand change
- * would be a much larger decision than the move itself. The grant is an
- * ordinary `admin_grant` ledger entry, so it shows up in the wallet with its
- * reason and can be reversed from the credit screen like any other.
- *
- * Tagged with the reservation so `standChangeRefundedAmount` can find it. The
- * idempotency key stops one command paying twice; the tag is what stops the
- * *next* command doing it, by taking this refund back out of the coverage that
- * move is measured against.
- */
-async function refundOverpaymentAsCredits(tx: DbTx, plan: SidePlan) {
-  if (plan.settlement.kind !== "overpaid") return;
-  const ownerUserId = plan.reservation.ownerUserId;
-  if (ownerUserId == null) return;
-
-  await grantCreditsInTx(tx, {
-    userId: ownerUserId,
-    amount: plan.settlement.refundAmount,
-    reason: `Cambio de espacio: diferencia a favor de la reserva #${plan.reservation.id}`,
-    metadata: {
-      [STAND_CHANGE_REFUND_RESERVATION_KEY]: String(plan.reservation.id),
-    },
-    // The command's own key, not a fresh one: the ledger is append-only, and a
-    // retry that reached here twice would grant the difference twice.
-    idempotencyKey: `stand-change-refund:${plan.requestKey}:${plan.reservation.id}`,
-  });
 }
 
 async function buildSidePlan(

@@ -2268,7 +2268,8 @@ export const reservationRequestRegistry = pgTable(
         'releaseReservation',
         'addLatePartner',
         'changeReservationStand',
-        'settleInvoiceShortfall'
+        'settleInvoiceShortfall',
+        'upgradeFullTableReservation'
       )`,
     ),
   ],
@@ -5217,11 +5218,108 @@ export const actionRateLimits = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* Bulk email: who a mailing must skip                                         */
+/* See docs/email-unsubscribe-and-bounces.md.                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Why an address gets no bulk mail at all: it bounced for good, or its owner
+ * reported one of our emails as spam. Both arrive from Resend's webhook.
+ */
+export const emailSuppressionReasonEnum = pgEnum("email_suppression_reason", [
+  "bounce",
+  "complaint",
+]);
+
+/** Kinds of bulk mail a person can stop receiving one at a time. */
+export const emailTopicEnum = pgEnum("email_topic", [
+  /** Visitors invited to get their ticket when acreditación opens. */
+  "visitor_invitations",
+  /** Participants told a festival they can join is open. */
+  "participant_invitations",
+  /**
+   * Every kind of bulk mail, including topics added later: for someone who
+   * asked to stop all of it, set by an admin.
+   */
+  "all",
+]);
+
+/**
+ * Addresses no bulk mailing may reach. Keyed by the normalized address, not a
+ * visitor or user, so it holds across both tables, case variants of the same
+ * address, and deleted profiles.
+ */
+export const emailSuppressions = pgTable(
+  "email_suppressions",
+  {
+    id: serial("id").primaryKey(),
+    /** `lower(trim(address))`. */
+    emailKey: text("email_key").notNull(),
+    reason: emailSuppressionReasonEnum("reason").notNull(),
+    /** The Resend email that bounced or was reported, when known. */
+    resendEmailId: text("resend_email_id"),
+    /** What the receiving server answered, for a bounce. */
+    detail: text("detail"),
+    /**
+     * When Resend created the newest event applied to this row. Webhooks can
+     * repeat and arrive out of order; an older event never overrides it.
+     */
+    lastEventAt: timestamp("last_event_at"),
+    /**
+     * Resend lifted the suppression: the address may be mailed again. The row
+     * stays, so a late copy of the event that suppressed it is recognised
+     * as older and ignored.
+     */
+    liftedAt: timestamp("lifted_at"),
+    /** The admin who unblocked it; null when Resend lifted it. */
+    liftedByUserId: integer("lifted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("email_suppressions_email_key_unique").on(t.emailKey),
+    check(
+      "email_suppressions_email_key_normalized",
+      sql`${t.emailKey} = lower(trim(${t.emailKey})) and ${t.emailKey} <> ''`,
+    ),
+  ],
+);
+
+/** People who asked to stop receiving one topic of bulk mail. */
+export const emailUnsubscribes = pgTable(
+  "email_unsubscribes",
+  {
+    id: serial("id").primaryKey(),
+    /** `lower(trim(address))`. */
+    emailKey: text("email_key").notNull(),
+    topic: emailTopicEnum("topic").notNull(),
+    /** The admin who added it for them; null when they did it themselves. */
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("email_unsubscribes_email_key_topic_unique").on(
+      t.emailKey,
+      t.topic,
+    ),
+    check(
+      "email_unsubscribes_email_key_normalized",
+      sql`${t.emailKey} = lower(trim(${t.emailKey})) and ${t.emailKey} <> ''`,
+    ),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /* Paid programs and sessions                                                  */
 /* See docs/ARCHITECTURE-paid-programs-and-sessions.md §6.                     */
 /* Deliberately independent of festivalType, sectors, stands, reservations,    */
 /* festival activities, store products, and the visitor `tickets` table. The   */
-/* only link into an existing domain is the optional `programs.festivalId`.    */
+/* only links into an existing domain are the optional `programs.festivalId`   */
+/* and, for a standalone session only, `program_sessions.festivalId`.          */
 /* -------------------------------------------------------------------------- */
 
 /** Editorial publication state, for both programs and their sessions. */
@@ -5535,9 +5633,21 @@ export const programSessions = pgTable(
   "program_sessions",
   {
     id: serial("id").primaryKey(),
-    programId: integer("program_id")
-      .notNull()
-      .references(() => programs.id, { onDelete: "cascade" }),
+    /**
+     * Null for a standalone session: a talk or workshop launched on its own,
+     * with no program around it. Its URL is `/programs/sessions/{slug}` and
+     * every program-level setting falls back to `program_settings`.
+     */
+    programId: integer("program_id").references(() => programs.id, {
+      onDelete: "cascade",
+    }),
+    /**
+     * Festival context for a standalone session. A program session takes it
+     * from `programs.festivalId` instead, so there is only ever one source.
+     */
+    festivalId: integer("festival_id").references(() => festivals.id, {
+      onDelete: "set null",
+    }),
     slug: text("slug").notNull(),
     title: text("title").notNull(),
     type: sessionTypeEnum("type").notNull(),
@@ -5572,7 +5682,17 @@ export const programSessions = pgTable(
   },
   (t) => [
     unique().on(t.programId, t.slug),
+    // Postgres treats nulls as distinct, so the constraint above leaves
+    // standalone slugs unchecked; they share one URL namespace.
+    uniqueIndex("program_sessions_standalone_slug_unique")
+      .on(t.slug)
+      .where(sql`${t.programId} IS NULL`),
     index("program_sessions_program_id_status_idx").on(t.programId, t.status),
+    index("program_sessions_festival_id_idx").on(t.festivalId),
+    check(
+      "program_sessions_festival_only_when_standalone",
+      sql`${t.programId} IS NULL OR ${t.festivalId} IS NULL`,
+    ),
     check("program_sessions_public_price_positive", sql`${t.publicPrice} >= 0`),
     check(
       "program_sessions_participant_price_valid",
@@ -5587,6 +5707,10 @@ export const programSessionsRelations = relations(
     program: one(programs, {
       fields: [programSessions.programId],
       references: [programs.id],
+    }),
+    festival: one(festivals, {
+      fields: [programSessions.festivalId],
+      references: [festivals.id],
     }),
     venue: one(venues, {
       fields: [programSessions.venueId],
@@ -5875,9 +5999,14 @@ export const sessionPurchases = pgTable(
   "session_purchases",
   {
     id: serial("id").primaryKey(),
-    programId: integer("program_id")
-      .notNull()
-      .references(() => programs.id, { onDelete: "restrict" }),
+    /**
+     * Null when the purchase is for standalone sessions. Checkout keeps one
+     * value per purchase: a cart never mixes a program with standalone
+     * sessions, or two programs.
+     */
+    programId: integer("program_id").references(() => programs.id, {
+      onDelete: "restrict",
+    }),
     /**
      * `restrict`, not `set null`: a purchase is financial history, and nulling
      * the buyer would leave a row with no identity at all — which the identity

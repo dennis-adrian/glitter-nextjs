@@ -5,7 +5,7 @@ import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { Button } from "@/app/components/ui/button";
 import { formatDateWithTime } from "@/app/lib/formatters";
-import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import type { VoucherReviewOrder } from "@/app/lib/orders/definitions";
 import { getOrderLineLabel } from "@/app/lib/orders/utils";
 import OrderVoucherReviewDialog from "@/app/components/organisms/orders/order-voucher-review-dialog";
 
@@ -18,7 +18,7 @@ export const voucherColumnTitles = {
   actions: "Acciones",
 };
 
-export const voucherColumns: ColumnDef<OrderWithRelations>[] = [
+export const voucherColumns: ColumnDef<VoucherReviewOrder>[] = [
   {
     id: "order",
     accessorFn: (row) => row.id,

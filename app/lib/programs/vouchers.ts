@@ -20,8 +20,8 @@ export type VoucherBlocker =
 export const VOUCHER_BLOCKER_LABELS: Record<VoucherBlocker, string> = {
   not_payable: "Esta inscripción no requiere pago",
   already_approved:
-    "Tu pago ya fue aprobado; no necesitas subir otro comprobante",
-  hold_expired: "Tu reserva expiró. Vuelve a inscribirte para tomar un cupo.",
+    "Tu pago ya fue aprobado; no necesitás subir otro comprobante",
+  hold_expired: "Tu reserva expiró. Volvé a inscribirte para tomar un cupo.",
   purchase_closed: "Esta compra ya no acepta comprobantes",
 };
 

@@ -10,7 +10,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
@@ -19,7 +19,8 @@ import * as styles from "@/app/emails/styles";
 
 export type ProgramRegistrationEmailProps = {
   attendeeName: string;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   sessionTitle: string;
   sessionTypeLabel: string;
   /** Preformatted — the template does no date maths. */
@@ -65,8 +66,8 @@ export default function ProgramRegistrationEmailTemplate({
       </Head>
       <Preview>
         {paymentApproved
-          ? "Aprobamos tu pago. Muestra el QR al entrar."
-          : "Tu inscripción quedó confirmada. Muestra el QR al entrar."}
+          ? "Aprobamos tu pago. Mostrá el QR al entrar."
+          : "Tu inscripción quedó confirmada. Mostrá el QR al entrar."}
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
@@ -88,7 +89,8 @@ export default function ProgramRegistrationEmailTemplate({
 
             <Section style={styles.detailBox}>
               <Text style={styles.detailLine}>
-                <strong>{sessionTypeLabel}</strong> · {programName}
+                <strong>{sessionTypeLabel}</strong>
+                {programName ? ` · ${programName}` : null}
               </Text>
               <Text style={styles.detailLine}>{scheduleLabel}</Text>
               {venueLabel ? (
@@ -114,9 +116,9 @@ export default function ProgramRegistrationEmailTemplate({
             </Section>
 
             <Text style={styles.text}>
-              Muestra este código al llegar.
+              Mostrá este código al llegar.
               {secureLinkUrl
-                ? " Si no puedes verlo desde el correo, abre tu entrada aquí:"
+                ? " Si no podés verlo desde el correo, abrí tu entrada aquí:"
                 : ""}
             </Text>
 
@@ -129,7 +131,7 @@ export default function ProgramRegistrationEmailTemplate({
                 </Section>
 
                 <Text style={{ ...styles.text, fontSize: "12px" }}>
-                  ¿No funciona el botón? Copia y pega este enlace:
+                  ¿No funciona el botón? Copiá y pegá este enlace:
                 </Text>
                 <Text
                   style={{
@@ -143,8 +145,8 @@ export default function ProgramRegistrationEmailTemplate({
 
                 <Hr style={{ margin: "16px 0" }} />
                 <Text style={{ ...styles.text, fontSize: "12px" }}>
-                  Guarda este enlace: es la única forma de recuperar tu entrada
-                  si pierdes este correo. <strong>No lo compartas</strong> —
+                  Guardá este enlace: es la única forma de recuperar tu entrada
+                  si perdés este correo. <strong>No lo compartás</strong> —
                   cualquier persona que lo tenga puede ver y usar tu entrada.
                 </Text>
               </>
@@ -152,8 +154,8 @@ export default function ProgramRegistrationEmailTemplate({
               <>
                 <Hr style={{ margin: "16px 0" }} />
                 <Text style={{ ...styles.text, fontSize: "12px" }}>
-                  Guarda este correo: el QR de arriba es tu entrada. También
-                  puedes abrirla desde el enlace que te enviamos cuando
+                  Guardá este correo: el QR de arriba es tu entrada. También
+                  podés abrirla desde el enlace que te enviamos cuando
                   reservaste tu cupo.
                 </Text>
               </>

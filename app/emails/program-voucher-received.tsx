@@ -8,7 +8,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
@@ -130,7 +130,7 @@ export default function ProgramVoucherReceivedEmailTemplate({
                   <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
                 </Text>
                 <Text style={{ ...styles.text, fontSize: "12px" }}>
-                  <strong>No compartas este enlace</strong> — cualquier persona
+                  <strong>No compartás este enlace</strong> — cualquier persona
                   que lo tenga puede ver tu inscripción.
                 </Text>
               </>

@@ -7,14 +7,14 @@ import {
 } from "@/app/components/organisms/orders/voucher-table-columns";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import type { VoucherReviewOrder } from "@/app/lib/orders/definitions";
 import { ClipboardCheckIcon } from "lucide-react";
 import { use } from "react";
 import Heading from "@/app/components/atoms/heading";
 import { Badge } from "@/app/components/ui/badge";
 
 type VoucherQueueProps = {
-  ordersPromise: Promise<OrderWithRelations[]>;
+  ordersPromise: Promise<VoucherReviewOrder[]>;
 };
 
 export default function VoucherQueue({ ordersPromise }: VoucherQueueProps) {

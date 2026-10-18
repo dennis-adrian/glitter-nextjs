@@ -1,10 +1,15 @@
-# PRD: Admin Stand Switch, Exchange, and Full-Table Assignment
+# PRD: Admin Stand Switch, Exchange, Full-Table Assignment, and Full-Table Upgrade
 
 **Status:** implemented 2026-09-07, rebased onto `develop` at #510. Migration
 `0282_stand_change_support` is generated and applied to a disposable test
 database only — applying it to production is a separate decision. It must run
 after `0281_reapply_skipped_full_table_and_credit_ddl`, which rebuilds the
 registry operation CHECK without `changeReservationStand`.
+Feature D (full-table upgrade, §7) was added 2026-09-29 on
+`claude/full-table-upgrade`. Its migration `0293_upgrade_full_table_operation`
+only adds `upgradeFullTableReservation` to the registry operation CHECK. It is
+generated and applied to a disposable test database only; applying it anywhere
+else is a separate decision.
 **Depends on:** [PRD-stand-reservations.md](PRD-stand-reservations.md),
 [PRD-paid-reservation-addons-and-change-fees.md](PRD-paid-reservation-addons-and-change-fees.md)
 (§7 full table, §9 release, §11 multi-stand foundation, §14 lock order).
@@ -13,7 +18,7 @@ registry operation CHECK without `changeReservationStand`.
 
 ## 1. Summary
 
-Three admin capabilities, all reached from the dashboard:
+Four admin capabilities, all reached from the dashboard:
 
 - **Stand switch** — move a reservation from one stand to a free one, from the
   reservation edit page.
@@ -21,8 +26,11 @@ Three admin capabilities, all reached from the dashboard:
   occupies, which swaps the two reservations rather than refusing.
 - **Admin full-table assignment** — create a reservation covering both halves of
   a declared full table, for a participant, without credits.
+- **Admin full-table upgrade** — widen an existing half-table reservation to the
+  declared full table its stand belongs to, from the reservation edit page,
+  without credits (§7).
 
-The first two are manual corrections. Participants have no free stand swap by
+The switch, the exchange and the upgrade are manual corrections. Participants have no free stand swap by
 design: release is a paid change fee precisely so the map does not churn (§9).
 Nothing here changes that. These are the admin's escape hatch for a mistake, a
 sector reshuffle, or a negotiated move, and every one of them is audited.
@@ -39,7 +47,7 @@ sector reshuffle, or a negotiated move, and every one of them is audited.
 | Category compatibility | Not enforced, matching `createAdminReservation`. The admin's judgement, not the system's. |
 | Full tables as a switch source | Out of scope for v1. The control is disabled with a reason, never hidden. |
 | Notifications | None. Participants are told out of band. |
-| Full-table assignment | Only onto a `stand_groups` row already declared `full_table` with a price. Admins do not create pairs from this screen. |
+| Full-table assignment and upgrade | Only onto a `stand_groups` row already declared `full_table` with a price. Admins do not create pairs from these screens. |
 | Credits | An admin full table costs no credits and creates no feature action. |
 
 ---
@@ -50,6 +58,8 @@ In scope:
 
 - Switch and exchange for reservations holding exactly **one** live member stand.
 - Full-table assignment on the admin reservation-creation form.
+- Upgrading a reservation that holds exactly **one** live member to the
+  declared, priced full table its stand belongs to (§7).
 
 Out of scope for v1:
 
@@ -61,6 +71,9 @@ Out of scope for v1:
 - Changing the participant set. Partner edits stay on their own control.
 - Cash refunds. A surplus comes back as credits (§4.6); there is no payout
   path, and this feature does not invent one.
+- A participant self-service upgrade to a full table. Only an admin can widen an
+  existing reservation
+  ([PRD-paid-reservation-addons §18](PRD-paid-reservation-addons-and-change-fees.md)).
 
 Operating constraint, agreed rather than enforced:
 
@@ -425,9 +438,159 @@ reservation, exactly as they can already assign a second single stand.
 
 ---
 
-## 7. Authorization, transactions, races
+## 7. Feature D — Admin full-table upgrade
 
-- Global admin only, for all three. `canMutateAdminReservations`.
+The inverse of `downgradeFullTableReservation`. It takes a reservation holding
+one live member stand whose stand is half of a declared, priced `full_table`
+group, and adds the other half as a second live member. The result has exactly
+the shape the §6 full-table assignment builds, so the downgrade keeps working
+on it.
+
+### 7.1 Where it lives
+
+On `/dashboard/reservations/[id]/edit`, a **Mesa completa** card between the
+**Espacio** card and the **Zona de riesgo** card. The card appears only when the
+reservation holds one live stand and that stand belongs to a `full_table`
+group. A stand outside any table has no full table to offer, so the card is not
+rendered. Every other blocker keeps the card, with the button disabled and the
+reason shown:
+
+| Condition | Reason shown |
+| --- | --- |
+| Actor is a festival admin | Solo un administrador general puede ampliar una reserva. |
+| Reservation is not `pending`, `verification_payment` or `accepted` | Esta reserva ya no ocupa un espacio. |
+| Group does not have exactly two stands | La mesa no tiene exactamente dos espacios. |
+| Group has no `full_table_price` | La mesa no tiene precio configurado. |
+| Companion is a live member of another reservation | La otra mitad ya está ocupada por otra reserva. |
+| Companion is under a live hold | Alguien está reservando la otra mitad en este momento. |
+| A settlement submission is `submitted` and the price changes | Hay un comprobante o una solicitud en revisión. Resolvelo antes de ampliar la reserva. |
+| A surplus would come back but the reservation has no owner | Lo ya pagado supera el precio de la mesa y la reserva no tiene titular a quien devolverle la diferencia. |
+
+A companion whose status is `disabled` is not blocked, for the same reason as
+§4.2. A stale status alone, such as `reserved` with no live member or hold, does
+not block either. Both halves' statuses are overwritten by the upgrade.
+
+### 7.2 The confirmation
+
+Unlike the switch, the dialog shows the actual amounts.
+`fetchFullTableUpgradePreview` computes them with the service's own helpers and
+the pure planner `planFullTableUpgrade`, inside a read-only transaction. The
+dialog says:
+
+- which half joins, and that the reservation then holds both;
+- the cobro before and after, both net of discount, and the discount it keeps;
+- that an amount an admin earlier wrote off ("confirmar con saldo pendiente")
+  does not survive, because repricing recomputes `amount` from the price and
+  the discount;
+- what happens to money already paid (§7.4), in the reservation's own terms:
+  it stays pending or goes back to pending, credits come back, or only the
+  amount changes;
+- that the upgrade cannot be undone once any payment or credit allocation row
+  exists, because the downgrade refuses those;
+- that no credits are charged and nobody is notified now. On a balance, the
+  payment reminder task is moved to one day before the new deadline.
+
+The action sends back the preview's `expected` (`tablePrice`, `settlementKind`,
+`settlementAmount`). The service recomputes the plan under its locks and
+refuses with `FULL_TABLE_UPGRADE_STALE` if the numbers moved, for example
+because a payment was approved or the table was repriced after the page
+rendered. The admin never confirms one amount and gets another. On any refusal
+the dialog closes, the page refreshes, and the next attempt gets a new
+idempotency key.
+
+### 7.3 Write set
+
+One transaction. It takes the canonical lock order (§8) over the
+reservation's participants, owner and invoice payers, the owner's credit
+account when money has been tendered, both halves, the reservation and its
+invoices. Invoices, membership,
+the companion and the table price are re-read under the locks, and any drift
+returns `CONFLICT_RETRY`.
+
+1. The companion becomes a live member. If the reservation has a released row
+   for it from an earlier downgrade, that row is revived. Otherwise a row is
+   inserted after every position the reservation has ever used. The kept half
+   stays the lowest live position, which is the half a later downgrade keeps.
+2. `price_amount_snapshot` and `full_table_price_snapshot` take the table price.
+   `individual_price_snapshot` and `shared_price_snapshot` stay the kept half's,
+   because the downgrade prices the surviving half from them. The one exception
+   is a legacy row with no individual snapshot, which gets the kept stand's
+   individual price so a later downgrade does not price the half at zero.
+3. When the price changes, every non-cancelled invoice is repriced in place
+   (§4.5).
+4. Money already tendered is resolved as in §4.6 (see §7.4).
+5. Both halves' `stands.status` follow the resulting reservation status:
+   `confirmed` when it is `accepted`, otherwise `reserved`.
+6. A `status_changed` event records the upgrade (§9).
+
+The participant set, `booked_participant_count`, the parent `stand_id` and
+`reveal_at` are untouched. The table price does not depend on headcount.
+
+### 7.4 Money
+
+This is the §4.6 comparison, unchanged. `covered` is approved cash plus
+unreversed credit allocations, less any earlier refund grants tagged
+`standChangeRefundReservationId`. A surplus is granted back with that same
+tag, so a later switch or upgrade nets it out instead of paying it twice.
+Some behaviours carry over from the switch, and tests pin them:
+
+- `covered == 0` resolves nothing. An `accepted` reservation that was accepted
+  at no cost stays `accepted`, and its cobro stays settled at the new amount.
+- An earlier write-off does not carry over. The reservation reopens for the full
+  difference against what was actually covered.
+- Once any payment or allocation row exists, the downgrade refuses. A paid
+  upgraded table cannot go back to half a table.
+
+### 7.5 Errors
+
+| Code | When |
+| --- | --- |
+| `UNAUTHORIZED` | Not a global admin. |
+| `FULL_TABLE_NOT_UPGRADABLE` | Status not movable, or not exactly one live member. |
+| `FULL_TABLE_UPGRADE_NO_TABLE` | The stand is not half of a priced, two-stand `full_table` group. |
+| `FULL_TABLE_COMPANION_TAKEN` | The companion is a live member of another reservation. |
+| `FULL_TABLE_COMPANION_HELD` | The companion is under a live hold. |
+| `FULL_TABLE_UPGRADE_PROOF_UNDER_REVIEW` | A submission is `submitted` and the price changes. |
+| `FULL_TABLE_UPGRADE_STALE` | The locked plan differs from what the admin confirmed. |
+| `FULL_TABLE_UPGRADE_REFUND_NO_OWNER` | A surplus with no owner to credit. |
+| `CONFLICT_RETRY` | Concurrent change detected under the locks. |
+
+The command is claimed in `request_registry` as `upgradeFullTableReservation`.
+A replay rebuilds the same success message, including a reopened balance or the
+credits returned.
+
+### 7.6 What it deliberately does not do
+
+- **No credits, no `reservation_feature_actions` row, no credit hold**, as in
+  §6.3. A participant's own `full_table_access` action or hold is left alone.
+- **No festival feature-config or category check**, as in §6.3.
+- **No notification.** On a balance, the reservation's `stand_reservation`
+  task is moved to the new deadline, or created for the owner.
+- **No participant self-service path.**
+
+### 7.7 Partner edits on a full table
+
+`synchronizeReservationParticipantPricing` now leaves a full table's price
+alone. When `full_table_price_snapshot` is set, adding or removing a partner
+updates only `booked_participant_count`. Before this change, the first partner
+edit after an upgrade repriced the invoice back down to one half's price.
+
+### 7.8 Open questions
+
+- A late partner who already paid the shared-price difference in credits: that
+  amount is not counted in `covered`, so the upgrade ignores it, as the switch
+  does. Count it, or refuse the upgrade?
+- `addLatePartner` does not check `full_table_price_snapshot`. On a full table
+  it still charges the shared-price difference, although the table price does
+  not depend on headcount.
+- A `pending` reservation whose table amount is at or below `covered` stays
+  `pending` with nothing outstanding, as the switch leaves it.
+
+---
+
+## 8. Authorization, transactions, races
+
+- Global admin only, for all four. `canMutateAdminReservations`.
 - Every command takes an idempotency key and claims it through
   `request_registry`, like every other admin command.
 - Lock order is the §14 order, extended over both reservations for an exchange.
@@ -448,7 +611,7 @@ Race outcomes:
 
 ---
 
-## 8. Audit
+## 9. Audit
 
 No new `stand_reservation_event_type` value. The full-table downgrade already
 establishes the pattern for a manual correction that changes no status:
@@ -458,14 +621,21 @@ establishes the pattern for a manual correction that changes no status:
 { action: "stand_switched",  fromStandId, toStandId, fromPrice, toPrice }
 { action: "stand_exchanged", fromStandId, toStandId, counterpartReservationId,
                              fromPrice, toPrice }
+{ action: "full_table_manually_upgraded", keptStandId, addedStandId,
+                             fromPrice, toPrice, settlement, settlementAmount }
 ```
+
+The upgrade records the real resulting status: `to_status` is `pending` when a
+balance reopened the reservation, not a copy of `from_status`. The reservation
+console labels it "Amplió la reserva a mesa completa", with the table price and
+any balance or credits returned.
 
 An exchange writes one event on each reservation, each naming the other. No
 notification is sent in v1.
 
 ---
 
-## 9. Delivery sequence
+## 10. Delivery sequence
 
 1. Switch, single member, destination free. No schema change.
 2. Full-table assignment. No schema change.
@@ -475,9 +645,11 @@ notification is sent in v1.
 
 Steps 1 and 2 are independent and can land in either order.
 
+5. Full-table upgrade (§7). Needs migration `0293` for the registry operation.
+
 ---
 
-## 10. Test plan
+## 11. Test plan
 
 Integration (real Postgres, per the docker test database):
 
@@ -507,3 +679,15 @@ Integration (real Postgres, per the docker test database):
 - Full-table assignment refused on an unpriced or malformed group.
 - Downgrade of an admin-created full table behaves as it does for a
   participant-created one.
+- Upgrade of an unpaid half adds the companion above the kept half and
+  reprices the invoice to the table price, with no ledger entry.
+- Upgrade of a paid half reopens it for the balance (both halves `reserved`, one
+  open task, a fresh deadline). Paying that balance confirms both halves.
+- Upgrade with a surplus keeps `accepted` and grants the difference once, tagged
+  for netting. A retry replays.
+- Upgrade refused while a submission is under review, on an occupied or held
+  companion, on a missing, unpriced or malformed table, on a full table, and for a
+  festival admin. Nothing changes, and the key can be retried later.
+- Downgrade → upgrade revives the released row. Downgrade → switch → upgrade
+  inserts the companion above every earlier position.
+- A partner edit after an upgrade keeps the table price.

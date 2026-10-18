@@ -21,7 +21,8 @@ type Props = {
   occurrence: SessionOccurrence;
   venues: Venue[];
   defaultCapacity: number;
-  programStatus: ProgramStatus;
+  /** Null for a standalone session, which no program gates. */
+  programStatus: ProgramStatus | null;
   sessionStatus: ProgramStatus;
   /** Absent only if the summary query missed this occurrence. */
   summary?: OccurrenceRosterSummary;
@@ -50,6 +51,7 @@ export default function OccurrenceRow({
     programStatus,
     sessionStatus,
     lifecycleStatus: occurrence.lifecycleStatus,
+    endsAt: occurrence.endsAt,
     salesStartAt: occurrence.salesStartAt,
     salesEndAt: occurrence.salesEndAt,
     salesClosedAt: occurrence.salesClosedAt,

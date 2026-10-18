@@ -9,10 +9,10 @@ import StoreSectionGate from "@/app/components/organisms/store/store-section-gat
 import SuppliesAccessNotice from "@/app/components/organisms/store/supplies-access-notice";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { resolveMerchProductReturn } from "@/app/lib/merch/product-return";
-import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
+import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/queries";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
-import { getCurrentClerkUser } from "@/app/lib/users/actions";
+import { getCurrentClerkUser } from "@/app/lib/users/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({

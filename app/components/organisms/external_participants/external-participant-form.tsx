@@ -82,6 +82,7 @@ export default function ExternalParticipantForm({
           name="displayName"
           label="Nombre"
           placeholder="Nombre de la institución o marca"
+          maxLength={80}
           required
         />
 

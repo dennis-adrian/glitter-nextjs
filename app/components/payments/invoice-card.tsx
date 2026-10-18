@@ -16,15 +16,16 @@ import { Banner } from "@/app/components/ui/banner";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import {
+  InvoiceOwnerDisplay,
   InvoiceWithPayments,
-  InvoiceWithPaymentsAndOwner,
+  InvoiceWithPaymentsAndOwnerDisplay,
   ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { cn } from "@/app/lib/utils";
 
-export type InvoiceWithReservation = InvoiceWithPaymentsAndOwner & {
+export type InvoiceWithReservation = InvoiceWithPaymentsAndOwnerDisplay & {
   reservation: ReservationWithStandAndInvoicesAndFestival;
 };
 
@@ -136,7 +137,7 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
 }
 
 function getOwnerDisplayName(
-  user: InvoiceWithPaymentsAndOwner["user"] | null | undefined,
+  user: InvoiceOwnerDisplay | null | undefined,
 ): string | null {
   if (!user) return null;
   if (user.displayName) return user.displayName;

@@ -1,26 +1,13 @@
 "use server";
 
-import { asc, and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import {
-  buildRentalContentSectionsSnapshot,
-  validateProductContentSection,
-} from "@/app/lib/rentals/validation";
+import { validateProductContentSection } from "@/app/lib/rentals/validation";
 import type { ProductContentSectionInput } from "@/app/lib/rentals/types";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { productContentSections, productVariants } from "@/db/schema";
-
-export async function fetchProductContentSections(productId: number) {
-  return db.query.productContentSections.findMany({
-    where: eq(productContentSections.productId, productId),
-    orderBy: [
-      asc(productContentSections.sortOrder),
-      asc(productContentSections.id),
-    ],
-  });
-}
 
 async function validateSectionVariantScope(
   productId: number,
@@ -184,5 +171,3 @@ export async function reorderProductContentSections(
   revalidatePath(`/dashboard/store/products/${productId}/edit`);
   return { success: true, message: "Secciones reordenadas." };
 }
-
-export { buildRentalContentSectionsSnapshot };

@@ -1,7 +1,8 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
 import FestivalActivityCard from "@/app/components/participant_dashboard/activity-card/card";
-import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
+import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/queries";
+import { scopeActivityToViewer } from "@/app/lib/festivals/utils";
 
 type FestivalActivitiesProps = {
   festivalId: number;
@@ -12,7 +13,11 @@ export default async function FestivalActivities({
   festivalId,
   forProfile,
 }: FestivalActivitiesProps) {
-  const activities = await fetchFestivalActivitiesByFestivalId(festivalId);
+  // The cards are client components: each activity keeps only what this
+  // profile may see of the other participants.
+  const activities = (
+    await fetchFestivalActivitiesByFestivalId(festivalId)
+  ).map((activity) => scopeActivityToViewer(activity, forProfile.id));
 
   if (activities.length === 0) return null;
 

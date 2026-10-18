@@ -1,13 +1,14 @@
 import * as styles from "@/app/emails/styles";
 import {
   Body,
+  Button,
   Container,
   Head,
   Html,
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { getUserName } from "@/app/lib/users/utils";
 import EmailFooter from "@/app/emails/email-footer";
@@ -27,22 +28,36 @@ export default function ProfileRejectionEmailTemplate(
   return (
     <Html>
       <Head />
-      <Preview>Hay algunas cosas que necesitas corregir en tu perfil</Preview>
+      <Preview>Hay algunas cosas que necesitás corregir en tu perfil</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              Muchas gracias por tu interes en participar de nuestros eventos.
-              Lastimosamente, luego de revisarlo creemos que de momento no está
-              listo para ser verificado.
+              Muchas gracias por tu interés en participar de nuestros eventos.
+              Lastimosamente, luego de revisar tu perfil creemos que de momento
+              no está listo para ser verificado.
             </Text>
             <Text style={styles.text}>
               La razón por la que tu perfil no pudo ser verificado te la
-              describimos acontinuación:
+              describimos a continuación:
             </Text>
-            <Text style={styles.standoutText}>{props.reason}</Text>
+            {/* Typed in a textarea, so keep the admin's line breaks. */}
+            <Text style={{ ...styles.standoutText, whiteSpace: "pre-line" }}>
+              {props.reason}
+            </Text>
+            <Text style={styles.text}>
+              Corregí tus datos desde tu perfil y después usá el botón «Pedir
+              una nueva revisión» para avisarnos que ya está listo.
+            </Text>
+            <Button href={`${baseUrl}/my_profile`} style={styles.button}>
+              Corregir mi perfil
+            </Button>
+            <Text style={styles.text}>
+              Si tenés alguna duda, escribinos a{" "}
+              <span style={styles.email}>soporte@productoraglitter.com</span>.
+            </Text>
           </Section>
         </Container>
         <EmailFooter />
@@ -53,6 +68,7 @@ export default function ProfileRejectionEmailTemplate(
 
 ProfileRejectionEmailTemplate.PreviewProps = {
   profile: {
+    id: 7,
     displayName: "John Doe",
   },
   reason:

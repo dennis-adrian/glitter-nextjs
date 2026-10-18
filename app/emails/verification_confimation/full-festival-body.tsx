@@ -3,7 +3,7 @@ import * as styles from "@/app/emails/styles";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { Button, Link, Text } from "@react-email/components";
+import { Button, Text } from "react-email";
 
 type FullFestivalBodyProps = {
   baseUrl: string;
@@ -20,16 +20,19 @@ export default function FullFestivalBody(props: FullFestivalBodyProps) {
         están reservados.
       </Text>
       <Text style={styles.text}>
-        Pero no te preocupes, cuando lancemos un nuevo evento con espacio para{" "}
+        Pero no te preocupés: cuando lancemos un nuevo evento con espacio para{" "}
         <strong>
-          {getCategoryOccupationLabel(props.category, { singular: false })}{" "}
+          {getCategoryOccupationLabel(props.category, {
+            singular: false,
+          }).toLowerCase()}
         </strong>
-        serás de los primeros en recibir una notificación para hacer tu reserva.
+        , vas a ser de los primeros en recibir una notificación para hacer tu
+        reserva.
       </Text>
       <Text style={styles.text}>
-        De todas maneras, te invitamos a conocer todos los participantes del
+        De todas maneras, te invitamos a conocer a todos los participantes del
         evento y a visitarnos el{" "}
-        {formatFullDate(props.festival.festivalDates[0]?.startDate)}
+        {formatFullDate(props.festival.festivalDates[0]?.startDate)}.
       </Text>
       <Button
         href={`${props.baseUrl}/festivals/${props.festival.id}`}

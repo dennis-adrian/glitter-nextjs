@@ -104,11 +104,11 @@ const checkoutSchema = z
   }))
   .refine((value) => value.occurrenceIds.length > 0, {
     path: ["occurrenceIds"],
-    message: "Elige al menos un horario",
+    message: "Elegí al menos un horario",
   })
   .refine((value) => value.occurrenceIds.length <= MAX_CART_LINES, {
     path: ["occurrenceIds"],
-    message: `Puedes llevar hasta ${MAX_CART_LINES} sesiones por compra`,
+    message: `Podés llevar hasta ${MAX_CART_LINES} sesiones por compra`,
   });
 
 export type PaidCheckoutInput = z.input<typeof checkoutSchema>;
@@ -154,7 +154,7 @@ export async function startPaidCheckout(
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ?? "Revisa los datos del formulario",
+        parsed.error.issues[0]?.message ?? "Revisá los datos del formulario",
     };
   }
 
@@ -280,7 +280,9 @@ export async function startPaidCheckout(
           programSessions,
           eq(programSessions.id, sessionOccurrences.sessionId),
         )
-        .innerJoin(programs, eq(programs.id, programSessions.programId))
+        // Left, not inner: a standalone session has no program row, and an
+        // inner join would report it as "Horario no encontrado".
+        .leftJoin(programs, eq(programs.id, programSessions.programId))
         .where(inArray(sessionOccurrences.id, data.occurrenceIds));
 
       if (contexts.length !== data.occurrenceIds.length) {
@@ -291,12 +293,14 @@ export async function startPaidCheckout(
        * A purchase carries a single `programId`, so a cart cannot span
        * programs. Rejecting here keeps that column honest rather than silently
        * attributing the whole purchase to whichever program came back first.
+       * Standalone sessions count as their own group (null), so they never
+       * share a purchase with a program's sessions.
        */
-      const programId = contexts[0].program.id;
-      if (contexts.some((entry) => entry.program.id !== programId)) {
+      const programId = contexts[0].program?.id ?? null;
+      if (contexts.some((entry) => (entry.program?.id ?? null) !== programId)) {
         return {
           kind: "error" as const,
-          message: "Solo puedes comprar sesiones de un mismo programa a la vez",
+          message: "Solo podés comprar sesiones de un mismo programa a la vez",
         };
       }
 
@@ -315,9 +319,17 @@ export async function startPaidCheckout(
         };
       }
 
-      const promoCode = requestedPromoCode
-        ? await lockProgramPromoCode(tx, programId, requestedPromoCode)
-        : null;
+      if (requestedPromoCode && programId === null) {
+        return {
+          kind: "error" as const,
+          message: PROMO_CODE_ERROR_MESSAGES.standaloneSession,
+        };
+      }
+
+      const promoCode =
+        requestedPromoCode && programId !== null
+          ? await lockProgramPromoCode(tx, programId, requestedPromoCode)
+          : null;
 
       if (requestedPromoCode && !promoCode) {
         return {
@@ -423,9 +435,10 @@ export async function startPaidCheckout(
       for (const entry of contexts) {
         const occurrenceState = resolveOccurrenceState(
           {
-            programStatus: entry.program.status,
+            programStatus: entry.program?.status ?? null,
             sessionStatus: entry.session.status,
             lifecycleStatus: entry.occurrence.lifecycleStatus,
+            endsAt: entry.occurrence.endsAt,
             salesStartAt: entry.occurrence.salesStartAt,
             salesEndAt: entry.occurrence.salesEndAt,
             salesClosedAt: entry.occurrence.salesClosedAt,
@@ -459,7 +472,7 @@ export async function startPaidCheckout(
           return {
             kind: "error" as const,
             message:
-              "Este código deja un precio mayor. Confirma cuál precio quieres usar.",
+              "Este código deja un precio mayor. Confirmá qué precio querés usar.",
           };
         }
 
@@ -508,7 +521,8 @@ export async function startPaidCheckout(
           venueId:
             entry.occurrence.venueId ??
             entry.session.venueId ??
-            entry.program.defaultVenueId,
+            entry.program?.defaultVenueId ??
+            null,
           room: entry.occurrence.room,
           basePrice: roundMoney(entry.session.publicPrice),
           existingPrice: existingPrice.amount,
@@ -550,7 +564,7 @@ export async function startPaidCheckout(
       // Program override first, global default second — the same resolution
       // order the architecture defines for every program-scoped setting.
       const holdMinutes =
-        context.program.holdMinutes ?? settings.defaultHoldMinutes;
+        context.program?.holdMinutes ?? settings.defaultHoldMinutes;
       const holdExpiresAt = isZeroTotal
         ? null
         : new Date(now.getTime() + holdMinutes * 60_000);
@@ -725,7 +739,7 @@ export async function startPaidCheckout(
               return {
                 ...line,
                 ticketCode: ticket.code,
-                programName: context.program.name,
+                programName: context.program?.name ?? null,
               };
             })
           : [],
@@ -747,7 +761,7 @@ export async function startPaidCheckout(
     });
     return {
       success: false,
-      message: "No pudimos iniciar tu compra. Intenta de nuevo.",
+      message: "No pudimos iniciar tu compra. Intentá de nuevo.",
     };
   }
 
@@ -761,7 +775,7 @@ export async function startPaidCheckout(
   if (outcome.kind === "replayed") {
     return {
       success: false,
-      message: "Esta compra ya se registró. Revisa tu correo.",
+      message: "Esta compra ya se registró. Revisá tu correo.",
     };
   }
 
@@ -809,8 +823,8 @@ export async function startPaidCheckout(
       outcome.paymentMode === "free"
         ? zeroTotalEmailsSent
           ? "¡Listo! Tu código dejó la inscripción en Bs 0 y tu entrada está confirmada."
-          : "¡Listo! Tu entrada está confirmada. Guarda el enlace de esta página."
-        : "Reservamos tu cupo. Sube tu comprobante para confirmarlo.",
+          : "¡Listo! Tu entrada está confirmada. Guardá el enlace de esta página."
+        : "Reservamos tu cupo. Subí tu comprobante para confirmarlo.",
     purchaseId: outcome.purchaseId,
     accessToken,
     holdExpiresAt: outcome.holdExpiresAt,

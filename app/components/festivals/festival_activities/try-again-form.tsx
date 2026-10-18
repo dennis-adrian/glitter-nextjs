@@ -1,19 +1,20 @@
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { addFestivalActivityParticipantProof } from "@/app/lib/festival_activites/actions";
+import type { SignedActivityProofUpload } from "@/app/lib/festival_activites/definitions";
 import { CloudUploadIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 type TryAgainFormProps = {
-  imageUrls: string[];
+  uploads: SignedActivityProofUpload[];
   participationId: number;
   forProfileId: number;
   onSuccess: () => void;
 };
 
 export default function TryAgainForm({
-  imageUrls,
+  uploads,
   participationId,
   forProfileId,
   onSuccess,
@@ -23,7 +24,7 @@ export default function TryAgainForm({
   const action: () => void = form.handleSubmit(async () => {
     const { message, success } = await addFestivalActivityParticipantProof(
       participationId,
-      imageUrls,
+      uploads,
       forProfileId,
     );
 

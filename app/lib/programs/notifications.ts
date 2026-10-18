@@ -16,12 +16,14 @@ import type { SessionType } from "@/app/lib/programs/definitions";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 
 export type FreeRegistrationEmailInput = {
   purchaseId: number;
   attendeeName: string;
   attendeeEmail: string;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   sessionTitle: string;
   sessionType: SessionType;
   startsAt: Date;
@@ -119,20 +121,7 @@ export async function sendFreeRegistrationEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    /**
-     * `content_id` is what makes the `cid:` reference in the template resolve
-     * to this image. Resend's API supports it, but the installed SDK's
-     * `Attachment` type omits it — assigning through a variable keeps
-     * TypeScript's excess-property check off an object literal, which is the
-     * same thing `app/data/tickets/actions.ts` does for the festival ticket.
-     */
-    const qrAttachment = {
-      filename: "entrada-qr.png",
-      content: qrBuffer,
-      content_id: "program-ticket-qrcode",
-    };
-
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -150,7 +139,14 @@ export async function sendFreeRegistrationEmail(
             input.accessToken,
           ),
         }) as React.ReactElement,
-        attachments: [qrAttachment],
+        attachments: [
+          {
+            filename: "entrada-qr.png",
+            content: qrBuffer,
+            // Resolves the template's `cid:program-ticket-qrcode` image.
+            contentId: "program-ticket-qrcode",
+          },
+        ],
       },
       {
         // Keyed on the ticket, so a retry of the same registration cannot
@@ -158,12 +154,13 @@ export async function sendFreeRegistrationEmail(
         idempotencyKey: `program-registration-${input.purchaseId}-${input.ticketCode}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Free registration email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -206,7 +203,7 @@ export async function sendVoucherReceivedEmail(
   input: VoucherReceivedEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -236,12 +233,13 @@ export async function sendVoucherReceivedEmail(
         idempotencyKey: `program-voucher-received-${input.purchaseId}-v${input.version}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Voucher received email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -263,7 +261,7 @@ export async function sendAdminNewSignupEmail(
   if (input.adminEmails.length === 0) return true;
 
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: input.adminEmails,
@@ -289,12 +287,13 @@ export async function sendAdminNewSignupEmail(
         idempotencyKey: `program-admin-new-signup-${input.purchaseId}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Admin new signup email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -316,7 +315,7 @@ export async function sendVoucherChangesEmail(
   input: VoucherChangesEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -332,12 +331,13 @@ export async function sendVoucherChangesEmail(
         idempotencyKey: `program-voucher-changes-${input.purchaseId}-${input.requestedAt.getTime()}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Voucher changes email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -347,7 +347,8 @@ export type PaymentApprovedEmailInput = {
   purchaseId: number;
   attendeeName: string;
   attendeeEmail: string;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   sessionTitle: string;
   sessionType: SessionType;
   startsAt: Date;
@@ -377,13 +378,7 @@ export async function sendPaymentApprovedEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    const qrAttachment = {
-      filename: "entrada-qr.png",
-      content: qrBuffer,
-      content_id: "program-ticket-qrcode",
-    };
-
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -399,7 +394,14 @@ export async function sendPaymentApprovedEmail(
           secureLinkUrl: input.landingUrl,
           paymentApproved: true,
         }) as React.ReactElement,
-        attachments: [qrAttachment],
+        attachments: [
+          {
+            filename: "entrada-qr.png",
+            content: qrBuffer,
+            // Resolves the template's `cid:program-ticket-qrcode` image.
+            contentId: "program-ticket-qrcode",
+          },
+        ],
       },
       {
         // Keyed on the ticket, so re-approval cannot deliver a second QR.
@@ -408,12 +410,13 @@ export async function sendPaymentApprovedEmail(
           (input.deliveryKey ? `-${input.deliveryKey}` : ""),
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Payment approved email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -434,7 +437,7 @@ export async function sendPurchaseLinkEmail(
   input: PurchaseLinkEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -449,12 +452,13 @@ export async function sendPurchaseLinkEmail(
         idempotencyKey: `program-purchase-link-${input.purchaseId}-${input.resentAt.getTime()}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Purchase link email failed", {
       purchaseId: input.purchaseId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -486,7 +490,7 @@ export async function sendWaitlistInvitationEmail(
   input: WaitlistInvitationEmailInput,
 ): Promise<boolean> {
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -511,12 +515,13 @@ export async function sendWaitlistInvitationEmail(
         idempotencyKey: `program-waitlist-invite-${input.entryId}-${input.expiresAt.getTime()}`,
       },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Waitlist invitation email failed", {
       entryId: input.entryId,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }
@@ -525,7 +530,8 @@ export async function sendWaitlistInvitationEmail(
 export type SessionDayReminderLine = {
   sessionTitle: string;
   sessionType: SessionType;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   startsAt: Date;
   endsAt: Date;
   venueName: string | null;
@@ -562,13 +568,13 @@ export async function sendSessionDayReminderEmail(
   const isSingle = input.lines.length === 1;
 
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
         subject: isSingle
           ? `Hoy es tu ${SESSION_TYPE_LABELS[first.sessionType].toLowerCase()}: ${first.sessionTitle}`
-          : `Hoy tienes ${input.lines.length} sesiones con Glitter`,
+          : `Hoy tenés ${input.lines.length} sesiones con Glitter`,
         react: ProgramSessionReminderEmailTemplate({
           attendeeName: input.attendeeName,
           sessions: input.lines.map((line) => ({
@@ -587,12 +593,13 @@ export async function sendSessionDayReminderEmail(
       },
       { idempotencyKey: input.idempotencyKey },
     );
+    assertSent(result);
 
     return true;
   } catch (error) {
     console.error("Session day reminder email failed", {
       ticketCode: first.ticketCode,
-      errorType: error instanceof Error ? error.name : typeof error,
+      errorType: sendFailureType(error),
     });
     return false;
   }

@@ -11,6 +11,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
+      // Sonner's default region label is English; it appends the hotkey.
+      containerAriaLabel="Notificaciones"
       className="toaster group"
       toastOptions={{
         classNames: {

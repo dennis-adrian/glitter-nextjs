@@ -7,7 +7,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
@@ -53,7 +53,7 @@ export default function ReservationReleasedTemplate({
   creditPrice,
 }: ReservationReleasedTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const spaceWord = standCount > 1 ? "los espacios" : "el espacio";
+  const ofSpaces = standCount > 1 ? "de los espacios" : "del espacio";
 
   return (
     <Html>
@@ -71,15 +71,14 @@ export default function ReservationReleasedTemplate({
 
             {isOwner ? (
               <Text style={styles.text}>
-                Liberaste tu reserva de {spaceWord}{" "}
-                <strong>{standLabel}</strong> en <strong>{festivalName}</strong>
-                .
+                Liberaste tu reserva {ofSpaces} <strong>{standLabel}</strong> en{" "}
+                <strong>{festivalName}</strong>.
               </Text>
             ) : (
               <Text style={styles.text}>
-                <strong>{getUserName(owner)}</strong> liberó la reserva de{" "}
-                {spaceWord} <strong>{standLabel}</strong> en{" "}
-                <strong>{festivalName}</strong>, que compartían.
+                <strong>{getUserName(owner)}</strong> liberó la reserva{" "}
+                {ofSpaces} <strong>{standLabel}</strong> que compartían en{" "}
+                <strong>{festivalName}</strong>.
               </Text>
             )}
 

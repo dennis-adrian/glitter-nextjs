@@ -49,7 +49,8 @@ export type ReminderTicket = {
   attendeeUserId: number | null;
   sessionTitle: string;
   sessionType: SessionType;
-  programName: string;
+  /** Null for a standalone session, which prints no program name. */
+  programName: string | null;
   startsAt: Date;
   endsAt: Date;
   venueName: string | null;

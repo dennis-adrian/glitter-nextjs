@@ -72,7 +72,8 @@ const FormSchema = z
   });
 
 type BirthdayFormProps = {
-  onSubmit: (birthdate: Date) => void;
+  /** The picked day, as `yyyy-MM-dd`. */
+  onSubmit: (birthdate: string) => void;
 };
 
 export default function BirthdayForm(props: BirthdayFormProps) {
@@ -95,8 +96,7 @@ export default function BirthdayForm(props: BirthdayFormProps) {
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const birthdate = new Date(data.year, data.month - 1, data.day);
-    props.onSubmit(birthdate);
+    props.onSubmit(DateTime.fromObject(data).toISODate() ?? "");
   });
 
   return (

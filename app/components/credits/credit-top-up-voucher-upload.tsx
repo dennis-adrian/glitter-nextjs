@@ -129,7 +129,7 @@ export default function CreditTopUpVoucherUpload({
       />
       {isUploading && (
         <p className="text-center text-xs text-muted-foreground">
-          No cierres esta página hasta que termine la carga.
+          No cerrés esta página hasta que termine la carga.
         </p>
       )}
     </div>

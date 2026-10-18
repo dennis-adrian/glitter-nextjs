@@ -17,7 +17,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { DateTime } from "luxon";
 import { FestivalWithDates } from "../lib/festivals/definitions";
 import EmailFooter from "@/app/emails/email-footer";
@@ -27,6 +27,8 @@ interface FestivalActivationTemplateProps {
   festival: FestivalWithDates;
   profile: BaseProfile;
   standLabel: string;
+  /** Two for a full table. */
+  standCount?: number;
 }
 
 export default function ReservationConfirmationEmailTemplate(
@@ -35,6 +37,7 @@ export default function ReservationConfirmationEmailTemplate(
   const clientEnv = getClientEnv();
   const baseUrl = clientEnv.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(props.profile);
+  const isFullTable = (props.standCount ?? 1) > 1;
   let whatsAppGroupLink;
   if (props.profile.category === "illustration") {
     whatsAppGroupLink = clientEnv.NEXT_PUBLIC_ILLUSTRATION_GROUP_LINK;
@@ -54,9 +57,9 @@ export default function ReservationConfirmationEmailTemplate(
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              ¡Tu reserva para el espacio <strong>{props.standLabel}</strong> en
-              el festival <strong>{props.festival.name}</strong> ha sido
-              confirmada!
+              ¡Tu reserva para {isFullTable ? "los espacios" : "el espacio"}{" "}
+              <strong>{props.standLabel}</strong> en el festival{" "}
+              <strong>{props.festival.name}</strong> ha sido confirmada!
             </Text>
             <Text style={styles.text}>
               Te esperamos el{" "}
@@ -68,15 +71,15 @@ export default function ReservationConfirmationEmailTemplate(
                 }),
                 DateTime.TIME_SIMPLE,
               )}{" "}
-              para el armado de tu espacio.
+              para el armado de {isFullTable ? "tus espacios" : "tu espacio"}.
             </Text>
             <Text style={styles.text}>
               Te invitamos a unirte a nuestra comunidad de WhatsApp haciendo
               clic en{" "}
-              <Link href={whatsAppGroupLink || baseUrl}>este enlace</Link>
+              <Link href={whatsAppGroupLink || baseUrl}>este enlace</Link>.
             </Text>
             <Text style={styles.text}>
-              Puedes ver la página del evento en cualquier momento y ver a los
+              Podés ver la página del evento en cualquier momento y ver a los
               demás participantes que estarán presentes.
             </Text>
             <Button

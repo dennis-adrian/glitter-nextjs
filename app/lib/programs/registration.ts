@@ -26,9 +26,9 @@ export const REGISTRATION_BLOCKER_LABELS: Record<RegistrationBlocker, string> =
     not_purchasable: "Esta sesión no está aceptando inscripciones ahora mismo",
     audience_excluded: "Esta sesión no está disponible para tu perfil",
     not_free: "Esta sesión tiene costo; la inscripción gratuita no aplica",
-    not_paid: "Esta sesión es gratuita; no necesitas pagar para inscribirte",
+    not_paid: "Esta sesión es gratuita; no necesitás pagar para inscribirte",
     sold_out: "Ya no quedan cupos para este horario",
-    already_registered: "Ya tienes una entrada para este horario",
+    already_registered: "Ya tenés una entrada para este horario",
   };
 
 /**

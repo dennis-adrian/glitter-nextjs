@@ -11,7 +11,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { DateTime } from "luxon";
 import { FestivalBase } from "../lib/festivals/definitions";
 import EmailFooter from "@/app/emails/email-footer";

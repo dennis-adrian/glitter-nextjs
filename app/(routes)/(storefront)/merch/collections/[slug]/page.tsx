@@ -5,7 +5,7 @@ import StoreSectionGate from "@/app/components/organisms/store/store-section-gat
 import { fetchPublicMerchCollection } from "@/app/lib/merch/collections";
 import { fetchPublicBundles } from "@/app/lib/merch/bundles";
 import { merchCollectionPath } from "@/app/lib/merch/paths";
-import { fetchProducts } from "@/app/lib/products/actions";
+import { fetchProducts } from "@/app/lib/products/queries";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 
 type Props = { params: Promise<{ slug: string }> };

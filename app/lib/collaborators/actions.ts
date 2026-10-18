@@ -1,19 +1,24 @@
 "use server";
 
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   collaboratorsAttendanceLogs,
+  festivalDates,
   reservationCollaborators,
   standReservations,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { revalidatePath } from "next/cache";
 
 export async function fetchReservationCollaborationsByFestivalId(
   festivalId: number,
 ): Promise<ReservationCollaborationWithRelations[]> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return [];
+
   try {
     // First get the reservation IDs for the given festival
     const reservations = await db.query.standReservations.findMany({
@@ -43,7 +48,11 @@ export async function fetchReservationCollaborationsByFestivalId(
             },
           },
         },
-        collaborator: true,
+        // The table renders only the name; the identification number stays
+        // on the server.
+        collaborator: {
+          columns: { id: true, firstName: true, lastName: true },
+        },
         collaboratorsAttendanceLogs: true,
       },
     });
@@ -57,7 +66,37 @@ export async function registerArrival(
   reservationCollaborationId: number,
   festivalDateId: number,
 ) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
+    // The date must be one of the festival the collaborator's reservation is for.
+    const [target] = await db
+      .select({ id: reservationCollaborators.id })
+      .from(reservationCollaborators)
+      .innerJoin(
+        standReservations,
+        eq(standReservations.id, reservationCollaborators.reservationId),
+      )
+      .innerJoin(
+        festivalDates,
+        and(
+          eq(festivalDates.festivalId, standReservations.festivalId),
+          eq(festivalDates.id, festivalDateId),
+        ),
+      )
+      .where(eq(reservationCollaborators.id, reservationCollaborationId))
+      .limit(1);
+
+    if (!target) {
+      return {
+        success: false,
+        message: "La fecha no corresponde al festival del colaborador",
+      };
+    }
+
     await db.insert(collaboratorsAttendanceLogs).values({
       reservationCollaboratorId: reservationCollaborationId,
       festivalDateId: festivalDateId,
@@ -78,6 +117,11 @@ export async function registerArrival(
 }
 
 export async function removeArrival(reservationCollaborationId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db
       .update(reservationCollaborators)

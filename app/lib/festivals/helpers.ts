@@ -1,11 +1,12 @@
-import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
+import { fetchFullFestivalById } from "@/app/lib/festival_sectors/queries";
 import { cache } from "react";
 import type {
   FestivalBase,
   FestivalWithDates,
   FullFestival,
 } from "./definitions";
-import { fetchActiveFestivalWithDates, fetchFestival } from "./actions";
+import { fetchActiveFestivalWithDates } from "./actions";
+import { fetchFestival } from "./queries";
 
 export const getActiveFestival = cache(async () => {
   return await fetchFestival({});

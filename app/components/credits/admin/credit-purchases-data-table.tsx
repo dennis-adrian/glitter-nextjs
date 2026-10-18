@@ -179,6 +179,38 @@ function PurchaseCell({
   );
 }
 
+/** The review for a voucher still waiting on one; the voucher itself after. */
+function PurchaseAction({
+  row,
+  canReview,
+}: {
+  row: CreditPurchaseRow;
+  canReview: boolean;
+}) {
+  if (row.review) {
+    return (
+      <CreditPurchaseReviewButton
+        purchase={row}
+        review={row.review}
+        canReview={canReview}
+      />
+    );
+  }
+  if (row.voucherUrl) {
+    return (
+      <a
+        href={row.voucherUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn("whitespace-nowrap text-sm", linkClass)}
+      >
+        Comprobante
+      </a>
+    );
+  }
+  return null;
+}
+
 const columnTitles: Record<string, string> = {
   purchase: "Compra",
   participant: "Participante",
@@ -286,23 +318,9 @@ function buildColumns({
     {
       id: "actions",
       header: () => <span className="sr-only">Acciones</span>,
-      cell: ({ row }) =>
-        row.original.review ? (
-          <CreditPurchaseReviewButton
-            purchase={row.original}
-            review={row.original.review}
-            canReview={canReview}
-          />
-        ) : row.original.voucherUrl ? (
-          <a
-            href={row.original.voucherUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn("whitespace-nowrap text-sm", linkClass)}
-          >
-            Comprobante
-          </a>
-        ) : null,
+      cell: ({ row }) => (
+        <PurchaseAction row={row.original} canReview={canReview} />
+      ),
       enableSorting: false,
       enableHiding: false,
     },
@@ -400,9 +418,11 @@ export default function CreditPurchasesDataTable({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <PurchaseCell row={row} showStatus={status === "all"} now={now} />
-              <p className="truncate">
-                {getUserName(row.user) || row.user.email}
-              </p>
+              {showUser && (
+                <p className="truncate">
+                  {getUserName(row.user) || row.user.email}
+                </p>
+              )}
             </div>
             <CreditAmount
               amount={row.amount}
@@ -411,13 +431,7 @@ export default function CreditPurchasesDataTable({
           </div>
           <Purpose row={row} />
           <Decision row={row} />
-          {row.review && (
-            <CreditPurchaseReviewButton
-              purchase={row}
-              review={row.review}
-              canReview={canReview}
-            />
-          )}
+          <PurchaseAction row={row} canReview={canReview} />
         </div>
       )}
       emptyMessage={

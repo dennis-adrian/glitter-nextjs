@@ -8,26 +8,37 @@ const currentProfileMock = vi.hoisted(() => vi.fn());
 const updateMock = vi.hoisted(() => vi.fn());
 const deleteMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
+const selectMock = vi.hoisted(() => vi.fn());
 const findFirstUserMock = vi.hoisted(() => vi.fn());
 const findFirstSocialMock = vi.hoisted(() => vi.fn());
 const deleteFilesMock = vi.hoisted(() => vi.fn());
+const fetchUserProfileByIdMock = vi.hoisted(() => vi.fn());
+const fetchAdminUsersMock = vi.hoisted(() => vi.fn());
+const sendEmailMock = vi.hoisted(() => vi.fn());
+const updateStatusWithAuditMock = vi.hoisted(() => vi.fn());
+const latestRejectionReasonMock = vi.hoisted(() => vi.fn());
+const reviewRequestTemplateMock = vi.hoisted(() => vi.fn());
+const clerkUserMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
   buildWhereClauseForProfileFetching: vi.fn(),
   getCurrentUserProfile: currentProfileMock,
+  requireAdminOrFestivalAdmin: vi.fn(),
   requireProfileOwnerOrAdmin: ownerOrAdminMock,
   requireProfileOwnerOrStaff: ownerOrStaffMock,
 }));
 
-vi.mock("@/app/api/users/actions", () => ({
-  fetchAdminUsers: vi.fn().mockResolvedValue([]),
-  fetchUserProfileById: vi.fn().mockResolvedValue(null),
+vi.mock("@/app/lib/users/queries", () => ({
+  fetchAdminUsers: fetchAdminUsersMock,
+  fetchUserProfileById: fetchUserProfileByIdMock,
+  getCurrentClerkUser: clerkUserMock,
 }));
 
 vi.mock("@/db", () => ({
   db: {
     update: updateMock,
     delete: deleteMock,
+    select: selectMock,
     transaction: transactionMock,
     query: {
       users: { findFirst: findFirstUserMock },
@@ -40,9 +51,16 @@ vi.mock("@/app/server/uploadthing", () => ({
   utapi: { deleteFiles: deleteFilesMock },
 }));
 
-vi.mock("@/app/vendors/resend", () => ({ sendEmail: vi.fn() }));
+vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/emails/profile-completion", () => ({ default: vi.fn() }));
 vi.mock("@/app/emails/subcategory-update", () => ({ default: vi.fn() }));
+vi.mock("@/app/emails/profile-review-request", () => ({
+  default: reviewRequestTemplateMock,
+}));
+vi.mock("@/app/lib/users/status-events", () => ({
+  latestRejectionReason: latestRejectionReasonMock,
+  updateUserStatusWithAudit: updateStatusWithAuditMock,
+}));
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/app/lib/posthog-server", () => ({
@@ -52,7 +70,9 @@ vi.mock("@/app/lib/posthog-server", () => ({
 
 import { signProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import {
+  createUserProfile,
   deleteUserSocial,
+  requestProfileReview,
   updateProfile,
   updateProfileCategories,
   updateProfilePicture,
@@ -61,6 +81,50 @@ import {
 
 const OWNER = { id: 7, role: "user" };
 const ADMIN = { id: 1, role: "admin" };
+const SELECTABLE_ENTREPRENEURSHIP = {
+  category: "entrepreneurship",
+  visibility: "selectable",
+  isAdminAssignableOnly: false,
+};
+
+/** Answers the subcategory lookup `db.select().from().where()` with `rows`. */
+function subcategoryRows(
+  rows: {
+    category: string;
+    visibility: string;
+    isAdminAssignableOnly: boolean;
+  }[],
+) {
+  const where = vi.fn().mockResolvedValue(rows);
+  selectMock.mockReturnValue({ from: vi.fn(() => ({ where })) });
+}
+
+const COMPLETE_PROFILE = {
+  id: 7,
+  role: "user",
+  status: "pending",
+  displayName: "Ana Ilustra",
+  email: "ana@example.com",
+  bio: "Ilustradora",
+  imageUrl: "https://utfs.io/f/ana",
+  firstName: "Ana",
+  lastName: "Paz",
+  birthdate: new Date("1995-05-05"),
+  phoneNumber: "70000000",
+  gender: "female",
+  country: "BO",
+  category: "illustration",
+  profileSubcategories: [{ subcategoryId: 1 }],
+  userSocials: [{ type: "instagram", username: "ana" }],
+};
+const INCOMPLETE_PROFILE = { ...COMPLETE_PROFILE, phoneNumber: null };
+
+/** Serves the profile as read before the write, then as read after it. */
+function profileGoesFrom(before: object, after: object) {
+  fetchUserProfileByIdMock
+    .mockResolvedValueOnce(before)
+    .mockResolvedValueOnce(after);
+}
 
 /** Captures the object handed to `.set()` by `db.update(...)`. */
 function captureUpdate() {
@@ -77,9 +141,20 @@ beforeEach(() => {
   updateMock.mockReset();
   deleteMock.mockReset();
   transactionMock.mockReset();
+  selectMock.mockReset();
   findFirstUserMock.mockReset();
   findFirstSocialMock.mockReset();
   deleteFilesMock.mockReset();
+  fetchUserProfileByIdMock.mockReset();
+  fetchUserProfileByIdMock.mockResolvedValue(null);
+  fetchAdminUsersMock.mockReset();
+  fetchAdminUsersMock.mockResolvedValue([]);
+  sendEmailMock.mockReset();
+  updateStatusWithAuditMock.mockReset();
+  latestRejectionReasonMock.mockReset();
+  latestRejectionReasonMock.mockResolvedValue(null);
+  reviewRequestTemplateMock.mockReset();
+  clerkUserMock.mockReset();
 });
 
 describe("updateProfile", () => {
@@ -128,6 +203,29 @@ describe("updateProfile", () => {
     expect(Object.keys(written).sort()).toEqual(["displayName", "updatedAt"]);
   });
 
+  it("refuses a display name over 80 characters without touching the row", async () => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+
+    await expect(
+      updateProfile(OWNER.id, { displayName: "a".repeat(81) }),
+    ).resolves.toEqual({
+      success: false,
+      message: "Tu nombre puede tener hasta 80 caracteres",
+    });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("stores a display name trimmed, so trailing spaces cannot pass the limit", async () => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    const { set } = captureUpdate();
+    const name = "a".repeat(80);
+
+    await expect(
+      updateProfile(OWNER.id, { displayName: `${name}   ` }),
+    ).resolves.toMatchObject({ success: true });
+    expect(set.mock.calls[0][0]).toHaveProperty("displayName", name);
+  });
+
   it("lets an admin edit another profile's self-editable fields", async () => {
     ownerOrAdminMock.mockResolvedValue(ADMIN);
     const { set } = captureUpdate();
@@ -136,6 +234,431 @@ describe("updateProfile", () => {
       updateProfile(OWNER.id, { phoneNumber: "70000000" }),
     ).resolves.toMatchObject({ success: true });
     expect(set.mock.calls[0][0]).toHaveProperty("phoneNumber", "70000000");
+  });
+});
+
+describe("updateProfile admin notice", () => {
+  beforeEach(() => {
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    captureUpdate();
+    fetchAdminUsersMock.mockResolvedValue([{ email: "admin@example.com" }]);
+  });
+
+  it("tells admins on the save that completes the profile", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock.mock.calls[0][0].to).toEqual(["admin@example.com"]);
+  });
+
+  it("stays quiet when an already-complete profile is saved again", async () => {
+    profileGoesFrom(COMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await expect(
+      updateProfile(OWNER.id, { bio: "Ilustradora y muralista" }),
+    ).resolves.toMatchObject({ success: true });
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet while the profile is still incomplete", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, INCOMPLETE_PROFILE);
+
+    await updateProfile(OWNER.id, { bio: "Ilustradora" });
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("never asks admins to review a verified profile", async () => {
+    profileGoesFrom(
+      { ...INCOMPLETE_PROFILE, status: "verified" },
+      { ...COMPLETE_PROFILE, status: "verified" },
+    );
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet when a rejected profile is completed; the participant asks for the review", async () => {
+    profileGoesFrom(
+      { ...INCOMPLETE_PROFILE, status: "rejected" },
+      { ...COMPLETE_PROFILE, status: "rejected" },
+    );
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("judges completeness from the row as it was before this save", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await updateProfile(OWNER.id, { phoneNumber: "70000000" });
+
+    expect(fetchUserProfileByIdMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateMock.mock.invocationCallOrder[0],
+    );
+  });
+});
+
+/**
+ * The completion modal saves the category, picture and socials steps through
+ * these actions, so whichever step fills the last gap has to tell admins. The
+ * category step is below: who may save it depends on the profile's state.
+ */
+describe.each([
+  {
+    name: "updateProfilePicture",
+    arrange: () => {
+      ownerOrAdminMock.mockResolvedValue(OWNER);
+      vi.stubEnv("UPLOADTHING_TOKEN", "test-uploadthing-token");
+      findFirstUserMock.mockResolvedValue({
+        imageUrl: "https://utfs.io/f/stored-key",
+      });
+    },
+    save: () =>
+      updateProfilePicture(
+        OWNER.id,
+        "https://utfs.io/f/new-key",
+        signProfilePictureUpload(OWNER.id, "https://utfs.io/f/new-key"),
+      ),
+    writeMock: updateMock,
+  },
+  {
+    name: "upsertUserSocialProfiles",
+    arrange: () => {
+      ownerOrAdminMock.mockResolvedValue(OWNER);
+      transactionMock.mockResolvedValue(undefined);
+    },
+    save: () =>
+      upsertUserSocialProfiles(OWNER.id, [
+        { type: "instagram", username: "ana" },
+      ]),
+    writeMock: transactionMock,
+  },
+])("$name admin notice", ({ arrange, save, writeMock }) => {
+  beforeEach(() => {
+    arrange();
+    captureUpdate();
+    fetchAdminUsersMock.mockResolvedValue([{ email: "admin@example.com" }]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("tells admins on the save that completes the profile", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await expect(save()).resolves.toMatchObject({ success: true });
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock.mock.calls[0][0].to).toEqual(["admin@example.com"]);
+  });
+
+  it("stays quiet when an already-complete profile is saved again", async () => {
+    profileGoesFrom(COMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await expect(save()).resolves.toMatchObject({ success: true });
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet when a rejected profile is completed; the participant asks for the review", async () => {
+    profileGoesFrom(
+      { ...INCOMPLETE_PROFILE, status: "rejected" },
+      { ...COMPLETE_PROFILE, status: "rejected" },
+    );
+
+    await expect(save()).resolves.toMatchObject({ success: true });
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("judges completeness from the row as it was before this save", async () => {
+    profileGoesFrom(INCOMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await save();
+
+    expect(fetchUserProfileByIdMock.mock.invocationCallOrder[0]).toBeLessThan(
+      writeMock.mock.invocationCallOrder[0],
+    );
+  });
+});
+
+/**
+ * A participant picks their area only while onboarding, so their category
+ * save is the one that can fill the last gap. Past that, only staff
+ * recategorize, so a save of a finished profile is theirs.
+ */
+describe("updateProfileCategories admin notice", () => {
+  /** The gap the category step fills: no area and no subcategory yet. */
+  const UNCATEGORIZED_PROFILE = {
+    ...COMPLETE_PROFILE,
+    category: "none",
+    profileSubcategories: [],
+  };
+  const save = () => updateProfileCategories(OWNER.id, "illustration", [1]);
+
+  /** The caller is the participant, so the gate returns their own row. */
+  function participantSaves(before: typeof UNCATEGORIZED_PROFILE) {
+    ownerOrStaffMock.mockResolvedValue(before);
+    subcategoryRows([
+      {
+        category: "illustration",
+        visibility: "selectable",
+        isAdminAssignableOnly: false,
+      },
+    ]);
+  }
+
+  beforeEach(() => {
+    transactionMock.mockResolvedValue(undefined);
+    captureUpdate();
+    fetchAdminUsersMock.mockResolvedValue([{ email: "admin@example.com" }]);
+  });
+
+  it("tells admins on the save that completes the profile", async () => {
+    participantSaves(UNCATEGORIZED_PROFILE);
+    profileGoesFrom(UNCATEGORIZED_PROFILE, COMPLETE_PROFILE);
+
+    await expect(save()).resolves.toMatchObject({ success: true });
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock.mock.calls[0][0].to).toEqual(["admin@example.com"]);
+  });
+
+  it("stays quiet when an already-complete profile is saved again", async () => {
+    ownerOrStaffMock.mockResolvedValue({
+      ...ADMIN,
+      category: "illustration",
+      profileSubcategories: [{ subcategoryId: 1 }],
+    });
+    profileGoesFrom(COMPLETE_PROFILE, COMPLETE_PROFILE);
+
+    await expect(save()).resolves.toMatchObject({ success: true });
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet when a rejected profile is completed; the participant asks for the review", async () => {
+    const rejected = { ...UNCATEGORIZED_PROFILE, status: "rejected" };
+    participantSaves(rejected);
+    profileGoesFrom(rejected, { ...COMPLETE_PROFILE, status: "rejected" });
+
+    await expect(save()).resolves.toMatchObject({ success: true });
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("judges completeness from the row as it was before this save", async () => {
+    participantSaves(UNCATEGORIZED_PROFILE);
+    profileGoesFrom(UNCATEGORIZED_PROFILE, COMPLETE_PROFILE);
+
+    await expect(save()).resolves.toMatchObject({ success: true });
+
+    expect(fetchUserProfileByIdMock.mock.invocationCallOrder[0]).toBeLessThan(
+      transactionMock.mock.invocationCallOrder[0],
+    );
+  });
+});
+
+describe("requestProfileReview", () => {
+  const REJECTED_PROFILE = { ...COMPLETE_PROFILE, status: "rejected" };
+  const FAILURE_MESSAGE =
+    "No pudimos pedir la nueva revisión. Intentá de nuevo en unos minutos.";
+  const ALREADY_PENDING_MESSAGE =
+    "Tu perfil ya está en revisión. Te vamos a escribir cuando nuestro equipo lo revise.";
+
+  let lockMock: ReturnType<typeof vi.fn>;
+
+  /** Runs the transaction body against a tx whose locked read finds `statuses` in turn. */
+  function lockedStatuses(...statuses: string[]) {
+    lockMock = vi.fn();
+    for (const status of statuses) {
+      lockMock.mockResolvedValueOnce([{ status }]);
+    }
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({ limit: vi.fn(() => ({ for: lockMock })) })),
+        })),
+      })),
+    };
+    transactionMock.mockImplementation(
+      async (body: (t: typeof tx) => unknown) => body(tx),
+    );
+  }
+
+  beforeEach(() => {
+    currentProfileMock.mockResolvedValue(REJECTED_PROFILE);
+    fetchAdminUsersMock.mockResolvedValue([
+      { email: "a1@example.com" },
+      { email: "a2@example.com" },
+    ]);
+    sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
+    updateStatusWithAuditMock.mockResolvedValue(undefined);
+    lockedStatuses("rejected");
+  });
+
+  it("refuses an unauthenticated caller", async () => {
+    currentProfileMock.mockResolvedValue(null);
+
+    await expect(requestProfileReview(7)).resolves.toEqual({
+      success: false,
+      message: "No autorizado",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(updateStatusWithAuditMock).not.toHaveBeenCalled();
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request for somebody else's profile", async () => {
+    await expect(requestProfileReview(99)).resolves.toEqual({
+      success: false,
+      message: "No autorizado",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an admin too; admins verify or reject instead", async () => {
+    currentProfileMock.mockResolvedValue({ ...REJECTED_PROFILE, ...ADMIN });
+
+    await expect(requestProfileReview(OWNER.id)).resolves.toEqual({
+      success: false,
+      message: "No autorizado",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an incomplete profile with the reason the button shows", async () => {
+    currentProfileMock.mockResolvedValue({
+      ...REJECTED_PROFILE,
+      phoneNumber: null,
+    });
+
+    await expect(requestProfileReview(OWNER.id)).resolves.toEqual({
+      success: false,
+      message: "Completá tu perfil para pedir una nueva revisión.",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("tells a pending profile it is already in review", async () => {
+    currentProfileMock.mockResolvedValue(COMPLETE_PROFILE);
+
+    await expect(requestProfileReview(OWNER.id)).resolves.toEqual({
+      success: false,
+      message: ALREADY_PENDING_MESSAGE,
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a profile that was never rejected", async () => {
+    currentProfileMock.mockResolvedValue({
+      ...COMPLETE_PROFILE,
+      status: "verified",
+    });
+
+    await expect(requestProfileReview(OWNER.id)).resolves.toEqual({
+      success: false,
+      message:
+        "Solo podés pedir una nueva revisión si tu perfil fue rechazado.",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(updateStatusWithAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("moves the profile back to pending under a lock, with the participant as actor", async () => {
+    await expect(requestProfileReview(OWNER.id)).resolves.toEqual({
+      success: true,
+      message:
+        "Tu perfil volvió a quedar en revisión. Te vamos a escribir cuando nuestro equipo lo revise.",
+    });
+
+    expect(lockMock).toHaveBeenCalledWith("update");
+    expect(updateStatusWithAuditMock).toHaveBeenCalledTimes(1);
+    expect(updateStatusWithAuditMock.mock.calls[0][1]).toEqual({
+      userId: 7,
+      fromStatus: "rejected",
+      toStatus: "pending",
+      reason: "Nueva revisión pedida por el participante.",
+      createdByUserId: 7,
+    });
+  });
+
+  it("emails every admin once, with the previous rejection reason", async () => {
+    latestRejectionReasonMock.mockResolvedValue("Faltan publicaciones");
+
+    await requestProfileReview(OWNER.id);
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    const email = sendEmailMock.mock.calls[0][0];
+    expect(email.to).toEqual(["a1@example.com", "a2@example.com"]);
+    expect(email.subject).toBe(
+      "Ana Ilustra pidió una nueva revisión de su perfil",
+    );
+    expect(reviewRequestTemplateMock).toHaveBeenCalledWith({
+      profile: REJECTED_PROFILE,
+      previousReason: "Faltan publicaciones",
+    });
+  });
+
+  it("sends one review on a double click; the second finds it pending", async () => {
+    lockedStatuses("rejected", "pending");
+
+    const first = await requestProfileReview(OWNER.id);
+    const second = await requestProfileReview(OWNER.id);
+
+    expect(first).toMatchObject({ success: true });
+    expect(second).toEqual({
+      success: false,
+      message: ALREADY_PENDING_MESSAGE,
+    });
+    expect(updateStatusWithAuditMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports failure, and emails nobody, when the status moved under it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    updateStatusWithAuditMock.mockRejectedValue(
+      new Error('User status update failed: expected status "rejected"'),
+    );
+
+    await expect(requestProfileReview(OWNER.id)).resolves.toEqual({
+      success: false,
+      message: FAILURE_MESSAGE,
+    });
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("still reports the request when Resend rejects the admin email", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    sendEmailMock.mockResolvedValue({
+      data: null,
+      error: { name: "validation_error", message: "Invalid `to` field" },
+    });
+
+    await expect(requestProfileReview(OWNER.id)).resolves.toMatchObject({
+      success: true,
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Error sending profile review request email",
+      expect.anything(),
+    );
+  });
+
+  it("still reports the request when sending throws", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    sendEmailMock.mockRejectedValue(new Error("network"));
+
+    await expect(requestProfileReview(OWNER.id)).resolves.toMatchObject({
+      success: true,
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Error sending profile review request email",
+      expect.anything(),
+    );
   });
 });
 
@@ -149,13 +672,195 @@ describe("updateProfileCategories", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("runs for the profile owner", async () => {
-    ownerOrStaffMock.mockResolvedValue(OWNER);
+  it("runs for the profile owner while they complete their profile", async () => {
+    ownerOrStaffMock.mockResolvedValue({
+      ...OWNER,
+      category: "none",
+      profileSubcategories: [],
+    });
+    subcategoryRows([SELECTABLE_ENTREPRENEURSHIP, SELECTABLE_ENTREPRENEURSHIP]);
     transactionMock.mockResolvedValue(undefined);
 
     await expect(
-      updateProfileCategories(OWNER.id, "illustrator", [1]),
+      updateProfileCategories(OWNER.id, "entrepreneurship", [1, 2]),
     ).resolves.toMatchObject({ success: true });
+    expect(transactionMock).toHaveBeenCalled();
+  });
+
+  describe("with the staff-requested participant email", () => {
+    const save = () =>
+      updateProfileCategories(OWNER.id, "illustration", [1], {
+        sendUserEmail: true,
+      });
+    const sentTo = (address: string) =>
+      sendEmailMock.mock.calls.some(([email]) => email.to.includes(address));
+
+    beforeEach(() => {
+      // Only staff recategorize a finished profile, and only staff ask for
+      // the participant email.
+      ownerOrStaffMock.mockResolvedValue({
+        ...ADMIN,
+        category: "illustration",
+        profileSubcategories: [{ subcategoryId: 1 }],
+      });
+      transactionMock.mockResolvedValue(undefined);
+      fetchAdminUsersMock.mockResolvedValue([{ email: "admin@example.com" }]);
+      // Incomplete before the write, complete on every read after it.
+      fetchUserProfileByIdMock
+        .mockResolvedValueOnce(INCOMPLETE_PROFILE)
+        .mockResolvedValue(COMPLETE_PROFILE);
+      sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
+    });
+
+    it("emails the participant and tells admins on the save that completes the profile", async () => {
+      captureUpdate();
+
+      await expect(save()).resolves.toMatchObject({ success: true });
+
+      expect(sentTo("ana@example.com")).toBe(true);
+      expect(sentTo("admin@example.com")).toBe(true);
+    });
+
+    it("still emails the participant when the completion check throws", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      updateMock.mockReturnValue({
+        set: vi.fn(() => ({
+          where: vi.fn().mockRejectedValue(new Error("connection reset")),
+        })),
+      });
+
+      await save();
+
+      expect(sentTo("ana@example.com")).toBe(true);
+    });
+
+    it("still tells admins when the participant email fails", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      captureUpdate();
+      sendEmailMock.mockImplementation(async ({ to }: { to: string[] }) =>
+        to.includes("ana@example.com")
+          ? Promise.reject(new Error("network"))
+          : { data: { id: "email_2" }, error: null },
+      );
+
+      await expect(save()).resolves.toMatchObject({ success: true });
+
+      expect(sentTo("admin@example.com")).toBe(true);
+      expect(errorSpy).toHaveBeenCalledWith(
+        "Error sending subcategory update email",
+        expect.anything(),
+      );
+    });
+  });
+
+  describe("an onboarding owner's pick", () => {
+    beforeEach(() => {
+      ownerOrStaffMock.mockResolvedValue({
+        ...OWNER,
+        category: "none",
+        profileSubcategories: [],
+      });
+      transactionMock.mockResolvedValue(undefined);
+    });
+
+    it.each([
+      [
+        "no subcategories, which would keep them in onboarding",
+        "illustration",
+        [],
+      ],
+      ["the deprecated new_artist area", "new_artist", [1]],
+      ["no area", "none", [1]],
+      ["an id that is not a whole number", "illustration", [1.5]],
+    ])(
+      "refuses %s without looking up a subcategory",
+      async (_, category, ids) => {
+        await expect(
+          updateProfileCategories(OWNER.id, category as never, ids as number[]),
+        ).resolves.toEqual({ success: false, message: "No autorizado" });
+        expect(selectMock).not.toHaveBeenCalled();
+        expect(transactionMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [
+        "an admin-assignable-only subcategory",
+        [{ ...SELECTABLE_ENTREPRENEURSHIP, isAdminAssignableOnly: true }],
+        [1],
+      ],
+      [
+        "a listed subcategory that is not selectable",
+        [{ ...SELECTABLE_ENTREPRENEURSHIP, visibility: "listed" }],
+        [1],
+      ],
+      [
+        "a hidden subcategory",
+        [{ ...SELECTABLE_ENTREPRENEURSHIP, visibility: "hidden" }],
+        [1],
+      ],
+      [
+        "a subcategory from another area",
+        [{ ...SELECTABLE_ENTREPRENEURSHIP, category: "gastronomy" }],
+        [1],
+      ],
+      ["an id that does not exist", [SELECTABLE_ENTREPRENEURSHIP], [1, 404]],
+      ["the same id twice", [SELECTABLE_ENTREPRENEURSHIP], [1, 1]],
+    ])("refuses %s", async (_, rows, ids) => {
+      subcategoryRows(rows);
+
+      await expect(
+        updateProfileCategories(OWNER.id, "entrepreneurship", ids),
+      ).resolves.toEqual({ success: false, message: "No autorizado" });
+      expect(selectMock).toHaveBeenCalled();
+      expect(transactionMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("refuses the owner once their category and subcategories are set", async () => {
+    ownerOrStaffMock.mockResolvedValue({
+      ...OWNER,
+      category: "illustration",
+      profileSubcategories: [{ subcategoryId: 1 }],
+    });
+
+    await expect(
+      updateProfileCategories(OWNER.id, "entrepreneurship", [2]),
+    ).resolves.toEqual({ success: false, message: "No autorizado" });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an admin", ADMIN],
+    ["a festival admin", { id: 2, role: "festival_admin" }],
+  ])("lets %s recategorize a completed profile", async (_, staff) => {
+    // Staff with a finished profile of their own, so only the role lets
+    // them through.
+    ownerOrStaffMock.mockResolvedValue({
+      ...staff,
+      category: "illustration",
+      profileSubcategories: [{ subcategoryId: 1 }],
+    });
+    transactionMock.mockResolvedValue(undefined);
+
+    await expect(
+      updateProfileCategories(OWNER.id, "entrepreneurship", [2]),
+    ).resolves.toMatchObject({ success: true });
+    expect(transactionMock).toHaveBeenCalled();
+  });
+
+  it("lets staff assign subcategories a participant cannot pick", async () => {
+    ownerOrStaffMock.mockResolvedValue({
+      ...ADMIN,
+      category: "none",
+      profileSubcategories: [],
+    });
+    transactionMock.mockResolvedValue(undefined);
+
+    await expect(
+      updateProfileCategories(OWNER.id, "entrepreneurship", [9]),
+    ).resolves.toMatchObject({ success: true });
+    expect(selectMock).not.toHaveBeenCalled();
     expect(transactionMock).toHaveBeenCalled();
   });
 });
@@ -249,6 +954,33 @@ describe("updateProfilePicture", () => {
     expect(set.mock.calls[0][0]).toHaveProperty("imageUrl", NEW_URL);
   });
 
+  it("still reports the save, and tells admins, when deleting the old file fails", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    ownerOrAdminMock.mockResolvedValue(OWNER);
+    captureUpdate();
+    profileGoesFrom(INCOMPLETE_PROFILE, COMPLETE_PROFILE);
+    fetchAdminUsersMock.mockResolvedValue([{ email: "admin@example.com" }]);
+    sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
+    deleteFilesMock.mockRejectedValue(new Error("uploadthing down"));
+
+    await expect(
+      updateProfilePicture(
+        OWNER.id,
+        NEW_URL,
+        signProfilePictureUpload(OWNER.id, NEW_URL),
+      ),
+    ).resolves.toEqual({
+      success: true,
+      message: "Imagen de perfil actualizada correctamente",
+    });
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock.mock.calls[0][0].to).toEqual(["admin@example.com"]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Error deleting the previous profile picture",
+      expect.anything(),
+    );
+  });
+
   it("keeps the upload when the same picture is saved again, receipt or not", async () => {
     ownerOrAdminMock.mockResolvedValue(OWNER);
     captureUpdate();
@@ -308,5 +1040,72 @@ describe("deleteUserSocial", () => {
 
     await expect(deleteUserSocial(5)).resolves.toMatchObject({ success: true });
     expect(deleteMock).toHaveBeenCalled();
+  });
+});
+
+describe("createUserProfile", () => {
+  const CLERK_USER = {
+    id: "clerk_new",
+    emailAddresses: [{ emailAddress: "ana@example.com" }],
+    firstName: "Ana",
+    lastName: "Pérez",
+    imageUrl: "https://img.clerk.com/ana",
+  };
+
+  /** Runs the transaction against a fake `tx` and captures the user insert. */
+  function captureInsert() {
+    const inserted: Record<string, unknown>[] = [];
+    transactionMock.mockImplementation(async (callback) =>
+      callback({
+        insert: () => ({
+          values: (values: Record<string, unknown>) => {
+            inserted.push(values);
+            return {
+              onConflictDoNothing: () => ({
+                returning: async () => [{ id: 11, ...values }],
+              }),
+            };
+          },
+        }),
+      }),
+    );
+    return inserted;
+  }
+
+  it("refuses a caller with no Clerk session before any write", async () => {
+    clerkUserMock.mockResolvedValue(null);
+
+    await expect(createUserProfile()).resolves.toEqual({
+      success: false,
+      message: "No autorizado",
+    });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("builds the row from the session and ignores anything the caller sends", async () => {
+    clerkUserMock.mockResolvedValue(CLERK_USER);
+    const inserted = captureInsert();
+
+    // A forged POST can still put arguments on the wire; none of them may
+    // reach the row.
+    const forged = createUserProfile as (
+      ...args: unknown[]
+    ) => Promise<unknown>;
+    await expect(
+      forged({
+        clerkId: "clerk_victim",
+        email: "victim@example.com",
+        role: "admin",
+        status: "verified",
+      }),
+    ).resolves.toMatchObject({ success: true });
+
+    expect(inserted[0]).toEqual({
+      clerkId: "clerk_new",
+      email: "ana@example.com",
+      firstName: "Ana",
+      lastName: "Pérez",
+      imageUrl: "https://img.clerk.com/ana",
+    });
   });
 });

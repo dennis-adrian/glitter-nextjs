@@ -11,7 +11,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 
 type ProfileCompletionReminderTemplateProps = {
   task: ScheduledTaskWithProfile;
@@ -28,7 +28,7 @@ export default function ProfileCompletionReminderTemplate({
   return (
     <Html>
       <Head />
-      <Preview>Completa tu perfil para participar de nuestros eventos</Preview>
+      <Preview>Completá tu perfil para participar de nuestros eventos</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Text style={styles.title}>
@@ -43,11 +43,11 @@ export default function ProfileCompletionReminderTemplate({
             </Text>
             <Text style={styles.text}>
               Las cuentas incompletas se eliminan automáticamente después de 3
-              días de su creación. Tu cuenta esta programada para eliminarse el{" "}
+              días de su creación. Tu cuenta está programada para eliminarse el{" "}
               {dueDate}.
             </Text>
             <Text style={styles.text}>
-              Para ir a tu perfil y completar tus datos, haz click en el botón.
+              Para ir a tu perfil y completar tus datos, hacé clic en el botón.
             </Text>
             <Button href={`${baseUrl}/my_profile`} style={styles.button}>
               Ir al perfil

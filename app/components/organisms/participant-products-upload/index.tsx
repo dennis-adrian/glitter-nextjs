@@ -2,7 +2,9 @@
 
 import { ProfileType } from "@/app/api/users/definitions";
 import UploadAreaCard from "@/app/components/organisms/participant-products-upload/upload-area-card";
-import UploadProductModal from "@/app/components/organisms/participant-products-upload/upload-product-modal";
+import UploadProductModal, {
+  type SignedProductImage,
+} from "@/app/components/organisms/participant-products-upload/upload-product-modal";
 import { ReservationParticipant } from "@/app/lib/participations/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
@@ -36,7 +38,9 @@ export function ParticipantProductsUpload({
 }: ParticipantProductsUploadProps) {
   const [showProductModal, setShowProductModal] = useState(false);
   const [currentImage, setCurrentImage] = useState<File | null>(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<SignedProductImage | null>(
+    null,
+  );
   const form = useForm({
     resolver: zodResolver(UploadProductFormSchema),
     defaultValues: {
@@ -69,7 +73,7 @@ export function ParticipantProductsUpload({
 
   const resetModal = () => {
     setCurrentImage(null);
-    setUploadedImageUrl(null);
+    setUploadedImage(null);
     form.reset();
   };
 
@@ -93,8 +97,8 @@ export function ParticipantProductsUpload({
           setShowProductModal(false);
           resetModal();
         }}
-        uploadedImageUrl={uploadedImageUrl}
-        setUploadedImageUrl={setUploadedImageUrl}
+        uploadedImage={uploadedImage}
+        setUploadedImage={setUploadedImage}
         form={form}
       />
     </div>

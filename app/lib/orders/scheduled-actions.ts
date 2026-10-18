@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import OrderCancellationTemplate from "@/app/emails/order-cancellation";
 import OrderPaymentReminderTemplate from "@/app/emails/order-payment-reminder";
@@ -220,7 +220,7 @@ export async function handleOrderPaymentReminders(): Promise<{
           options?.referenceEntity?.push(order.id);
           return;
         }
-        const { data } = await sendEmail({
+        const { data, error } = await sendEmail({
           from: "Glitter Store <reservas@productoraglitter.com>",
           to: [email],
           subject: "Tu pedido aún está pendiente de pago",
@@ -234,6 +234,12 @@ export async function handleOrderPaymentReminders(): Promise<{
         if (data) {
           options?.referenceEntity?.push(order.id);
         } else {
+          if (error) {
+            console.error(
+              `[handleOrderPaymentReminders] Resend rejected reminder 1 for order ${order.id}; releasing the claim for a later run:`,
+              error,
+            );
+          }
           try {
             await db
               .update(orders)
@@ -289,7 +295,7 @@ export async function handleOrderPaymentReminders(): Promise<{
           options?.referenceEntity?.push(order.id);
           return;
         }
-        const { data } = await sendEmail({
+        const { data, error } = await sendEmail({
           from: "Glitter Store <reservas@productoraglitter.com>",
           to: [email],
           subject: "Tu pedido está a punto de vencer",
@@ -303,6 +309,12 @@ export async function handleOrderPaymentReminders(): Promise<{
         if (data) {
           options?.referenceEntity?.push(order.id);
         } else {
+          if (error) {
+            console.error(
+              `[handleOrderPaymentReminders] Resend rejected reminder 2 for order ${order.id}; releasing the claim for a later run:`,
+              error,
+            );
+          }
           try {
             await db
               .update(orders)
@@ -366,7 +378,7 @@ export async function handleOrderPaymentReminders(): Promise<{
         );
         const { subject, dueInPhrase } =
           paymentDueFinalWarningCopy(minutesRemaining);
-        const { data } = await sendEmail({
+        const { data, error } = await sendEmail({
           from: "Glitter Store <reservas@productoraglitter.com>",
           to: [email],
           subject,
@@ -381,6 +393,12 @@ export async function handleOrderPaymentReminders(): Promise<{
         if (data) {
           options?.referenceEntity?.push(order.id);
         } else {
+          if (error) {
+            console.error(
+              `[handleOrderPaymentReminders] Resend rejected reminder 3 for order ${order.id}; releasing the claim for a later run:`,
+              error,
+            );
+          }
           try {
             await db
               .update(orders)

@@ -23,11 +23,17 @@ import { toast } from "sonner";
 
 const FormSchema = z.object({
   bio: z.string().trim().min(10, {
-    error: "Escribe una bio un poco más larga",
+    error: "Escribí una bio un poco más larga",
   }),
-  displayName: z.string().trim().min(2, {
-    error: "El nombre de artista tiene que tener al menos dos letras",
-  }),
+  displayName: z
+    .string()
+    .trim()
+    .min(2, {
+      error: "El nombre de artista tiene que tener al menos dos letras",
+    })
+    .max(80, {
+      error: "Usá 80 caracteres o menos",
+    }),
 });
 
 export default function PublicProfileForm({
@@ -84,7 +90,8 @@ export default function PublicProfileForm({
                 <FormControl>
                   <Input
                     type="text"
-                    placeholder="Ingresa tu nombre"
+                    maxLength={80}
+                    placeholder="Ingresá tu nombre"
                     {...field}
                   />
                 </FormControl>
@@ -102,7 +109,7 @@ export default function PublicProfileForm({
                   <Textarea
                     className="resize-none"
                     maxLength={80}
-                    placeholder="Escribe un poco sobre ti"
+                    placeholder="Escribí un poco sobre vos"
                     {...field}
                   />
                 </FormControl>

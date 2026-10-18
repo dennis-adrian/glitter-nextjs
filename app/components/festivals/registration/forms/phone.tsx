@@ -1,15 +1,13 @@
 import PhoneInput from "@/app/components/form/fields/phone";
-import { phoneValidator } from "@/app/components/form/input-validators";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 
-const FormSchema = z.object({
-  phoneNumber: phoneValidator(),
-});
+import { visitorDetailsSchema } from "@/app/lib/visitors/visitor-details-schema";
+
+const FormSchema = visitorDetailsSchema.pick({ phoneNumber: true });
 
 type PhoneFormProps = {
   onSubmit: (phoneNumber: string) => void;

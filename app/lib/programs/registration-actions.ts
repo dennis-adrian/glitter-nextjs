@@ -98,7 +98,7 @@ export async function registerForFreeSession(
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ?? "Revisa los datos del formulario",
+        parsed.error.issues[0]?.message ?? "Revisá los datos del formulario",
     };
   }
 
@@ -208,7 +208,9 @@ export async function registerForFreeSession(
           programSessions,
           eq(programSessions.id, sessionOccurrences.sessionId),
         )
-        .innerJoin(programs, eq(programs.id, programSessions.programId))
+        // Left, not inner: a standalone session has no program row, and an
+        // inner join would report it as "Horario no encontrado".
+        .leftJoin(programs, eq(programs.id, programSessions.programId))
         .where(eq(sessionOccurrences.id, data.occurrenceId))
         .limit(1);
 
@@ -231,9 +233,10 @@ export async function registerForFreeSession(
 
       const occurrenceState = resolveOccurrenceState(
         {
-          programStatus: context.program.status,
+          programStatus: context.program?.status ?? null,
           sessionStatus: context.session.status,
           lifecycleStatus: context.occurrence.lifecycleStatus,
+          endsAt: context.occurrence.endsAt,
           salesStartAt: context.occurrence.salesStartAt,
           salesEndAt: context.occurrence.salesEndAt,
           salesClosedAt: context.occurrence.salesClosedAt,
@@ -276,7 +279,7 @@ export async function registerForFreeSession(
       const [purchase] = await tx
         .insert(sessionPurchases)
         .values({
-          programId: context.program.id,
+          programId: context.program?.id ?? null,
           userId: profile?.id ?? null,
           guestName: profile ? null : (data.guestName ?? null),
           guestEmail: profile ? null : (data.guestEmail ?? null),
@@ -361,7 +364,7 @@ export async function registerForFreeSession(
         purchaseId: purchase.id,
         ticketCode: ticket.code,
         email: {
-          programName: context.program.name,
+          programName: context.program?.name ?? null,
           sessionTitle: context.session.title,
           sessionType: context.session.type,
           startsAt: context.occurrence.startsAt,
@@ -369,7 +372,8 @@ export async function registerForFreeSession(
           venueId:
             context.occurrence.venueId ??
             context.session.venueId ??
-            context.program.defaultVenueId,
+            context.program?.defaultVenueId ??
+            null,
           room: context.occurrence.room,
         },
       };
@@ -385,7 +389,7 @@ export async function registerForFreeSession(
     if (outcome.kind === "replayed") {
       return {
         success: false,
-        message: "Esta inscripción ya se registró. Revisa tu correo.",
+        message: "Esta inscripción ya se registró. Revisá tu correo.",
       };
     }
 
@@ -441,7 +445,7 @@ export async function registerForFreeSession(
       success: true,
       message: emailed
         ? "¡Listo! Tu inscripción quedó confirmada. Te enviamos el QR por correo."
-        : "¡Listo! Tu inscripción quedó confirmada. No pudimos enviarte el correo, guarda el enlace de esta página.",
+        : "¡Listo! Tu inscripción quedó confirmada. No pudimos enviarte el correo: guardá el enlace de esta página.",
       purchaseId: outcome.purchaseId,
       accessToken,
       ticketCode: outcome.ticketCode,
@@ -459,7 +463,7 @@ export async function registerForFreeSession(
     console.error("Free registration failed");
     return {
       success: false,
-      message: "No pudimos completar tu inscripción. Intenta de nuevo.",
+      message: "No pudimos completar tu inscripción. Intentá de nuevo.",
     };
   }
 }

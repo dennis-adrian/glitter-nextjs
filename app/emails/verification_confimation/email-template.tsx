@@ -7,7 +7,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import RegularBody from "./regular-body";
 import ActiveFestivalBody from "./active-festival-body";
 import { UserCategory } from "@/app/api/users/definitions";
@@ -32,7 +32,7 @@ export default function VerificationConfirmationEmailTemplate(
     <Html>
       <Head />
       <Preview>
-        Tu perfil ha sido verificado y ya puedes participar en nuestros eventos
+        Tu perfil ha sido verificado y ya podés participar en nuestros eventos
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
@@ -40,7 +40,7 @@ export default function VerificationConfirmationEmailTemplate(
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {props.name}!</Text>
             <Text style={styles.text}>
-              ¡Felicidades! Tu cuenta ha sido verificada
+              ¡Felicidades! Tu cuenta ha sido verificada.
             </Text>
             {!props.festival ? (
               <RegularBody category={props.category} baseUrl={baseUrl} />

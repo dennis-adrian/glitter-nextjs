@@ -37,6 +37,9 @@ export type SelfEditableProfile = Partial<
  * is erased by then, so the allow-list has to be applied at runtime too: copy
  * the permitted keys across and drop everything else.
  */
+/** The profile forms cap display names here too; `updateProfile` enforces it. */
+export const DISPLAY_NAME_MAX_LENGTH = 80;
+
 export function pickSelfEditableProfileFields(
   profile: SelfEditableProfile,
 ): SelfEditableProfile {

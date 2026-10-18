@@ -8,7 +8,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import * as styles from "@/app/emails/styles";
 import EmailHeader from "@/app/emails/email-header";
 import EmailFooter from "@/app/emails/email-footer";

@@ -1,15 +1,17 @@
 import EmailFooter from "@/app/emails/email-footer";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import * as styles from "@/app/emails/styles";
+import { previewDate } from "@/app/emails/preview-dates";
 import {
   Body,
+  Button,
   Container,
   Head,
   Html,
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { ScheduledTaskWithProfileAndReservation } from "@/app/lib/profile_tasks/definitions";
 import EmailHeader from "@/app/emails/email-header";
 import { getUserName } from "@/app/lib/users/utils";
@@ -30,12 +32,14 @@ export default function ReservationReminderTemplate(
   const standCount = (task.reservation.members ?? []).filter(
     (member) => member.releasedAt == null,
   ).length;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const paymentsUrl = `${baseUrl}/profiles/${task.profile.id}/festivals/${task.reservation.festivalId}/reservations/${task.reservation.id}/payments`;
 
   return (
     <Html>
       <Head />
       <Preview>
-        Recuerda hacer el pago de tu reserva para{" "}
+        Recordá hacer el pago de tu reserva para{" "}
         {task.reservation.festival.name}
       </Preview>
       <Body style={styles.main}>
@@ -46,7 +50,7 @@ export default function ReservationReminderTemplate(
             <Text style={styles.text}>
               Te recordamos que tu reserva para{" "}
               {standCount > 1 ? "los espacios" : "el espacio"}{" "}
-              <strong>{standLabel}</strong> para nuestro próximo festival{" "}
+              <strong>{standLabel}</strong> en nuestro próximo festival{" "}
               <strong>{task.reservation.festival.name}</strong> aún está
               pendiente de pago.
             </Text>
@@ -63,15 +67,17 @@ export default function ReservationReminderTemplate(
             </Text>
             <Text style={styles.text}>
               Si ya hiciste tu pago, subiste el comprobante a la página web y
-              estás esperando confirmación, podés ignorar este correo. Las
-              reservas pueden tomar hasta 48 horas en confirmarse pero el
-              registro del pago evitará que sea eliminada.
+              estás esperando confirmación, podés ignorar este correo. Tu
+              reserva puede tardar hasta 48 horas en confirmarse, pero haber
+              subido el comprobante evita que se cancele.
             </Text>
             <Text style={styles.text}>
-              Si tenés alguna duda, no dudes en contactarnos a nuesto correo
-              electrónico{" "}
-              <span style={styles.email}>soporte@productoraglitter.com</span>
+              Si tenés alguna duda, escribinos a{" "}
+              <span style={styles.email}>soporte@productoraglitter.com</span>.
             </Text>
+            <Button href={paymentsUrl} style={styles.button}>
+              Completar el pago
+            </Button>
           </Section>
         </Container>
         <EmailFooter />
@@ -83,10 +89,13 @@ export default function ReservationReminderTemplate(
 ReservationReminderTemplate.PreviewProps = {
   task: {
     profile: {
+      id: 1,
       displayName: "John Doe",
     },
-    dueDate: new Date("2024-07-07T18:00:00"),
+    dueDate: previewDate(1, 18),
     reservation: {
+      id: 42,
+      festivalId: 7,
       festival: {
         name: "Festival de prueba",
       },

@@ -3,7 +3,7 @@
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { marketingBanners } from "@/db/schema";
-import { and, asc, eq, inArray, max, or } from "drizzle-orm";
+import { asc, eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
@@ -22,61 +22,6 @@ function invalidateBanners() {
   revalidatePath("/", "page");
   revalidatePath("/portal", "page");
   revalidatePath("/dashboard/banners", "layout");
-}
-
-export async function fetchMarketingBannersForLanding(
-  isAuthenticated: boolean,
-): Promise<MarketingBannerRow[]> {
-  try {
-    if (isAuthenticated) {
-      return await db
-        .select()
-        .from(marketingBanners)
-        .where(
-          and(
-            eq(marketingBanners.isVisible, true),
-            eq(marketingBanners.audience, "all"),
-          ),
-        )
-        .orderBy(asc(marketingBanners.sortOrder), asc(marketingBanners.id));
-    }
-    return await db
-      .select()
-      .from(marketingBanners)
-      .where(
-        and(
-          eq(marketingBanners.isVisible, true),
-          or(
-            eq(marketingBanners.audience, "all"),
-            eq(marketingBanners.audience, "public_only"),
-          ),
-        ),
-      )
-      .orderBy(asc(marketingBanners.sortOrder), asc(marketingBanners.id));
-  } catch (error) {
-    console.error("fetchMarketingBannersForLanding", error);
-    return [];
-  }
-}
-
-export async function fetchMarketingBannersForPortal(): Promise<
-  MarketingBannerRow[]
-> {
-  try {
-    return await db
-      .select()
-      .from(marketingBanners)
-      .where(
-        and(
-          eq(marketingBanners.isVisible, true),
-          inArray(marketingBanners.audience, ["all", "participants_only"]),
-        ),
-      )
-      .orderBy(asc(marketingBanners.sortOrder), asc(marketingBanners.id));
-  } catch (error) {
-    console.error("fetchMarketingBannersForPortal", error);
-    return [];
-  }
 }
 
 /** Dashboard `/dashboard/banners`; layout also restricts access — this check runs before any DB read. */

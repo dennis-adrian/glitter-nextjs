@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 const currentClerkUserMock = vi.hoisted(() => vi.fn());
 const fetchProfileByClerkIdMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app/lib/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   getCurrentClerkUser: currentClerkUserMock,
   cachedFetchUserProfileByClerkId: fetchProfileByClerkIdMock,
   cachedFetchBaseUserProfileByClerkId: vi.fn(),

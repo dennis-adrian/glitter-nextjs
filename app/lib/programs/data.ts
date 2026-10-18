@@ -1,14 +1,27 @@
 import "server-only";
 
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { cache } from "react";
 
+import { resolveProgramsNavTarget } from "@/app/lib/programs/catalogue";
 import type {
   Program,
   ProgramSettings,
   Speaker,
   Venue,
 } from "@/app/lib/programs/definitions";
+import { sessionPath } from "@/app/lib/programs/paths";
+import { utcTimestamp } from "@/app/lib/sql-time";
 import { db } from "@/db";
 import {
   programSessions,
@@ -84,6 +97,17 @@ const sessionWith = {
   },
 };
 
+/**
+ * The context a public session page needs around the session itself. A
+ * program session has a program (whose festival is the festival); a standalone
+ * session has none and may carry a festival of its own. Both shapes load the
+ * same relations so one page component renders either.
+ */
+const sessionContextWith = {
+  program: { with: { defaultVenue: true as const, festival: true as const } },
+  festival: true as const,
+};
+
 const programWith = {
   festival: true as const,
   defaultVenue: true as const,
@@ -115,7 +139,31 @@ export const fetchSessionForAdmin = cache(async (sessionId: number) => {
     with: {
       ...sessionWith,
       program: { with: { defaultVenue: true } },
+      festival: true,
     },
+  });
+});
+
+/**
+ * Standalone sessions for the admin list, newest first. Only what the list
+ * shows: festival, status, and occurrence timing for the next date.
+ */
+export const fetchStandaloneSessionsForAdmin = cache(async () => {
+  return db.query.programSessions.findMany({
+    where: isNull(programSessions.programId),
+    with: {
+      festival: { columns: { id: true, name: true } },
+      occurrences: {
+        columns: {
+          id: true,
+          startsAt: true,
+          endsAt: true,
+          lifecycleStatus: true,
+        },
+        orderBy: [asc(sessionOccurrences.startsAt)],
+      },
+    },
+    orderBy: [desc(programSessions.createdAt)],
   });
 });
 
@@ -150,11 +198,14 @@ export const fetchSpeakers = cache(async (): Promise<Speaker[]> => {
 /* ---------------------------------- Public ---------------------------------- */
 
 export const fetchPublishedPrograms = cache(async (): Promise<Program[]> => {
-  return db
-    .select()
-    .from(programs)
-    .where(eq(programs.status, "published"))
-    .orderBy(desc(programs.startDate));
+  return (
+    db
+      .select()
+      .from(programs)
+      .where(eq(programs.status, "published"))
+      // Undated programs last: Postgres sorts nulls first in descending order.
+      .orderBy(sql`${programs.startDate} desc nulls last`, desc(programs.id))
+  );
 });
 
 /**
@@ -222,6 +273,21 @@ export const fetchPublishedSessionRouteParams = cache(async () =>
   ),
 );
 
+export const fetchPublishedStandaloneSessionRouteParams = cache(async () =>
+  routeParamsOrEmpty("fetchPublishedStandaloneSessionRouteParams", () =>
+    db
+      .select({ slug: programSessions.slug })
+      .from(programSessions)
+      .where(
+        and(
+          isNull(programSessions.programId),
+          eq(programSessions.status, "published"),
+        ),
+      )
+      .orderBy(asc(programSessions.id)),
+  ),
+);
+
 /**
  * A published program carrying only its published sessions. A draft session
  * inside a published program stays invisible, which is what makes per-session
@@ -258,34 +324,129 @@ export const fetchPublishedSession = cache(
         eq(programSessions.slug, sessionSlug),
         eq(programSessions.status, "published"),
       ),
-      with: {
-        ...sessionWith,
-        program: { with: { defaultVenue: true, festival: true } },
-      },
+      with: { ...sessionWith, ...sessionContextWith },
     });
   },
 );
 
+/** A published standalone session, the one behind `/programs/sessions/{slug}`. */
+export const fetchPublishedStandaloneSession = cache(async (slug: string) => {
+  return db.query.programSessions.findFirst({
+    where: and(
+      isNull(programSessions.programId),
+      eq(programSessions.slug, slug),
+      eq(programSessions.status, "published"),
+    ),
+    with: { ...sessionWith, ...sessionContextWith },
+  });
+});
+
+/** What both public session routes render: a program session or a standalone one. */
+export type PublishedSession = NonNullable<
+  Awaited<ReturnType<typeof fetchPublishedSession>>
+>;
+
 /**
- * Where the "Semana Glitter" menu entry should point.
+ * Every published session the catalogue could list, program sessions and
+ * standalone ones alike, plus every published program. Deciding what is
+ * upcoming is left to `buildCatalogue`, against the caller's `now`, so the
+ * listing, the menu, and the session pages share one definition.
  *
- * One published program is the launch case, and sending someone to a catalogue
- * listing a single item is a wasted click — so it links straight to that
- * program. With several, the catalogue is the useful landing page. With none
- * there is nothing to link to and the caller hides the entry.
+ * A session in a draft program is left out: the program still hides it.
+ */
+export const fetchCatalogue = cache(async () => {
+  const [sessions, publishedPrograms] = await Promise.all([
+    db.query.programSessions.findMany({
+      where: eq(programSessions.status, "published"),
+      with: {
+        occurrences: {
+          columns: {
+            id: true,
+            startsAt: true,
+            endsAt: true,
+            lifecycleStatus: true,
+            venueId: true,
+          },
+          orderBy: [asc(sessionOccurrences.startsAt)],
+        },
+        sessionSpeakers: {
+          with: { speaker: true },
+          orderBy: [asc(sessionSpeakers.displayOrder)],
+        },
+        program: {
+          columns: {
+            id: true,
+            slug: true,
+            name: true,
+            status: true,
+            participantDiscountType: true,
+            participantDiscountValue: true,
+          },
+          with: {
+            festival: { columns: { id: true, name: true, status: true } },
+          },
+        },
+        festival: { columns: { id: true, name: true, status: true } },
+      },
+      orderBy: [asc(programSessions.displayOrder), asc(programSessions.title)],
+    }),
+    fetchPublishedPrograms(),
+  ]);
+
+  return {
+    sessions: sessions.filter(
+      (session) =>
+        session.program === null || session.program.status === "published",
+    ),
+    programs: publishedPrograms,
+  };
+});
+
+export type CatalogueSession = Awaited<
+  ReturnType<typeof fetchCatalogue>
+>["sessions"][number];
+
+/**
+ * Where the "Charlas y Talleres" menu entry should point; the rule itself is
+ * `resolveProgramsNavTarget`. This only gathers its input: every published
+ * session, standalone or in a published program, with an occurrence that has
+ * not ended. Kept to one narrow query because the navbar renders on every page.
  */
 export const fetchProgramsNavTarget = cache(
   async (): Promise<string | null> => {
-    const published = await db
-      .select({ slug: programs.slug })
-      .from(programs)
-      .where(eq(programs.status, "published"))
-      .orderBy(asc(programs.startDate), asc(programs.id))
-      .limit(2);
+    const upcoming = await db
+      .selectDistinct({
+        slug: programSessions.slug,
+        programSlug: programs.slug,
+      })
+      .from(programSessions)
+      .innerJoin(
+        sessionOccurrences,
+        eq(sessionOccurrences.sessionId, programSessions.id),
+      )
+      // Left: a standalone session has no program and must still count.
+      .leftJoin(programs, eq(programs.id, programSessions.programId))
+      .where(
+        and(
+          eq(programSessions.status, "published"),
+          or(
+            isNull(programSessions.programId),
+            eq(programs.status, "published"),
+          ),
+          eq(sessionOccurrences.lifecycleStatus, "scheduled"),
+          // The column holds UTC wall-clock; see `utcTimestamp`.
+          gt(sessionOccurrences.endsAt, utcTimestamp(new Date())),
+        ),
+      );
 
-    if (published.length === 0) return null;
-    if (published.length === 1) return `/programs/${published[0].slug}`;
-
-    return "/programs";
+    return resolveProgramsNavTarget(
+      upcoming.map((row) => ({
+        path: sessionPath({
+          slug: row.slug,
+          program: row.programSlug === null ? null : { slug: row.programSlug },
+        }),
+        programSlug: row.programSlug,
+      })),
+    );
   },
 );

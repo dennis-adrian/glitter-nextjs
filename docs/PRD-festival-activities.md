@@ -235,14 +235,13 @@ Dashboard del participante
 
 | Acción                                   | Archivo                                   | Descripción                                       |
 | ---------------------------------------- | ----------------------------------------- | ------------------------------------------------- |
-| `fetchFestivalActivity`                  | `lib/festival_activites/actions.ts`       | Obtener actividad por ID                          |
+| `fetchFestivalActivity`                  | `lib/festival_activites/queries.ts`       | Obtener actividad por ID (lectura server-only)    |
 | `fetchFestivalActivitiesByFestivalId`    | `lib/festivals/actions.ts`                | Listar actividades de un festival                 |
 | `enrollInActivity`                       | `lib/festival_activites/actions.ts`       | Inscribir participante                            |
 | `enrollInBestStandActivity`              | `lib/festival_activites/actions.ts`       | Inscribir en Mejor Stand                          |
 | `addFestivalActivityParticipantProof`    | `lib/festival_activites/actions.ts`       | Subir prueba                                      |
 | `deleteFestivalActivityParticipantProof` | `lib/festival_activites/actions.ts`       | Eliminar prueba                                   |
 | `addFestivalActivityVote`                | `lib/festival_activites/actions.ts`       | Emitir voto                                       |
-| `fetchActivityVariantVotes`              | `lib/festival_activites/actions.ts`       | Obtener votos de una variante                     |
 | `reviewActivityParticipantProof`         | `lib/festival_activites/admin-actions.ts` | Aprobar o rechazar prueba de participante (admin) |
 | `createFestivalActivity`                 | `lib/festival_activites/admin-actions.ts` | Crear actividad con variantes (admin)             |
 | `updateFestivalActivity`                 | `lib/festival_activites/admin-actions.ts` | Actualizar actividad y variantes (admin)          |

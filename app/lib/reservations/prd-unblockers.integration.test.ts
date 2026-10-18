@@ -70,11 +70,11 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueReservationNotification: vi.fn().mockResolvedValue(null),
   scheduleReservationNotificationJobs: vi.fn(),
 }));
-vi.mock("@/app/lib/uploadthing/actions", () => ({
+vi.mock("@/app/lib/uploadthing/storage", () => ({
   enqueueStorageCleanupJob: vi.fn(),
 }));
-vi.mock("@/app/api/users/actions", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/app/api/users/actions")>();
+vi.mock("@/app/lib/users/queries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/lib/users/queries")>();
   return {
     ...actual,
     fetchAdminUsers: vi.fn().mockResolvedValue([]),

@@ -9,7 +9,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 
 interface OrderCancellationTemplateProps {
   customerName: string;
@@ -41,9 +41,8 @@ export default function OrderCancellationTemplate({
               pedido desde nuestra tienda.
             </Text>
             <Text style={styles.text}>
-              Si creés que esto fue un error o tenés alguna consulta, no dudes
-              en contactarnos a{" "}
-              <span style={styles.email}>soporte@productoraglitter.com</span>
+              Si creés que esto fue un error o tenés alguna consulta, escribinos
+              a <span style={styles.email}>soporte@productoraglitter.com</span>.
             </Text>
           </Section>
         </Container>

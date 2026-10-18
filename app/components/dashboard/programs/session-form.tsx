@@ -2,9 +2,12 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
+import ProgramImageUpload from "@/app/components/dashboard/programs/program-image-upload";
 import CreatableComboboxInput from "@/app/components/form/fields/creatable-combobox";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
@@ -26,31 +29,49 @@ import {
   numberOrNull,
   sessionFormSchema,
   textOrNull,
-  type SessionFormValues,
 } from "@/app/lib/programs/form-schemas";
+import { sessionAdminPath } from "@/app/lib/programs/paths";
 
 type Props = {
-  programId: number;
+  /** Null for a standalone session, which picks its own festival instead. */
+  programId: number | null;
   session?: ProgramSession;
   venues: Venue[];
   /** Topics already used by other sessions, for the picker. */
   topics: string[];
+  /** Options for a standalone session's festival; unused inside a program. */
+  festivals?: { id: number; name: string }[];
+  /** False for a festival admin: the image upload endpoint is admin-only. */
+  canUploadImages: boolean;
 };
 
 const NONE = "none";
+
+// The festival only exists on a standalone session, so it extends the shared
+// schema here rather than appearing on every session form.
+const formSchema = sessionFormSchema.extend({
+  festivalId: z.string().trim().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 export default function SessionForm({
   programId,
   session,
   venues,
   topics,
+  festivals = [],
+  canUploadImages,
 }: Props) {
   const router = useRouter();
   const isEditing = Boolean(session);
+  const isStandalone = programId === null;
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  const form = useForm<SessionFormValues>({
-    resolver: zodResolver(sessionFormSchema),
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
+      festivalId: session?.festivalId ? String(session.festivalId) : NONE,
       title: session?.title ?? "",
       type: session?.type ?? "talk",
       audience: session?.audience ?? "all",
@@ -79,6 +100,10 @@ export default function SessionForm({
 
     const payload = {
       programId,
+      festivalId:
+        isStandalone && values.festivalId !== NONE
+          ? idOrNull(values.festivalId)
+          : null,
       title: values.title,
       type: values.type,
       audience: values.audience,
@@ -109,9 +134,7 @@ export default function SessionForm({
       toast.success(result.message);
 
       if ("sessionId" in result) {
-        router.push(
-          `/dashboard/programs/${programId}/sessions/${result.sessionId}`,
-        );
+        router.push(sessionAdminPath({ id: result.sessionId, programId }));
       }
       router.refresh();
     } catch (error) {
@@ -130,6 +153,22 @@ export default function SessionForm({
           description="El nombre de esta sesión en particular."
           required
         />
+
+        {isStandalone ? (
+          <SelectInput
+            formControl={form.control}
+            label="Festival asociado"
+            name="festivalId"
+            placeholder="Sin festival"
+            options={[
+              { value: NONE, label: "Sin festival" },
+              ...festivals.map((festival) => ({
+                value: String(festival.id),
+                label: festival.name,
+              })),
+            ]}
+          />
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
           <SelectInput
@@ -179,6 +218,23 @@ export default function SessionForm({
           placeholder="Una línea por punto"
         />
 
+        <div className="md:max-w-sm">
+          <ProgramImageUpload
+            control={form.control}
+            name="imageUrl"
+            label="Imagen de la sesión"
+            description="Recomendado: 1600 × 1200 px (4:3)."
+            previewClassName="aspect-4/3"
+            previewSizes="(min-width: 768px) 24rem, 90vw"
+            onUploading={setIsUploadingImage}
+            uploadDisabledReason={
+              canUploadImages
+                ? undefined
+                : "Solo el equipo de administración puede subir imágenes."
+            }
+          />
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2">
           <SelectInput
             formControl={form.control}
@@ -195,13 +251,17 @@ export default function SessionForm({
               ),
             ]}
           />
+          {/* A standalone session has no program default to fall back on. */}
           <SelectInput
             formControl={form.control}
-            label="Lugar (si difiere del programa)"
+            label={isStandalone ? "Lugar" : "Lugar (si difiere del programa)"}
             name="venueId"
-            placeholder="Hereda del programa"
+            placeholder={isStandalone ? "Sin lugar" : "Hereda del programa"}
             options={[
-              { value: NONE, label: "Hereda del programa" },
+              {
+                value: NONE,
+                label: isStandalone ? "Sin lugar" : "Hereda del programa",
+              },
               ...venues.map((venue) => ({
                 value: String(venue.id),
                 label: venue.name,
@@ -225,7 +285,11 @@ export default function SessionForm({
             type="number"
             min="0"
             step="0.01"
-            description="Vacío aplica el descuento del programa o el global."
+            description={
+              isStandalone
+                ? "Vacío aplica el descuento global."
+                : "Vacío aplica el descuento del programa o el global."
+            }
           />
         </div>
 
@@ -238,7 +302,7 @@ export default function SessionForm({
         />
 
         <SubmitButton
-          disabled={form.formState.isSubmitting}
+          disabled={form.formState.isSubmitting || isUploadingImage}
           label={isEditing ? "Guardar cambios" : "Crear sesión"}
         />
       </form>

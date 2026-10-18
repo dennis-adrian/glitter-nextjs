@@ -8,7 +8,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
@@ -48,12 +48,10 @@ export default function ProgramVoucherChangesEmailTemplate({
               <strong>{sessionTitle}</strong> y necesitamos que nos mandes otro.
             </Text>
 
-            <Section style={reasonBox}>
-              <Text style={{ ...styles.text, margin: 0 }}>{reason}</Text>
-            </Section>
+            <Text style={styles.standoutText}>{reason}</Text>
 
             <Text style={styles.text}>
-              <strong>Tu cupo sigue reservado.</strong> Sube un nuevo
+              <strong>Tu cupo sigue reservado.</strong> Subí un nuevo
               comprobante y lo revisamos de nuevo.
             </Text>
 
@@ -76,7 +74,7 @@ export default function ProgramVoucherChangesEmailTemplate({
               </>
             ) : (
               <Text style={styles.text}>
-                Abre el enlace que te enviamos cuando reservaste tu cupo para
+                Abrí el enlace que te enviamos cuando reservaste tu cupo para
                 subir el nuevo comprobante.
               </Text>
             )}
@@ -88,18 +86,10 @@ export default function ProgramVoucherChangesEmailTemplate({
   );
 }
 
-const reasonBox = {
-  border: "1px solid #dedede",
-  borderLeft: "4px solid #7c3aed",
-  borderRadius: "8px",
-  padding: "12px 16px",
-  margin: "16px 0",
-};
-
 ProgramVoucherChangesEmailTemplate.PreviewProps = {
   attendeeName: "María Pérez",
   sessionTitle: "Cómo vivir del arte",
   reason:
-    "El comprobante que subiste no muestra el monto ni la fecha de la transferencia. Mándanos una captura completa donde se vean los dos.",
+    "El comprobante que subiste no muestra el monto ni la fecha de la transferencia. Mandanos una captura completa donde se vean los dos.",
   secureLinkUrl: "http://localhost:3000/programs/purchases/12?token=preview",
 } as ProgramVoucherChangesEmailProps;

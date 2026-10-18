@@ -131,7 +131,6 @@ export default function ParticipantsModal({
         </div>
         {selectedVotingItem && (
           <ConfirmVoteModal
-            currentProfile={currentProfile}
             open={!!selectedVotingItem}
             onOpenChange={(open) => {
               if (!open) {

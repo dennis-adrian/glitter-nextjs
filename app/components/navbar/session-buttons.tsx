@@ -71,7 +71,7 @@ export default function SessionButtons({
           <DialogContent className="p-4 md:p-6">
             <DialogHeader>
               <DialogTitle className="text-center">
-                ¿Quieres crear una cuenta?
+                ¿Querés crear una cuenta?
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-2 my-2 text-center">

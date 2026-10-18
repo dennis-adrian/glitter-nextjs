@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { standsHaveReservations } from "@/app/lib/reservations/members";
 import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
@@ -9,7 +10,6 @@ import {
   mapElements,
   mapTemplates,
   stands,
-  users,
 } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -29,6 +29,8 @@ import {
 
 // Fetch all templates
 export async function fetchMapTemplates(): Promise<MapTemplateRecord[]> {
+  if (!(await requireAdminOrFestivalAdmin())) return [];
+
   try {
     const results = await db.query.mapTemplates.findMany({
       orderBy: (mapTemplates, { desc }) => [desc(mapTemplates.createdAt)],
@@ -48,6 +50,8 @@ export async function fetchMapTemplates(): Promise<MapTemplateRecord[]> {
 export async function fetchMapTemplateById(
   templateId: number,
 ): Promise<MapTemplateRecord | null> {
+  if (!(await requireAdminOrFestivalAdmin())) return null;
+
   try {
     const result = await db.query.mapTemplates.findFirst({
       where: eq(mapTemplates.id, templateId),
@@ -70,6 +74,10 @@ export async function exportFestivalMapAsTemplate(
   festivalId: number,
   options?: z.infer<typeof exportOptionsSchema>,
 ): Promise<{ success: boolean; template?: MapTemplate; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsedOptions = options ? exportOptionsSchema.parse(options) : {};
 
@@ -178,6 +186,10 @@ export async function exportFestivalMapAsTemplate(
 export async function exportSectorAsTemplate(
   sectorId: number,
 ): Promise<{ success: boolean; template?: MapTemplate; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const sector = await db.query.festivalSectors.findFirst({
       where: eq(festivalSectors.id, sectorId),
@@ -264,20 +276,18 @@ export async function exportSectorAsTemplate(
   }
 }
 
-// Save template to database
+// Save template to database. The author is whoever is signed in, never an id
+// the browser sends.
 export async function saveMapTemplate(
   template: MapTemplate,
-  clerkId: string,
   festivalId?: number,
 ): Promise<{ success: boolean; templateId?: number; message: string }> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return { success: false, message: "No autorizado" };
+
   try {
     // Validate template structure
     mapTemplateSchema.parse(template);
-
-    // Look up user by clerkId
-    const user = await db.query.users.findFirst({
-      where: eq(users.clerkId, clerkId),
-    });
 
     const [created] = await db
       .insert(mapTemplates)
@@ -285,7 +295,7 @@ export async function saveMapTemplate(
         name: template.metadata.name,
         description: template.metadata.description ?? null,
         templateData: template,
-        createdByUserId: user?.id ?? null,
+        createdByUserId: actor.id,
         createdFromFestivalId: festivalId ?? null,
       })
       .returning();
@@ -308,6 +318,10 @@ export async function saveMapTemplate(
 export async function deleteMapTemplate(
   templateId: number,
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db.delete(mapTemplates).where(eq(mapTemplates.id, templateId));
 
@@ -324,6 +338,10 @@ export async function importTemplateToFestival(
   template: MapTemplate,
   options: z.infer<typeof importOptionsSchema>,
 ): Promise<{ success: boolean; message: string; createdStands?: number }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     // Validate inputs
     mapTemplateSchema.parse(template);
@@ -631,6 +649,10 @@ export async function updateMapTemplate(
   templateId: number,
   data: { name?: string; description?: string },
 ): Promise<{ success: boolean; message: string }> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const updateData: { name?: string; description?: string; updatedAt: Date } =
       {

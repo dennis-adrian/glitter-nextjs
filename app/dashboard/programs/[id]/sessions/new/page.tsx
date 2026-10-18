@@ -34,7 +34,13 @@ export default async function NewSessionPage({ params }: Props) {
         <h1 className="text-2xl font-bold">Nueva sesión</h1>
         <p className="text-sm text-muted-foreground">{program.name}</p>
       </div>
-      <SessionForm programId={program.id} venues={venues} topics={topics} />
+      <SessionForm
+        programId={program.id}
+        venues={venues}
+        topics={topics}
+        // The upload endpoint accepts admins only.
+        canUploadImages={profile.role === "admin"}
+      />
     </div>
   );
 }

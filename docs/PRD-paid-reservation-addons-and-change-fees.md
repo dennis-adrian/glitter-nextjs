@@ -349,7 +349,7 @@ Extend the existing `stand_groups` model with `type: visual_group | full_table`,
 - Matching prices by category: illustration pairs share identical individual and shared prices; entrepreneurship pairs share identical individual prices only (`shared_price` ignored or disallowed).
 - Valid group membership and map placement, including alignment on the map.
 - A `full_table_price`. A pair without one is not reservable as a table: the companion cannot be billed, so either half books on its own as if it were never paired.
-- No conflicting live occupancy when changing the pair configuration.
+- No conflicting live occupancy when changing the pair configuration. Declaring, separating or retyping a pair conflicts only with a live hold on either half or a reservation occupying more than one stand. A half booked on its own, or both halves booked by separate reservations, blocks none of them: each booking keeps its stand and its own price. Separating drops the table price and the half's full-table upgrade offer; declaring the pair again brings the offer back once the table is re-priced, so a mistaken split can be undone right away. The map editor never changes a declared table's membership: grouping, ungrouping or deleting a half is refused there and done from the stands table instead.
 
 Admin UI creates/edits the group and identifies malformed pairs and their exact mismatch. The server transaction locks the group and both stands, validates exactly two members, then changes the type. Direct writes cannot make an invalid group reservable.
 
@@ -1149,7 +1149,7 @@ The command refuses anything but `pending` and rechecks that under lock, so a pa
 - Using credits for store, programs, sessions, or every Glitter purchase in MVP.
 - Credit transfers, cash refunds, withdrawals, expiration, or promotional-credit rules.
 - Guaranteed full-table inventory or waitlists.
-- Full-table upgrades after a half-table reservation is created.
+- Participant self-service full-table upgrades after a half-table reservation is created. An admin-only upgrade now exists ([PRD-admin-stand-management §7, Feature D](PRD-admin-stand-management.md)): no credits, and money already paid is settled like an admin stand switch. Participants still activate full-table access only before they have a reservation (§7.2).
 - Self-service partner replacement/removal.
 - Partners outside illustration or more than one partner.
 - Any self-service path out of a terminal reservation. Whatever ended it, only an admin lifts the block, by hand.

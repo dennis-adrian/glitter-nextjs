@@ -25,7 +25,7 @@ vi.mock("@/app/lib/merch/collections", () => ({
     null,
   fetchMerchCollections: async () => [collection, bannerCollection],
 }));
-vi.mock("@/app/lib/products/actions", () => ({ fetchProducts: vi.fn() }));
+vi.mock("@/app/lib/products/queries", () => ({ fetchProducts: vi.fn() }));
 vi.mock("@/app/lib/merch/bundles", () => ({
   fetchPublicBundles: async () => [],
 }));

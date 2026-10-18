@@ -1,4 +1,4 @@
-import { formatMoney } from "@/app/lib/programs/pricing";
+import { formatSessionPrice, isFreePrice } from "@/app/lib/programs/pricing";
 import { cn } from "@/app/lib/utils";
 
 type Props = {
@@ -17,7 +17,7 @@ export default function SessionPriceTransition({
     previousPrice === undefined ||
     previousPrice <= price
   ) {
-    return <span className={className}>{formatMoney(price)}</span>;
+    return <span className={className}>{formatSessionPrice(price)}</span>;
   }
 
   return (
@@ -26,12 +26,12 @@ export default function SessionPriceTransition({
         "inline-flex items-baseline gap-1.5 whitespace-nowrap",
         className,
       )}
-      aria-label={`Antes ${formatMoney(previousPrice)}; ahora ${formatMoney(price)}`}
+      aria-label={`Antes ${formatSessionPrice(previousPrice)}; ahora ${isFreePrice(price) ? "sin costo" : formatSessionPrice(price)}`}
     >
       <span aria-hidden="true" className="line-through opacity-65">
-        {formatMoney(previousPrice)}
+        {formatSessionPrice(previousPrice)}
       </span>{" "}
-      <span aria-hidden="true">{formatMoney(price)}</span>
+      <span aria-hidden="true">{formatSessionPrice(price)}</span>
     </span>
   );
 }

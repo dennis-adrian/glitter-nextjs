@@ -21,12 +21,20 @@ export type InvoiceWithPayments = InvoiceBase & {
 export type InvoiceWithPaymentsAndOwner = InvoiceWithPayments & {
   user: typeof users.$inferSelect;
 };
+/** What a reservation partner may see of the cobro's owner. */
+export type InvoiceOwnerDisplay = Pick<
+  typeof users.$inferSelect,
+  "id" | "displayName" | "firstName" | "lastName"
+>;
+export type InvoiceWithPaymentsAndOwnerDisplay = InvoiceWithPayments & {
+  user: InvoiceOwnerDisplay;
+};
 export type ReservationWithStandAndInvoicesAndFestival =
   typeof standReservations.$inferSelect & {
     stand: StandBase & {
       festivalSector: typeof festivalSectors.$inferSelect | null;
     };
-    invoices: InvoiceWithPaymentsAndOwner[];
+    invoices: InvoiceWithPaymentsAndOwnerDisplay[];
     festival: FestivalWithDates;
   };
 export type InvoiceWithPaymentsAndStand = InvoiceWithPayments & {

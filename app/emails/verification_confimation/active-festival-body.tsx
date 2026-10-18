@@ -1,7 +1,7 @@
 import * as styles from "@/app/emails/styles";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDisplayDate } from "@/app/lib/formatters";
-import { Button, Link, Text } from "@react-email/components";
+import { Button, Link, Text } from "react-email";
 import { DateTime } from "luxon";
 
 type ActiveFestivalBodyProps = {
@@ -23,10 +23,10 @@ export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
       </Text>
       <Text style={styles.text}>
         Hasta mientras te pedimos que por favor leas con atención los términos y
-        condiciones dándole al botón lila a continuación
+        condiciones dándole al botón lila a continuación.
       </Text>
       <Text style={styles.text}>
-        Si tienes dudas o problemas con la reserva, comunícate con nosotros al
+        Si tenés dudas o problemas con la reserva, comunicate con nosotros al
         correo{" "}
         <Link
           href="mailto:soporte@productoraglitter.com"

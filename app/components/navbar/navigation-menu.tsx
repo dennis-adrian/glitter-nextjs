@@ -21,7 +21,7 @@ import {
   CircleAlertIcon,
   HomeIcon,
   ImagesIcon,
-  SparklesIcon,
+  LibraryBigIcon,
   LayoutDashboardIcon,
   StoreIcon,
 } from "lucide-react";
@@ -123,7 +123,7 @@ const NavbarNavigationMenu = ({
             </NavigationMenuLink>
           </NavigationMenuItem>
         )}
-        {/* Semana Glitter takes this slot for the launch. Restore these two
+        {/* The programs entry takes this slot. Restore these two
             when the festival content is the priority again. */}
         {/* <NavigationMenuItem>
           <NavigationMenuTrigger>
@@ -162,8 +162,8 @@ const NavbarNavigationMenu = ({
             >
               <Link href={programsHref}>
                 <div className="flex items-center">
-                  <SparklesIcon className="w-4 h-4 mr-1" />
-                  Semana Glitter
+                  <LibraryBigIcon className="w-4 h-4 mr-1" />
+                  Charlas y Talleres
                 </div>
                 {/* Absolutely positioned against the trigger itself, so it sits
                     in the item's own top-right corner and contributes no width.
@@ -180,6 +180,19 @@ const NavbarNavigationMenu = ({
         ) : null}
         {profile && profile.role === "festival_admin" && (
           <>
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+                <Link href="/dashboard/festivals">
+                  <div className="flex items-center">
+                    <CalendarIcon className="w-4 h-4 mr-1" />
+                    Festivales
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
             <NavigationMenuItem>
               <NavigationMenuLink
                 asChild
@@ -389,6 +402,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/feature_flags"
                 >
                   Activa o esconde funcionalidades y da acceso anticipado
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Correos bloqueados"
+                  href="/dashboard/emails"
+                >
+                  Rebotes, reportes de spam y bajas de los correos masivos
                 </NavigationMenuListItem>
                 <NavigationMenuListItem title="Blog" href="/dashboard/blog">
                   Artículos, revisión editorial y categorías

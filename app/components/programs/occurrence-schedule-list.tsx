@@ -7,8 +7,10 @@ import { useEffect, useState } from "react";
 
 import FreeRegistrationForm from "@/app/components/programs/free-registration-form";
 import PaidRegistrationForm from "@/app/components/programs/paid-registration-form";
+import ProgramDateStamp from "@/app/components/programs/program-date-stamp";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
-import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
+import { useNow } from "@/app/hooks/use-now";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import type {
   ProgramStatus,
   SessionOccurrence,
@@ -22,24 +24,48 @@ import {
 import type { OccurrenceAvailability } from "@/app/lib/programs/inventory";
 import { isFreePrice } from "@/app/lib/programs/pricing";
 import { getCurrentViewerProgramEligibility } from "@/app/lib/programs/registration-actions";
-import { resolveOccurrenceState } from "@/app/lib/programs/state";
+import {
+  resolveOccurrenceState,
+  type OccurrenceEffectiveState,
+} from "@/app/lib/programs/state";
 
 type Props = {
   occurrences: SessionOccurrence[];
-  programStatus: ProgramStatus;
+  /** Null for a standalone session: there is no program to gate it. */
+  programStatus: ProgramStatus | null;
   sessionStatus: ProgramStatus;
   /** Already resolved per occurrence: occurrence → session → program. */
   venuesById: Map<number, Venue>;
   fallbackVenueId: number | null;
-  /** Analytics dimensions: the funnel is read per session, not per URL. */
-  programSlug: string;
+  /**
+   * Analytics dimensions: the funnel is read per session, not per URL. Null
+   * for a standalone session.
+   */
+  programSlug: string | null;
   sessionSlug: string;
   sessionTitle: string;
   availabilityByOccurrence: Map<number, OccurrenceAvailability>;
   audience: SessionAudience;
   publicPrice: number;
   participantPrice: number;
+  /** When the server rendered the page; see `useNow`. */
+  renderedAt: Date;
+  /**
+   * Codes belong to a program, so a standalone session takes none. The paid
+   * form still shows the field, disabled with the reason.
+   */
+  acceptsPromoCodes: boolean;
 };
+
+/**
+ * Seat counts only mean something while an occurrence can still sell. Once it
+ * is over or called off, "3 de 20 cupos" reads as an offer.
+ */
+const STATES_WITHOUT_SEATS: ReadonlySet<OccurrenceEffectiveState> = new Set([
+  "cancelled",
+  "completed",
+  "ended",
+]);
 
 /**
  * Every scheduled group for a session. Each is separately purchasable with its
@@ -58,8 +84,11 @@ export default function OccurrenceScheduleList({
   audience,
   publicPrice,
   participantPrice,
+  renderedAt,
+  acceptsPromoCodes,
 }: Props) {
   const { isLoaded, isSignedIn } = useAuth();
+  const now = useNow(renderedAt);
   const [eligibility, setEligibility] =
     useState<ParticipantEligibility>("public");
 
@@ -88,9 +117,7 @@ export default function OccurrenceScheduleList({
 
   if (occurrences.length === 0) {
     return (
-      <p className="text-muted-foreground">
-        Todavía no hay horarios definidos.
-      </p>
+      <p className="text-brand-ink/75">Todavía no hay horarios definidos.</p>
     );
   }
 
@@ -115,17 +142,22 @@ export default function OccurrenceScheduleList({
       : null;
 
   return (
-    <ul className="@container overflow-hidden rounded-4xl bg-[#fffaf3] text-[#4b255f]">
+    // Dashed dividers: the stub perforation between bookable rows.
+    <ul className="@container divide-y-2 divide-dashed divide-brand-primary/25">
       {occurrences.map((occurrence) => {
-        const resolved = resolveOccurrenceState({
-          programStatus,
-          sessionStatus,
-          lifecycleStatus: occurrence.lifecycleStatus,
-          salesStartAt: occurrence.salesStartAt,
-          salesEndAt: occurrence.salesEndAt,
-          salesClosedAt: occurrence.salesClosedAt,
-          rescheduledAt: occurrence.rescheduledAt,
-        });
+        const resolved = resolveOccurrenceState(
+          {
+            programStatus,
+            sessionStatus,
+            lifecycleStatus: occurrence.lifecycleStatus,
+            endsAt: occurrence.endsAt,
+            salesStartAt: occurrence.salesStartAt,
+            salesEndAt: occurrence.salesEndAt,
+            salesClosedAt: occurrence.salesClosedAt,
+            rescheduledAt: occurrence.rescheduledAt,
+          },
+          now,
+        );
 
         const venueId = occurrence.venueId ?? fallbackVenueId;
         const venue = venueId === null ? null : venuesById.get(venueId);
@@ -143,20 +175,13 @@ export default function OccurrenceScheduleList({
         return (
           <li
             key={occurrence.id}
-            className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-5 border-b border-[#4b255f]/15 p-5 last:border-b-0 @[44rem]:grid-cols-[78px_minmax(0,1fr)_auto] @[44rem]:p-6"
+            className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-4 py-5 first:pt-3 last:pb-0 @[44rem]:grid-cols-[64px_minmax(0,1fr)_auto]"
           >
-            <div className="grid size-17 place-content-center rounded-full bg-[#dff7f3] text-center">
-              <span className="text-4xl font-black leading-none text-[#4b255f]">
-                {formatDate(occurrence.startsAt).toFormat("dd")}
-              </span>
-              <span className="mt-0.5 block text-xs font-black uppercase tracking-[0.16em] text-[#e639b5]">
-                {formatDate(occurrence.startsAt).toFormat("LLL")}
-              </span>
-            </div>
+            <ProgramDateStamp size="sm" start={occurrence.startsAt} />
 
             <div className="min-w-0 space-y-2">
-              <p className="flex items-center gap-2 font-black text-[#4b255f]">
-                <Clock3Icon className="size-4 text-[#9347f5]" />
+              <p className="flex items-center gap-2 font-semibold tabular-nums">
+                <Clock3Icon className="size-4 shrink-0 text-brand-primary" />
                 {formatDisplayDate(
                   occurrence.startsAt,
                   DateTime.TIME_SIMPLE,
@@ -164,15 +189,16 @@ export default function OccurrenceScheduleList({
                 {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
               </p>
               {venue ? (
-                <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
-                  <MapPinIcon className="size-4 shrink-0 text-[#9347f5]" />
+                <p className="flex items-center gap-2 text-sm text-brand-ink/75">
+                  <MapPinIcon className="size-4 shrink-0 text-brand-primary" />
                   {venue.name}
                   {occurrence.room ? ` - ${occurrence.room}` : ""}
                 </p>
               ) : null}
-              {remaining !== undefined ? (
-                <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
-                  <UsersIcon className="size-4 shrink-0 text-[#9347f5]" />
+              {remaining !== undefined &&
+              !STATES_WITHOUT_SEATS.has(resolved.state) ? (
+                <p className="flex items-center gap-2 text-sm tabular-nums text-brand-ink/75">
+                  <UsersIcon className="size-4 shrink-0 text-brand-primary" />
                   {remaining > 0
                     ? `${remaining} de ${occurrence.capacity} cupos disponibles`
                     : "Sin cupos disponibles"}
@@ -208,6 +234,7 @@ export default function OccurrenceScheduleList({
                   price={paidRegistration.price}
                   previousPrice={previousPrice}
                   seatsRemaining={remaining ?? null}
+                  acceptsPromoCodes={acceptsPromoCodes}
                 />
               ) : null}
             </div>

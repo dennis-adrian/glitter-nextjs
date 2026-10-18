@@ -12,7 +12,7 @@ import {
 import { fetchAdminCategory } from "@/app/lib/categories/queries";
 import { UNIQUE_LABEL_MESSAGE } from "@/app/lib/categories/copy";
 import { isUniqueViolation } from "@/app/lib/categories/pg";
-import { deleteFile } from "@/app/lib/uploadthing/actions";
+import { deleteStoredFile } from "@/app/lib/uploadthing/storage";
 import { requireAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { subcategories } from "@/db/schema";
@@ -29,7 +29,7 @@ async function renderCategoryDescriptionHtml(blocks: unknown[]) {
 
 async function cleanupCategoryImage(url: string, fileKey?: string | null) {
   try {
-    const result = await deleteFile(url, fileKey);
+    const result = await deleteStoredFile(url, fileKey);
     if (!result.success) {
       console.error("Failed to delete category image from storage", {
         url,

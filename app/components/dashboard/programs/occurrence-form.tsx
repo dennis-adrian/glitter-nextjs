@@ -153,7 +153,7 @@ export default function OccurrenceForm({
             label="Cierre de ventas"
             name="salesEndAt"
             type="datetime-local"
-            description="Vacío mantiene la venta abierta."
+            description="Vacío cierra al terminar el horario. Nunca se vende después del fin."
           />
         </div>
 

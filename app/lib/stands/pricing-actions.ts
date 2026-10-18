@@ -124,8 +124,11 @@ export async function updateStandPricesAction(
 function describeFullTableFailure(result: FullTableConfigResult) {
   if (result.ok) return null;
   if (result.code === "GROUP_NOT_FOUND") return "No se encontró el grupo.";
-  if (result.code === "OCCUPIED") {
-    return "No se puede reconfigurar: hay una reserva vigente en estos espacios.";
+  if (result.code === "HELD") {
+    return "No se puede reconfigurar: alguien está reservando estos espacios ahora mismo. Probá de nuevo en unos minutos.";
+  }
+  if (result.code === "BOOKED_AS_TABLE") {
+    return "No se puede reconfigurar: hay una reserva que ocupa la mesa completa.";
   }
   return "Los espacios no forman una mesa completa válida.";
 }
@@ -193,8 +196,11 @@ export async function declareFullTablePairAction(
       return {
         success: false,
         message:
-          result.code === "OCCUPIED"
-            ? "No se puede declarar: hay una reserva vigente en estos espacios."
+          // The problem carries the specifics; the menu shows both.
+          result.code === "HELD" ||
+          result.code === "BOOKED_AS_TABLE" ||
+          result.code === "CHANGED"
+            ? "No se puede declarar la mesa."
             : result.code === "ALREADY_FULL_TABLE"
               ? "Alguno de los espacios ya es mitad de una mesa completa."
               : "Estos espacios no forman una mesa completa válida.",
@@ -229,11 +235,13 @@ export async function dissolveFullTablePairAction(
       return {
         success: false,
         message:
-          result.code === "OCCUPIED"
-            ? "No se puede separar: hay una reserva vigente en estos espacios."
-            : result.code === "NOT_A_FULL_TABLE"
-              ? "Ese grupo no es una mesa completa."
-              : "No se encontró la mesa completa.",
+          result.code === "BOOKED_AS_TABLE"
+            ? "No se puede separar: hay una reserva que ocupa la mesa completa."
+            : result.code === "HELD"
+              ? "No se puede separar: alguien está reservando estos espacios ahora mismo. Probá de nuevo en unos minutos."
+              : result.code === "NOT_A_FULL_TABLE"
+                ? "Ese grupo no es una mesa completa."
+                : "No se encontró la mesa completa.",
       };
     }
 

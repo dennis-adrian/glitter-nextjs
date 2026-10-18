@@ -1,0 +1,906 @@
+// @vitest-environment node
+
+import { eq, inArray } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+import * as schema from "@/db/schema";
+import {
+  emailSuppressions,
+  emailUnsubscribes,
+  festivalDates,
+  festivalSectors,
+  festivalStatusEvents,
+  festivals,
+  profileSubcategories,
+  stands,
+  subcategories,
+  tickets,
+  users,
+  visitors,
+} from "@/db/schema";
+
+const requireAdminOrFestivalAdmin = vi.hoisted(() => vi.fn());
+const sendBatchEmails = vi.hoisted(() => vi.fn());
+
+vi.mock("server-only", () => ({}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/app/lib/users/helpers", () => ({ requireAdminOrFestivalAdmin }));
+vi.mock("@/app/vendors/resend", () => ({ sendBatchEmails }));
+
+const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+
+function isSafeTestDatabase(url: string): boolean {
+  try {
+    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
+    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
+  } catch {
+    return false;
+  }
+}
+
+if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
+  throw new Error(
+    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
+  );
+}
+
+const pool = testDatabaseUrl
+  ? new Pool({ connectionString: testDatabaseUrl })
+  : null;
+const integrationDb = pool ? drizzle(pool, { schema }) : null;
+const describeDatabase = integrationDb ? describe : describe.skip;
+
+type Actions = typeof import("@/app/lib/festivals/actions");
+type Invitations = typeof import("@/app/lib/festivals/invitations");
+let actions: Actions;
+let invitations: Invitations;
+
+// A real row: status transitions record their actor through a foreign key.
+let ADMIN: { id: number; role: "admin" };
+const RUN_ID = "6f0c6c1e-8f64-4a8e-9a54-3b1f0c3f2a11";
+
+const created = {
+  /** Normalized addresses given suppression or unsubscribe rows. */
+  emailKeys: [] as string[],
+  festivals: [] as number[],
+  visitors: [] as number[],
+  users: [] as number[],
+  subcategories: [] as number[],
+};
+
+function suffix() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function createFestival(
+  values: Partial<typeof festivals.$inferInsert> = {},
+) {
+  const db = integrationDb!;
+  const [festival] = await db
+    .insert(festivals)
+    .values({
+      name: `Invitations ${suffix()}`,
+      status: "active",
+      festivalType: "glitter",
+      ...values,
+    })
+    .returning();
+  created.festivals.push(festival!.id);
+  await db.insert(festivalDates).values({
+    festivalId: festival!.id,
+    startDate: new Date("2026-10-24T14:00:00Z"),
+    endDate: new Date("2026-10-24T22:00:00Z"),
+  });
+  return festival!;
+}
+
+async function createVisitors(tag: string, emails: string[]) {
+  const rows = await integrationDb!
+    .insert(visitors)
+    .values(
+      emails.map((email, index) => ({
+        firstName: `V${index}`,
+        email,
+        phoneNumber: `7${index}${tag.slice(-6)}`,
+        birthdate: new Date("2000-01-01"),
+      })),
+    )
+    .returning();
+  created.visitors.push(...rows.map((row) => row.id));
+  return rows;
+}
+
+async function suppress(email: string, reason: "bounce" | "complaint") {
+  const emailKey = email.trim().toLowerCase();
+  created.emailKeys.push(emailKey);
+  await integrationDb!.insert(emailSuppressions).values({ emailKey, reason });
+}
+
+async function optOut(
+  email: string,
+  topic: "visitor_invitations" | "participant_invitations",
+) {
+  const emailKey = email.trim().toLowerCase();
+  created.emailKeys.push(emailKey);
+  await integrationDb!.insert(emailUnsubscribes).values({ emailKey, topic });
+}
+
+/** Every email Resend was handed, across every batch call. */
+function mailed() {
+  return sendBatchEmails.mock.calls.flatMap(
+    ([emails]) =>
+      emails as {
+        to: string[];
+        html: string;
+        headers?: Record<string, string>;
+      }[],
+  );
+}
+
+/** Every recipient Resend was handed, across every batch call. */
+function mailedTo() {
+  return sendBatchEmails.mock.calls.flatMap(([emails]) =>
+    (emails as { to: string[] }[]).flatMap((email) => email.to),
+  );
+}
+
+async function sendAll(
+  festivalId: number,
+  kind: "visitor_registration" | "participant_activation",
+) {
+  let cursor: number | null = 0;
+  let sent = 0;
+  let skipped = 0;
+  while (cursor !== null) {
+    const result = await invitations.sendInvitationBatch({
+      festivalId,
+      kind,
+      runId: RUN_ID,
+      cursor,
+    });
+    if (!result.success) throw new Error(result.message);
+    sent += result.sent;
+    skipped += result.skipped;
+    cursor = result.nextCursor;
+  }
+  return { sent, skipped };
+}
+
+describeDatabase("festival registration and invitation actions", () => {
+  beforeAll(async () => {
+    process.env.POSTGRES_URL = testDatabaseUrl;
+    process.env.CLERK_SECRET_KEY ??= "integration-test";
+    process.env.RESEND_API_KEY ??= "integration-test";
+    process.env.UPLOADTHING_TOKEN ??= "integration-test";
+
+    actions = await import("@/app/lib/festivals/actions");
+    invitations = await import("@/app/lib/festivals/invitations");
+
+    const result = await pool!.query<{ festivals: string | null }>(
+      "select to_regclass('public.festivals')::text as festivals",
+    );
+    if (!result.rows[0]?.festivals) {
+      throw new Error(
+        "TEST_DATABASE_URL is safe but unmigrated; apply Drizzle migrations first.",
+      );
+    }
+
+    const tag = suffix();
+    const [admin] = await integrationDb!
+      .insert(users)
+      .values({
+        clerkId: `clerk-admin-${tag}`,
+        email: `admin-${tag}@example.test`,
+        role: "admin",
+        status: "verified",
+      })
+      .returning();
+    ADMIN = { id: admin!.id, role: "admin" };
+  }, 60_000);
+
+  afterEach(async () => {
+    requireAdminOrFestivalAdmin.mockReset();
+    sendBatchEmails.mockReset();
+    const db = integrationDb!;
+    const festivalIds = created.festivals.splice(0);
+    if (festivalIds.length > 0) {
+      await db.delete(tickets).where(inArray(tickets.festivalId, festivalIds));
+      await db
+        .delete(festivalStatusEvents)
+        .where(inArray(festivalStatusEvents.festivalId, festivalIds));
+      await db.delete(stands).where(inArray(stands.festivalId, festivalIds));
+      await db.delete(festivals).where(inArray(festivals.id, festivalIds));
+    }
+    const visitorIds = created.visitors.splice(0);
+    if (visitorIds.length > 0) {
+      await db.delete(visitors).where(inArray(visitors.id, visitorIds));
+    }
+    const emailKeys = created.emailKeys.splice(0);
+    if (emailKeys.length > 0) {
+      await db
+        .delete(emailSuppressions)
+        .where(inArray(emailSuppressions.emailKey, emailKeys));
+      await db
+        .delete(emailUnsubscribes)
+        .where(inArray(emailUnsubscribes.emailKey, emailKeys));
+    }
+    const userIds = created.users.splice(0);
+    if (userIds.length > 0) {
+      await db.delete(users).where(inArray(users.id, userIds));
+    }
+    const subcategoryIds = created.subcategories.splice(0);
+    if (subcategoryIds.length > 0) {
+      await db
+        .delete(subcategories)
+        .where(inArray(subcategories.id, subcategoryIds));
+    }
+  });
+
+  afterAll(async () => {
+    if (ADMIN) {
+      await integrationDb!.delete(users).where(eq(users.id, ADMIN.id));
+    }
+    await pool?.end();
+  });
+
+  describe("updateFestivalRegistration", () => {
+    it("refuses unauthenticated callers and changes nothing", async () => {
+      const festival = await createFestival();
+      requireAdminOrFestivalAdmin.mockResolvedValue(null);
+
+      const result = await actions.updateFestivalRegistration(
+        festival.id,
+        true,
+      );
+
+      expect(result).toEqual({ success: false, message: "No autorizado" });
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, festival.id),
+      });
+      expect(row?.publicRegistration).toBe(false);
+      expect(sendBatchEmails).not.toHaveBeenCalled();
+    });
+
+    it("only opens on an active festival, and never mails by itself", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const draft = await createFestival({ status: "draft" });
+      const active = await createFestival();
+
+      expect(
+        await actions.updateFestivalRegistration(draft.id, true),
+      ).toMatchObject({ success: false });
+      expect(
+        await actions.updateFestivalRegistration(active.id, true),
+      ).toMatchObject({ success: true, changed: true });
+      expect(sendBatchEmails).not.toHaveBeenCalled();
+    });
+
+    it("reports an unchanged state so the dialog does not mail twice", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const festival = await createFestival({ publicRegistration: true });
+
+      expect(
+        await actions.updateFestivalRegistration(festival.id, true),
+      ).toMatchObject({ success: true, changed: false });
+    });
+
+    it("closes registro en puerta with it", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const festival = await createFestival({
+        publicRegistration: true,
+        eventDayRegistration: true,
+      });
+
+      await actions.updateFestivalRegistration(festival.id, false);
+
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, festival.id),
+      });
+      expect(row).toMatchObject({
+        publicRegistration: false,
+        eventDayRegistration: false,
+      });
+    });
+  });
+
+  describe("updateFestivalEventDayRegistration", () => {
+    it("needs acreditación open, and writes only its own flag", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const closed = await createFestival();
+      const open = await createFestival({
+        publicRegistration: true,
+        description: "original",
+      });
+
+      expect(
+        await actions.updateFestivalEventDayRegistration(closed.id, true),
+      ).toMatchObject({ success: false });
+      expect(
+        await actions.updateFestivalEventDayRegistration(open.id, true),
+      ).toMatchObject({ success: true });
+
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, open.id),
+      });
+      expect(row).toMatchObject({
+        eventDayRegistration: true,
+        publicRegistration: true,
+        description: "original",
+      });
+    });
+  });
+
+  describe("setFestivalActive", () => {
+    it("deactivating returns to draft and closes registration", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const festival = await createFestival({
+        publicRegistration: true,
+        eventDayRegistration: true,
+      });
+
+      const result = await actions.setFestivalActive(festival.id, false);
+
+      expect(result).toMatchObject({ success: true, changed: true });
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, festival.id),
+      });
+      expect(row).toMatchObject({
+        status: "draft",
+        publicRegistration: false,
+        eventDayRegistration: false,
+      });
+    });
+
+    it("refuses to activate a second festival, naming the active one", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      await createFestival();
+      const draft = await createFestival({ status: "draft" });
+
+      const result = await actions.setFestivalActive(draft.id, true);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/ya está activo/);
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, draft.id),
+      });
+      expect(row?.status).toBe("draft");
+    });
+
+    it("refuses an archived festival", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const festival = await createFestival({ status: "archived" });
+
+      expect(await actions.setFestivalActive(festival.id, true)).toMatchObject({
+        success: false,
+      });
+    });
+  });
+
+  describe("visitor invitations", () => {
+    it("reaches every visitor without a ticket here, once, and nobody else", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const other = await createFestival();
+      const [registered, otherFestivalOnly, invited, invalid] =
+        await createVisitors(tag, [
+          `registered-${tag}@example.test`,
+          `other-${tag}@example.test`,
+          `invited-${tag}@example.test`,
+          `invalid ${tag}@example.test`,
+        ]);
+      await integrationDb!.insert(tickets).values([
+        {
+          date: new Date(),
+          visitorId: registered!.id,
+          festivalId: festival.id,
+        },
+        {
+          date: new Date(),
+          visitorId: otherFestivalOnly!.id,
+          festivalId: other.id,
+        },
+      ]);
+
+      const audience = await invitations.fetchInvitationAudience(
+        festival.id,
+        "visitor_registration",
+      );
+      expect(audience.success).toBe(true);
+
+      await sendAll(festival.id, "visitor_registration");
+
+      const mine = mailedTo().filter((email) => email.includes(tag));
+      expect(mine.sort()).toEqual(
+        [otherFestivalOnly!.email, invited!.email].sort(),
+      );
+      expect(mine).not.toContain(invalid!.email);
+
+      // Each page carries a key scoped to this run.
+      for (const [, options] of sendBatchEmails.mock.calls) {
+        expect(options.idempotencyKey).toContain(
+          `/visitor_registration/${festival.id}/${RUN_ID}/`,
+        );
+      }
+    });
+
+    it("refuses to mail while acreditación is closed or without permission", async () => {
+      const festival = await createFestival();
+
+      requireAdminOrFestivalAdmin.mockResolvedValue(null);
+      expect(
+        await invitations.sendInvitationBatch({
+          festivalId: festival.id,
+          kind: "visitor_registration",
+          runId: RUN_ID,
+          cursor: 0,
+        }),
+      ).toEqual({ success: false, message: "No autorizado" });
+
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      expect(
+        await invitations.sendInvitationBatch({
+          festivalId: festival.id,
+          kind: "visitor_registration",
+          runId: RUN_ID,
+          cursor: 0,
+        }),
+      ).toMatchObject({ success: false });
+      expect(sendBatchEmails).not.toHaveBeenCalled();
+    });
+
+    it("reports a page Resend refused with the cursor to retry it", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({
+        data: null,
+        error: { name: "rate_limit_exceeded", message: "Too many requests" },
+      });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      await createVisitors(tag, [`only-${tag}@example.test`]);
+
+      const result = await invitations.sendInvitationBatch({
+        festivalId: festival.id,
+        kind: "visitor_registration",
+        runId: RUN_ID,
+        cursor: 0,
+        maxPages: 1,
+      });
+
+      expect(result).toMatchObject({ success: true, sent: 0 });
+      if (!result.success) throw new Error("unreachable");
+      expect(result.failed).toBeGreaterThan(0);
+      expect(result.failures[0]).toMatchObject({
+        cursor: 0,
+        message: "Too many requests",
+        // Nothing went out: the retry needs a new key, for exactly this page.
+        refused: true,
+        attempt: 0,
+      });
+      expect(result.failures[0]!.throughId).toEqual(expect.any(Number));
+    });
+
+    it("reaches a person once even with case-variant rows, and not at all if any row is registered", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [first, , registered] = await createVisitors(tag, [
+        `dup-${tag}@example.test`,
+        `DUP-${tag}@Example.test`,
+        `reg-${tag}@example.test`,
+        `REG-${tag}@example.test`,
+      ]);
+      await integrationDb!.insert(tickets).values({
+        date: new Date(),
+        visitorId: registered!.id,
+        festivalId: festival.id,
+      });
+
+      await sendAll(festival.id, "visitor_registration");
+
+      const mine = mailedTo().filter((email) =>
+        email.toLowerCase().includes(tag),
+      );
+      expect(mine).toEqual([first!.email]);
+    });
+
+    it("retries exactly one page, never reading past its last id", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [a, b, c] = await createVisitors(tag, [
+        `a-${tag}@example.test`,
+        `b-${tag}@example.test`,
+        `c-${tag}@example.test`,
+      ]);
+
+      const result = await invitations.sendInvitationBatch({
+        festivalId: festival.id,
+        kind: "visitor_registration",
+        runId: RUN_ID,
+        cursor: a!.id - 1,
+        throughId: b!.id,
+        attempt: 1,
+      });
+
+      expect(result).toMatchObject({ success: true, nextCursor: null });
+      expect(mailedTo()).toEqual([a!.email, b!.email]);
+      expect(mailedTo()).not.toContain(c!.email);
+      expect(sendBatchEmails.mock.calls[0]![1].idempotencyKey).toBe(
+        `festival-invitation/visitor_registration/${festival.id}/${RUN_ID}/${a!.id - 1}-${b!.id}/1`,
+      );
+    });
+
+    it("keys a retry by the bounds it was given, even when the window's last row dropped out", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [a, b] = await createVisitors(tag, [
+        `keep-${tag}@example.test`,
+        `left-${tag}@example.test`,
+      ]);
+      // The last person of the page registered after the first attempt.
+      await integrationDb!.insert(tickets).values({
+        date: new Date(),
+        visitorId: b!.id,
+        festivalId: festival.id,
+      });
+
+      await invitations.sendInvitationBatch({
+        festivalId: festival.id,
+        kind: "visitor_registration",
+        runId: RUN_ID,
+        cursor: a!.id - 1,
+        throughId: b!.id,
+      });
+
+      expect(mailedTo()).toEqual([a!.email]);
+      expect(sendBatchEmails.mock.calls[0]![1].idempotencyKey).toBe(
+        `festival-invitation/visitor_registration/${festival.id}/${RUN_ID}/${a!.id - 1}-${b!.id}/0`,
+      );
+    });
+
+    it("counts a page whose key already went out with another body as delivered", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({
+        data: null,
+        error: {
+          name: "invalid_idempotent_request",
+          message: "Same idempotency key used with a different payload",
+        },
+      });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [only] = await createVisitors(tag, [`once-${tag}@example.test`]);
+
+      const result = await invitations.sendInvitationBatch({
+        festivalId: festival.id,
+        kind: "visitor_registration",
+        runId: RUN_ID,
+        cursor: only!.id - 1,
+        throughId: only!.id,
+      });
+
+      expect(result).toMatchObject({ success: true, sent: 1, failed: 0 });
+    });
+
+    it("greets by first name only when it is plainly a name", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const rows = await integrationDb!
+        .insert(visitors)
+        .values([
+          {
+            firstName: "Camila",
+            email: `name-${tag}@example.test`,
+            phoneNumber: "70000001",
+            birthdate: new Date("2000-01-01"),
+          },
+          {
+            firstName: "visita evil.com",
+            email: `link-${tag}@example.test`,
+            phoneNumber: "70000002",
+            birthdate: new Date("2000-01-01"),
+          },
+        ])
+        .returning();
+      created.visitors.push(...rows.map((row) => row.id));
+
+      await invitations.sendInvitationBatch({
+        festivalId: festival.id,
+        kind: "visitor_registration",
+        runId: RUN_ID,
+        cursor: rows[0]!.id - 1,
+        throughId: rows[1]!.id,
+      });
+
+      const emails = sendBatchEmails.mock.calls[0]![0] as {
+        html: string;
+        replyTo: string;
+      }[];
+      expect(emails[0]!.html).toContain("Camila");
+      expect(emails[1]!.html).not.toContain("evil.com");
+      expect(emails[0]!.replyTo).toBe("visitantes@productoraglitter.com");
+    });
+  });
+
+  describe("visitor invitations and unsubscribes", () => {
+    it("skips visitors who bounced, reported spam or unsubscribed, in the count and the send", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [invited, bounced, complained, unsubscribed, otherTopic] =
+        await createVisitors(tag, [
+          `invited-${tag}@example.test`,
+          `Bounced-${tag}@example.test`,
+          `complained-${tag}@example.test`,
+          `unsubscribed-${tag}@example.test`,
+          `other-topic-${tag}@example.test`,
+        ]);
+
+      const before = await invitations.fetchInvitationAudience(
+        festival.id,
+        "visitor_registration",
+      );
+      await suppress(bounced!.email, "bounce");
+      await suppress(complained!.email, "complaint");
+      await optOut(unsubscribed!.email, "visitor_invitations");
+      // Opting out of participant mail says nothing about visitor mail.
+      await optOut(otherTopic!.email, "participant_invitations");
+      const after = await invitations.fetchInvitationAudience(
+        festival.id,
+        "visitor_registration",
+      );
+
+      if (!before.success || !after.success) throw new Error("count failed");
+      expect(
+        after.audience.bounced - before.audience.bounced,
+      ).toBeGreaterThanOrEqual(1);
+      expect(
+        after.audience.optedOut - before.audience.optedOut,
+      ).toBeGreaterThanOrEqual(2);
+
+      await sendAll(festival.id, "visitor_registration");
+
+      expect(
+        mailedTo()
+          .filter((email) => email.includes(tag))
+          .sort(),
+      ).toEqual([invited!.email, otherTopic!.email].sort());
+    });
+
+    it("lets every visitor unsubscribe from the email itself and from their inbox's button", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const tag = suffix();
+      const festival = await createFestival({ publicRegistration: true });
+      const [visitor] = await createVisitors(tag, [
+        `links-${tag}@example.test`,
+      ]);
+
+      await sendAll(festival.id, "visitor_registration");
+
+      const email = mailed().find((sent) => sent.to[0] === visitor!.email);
+      expect(email).toBeDefined();
+      expect(email!.headers?.["List-Unsubscribe-Post"]).toBe(
+        "List-Unsubscribe=One-Click",
+      );
+      const header = email!.headers?.["List-Unsubscribe"] ?? "";
+      const oneClickUrl = new URL(header.replace(/^<|>$/g, ""));
+      expect(oneClickUrl.pathname).toBe("/api/email/unsubscribe");
+
+      const { verifyUnsubscribeToken } =
+        await import("@/app/lib/emails/unsubscribe-tokens");
+      expect(
+        verifyUnsubscribeToken(oneClickUrl.searchParams.get("token")),
+      ).toEqual({
+        kind: "visitor",
+        id: visitor!.id,
+        topic: "visitor_invitations",
+      });
+      // The footer links the page for the same person and topic.
+      expect(email!.html).toContain(
+        `/email/unsubscribe?token=${encodeURIComponent(oneClickUrl.searchParams.get("token")!)}`,
+      );
+      expect(email!.html).toContain("Darme de baja");
+    });
+  });
+
+  describe("participant invitations", () => {
+    it("mails verified participants of the festival's categories who can open the terms", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      sendBatchEmails.mockResolvedValue({ data: { data: [] }, error: null });
+      const db = integrationDb!;
+      const tag = suffix();
+      const festival = await createFestival();
+      const [sector] = await db
+        .insert(festivalSectors)
+        .values({ name: `Sector ${tag}`, festivalId: festival.id })
+        .returning();
+      await db.insert(stands).values({
+        standNumber: 1,
+        standCategory: "illustration",
+        festivalId: festival.id,
+        festivalSectorId: sector!.id,
+      });
+      const [subcategory] = await db
+        .insert(subcategories)
+        .values({ label: `Sub ${tag}`, category: "illustration" })
+        .returning();
+      created.subcategories.push(subcategory!.id);
+
+      const makeUser = async (
+        name: string,
+        values: Partial<typeof users.$inferInsert>,
+        withSubcategory: boolean,
+      ) => {
+        const [user] = await db
+          .insert(users)
+          .values({
+            clerkId: `clerk-${name}-${tag}`,
+            email: `${name}-${tag}@example.test`,
+            status: "verified",
+            category: "illustration",
+            ...values,
+          })
+          .returning();
+        created.users.push(user!.id);
+        if (withSubcategory) {
+          await db.insert(profileSubcategories).values({
+            profileId: user!.id,
+            subcategoryId: subcategory!.id,
+          });
+        }
+        return user!;
+      };
+
+      const invited = await makeUser("invited", {}, true);
+      await makeUser("nosubcategory", {}, false);
+      await makeUser("pending", { status: "pending" }, true);
+      await makeUser("gastronomy", { category: "gastronomy" }, true);
+      const unsubscribed = await makeUser("unsubscribed", {}, true);
+      await optOut(unsubscribed.email, "participant_invitations");
+      const bounced = await makeUser("bounced", {}, true);
+      await suppress(bounced.email, "bounce");
+      const visitorTopicOnly = await makeUser("visitortopic", {}, true);
+      await optOut(visitorTopicOnly.email, "visitor_invitations");
+
+      const audience = await invitations.fetchInvitationAudience(
+        festival.id,
+        "participant_activation",
+      );
+      // Counts cover the whole database, which other suites share.
+      if (!audience.success) throw new Error(audience.message);
+      expect(audience.audience.recipients).toBeGreaterThanOrEqual(2);
+      expect(audience.audience.bounced).toBeGreaterThanOrEqual(1);
+      expect(audience.audience.optedOut).toBeGreaterThanOrEqual(1);
+
+      await sendAll(festival.id, "participant_activation");
+
+      expect(
+        mailedTo()
+          .filter((email) => email.includes(tag))
+          .sort(),
+      ).toEqual([invited.email, visitorTopicOnly.email].sort());
+      const email = mailed().find((sent) => sent.to[0] === invited.email);
+      expect(email?.headers?.["List-Unsubscribe"]).toMatch(
+        /\/api\/email\/unsubscribe\?token=/,
+      );
+
+      // Picking them by hand does not override their choice either.
+      sendBatchEmails.mockClear();
+      const manual = await invitations.sendParticipantInvitationsToUsers(
+        festival.id,
+        [invited.id, unsubscribed.id, bounced.id],
+      );
+      expect(manual).toMatchObject({ success: true, sent: 1, skipped: 2 });
+      expect(mailedTo()).toEqual([invited.email]);
+    });
+  });
+
+  describe("sendParticipantInvitationsToUsers", () => {
+    it("refuses a festival that is not active, without mailing", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const festival = await createFestival({ status: "draft" });
+
+      const result = await invitations.sendParticipantInvitationsToUsers(
+        festival.id,
+        [ADMIN.id],
+      );
+
+      expect(result).toMatchObject({ success: false });
+      expect(sendBatchEmails).not.toHaveBeenCalled();
+    });
+
+    it("says the festival id is invalid rather than blaming the selection", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+
+      const result = await invitations.sendParticipantInvitationsToUsers(
+        "12" as unknown as number,
+        [1],
+      );
+
+      expect(result).toEqual({ success: false, message: "Festival inválido" });
+    });
+  });
+
+  describe("deleteFestival", () => {
+    it("deletes a festival that never changed status", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const festival = await createFestival({ status: "draft" });
+      await integrationDb!.insert(festivalStatusEvents).values({
+        festivalId: festival.id,
+        fromStatus: null,
+        toStatus: "draft",
+      });
+
+      const result = await actions.deleteFestival(festival.id);
+
+      expect(result).toMatchObject({ success: true });
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, festival.id),
+      });
+      expect(row).toBeUndefined();
+    });
+
+    it("archives a festival with tickets rather than orphan them", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const tag = suffix();
+      const festival = await createFestival({ status: "draft" });
+      const [visitor] = await createVisitors(tag, [
+        `ticket-${tag}@example.test`,
+      ]);
+      await integrationDb!.insert(tickets).values({
+        date: new Date(),
+        visitorId: visitor!.id,
+        festivalId: festival.id,
+      });
+
+      const result = await actions.deleteFestival(festival.id);
+
+      expect(result).toMatchObject({ success: true });
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, festival.id),
+      });
+      expect(row?.status).toBe("archived");
+    });
+
+    it("archives a festival with status history instead of failing", async () => {
+      requireAdminOrFestivalAdmin.mockResolvedValue(ADMIN);
+      const festival = await createFestival();
+      await integrationDb!.insert(festivalStatusEvents).values([
+        { festivalId: festival.id, fromStatus: null, toStatus: "draft" },
+        { festivalId: festival.id, fromStatus: "draft", toStatus: "active" },
+      ]);
+
+      const result = await actions.deleteFestival(festival.id);
+
+      expect(result).toMatchObject({ success: true });
+      const row = await integrationDb!.query.festivals.findFirst({
+        where: eq(festivals.id, festival.id),
+      });
+      expect(row?.status).toBe("archived");
+      const history = await integrationDb!.query.festivalStatusEvents.findMany({
+        where: eq(festivalStatusEvents.festivalId, festival.id),
+      });
+      expect(history.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+});

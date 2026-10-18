@@ -1,6 +1,7 @@
 "use server";
 
 import { ReservationParticipant } from "@/app/lib/participations/definitions";
+import { requireProfileOwnerOrStaff } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   festivals,
@@ -14,6 +15,9 @@ export async function fetchParticipationInFestival(
   userId: number,
   festivalId: number,
 ): Promise<ReservationParticipant | null> {
+  const actor = await requireProfileOwnerOrStaff(userId);
+  if (!actor) return null;
+
   try {
     const [participation] = await db
       .select({

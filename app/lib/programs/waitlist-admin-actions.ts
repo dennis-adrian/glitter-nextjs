@@ -137,7 +137,9 @@ export async function inviteFromWaitlist(
           programSessions,
           eq(programSessions.id, sessionOccurrences.sessionId),
         )
-        .innerJoin(programs, eq(programs.id, programSessions.programId))
+        // Left, not inner: a standalone session has no program, so its window
+        // comes from the global default.
+        .leftJoin(programs, eq(programs.id, programSessions.programId))
         .where(eq(sessionOccurrences.id, entry.occurrenceId))
         .limit(1);
 

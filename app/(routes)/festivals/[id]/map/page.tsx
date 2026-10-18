@@ -3,12 +3,12 @@ import { z } from "zod";
 import { notFound } from "next/navigation";
 
 import FestivalNavMap from "@/app/components/maps/festival-nav/festival-nav-map";
-import {
-  fetchBaseFestival,
-  fetchFestivalActivitiesByFestivalId,
-} from "@/app/lib/festivals/actions";
-import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/queries";
+import { toPublicMapSectors } from "@/app/lib/festival_sectors/public";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
 import { getMapActivityData } from "@/app/lib/maps/activity-data";
+import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 
 export const metadata: Metadata = {
   title: "Mapa del festival",
@@ -28,13 +28,20 @@ export default async function FestivalMapPage(props: {
 
   const { id } = validatedParams.data;
 
-  const [festival, sectors, activities] = await Promise.all([
+  const [festival, rawSectors, activities] = await Promise.all([
     fetchBaseFestival(id),
     fetchFestivalSectors(id),
     fetchFestivalActivitiesByFestivalId(id),
   ]);
 
   if (!festival) notFound();
+
+  // Anyone can open this page, signed in or not: no reservation before its
+  // reveal time, and of each occupant only what the map's cards show.
+  const sectors = toPublicMapSectors(
+    stripHiddenReservationsFromSectors(rawSectors),
+    { includeSocials: true },
+  );
 
   const publicActivities = activities.filter(
     (activity) => activity.accessLevel === "public",

@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { externalParticipants } from "@/db/schema";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { deleteFile } from "@/app/lib/uploadthing/actions";
+import { deleteStoredFile } from "@/app/lib/uploadthing/storage";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { createExternalParticipantReservation as assignExternalParticipantReservation } from "@/app/lib/reservations/capacity-service";
@@ -63,7 +63,7 @@ async function deleteOrphanImage(
 ) {
   if (!url) return;
 
-  const deleteResult = await deleteFile(url);
+  const deleteResult = await deleteStoredFile(url);
   if (!deleteResult.success) {
     console.error(logLabel, { error: deleteResult.error });
   }
@@ -82,6 +82,9 @@ async function requireExternalParticipantManager() {
 }
 
 export async function fetchExternalParticipants() {
+  const currentProfile = await requireExternalParticipantManager();
+  if (!currentProfile) return [];
+
   try {
     return await db.query.externalParticipants.findMany({
       orderBy: (externalParticipants, { asc }) => [

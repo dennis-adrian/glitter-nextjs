@@ -5,120 +5,80 @@ import {
   POSTHOG_SHUTDOWN_TIMEOUT_MS,
 } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
   BaseProfile,
-  NewUser,
   Participation,
-  ProfileType,
   UserCategory,
   UsersAggregates,
   UserSocial,
 } from "@/app/api/users/definitions";
+import { isParticipantSelectable } from "@/app/lib/categories/visibility";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
+import ProfileReviewRequestEmailTemplate from "@/app/emails/profile-review-request";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
-import { UserInfraction } from "@/app/lib/users/definitions";
 import {
   buildWhereClauseForProfileFetching,
   getCurrentUserProfile,
+  requireAdminOrFestivalAdmin,
   requireProfileOwnerOrAdmin,
   requireProfileOwnerOrStaff,
 } from "@/app/lib/users/helpers";
 import {
+  DISPLAY_NAME_MAX_LENGTH,
   pickSelfEditableProfileFields,
   SelfEditableProfile,
 } from "@/app/lib/users/profile-fields";
+import { profileReviewBlocker } from "@/app/lib/users/profile-review";
+import {
+  fetchAdminUsers,
+  fetchUserProfileById,
+  getCurrentClerkUser,
+} from "@/app/lib/users/queries";
+import {
+  latestRejectionReason,
+  updateUserStatusWithAudit,
+  UserStatus,
+} from "@/app/lib/users/status-events";
+import { getUserName } from "@/app/lib/users/utils";
 import { verifyProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
+import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
-  infractions,
   profileSubcategories,
   reservationParticipants,
   scheduledTasks,
+  subcategories,
   users,
   userSocials,
 } from "@/db/schema";
-import { currentUser } from "@clerk/nextjs/server";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { cache } from "react";
 
-export const getCurrentClerkUser = cache(async () => await currentUser());
-
-export const fetchUserProfileByClerkId = async (
-  clerkId: string,
-): Promise<ProfileType | null> => {
-  try {
-    const profile = await db.query.users.findFirst({
-      with: {
-        userRequests: true,
-        userSocials: true,
-        participations: {
-          with: {
-            reservation: {
-              with: {
-                stand: true,
-                festival: {
-                  with: {
-                    festivalDates: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        profileTags: {
-          with: {
-            tag: true,
-          },
-        },
-        profileSubcategories: {
-          with: {
-            subcategory: true,
-          },
-        },
-      },
-      where: eq(users.clerkId, clerkId),
-    });
-
-    return profile || null;
-  } catch (error) {
-    console.error(error);
-    return null;
+/**
+ * Creates the signed-in Clerk user's own profile row. Takes no input: the
+ * caller's identity and contact fields come from the session, so nobody can
+ * create a row under another Clerk id or pick their own role or status.
+ */
+export async function createUserProfile() {
+  const clerkUser = await getCurrentClerkUser();
+  const email = clerkUser?.emailAddresses[0]?.emailAddress;
+  if (!clerkUser || !email) {
+    return { success: false, message: "No autorizado" };
   }
-};
 
-export const cachedFetchUserProfileByClerkId = cache(fetchUserProfileByClerkId);
-
-export const fetchBaseUserProfileByClerkId = async (
-  clerkId: string,
-): Promise<BaseProfile | null> => {
-  try {
-    const profile = await db.query.users.findFirst({
-      where: eq(users.clerkId, clerkId),
-    });
-
-    return profile || null;
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-};
-
-export const cachedFetchBaseUserProfileByClerkId = cache(
-  fetchBaseUserProfileByClerkId,
-);
-
-export async function createUserProfile(user: NewUser) {
   try {
     const newUserRes = await db.transaction(async (tx) => {
       const [newUser] = await tx
         .insert(users)
         .values({
-          ...user,
+          clerkId: clerkUser.id,
+          email,
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          imageUrl: clerkUser.imageUrl,
         })
         .onConflictDoNothing({ target: users.clerkId })
         .returning();
@@ -139,11 +99,8 @@ export async function createUserProfile(user: NewUser) {
       try {
         const posthog = getPostHogClient();
         posthog.capture({
-          distinctId: String(user.clerkId),
+          distinctId: clerkUser.id,
           event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
-          properties: {
-            category: user.category,
-          },
         });
         await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
       } catch (telemetryError) {
@@ -181,7 +138,23 @@ export async function updateProfile(
   // privileged columns are dropped rather than written.
   const fields = pickSelfEditableProfileFields(profile);
 
+  if (typeof fields.displayName === "string") {
+    // Check and store the same trimmed value, so trailing spaces cannot carry
+    // a stored name past the limit.
+    fields.displayName = fields.displayName.trim();
+    if (fields.displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+      return {
+        success: false,
+        message: `Tu nombre puede tener hasta ${DISPLAY_NAME_MAX_LENGTH} caracteres`,
+      };
+    }
+  }
+
   try {
+    // Read before the write, so the admin notice below can tell the save that
+    // completes a profile from later edits to an already-complete one.
+    const wasComplete = isProfileComplete(await fetchUserProfileById(userId));
+
     await db
       .update(users)
       .set({
@@ -190,7 +163,7 @@ export async function updateProfile(
       })
       .where(eq(users.id, userId));
 
-    await verifyProfileCompletion(userId);
+    await verifyProfileCompletion(userId, wasComplete);
   } catch (error) {
     console.error("Error updating profile", error);
     return {
@@ -206,6 +179,59 @@ export async function updateProfile(
   };
 }
 
+/** The areas the onboarding picker offers a participant. */
+const PARTICIPANT_CATEGORIES: readonly UserCategory[] = [
+  "illustration",
+  "entrepreneurship",
+  "gastronomy",
+];
+
+/**
+ * Whether a participant's pick has the shape the onboarding picker produces:
+ * one of its areas and at least one subcategory id. An empty pick would leave
+ * the profile in onboarding, and so free to recategorize, indefinitely.
+ */
+function isParticipantCategoryShape(
+  category: UserCategory,
+  subcategoryIds: number[],
+) {
+  return (
+    PARTICIPANT_CATEGORIES.includes(category) &&
+    Array.isArray(subcategoryIds) &&
+    subcategoryIds.length > 0 &&
+    subcategoryIds.every(Number.isInteger)
+  );
+}
+
+/**
+ * Whether every id names a distinct subcategory a participant may pick for
+ * themselves, inside `category`. Admin-only and non-selectable rows gate
+ * restricted stands, so only staff assign them.
+ */
+async function areParticipantSelectable(
+  category: UserCategory,
+  subcategoryIds: number[],
+) {
+  const rows = await db
+    .select({
+      category: subcategories.category,
+      visibility: subcategories.visibility,
+      isAdminAssignableOnly: subcategories.isAdminAssignableOnly,
+    })
+    .from(subcategories)
+    .where(inArray(subcategories.id, subcategoryIds));
+
+  // Fewer rows than ids means an unknown or a repeated id.
+  return (
+    rows.length === subcategoryIds.length &&
+    rows.every(
+      (row) =>
+        row.category === category &&
+        isParticipantSelectable(row.visibility, row.isAdminAssignableOnly),
+    )
+  );
+}
+
 export async function updateProfileCategories(
   profileId: number,
   category: UserCategory,
@@ -217,7 +243,31 @@ export async function updateProfileCategories(
     return { success: false, message: "No autorizado" };
   }
 
+  // Category decides stand eligibility and whether festival enrollment needs
+  // review, so a participant only picks it while completing their profile,
+  // the one place their UI offers it. Past that, staff changes it. A
+  // non-staff actor here is the owner, so `actor` is the target's own row.
+  const isStaff = actor.role === "admin" || actor.role === "festival_admin";
+  const isOnboarding =
+    actor.category === "none" || actor.profileSubcategories.length === 0;
+  if (!isStaff && !isOnboarding) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!isStaff && !isParticipantCategoryShape(category, subcategoryIds)) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
+    if (
+      !isStaff &&
+      !(await areParticipantSelectable(category, subcategoryIds))
+    ) {
+      return { success: false, message: "No autorizado" };
+    }
+    const wasComplete = isProfileComplete(
+      await fetchUserProfileById(profileId),
+    );
+
     await db.transaction(async (tx) => {
       await tx
         .update(users)
@@ -229,24 +279,25 @@ export async function updateProfileCategories(
         .delete(profileSubcategories)
         .where(eq(profileSubcategories.profileId, profileId));
 
-      subcategoryIds.forEach(async (subcategoryId) => {
-        await tx
-          .insert(profileSubcategories)
-          .values({ profileId, subcategoryId });
-      });
+      // One awaited insert: a failed write has to roll the transaction back
+      // and reach the catch below, not surface as an unhandled rejection.
+      if (subcategoryIds.length > 0) {
+        await tx.insert(profileSubcategories).values(
+          subcategoryIds.map((subcategoryId) => ({
+            profileId,
+            subcategoryId,
+          })),
+        );
+      }
     });
 
+    // The participant's notice never throws, so the completion check after it
+    // always runs, and a failed check cannot skip the notice.
     if (options && options.sendUserEmail) {
-      const fullProfile = await fetchUserProfileById(profileId);
-      await sendEmail({
-        to: [fullProfile!.email],
-        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-        subject: "Actualización de perfil",
-        react: SubcategoryUpdateEmailTemplate({
-          profile: fullProfile!,
-        }) as React.ReactElement,
-      });
+      await sendSubcategoryUpdateEmail(profileId);
     }
+
+    await verifyProfileCompletion(profileId, wasComplete);
   } catch (error) {
     console.error("Error updating profile", error);
     return {
@@ -277,6 +328,9 @@ export async function upsertUserSocialProfiles(
 
   try {
     const socialsTypesToInsert = socials.map((social) => social.type);
+    const wasComplete = isProfileComplete(
+      await fetchUserProfileById(profileId),
+    );
 
     await db.transaction(async (tx) => {
       const existingSocials = await tx.query.userSocials.findMany({
@@ -289,7 +343,9 @@ export async function upsertUserSocialProfiles(
         (social) => !existingSocials.some((s) => s.type === social.type),
       );
 
-      existingSocials.forEach(async (social) => {
+      // Awaited one by one: a failed write has to roll the transaction back
+      // and reach the catch below, not surface as an unhandled rejection.
+      for (const social of existingSocials) {
         const socialToUpdate = socials.find((s) => s.type === social.type);
         if (socialToUpdate) {
           await tx
@@ -297,16 +353,18 @@ export async function upsertUserSocialProfiles(
             .set({ username: socialToUpdate.username, updatedAt: new Date() })
             .where(eq(userSocials.id, social.id));
         }
-      });
+      }
 
-      socialsToInsert.forEach(async (social) => {
+      for (const social of socialsToInsert) {
         await tx.insert(userSocials).values({
           userId: profileId,
           type: social.type,
           username: social.username,
         });
-      });
+      }
     });
+
+    await verifyProfileCompletion(profileId, wasComplete);
   } catch (error) {
     console.error("Error adding user social profiles", error);
     return {
@@ -322,9 +380,33 @@ export async function upsertUserSocialProfiles(
   };
 }
 
+// Not exported, like verifyProfileCompletion below: it emails a participant
+// from a bare profile id. Never throws: the category update is committed, and
+// a failed notice must not report it as failed.
+async function sendSubcategoryUpdateEmail(profileId: number) {
+  try {
+    const fullProfile = await fetchUserProfileById(profileId);
+    if (!fullProfile) {
+      throw new Error(`Profile ${profileId} not found`);
+    }
+
+    const result = await sendEmail({
+      to: [fullProfile.email],
+      from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+      subject: "Actualización de perfil",
+      react: SubcategoryUpdateEmailTemplate({
+        profile: fullProfile,
+      }) as React.ReactElement,
+    });
+    assertSent(result);
+  } catch (error) {
+    console.error("Error sending subcategory update email", error);
+  }
+}
+
 // Not exported: every export of a "use server" module is a server action, and
 // this one fans out admin email from a bare profile id.
-async function verifyProfileCompletion(userId: number) {
+async function verifyProfileCompletion(userId: number, wasComplete: boolean) {
   const fullProfile = await fetchUserProfileById(userId);
   if (fullProfile && isProfileComplete(fullProfile)) {
     await db
@@ -337,19 +419,28 @@ async function verifyProfileCompletion(userId: number) {
         ),
       );
 
-    // we only want to send the email hopefully once, for the profile to be verified
-    // once verified we don't care to send it again
-    if (fullProfile.status === "pending" || fullProfile.status === "rejected") {
+    // Admins hear about a profile once: on the save that completes it. Edits to
+    // a profile that was already complete are not a new review, and verified
+    // profiles need none. Rejected profiles ask for their review themselves
+    // (requestProfileReview); completing one is not yet a request.
+    if (!wasComplete && fullProfile.status === "pending") {
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((admin) => admin.email);
-      await sendEmail({
-        to: [...adminEmails],
-        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-        subject: `${fullProfile.displayName} ha completado su perfil`,
-        react: ProfileCompletionEmailTemplate({
-          profile: fullProfile,
-        }) as React.ReactElement,
-      });
+      // The profile update is committed; a failed notice must not report it
+      // as failed.
+      try {
+        const result = await sendEmail({
+          to: [...adminEmails],
+          from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+          subject: `${fullProfile.displayName} ha completado su perfil`,
+          react: ProfileCompletionEmailTemplate({
+            profile: fullProfile,
+          }) as React.ReactElement,
+        });
+        assertSent(result);
+      } catch (error) {
+        console.error("Error sending profile completion email", error);
+      }
     }
   }
 }
@@ -390,9 +481,13 @@ export async function updateProfilePicture(
     ) {
       return {
         success: false,
-        message: "No pudimos verificar la imagen. Vuelve a subirla.",
+        message: "No pudimos verificar la imagen. Volvé a subirla.",
       };
     }
+
+    const wasComplete = isProfileComplete(
+      await fetchUserProfileById(profileId),
+    );
 
     await db
       .update(users)
@@ -402,6 +497,8 @@ export async function updateProfilePicture(
       })
       .where(eq(users.id, profileId));
 
+    await verifyProfileCompletion(profileId, wasComplete);
+
     // Re-saving the current picture must not delete the file the row still
     // points at.
     if (
@@ -409,8 +506,14 @@ export async function updateProfilePicture(
       oldImageUrl !== imageUrl &&
       oldImageUrl.includes("utfs")
     ) {
-      const [, key] = oldImageUrl.split("/f/");
-      await utapi.deleteFiles(key);
+      // The new picture is committed; a failed cleanup only leaves an orphaned
+      // file behind and must not report the save as failed.
+      try {
+        const [, key] = oldImageUrl.split("/f/");
+        await utapi.deleteFiles(key);
+      } catch (error) {
+        console.error("Error deleting the previous profile picture", error);
+      }
     }
   } catch (error) {
     console.error("Error updating profile picture", error);
@@ -427,6 +530,110 @@ export async function updateProfilePicture(
   };
 }
 
+function profileReviewRefusal(status: UserStatus | undefined) {
+  return {
+    success: false,
+    message:
+      status === "pending"
+        ? "Tu perfil ya está en revisión. Te vamos a escribir cuando nuestro equipo lo revise."
+        : "Solo podés pedir una nueva revisión si tu perfil fue rechazado.",
+  };
+}
+
+/**
+ * A rejected participant sends their corrected profile back to the admins:
+ * rejected → pending, recorded with the participant as the actor. It is
+ * one-shot per rejection, because only an admin's rejectProfile can make the
+ * profile rejected again.
+ */
+export async function requestProfileReview(profileId: number) {
+  const actor = await getCurrentUserProfile();
+  // Owner only: admins have verifyProfile and rejectProfile for this.
+  if (!actor || actor.id !== profileId) {
+    return { success: false, message: "No autorizado" };
+  }
+
+  if (actor.status !== "rejected") {
+    return profileReviewRefusal(actor.status);
+  }
+
+  const blocker = profileReviewBlocker(actor);
+  if (blocker) {
+    return { success: false, message: blocker };
+  }
+
+  let previousReason: string | null;
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      // The lock serializes a double click: the second request finds the
+      // profile already pending and stops before a second admin email.
+      const [locked] = await tx
+        .select({ status: users.status })
+        .from(users)
+        .where(eq(users.id, profileId))
+        .limit(1)
+        .for("update");
+
+      if (locked?.status !== "rejected") {
+        return { result: "refused" as const, status: locked?.status };
+      }
+
+      const reason = await latestRejectionReason(tx, profileId);
+
+      await updateUserStatusWithAudit(tx, {
+        userId: profileId,
+        fromStatus: "rejected",
+        toStatus: "pending",
+        reason: "Nueva revisión pedida por el participante.",
+        createdByUserId: actor.id,
+      });
+
+      return { result: "requested" as const, previousReason: reason };
+    });
+
+    if (outcome.result === "refused") {
+      return profileReviewRefusal(outcome.status);
+    }
+    previousReason = outcome.previousReason;
+  } catch (error) {
+    console.error("Error requesting profile review", error);
+    return {
+      success: false,
+      message:
+        "No pudimos pedir la nueva revisión. Intentá de nuevo en unos minutos.",
+    };
+  }
+
+  // The status change is committed; a failed notice must not report it as
+  // failed.
+  try {
+    const admins = await fetchAdminUsers();
+    const result = await sendEmail({
+      to: admins.map((admin) => admin.email),
+      from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+      subject: `${getUserName(actor)} pidió una nueva revisión de su perfil`,
+      react: ProfileReviewRequestEmailTemplate({
+        profile: actor,
+        previousReason,
+      }) as React.ReactElement,
+    });
+    assertSent(result);
+  } catch (error) {
+    console.error("Error sending profile review request email", error);
+  }
+
+  revalidatePath("/my_profile");
+  revalidatePath("/portal");
+  revalidatePath("/dashboard/users");
+  revalidatePath("/dashboard/profile_requests");
+  revalidatePath(`/dashboard/users/${profileId}`);
+  return {
+    success: true,
+    message:
+      "Tu perfil volvió a quedar en revisión. Te vamos a escribir cuando nuestro equipo lo revise.",
+  };
+}
+
 export async function fetchUsersAggregates(filters?: {
   includeAdmins?: boolean;
   status?: BaseProfile["status"][];
@@ -434,6 +641,11 @@ export async function fetchUsersAggregates(filters?: {
   query?: string;
   profileCompletion?: "complete" | "incomplete" | "all";
 }): Promise<UsersAggregates> {
+  // `query` matches email and phone, so even a bare count would confirm
+  // whether an account exists.
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return { total: 0 };
+
   const { includeAdmins, status, category, query, profileCompletion } =
     filters || {};
   const whereClause = await buildWhereClauseForProfileFetching(
@@ -474,6 +686,9 @@ export async function fetchUserProfiles(filters: {
   direction: "asc" | "desc";
   profileCompletion: "complete" | "incomplete" | "all";
 }) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return [];
+
   const {
     limit,
     offset,
@@ -536,12 +751,6 @@ export async function fetchUserProfiles(filters: {
   }
 }
 
-export async function fetchUserProfilesByEmails(emails: string[]) {
-  return await db.query.users.findMany({
-    where: inArray(users.email, emails),
-  });
-}
-
 export async function deleteUserSocial(
   socialId: number,
   pathToRevalidate?: string,
@@ -582,6 +791,10 @@ export async function deleteUserSocial(
 export async function fetchUserParticipations(
   profileId: number,
 ): Promise<Participation[]> {
+  // Same audience as the page that lists them: the owner, or an admin.
+  const actor = await requireProfileOwnerOrAdmin(profileId);
+  if (!actor) return [];
+
   try {
     return await db.query.reservationParticipants.findMany({
       where: eq(reservationParticipants.userId, profileId),
@@ -602,29 +815,6 @@ export async function fetchUserParticipations(
     });
   } catch (error) {
     console.error("Error fetching user participations", error);
-    return [];
-  }
-}
-
-export async function fetchUserInfractions(
-  profileId: number,
-): Promise<UserInfraction[]> {
-  try {
-    return await db.query.infractions.findMany({
-      with: {
-        type: true,
-        festival: true,
-        sanctionLinks: {
-          with: {
-            sanction: true,
-          },
-        },
-      },
-      where: eq(infractions.userId, profileId),
-      orderBy: desc(infractions.createdAt),
-    });
-  } catch (error) {
-    console.error("Error fetching user infractions", error);
     return [];
   }
 }

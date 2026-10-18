@@ -27,7 +27,9 @@ import {
   CoinsIcon,
   HomeIcon,
   ImagesIcon,
+  LibraryBigIcon,
   LogOutIcon,
+  MailXIcon,
   MicIcon,
   PackageIcon,
   QrCodeIcon,
@@ -41,7 +43,6 @@ import {
   TicketIcon,
   ToggleLeftIcon,
   UsersIcon,
-  SparklesIcon,
 } from "lucide-react";
 import { NavbarProfile } from "@/app/api/users/definitions";
 
@@ -90,7 +91,7 @@ const MobileSidebar = ({
   return (
     <Sheet>
       <SheetTrigger
-        aria-label="Open navigation menu"
+        aria-label="Abrir menú de navegación"
         className="cursor-default rounded-full border-brand-border text-brand-ink hover:bg-brand-lavender hover:text-brand-primary"
         variant="outline"
         size="icon"
@@ -155,7 +156,7 @@ const MobileSidebar = ({
               Tiendita
             </MobileSidebarItem>
           )}
-          {/* Semana Glitter takes this slot for the launch. Restore these
+          {/* The programs entry takes this slot. Restore these
               when the festival content is the priority again. */}
           {/* <MobileSidebarItem href="/festivals">
             <BookImageIcon className="mr-2 h-6 w-6" />
@@ -174,8 +175,8 @@ const MobileSidebar = ({
 
           {programsHref ? (
             <MobileSidebarItem href={programsHref}>
-              <SparklesIcon className="mr-2 h-6 w-6" />
-              Semana Glitter
+              <LibraryBigIcon className="mr-2 h-6 w-6" />
+              Charlas y Talleres
               {/* Sits beside the label rather than at the row's far edge: these
                   rows are full-width, so a corner dot would float alone in
                   empty space and read as unrelated to the item. */}
@@ -188,6 +189,10 @@ const MobileSidebar = ({
           ) : null}
           {profile && profile.role === "festival_admin" && (
             <>
+              <MobileSidebarItem href="/dashboard/festivals">
+                <CalendarIcon className="mr-2 h-6 w-6" />
+                Festivales
+              </MobileSidebarItem>
               <MobileSidebarItem href="/dashboard/infractions?limit=25&offset=0">
                 <CircleAlertIcon className="mr-2 h-6 w-6" />
                 Infracciones
@@ -363,6 +368,10 @@ const MobileSidebar = ({
                 <MobileSidebarItem href="/dashboard/feature_flags">
                   <ToggleLeftIcon className="mr-2 h-6 w-6" />
                   Funcionalidades
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/emails">
+                  <MailXIcon className="mr-2 h-6 w-6" />
+                  Correos bloqueados
                 </MobileSidebarItem>
               </div>
             </>

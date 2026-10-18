@@ -1,7 +1,8 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import { BaseProfile } from "@/app/api/users/definitions";
 import ActivityDetails from "@/app/components/festivals/festival_activities/activity-details";
-import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
+import { fetchFullFestivalById } from "@/app/lib/festival_sectors/queries";
+import { withoutParticipantRoster } from "@/app/lib/festivals/utils";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
 import Image from "next/image";
@@ -41,7 +42,10 @@ export default async function Page({ params }: EnrollPageProps) {
     return notFound();
   }
 
-  const activity = festival?.festivalActivities.find(
+  // The festival and the activity both reach a client component, so both are
+  // scoped to the profile the page is for.
+  const participantFestival = withoutParticipantRoster(festival, forProfile.id);
+  const activity = participantFestival.festivalActivities.find(
     (activity) => activity.name === "Sticker-Print",
   );
 
@@ -218,7 +222,7 @@ export default async function Page({ params }: EnrollPageProps) {
       <ActivityDetails
         activity={activity}
         user={forProfile}
-        festival={festival}
+        festival={participantFestival}
       />
     </div>
   );
