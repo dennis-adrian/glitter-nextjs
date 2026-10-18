@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/queries";
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
 import { isCouponBookDraft } from "@/app/lib/festival_activites/coupon-book-draft";
 import {

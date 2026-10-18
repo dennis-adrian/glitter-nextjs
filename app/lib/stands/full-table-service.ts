@@ -10,7 +10,10 @@ import {
   loadStandGroupMembers,
   loadStandsAsPairMembers,
 } from "@/app/lib/stands/full-table-health";
-import { pruneEmptyGroups } from "@/app/lib/stands/group-service";
+import {
+  lockStandGroupScope,
+  pruneEmptyGroups,
+} from "@/app/lib/stands/group-service";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { resolveJointAxis } from "@/app/lib/stands/groups";
 import { lockStandRows } from "@/app/lib/reservations/locks";
@@ -26,10 +29,13 @@ import {
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** What stops a pair from being declared, split or retyped. */
+export type FullTableConflict = "HELD" | "BOOKED_AS_TABLE";
+
 export type FullTableConfigResult =
   | { ok: true; groupId: number; type: "visual_group" | "full_table" }
   | { ok: false; code: "GROUP_NOT_FOUND"; problems?: undefined }
-  | { ok: false; code: "OCCUPIED"; problems?: undefined }
+  | { ok: false; code: FullTableConflict; problems?: undefined }
   | { ok: false; code: "INVALID_PAIR"; problems: FullTablePairProblem[] };
 
 /** Any unexpired hold on one of these stands. */
@@ -37,8 +43,8 @@ async function hasLiveHold(tx: DbTx, standIds: readonly number[]) {
   if (standIds.length === 0) return false;
 
   // A participant holding both halves is mid-booking on this pair. Retyping
-  // the group underneath them would let confirmation create a two-stand
-  // reservation on a group that is no longer a declared full table.
+  // the group underneath them would fail their confirmation at the last step,
+  // which re-checks the pairing before billing the table.
   const [heldRow] = await tx
     .select({ id: standHoldMembers.id })
     .from(standHoldMembers)
@@ -51,24 +57,6 @@ async function hasLiveHold(tx: DbTx, standIds: readonly number[]) {
     )
     .limit(1);
   return heldRow != null;
-}
-
-/** Any reservation, or hold, still occupying one of these stands. */
-async function hasLiveOccupancy(tx: DbTx, standIds: readonly number[]) {
-  if (standIds.length === 0) return false;
-  if (await hasLiveHold(tx, standIds)) return true;
-
-  const [row] = await tx
-    .select({ id: standReservationStands.id })
-    .from(standReservationStands)
-    .where(
-      and(
-        inArray(standReservationStands.standId, [...standIds]),
-        occupyingMemberPredicate,
-      ),
-    )
-    .limit(1);
-  return row != null;
 }
 
 /**
@@ -107,6 +95,33 @@ async function hasMultiStandReservation(tx: DbTx, standIds: readonly number[]) {
 }
 
 /**
+ * The one rule for declaring, splitting and retyping a full table: what, if
+ * anything, a change to these stands' pairing would break.
+ *
+ * - HELD: someone is mid-booking these stands, and a two-stand hold whose
+ *   pairing changes fails at confirmation. Refused whole rather than by size:
+ *   a hold lasts minutes.
+ * - BOOKED_AS_TABLE: a live reservation on more than one stand is billed at a
+ *   table price wherever its second stand is.
+ *
+ * A half booked on its own, or halves booked by separate reservations, is
+ * neither: each is priced from its own stand and reads the same either side of
+ * the change.
+ *
+ * The caller must already hold these stands' row locks. Every writer that
+ * starts or ends a hold or reservation on a stand locks it first, so the answer
+ * holds for the rest of the transaction.
+ */
+export async function findFullTableConflict(
+  tx: DbTx,
+  standIds: readonly number[],
+): Promise<FullTableConflict | null> {
+  if (await hasLiveHold(tx, standIds)) return "HELD";
+  if (await hasMultiStandReservation(tx, standIds)) return "BOOKED_AS_TABLE";
+  return null;
+}
+
+/**
  * Declares a stand group a full table, or returns it to a visual group.
  *
  * The exactly-two-members rule and the matching-attributes rules are cross-row
@@ -115,7 +130,8 @@ async function hasMultiStandReservation(tx: DbTx, standIds: readonly number[]) {
  * is why the health report checks the same rules.
  *
  * Locks the group and its stands before validating, so a concurrent price or
- * membership edit cannot slip between the check and the write.
+ * membership edit cannot slip between the check and the write. Both directions
+ * follow `findFullTableConflict`: a half booked on its own blocks neither.
  */
 export async function setStandGroupFullTable(input: {
   groupId: number;
@@ -142,14 +158,11 @@ export async function setStandGroupFullTable(input: {
     // Re-read under the stand locks; membership may have changed.
     const members = await loadStandGroupMembers(tx, input.groupId);
 
-    if (
-      await hasLiveOccupancy(
-        tx,
-        members.map((member) => member.id),
-      )
-    ) {
-      return { ok: false, code: "OCCUPIED" };
-    }
+    const conflict = await findFullTableConflict(
+      tx,
+      members.map((member) => member.id),
+    );
+    if (conflict) return { ok: false, code: conflict };
 
     if (input.enabled) {
       const validation = validateFullTablePair(members);
@@ -190,7 +203,8 @@ export type DeclareFullTablePairResult =
         | "ALREADY_FULL_TABLE"
         | "NO_SECTOR"
         | "NOT_ALIGNED"
-        | "OCCUPIED"
+        | "CHANGED"
+        | FullTableConflict
         | "INVALID_PAIR";
       problems: FullTablePairProblem[];
     };
@@ -213,6 +227,11 @@ function pairRefusal(
  * Everything is validated before the first write, the way a price edit
  * validates the projected pair: a refusal then names every mismatch at once
  * instead of surfacing them one discarded write at a time.
+ *
+ * A half already booked on its own does not block declaring, for the same
+ * reason it does not block a split (`findFullTableConflict`). That is what lets
+ * a table split by mistake be put back at once; the table is still not offered
+ * whole while either half is taken.
  */
 export async function declareFullTablePair(input: {
   standIds: readonly number[];
@@ -232,20 +251,17 @@ export async function declareFullTablePair(input: {
   }
 
   return db.transaction(async (tx) => {
-    await lockStandRows(tx, standIds);
-
-    const placement = await tx
-      .select({
-        id: stands.id,
-        label: stands.label,
-        standNumber: stands.standNumber,
-        festivalSectorId: stands.festivalSectorId,
-        positionLeft: stands.positionLeft,
-        positionTop: stands.positionTop,
-        standGroupId: stands.standGroupId,
-      })
-      .from(stands)
-      .where(inArray(stands.id, standIds));
+    // Groups before stands, including the groups these stands leave: pruning
+    // them below deletes rows and writes their other members.
+    const locked = await lockStandGroupScope(tx, standIds);
+    if (!locked.ok) {
+      return pairRefusal("CHANGED", {
+        code: "MEMBER_COUNT",
+        message:
+          "Los espacios cambiaron mientras tanto. Recargá la página y probá de nuevo.",
+      });
+    }
+    const { stands: placement, groupTypes } = locked.scope;
     if (placement.length !== 2) {
       return pairRefusal("STANDS_NOT_FOUND", {
         code: "MEMBER_COUNT",
@@ -253,37 +269,17 @@ export async function declareFullTablePair(input: {
       });
     }
 
-    const previousGroupIds = [
-      ...new Set(
-        placement
-          .map((row) => row.standGroupId)
-          .filter((id): id is number => id != null),
-      ),
-    ];
+    const previousGroupIds = [...groupTypes.keys()];
 
     // A half already spoken for cannot be re-paired. Re-parenting it would
     // leave the table it came from with a single member — a `full_table` group
     // no rule can satisfy — so the second table has to be refused rather than
     // silently dismantle the first. `StandBulkActionsMenu` greys the action out
     // for the same reason; this is the rule itself.
-    const declaredGroupIds = new Set(
-      previousGroupIds.length === 0
-        ? []
-        : (
-            await tx
-              .select({ id: standGroups.id })
-              .from(standGroups)
-              .where(
-                and(
-                  inArray(standGroups.id, previousGroupIds),
-                  eq(standGroups.type, "full_table"),
-                ),
-              )
-          ).map((row) => row.id),
-    );
     const alreadyPaired = placement.filter(
       (row) =>
-        row.standGroupId != null && declaredGroupIds.has(row.standGroupId),
+        row.standGroupId != null &&
+        groupTypes.get(row.standGroupId) === "full_table",
     );
     if (alreadyPaired.length > 0) {
       return pairRefusal("ALREADY_FULL_TABLE", {
@@ -294,11 +290,18 @@ export async function declareFullTablePair(input: {
       });
     }
 
-    if (await hasLiveOccupancy(tx, standIds)) {
-      return pairRefusal("OCCUPIED", {
+    const conflict = await findFullTableConflict(tx, standIds);
+    if (conflict === "HELD") {
+      return pairRefusal("HELD", {
         code: "MEMBER_COUNT",
         message:
-          "Hay una reserva vigente en estos espacios; liberala antes de declarar la mesa.",
+          "Alguien está reservando estos espacios ahora mismo. Probá de nuevo en unos minutos.",
+      });
+    }
+    if (conflict === "BOOKED_AS_TABLE") {
+      return pairRefusal("BOOKED_AS_TABLE", {
+        code: "MEMBER_COUNT",
+        message: "Hay una reserva que ocupa dos espacios a la vez.",
       });
     }
 
@@ -352,7 +355,7 @@ export type DissolveFullTablePairResult =
   | { ok: true }
   | {
       ok: false;
-      code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | "HELD" | "BOOKED_AS_TABLE";
+      code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | FullTableConflict;
     };
 
 /**
@@ -370,8 +373,9 @@ export type DissolveFullTablePairResult =
  * the offer to upgrade to the whole table. Only a reservation billed as the
  * whole table, or a hold that may become one, keeps the pair together.
  *
- * The split is one-way while that half stays booked: declaring still refuses
- * any live reservation, and nothing re-pairs the stands once it ends.
+ * Declaring follows the same rule, so a table split by mistake can be put back
+ * at once with `declareFullTablePair`. Its price does not come back: it lived
+ * on the group this deletes.
  */
 export async function dissolveFullTablePair(input: {
   groupId: number;
@@ -401,15 +405,8 @@ export async function dissolveFullTablePair(input: {
     ).map((row) => row.id);
     await lockStandRows(tx, memberIds);
 
-    // Holds are refused whole rather than by size: one lasts minutes, and
-    // confirmation decides it is a table from its member count alone, never
-    // re-reading the group.
-    if (await hasLiveHold(tx, memberIds)) {
-      return { ok: false as const, code: "HELD" as const };
-    }
-    if (await hasMultiStandReservation(tx, memberIds)) {
-      return { ok: false as const, code: "BOOKED_AS_TABLE" as const };
-    }
+    const conflict = await findFullTableConflict(tx, memberIds);
+    if (conflict) return { ok: false as const, code: conflict };
 
     // The stands foreign key is ON DELETE SET NULL, so deleting the group
     // releases every member still attached to it.

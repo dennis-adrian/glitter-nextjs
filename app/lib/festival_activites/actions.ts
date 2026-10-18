@@ -1,14 +1,16 @@
 "use server";
 
-import { fetchAdminUsers } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import FestivalActivityRegistrationEmail from "@/app/emails/festival-activity-registration";
-import { NewFestivalActivityVote } from "@/app/lib/festival_activites/definitions";
+import type {
+  FestivalActivityVoteInput,
+  SignedActivityProofUpload,
+} from "@/app/lib/festival_activites/definitions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import {
   ActivityDetailsWithParticipants,
   FestivalActivity,
-  FestivalActivityWithDetailsAndParticipants,
   FestivalBase,
 } from "@/app/lib/festivals/definitions";
 import { sendEmail } from "@/app/vendors/resend";
@@ -21,30 +23,34 @@ import {
   festivalActivityParticipants,
   festivalActivityVotes,
   festivalActivityWaitlist,
-  festivals,
-  festivalSectors,
   reservationParticipants,
   standReservations,
   stands,
-  users,
 } from "@/db/schema";
 import {
   attemptStorageCleanupJob,
   enqueueStorageCleanupJob,
-} from "@/app/lib/uploadthing/actions";
+} from "@/app/lib/uploadthing/storage";
+import { verifyUploadReceipt } from "@/app/lib/uploadthing/upload-receipt";
 import { getProofUploadExpiredMessage } from "@/app/lib/festival_activites/helpers";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
+import {
+  fetchActivityParticipationOwnerId,
+  fetchParticipationPreviewDataBatch,
+  type ParticipationPreviewData,
+  wasRemovedFromActivity,
+} from "@/app/lib/festival_activites/queries";
+import {
+  getCurrentUserProfile,
+  requireProfileOwnerOrAdmin,
+} from "@/app/lib/users/helpers";
 import {
   and,
-  asc,
   count,
   eq,
   gt,
   inArray,
   isNotNull,
   isNull,
-  lt,
   ne,
   sql,
 } from "drizzle-orm";
@@ -53,54 +59,6 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
 const PROOF_STATUS_CHANGED = "PROOF_STATUS_CHANGED";
-
-export const fetchFestivalActivity = async (
-  activityId: number,
-): Promise<FestivalActivityWithDetailsAndParticipants | null> => {
-  try {
-    const activity = await db.query.festivalActivities.findFirst({
-      where: eq(festivalActivities.id, activityId),
-      with: {
-        details: {
-          orderBy: (details, { asc }) => [asc(details.id)],
-          with: {
-            participants: {
-              with: {
-                user: true,
-                proofs: true,
-              },
-            },
-            votes: true,
-          },
-        },
-        waitlistEntries: { with: { user: true } },
-      },
-    });
-
-    if (!activity) return null;
-
-    return activity;
-  } catch (error) {
-    console.error("Error fetching festival activity", error);
-    return null;
-  }
-};
-
-export const fetchActivityVariantVotes = async (variantId: number) => {
-  try {
-    return await db.query.festivalActivityVotes.findMany({
-      where: eq(festivalActivityVotes.activityVariantId, variantId),
-      with: {
-        stand: true,
-        participant: true,
-        voter: true,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching activity variant votes", error);
-    return [];
-  }
-};
 
 async function fetchVerifiedActivityProfile(profileId: number) {
   const currentProfile = await getCurrentUserProfile();
@@ -118,6 +76,25 @@ async function fetchVerifiedActivityProfile(profileId: number) {
 
 const inactiveParticipantMessage =
   "Tu perfil debe estar verificado y activo para participar en actividades.";
+
+const removedParticipantMessage =
+  "No podés volver a inscribirte después de haber sido removido";
+
+/** A vote the rules refuse; its message is shown to the voter as is. */
+class VoteRejectedError extends Error {}
+
+/**
+ * Condition on a `festivalActivityParticipants` query: the participation has
+ * an uploaded design. The voting page lists only those entries, so a vote may
+ * only go to one of them.
+ */
+function hasUploadedDesign() {
+  return sql`exists (
+    select 1 from ${festivalActivityParticipantProofs}
+    where ${festivalActivityParticipantProofs.participationId} = ${festivalActivityParticipants.id}
+      and ${festivalActivityParticipantProofs.imageUrl} is not null
+  )`;
+}
 
 /**
  * Tells admins about a new enrollment. The enrollment is already committed, so
@@ -153,11 +130,14 @@ async function notifyAdminsOfEnrollment(input: {
 }
 
 export const addFestivalActivityVote = async (
-  vote: NewFestivalActivityVote,
+  vote: FestivalActivityVoteInput,
 ) => {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser) {
-    throw new Error("Usuario no autenticado.");
+    return {
+      success: false,
+      message: "Usuario no autenticado.",
+    };
   }
 
   if (currentUser.status !== "verified") {
@@ -167,60 +147,165 @@ export const addFestivalActivityVote = async (
     };
   }
 
-  if (vote.votableType === "stand" && !vote.standId) {
+  // Only these fields reach the insert; the voter comes from the session.
+  const activityVariantId = vote.activityVariantId;
+  const standId = vote.votableType === "stand" ? vote.standId : null;
+  const participantId =
+    vote.votableType === "participant" ? vote.participantId : null;
+
+  if (!Number.isInteger(activityVariantId)) {
+    return { success: false, message: "La votación no existe" };
+  }
+
+  if (vote.votableType === "stand" && !Number.isInteger(standId)) {
     return {
       success: false,
       message: "El stand no existe",
     };
   }
 
-  if (vote.votableType === "participant" && !vote.participantId) {
+  if (vote.votableType === "participant" && !Number.isInteger(participantId)) {
     return {
       success: false,
       message: "El participante no existe",
     };
   }
 
+  if (standId === null && participantId === null) {
+    return { success: false, message: "Voto no válido" };
+  }
+
   try {
     await db.transaction(async (tx) => {
+      const [variant] = await tx
+        .select({
+          festivalId: festivalActivities.festivalId,
+          allowsVoting: festivalActivities.allowsVoting,
+          votingStartDate: festivalActivities.votingStartDate,
+          votingEndDate: festivalActivities.votingEndDate,
+        })
+        .from(festivalActivityDetails)
+        .innerJoin(
+          festivalActivities,
+          eq(festivalActivities.id, festivalActivityDetails.activityId),
+        )
+        .where(eq(festivalActivityDetails.id, activityVariantId))
+        .limit(1);
+
+      if (!variant || !variant.allowsVoting) {
+        throw new VoteRejectedError("Esta actividad no tiene votación");
+      }
+
+      // Same window the voting page enforces: no dates means voting is closed.
+      const now = new Date();
+      if (
+        !variant.votingStartDate ||
+        !variant.votingEndDate ||
+        now < variant.votingStartDate ||
+        now > variant.votingEndDate
+      ) {
+        throw new VoteRejectedError("La votación no está abierta");
+      }
+
+      if (participantId !== null) {
+        const [participant] = await tx
+          .select({ userId: festivalActivityParticipants.userId })
+          .from(festivalActivityParticipants)
+          .where(
+            and(
+              eq(festivalActivityParticipants.id, participantId),
+              eq(festivalActivityParticipants.detailsId, activityVariantId),
+              isNull(festivalActivityParticipants.removedAt),
+              hasUploadedDesign(),
+            ),
+          )
+          .limit(1);
+
+        if (!participant) {
+          throw new VoteRejectedError("El participante no existe");
+        }
+        if (participant.userId === currentUser.id) {
+          throw new VoteRejectedError("No podés votar por tu propio diseño");
+        }
+      }
+
+      if (standId !== null) {
+        // The stand must be held, through an accepted reservation of this
+        // festival, by someone still enrolled in this variant with a design.
+        const standHolders = await tx
+          .select({ userId: reservationParticipants.userId })
+          .from(standReservations)
+          .innerJoin(
+            reservationParticipants,
+            eq(reservationParticipants.reservationId, standReservations.id),
+          )
+          .where(
+            and(
+              eq(standReservations.standId, standId),
+              eq(standReservations.festivalId, variant.festivalId),
+              eq(standReservations.status, "accepted"),
+            ),
+          );
+
+        const holderIds = standHolders.map((holder) => holder.userId);
+        if (holderIds.includes(currentUser.id)) {
+          throw new VoteRejectedError("No podés votar por tu propio stand");
+        }
+
+        const [enrolledHolder] =
+          holderIds.length === 0
+            ? []
+            : await tx
+                .select({ id: festivalActivityParticipants.id })
+                .from(festivalActivityParticipants)
+                .where(
+                  and(
+                    eq(
+                      festivalActivityParticipants.detailsId,
+                      activityVariantId,
+                    ),
+                    inArray(festivalActivityParticipants.userId, holderIds),
+                    isNull(festivalActivityParticipants.removedAt),
+                    hasUploadedDesign(),
+                  ),
+                )
+                .limit(1);
+
+        if (!enrolledHolder) {
+          throw new VoteRejectedError("El stand no existe");
+        }
+      }
+
       const existingVote = await tx.query.festivalActivityVotes.findFirst({
         where: and(
-          eq(festivalActivityVotes.activityVariantId, vote.activityVariantId),
+          eq(festivalActivityVotes.activityVariantId, activityVariantId),
           eq(festivalActivityVotes.voterId, currentUser.id),
         ),
       });
 
       if (existingVote) {
-        throw new Error(
-          "Ya tienes un voto registrado. No puedes votar nuevamente.",
+        throw new VoteRejectedError(
+          "Ya tenés un voto registrado. No podés votar de nuevo.",
         );
       }
 
       await tx.insert(festivalActivityVotes).values({
-        ...vote,
+        activityVariantId,
+        votableType: standId !== null ? "stand" : "participant",
+        standId,
+        participantId,
         voterId: currentUser.id,
       });
     });
   } catch (error) {
-    console.error("Error adding festival activity vote", error);
-    if (error instanceof Error) {
-      if (error.message === "Usuario no autenticado.") {
-        return {
-          success: false,
-          message: error.message,
-        };
-      }
-      if (
-        error.message ===
-        "Ya tienes un voto registrado. No puedes votar nuevamente."
-      ) {
-        return {
-          success: false,
-          message: error.message,
-        };
-      }
+    if (error instanceof VoteRejectedError) {
+      return {
+        success: false,
+        message: error.message,
+      };
     }
 
+    console.error("Error adding festival activity vote", error);
     return {
       success: false,
       message: "Error al agregar el voto",
@@ -275,6 +360,15 @@ export async function enrollInActivity(
       return { success: false, message: "Actividad no encontrada" };
     }
 
+    // Best stand enrollment needs an accepted stand and allows one entry per
+    // stand; only `enrollInBestStandActivity` checks either.
+    if (dbActivity.type === "best_stand") {
+      return {
+        success: false,
+        message: "No tenés permisos para inscribirte en esta actividad",
+      };
+    }
+
     if (!dbDetails || dbDetails.activityId !== dbActivity.id) {
       return { success: false, message: "Variante de actividad no encontrada" };
     }
@@ -302,8 +396,14 @@ export async function enrollInActivity(
     ) {
       return {
         success: false,
-        message: "No tienes permisos para inscribirte en esta actividad",
+        message: "No tenés permisos para inscribirte en esta actividad",
       };
+    }
+
+    // A removal from any variant bars the whole activity; only staff can
+    // restore a removed participant.
+    if (await wasRemovedFromActivity(db, dbActivity.id, activeProfile.id)) {
+      return { success: false, message: removedParticipantMessage };
     }
 
     const { participationLimit } = dbDetails;
@@ -330,10 +430,7 @@ export async function enrollInActivity(
               message: "Ya estás inscrito en esta actividad",
             };
           }
-          return {
-            success: false,
-            message: "No puedes re-inscribirte después de haber sido eliminado",
-          };
+          return { success: false, message: removedParticipantMessage };
         }
 
         const currentParticipantsCount = await tx
@@ -516,7 +613,7 @@ export async function enrollInBestStandActivity(
       if (!participantReservation) {
         return {
           success: false,
-          message: "No tienes permisos para inscribirte en esta actividad",
+          message: "No tenés permisos para inscribirte en esta actividad",
         };
       }
 
@@ -531,6 +628,8 @@ export async function enrollInBestStandActivity(
 						ON ${festivalActivities.id} = ${festivalActivityDetails.activityId}
 					WHERE ${festivalActivityDetails.activityId} = ${activityId}
 						AND ${festivalActivityDetails.category} = ${activeProfile.category}
+						AND ${festivalActivities.festivalId} = ${festivalId}
+						AND ${festivalActivities.type} = 'best_stand'
 					LIMIT 1
 					FOR UPDATE
 				`,
@@ -560,6 +659,10 @@ export async function enrollInBestStandActivity(
           message:
             "El registro para la actividad no está disponible en este momento",
         };
+      }
+
+      if (await wasRemovedFromActivity(tx, activityId, forProfileId)) {
+        return { success: false, message: removedParticipantMessage };
       }
 
       const [alreadyEnrolled] = await tx
@@ -648,7 +751,7 @@ export async function enrollInBestStandActivity(
 
 export async function addFestivalActivityParticipantProof(
   participationId: number,
-  imageUrls: string[],
+  uploads: SignedActivityProofUpload[],
   forProfileId: number,
 ) {
   const activeProfile = await fetchVerifiedActivityProfile(forProfileId);
@@ -658,6 +761,31 @@ export async function addFestivalActivityParticipantProof(
       success: false,
       message: inactiveParticipantMessage,
     };
+  }
+
+  // Deleting a proof deletes the file its row points at, so a row may only
+  // point at an UploadThing file the caller uploaded through the proof route.
+  // Every upload URL is public, so without the receipt a participant could aim
+  // a proof at someone else's file and delete it with the proof.
+  const uploadList = Array.isArray(uploads) ? uploads : [];
+  const urls: string[] = [];
+  for (const upload of uploadList) {
+    const imageUrl = upload?.imageUrl;
+    if (
+      typeof imageUrl !== "string" ||
+      !verifyUploadReceipt({
+        route: "festivalActivityParticipantProof",
+        uploaderId: activeProfile.clerkId,
+        imageUrl,
+        receipt: upload?.receipt,
+      })
+    ) {
+      return {
+        success: false,
+        message: "No pudimos verificar la imagen. Subila de nuevo.",
+      };
+    }
+    urls.push(imageUrl);
   }
 
   const participation = await db.query.festivalActivityParticipants.findFirst({
@@ -676,7 +804,7 @@ export async function addFestivalActivityParticipantProof(
   if (!participation) {
     return {
       success: false,
-      message: "No tienes permiso para subir diseños a esta inscripción",
+      message: "No tenés permiso para subir diseños a esta inscripción",
     };
   }
 
@@ -708,9 +836,6 @@ export async function addFestivalActivityParticipantProof(
     };
   }
 
-  const urls = imageUrls
-    .map((u) => (typeof u === "string" ? u.trim() : ""))
-    .filter(Boolean);
   if (proofType === "image" || proofType === "both") {
     if (urls.length === 0) {
       return {
@@ -771,7 +896,7 @@ export async function deleteFestivalActivityParticipantProof(
     if (!participation) {
       return {
         success: false,
-        message: "No tienes permiso para eliminar este diseño",
+        message: "No tenés permiso para eliminar este diseño",
       };
     }
 
@@ -780,7 +905,7 @@ export async function deleteFestivalActivityParticipantProof(
     if (participationFestivalId !== festivalId) {
       return {
         success: false,
-        message: "No tienes permiso para eliminar este diseño",
+        message: "No tenés permiso para eliminar este diseño",
       };
     }
 
@@ -929,6 +1054,15 @@ export async function joinActivityWaitlist(
       return { success: false, message: "La actividad no existe" };
     }
 
+    // Best stand enrollment goes only through `enrollInBestStandActivity`,
+    // which checks the accepted stand; its page offers no waitlist.
+    if (activity.type === "best_stand") {
+      return {
+        success: false,
+        message: "No tenés permisos para inscribirte en esta actividad",
+      };
+    }
+
     if (!activity.waitlistWindowMinutes) {
       return {
         success: false,
@@ -945,6 +1079,17 @@ export async function joinActivityWaitlist(
     });
     if (isEnrolled) {
       return { success: false, message: "Ya estás inscrito en esta actividad" };
+    }
+
+    // A removal from any variant bars the whole activity, as in
+    // `enrollInActivity`; only staff can restore a removed participant.
+    const wasRemoved = activity.details.some((detail) =>
+      detail.participants.some(
+        (p) => p.userId === activeProfile.id && p.removedAt !== null,
+      ),
+    );
+    if (wasRemoved) {
+      return { success: false, message: removedParticipantMessage };
     }
 
     // Check all limited variants the profile can join are actually full
@@ -1075,6 +1220,13 @@ export async function leaveActivityWaitlist(
   userId: number,
   activityId: number,
 ) {
+  // The owner leaves; an admin can also act from the owner's profile pages,
+  // which `protectRoute` opens to admins.
+  const actor = await requireProfileOwnerOrAdmin(userId);
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db
       .delete(festivalActivityWaitlist)
@@ -1093,115 +1245,6 @@ export async function leaveActivityWaitlist(
       success: false,
       message: "Error al salir de la lista de espera",
     };
-  }
-}
-
-export async function promoteFromWaitlist(
-  activityId: number,
-  freedVariantId: number,
-) {
-  try {
-    const [variant] = await db
-      .select({
-        category: festivalActivityDetails.category,
-        activityName: festivalActivities.name,
-        waitlistWindowMinutes: festivalActivities.waitlistWindowMinutes,
-        festivalId: festivalActivities.festivalId,
-        festivalName: festivals.name,
-        festivalType: festivals.festivalType,
-      })
-      .from(festivalActivityDetails)
-      .innerJoin(
-        festivalActivities,
-        eq(festivalActivities.id, festivalActivityDetails.activityId),
-      )
-      .innerJoin(festivals, eq(festivals.id, festivalActivities.festivalId))
-      .where(eq(festivalActivityDetails.id, freedVariantId));
-
-    if (!variant || variant.waitlistWindowMinutes == null) return;
-    const waitlistWindowMinutes = variant.waitlistWindowMinutes;
-
-    await db.transaction(async (tx) => {
-      const notifiedAt = new Date();
-      const expiresAt = new Date(
-        Date.now() + waitlistWindowMinutes * 60 * 1000,
-      );
-
-      const claimResult = await tx.execute(
-        sql`
-					WITH next_entry AS (
-						SELECT ${festivalActivityWaitlist.id} AS id
-						FROM ${festivalActivityWaitlist}
-						INNER JOIN ${users}
-							ON ${users.id} = ${festivalActivityWaitlist.userId}
-						WHERE ${festivalActivityWaitlist.activityId} = ${activityId}
-							AND ${festivalActivityWaitlist.notifiedAt} IS NULL
-							${variant.category ? sql`AND ${users.category} = ${variant.category}` : sql``}
-						ORDER BY ${festivalActivityWaitlist.position} ASC
-						LIMIT 1
-						FOR UPDATE SKIP LOCKED
-					)
-					UPDATE ${festivalActivityWaitlist}
-					SET
-						${festivalActivityWaitlist.notifiedAt} = ${notifiedAt},
-						${festivalActivityWaitlist.expiresAt} = ${expiresAt},
-						${festivalActivityWaitlist.notifiedForDetailId} = ${freedVariantId},
-						${festivalActivityWaitlist.updatedAt} = ${notifiedAt}
-					FROM next_entry
-					WHERE ${festivalActivityWaitlist.id} = next_entry.id
-					RETURNING
-						${festivalActivityWaitlist.id} AS id,
-						${festivalActivityWaitlist.userId} AS "userId"
-				`,
-      );
-
-      const claimedEntry = claimResult.rows[0] as
-        | { id: number; userId: number }
-        | undefined;
-      if (!claimedEntry) return;
-
-      const [nextUser] = await tx
-        .select({
-          userEmail: users.email,
-          userDisplayName: users.displayName,
-          userFirstName: users.firstName,
-          userLastName: users.lastName,
-        })
-        .from(users)
-        .where(eq(users.id, claimedEntry.userId))
-        .limit(1);
-
-      if (!nextUser) {
-        throw new Error("Claimed waitlist user not found");
-      }
-
-      const baseUrl =
-        process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-      const activityUrl = `${baseUrl}/profiles/${claimedEntry.userId}/festivals/${variant.festivalId}/activity/${activityId}`;
-
-      const result = await sendEmail({
-        from: "Actividades del Festival <no-reply@productoraglitter.com>",
-        to: [nextUser.userEmail],
-        subject: `Tenés un cupo disponible en ${variant.activityName}`,
-        react: ActivityWaitlistInvitationEmail({
-          userDisplayName: nextUser.userDisplayName,
-          userFirstName: nextUser.userFirstName,
-          userLastName: nextUser.userLastName,
-          activityName: variant.activityName,
-          festivalName: variant.festivalName,
-          festivalType: variant.festivalType,
-          expiresAt,
-          activityUrl,
-        }),
-      });
-      // Throwing rolls back the claim above, as a timeout already does: marked
-      // notified without an email, the person would lose their place once the
-      // window expired. Nothing retries on its own; the next freed seat or an
-      // admin's manual invite reaches them.
-      assertSent(result);
-    });
-  } catch (error) {
-    console.error("Error promoting from waitlist", error);
   }
 }
 
@@ -1252,12 +1295,26 @@ export async function enrollFromWaitlistInvitation(
       .select({
         id: festivalActivityDetails.id,
         participationLimit: festivalActivityDetails.participationLimit,
+        activityType: festivalActivities.type,
       })
       .from(festivalActivityDetails)
+      .innerJoin(
+        festivalActivities,
+        eq(festivalActivities.id, festivalActivityDetails.activityId),
+      )
       .where(eq(festivalActivityDetails.id, entry.notifiedForDetailId));
 
     if (!detail) {
       return { success: false, message: "La variante de actividad no existe" };
+    }
+
+    // Same as `joinActivityWaitlist`: best stand enrollment needs the checks
+    // only `enrollInBestStandActivity` makes.
+    if (detail.activityType === "best_stand") {
+      return {
+        success: false,
+        message: "No tenés permisos para inscribirte en esta actividad",
+      };
     }
 
     await db.transaction(async (tx) => {
@@ -1312,23 +1369,25 @@ export async function enrollFromWaitlistInvitation(
           ),
         );
 
+      // Accepting an invitation must not undo a removal from any variant of
+      // the activity; only staff can restore a removed participant.
       if (existing) {
-        if (!existing.removedAt) {
-          throw new Error("Ya estás inscrito en esta actividad");
-        }
-        await ensureCapacityAvailable();
-        await tx
-          .update(festivalActivityParticipants)
-          .set({ removedAt: null, updatedAt: new Date() })
-          .where(eq(festivalActivityParticipants.id, existing.id));
-      } else {
-        // Verify capacity one more time
-        await ensureCapacityAvailable();
-        await tx.insert(festivalActivityParticipants).values({
-          userId,
-          detailsId: entry.notifiedForDetailId!,
-        });
+        throw new Error(
+          existing.removedAt
+            ? removedParticipantMessage
+            : "Ya estás inscrito en esta actividad",
+        );
       }
+      if (await wasRemovedFromActivity(tx, entry.activityId, userId)) {
+        throw new Error(removedParticipantMessage);
+      }
+
+      // Verify capacity one more time
+      await ensureCapacityAvailable();
+      await tx.insert(festivalActivityParticipants).values({
+        userId,
+        detailsId: entry.notifiedForDetailId!,
+      });
 
       await tx
         .delete(festivalActivityWaitlist)
@@ -1351,99 +1410,22 @@ export async function enrollFromWaitlistInvitation(
   }
 }
 
-export async function fetchParticipationPreviewData(participationId: number) {
+/**
+ * Coupon-book preview data for one participation, for its owner's proof form.
+ * Staff may read any participation's.
+ */
+export async function fetchParticipationPreviewData(
+  participationId: number,
+): Promise<ParticipationPreviewData | null> {
+  const viewer = await getCurrentUserProfile();
+  if (!viewer) return null;
+
+  const isStaff = viewer.role === "admin" || viewer.role === "festival_admin";
+  if (!isStaff) {
+    const ownerId = await fetchActivityParticipationOwnerId(participationId);
+    if (ownerId !== viewer.id) return null;
+  }
+
   const batchData = await fetchParticipationPreviewDataBatch([participationId]);
   return batchData[participationId] ?? null;
-}
-
-export async function fetchParticipationPreviewDataBatch(
-  participationIds: number[],
-) {
-  if (participationIds.length === 0)
-    return {} as Record<
-      number,
-      {
-        imageUrl: string | null;
-        participantName: string | null;
-        standLabels: string[];
-        sectorName: string | null;
-      }
-    >;
-
-  const uniqueParticipationIds = [...new Set(participationIds)];
-
-  const rows = await db
-    .select({
-      participationId: festivalActivityParticipants.id,
-      imageUrl: users.imageUrl,
-      displayName: users.displayName,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      standLabels: sql<string[]>`
-				coalesce(
-					array_agg(
-						concat(${stands.label}, ${stands.standNumber})
-					) filter (where ${stands.label} is not null),
-					'{}'
-				)
-			`,
-      sectorName: sql<string | null>`max(${festivalSectors.name})`,
-    })
-    .from(festivalActivityParticipants)
-    .innerJoin(users, eq(users.id, festivalActivityParticipants.userId))
-    .innerJoin(
-      festivalActivityDetails,
-      eq(festivalActivityDetails.id, festivalActivityParticipants.detailsId),
-    )
-    .innerJoin(
-      festivalActivities,
-      eq(festivalActivities.id, festivalActivityDetails.activityId),
-    )
-    .innerJoin(festivals, eq(festivals.id, festivalActivities.festivalId))
-    .leftJoin(
-      reservationParticipants,
-      eq(reservationParticipants.userId, festivalActivityParticipants.userId),
-    )
-    .leftJoin(
-      standReservations,
-      and(
-        eq(standReservations.id, reservationParticipants.reservationId),
-        eq(standReservations.festivalId, festivalActivities.festivalId),
-        ne(standReservations.status, "rejected"),
-      ),
-    )
-    .leftJoin(stands, eq(stands.id, standReservations.standId))
-    .leftJoin(festivalSectors, eq(festivalSectors.id, stands.festivalSectorId))
-    .where(inArray(festivalActivityParticipants.id, uniqueParticipationIds))
-    .groupBy(
-      festivalActivityParticipants.id,
-      users.imageUrl,
-      users.displayName,
-      users.firstName,
-      users.lastName,
-    );
-
-  return rows.reduce<
-    Record<
-      number,
-      {
-        imageUrl: string | null;
-        participantName: string | null;
-        standLabels: string[];
-        sectorName: string | null;
-      }
-    >
-  >((acc, row) => {
-    const participantName =
-      row.displayName ??
-      (`${row.firstName ?? ""} ${row.lastName ?? ""}`.trim() || null);
-
-    acc[row.participationId] = {
-      imageUrl: row.imageUrl ?? null,
-      participantName,
-      standLabels: row.standLabels,
-      sectorName: row.sectorName ?? null,
-    };
-    return acc;
-  }, {});
 }

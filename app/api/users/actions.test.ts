@@ -10,7 +10,7 @@ const sendEmailMock = vi.hoisted(() => vi.fn());
 
 // `requireAdmin` itself stays real: only the Clerk session and the profile
 // lookup behind it are faked, so these tests exercise the actual gate.
-vi.mock("@/app/lib/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   getCurrentClerkUser: currentClerkUserMock,
   cachedFetchUserProfileByClerkId: fetchProfileByClerkIdMock,
   cachedFetchBaseUserProfileByClerkId: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("@/app/emails/verification_confimation/email-template", () => ({
   default: vi.fn(),
 }));
 vi.mock("@/app/emails/profile-rejection", () => ({ default: vi.fn() }));
-vi.mock("@/app/lib/festivals/actions", () => ({
+vi.mock("@/app/lib/festivals/queries", () => ({
   fetchFestival: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/app/lib/festivals/utils", () => ({

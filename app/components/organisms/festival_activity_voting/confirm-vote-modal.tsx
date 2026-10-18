@@ -1,6 +1,5 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
 import {
   AlertDialog,
   AlertDialogTitle,
@@ -17,7 +16,6 @@ import { CircleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
 type ConfirmVoteModalProps = {
-  currentProfile: BaseProfile;
   open: boolean;
   variantId: number;
   onOpenChange: (open: boolean) => void;
@@ -28,7 +26,6 @@ type ConfirmVoteModalProps = {
 };
 
 export default function ConfirmVoteModal({
-  currentProfile,
   open,
   variantId,
   onOpenChange,
@@ -44,14 +41,12 @@ export default function ConfirmVoteModal({
     if (votableType === "stand") {
       res = await addFestivalActivityVote({
         activityVariantId: variantId,
-        voterId: currentProfile.id,
         votableType: votableType,
         standId: votableId,
       });
     } else {
       res = await addFestivalActivityVote({
         activityVariantId: variantId,
-        voterId: currentProfile.id,
         votableType: votableType,
         participantId: votableId,
       });

@@ -8,7 +8,7 @@ import {
   reconcileDraftWithSource,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 import { buildCouponBookVariants } from "@/app/lib/festival_activites/coupon-book-builder";
-import { fetchParticipationPreviewData } from "@/app/lib/festival_activites/actions";
+import { fetchParticipationPreviewDataBatch } from "@/app/lib/festival_activites/queries";
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
 
 const ParamsSchema = z.object({
@@ -31,28 +31,31 @@ export default async function CouponBookReviewPage({
   if (!activity) return notFound();
 
   const baseVariants = buildCouponBookVariants(activity);
-  const variants = await Promise.all(
-    baseVariants.map(async (variant) => {
-      const entries = await Promise.all(
-        variant.entries.map(async (entry) => {
-          if (!entry.participationId) return entry;
-          const previewData = await fetchParticipationPreviewData(
-            entry.participationId,
-          );
-          if (!previewData) return entry;
-          return {
-            ...entry,
-            imageUrl: previewData.imageUrl,
-            participantName:
-              previewData.participantName ?? entry.participantName,
-            standLabels: previewData.standLabels,
-            sectorName: previewData.sectorName,
-          };
-        }),
-      );
-      return { ...variant, entries };
-    }),
+  const participationIds = baseVariants.flatMap((variant) =>
+    variant.entries
+      .map((entry) => entry.participationId)
+      .filter(
+        (participationId): participationId is number =>
+          typeof participationId === "number",
+      ),
   );
+  const previewDataMap =
+    await fetchParticipationPreviewDataBatch(participationIds);
+  const variants = baseVariants.map((variant) => {
+    const entries = variant.entries.map((entry) => {
+      if (!entry.participationId) return entry;
+      const previewData = previewDataMap[entry.participationId];
+      if (!previewData) return entry;
+      return {
+        ...entry,
+        imageUrl: previewData.imageUrl,
+        participantName: previewData.participantName ?? entry.participantName,
+        standLabels: previewData.standLabels,
+        sectorName: previewData.sectorName,
+      };
+    });
+    return { ...variant, entries };
+  });
 
   const saved = await fetchSavedCouponBookConfig(activityId);
   const sourceDraft = buildInitialCouponBookDraft({

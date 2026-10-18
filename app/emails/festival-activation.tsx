@@ -21,11 +21,14 @@ import EmailFooter from "@/app/emails/email-footer";
 interface FestivalActivationTemplateProps {
   profile: BaseProfile;
   festival: FestivalBase;
+  /** Where this participant stops receiving these announcements. */
+  unsubscribeUrl?: string;
 }
 
 export default function FestivalActivationEmailTemplate({
   profile,
   festival,
+  unsubscribeUrl,
 }: FestivalActivationTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(profile);
@@ -77,7 +80,7 @@ export default function FestivalActivationEmailTemplate({
             </Button>
           </Section>
         </Container>
-        <EmailFooter />
+        <EmailFooter unsubscribeUrl={unsubscribeUrl} />
       </Body>
     </Html>
   );
@@ -94,4 +97,5 @@ FestivalActivationEmailTemplate.PreviewProps = {
     reservationsStartDate: new Date("2024-08-12 12:00:00"),
     festivalType: "twinkler",
   },
+  unsubscribeUrl: "http://localhost:3000/email/unsubscribe?token=preview",
 } as FestivalActivationTemplateProps;

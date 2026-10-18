@@ -1,5 +1,5 @@
 import StoreItemCard from "@/app/components/molecules/store-item-card";
-import { fetchProducts } from "@/app/lib/products/actions";
+import { fetchProducts } from "@/app/lib/products/queries";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import type { RentalEligibilityResult } from "@/app/lib/rentals/types";
 

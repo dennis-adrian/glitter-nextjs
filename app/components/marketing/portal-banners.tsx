@@ -1,6 +1,6 @@
 import MarketingBannerCarousel from "@/app/components/marketing/marketing-banner-carousel";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { fetchMarketingBannersForPortal } from "@/app/lib/marketing_banners/actions";
+import { fetchMarketingBannersForPortal } from "@/app/lib/marketing_banners/queries";
 
 export async function PortalBanners() {
   const banners = await fetchMarketingBannersForPortal();

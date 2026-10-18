@@ -1,4 +1,4 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import BestStandActivityPage from "@/app/components/pages/festival_activities/best-stand-activity";
@@ -7,7 +7,7 @@ import CouponBookActivityPage from "@/app/components/pages/festival_activities/c
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import StickerHuntActivityPage from "@/app/components/pages/festival_activities/sticker-hunt-activity";
-import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/queries";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import UpcomingRegistrationNotice from "@/app/components/festivals/festival_activities/upcoming-registration-notice";
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";

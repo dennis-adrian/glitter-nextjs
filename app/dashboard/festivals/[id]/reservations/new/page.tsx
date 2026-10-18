@@ -2,7 +2,7 @@ import {
   fetchAllFestivalEnrolledUsers,
   fetchBaseFestival,
 } from "@/app/lib/festivals/actions";
-import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
 import { fetchExternalParticipants } from "@/app/lib/external_participants/actions";
 import { fetchFullTableOptions } from "@/app/lib/reservations/stand-change-queries";
 import CreateReservationForm from "./form";

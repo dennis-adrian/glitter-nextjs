@@ -8,7 +8,10 @@ import { CheckCircleIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import TryAgainForm from "@/app/components/festivals/festival_activities/try-again-form";
-import { Dropzone } from "@/app/components/organisms/dropzone";
+import {
+  Dropzone,
+  type DropzoneUploadedFile,
+} from "@/app/components/organisms/dropzone";
 import { Button } from "@/app/components/ui/button";
 import {
   DrawerDialog,
@@ -40,13 +43,9 @@ export default function UploadStickerDesignModal({
   const maxFiles = Math.min(Math.max(rawMaxFiles, 1), 10); // guard [1,10]
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<
-    {
-      imageUrl: string;
-      fileName: string;
-      fileSize: number;
-    }[]
-  >([]);
+  const [uploadedFiles, setUploadedFiles] = useState<DropzoneUploadedFile[]>(
+    [],
+  );
   const [insertSuccess, setInsertSuccess] = useState(false);
   const [insertError, setInsertError] = useState(false);
 
@@ -76,7 +75,10 @@ export default function UploadStickerDesignModal({
             </div>
           ))}
           <TryAgainForm
-            imageUrls={uploadedFiles.map((file) => file.imageUrl)}
+            uploads={uploadedFiles.map(({ imageUrl, receipt }) => ({
+              imageUrl,
+              receipt,
+            }))}
             participationId={participationId}
             forProfileId={forProfileId}
             onSuccess={() => {
@@ -115,18 +117,12 @@ export default function UploadStickerDesignModal({
         maxFiles={maxFiles}
         maxSize={4 * 1024 * 1024}
         accept={["image/*"]}
-        onUploadComplete={async (
-          files: {
-            imageUrl: string;
-            fileName: string;
-            fileSize: number;
-          }[],
-        ) => {
+        onUploadComplete={async (files: DropzoneUploadedFile[]) => {
           setUploadSuccess(true);
           setUploadedFiles(files);
           const res = await addFestivalActivityParticipantProof(
             participationId,
-            files.map((file) => file.imageUrl),
+            files.map(({ imageUrl, receipt }) => ({ imageUrl, receipt })),
             forProfileId,
           );
           if (res.success) {

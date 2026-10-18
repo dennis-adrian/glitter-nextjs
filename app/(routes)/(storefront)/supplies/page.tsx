@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import StoreProducts from "@/app/components/organisms/store-products";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import SuppliesAccessNotice from "@/app/components/organisms/store/supplies-access-notice";
-import { getCurrentClerkUser } from "@/app/lib/users/actions";
+import { getCurrentClerkUser } from "@/app/lib/users/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export const metadata: Metadata = {

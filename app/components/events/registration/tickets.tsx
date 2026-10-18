@@ -1,22 +1,23 @@
 import DownloadableTicket from "@/app/components/events/registration/downloadable-ticket";
-import { TicketBase } from "@/app/data/tickets/actions";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
+import type {
+  TicketFestivalView,
+  VisitorTicketView,
+} from "@/app/lib/visitors/registration-definitions";
 
 type TicketsProps = {
-  visitor: VisitorWithTickets;
-  tickets: TicketBase[];
-  festival: FestivalBase;
+  tickets: VisitorTicketView[];
+  holderName: string;
+  festival: TicketFestivalView;
 };
 
 export default function Tickets(props: TicketsProps) {
   return (
     <div className="flex flex-wrap gap-4 justify-center animate-slide-up">
-      {props.tickets.map((ticket, index) => (
+      {props.tickets.map((ticket) => (
         <DownloadableTicket
           ticket={ticket}
-          key={index}
-          visitor={props.visitor}
+          key={ticket.id}
+          holderName={props.holderName}
           festival={props.festival}
         />
       ))}

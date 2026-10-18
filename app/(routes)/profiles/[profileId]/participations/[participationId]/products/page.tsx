@@ -1,5 +1,5 @@
 import SubmittedProductCard from "@/app/components/molecules/submitted-products/submitted-product-card";
-import { fetchParticipantProductsByParticipationId } from "@/app/lib/participant_products/actions";
+import { fetchParticipantProductsByParticipationId } from "@/app/lib/participant_products/queries";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 

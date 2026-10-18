@@ -17,12 +17,12 @@ vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
 }));
 vi.mock("@/db", () => ({ db: {} }));
-vi.mock("@/app/api/users/actions", () => ({ fetchAdminUsers }));
+vi.mock("@/app/lib/users/queries", () => ({ fetchAdminUsers }));
 
 import {
   sendGuestOrderEmails,
   sendOrderEmails,
-} from "@/app/lib/orders/actions";
+} from "@/app/lib/orders/order-emails";
 import { EmailSendError } from "@/app/vendors/resend-result";
 
 const order = {

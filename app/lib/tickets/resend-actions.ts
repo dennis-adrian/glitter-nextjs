@@ -3,13 +3,14 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { consumeActionRateLimit } from "@/app/lib/rate-limit";
 import {
   canResendTicket,
   TICKET_RESEND_BLOCKER_LABELS,
 } from "@/app/lib/tickets/resend";
-import { buildTicketEmail } from "@/app/lib/tickets/ticket-email";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import { buildTicketIssuedEmail } from "@/app/lib/visitors/tickets";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
@@ -20,6 +21,8 @@ const ticketIdSchema = z.number().int().positive();
 const NOT_FOUND_MESSAGE = "No encontramos esta entrada.";
 const FAILURE_MESSAGE =
   "No pudimos reenviar la entrada. Intentá de nuevo en unos minutos.";
+const SUPPRESSED_MESSAGE =
+  "Este correo está bloqueado porque rebotó o lo marcaron como spam. Desbloquealo en Correos bloqueados y volvé a intentarlo.";
 
 /**
  * Mails a festival ticket again, to the address stored on its visitor.
@@ -76,6 +79,23 @@ export async function resendTicketEmail(
     };
   }
 
+  // Resend delivers nothing to an address that bounced or marked us as spam,
+  // so sending would report a delivery that never happens.
+  const suppressionUnknown = Symbol("ticketResendSuppressionUnknown");
+  const suppressed = await isSuppressed(ticket.visitor.email).catch((error) => {
+    console.error("Ticket resend suppression check failed", {
+      ticketId,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return suppressionUnknown;
+  });
+  if (suppressed === suppressionUnknown) {
+    return { success: false, message: FAILURE_MESSAGE };
+  }
+  if (suppressed) {
+    return { success: false, message: SUPPRESSED_MESSAGE };
+  }
+
   const rateLimitUnavailable = Symbol("ticketResendRateLimitUnavailable");
   const allowed = await consumeActionRateLimit({
     key: `ticket-resend:ticket:${ticket.id}`,
@@ -96,7 +116,7 @@ export async function resendTicketEmail(
   const now = new Date();
   try {
     const result = await sendEmail(
-      await buildTicketEmail({
+      await buildTicketIssuedEmail({
         visitor: ticket.visitor,
         festival: ticket.festival,
         ticket,

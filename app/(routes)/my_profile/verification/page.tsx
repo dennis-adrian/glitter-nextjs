@@ -3,7 +3,7 @@ import { UserProfileSkeleton } from "@/app/components/user_profile/skeleton";
 import {
   fetchUserProfileByClerkId,
   getCurrentClerkUser,
-} from "@/app/lib/users/actions";
+} from "@/app/lib/users/queries";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 

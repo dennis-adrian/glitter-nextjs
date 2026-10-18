@@ -97,6 +97,7 @@ let deactivateFullTableAccess: (typeof import("@/app/lib/reservations/full-table
 let downgradeFullTableReservation: (typeof import("@/app/lib/reservations/full-table-service"))["downgradeFullTableReservation"];
 let cancelReservation: (typeof import("@/app/lib/reservations/admin-service"))["cancelReservation"];
 let fetchFullTableOffer: (typeof import("@/app/lib/reservations/full-table-queries"))["fetchFullTableOffer"];
+let dissolveFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["dissolveFullTablePair"];
 let fetchFestivalReservationConfirmationDto: (typeof import("@/app/lib/reservations/map-queries"))["fetchFestivalReservationConfirmationDto"];
 let publishedTermsVersionId: number;
 
@@ -127,6 +128,8 @@ describeDatabase("full table", () => {
     } = await import("@/app/lib/reservations/full-table-service"));
     ({ cancelReservation } =
       await import("@/app/lib/reservations/admin-service"));
+    ({ dissolveFullTablePair } =
+      await import("@/app/lib/stands/full-table-service"));
     ({ fetchFullTableOffer } =
       await import("@/app/lib/reservations/full-table-queries"));
     ({ fetchFestivalReservationConfirmationDto } =
@@ -885,6 +888,180 @@ describeDatabase("full table", () => {
         ),
       );
     expect(spends).toHaveLength(0);
+  });
+
+  async function waitUntilBlockedBy(pid: number) {
+    for (let attempt = 0; ; attempt += 1) {
+      const { rows } = await pool!.query<{ waiting: number }>(
+        "SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))",
+        [pid],
+      );
+      if (rows[0].waiting > 0) return;
+      if (attempt > 250) throw new Error("Nothing ever waited.");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
+  it("falls back to the selected half when the table is split before the hold takes its locks", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+      groupIds,
+    } = await seed();
+    asUser(owner);
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    // Park the hold on the festival row: past its unlocked look at the pair,
+    // short of the stand locks.
+    const blocker = await pool!.connect();
+    let holding: ReturnType<typeof createStandHold> | undefined;
+    try {
+      await blocker.query("BEGIN");
+      const {
+        rows: [{ pid }],
+      } = await blocker.query<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      );
+      await blocker.query("SELECT id FROM festivals WHERE id = $1 FOR UPDATE", [
+        festival.id,
+      ]);
+      holding = createStandHold({
+        standId: standIds[0],
+        idempotencyKey: randomUUID(),
+      });
+      await waitUntilBlockedBy(pid);
+
+      expect(await dissolveFullTablePair({ groupId: groupIds[0] })).toEqual({
+        ok: true,
+      });
+    } finally {
+      await blocker.query("COMMIT");
+      blocker.release();
+    }
+
+    expect(await holding).toMatchObject({
+      success: true,
+      data: { isFullTable: false },
+    });
+    const [hold] = await integrationDb!
+      .select({
+        id: standHolds.id,
+        fullTablePriceSnapshot: standHolds.fullTablePriceSnapshot,
+      })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    expect(hold.fullTablePriceSnapshot).toBeNull();
+    const members = await integrationDb!
+      .select({ standId: standHoldMembers.standId })
+      .from(standHoldMembers)
+      .where(eq(standHoldMembers.holdId, hold.id));
+    expect(members).toEqual([{ standId: standIds[0] }]);
+  });
+
+  it("refuses to confirm a held table whose stands stopped being a table", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(
+      await createStandHold({
+        standId: standIds[0],
+        idempotencyKey: randomUUID(),
+      }),
+    ).toMatchObject({ success: true, data: { isFullTable: true } });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+
+    // A writer that skips the split rules, as the map editor used to.
+    await integrationDb!
+      .update(stands)
+      .set({ standGroupId: null })
+      .where(inArray(stands.id, standIds));
+
+    expect(
+      await confirmStandHold({ holdId: hold.id, idempotencyKey: randomUUID() }),
+    ).toMatchObject({ success: false, code: "FULL_TABLE_HOLD_SPLIT" });
+
+    expect(
+      await integrationDb!
+        .select({ id: standReservations.id })
+        .from(standReservations)
+        .where(eq(standReservations.festivalId, festival.id)),
+    ).toEqual([]);
+    expect(
+      await integrationDb!
+        .select({ id: standHolds.id })
+        .from(standHolds)
+        .where(eq(standHolds.festivalId, festival.id)),
+    ).toEqual([]);
+    const statuses = await integrationDb!
+      .select({ status: stands.status })
+      .from(stands)
+      .where(inArray(stands.id, standIds));
+    expect(statuses.map((row) => row.status)).toEqual([
+      "available",
+      "available",
+    ]);
+    // Access and its credits stay put, so the participant can pick again.
+    expect(await activeHoldAmount(owner.id)).toEqual([
+      { amount: ACCESS_PRICE, status: "active" },
+    ]);
+  });
+
+  it("confirms a held table at its snapshot after the table is unpriced", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+      groupIds,
+    } = await seed();
+    asUser(owner);
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+    await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+
+    await integrationDb!
+      .update(standGroups)
+      .set({ fullTablePrice: null })
+      .where(eq(standGroups.id, groupIds[0]));
+
+    const confirmed = await confirmStandHold({
+      holdId: hold.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(confirmed.success).toBe(true);
+    const reservationId = (confirmed as { data: { reservationId: number } })
+      .data.reservationId;
+    expect(await memberStandIds(reservationId)).toEqual(
+      [...standIds.slice(0, 2)].sort((a, b) => a - b),
+    );
+    expect(
+      await integrationDb!
+        .select({ amount: invoices.amount })
+        .from(invoices)
+        .where(eq(invoices.reservationId, reservationId)),
+    ).toEqual([{ amount: FULL_TABLE_PRICE }]);
   });
 
   it("frees both halves when a full-table hold is replaced", async () => {

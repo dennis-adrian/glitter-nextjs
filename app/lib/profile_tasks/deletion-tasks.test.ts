@@ -10,6 +10,8 @@ const anonymizeMock = vi.hoisted(() => vi.fn());
 const detachPostsMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
+vi.mock("server-only", () => ({}));
+
 vi.mock("@/db", () => ({
   db: {
     transaction: transactionMock,

@@ -7,6 +7,8 @@ import type { ScheduledTaskWithProfile } from "@/app/lib/profile_tasks/definitio
 const transactionMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
+vi.mock("server-only", () => ({}));
+
 vi.mock("@/db", () => ({
   db: { transaction: transactionMock },
 }));

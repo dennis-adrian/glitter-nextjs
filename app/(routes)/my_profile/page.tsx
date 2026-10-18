@@ -4,7 +4,7 @@ import { UserProfileSkeleton } from "@/app/components/user_profile/skeleton";
 import {
   cachedFetchUserProfileByClerkId,
   getCurrentClerkUser,
-} from "@/app/lib/users/actions";
+} from "@/app/lib/users/queries";
 import { InfoIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";

@@ -5,7 +5,7 @@ import CouponBookActivityPage from "@/app/components/pages/festival_activities/c
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import StickerHuntActivityPage from "@/app/components/pages/festival_activities/sticker-hunt-activity";
-import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/queries";
 import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 import { formatDate, formatDateTime } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";

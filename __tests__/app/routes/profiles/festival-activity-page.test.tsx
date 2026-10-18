@@ -79,7 +79,7 @@ vi.mock(
   },
 );
 
-vi.mock("@/app/api/users/actions", () => ({
+vi.mock("@/app/lib/users/queries", () => ({
   fetchUserProfileById: mocks.fetchUserProfileById,
 }));
 
@@ -93,12 +93,15 @@ vi.mock("@/app/lib/festival_activites/actions", () => ({
   enrollFromWaitlistInvitation: vi.fn(),
   enrollInActivity: vi.fn(),
   enrollInBestStandActivity: vi.fn(),
-  fetchFestivalActivity: mocks.fetchFestivalActivity,
   joinActivityWaitlist: vi.fn(),
   leaveActivityWaitlist: vi.fn(),
 }));
 
-vi.mock("@/app/lib/festivals/actions", () => ({
+vi.mock("@/app/lib/festival_activites/queries", () => ({
+  fetchFestivalActivity: mocks.fetchFestivalActivity,
+}));
+
+vi.mock("@/app/lib/festivals/queries", () => ({
   fetchFestivalParticipants: mocks.fetchFestivalParticipants,
 }));
 

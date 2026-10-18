@@ -39,8 +39,8 @@ const pool = testDatabaseUrl
 const integrationDb = pool ? drizzle(pool, { schema }) : null;
 const describeDatabase = integrationDb ? describe : describe.skip;
 
-let createGuestOrderInTx: (typeof import("@/app/lib/orders/actions"))["createGuestOrderInTx"];
-let createOrderInTx: (typeof import("@/app/lib/orders/actions"))["createOrderInTx"];
+let createGuestOrderInTx: (typeof import("@/app/lib/orders/create-order"))["createGuestOrderInTx"];
+let createOrderInTx: (typeof import("@/app/lib/orders/create-order"))["createOrderInTx"];
 
 type OrderTx = Parameters<
   Parameters<NonNullable<typeof integrationDb>["transaction"]>[0]
@@ -131,7 +131,7 @@ describeDatabase("order creation category snapshots", () => {
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
 
     ({ createGuestOrderInTx, createOrderInTx } = await import(
-      "@/app/lib/orders/actions"
+      "@/app/lib/orders/create-order"
     ));
 
     const result = await pool!.query<{ orders: string | null }>(

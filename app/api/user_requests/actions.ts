@@ -1,7 +1,7 @@
 "use server";
 
 import { UserRequest } from "@/app/api/user_requests/definitions";
-import { fetchAdminUsers } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/lib/users/queries";
 import { db } from "@/db";
 import {
   festivals,
@@ -16,6 +16,11 @@ import { and, eq } from "drizzle-orm";
 import { BaseProfile } from "@/app/api/users/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import {
+  requireAdmin,
+  requireAdminOrFestivalAdmin,
+  requireProfileOwnerOrAdmin,
+} from "@/app/lib/users/helpers";
 import { nextEnrollmentTermsWrite } from "@/app/lib/festival-terms/acceptance";
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import {
@@ -28,6 +33,9 @@ import {
 } from "@/app/lib/user_requests/review-service";
 
 export async function fetchRequestsByUserId(userId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return [];
+
   try {
     const requests = await db.query.userRequests.findMany({
       where: eq(userRequests.userId, userId),
@@ -55,6 +63,9 @@ export async function reviewBecomeArtistRequest(input: unknown) {
 export async function fetchFestivalParticipationRequests(
   festivalId: number,
 ): Promise<UserRequest[]> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) return [];
+
   try {
     const requests = await db.query.userRequests.findMany({
       where: and(
@@ -76,6 +87,10 @@ export async function fetchFestivalParticipationRequests(
 }
 
 export async function fetchRequests(): Promise<UserRequest[]> {
+  // Its only page, /dashboard/requests, renders for admins alone.
+  const actor = await requireAdmin();
+  if (!actor) return [];
+
   try {
     const requests = await db.query.userRequests.findMany({
       with: {
@@ -98,18 +113,16 @@ export type StandStatus = (typeof stands.$inferSelect)["status"];
 
 export async function createUserEnrollment(params: {
   profileId: BaseProfile["id"];
-  profileDisplayName: BaseProfile["displayName"];
   festivalId: FestivalBase["id"];
-  festivalName: FestivalBase["name"];
-  festivalReservationsStartDate: FestivalBase["reservationsStartDate"];
 }) {
-  const {
-    profileId,
-    profileDisplayName,
-    festivalId,
-    festivalName,
-    festivalReservationsStartDate,
-  } = params;
+  const { profileId, festivalId } = params;
+
+  // The terms page admits the profile's owner and admins, who may accept on
+  // a participant's behalf.
+  const actor = await requireProfileOwnerOrAdmin(profileId);
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
 
   try {
     const profile = await db.query.users.findFirst({
@@ -137,12 +150,26 @@ export async function createUserEnrollment(params: {
 
     const festival = await db.query.festivals.findFirst({
       where: eq(festivals.id, festivalId),
-      columns: { participantTermsEnabled: true },
+      columns: {
+        participantTermsEnabled: true,
+        name: true,
+        reservationsStartDate: true,
+        status: true,
+      },
     });
     if (!festival || !isFestivalParticipantTermsEnabled(festival)) {
       return {
         success: false,
         message: FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
+      };
+    }
+
+    // Same rule as the terms page, which only offers the form while the
+    // festival is active.
+    if (festival.status !== "active") {
+      return {
+        success: false,
+        message: "El festival aún no tiene las reservas activas",
       };
     }
 
@@ -201,23 +228,24 @@ export async function createUserEnrollment(params: {
     const admins = await fetchAdminUsers();
     const adminEmails = admins.map((admin) => admin.email);
     if (admins.length > 0) {
-      // The request is committed; a failed notice must not report it as
-      // failed.
+      // Names and dates come from the rows, never from the caller, since they
+      // land in the subject and body of a mail sent to every admin. The
+      // request is committed; a failed notice must not report it as failed.
       try {
         const result = await sendEmail({
           to: [...adminEmails],
           from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
-          subject: `${profileDisplayName || "Usuario"} se ha inscrito a ${festivalName || "Festival"}`,
+          subject: `${profile.displayName || "Usuario"} se ha inscrito a ${festival.name || "Festival"}`,
           react: TermsAcceptanceEmailTemplate({
             profile: {
               id: profileId,
-              displayName: profileDisplayName || "Usuario",
+              displayName: profile.displayName || "Usuario",
               category: profile.category,
             },
             festival: {
               id: festivalId,
-              name: festivalName,
-              reservationsStartDate: festivalReservationsStartDate,
+              name: festival.name,
+              reservationsStartDate: festival.reservationsStartDate,
             },
           }) as React.ReactElement,
         });

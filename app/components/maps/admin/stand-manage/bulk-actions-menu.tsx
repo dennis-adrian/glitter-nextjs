@@ -20,7 +20,6 @@ import {
   deleteStands,
   renumberStandsSequentially,
 } from "@/app/api/stands/actions";
-import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 import {
   declareFullTablePairAction,
   dissolveFullTablePairAction,
@@ -65,7 +64,11 @@ import {
 } from "@/app/components/maps/admin/stand-manage/shared";
 
 import type { StandRow } from "@/app/components/maps/admin/stand-manage/columns";
-import type { FullTableInfo } from "@/app/components/maps/admin/stand-manage/full-table";
+import {
+  type FullTableInfo,
+  isBookedRow,
+  rowsBookedAsTable,
+} from "@/app/components/maps/admin/stand-manage/full-table";
 
 type Props = {
   festivalId: number;
@@ -174,6 +177,17 @@ export default function StandBulkActionsMenu({
     [selectedIds, fullTableByStandId],
   );
 
+  // A half booked on its own blocks neither declaring nor splitting; only a
+  // reservation on both halves does (the server also refuses a live hold).
+  const selectedBookedAsTable = useMemo(
+    () => rowsBookedAsTable(selectedRows, rowsById.values()),
+    [selectedRows, rowsById],
+  );
+  const bookedSelectedRows = useMemo(
+    () => selectedRows.filter(isBookedRow),
+    [selectedRows],
+  );
+
   const declareReason = useMemo(() => {
     if (count !== 2) {
       return `Seleccioná exactamente dos espacios (llevás ${count}).`;
@@ -181,11 +195,23 @@ export default function StandBulkActionsMenu({
     if (selectedFullTableGroupIds.length > 0) {
       return "Alguno de los espacios ya es mitad de una mesa completa.";
     }
-    if (hasReservation) {
-      return "Hay una reserva vigente en la selección.";
+    if (selectedBookedAsTable.length > 0) {
+      return "Hay una reserva que ocupa dos espacios a la vez.";
     }
     return null;
-  }, [count, selectedFullTableGroupIds, hasReservation]);
+  }, [count, selectedFullTableGroupIds, selectedBookedAsTable]);
+
+  const dissolveGroupId = selectedFullTableGroupIds[0] ?? null;
+  const dissolveMembers = useMemo(() => {
+    if (dissolveGroupId == null) return [];
+    return [...rowsById.values()].filter(
+      (row) => fullTableByStandId.get(row.id)?.groupId === dissolveGroupId,
+    );
+  }, [dissolveGroupId, rowsById, fullTableByStandId]);
+  const bookedDissolveMembers = useMemo(
+    () => dissolveMembers.filter(isBookedRow),
+    [dissolveMembers],
+  );
 
   const dissolveReason = useMemo(() => {
     if (selectedFullTableGroupIds.length === 0) {
@@ -197,7 +223,12 @@ export default function StandBulkActionsMenu({
     return null;
   }, [selectedFullTableGroupIds]);
 
-  const dissolveGroupId = selectedFullTableGroupIds[0] ?? null;
+  const deleteReason = hasReservation
+    ? "No se pueden eliminar espacios con reservas"
+    : selectedFullTableGroupIds.length > 0
+      ? "Separá la mesa completa antes de eliminar sus espacios."
+      : null;
+
   const selectedFullTable =
     dissolveGroupId == null
       ? null
@@ -209,22 +240,6 @@ export default function StandBulkActionsMenu({
 
   // Same selection rule as separating one: the price belongs to a single table.
   const priceTableReason = dissolveReason;
-  const dissolveMembers = useMemo(() => {
-    if (dissolveGroupId == null) return [];
-    return [...rowsById.values()].filter(
-      (row) => fullTableByStandId.get(row.id)?.groupId === dissolveGroupId,
-    );
-  }, [dissolveGroupId, rowsById, fullTableByStandId]);
-  // Rows list every reservation ever made on the stand, cancelled ones too.
-  const bookedDissolveMembers = useMemo(
-    () =>
-      dissolveMembers.filter((row) =>
-        row.reservations.some((reservation) =>
-          occupiesStandCapacity(reservation.status),
-        ),
-      ),
-    [dissolveMembers],
-  );
 
   async function runBulk(
     fn: () => Promise<{
@@ -345,12 +360,8 @@ export default function StandBulkActionsMenu({
           <Button
             variant="destructive"
             size="sm"
-            disabled={pending || hasReservation}
-            title={
-              hasReservation
-                ? "No se pueden eliminar espacios con reservas"
-                : undefined
-            }
+            disabled={pending || deleteReason != null}
+            title={deleteReason ?? undefined}
             onClick={() => setDialog("delete")}
           >
             <Trash2Icon className="mr-1 h-4 w-4" />
@@ -627,6 +638,14 @@ export default function StandBulkActionsMenu({
             exactamente qué.
           </p>
 
+          {declareReason == null && bookedSelectedRows.length > 0 && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {bookedSelectedRows.length === 1
+                ? `${standDisplayLabel(bookedSelectedRows[0])} tiene una reserva vigente. Declarar la mesa no la cambia: sigue en ese espacio, con el mismo precio. Mientras siga vigente, la mesa no se ofrece entera y el otro espacio se reserva como media mesa. Cuando la mesa tenga precio, esa reserva se va a poder ampliar a mesa completa.`
+                : `${bookedSelectedRows.map(standDisplayLabel).join(" y ")} tienen reservas vigentes distintas. Declarar la mesa no las cambia: cada una sigue en su espacio, con el mismo precio. La mesa no se ofrece entera mientras alguna siga vigente.`}
+            </p>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>
               Cancelar
@@ -719,6 +738,8 @@ export default function StandBulkActionsMenu({
               Los espacios vuelven a ser independientes: dejan de ser una mesa
               completa y dejan de estar agrupados. Cada uno se puede reservar y
               cotizar por separado.
+              {selectedFullTable?.fullTablePrice != null &&
+                ` El precio de la mesa (${formatPrice(selectedFullTable.fullTablePrice)}) se descarta: si la volvés a declarar, hay que cargarlo de nuevo.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -738,8 +759,8 @@ export default function StandBulkActionsMenu({
             <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
               {bookedDissolveMembers.map(standDisplayLabel).join(" y ")}{" "}
               {bookedDissolveMembers.length === 1
-                ? "tiene una reserva vigente. La reserva no cambia, pero deja de poder ampliarse a mesa completa, y no vas a poder volver a declarar la mesa mientras siga vigente."
-                : "tienen reservas vigentes. Las reservas no cambian, pero no vas a poder volver a declarar la mesa mientras sigan vigentes."}
+                ? "tiene una reserva vigente. La reserva no cambia, pero deja de poder ampliarse a mesa completa. Si te equivocaste, podés volver a declarar la mesa enseguida."
+                : "tienen reservas vigentes. Las reservas no cambian, y si te equivocaste podés volver a declarar la mesa enseguida."}
             </p>
           )}
 
@@ -770,8 +791,8 @@ export default function StandBulkActionsMenu({
           <DialogHeader>
             <DialogTitle>Eliminar {count} espacio(s)</DialogTitle>
             <DialogDescription>
-              Esta acción no se puede deshacer. No puedes eliminar espacios con
-              reservas.
+              Esta acción no se puede deshacer. No podés eliminar espacios con
+              reservas ni mitades de una mesa completa.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -780,7 +801,7 @@ export default function StandBulkActionsMenu({
             </Button>
             <Button
               variant="destructive"
-              disabled={pending || hasReservation}
+              disabled={pending || deleteReason != null}
               onClick={() => void runBulk(() => deleteStands(selectedIds))}
             >
               {pending ? "Eliminando…" : "Eliminar"}

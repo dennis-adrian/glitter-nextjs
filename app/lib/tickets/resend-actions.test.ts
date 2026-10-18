@@ -4,17 +4,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Runs the staff ticket resend through the real `sendEmail` and Resend SDK,
  * down to the HTTP request, so the assertions see what would leave: the
- * stored recipient, the inline QR and the idempotency header.
+ * stored recipient, the inline QR, the signed tickets link and the
+ * idempotency header.
  */
 
-const { requireStaffMock, consumeActionRateLimitMock, findFirstMock } =
-  vi.hoisted(() => ({
-    requireStaffMock: vi.fn(),
-    consumeActionRateLimitMock: vi.fn(),
-    findFirstMock: vi.fn(),
-  }));
+const {
+  requireStaffMock,
+  consumeActionRateLimitMock,
+  findFirstMock,
+  findVisitorMock,
+  isSuppressedMock,
+} = vi.hoisted(() => ({
+  requireStaffMock: vi.fn(),
+  consumeActionRateLimitMock: vi.fn(),
+  findFirstMock: vi.fn(),
+  // Only the registration send reads the visitor on its own.
+  findVisitorMock: vi.fn(),
+  isSuppressedMock: vi.fn(),
+}));
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/headers", () => ({ cookies: vi.fn(), headers: vi.fn() }));
 vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
 }));
@@ -24,13 +34,25 @@ vi.mock("@/app/lib/users/helpers", () => ({
 vi.mock("@/app/lib/rate-limit", () => ({
   consumeActionRateLimit: consumeActionRateLimitMock,
 }));
+vi.mock("@/app/lib/emails/suppressions", () => ({
+  isSuppressed: isSuppressedMock,
+}));
 vi.mock("@/db", () => ({
-  db: { query: { tickets: { findFirst: findFirstMock } } },
+  db: {
+    query: {
+      tickets: { findFirst: findFirstMock },
+      visitors: { findFirst: findVisitorMock },
+    },
+  },
 }));
 
 import TicketEmailTemplate from "@/app/emails/ticket";
+import type { FestivalBase } from "@/app/lib/festivals/definitions";
 import { resendTicketEmail } from "@/app/lib/tickets/resend-actions";
 import { generateQrBuffer } from "@/app/lib/utils";
+import { visitorIdFromHistoryToken } from "@/app/lib/visitors/session";
+import { sendTicketIssuedEmail } from "@/app/lib/visitors/tickets";
+import type { tickets } from "@/db/schema";
 
 const preview = TicketEmailTemplate.PreviewProps;
 const FAILURE =
@@ -53,6 +75,28 @@ function storedTicket(overrides: Record<string, unknown> = {}) {
 
 const fetchMock = vi.fn();
 
+type SentBody = {
+  from: string;
+  to: string[];
+  subject: string;
+  html: string;
+  attachments: {
+    content: { type: "Buffer"; data: number[] };
+    content_id?: string;
+  }[];
+};
+
+function sentBody(call = 0): SentBody {
+  const [, init] = fetchMock.mock.calls[call] as [string, RequestInit];
+  return JSON.parse(String(init.body)) as SentBody;
+}
+
+/** The token in the email's "Ver mis entradas" link. */
+function ticketsLinkToken(html: string) {
+  const match = html.match(/\/visitors\/tickets\/access\?token=([^"&]+)"/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function okResponse() {
   return new Response(JSON.stringify({ id: "email-1" }), {
     status: 200,
@@ -62,16 +106,46 @@ function okResponse() {
 
 describe("resendTicketEmail", () => {
   beforeEach(() => {
+    // The tickets link is signed with a key derived from this secret.
+    vi.stubEnv("CLERK_SECRET_KEY", "sk_test_ticket_resend");
     requireStaffMock.mockReset().mockResolvedValue({ id: 1, role: "admin" });
     consumeActionRateLimitMock.mockReset().mockResolvedValue(true);
+    isSuppressedMock.mockReset().mockResolvedValue(false);
     findFirstMock.mockReset().mockResolvedValue(storedTicket());
+    findVisitorMock.mockReset().mockResolvedValue(storedTicket().visitor);
     fetchMock.mockReset().mockImplementation(async () => okResponse());
     vi.stubGlobal("fetch", fetchMock);
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("refuses an address that bounced or complained instead of reporting a send", async () => {
+    isSuppressedMock.mockResolvedValue(true);
+
+    await expect(resendTicketEmail(7)).resolves.toEqual({
+      success: false,
+      message:
+        "Este correo está bloqueado porque rebotó o lo marcaron como spam. Desbloquealo en Correos bloqueados y volvé a intentarlo.",
+    });
+    expect(isSuppressedMock).toHaveBeenCalledWith("visitor@example.com");
+    expect(consumeActionRateLimitMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses rather than guessing when the block list can't be read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    isSuppressedMock.mockRejectedValue(new Error("connection reset"));
+
+    await expect(resendTicketEmail(7)).resolves.toEqual({
+      success: false,
+      message: FAILURE,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("refuses a non-staff caller before reading anything", async () => {
@@ -178,15 +252,7 @@ describe("resendTicketEmail", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(String(init.body)) as {
-      to: string[];
-      subject: string;
-      html: string;
-      attachments: {
-        content: { type: "Buffer"; data: number[] };
-        content_id?: string;
-      }[];
-    };
+    const body = sentBody();
 
     expect(url).toBe("https://api.resend.com/emails");
     expect(body.to).toEqual(["visitor@example.com"]);
@@ -206,12 +272,42 @@ describe("resendTicketEmail", () => {
     );
     // Gmail on Android inverts the QR without these.
     expect(body.html).toContain('name="color-scheme" content="only light"');
+    // "Ver mis entradas" opens this visitor's tickets, and only theirs.
+    const token = ticketsLinkToken(body.html);
+    expect(token).not.toBeNull();
+    expect(visitorIdFromHistoryToken(token)).toBe(3);
 
     const headers = new Headers(init.headers);
     // `sendEmail` scopes every key to the environment it runs in.
     expect(headers.get("Idempotency-Key")).toMatch(
       /^production:ticket-resend-7-\d+$/,
     );
+  });
+
+  /**
+   * Staff resend because the visitor lost the original, so it must be that
+   * email again, not a variant of it.
+   */
+  it("sends the same email the visitor got when they registered", async () => {
+    // Both sends sign the tickets link at the same instant. Only the clock is
+    // faked: the QR encoder and the send's timeout need real timers.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-08T12:00:00.000Z"));
+    const { visitor, festival, ...ticketRow } = storedTicket();
+
+    await expect(resendTicketEmail(7)).resolves.toMatchObject({
+      success: true,
+    });
+    await sendTicketIssuedEmail(
+      ticketRow as typeof tickets.$inferSelect,
+      festival as FestivalBase,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(findVisitorMock).toHaveBeenCalledOnce();
+    const resent = sentBody(0);
+    expect(resent.to).toEqual([visitor.email]);
+    expect(resent).toEqual(sentBody(1));
   });
 
   it("reports a rejected send truthfully, logging only the error type", async () => {

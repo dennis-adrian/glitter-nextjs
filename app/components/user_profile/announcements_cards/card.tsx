@@ -8,7 +8,8 @@ import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { isProfileComplete } from "@/app/lib/utils";
 import PendingVerificationCard from "./pending-verification-card";
 import RejectedProfileCard from "./rejected-profile.card";
-import { fetchFestival } from "@/app/lib/festivals/actions";
+import { fetchFestival } from "@/app/lib/festivals/queries";
+import { withoutParticipantRoster } from "@/app/lib/festivals/utils";
 import { isFestivalParticipantTermsEnabled } from "@/app/lib/festivals/participant-terms";
 import { profileNeedsTermsReacceptance } from "@/app/lib/festival-terms/require-current";
 
@@ -25,8 +26,10 @@ export default async function Card({ profile }: { profile: ProfileType }) {
     }
   }
 
-  const festival = await fetchFestival({});
-  if (!festival) return null;
+  const fullFestival = await fetchFestival({});
+  if (!fullFestival) return null;
+  // The cards below are client components; the roster stays on the server.
+  const festival = withoutParticipantRoster(fullFestival, profile.id);
 
   if (await profileNeedsTermsReacceptance(festival, profile)) {
     return <TermsCard festival={festival} profile={profile} isReacceptance />;

@@ -21,7 +21,17 @@ import SocialMediaBadge from "@/app/components/social-media-badge";
 type UserQuickViewInfoProps = {
   avatarClassName?: string;
   className?: string;
-  profile: BaseProfile & {
+  /** Only what is rendered, so callers can send narrowed profiles. */
+  profile: Pick<
+    BaseProfile,
+    | "displayName"
+    | "firstName"
+    | "lastName"
+    | "imageUrl"
+    | "email"
+    | "phoneNumber"
+    | "status"
+  > & {
     profileSubcategories: ProfileSubcategoryWithSubcategory[];
   };
   showAdminControls?: boolean;

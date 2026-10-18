@@ -1,11 +1,10 @@
-import { fetchUserProfileById } from "@/app/api/users/actions";
+import { fetchUserProfileById } from "@/app/lib/users/queries";
 import { UserCategory } from "@/app/api/users/definitions";
 import TermsAndConditions from "@/app/components/festivals/terms";
 import PausedAccountTermsMessage from "@/app/components/festivals/paused-account-terms-message";
-import {
-  fetchFestivalSectors,
-  fetchFestivalSectorsWithAllowedCategories,
-} from "@/app/lib/festival_sectors/actions";
+import { fetchFestivalSectorsWithAllowedCategories } from "@/app/lib/festival_sectors/actions";
+import { toPublicMapSectors } from "@/app/lib/festival_sectors/public";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
 import { getPublishedFestivalTermsForPage } from "@/app/lib/festival-terms/actions";
 import {
   FESTIVAL_PARTICIPANT_TERMS_DISABLED_MESSAGE,
@@ -13,6 +12,7 @@ import {
 } from "@/app/lib/festivals/participant-terms";
 import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
+import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { HeartCrackIcon } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -72,7 +72,11 @@ export default async function TermsPage(props: TermsPageProps) {
       currentUser={currentProfile!}
       forProfile={forProfile}
       festival={festival}
-      festivalSectors={festivalSectors}
+      festivalSectors={toPublicMapSectors(
+        currentProfile?.role === "admin"
+          ? festivalSectors
+          : stripHiddenReservationsFromSectors(festivalSectors),
+      )}
       category={forProfile.category as Exclude<UserCategory, "none">}
       festivalSectorsWithAllowedCategoriesPromise={
         festivalSectorsWithAllowedCategoriesPromise

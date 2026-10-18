@@ -1,4 +1,8 @@
-"use server";
+import "server-only";
+
+// Run only by the cron routes, which check the scheduler's secret first. Kept
+// out of "use server" on purpose: there, every export is a public endpoint,
+// and these mail users and delete accounts.
 
 import ProfileCompletionReminderTemplate from "@/app/emails/profile-completion-reminder";
 import ProfileDeletionTemplate from "@/app/emails/profile-deletion";

@@ -28,12 +28,18 @@ describe("TicketEmailTemplate", () => {
 
     expect(html).toContain("Max el Caimán</strong>.");
     expect(html).toContain("para poder ingresar al evento.");
-    expect(html).toContain("descargar tu entrada.");
+    expect(html).toContain("«Ver mis entradas».");
+    expect(html).toContain("no lo compartás.");
   });
 
   it("tells a reader who cannot see the code what to do, in voseo", () => {
-    expect(render()).toContain(
-      "Si tenés problemas para ver el código, hacé clic en el botón e ingresá con tu correo electrónico para descargar tu entrada.",
+    const html = render();
+
+    expect(html).toContain(
+      "Si tenés problemas para ver el código, descargá tu entrada desde «Ver mis entradas». Ese enlace es personal: no lo compartás.",
+    );
+    expect(html).toContain(
+      'href="http://localhost:3000/visitors/tickets/access?token=preview"',
     );
   });
 });

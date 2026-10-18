@@ -17,7 +17,11 @@ export type ReservationCollaborationWithRelations = ReservationCollaboration & {
     members: ReservationStandMember[];
     festival: FestivalWithDates;
   };
-  collaborator: typeof collaborators.$inferSelect;
+  /** Only what the staff table renders; never the identification number. */
+  collaborator: Pick<
+    typeof collaborators.$inferSelect,
+    "id" | "firstName" | "lastName"
+  >;
   collaboratorsAttendanceLogs: CollaboratorAttendanceLog[];
 };
 

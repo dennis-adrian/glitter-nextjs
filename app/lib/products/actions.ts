@@ -1,9 +1,6 @@
 "use server";
 
-import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
-import type { AnyColumn } from "drizzle-orm/column";
-import type { OrderByOperators } from "drizzle-orm/relations";
-import type { SQLWrapper } from "drizzle-orm/sql/sql";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
@@ -14,7 +11,7 @@ import {
   findBundleVariantReferences,
 } from "@/app/lib/merch/bundles";
 import { isLowStockLevel } from "@/app/lib/products/low-stock";
-import { getProductEffectiveStock } from "@/app/lib/products/variants";
+import { buildProductQuery } from "@/app/lib/products/queries";
 import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
 import type { StoreCategory } from "@/app/lib/store/category";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -523,87 +520,6 @@ async function syncProductVariants(
   }
 }
 
-type SortableRelationFields = {
-  sortOrder: SQLWrapper | AnyColumn;
-  id: SQLWrapper | AnyColumn;
-};
-
-function relationalOrderBy<T extends SortableRelationFields>(
-  fn: (fields: T, operators: OrderByOperators) => ReturnType<typeof asc>[],
-) {
-  return fn;
-}
-
-function buildProductWhere({
-  visibleOnly = false,
-  storeCategory,
-}: {
-  visibleOnly?: boolean;
-  storeCategory?: StoreCategory;
-} = {}) {
-  const conditions = [];
-  if (visibleOnly) {
-    conditions.push(eq(products.isVisible, true));
-  }
-  if (storeCategory) {
-    conditions.push(eq(products.storeCategory, storeCategory));
-  }
-
-  if (conditions.length === 0) return undefined;
-  if (conditions.length === 1) return conditions[0];
-  return and(...conditions);
-}
-
-function buildProductQuery({
-  visibleOnly = false,
-  storeCategory,
-}: {
-  visibleOnly?: boolean;
-  storeCategory?: StoreCategory;
-} = {}) {
-  return {
-    where: buildProductWhere({ visibleOnly, storeCategory }),
-    with: {
-      images: true,
-      options: {
-        with: {
-          values: {
-            orderBy: relationalOrderBy((values, { asc: orderAsc }) => [
-              orderAsc(values.sortOrder),
-              orderAsc(values.id),
-            ]),
-          },
-        },
-        orderBy: relationalOrderBy((options, { asc: orderAsc }) => [
-          orderAsc(options.sortOrder),
-          orderAsc(options.id),
-        ]),
-      },
-      variants: {
-        where: visibleOnly ? eq(productVariants.isVisible, true) : undefined,
-        with: {
-          selections: {
-            with: {
-              option: true,
-              optionValue: true,
-            },
-          },
-        },
-        orderBy: relationalOrderBy((variants, { asc: orderAsc }) => [
-          orderAsc(variants.sortOrder),
-          orderAsc(variants.id),
-        ]),
-      },
-      contentSections: {
-        orderBy: relationalOrderBy((sections, { asc: orderAsc }) => [
-          orderAsc(sections.sortOrder),
-          orderAsc(sections.id),
-        ]),
-      },
-    },
-  } as const;
-}
-
 export async function createProduct(data: NewProductData) {
   const currentProfile = await getCurrentUserProfile();
   if (!currentProfile || currentProfile.role !== "admin") {
@@ -884,85 +800,6 @@ export async function deleteProduct(id: number) {
   return { success: true, message: "Producto eliminado correctamente." };
 }
 
-/**
- * Product fetchers use safe fallbacks on error: they do not throw.
- * - fetchProduct returns undefined when not found, null on error.
- * - fetchProducts and fetchFeaturedProducts return [] on error.
- * Callers can rely on these defaults without try/catch.
- */
-
-export async function fetchProducts(
-  sort: "default" | "updatedAt" = "default",
-  options: {
-    visibleOnly?: boolean;
-    storeCategory?: StoreCategory;
-  } = {},
-) {
-  const { visibleOnly = false, storeCategory } = options;
-
-  try {
-    const rows = await db.query.products.findMany({
-      ...buildProductQuery({ visibleOnly, storeCategory }),
-      orderBy:
-        sort === "updatedAt"
-          ? [desc(products.updatedAt)]
-          : [desc(products.isFeatured), desc(products.createdAt)],
-    });
-
-    if (sort === "updatedAt") {
-      return rows;
-    }
-
-    return rows.sort((a, b) => {
-      const aInStock = getProductEffectiveStock(a) > 0 ? 0 : 1;
-      const bInStock = getProductEffectiveStock(b) > 0 ? 0 : 1;
-      if (aInStock !== bInStock) {
-        return aInStock - bInStock;
-      }
-
-      return b.createdAt.getTime() - a.createdAt.getTime();
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
-
-export async function fetchProduct(id: number) {
-  try {
-    const query = buildProductQuery();
-    return await db.query.products.findFirst({
-      ...query,
-      where: query.where
-        ? and(query.where, eq(products.id, id))
-        : eq(products.id, id),
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
-
-export async function fetchProductBySlug(
-  slug: string,
-  options: { visibleOnly?: boolean } = {},
-) {
-  const { visibleOnly = false } = options;
-
-  try {
-    const query = buildProductQuery({ visibleOnly });
-    return await db.query.products.findFirst({
-      ...query,
-      where: query.where
-        ? and(query.where, eq(products.slug, slug))
-        : eq(products.slug, slug),
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
-
 export async function toggleProductVisibility(
   id: number,
   isVisible: boolean,
@@ -1239,22 +1076,6 @@ export async function fetchLowStockProducts({
     }
 
     return entries.sort((a, b) => a.stock - b.stock);
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
-
-export async function fetchFeaturedProducts() {
-  try {
-    const query = buildProductQuery({ visibleOnly: true });
-    return await db.query.products.findMany({
-      ...query,
-      where: query.where
-        ? and(query.where, eq(products.isFeatured, true))
-        : eq(products.isFeatured, true),
-      orderBy: [desc(products.createdAt)],
-    });
   } catch (error) {
     console.error(error);
     return [];

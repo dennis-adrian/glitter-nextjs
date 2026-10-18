@@ -3,7 +3,7 @@ import { z } from "zod";
 import Link from "next/link";
 import { ArrowLeftIcon } from "lucide-react";
 
-import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivityForStaff } from "@/app/lib/festival_activites/queries";
 import FestivalActivityForm from "@/app/components/festivals/festival_activities/forms/festival-activity-form";
 
 const ParamsSchema = z.object({
@@ -21,7 +21,7 @@ export default async function Page({ params }: EditFestivalActivityPageProps) {
 
   const { id: festivalId, activityId } = validatedParams.data;
 
-  const activity = await fetchFestivalActivity(activityId);
+  const activity = await fetchFestivalActivityForStaff(activityId);
   if (!activity || activity.festivalId !== festivalId) return notFound();
 
   return (

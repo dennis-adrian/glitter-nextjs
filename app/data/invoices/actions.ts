@@ -3,7 +3,6 @@
 import {
   InvoiceWithParticipants,
   InvoiceWithPaymentsAndStand,
-  InvoiceWithPaymentsAndStandAndProfile,
   InvoiceWithTender,
   ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
@@ -96,46 +95,6 @@ export async function fetchInvoiceTenderSummary(
   };
 }
 
-export async function fetchLatestInvoiceByProfileId(
-  profileId: number,
-): Promise<InvoiceWithPaymentsAndStand | undefined | null> {
-  const actor = await getCurrentUserProfile();
-  if (!actor) return null;
-  if (
-    actor.id !== profileId &&
-    !canViewAdminReservationData({ id: actor.id, role: actor.role })
-  ) {
-    return null;
-  }
-  try {
-    return await db.query.invoices.findFirst({
-      with: {
-        payments: true,
-        reservation: {
-          with: {
-            stand: true,
-            members: { with: { stand: true } },
-            festival: {
-              with: {
-                festivalDates: true,
-              },
-            },
-            participants: {
-              with: { user: true },
-            },
-          },
-        },
-        user: true,
-      },
-      orderBy: desc(invoices.createdAt),
-      where: eq(invoices.userId, profileId),
-    });
-  } catch (error) {
-    console.error("Error fetching latest invoice", error);
-    return null;
-  }
-}
-
 export async function fetchInvoicesByReservation(
   reservationId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
@@ -186,9 +145,15 @@ export async function fetchInvoicesByReservation(
   }
 }
 
+/**
+ * An invoice for its owner, a reservation participant or staff. No user rows:
+ * a partner may view the owner's invoice (and the reverse), and the success
+ * page hands this straight to a client component, so participants come back
+ * as ids only, which is all the access check reads.
+ */
 export async function fetchInvoice(
   id: number,
-): Promise<InvoiceWithPaymentsAndStandAndProfile | undefined | null> {
+): Promise<InvoiceWithPaymentsAndStand | undefined | null> {
   const actor = await getCurrentUserProfile();
   if (!actor) return null;
 
@@ -207,11 +172,10 @@ export async function fetchInvoice(
               },
             },
             participants: {
-              with: { user: true },
+              columns: { userId: true },
             },
           },
         },
-        user: true,
       },
     });
     if (!invoice) return null;
@@ -271,7 +235,15 @@ export async function fetchReservationsWithInvoicesByProfileAndFestival(
         invoices: {
           with: {
             payments: true,
-            user: true,
+            // A partner sees the owner's cobro here: display fields only.
+            user: {
+              columns: {
+                id: true,
+                displayName: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },

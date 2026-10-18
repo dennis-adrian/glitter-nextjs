@@ -3,6 +3,7 @@ import {
   type FullTablePairProblem,
   validateFullTablePair,
 } from "@/app/lib/stands/full-table-pairs";
+import { occupiesStandCapacity } from "@/app/lib/reservations/policy";
 
 import type { StandRow } from "@/app/components/maps/admin/stand-manage/columns";
 import type { FullTableGroup } from "@/app/lib/stands/full-table-queries";
@@ -82,4 +83,47 @@ export function indexFullTables(
   }
 
   return index;
+}
+
+type BookableRow = {
+  id: number;
+  reservations: readonly { id: number; status: string }[];
+};
+
+/** Rows list every reservation ever made on the stand, cancelled ones too. */
+export function isBookedRow(row: BookableRow): boolean {
+  return row.reservations.some((reservation) =>
+    occupiesStandCapacity(reservation.status),
+  );
+}
+
+/**
+ * The selected rows carrying a live reservation that occupies more than one
+ * stand — the client half of the server's BOOKED_AS_TABLE.
+ *
+ * Counted over every row, not just the selection, because the server counts
+ * all of the reservation's live members. Rows are resolved through
+ * membership, so a two-stand reservation appears on both of its stands.
+ */
+export function rowsBookedAsTable<T extends BookableRow>(
+  selected: readonly T[],
+  allRows: Iterable<BookableRow>,
+): T[] {
+  const standsByReservation = new Map<number, number>();
+  for (const row of allRows) {
+    for (const reservation of row.reservations) {
+      if (!occupiesStandCapacity(reservation.status)) continue;
+      standsByReservation.set(
+        reservation.id,
+        (standsByReservation.get(reservation.id) ?? 0) + 1,
+      );
+    }
+  }
+  return selected.filter((row) =>
+    row.reservations.some(
+      (reservation) =>
+        occupiesStandCapacity(reservation.status) &&
+        (standsByReservation.get(reservation.id) ?? 0) > 1,
+    ),
+  );
 }

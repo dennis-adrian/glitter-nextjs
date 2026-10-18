@@ -26,11 +26,14 @@ import {
   DialogTrigger,
 } from "@/app/components/ui/dialog";
 import { formatDateWithTime } from "@/app/lib/formatters";
-import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import type {
+  OrderStatus,
+  VoucherReviewOrder,
+} from "@/app/lib/orders/definitions";
 import { getOrderLineLabel } from "@/app/lib/orders/utils";
 
 type OrderVoucherReviewDialogProps = {
-  order: OrderWithRelations;
+  order: VoucherReviewOrder;
   trigger?: React.ReactNode;
 };
 

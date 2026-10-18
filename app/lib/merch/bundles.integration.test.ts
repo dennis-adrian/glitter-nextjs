@@ -81,8 +81,9 @@ const integrationDb = pool ? drizzle(pool, { schema }) : null;
 const describeDatabase = integrationDb ? describe : describe.skip;
 
 type Actions = typeof import("@/app/lib/orders/actions");
-let createOrderInTx: Actions["createOrderInTx"];
-let createGuestOrderInTx: Actions["createGuestOrderInTx"];
+type CreateOrder = typeof import("@/app/lib/orders/create-order");
+let createOrderInTx: CreateOrder["createOrderInTx"];
+let createGuestOrderInTx: CreateOrder["createGuestOrderInTx"];
 let applyOrderAdjustmentWithDatabase: (typeof import("@/app/lib/orders/adjustments"))["applyOrderAdjustmentWithDatabase"];
 let restoreEffectiveOrderStockInTx: (typeof import("@/app/lib/orders/cancellation"))["restoreEffectiveOrderStockInTx"];
 let updateOrder: Actions["updateOrder"];
@@ -279,12 +280,12 @@ function bundleRequest(
 
 async function buy(
   fixture: Fixture,
-  lines: Parameters<Actions["createOrderInTx"]>[1],
-  bundles: Parameters<Actions["createOrderInTx"]>[5],
+  lines: Parameters<CreateOrder["createOrderInTx"]>[1],
+  bundles: Parameters<CreateOrder["createOrderInTx"]>[5],
 ) {
   const result = await db().transaction((tx) =>
     createOrderInTx(
-      tx as Parameters<Actions["createOrderInTx"]>[0],
+      tx as Parameters<CreateOrder["createOrderInTx"]>[0],
       lines,
       fixture.userId,
       "buyer@example.test",
@@ -398,7 +399,7 @@ describeDatabase("bundle checkout", () => {
       );
     }
     ({ createOrderInTx, createGuestOrderInTx } =
-      await import("@/app/lib/orders/actions"));
+      await import("@/app/lib/orders/create-order"));
     ({ applyOrderAdjustmentWithDatabase } =
       await import("@/app/lib/orders/adjustments"));
     ({ restoreEffectiveOrderStockInTx } =
@@ -759,7 +760,7 @@ describeDatabase("bundle checkout", () => {
     const fixture = await createFixture();
     const result = await db().transaction((tx) =>
       createGuestOrderInTx(
-        tx as Parameters<Actions["createGuestOrderInTx"]>[0],
+        tx as Parameters<CreateOrder["createGuestOrderInTx"]>[0],
         [],
         "Guest",
         "guest@example.test",

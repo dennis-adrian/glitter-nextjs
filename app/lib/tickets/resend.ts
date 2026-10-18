@@ -32,8 +32,8 @@ export type TicketResendCheck =
  * Checked in this order, so a caller who is not staff learns only that the
  * action is restricted.
  *
- * The festival must be the active one: the email's "Ver mi entrada" link
- * leads to that festival's registration page, which dead-ends otherwise. A
+ * The festival must be the active one: a ticket for any other festival can
+ * no longer get anyone in, so mailing it again only confuses the visitor. A
  * ticket without a number predates numbering and would mail an unscannable
  * code.
  */
