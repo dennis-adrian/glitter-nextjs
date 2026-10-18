@@ -50,47 +50,55 @@ const STATUS_CONFIG: Record<CardStatus, CardConfig> = {
   pending_enrollment: {
     icon: HelpCircleIcon,
     label: "Sin postulación",
-    badgeStyle: "bg-gray-500/10 text-gray-700 border-gray-500/20",
+    badgeStyle: "bg-gray-500/10 text-foreground border-gray-500/20",
   },
   rejected_enrollment: {
     icon: XCircleIcon,
     label: "Postulación rechazada",
-    badgeStyle: "bg-red-500/10 text-red-700 border-red-500/20",
+    badgeStyle:
+      "bg-red-500/10 text-red-700 border-red-500/20 dark:text-red-300",
   },
   enrollment_pending_approval: {
     icon: HourglassIcon,
     label: "Postulación en revisión",
-    badgeStyle: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20",
+    badgeStyle:
+      "bg-yellow-500/10 text-yellow-700 border-yellow-500/20 dark:text-yellow-300",
   },
   approved_enrollment: {
     icon: CheckCircle2Icon,
     label: "Habilitado para reservar",
-    badgeStyle: "bg-green-100 text-green-700 border-green-300",
+    badgeStyle:
+      "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800",
   },
   waiting_for_reservations: {
     icon: CalendarClockIcon,
     label: "Esperando apertura de reservas",
-    badgeStyle: "bg-purple-500/10 text-purple-700 border-purple-500/20",
+    badgeStyle:
+      "bg-purple-500/10 text-purple-700 border-purple-500/20 dark:text-purple-300",
   },
   pending_payment: {
     icon: AlertCircleIcon,
     label: "Pago pendiente",
-    badgeStyle: "bg-orange-500/10 text-orange-700 border-orange-500/20",
+    badgeStyle:
+      "bg-orange-500/10 text-orange-700 border-orange-500/20 dark:text-orange-300",
   },
   pending_payment_approval: {
     icon: ClockIcon,
     label: "Pago en revisión",
-    badgeStyle: "bg-blue-500/10 text-blue-700 border-blue-500/20",
+    badgeStyle:
+      "bg-blue-500/10 text-blue-700 border-blue-500/20 dark:text-blue-300",
   },
   confirmed_reservation: {
     icon: CheckCircle2Icon,
     label: "Reserva confirmada",
-    badgeStyle: "bg-green-600/10 text-green-800 border-green-600/20",
+    badgeStyle:
+      "bg-green-600/10 text-green-800 border-green-600/20 dark:text-green-200",
   },
   rejected_reservation: {
     icon: XCircleIcon,
     label: "Reserva rechazada",
-    badgeStyle: "bg-red-600/10 text-red-800 border-red-600/20",
+    badgeStyle:
+      "bg-red-600/10 text-red-800 border-red-600/20 dark:text-red-200",
   },
 };
 

@@ -127,7 +127,7 @@ export function SearchInputContentItem({
         className={cn(
           "w-full rounded-lg p-2 text-left",
           !option.disabled &&
-            "cursor-pointer hover:ring-1 hover:ring-ring hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "cursor-pointer hover:ring-1 hover:ring-ring hover:bg-primary-50 dark:hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           option.disabled && "cursor-not-allowed opacity-50",
         )}
         onMouseDown={(e) => {

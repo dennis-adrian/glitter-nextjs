@@ -39,7 +39,7 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
             {hasPreorders(order) && (
               <Badge
                 variant="outline"
-                className="text-amber-600 border-amber-200 bg-amber-50"
+                className="text-amber-600 border-amber-200 bg-amber-50 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/40"
               >
                 Pre-Venta
               </Badge>
@@ -65,7 +65,7 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
       {order.status === "pending" && (
         <CardFooter className="pt-0 flex flex-col gap-2">
           {order.paymentDueDate && (
-            <p className="text-xs text-amber-700 flex items-center gap-1 w-full">
+            <p className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1 w-full">
               <CalendarClockIcon className="h-3 w-3 shrink-0" />
               Vence el{" "}
               {formatDisplayDate(formatDate(order.paymentDueDate).toJSDate(), {

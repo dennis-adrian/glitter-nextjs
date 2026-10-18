@@ -15,16 +15,16 @@ type Props = {
 
 const FESTIVAL_TYPE_STYLE: Record<string, { badge: string; border: string }> = {
   glitter: {
-    badge: "bg-purple-600 text-white border-purple-200",
-    border: "border-purple-300",
+    badge: "bg-purple-600 text-white border-purple-200 dark:border-purple-900",
+    border: "border-purple-300 dark:border-purple-800",
   },
   twinkler: {
     badge: "bg-pink-600 text-white border-pink-600",
-    border: "border-pink-300",
+    border: "border-pink-300 dark:border-pink-800",
   },
   festicker: {
     badge: "bg-rose-600 text-white border-rose-600",
-    border: "border-rose-300",
+    border: "border-rose-300 dark:border-rose-800",
   },
 };
 

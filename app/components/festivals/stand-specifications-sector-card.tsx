@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapElement from "@/app/components/maps/map-element";
 import MapStand from "@/app/components/maps/map-stand";
-import { computeCanvasBounds } from "@/app/components/maps/map-utils";
+import { computeCanvasBounds, mapColor } from "@/app/components/maps/map-utils";
 import type { StandColors } from "@/app/components/maps/map-utils";
 import {
   Dialog,
@@ -23,17 +23,17 @@ import { MapIcon } from "lucide-react";
 import { useState } from "react";
 
 const MY_CATEGORY_COLORS: StandColors = {
-  fill: "rgba(221,214,254,0.6)",
-  hoverFill: "rgba(221,214,254,0.6)",
-  stroke: "rgba(139,92,246,0.8)",
-  text: "hsl(262,77%,49%)",
+  fill: mapColor("available-fill", "rgba(221,214,254,0.6)"),
+  hoverFill: mapColor("available-fill", "rgba(221,214,254,0.6)"),
+  stroke: mapColor("available-stroke", "rgba(139,92,246,0.8)"),
+  text: mapColor("available-text", "hsl(262,77%,49%)"),
 };
 
 const OTHER_COLORS: StandColors = {
-  fill: "rgba(229,231,235,0.35)",
-  hoverFill: "rgba(229,231,235,0.35)",
-  stroke: "rgba(209,213,219,0.4)",
-  text: "#9CA3AF",
+  fill: mapColor("unavailable-fill", "rgba(229,231,235,0.35)"),
+  hoverFill: mapColor("unavailable-fill", "rgba(229,231,235,0.35)"),
+  stroke: mapColor("unavailable-stroke", "rgba(209,213,219,0.4)"),
+  text: mapColor("unavailable-text", "#9CA3AF"),
 };
 
 export default function StandSpecificationsSectorCard({

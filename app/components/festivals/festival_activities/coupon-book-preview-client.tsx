@@ -552,7 +552,7 @@ export default function CouponBookPreviewClient({
           (reconciliation.newParticipationIds.length > 0 ||
             reconciliation.removedParticipationIds.length > 0 ||
             reconciliation.changedParticipationIds.length > 0) ? (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 space-y-2">
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 space-y-2 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
               <p>
                 Los datos de participantes cambiaron desde la última
                 configuración guardada:{" "}
@@ -564,7 +564,7 @@ export default function CouponBookPreviewClient({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs border-amber-400 bg-white hover:bg-amber-100"
+                className="h-7 text-xs border-amber-400 bg-card hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/40"
                 onClick={handleMergeFromSource}
               >
                 Actualizar participantes desde fuente
@@ -661,6 +661,7 @@ export default function CouponBookPreviewClient({
                 >
                   <div
                     ref={pageFrameRef}
+                    className="text-slate-900"
                     style={{
                       width: `${COUPON_BOOK_PAGE_WIDTH_CM}cm`,
                       height: `${COUPON_BOOK_PAGE_HEIGHT_CM}cm`,

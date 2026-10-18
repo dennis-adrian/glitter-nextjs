@@ -7,6 +7,7 @@ import {
   getStandFillColor,
   getStandStrokeColor,
   getStandTextColor,
+  mapColor,
 } from "../map-utils";
 
 function clientToSvgCoords(
@@ -169,7 +170,7 @@ export default function DraggableMapStand({
           textAnchor="middle"
           dominantBaseline="central"
           fontSize={1.4}
-          fill="#6b7280"
+          fill={mapColor("muted-ink", "#6b7280")}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           ({Math.round(left * 10) / 10}, {Math.round(top * 10) / 10})

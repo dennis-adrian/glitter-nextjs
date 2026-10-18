@@ -34,7 +34,7 @@ export default function RemoveCollaboratorForm({
         <SubmitButton
           variant="ghost"
           size="sm"
-          className="text-gray-500 hover:text-rose-500 hover:bg-rose-500/10"
+          className="text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
           disabled={form.formState.isSubmitting}
           loading={form.formState.isSubmitting}
         >

@@ -20,7 +20,7 @@ export default function SharedPostBanner({
   const isPublished = status === "published";
 
   return (
-    <div className="flex items-start gap-2 rounded-md border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+    <div className="flex items-start gap-2 rounded-md border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
       <LinkIcon className="mt-0.5 h-4 w-4 shrink-0" />
       <div className="space-y-1">
         <p className="font-medium">
@@ -28,7 +28,7 @@ export default function SharedPostBanner({
             ? "Artículo compartido con vos"
             : "Borrador compartido con vos"}
         </p>
-        <p className="text-sky-800">
+        <p className="text-sky-800 dark:text-sky-200">
           {isPublished ? (
             <>
               {authorName} te compartió este artículo mediante un enlace

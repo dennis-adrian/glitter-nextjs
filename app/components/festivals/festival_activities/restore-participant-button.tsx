@@ -48,7 +48,7 @@ export default function RestoreParticipantButton({
       size="sm"
       disabled={isRestoring}
       className={cn(
-        "h-7 px-2 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50",
+        "h-7 px-2 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/40",
         className,
       )}
       onClick={handleRestore}

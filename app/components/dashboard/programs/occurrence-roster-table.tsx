@@ -200,7 +200,7 @@ export default function OccurrenceRosterTable({
                         <p>{formatMoney(entry.unitPrice)}</p>
                       )}
                       {entry.promoCode ? (
-                        <p className="text-xs font-medium text-purple-700">
+                        <p className="text-xs font-medium text-purple-700 dark:text-purple-300">
                           {entry.promoCode} · {entry.promoPartnerName}
                         </p>
                       ) : null}

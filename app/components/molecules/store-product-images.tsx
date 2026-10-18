@@ -309,7 +309,7 @@ export default function StoreProductImages({
         {currentImageIndex > 0 && imageUrls.length > 1 && (
           <CarouselPrevious
             variant="ghost"
-            className="absolute left-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+            className="absolute left-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white dark:hover:text-white"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -320,7 +320,7 @@ export default function StoreProductImages({
         {currentImageIndex < imageUrls.length - 1 && imageUrls.length > 1 && (
           <CarouselNext
             variant="ghost"
-            className="absolute right-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+            className="absolute right-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white dark:hover:text-white"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -339,7 +339,7 @@ export default function StoreProductImages({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-4 right-4 text-white hover:bg-white/20 z-50 rounded-full h-12 w-12 hover:translate-y-0 hover:text-white"
+            className="absolute top-4 right-4 text-white hover:bg-white/20 z-50 rounded-full h-12 w-12 hover:translate-y-0 hover:text-white dark:hover:text-white"
             onClick={closeModal}
           >
             <XIcon className="h-6 w-6" />
@@ -384,7 +384,7 @@ export default function StoreProductImages({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full h-12 w-12 z-40 hidden md:flex hover:-translate-y-1/2 hover:text-white"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full h-12 w-12 z-40 hidden md:flex hover:-translate-y-1/2 hover:text-white dark:hover:text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     api?.scrollPrev();
@@ -396,7 +396,7 @@ export default function StoreProductImages({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full h-12 w-12 z-40 hidden md:flex hover:-translate-y-1/2 hover:text-white"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full h-12 w-12 z-40 hidden md:flex hover:-translate-y-1/2 hover:text-white dark:hover:text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     api?.scrollNext();

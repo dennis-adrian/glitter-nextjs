@@ -13,7 +13,7 @@ const statusColors = {
   confirmed: "bg-red-500 hover:bg-fuchsia-600 text-white",
   available: "",
   held: "bg-amber-400 hover:bg-amber-600 text-white",
-  disabled: "bg-zinc-300 text-zinc-500",
+  disabled: "bg-zinc-300 text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400",
 };
 
 export function StandStatusBadge({

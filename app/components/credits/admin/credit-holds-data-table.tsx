@@ -140,7 +140,7 @@ export default function CreditHoldsDataTable({
           credits were reversed closes the earmark and returns nothing, so the
           two cannot share copy. */}
       {unbackedAmount > 0 && (
-        <p className="shrink-0 rounded-md bg-amber-50 p-3 text-xs text-amber-900">
+        <p className="shrink-0 rounded-md bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           Tiene la mesa completa activada con créditos que después se
           revirtieron. Liberarla cierra la reserva, pero no devuelve{" "}
           {formatCreditCount(unbackedAmount)} a su saldo: esos créditos ya no

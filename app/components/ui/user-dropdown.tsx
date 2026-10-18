@@ -62,7 +62,7 @@ export default function UserDropdown({
       <DropdownMenu>
         <DropdownMenuTrigger className="cursor-default">
           {profile.imageUrl ? (
-            <div className="relative h-8 w-8 rounded-full bg-gray-200">
+            <div className="relative h-8 w-8 rounded-full bg-muted">
               <Image
                 src={profile.imageUrl}
                 alt={profile.displayName || "nombre del usuario"}

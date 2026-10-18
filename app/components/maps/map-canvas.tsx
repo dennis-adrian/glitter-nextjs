@@ -1,5 +1,5 @@
 import { forwardRef, useId } from "react";
-import { DEFAULT_CANVAS_CONFIG } from "./map-utils";
+import { DEFAULT_CANVAS_CONFIG, mapColor } from "./map-utils";
 import { MapCanvasConfig } from "./map-types";
 
 type MapCanvasProps = {
@@ -39,7 +39,7 @@ const MapCanvas = forwardRef<SVGSVGElement, MapCanvasProps>(
               cx={dotSpacing / 1}
               cy={dotSpacing / 1}
               r={dotRadius}
-              fill="#9CA3AF"
+              fill={mapColor("grid", "#9CA3AF")}
             />
           </pattern>
         </defs>
@@ -49,7 +49,7 @@ const MapCanvas = forwardRef<SVGSVGElement, MapCanvasProps>(
           width={width}
           height={height}
           rx={1}
-          fill="#ffffff"
+          fill={mapColor("ground", "#ffffff")}
         />
         <rect
           x={minX}

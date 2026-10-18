@@ -33,7 +33,7 @@ const STATUS_STYLES: Record<PostStatus, { bg: string; icon: React.ReactNode }> =
       icon: <CalendarClock className="w-4 h-4 mr-1" />,
     },
     published: {
-      bg: "bg-primary-600 hover:bg-primary-600/90",
+      bg: "bg-primary hover:bg-primary/90",
       icon: <Eye className="w-4 h-4 mr-1" />,
     },
     rejected: {

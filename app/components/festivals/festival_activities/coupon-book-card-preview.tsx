@@ -34,7 +34,7 @@ export default function CouponBookCardPreview({
 
   return (
     <div
-      className="border-2 border-dashed border-gray-300 bg-white rounded-sm flex min-h-0 items-stretch overflow-hidden max-w-[240px] text-sm mx-auto"
+      className="border-2 border-dashed border-gray-300 bg-white rounded-sm flex min-h-0 items-stretch overflow-hidden max-w-[240px] text-sm text-gray-900 mx-auto"
       style={{ aspectRatio: "40 / 27" }}
     >
       {/* Left section */}

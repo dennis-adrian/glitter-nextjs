@@ -52,11 +52,7 @@ export default function Categories({
   };
 
   const filterSubcategories = (category: UserCategory) => {
-    return filterPickerOptions(
-      subcategories,
-      selectedSubcategories,
-      category,
-    );
+    return filterPickerOptions(subcategories, selectedSubcategories, category);
   };
 
   return (
@@ -139,7 +135,9 @@ const SelectedCategoryCard = ({
   selectedSubcategories: Subcategory[];
 }) => {
   const handleAddSubcategory = (subcategory: Subcategory) => {
-    onSelectSubcategory(withExclusiveSelection(selectedSubcategories, subcategory));
+    onSelectSubcategory(
+      withExclusiveSelection(selectedSubcategories, subcategory),
+    );
   };
 
   const handleRemoveSubcategory = (subcategory: Subcategory) => {
@@ -178,7 +176,7 @@ const SelectedCategoryCard = ({
               <Tag
                 key={subcategory.id}
                 content={subcategory.label}
-                className="bg-primary-50 py-1 px-2 rounded-sm text-foreground border-none"
+                className="bg-primary-50 dark:bg-primary-950/40 py-1 px-2 rounded-sm text-foreground dark:text-foreground border-none"
                 onClick={() => handleAddSubcategory(subcategory)}
               />
             ))}

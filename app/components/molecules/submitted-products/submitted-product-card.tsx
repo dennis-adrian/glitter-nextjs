@@ -72,7 +72,7 @@ export default function SubmittedProductCard({
               <h3 className="font-semibold text-base md:text-lg">
                 {product.name}
               </h3>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Guardado el {formatDateTime(product.createdAt)}
               </p>
             </div>

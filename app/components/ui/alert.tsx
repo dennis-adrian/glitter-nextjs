@@ -10,7 +10,8 @@ const alertVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary-50/60 border border-primary-200 text-primary-600",
+        default:
+          "bg-primary-50/60 border border-primary-200 text-primary dark:bg-primary/10 dark:border-primary/40",
         destructive:
           "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
       },
@@ -50,7 +51,7 @@ const AlertTitle = React.forwardRef<
       ref={ref}
       className={cn(
         "mb-1 font-medium leading-none tracking-tight",
-        (!alertVariant || alertVariant === "default") && "text-primary-600",
+        (!alertVariant || alertVariant === "default") && "text-primary",
         className,
       )}
       {...props}

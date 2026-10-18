@@ -154,7 +154,11 @@ export default function ProfitabilityReport({
         <Metric
           label="Ganancia bruta"
           value={money.format(report.grossProfit)}
-          tone={report.grossProfit >= 0 ? "text-emerald-600" : "text-red-600"}
+          tone={
+            report.grossProfit >= 0
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          }
         />
         <Metric
           label="Margen bruto"
@@ -178,18 +182,18 @@ export default function ProfitabilityReport({
       </div>
 
       {report.lineCount > 0 && (
-        <div className="space-y-2 rounded-lg border border-amber-200/80 bg-amber-50/60 p-3">
+        <div className="space-y-2 rounded-lg border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/40">
           <div className="flex items-center justify-between gap-3 text-xs">
-            <p className="font-medium text-amber-950">
+            <p className="font-medium text-amber-950 dark:text-amber-100">
               {coverage < 100
                 ? `Rentabilidad parcial: ${coverage.toFixed(1)}% de los ingresos tiene costo registrado.`
                 : "Todos los ingresos tienen costo registrado."}
             </p>
-            <span className="shrink-0 font-semibold tabular-nums text-amber-800">
+            <span className="shrink-0 font-semibold tabular-nums text-amber-800 dark:text-amber-200">
               {money.format(report.knownCostRevenue)} cubiertos
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-amber-200/70">
+          <div className="h-1.5 overflow-hidden rounded-full bg-amber-200/70 dark:bg-amber-900/60">
             <div
               className="h-full rounded-full bg-amber-500 transition-[width]"
               style={{ width: `${Math.min(100, coverage)}%` }}
@@ -213,18 +217,18 @@ export default function ProfitabilityReport({
       )}
 
       {preview != null && preview.missingLines > 0 && (
-        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 gap-3">
-            <HistoryIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+            <HistoryIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
             <div className="space-y-0.5">
               <p className="text-sm font-medium">Completar costos históricos</p>
-              <p className="text-xs text-amber-800">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
                 {preview.resolvableLines} de {preview.missingLines} artículos
                 pueden usar los costos actuales · {preview.affectedOrders}{" "}
                 pedidos
               </p>
               {preview.unresolvedLines > 0 && (
-                <p className="text-xs text-amber-700">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
                   {preview.unresolvedLines} artículos seguirán pendientes hasta
                   que agregues su costo de producto o variante.
                 </p>
@@ -239,7 +243,7 @@ export default function ProfitabilityReport({
                 size="sm"
                 variant="outline"
                 disabled={preview.resolvableLines === 0 || isPending}
-                className="shrink-0 border-amber-300 bg-background hover:bg-amber-100"
+                className="shrink-0 border-amber-300 bg-background hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/40"
               >
                 Aplicar costos actuales
               </Button>
@@ -529,7 +533,9 @@ function ProfitabilityBreakdown({ rows }: { rows: BreakdownRow[] }) {
                 <TableCell className="text-right tabular-nums">
                   <span
                     className={
-                      row.coverage < 100 ? "text-amber-700" : "text-emerald-700"
+                      row.coverage < 100
+                        ? "text-amber-700 dark:text-amber-300"
+                        : "text-emerald-700 dark:text-emerald-300"
                     }
                   >
                     {row.coverage.toFixed(0)}%

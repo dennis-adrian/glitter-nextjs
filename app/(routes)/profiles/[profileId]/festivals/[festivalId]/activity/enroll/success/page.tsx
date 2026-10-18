@@ -60,7 +60,7 @@ export default function Page() {
         </p>
         <p className="text-muted-foreground text-sm md:text-base">o</p>
         <Link href="/">
-          <span className="text-blue-500 hover:underline text-sm md:text-base">
+          <span className="text-blue-500 dark:text-blue-400 hover:underline text-sm md:text-base">
             haz clic aquí
           </span>
         </Link>

@@ -219,7 +219,7 @@ export default function StandPriceDialog({
               Total para un participante registrado.
             </p>
             {individual.trim() !== "" && !individualValid && (
-              <p className="text-xs text-red-600">
+              <p className="text-xs text-red-600 dark:text-red-400">
                 Ingresá 0 o más, con hasta dos decimales.
               </p>
             )}
@@ -249,14 +249,14 @@ export default function StandPriceDialog({
                   " Solo se aplica a los espacios de ilustración de la selección."}
               </p>
               {sharedMixed && !sharedTouched && (
-                <p className="text-xs text-amber-700">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
                   Los espacios seleccionados tienen precios compartidos
                   distintos. Si lo dejás vacío se mantienen como están; escribí
                   un valor para igualarlos.
                 </p>
               )}
               {!sharedValid && (
-                <p className="text-xs text-red-600">
+                <p className="text-xs text-red-600 dark:text-red-400">
                   El precio compartido debe ser 0 o más, con hasta dos
                   decimales, y no menor que el individual.
                 </p>

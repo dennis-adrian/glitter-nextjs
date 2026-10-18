@@ -102,7 +102,9 @@ export default function FestivalActionsMenu({
                       .filter((section) => section.group === group)
                       .map((section) => (
                         <DropdownMenuItem key={section.key} asChild>
-                          <Link href={festivalSectionHref(festival.id, section)}>
+                          <Link
+                            href={festivalSectionHref(festival.id, section)}
+                          >
                             <section.icon className="mr-2 h-4 w-4" />
                             {section.label}
                           </Link>
@@ -135,7 +137,7 @@ export default function FestivalActionsMenu({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => setDeleteOpen(true)}
-            className="text-red-600 focus:text-red-700"
+            className="text-red-600 focus:text-red-700 dark:text-red-400 dark:focus:text-red-300"
           >
             <TrashIcon className="mr-2 h-4 w-4" />
             Eliminar

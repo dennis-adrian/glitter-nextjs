@@ -92,7 +92,9 @@ function Delta({
     <span
       className={cn(
         "inline-flex items-center gap-1 text-xs font-semibold tabular-nums",
-        good ? "text-green-700" : "text-red-600",
+        good
+          ? "text-green-700 dark:text-green-300"
+          : "text-red-600 dark:text-red-400",
       )}
     >
       <span className="sr-only">{good ? "Mejora" : "Empeora"}: </span>
@@ -161,7 +163,9 @@ export default function OrdersStatsCards({
           <Card
             className={cn(
               "h-full",
-              metric.accent && value > 0 && "border-amber-300",
+              metric.accent &&
+                value > 0 &&
+                "border-amber-300 dark:border-amber-800",
             )}
           >
             <CardContent className="flex flex-col gap-0.5 p-3">
@@ -171,7 +175,9 @@ export default function OrdersStatsCards({
               <p
                 className={cn(
                   "font-display text-2xl font-semibold tabular-nums leading-tight",
-                  metric.accent && value > 0 && "text-amber-600",
+                  metric.accent &&
+                    value > 0 &&
+                    "text-amber-600 dark:text-amber-400",
                 )}
               >
                 {formatValue(value, metric.money)}
