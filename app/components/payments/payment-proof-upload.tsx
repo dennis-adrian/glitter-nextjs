@@ -185,7 +185,7 @@ export default function PaymentProofUpload({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-8 text-center border-primary-300 hover:bg-primary-50/50 transition-colors cursor-pointer"
+          className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-8 text-center border-primary-300 hover:bg-primary-50/50 dark:border-primary-800 dark:hover:bg-primary-900/40 transition-colors cursor-pointer"
         >
           <UploadIcon className="h-8 w-8 text-muted-foreground/50" />
           <span className="text-sm font-medium text-muted-foreground">

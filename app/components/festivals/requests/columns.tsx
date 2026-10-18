@@ -28,7 +28,7 @@ export const columns: ColumnDef<UserRequest>[] = [
     ),
     cell: ({ row }) => (
       <Link
-        className="hover:underline text-blue-500"
+        className="hover:underline text-blue-500 dark:text-blue-400"
         href={`/dashboard/users/${row.original.user.id}`}
       >
         {row.original.user.displayName}

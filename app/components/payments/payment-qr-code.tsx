@@ -30,19 +30,19 @@ export function PaymentQRCode(props: PaymentQRCodeProps) {
   }, []);
 
   return (
-    <div className="relative w-64 min-h-80 border rounded-lg p-4 bg-white">
+    <div className="relative w-64 min-h-80 border rounded-lg p-4 bg-white dark:text-gray-900">
       {isLoading ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
         <>
-          <div className="absolute top-2 right-2 text-xs font-medium text-primary">
+          <div className="absolute top-2 right-2 text-xs font-medium text-primary dark:text-primary-600">
             Bs{amount}
           </div>
           <QrCodeDownload qrCodeUrl={props.qrCodeUrl} />
           {props.qrCodeUrl && !props.qrCoversAmount ? (
-            <p className="px-2 text-center text-xs text-muted-foreground">
+            <p className="px-2 text-center text-xs text-muted-foreground dark:text-slate-500">
               Este QR no lleva el monto. Escribe <strong>Bs {amount}</strong> al
               pagar.
             </p>

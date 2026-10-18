@@ -41,7 +41,8 @@ const STATUS_ITEMS: {
   {
     status: "available",
     label: "Disponible",
-    swatchClassName: "border-[rgba(139,92,246,0.6)] bg-[rgba(221,214,254,0.6)]",
+    swatchClassName:
+      "border-[rgba(139,92,246,0.6)] bg-[rgba(221,214,254,0.6)] dark:border-(--map-available-stroke) dark:bg-(--map-available-fill)",
   },
 ];
 

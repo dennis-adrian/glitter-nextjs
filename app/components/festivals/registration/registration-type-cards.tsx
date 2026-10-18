@@ -26,7 +26,7 @@ function TypeCard({
 
   return (
     <div
-      className="w-80 rounded-md flex border items-center justify-between shadow-md px-4 py-6 hover:bg-primary-200/30 hover:text-primary-700 hover:border-primary-700 cursor-pointer"
+      className="w-80 rounded-md flex border items-center justify-between shadow-md px-4 py-6 hover:bg-primary-200/30 hover:text-primary-700 hover:border-primary-700 cursor-pointer dark:hover:bg-primary-900/40 dark:hover:text-primary-300"
       onClick={onClick}
     >
       <div className="flex items-center gap-4 text-center flex-col">

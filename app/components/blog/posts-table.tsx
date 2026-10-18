@@ -101,11 +101,11 @@ export default function PostsTable({ posts, surface, viewer }: Props) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground border rounded-md bg-white">
+        <div className="text-center py-12 text-muted-foreground border rounded-md bg-card">
           Sin artículos para mostrar.
         </div>
       ) : (
-        <div className="border rounded-md bg-white overflow-hidden">
+        <div className="border rounded-md bg-card overflow-hidden">
           <ul className="divide-y">
             {filtered.map((p) => (
               <li

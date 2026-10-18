@@ -120,7 +120,7 @@ export default function EnrollBestStandForm({
 
   if (!activityVariantForProfile) {
     return (
-      <div className="w-full flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
+      <div className="w-full flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
         <AlertCircleIcon className="w-6 h-6" />
         <p className="text-sm">Actividad no disponible para tu categoría</p>
       </div>
@@ -151,10 +151,10 @@ export default function EnrollBestStandForm({
 
     if (isUserRemoved) {
       return (
-        <div className="flex flex-col gap-1 border border-red-200 rounded-md p-4 bg-red-50 text-red-800">
+        <div className="flex flex-col gap-1 border border-red-200 rounded-md p-4 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           <p className="text-sm font-medium">Fuiste removido de la actividad</p>
           {userParticipation?.removalReason && (
-            <p className="text-xs text-red-700">
+            <p className="text-xs text-red-700 dark:text-red-300">
               {userParticipation.removalReason}
             </p>
           )}
@@ -169,7 +169,7 @@ export default function EnrollBestStandForm({
 
       if (proofUploadExpired) {
         return (
-          <div className="border border-stone-200 rounded-md p-4 bg-stone-50 text-stone-800">
+          <div className="border border-border rounded-md p-4 bg-muted/50 text-foreground">
             <p className="text-sm">
               {getProofUploadExpiredMessage(activity.type)}
             </p>
@@ -178,7 +178,7 @@ export default function EnrollBestStandForm({
       }
 
       return (
-        <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+        <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           <p>
             Ya estás inscrito en esta actividad.{" "}
             {getProofUploadReminderMessage(activity.type)}.
@@ -199,7 +199,7 @@ export default function EnrollBestStandForm({
       );
 
       return (
-        <div className="flex gap-3 text-sm flex-col border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+        <div className="flex gap-3 text-sm flex-col border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           <p className="text-center">
             Ya estás inscrito en esta actividad. Tus imágenes subidas:
           </p>
@@ -215,7 +215,7 @@ export default function EnrollBestStandForm({
               return (
                 <div
                   key={proof.id}
-                  className="flex flex-col gap-2 border border-amber-300 rounded-md p-2 bg-white"
+                  className="flex flex-col gap-2 border border-amber-300 rounded-md p-2 bg-card dark:border-amber-800"
                 >
                   <div className="relative w-full aspect-square rounded-md overflow-hidden">
                     <Image
@@ -232,7 +232,7 @@ export default function EnrollBestStandForm({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full bg-red-50 hover:bg-red-100 text-red-800 border-red-300"
+                      className="w-full bg-red-50 hover:bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:hover:bg-red-900/40 dark:text-red-200 dark:border-red-800"
                       onClick={() => setConfirmDeleteProofId(proof.id)}
                       disabled={deletingProofId === proof.id}
                     >
@@ -352,7 +352,7 @@ export default function EnrollBestStandForm({
 
   if (isStandAlreadyEnrolled) {
     return (
-      <div className="w-full flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
+      <div className="w-full flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
         <CircleAlertIcon className="w-6 h-6" />
         <p className="text-sm">
           El espacio{" "}

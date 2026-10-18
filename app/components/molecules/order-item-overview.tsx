@@ -27,7 +27,7 @@ export default function OrderItemOverview({
         />
         <Badge
           variant="outline"
-          className="text-xs absolute -bottom-[2px] -right-[4px] bg-white rounded-full"
+          className="text-xs absolute -bottom-[2px] -right-[4px] bg-card rounded-full"
         >
           {item.quantity}
         </Badge>
@@ -40,7 +40,7 @@ export default function OrderItemOverview({
           Bs{item.priceAtPurchase.toFixed(2)}
         </p>
         {item.product.status === "presale" && (
-          <p className="text-xs text-amber-600">
+          <p className="text-xs text-amber-600 dark:text-amber-400">
             {item.product.availableDate
               ? `Disponible el ${formatDisplayDate(item.product.availableDate)}`
               : "Disponible próximamente"}

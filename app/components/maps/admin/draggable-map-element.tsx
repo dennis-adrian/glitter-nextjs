@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/map_elements/definitions";
 import MapElementIcon from "../map-element-icon";
 import { getLabelLayout } from "../map-element-label-utils";
+import { mapColor } from "../map-utils";
 
 function clientToSvgCoords(
   svg: SVGSVGElement,
@@ -251,7 +252,11 @@ export default function DraggableMapElement({
               cx={width / 2}
               cy={height / 2}
               size={iconSize}
-              color={element.type === "label" ? "#374151" : "#ffffff"}
+              color={
+                element.type === "label"
+                  ? mapColor("ink", "#374151")
+                  : "#ffffff"
+              }
             />
           </g>
         )}
@@ -267,8 +272,11 @@ export default function DraggableMapElement({
           const padY = fs * 0.25;
           const labelColor =
             element.type === "label"
-              ? "#374151"
-              : config.strokeColor.replace(/[\d.]+\)$/, "1)");
+              ? mapColor("ink", "#374151")
+              : mapColor(
+                  "label",
+                  config.strokeColor.replace(/[\d.]+\)$/, "1)"),
+                );
           const layout = getLabelLayout(
             element.labelPosition,
             width,
@@ -285,7 +293,7 @@ export default function DraggableMapElement({
                 width={estTextWidth + padX * 2}
                 height={fs + padY * 2}
                 rx={fs * 0.35}
-                fill="white"
+                fill={mapColor("ground", "white")}
                 opacity={0.85}
                 style={{ pointerEvents: "none" }}
               />
@@ -323,7 +331,7 @@ export default function DraggableMapElement({
           textAnchor="middle"
           dominantBaseline="central"
           fontSize={1.4}
-          fill="#6b7280"
+          fill={mapColor("muted-ink", "#6b7280")}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           ({Math.round(left * 10) / 10}, {Math.round(top * 10) / 10}){" "}

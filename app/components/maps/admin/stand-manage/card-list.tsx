@@ -69,7 +69,7 @@ export default function StandManageCardList({
               className={cn(
                 "flex items-start gap-3 rounded-lg border bg-background px-3 py-3 transition-colors",
                 isSelected && "bg-muted/50",
-                hasReservation && "border-emerald-300",
+                hasReservation && "border-emerald-300 dark:border-emerald-800",
               )}
             >
               <Checkbox
@@ -106,7 +106,7 @@ export default function StandManageCardList({
                 {/* Named here too: a malformed pair is invisible to
                     participants and withholds every full table in its sector. */}
                 {fullTable && fullTable.problems.length > 0 && (
-                  <ul className="mt-1 list-disc pl-4 text-xs text-amber-700">
+                  <ul className="mt-1 list-disc pl-4 text-xs text-amber-700 dark:text-amber-300">
                     {fullTable.problems.map((problem, index) => (
                       <li key={index}>{problem.message}</li>
                     ))}

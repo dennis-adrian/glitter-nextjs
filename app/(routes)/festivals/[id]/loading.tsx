@@ -3,7 +3,7 @@ import { Skeleton } from "@/app/components/ui/skeleton";
 export default function Loading() {
   return (
     <div>
-      <div className="border-b bg-primary-50/70">
+      <div className="border-b bg-primary-50/70 dark:bg-primary-950/40">
         <div className="container mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 sm:py-7 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center lg:px-8">
           <div className="flex gap-4 sm:gap-5">
             <Skeleton className="aspect-4/5 w-24 shrink-0 rounded-xl sm:w-32" />

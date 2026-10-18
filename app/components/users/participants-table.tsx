@@ -82,7 +82,7 @@ export default function ParticipantsTable({
                 value="verifiedAt"
                 label="Fecha de verificación"
               />
-              <TableHead className="sticky right-0 z-20 bg-white shadow-inner">
+              <TableHead className="sticky right-0 z-20 bg-card shadow-inner">
                 <span className="sr-only">Acciones</span>
               </TableHead>
             </TableRow>

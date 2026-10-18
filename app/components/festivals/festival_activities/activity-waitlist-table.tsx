@@ -23,15 +23,17 @@ const COLUMN_TITLES: Record<string, string> = {
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   waiting: {
     label: "En espera",
-    className: "text-gray-700 border-gray-300 bg-gray-50",
+    className: "text-foreground border-border bg-muted/50",
   },
   invited: {
     label: "Invitado",
-    className: "text-amber-700 border-amber-300 bg-amber-50",
+    className:
+      "text-amber-700 border-amber-300 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-950/40",
   },
   expired: {
     label: "Invitación vencida",
-    className: "text-red-700 border-red-300 bg-red-50",
+    className:
+      "text-red-700 border-red-300 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-950/40",
   },
 };
 

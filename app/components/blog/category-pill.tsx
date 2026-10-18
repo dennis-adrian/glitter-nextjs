@@ -21,7 +21,11 @@ export default function CategoryPill({
   const badge = (
     <Badge
       variant="secondary"
-      className={asLink ? "hover:bg-pink-100 transition-colors" : undefined}
+      className={
+        asLink
+          ? "hover:bg-pink-100 dark:hover:bg-pink-900/40 transition-colors"
+          : undefined
+      }
     >
       {category.name}
     </Badge>

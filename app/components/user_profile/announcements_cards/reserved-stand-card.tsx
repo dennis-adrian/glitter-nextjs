@@ -43,7 +43,7 @@ export function ReservedStandCard({
       footer={
         <div className="flex gap-0 items-center flex-col-reverse md:flex-col">
           <RedirectButton
-            className="text-amber-900 underline"
+            className="text-amber-900 dark:text-amber-100 underline"
             variant="link"
             size="sm"
             href={`/festivals/${stand.festivalId}/terms`}
@@ -52,7 +52,7 @@ export function ReservedStandCard({
             <FileSpreadsheetIcon className="ml-2 w-4 h-4" />
           </RedirectButton>
           <RedirectButton
-            className="text-amber-900 underline"
+            className="text-amber-900 dark:text-amber-100 underline"
             variant="link"
             size="sm"
             href={`/festivals/${stand.festivalId}#mapa`}

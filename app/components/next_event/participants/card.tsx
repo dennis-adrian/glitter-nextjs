@@ -24,7 +24,7 @@ export function ParticipantCard({
         <CardTitle className="text-lg">{profile.displayName}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-3">
-        <div className="relative w-24 h-24 rounded-full bg-gray-200">
+        <div className="relative w-24 h-24 rounded-full bg-muted">
           <Image
             src={profile.imageUrl || "/img/profile-avatar.png"}
             alt="Imagen de perfil"

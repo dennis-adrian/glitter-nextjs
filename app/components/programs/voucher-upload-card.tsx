@@ -214,7 +214,7 @@ export default function VoucherUploadCard({
     <Card
       className={
         isUnderReview
-          ? "overflow-hidden border-primary-300 shadow-sm"
+          ? "overflow-hidden border-primary-300 shadow-sm dark:border-primary-800"
           : undefined
       }
     >
@@ -266,12 +266,12 @@ export default function VoucherUploadCard({
               Estado de tu inscripción
             </h3>
             <ol className="grid gap-2 sm:grid-cols-3">
-              <li className="flex items-center gap-2.5 rounded-lg border border-primary-200 bg-primary-50 p-3">
+              <li className="flex items-center gap-2.5 rounded-lg border border-primary-200 bg-primary-50 p-3 dark:border-primary-900 dark:bg-primary-950/40">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                   <CheckIcon className="h-4 w-4" strokeWidth={3} />
                 </span>
                 <div>
-                  <p className="text-[11px] font-medium text-primary-800">
+                  <p className="text-[11px] font-medium text-primary-800 dark:text-primary-200">
                     Listo
                   </p>
                   <p className="text-xs font-semibold">Comprobante enviado</p>
@@ -315,7 +315,7 @@ export default function VoucherUploadCard({
             className={`rounded-lg border p-3 text-sm ${
               expired
                 ? "border-destructive/40 text-destructive"
-                : "border-amber-200 text-amber-900 bg-amber-50"
+                : "border-amber-200 text-amber-900 bg-amber-50 dark:border-amber-900 dark:text-amber-100 dark:bg-amber-950/40"
             }`}
           >
             {expired ? (

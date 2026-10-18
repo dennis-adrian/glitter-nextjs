@@ -21,7 +21,7 @@ export function PauseParticipantModal({
     <Modal isOpen={open} onClose={() => setOpen(false)}>
       <div className="flex flex-col items-center gap-3 text-center my-4">
         <h1 className="text-xl font-bold">Pausar participante</h1>
-        <PauseCircleIcon size={48} className="text-slate-500" />
+        <PauseCircleIcon size={48} className="text-muted-foreground" />
         <div className="flex flex-col gap-2">
           <p>
             ¿Querés pausar la cuenta de <strong>{userLabel}</strong>?

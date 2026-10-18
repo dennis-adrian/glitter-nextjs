@@ -71,7 +71,10 @@ export function CheckoutOrderSummary({
                       {component.productName}
                       {component.variantLabel && ` (${component.variantLabel})`}
                       {component.isPresale && (
-                        <span className="text-amber-600"> · Pre-venta</span>
+                        <span className="text-amber-600 dark:text-amber-400">
+                          {" "}
+                          · Pre-venta
+                        </span>
                       )}
                     </li>
                   ))}
@@ -120,7 +123,7 @@ export function CheckoutOrderSummary({
                     {item.transactionType === "rental" ? " (alquiler)" : ""}
                   </p>
                   {item.product.status === "presale" && (
-                    <span className="inline-block text-xs text-amber-600 font-medium mt-0.5">
+                    <span className="inline-block text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">
                       Pre-venta
                     </span>
                   )}

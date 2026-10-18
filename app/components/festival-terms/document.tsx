@@ -70,7 +70,7 @@ function SectionBody({
   return (
     <RichTextHtml
       html={section.bodyHtml}
-      className="[&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h4]:mb-1 [&_h4]:font-semibold [&_mark]:rounded [&_mark]:bg-amber-100 [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:font-medium"
+      className="[&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h4]:mb-1 [&_h4]:font-semibold [&_mark]:rounded [&_mark]:bg-amber-100 dark:[&_mark]:bg-amber-900/40 dark:[&_mark]:text-amber-100 [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:font-medium"
     />
   );
 }

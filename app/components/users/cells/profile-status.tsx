@@ -26,7 +26,7 @@ export default function ProfileStatusCell({
   }
 
   if (status === "rejected") {
-    icon = <XCircleIcon className="w-4 h-4 text-gray-500" />;
+    icon = <XCircleIcon className="w-4 h-4 text-muted-foreground" />;
   }
 
   if (status === "banned") {
@@ -34,7 +34,7 @@ export default function ProfileStatusCell({
   }
 
   if (status === "paused") {
-    icon = <PauseCircleIcon className="w-4 h-4 text-slate-500" />;
+    icon = <PauseCircleIcon className="w-4 h-4 text-muted-foreground" />;
   }
 
   return (

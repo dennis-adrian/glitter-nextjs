@@ -67,7 +67,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
   const categoryVariant = getCategoryBadgeVariant(category);
 
   return (
-    <article className="flex min-h-64 flex-col items-center rounded-2xl border border-primary-100 bg-card p-4 text-center transition hover:border-primary-300 hover:shadow-md">
+    <article className="flex min-h-64 flex-col items-center rounded-2xl border border-primary-100 bg-card p-4 text-center transition hover:border-primary-300 hover:shadow-md dark:border-primary-900 dark:hover:border-primary-800">
       <ProfileAvatar
         showGlitterStamp={props.profile.hasStamp}
         isNew={props.profile.isNew}

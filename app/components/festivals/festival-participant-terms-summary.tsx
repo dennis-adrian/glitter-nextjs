@@ -76,17 +76,17 @@ export default async function FestivalParticipantTermsSummary(
         </dl>
 
         {isPublicFestival && !published ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             Este festival ya es visible para participantes, pero los términos
             globales todavía no están publicados.
           </p>
         ) : null}
 
         {isPublicFestival && published && !props.participantTermsEnabled ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Hay términos publicados, pero el acceso está deshabilitado para
-            este festival. Actívalo en &quot;Términos para participantes&quot;,
-            en Estado y acceso.
+          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            Hay términos publicados, pero el acceso está deshabilitado para este
+            festival. Actívalo en &quot;Términos para participantes&quot;, en
+            Estado y acceso.
           </p>
         ) : null}
 

@@ -106,7 +106,7 @@ export const columns: ColumnDef<LiveAct>[] = [
             href={link}
             target="_blank"
             rel="noopener noreferrer"
-            className="truncate text-blue-500 hover:underline max-w-40 block"
+            className="truncate text-blue-500 hover:underline max-w-40 block dark:text-blue-400"
           >
             {link}
           </a>
@@ -132,7 +132,7 @@ export const columns: ColumnDef<LiveAct>[] = [
                 href={link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate text-blue-500 hover:underline max-w-40"
+                className="truncate text-blue-500 hover:underline max-w-40 dark:text-blue-400"
               >
                 {link}
               </a>

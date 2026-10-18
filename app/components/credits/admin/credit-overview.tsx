@@ -49,8 +49,10 @@ function StatTile({
     <Card
       className={cn(
         "h-full",
-        tone === "red" && amount > 0 && "border-red-300",
-        tone === "amber" && amount > 0 && "border-amber-300",
+        tone === "red" && amount > 0 && "border-red-300 dark:border-red-800",
+        tone === "amber" &&
+          amount > 0 &&
+          "border-amber-300 dark:border-amber-800",
       )}
     >
       <CardContent className="flex flex-col gap-0.5 p-3">
@@ -61,8 +63,10 @@ function StatTile({
           amount={amount}
           className={cn(
             "font-display text-2xl font-semibold tabular-nums leading-tight",
-            tone === "red" && amount > 0 && "text-red-600",
-            tone === "amber" && amount > 0 && "text-amber-600",
+            tone === "red" && amount > 0 && "text-red-600 dark:text-red-400",
+            tone === "amber" &&
+              amount > 0 &&
+              "text-amber-600 dark:text-amber-400",
           )}
         />
         <span className="text-xs text-muted-foreground">{hint}</span>
@@ -88,8 +92,8 @@ function AttentionLink({
       className={cn(
         "flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors",
         tone === "red"
-          ? "border-red-200 bg-red-50 text-red-900 hover:bg-red-100"
-          : "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
+          ? "border-red-200 bg-red-50 text-red-900 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100 dark:hover:bg-red-900/40"
+          : "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/40",
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />
