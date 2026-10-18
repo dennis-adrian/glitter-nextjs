@@ -254,6 +254,7 @@ Acceptance criteria:
 
 - Only the profile owner can ask; admins verify or reject instead.
 - The profile must be `rejected` and complete. While it is incomplete, the button stays visible but disabled with `Completá tu perfil para pedir una nueva revisión.`.
+- The profile picture must be one the participant uploaded, not the sign-up placeholder (Clerk or EdgeStore URL). Until then the button is disabled with `Subí una foto de perfil para pedir una nueva revisión.`.
 - The request moves `users.status` from `rejected` to `pending` under a row lock and writes a `user_status_events` row with the participant as `createdByUserId`.
 - Admins are emailed once per request, with the previous rejection reason. Completing a rejected profile does not email admins on its own.
 - A request is one-shot per rejection: only an admin rejection makes the profile `rejected` again.

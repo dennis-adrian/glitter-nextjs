@@ -33,4 +33,16 @@ describe("profileReviewBlocker", () => {
       } as never),
     ).toBe("Completá tu perfil para pedir una nueva revisión.");
   });
+
+  it.each([
+    "https://img.clerk.com/avatar-default",
+    "https://files.edgestore.dev/old/ana.png",
+  ])("asks for a real picture instead of the placeholder %s", (imageUrl) => {
+    expect(
+      profileReviewBlocker({
+        ...(COMPLETE_PROFILE as object),
+        imageUrl,
+      } as never),
+    ).toBe("Subí una foto de perfil para pedir una nueva revisión.");
+  });
 });
