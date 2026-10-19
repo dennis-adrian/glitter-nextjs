@@ -117,6 +117,34 @@ async function read(id: number) {
   return row;
 }
 
+/**
+ * Resolves once `count` connections named `applicationName` are waiting on a
+ * lock that `blockerPid` holds. Polls from the shared pool: inside the
+ * blocker's own transaction `pg_stat_activity` is a snapshot and never moves.
+ */
+async function waitForBlockedConnections(
+  applicationName: string,
+  blockerPid: number,
+  count: number,
+) {
+  const deadline = Date.now() + 5_000;
+  for (;;) {
+    const { rows } = await pool!.query<{ blocked: number }>(
+      `select count(*)::int as blocked from pg_stat_activity
+        where application_name = $1 and $2 = any(pg_blocking_pids(pid))`,
+      [applicationName, blockerPid],
+    );
+    const blocked = rows[0]?.blocked ?? 0;
+    if (blocked >= count) return;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `Only ${blocked} of ${count} connections reached the lock`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
 describeDatabase("blog editorial actions", () => {
   beforeAll(async () => {
     process.env.POSTGRES_URL ??= testDatabaseUrl;
@@ -663,19 +691,69 @@ describeDatabase("blog editorial actions", () => {
    * index. These cover the two places that actually collide in practice.
    */
   describe("concurrent slug allocation", () => {
+    /**
+     * Forced rather than hoped for. Two `createBlankDraft` calls under a bare
+     * `Promise.all` rarely overlap, so that test passed even while a lost race
+     * was rethrown instead of retried; it only failed under machine load.
+     *
+     * A SHARE lock on `posts` admits each transaction's SELECT (ACCESS SHARE
+     * does not conflict with it) and parks each INSERT (ROW EXCLUSIVE does).
+     * Once both are parked, both have resolved the same free slug. Releasing
+     * the lock lets one commit and sends the other into the unique index.
+     */
     it("creates two blank drafts at once without either failing", async () => {
       const createBlankDraft = (await import("@/app/lib/posts/create-draft"))
         .createBlankDraft;
+      // A pool of its own so the wait below can pick out these connections.
+      const applicationName = `blog-slug-race-${Date.now()}`;
+      const racePool = new Pool({
+        connectionString: testDatabaseUrl,
+        application_name: applicationName,
+      });
+      const realDb = dbHolder.current;
+      dbHolder.current = drizzle(racePool, { schema }) as never;
+      const blocker = await pool!.connect();
 
-      const [first, second] = await Promise.all([
-        createBlankDraft({ id: AUTHOR.id }),
-        createBlankDraft({ id: AUTHOR.id }),
-      ]);
-      createdPostIds.push(first.id, second.id);
+      try {
+        await blocker.query("begin");
+        await blocker.query("lock table posts in share mode");
+        const {
+          rows: [{ pid: blockerPid }],
+        } = await blocker.query<{ pid: number }>(
+          "select pg_backend_pid() as pid",
+        );
 
-      expect(first.slug).not.toBe(second.slug);
-      for (const slug of [first.slug, second.slug]) {
-        expect(slug === "borrador" || /^borrador-\d+$/.test(slug)).toBe(true);
+        const drafts = Promise.allSettled([
+          createBlankDraft({ id: AUTHOR.id }),
+          createBlankDraft({ id: AUTHOR.id }),
+        ]);
+        try {
+          await waitForBlockedConnections(applicationName, blockerPid, 2);
+        } finally {
+          await blocker.query("commit");
+        }
+
+        const results = await drafts;
+        for (const result of results) {
+          if (result.status === "fulfilled")
+            createdPostIds.push(result.value.id);
+        }
+        for (const result of results) {
+          if (result.status === "rejected") throw result.reason;
+        }
+        const [first, second] = results.map(
+          (result) =>
+            (result as PromiseFulfilledResult<{ slug: string }>).value,
+        );
+
+        expect(first.slug).not.toBe(second.slug);
+        for (const slug of [first.slug, second.slug]) {
+          expect(slug === "borrador" || /^borrador-\d+$/.test(slug)).toBe(true);
+        }
+      } finally {
+        blocker.release();
+        dbHolder.current = realDb;
+        await racePool.end();
       }
     });
 
