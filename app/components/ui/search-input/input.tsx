@@ -27,6 +27,8 @@ type Props = {
   onSelect: (selectedId: number) => void;
   onSearch?: (term: string) => void;
   isLoading?: boolean;
+  /** See `SearchContent`; the caller's search ignores shorter terms. */
+  minSearchLength?: number;
 };
 
 const SearchInput = ({
@@ -42,6 +44,7 @@ const SearchInput = ({
   onSelect,
   onSearch,
   isLoading,
+  minSearchLength,
 }: Props) => {
   const [inputText, setInputText] = useState("");
   const [searchedOptions, setSearchedOptions] =
@@ -172,7 +175,13 @@ const SearchInput = ({
           type="search"
           placeholder={placeholder}
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          onChange={(e) => {
+            setInputText(e.target.value);
+            // A pick closes the panel but leaves focus in the box (the option
+            // keeps it on mousedown), so onFocus never fires for the next
+            // term; typing has to reopen it.
+            setIsFocused(true);
+          }}
           onFocus={() => setIsFocused(true)}
           onBlur={handleInputBlur}
         />
@@ -187,6 +196,7 @@ const SearchInput = ({
           options={visibleOptions}
           onSelect={handleSelect}
           searchTerm={inputText}
+          minSearchLength={minSearchLength}
           isLoading={isLoading}
         />
       </div>

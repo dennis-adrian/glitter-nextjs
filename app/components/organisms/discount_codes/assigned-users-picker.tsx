@@ -12,6 +12,9 @@ import { searchDiscountCodeUsers } from "@/app/lib/discount_codes/actions";
 import type { DiscountCodeUser } from "@/app/lib/discount_codes/definitions";
 import { getUserName } from "@/app/lib/users/utils";
 
+/** `searchDiscountCodeUsers` ignores anything shorter. */
+const MIN_SEARCH_LENGTH = 2;
+
 type AssignedUsersPickerProps = {
   value: DiscountCodeUser[];
   onChange: (users: DiscountCodeUser[]) => void;
@@ -53,7 +56,7 @@ export default function AssignedUsersPicker({
 
   function search(term: string) {
     latestTerm.current = term;
-    if (term.length < 2) {
+    if (term.length < MIN_SEARCH_LENGTH) {
       setResults([]);
       return;
     }
@@ -81,6 +84,7 @@ export default function AssignedUsersPicker({
         options={options}
         isLoading={isSearching}
         contentMaxHeightClassName="max-h-72"
+        minSearchLength={MIN_SEARCH_LENGTH}
         onSearch={search}
         onSelect={add}
       />
