@@ -4,6 +4,7 @@ import {
   isCouponBookDraft,
   normalizeCouponBookDraftPayload,
 } from "@/app/lib/festival_activites/coupon-book-draft";
+import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { resolveCouponBookHeaderImageUrl } from "@/app/lib/festival_activites/coupon-book-header-image";
 import { db } from "@/db";
 import { festivalActivityCouponBookConfigs } from "@/db/schema";
@@ -190,14 +191,7 @@ export async function saveCouponBookConfig(input: {
 
     return { ok: true, revision: inserted.revision };
   } catch (error: unknown) {
-    const code =
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      typeof (error as { code: string }).code === "string"
-        ? (error as { code: string }).code
-        : "";
-    if (code !== "23505") {
+    if (!hasPgErrorCode(error, "23505")) {
       throw error;
     }
 

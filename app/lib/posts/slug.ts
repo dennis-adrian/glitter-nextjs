@@ -1,5 +1,6 @@
 import { and, eq, ne } from "drizzle-orm";
 
+import { isUniqueViolationOn } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import { postCategories, postTags, posts } from "@/db/schema";
 
@@ -9,14 +10,10 @@ const MAX_SLUG_LENGTH = 120;
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-const UNIQUE_VIOLATION = "23505";
-
+/** Drizzle wraps the driver error; the code and constraint are on its `cause`. */
 function isSlugConflict(error: unknown): boolean {
-  const candidate = error as { code?: unknown; constraint?: unknown } | null;
-  return (
-    candidate?.code === UNIQUE_VIOLATION &&
-    typeof candidate.constraint === "string" &&
-    candidate.constraint.includes("slug")
+  return isUniqueViolationOn(error, (constraint) =>
+    constraint.includes("slug"),
   );
 }
 
