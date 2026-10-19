@@ -2073,6 +2073,20 @@
       "when": 1791162132061,
       "tag": "0296_email_admin_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1792331963118,
+      "tag": "0297_discount_code_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1792331982555,
+      "tag": "0298_drop_discount_code_user_id",
+      "breakpoints": true
     }
   ]
 }
