@@ -284,9 +284,10 @@ export async function updateDiscountCode(id: number, input: DiscountCodeInput) {
       if (!existing) {
         return { success: false, message: "El código de descuento no existe." };
       }
-      // A code saved before the format existed may keep its name.
+      // A code saved before the format existed may keep its name. Both
+      // sides normalized: a row stored in another case is the same code.
       if (
-        values.code !== existing.code &&
+        values.code !== normalizeDiscountCode(existing.code) &&
         !isValidDiscountCodeFormat(data.code)
       ) {
         return { success: false, message: FORMAT_MESSAGE };

@@ -289,6 +289,38 @@ describe("discount code admin validation", () => {
     });
     expect(update).not.toHaveBeenCalled();
   });
+
+  it("lets a legacy code stored in another case keep a name the format refuses", async () => {
+    const update = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+    }));
+    const remove = vi.fn(() => ({
+      where: vi.fn().mockResolvedValue(undefined),
+    }));
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) =>
+        callback({
+          select: vi.fn(() => chain([{ code: "VIP 2026", currentUses: 0 }])),
+          update,
+          delete: remove,
+        }),
+    );
+
+    await expect(
+      updateDiscountCode(3, { ...validInput, code: "vip 2026" }),
+    ).resolves.toMatchObject({ success: true });
+    expect(update).toHaveBeenCalledTimes(1);
+
+    // A real rename is still held to the format.
+    await expect(
+      updateDiscountCode(3, { ...validInput, code: "other code" }),
+    ).resolves.toEqual({
+      success: false,
+      message:
+        "Usá solo letras, números, guiones o guiones bajos en el código.",
+    });
+    expect(update).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("validateAndApplyDiscountCode audience", () => {
