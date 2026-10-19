@@ -2,6 +2,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import { insertReservationMembers } from "@/app/lib/reservations/members";
@@ -283,14 +284,7 @@ export async function createExternalParticipantReservation(
       reservationId,
     };
   } catch (error: unknown) {
-    const code =
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      typeof (error as { code: string }).code === "string"
-        ? (error as { code: string }).code
-        : "";
-    if (code === "23505" || code === "40001") {
+    if (hasPgErrorCode(error, "23505", "40001")) {
       return {
         success: false,
         message: "El espacio no está disponible",
