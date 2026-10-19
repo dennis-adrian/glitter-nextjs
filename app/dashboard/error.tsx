@@ -4,6 +4,8 @@ import { AlertCircleIcon } from "lucide-react";
 import { useEffect } from "react";
 
 import { Button } from "@/app/components/ui/button";
+import StaleDeploymentNotice from "@/app/components/common/stale-deployment-notice";
+import { isStaleDeploymentError } from "@/app/lib/errors/action-error";
 
 /**
  * Admin-facing wording, separate from the root boundary: the person reading
@@ -20,6 +22,8 @@ export default function DashboardError({
   useEffect(() => {
     console.error(error);
   }, [error]);
+
+  if (isStaleDeploymentError(error)) return <StaleDeploymentNotice />;
 
   return (
     <div className="container mx-auto p-4 md:p-6">

@@ -7,6 +7,7 @@ import { CoinsIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ApplyInvoiceCreditsButtonProps = {
   invoiceId: number;
@@ -44,7 +45,10 @@ export default function ApplyInvoiceCreditsButton({
         router.refresh();
       } catch (error) {
         console.error("Error applying invoice credits", error);
-        toast.error("No se pudieron aplicar tus créditos. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudieron aplicar tus créditos. Intentá nuevamente.",
+        );
       }
     });
   }

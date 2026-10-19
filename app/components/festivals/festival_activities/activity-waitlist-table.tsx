@@ -11,6 +11,7 @@ import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { WaitlistEntryWithUser } from "@/app/lib/festivals/definitions";
 import { notifyWaitlistEntry } from "@/app/lib/festival_activites/admin-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const COLUMN_TITLES: Record<string, string> = {
   position: "#",
@@ -72,8 +73,8 @@ function NotifyWaitlistButton({
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("No se pudo enviar la notificación");
+    } catch (error) {
+      toastActionError(error, "No se pudo enviar la notificación");
     } finally {
       pendingRef.current = false;
       setIsLoading(false);

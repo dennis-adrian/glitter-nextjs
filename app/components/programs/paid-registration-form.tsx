@@ -48,6 +48,7 @@ import {
 import { PROMO_CODE_ERROR_MESSAGES } from "@/app/lib/programs/promo-codes";
 import { formatMoney, isFreePrice } from "@/app/lib/programs/pricing";
 import { genderOptions } from "@/app/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   occurrenceId: number;
@@ -235,7 +236,7 @@ export default function PaidRegistrationForm({
       router.push(
         `/programs/purchases/${result.purchaseId}?token=${result.accessToken}`,
       );
-    } catch {
+    } catch (error) {
       // No `reason`: see the voucher card — an arbitrary throw message is
       // unbounded cardinality, and `capture_exceptions` already has the stack.
       captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
@@ -243,7 +244,7 @@ export default function PaidRegistrationForm({
         is_guest: guest !== null,
         failure: "exception",
       });
-      toast.error("No pudimos reservar tu cupo. Intentá de nuevo.");
+      toastActionError(error, "No pudimos reservar tu cupo. Intentá de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -279,8 +280,11 @@ export default function PaidRegistrationForm({
       setPendingHigherPromo(null);
       setAcceptsHigherPromoPrice(false);
       toast.success(`Código aplicado: ${formatMoney(result.promoPrice)}`);
-    } catch {
-      toast.error("No pudimos revisar el código. Intentá de nuevo.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No pudimos revisar el código. Intentá de nuevo.",
+      );
     } finally {
       setIsApplyingPromo(false);
     }

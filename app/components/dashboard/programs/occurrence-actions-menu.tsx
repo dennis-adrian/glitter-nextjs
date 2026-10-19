@@ -39,6 +39,7 @@ import {
   setOccurrenceSalesClosed,
 } from "@/app/lib/programs/occurrence-actions";
 import { hasOccurrenceEnded } from "@/app/lib/programs/state";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   occurrence: SessionOccurrence;
@@ -130,7 +131,7 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
         }
       } catch (error) {
         console.error(error);
-        toast.error("No se pudo completar la acción");
+        toastActionError(error, "No se pudo completar la acción");
       }
     });
   }

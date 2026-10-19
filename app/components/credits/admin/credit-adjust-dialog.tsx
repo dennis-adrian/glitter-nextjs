@@ -20,6 +20,7 @@ import { Input } from "@/app/components/ui/input";
 import { Textarea } from "@/app/components/ui/textarea";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { adjustCreditAccountAction } from "@/app/lib/credits/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type CreditAdjustDialogProps = {
   userId: number;
@@ -94,7 +95,10 @@ export default function CreditAdjustDialog({
         // outcome, so the adjustment may already be posted. Retrying with the
         // same key replays that entry instead of posting a second one.
         console.error("Error adjusting credit account", error);
-        toast.error("No se pudo ajustar el saldo. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo ajustar el saldo. Intentá nuevamente.",
+        );
       }
     });
   }

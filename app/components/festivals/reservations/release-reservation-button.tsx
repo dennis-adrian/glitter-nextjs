@@ -18,6 +18,7 @@ import BuyFeatureCreditsButton from "@/app/components/credits/buy-feature-credit
 import { Button } from "@/app/components/ui/button";
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { releaseReservationAction } from "@/app/lib/reservations/release-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Gives up an unpaid reservation for a fee (PRD §9).
@@ -83,7 +84,10 @@ export default function ReleaseReservationButton({
         });
       } catch (error) {
         console.error("Error releasing reservation", error);
-        toast.error("No se pudo liberar la reserva. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo liberar la reserva. Intentá nuevamente.",
+        );
         return;
       }
 

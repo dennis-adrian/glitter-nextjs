@@ -13,6 +13,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const FAILURE_MESSAGE =
   "No pudimos reenviar la entrada. Intentá de nuevo en unos minutos.";
@@ -38,7 +39,7 @@ export default function TicketRowActions({
       res = await resendTicketEmail(ticketId);
     } catch (error) {
       console.error("Error resending ticket email", error);
-      toast.error(FAILURE_MESSAGE);
+      toastActionError(error, FAILURE_MESSAGE);
       return;
     } finally {
       setSending(false);

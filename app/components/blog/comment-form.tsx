@@ -8,6 +8,7 @@ import { Button } from "@/app/components/ui/button";
 import { Textarea } from "@/app/components/ui/textarea";
 import { addComment } from "@/app/lib/posts/comment-actions";
 import { COMMENT_MAX_LENGTH } from "@/app/lib/posts/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   postId: number;
@@ -43,11 +44,14 @@ export default function CommentForm({
         setBody("");
         onDone?.();
         router.refresh();
-      } catch {
+      } catch (error) {
         // The action returns { success: false } for anything it can foresee, so
         // a rejection is the transport failing. Uncaught it would take the page
         // down with the error boundary and the typed comment with it.
-        toast.error("No se pudo publicar el comentario. Intentá de nuevo.");
+        toastActionError(
+          error,
+          "No se pudo publicar el comentario. Intentá de nuevo.",
+        );
       }
     });
   }

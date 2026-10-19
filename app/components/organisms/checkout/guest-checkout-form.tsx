@@ -26,6 +26,7 @@ import type {
   GuestCartBundle,
   GuestCartItem,
 } from "@/app/lib/cart/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type GuestFormValues = GuestCheckoutContactInput;
 
@@ -87,8 +88,8 @@ export function GuestCheckoutForm({
         setLoading(false);
         isSubmittingRef.current = false;
       }
-    } catch {
-      toast.error("Error al procesar el pedido. Intenta de nuevo.");
+    } catch (error) {
+      toastActionError(error, "Error al procesar el pedido. Intenta de nuevo.");
       setLoading(false);
       isSubmittingRef.current = false;
     }

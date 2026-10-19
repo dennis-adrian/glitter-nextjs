@@ -6,6 +6,7 @@ import { esMX } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
+import StaleDeploymentListener from "@/app/components/providers/stale-deployment-listener";
 import { ThemeProvider } from "@/app/components/theme-provider";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -40,7 +41,9 @@ export default function RootLayout({
 }) {
   return (
     // next-themes sets the theme class on <html> before React hydrates.
-    <html lang="es" suppressHydrationWarning>
+    // data-scroll-behavior tells the router that globals.css scrolls smoothly,
+    // so it can switch that off while it jumps to the top of a new route.
+    <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
         <ThemeProvider
           attribute="class"
@@ -67,6 +70,7 @@ export default function RootLayout({
               </Suspense>
               <PostHogAuthIdentify />
               <Toaster richColors />
+              <StaleDeploymentListener />
               <Analytics />
             </ClerkProvider>
           </Suspense>

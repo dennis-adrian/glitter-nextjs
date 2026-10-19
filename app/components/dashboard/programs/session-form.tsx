@@ -31,6 +31,7 @@ import {
   textOrNull,
 } from "@/app/lib/programs/form-schemas";
 import { sessionAdminPath } from "@/app/lib/programs/paths";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   /** Null for a standalone session, which picks its own festival instead. */
@@ -139,7 +140,7 @@ export default function SessionForm({
       router.refresh();
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo guardar la sesión");
+      toastActionError(error, "No se pudo guardar la sesión");
     }
   });
 

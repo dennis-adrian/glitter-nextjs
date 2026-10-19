@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
 import { createLatePartnerCreditTopUpAction } from "@/app/lib/reservations/late-partner-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Buys the exact shortfall for adding a partner.
@@ -51,7 +52,10 @@ export default function BuyLatePartnerCreditsButton({
         router.push(`/my_credits/${result.topUpId}`);
       } catch (error) {
         console.error("Error buying late partner credits", error);
-        toast.error("No se pudo iniciar la compra. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo iniciar la compra. Intentá nuevamente.",
+        );
         setIdempotencyKey(crypto.randomUUID());
       }
     });
