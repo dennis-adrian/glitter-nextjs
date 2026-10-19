@@ -87,11 +87,18 @@ export const correctSettlementProofSchema = z.object({
   idempotencyKey: uuidSchema,
 });
 
-export const reviewFestivalParticipationRequestSchema = z.object({
-  requestId: positiveIntSchema,
-  status: z.enum(["accepted", "rejected"]),
-  reason: z.string().trim().max(1000).optional(),
-});
+/** Only a rejection carries a reason; one sent with an approval is dropped. */
+export const reviewFestivalParticipationRequestSchema = z.discriminatedUnion(
+  "status",
+  [
+    z.object({ requestId: positiveIntSchema, status: z.literal("accepted") }),
+    z.object({
+      requestId: positiveIntSchema,
+      status: z.literal("rejected"),
+      reason: z.string().trim().max(1000).optional(),
+    }),
+  ],
+);
 
 export const reviewBecomeArtistRequestSchema = z.object({
   requestId: positiveIntSchema,

@@ -1,7 +1,8 @@
 const legendItems = [
   {
     label: "Disponible",
-    color: "bg-violet-200/60 border-violet-500/80",
+    color:
+      "bg-violet-200/60 border-violet-500/80 dark:bg-(--map-available-fill) dark:border-(--map-available-stroke)",
   },
   {
     label: "Seleccionado",
@@ -9,11 +10,13 @@ const legendItems = [
   },
   {
     label: "En espera",
-    color: "bg-amber-400/60 border-amber-600/80",
+    color:
+      "bg-amber-400/60 border-amber-600/80 dark:bg-(--map-held-fill) dark:border-(--map-held-stroke)",
   },
   {
     label: "Ocupado",
-    color: "bg-gray-300/50 border-gray-400/60",
+    color:
+      "bg-gray-300/50 border-gray-400/60 dark:bg-(--map-taken-fill) dark:border-(--map-taken-stroke)",
   },
   {
     label: "Externo",
@@ -21,7 +24,8 @@ const legendItems = [
   },
   {
     label: "No disponible",
-    color: "bg-gray-200/35 border-gray-300/40",
+    color:
+      "bg-gray-200/35 border-gray-300/40 dark:bg-(--map-unavailable-fill) dark:border-(--map-unavailable-stroke)",
   },
 ];
 

@@ -25,7 +25,7 @@ export function FormParticipantCard({
         <div className="flex items-center justify-between">
           <h2 className="text-sm text-muted-foreground"></h2>
           <Trash2Icon
-            className="w-4 h-4 text-destructive hover:text-red-600 hover:transition cursor-pointer"
+            className="w-4 h-4 text-destructive hover:text-red-600 dark:hover:text-red-400 hover:transition cursor-pointer"
             onClick={() => onRemove()}
           />
         </div>

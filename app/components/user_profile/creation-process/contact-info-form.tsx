@@ -56,13 +56,13 @@ export default function ContactInfoForm(props: ContactInfoFormProps) {
           bottomBorderOnly
           label="Nombre"
           name="firstName"
-          placeholder="Ingresa tu nombre"
+          placeholder="Ingresá tu nombre"
         />
         <TextInput
           bottomBorderOnly
           label="Apellido"
           name="lastName"
-          placeholder="Ingresa tu apellido"
+          placeholder="Ingresá tu apellido"
         />
         <PhoneInput bottomBorderOnly label="Teléfono" name="phoneNumber" />
         <TextInput

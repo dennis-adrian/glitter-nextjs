@@ -36,7 +36,7 @@ export default function SecureLinkNotice({ url }: Props) {
       <p className="text-sm font-medium">Guardá este enlace</p>
       <p className="text-sm text-muted-foreground">
         Es la única forma de recuperar tu entrada si perdés el correo. No lo
-        compartas: quien lo tenga puede ver tu inscripción.
+        compartás: quien lo tenga puede ver tu inscripción.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-xs">

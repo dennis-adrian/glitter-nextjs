@@ -51,7 +51,7 @@ export default async function FestivalFeatureConfigPanel({
       </div>
 
       {enabledButUnreachable && (
-        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           Hay funciones activadas acá, pero los créditos todavía están ocultos
           para los participantes, así que nadie las ve ni las puede pagar.
           Publicá la funcionalidad <strong>Créditos</strong> en{" "}

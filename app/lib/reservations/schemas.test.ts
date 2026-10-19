@@ -234,4 +234,37 @@ describe("reservation runtime schemas", () => {
       }).success,
     ).toBe(true);
   });
+
+  it("drops a reason sent with an enrollment approval", () => {
+    // The approved email has nowhere to show it, so it must not reach the
+    // queued payload either.
+    const parsed = parseUnknown(reviewFestivalParticipationRequestSchema, {
+      requestId: 4,
+      status: "accepted",
+      reason: "cupo",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toEqual({ requestId: 4, status: "accepted" });
+    }
+  });
+
+  it("trims and caps the reason on an enrollment rejection", () => {
+    const parsed = parseUnknown(reviewFestivalParticipationRequestSchema, {
+      requestId: 4,
+      status: "rejected",
+      reason: "  cupo  ",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success && parsed.data.status === "rejected") {
+      expect(parsed.data.reason).toBe("cupo");
+    }
+    expect(
+      parseUnknown(reviewFestivalParticipationRequestSchema, {
+        requestId: 4,
+        status: "rejected",
+        reason: "x".repeat(1001),
+      }).success,
+    ).toBe(false);
+  });
 });

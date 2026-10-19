@@ -276,13 +276,13 @@ export default function UsersTableFilters({
               <Badge
                 key={chip.key}
                 variant="outline"
-                className="font-normal gap-1 pr-1 border-gray-300 text-gray-800 bg-gray-100"
+                className="font-normal gap-1 pr-1 border-border text-foreground bg-muted"
               >
                 <span>{chip.label}</span>
                 <button
                   type="button"
                   aria-label={`Quitar filtro ${chip.textLabel}`}
-                  className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-black/10"
+                  className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
                   onClick={() => handleClearFilter(chip.key)}
                 >
                   <XIcon className="h-3 w-3" />

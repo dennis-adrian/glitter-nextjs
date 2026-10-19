@@ -49,7 +49,7 @@ export default function CoverImageUploader({ value, onChange }: Props) {
         }}
         appearance={{
           container:
-            "border-dashed border-2 border-muted-foreground/40 rounded-md p-6 bg-white",
+            "border-dashed border-2 border-muted-foreground/40 rounded-md p-6 bg-card",
           button:
             "ut-ready:bg-pink-600 ut-uploading:bg-pink-400 bg-pink-600 text-white px-4 py-2 rounded-md",
           allowedContent: "text-xs text-muted-foreground",

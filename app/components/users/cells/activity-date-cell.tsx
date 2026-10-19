@@ -117,7 +117,7 @@ export default function ActivityDateCell({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="shrink-0 text-amber-800 transition-colors hover:text-amber-900"
+            className="shrink-0 text-amber-800 transition-colors hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100"
             aria-label={`Ver detalles: ${sourceLabel}`}
             onMouseEnter={handleHoverOpen}
             onMouseLeave={handleHoverClose}

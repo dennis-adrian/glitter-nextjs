@@ -141,7 +141,7 @@ export default function CreditDebtResolveDialog({
               {formatCredits(debtAmount)}.
             </p>
             {!amountValid && amount.trim() !== "" && (
-              <p className="text-xs text-red-600">
+              <p className="text-xs text-red-600 dark:text-red-400">
                 Ingresá un monto mayor a 0, con hasta dos decimales, y menor o
                 igual a {formatCredits(debtAmount)}.
               </p>

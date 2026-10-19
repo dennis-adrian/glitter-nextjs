@@ -337,8 +337,8 @@ export function StandInfoCard({
                   <span
                     className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                       stand.effectiveStatus === "held"
-                        ? "bg-amber-50 text-amber-600"
-                        : "bg-red-50 text-red-600"
+                        ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
+                        : "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
                     }`}
                   >
                     {stand.effectiveStatus === "held" ? "EN ESPERA" : "OCUPADO"}
@@ -357,7 +357,7 @@ export function StandInfoCard({
             </div>
             {!isStandTaken && (
               <div className="text-right">
-                <p className="text-xs font-medium text-[#6b7280]">
+                <p className="text-xs font-medium text-muted-foreground">
                   Precio Final
                 </p>
                 <p className="text-xl font-bold text-primary">
@@ -385,8 +385,8 @@ export function StandInfoCard({
           </div>
 
           {isOwnHold && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-              <p className="text-sm text-amber-800">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/40">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
                 Tenés este espacio reservado temporalmente. Confirmá tu reserva
                 antes de que expire.
               </p>
@@ -394,8 +394,8 @@ export function StandInfoCard({
           )}
 
           {stand.effectiveStatus === "held" && !isOwnHold && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-              <p className="text-sm text-amber-800">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/40">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
                 Otro participante está considerando este espacio. Volverá a
                 estar disponible en breve.
               </p>
@@ -405,24 +405,24 @@ export function StandInfoCard({
           {isStandTaken &&
             stand.effectiveStatus !== "held" &&
             standReservationSummaries.length > 0 && (
-              <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+              <div className="rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/40">
                 <div className="mb-3 space-y-2">
                   {standReservationSummaries.map((participant) => (
                     <div
                       key={`${participant.kind}-${participant.id}`}
                       className="flex items-center gap-3"
                     >
-                      <Avatar className="h-12 w-12 border-red-200">
+                      <Avatar className="h-12 w-12 border-red-200 dark:border-red-900">
                         <AvatarImage
                           src={participant.imageUrl ?? undefined}
                           alt={participant.displayName || "Participante"}
                         />
                       </Avatar>
                       <div className="flex-1">
-                        <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-600">
+                        <p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
                           Reservado por
                         </p>
-                        <p className="text-base font-bold text-gray-900">
+                        <p className="text-base font-bold text-foreground">
                           {participant.displayName || "Participante"}
                         </p>
                       </div>
@@ -431,8 +431,8 @@ export function StandInfoCard({
                 </div>
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Estado:</span>
-                    <span className="font-semibold text-gray-900">
+                    <span className="text-muted-foreground">Estado:</span>
+                    <span className="font-semibold text-foreground">
                       {getReservationStatusLabel(
                         standReservationSummaries[0]?.reservationStatus ?? "",
                       )}
@@ -446,14 +446,16 @@ export function StandInfoCard({
             !isStandTaken &&
             eligibilityMessage &&
             !alreadyReserved && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-800">{eligibilityMessage}</p>
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/40">
+                <p className="text-sm text-red-800 dark:text-red-200">
+                  {eligibilityMessage}
+                </p>
               </div>
             )}
 
           {alreadyReserved && !isStandTaken && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <p className="text-sm text-blue-800">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/40">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
                 Ya tenés una reserva en este festival
               </p>
             </div>
@@ -523,7 +525,7 @@ export function StandInfoCard({
             <Button
               type="button"
               disabled
-              className="h-12 w-full cursor-not-allowed rounded-lg bg-gray-200 text-gray-500"
+              className="h-12 w-full cursor-not-allowed rounded-lg bg-muted text-muted-foreground"
             >
               {isStandTaken
                 ? "Stand No Disponible"

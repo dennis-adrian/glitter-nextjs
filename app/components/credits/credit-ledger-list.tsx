@@ -107,7 +107,7 @@ export default function CreditLedgerList({
               signed
               className={
                 entry.amount > 0
-                  ? "shrink-0 text-sm font-medium text-green-600"
+                  ? "shrink-0 text-sm font-medium text-green-600 dark:text-green-400"
                   : "shrink-0 text-sm font-medium"
               }
             />

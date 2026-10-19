@@ -126,7 +126,7 @@ function FullTableCell({ info }: { info: FullTableInfo | undefined }) {
         className={cn(
           "text-xs tabular-nums",
           info.fullTablePrice == null
-            ? "font-medium text-amber-700"
+            ? "font-medium text-amber-700 dark:text-amber-300"
             : "text-muted-foreground",
         )}
       >

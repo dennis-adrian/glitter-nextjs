@@ -84,11 +84,10 @@ export default function UnsubscribeCard(props: UnsubscribeCardProps) {
       </CardHeader>
       <CardContent className="grid gap-3 text-sm text-muted-foreground">
         {props.blocked ? (
-          <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
+          <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
             Por ahora no podemos enviarte ningún correo, ni siquiera tus
             entradas o reservas, porque un mensaje anterior no se pudo entregar
-            o fue marcado como spam. Si quieres volver a recibirlos, escríbenos
-            a{" "}
+            o fue marcado como spam. Si querés volver a recibirlos, escribinos a{" "}
             <a
               href="mailto:soporte@productoraglitter.com"
               className="font-medium underline"
@@ -99,7 +98,7 @@ export default function UnsubscribeCard(props: UnsubscribeCardProps) {
           </p>
         ) : (
           <p>
-            Seguirás recibiendo los correos que pidas tú, como tus entradas o
+            Seguirás recibiendo los correos que vos pidas, como tus entradas o
             reservas.
           </p>
         )}

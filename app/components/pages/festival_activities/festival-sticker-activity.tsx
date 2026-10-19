@@ -31,7 +31,7 @@ export default function FestivalStickerActivityPage({
       <p className="text-base md:text-lg">{activity.description}</p>
       {acceptedUserCategories.length > 0 &&
         !acceptedUserCategories.includes(forProfile.category) && (
-          <div className="my-2 md:my-3 bg-amber-50 border border-amber-200 rounded-md p-3 md:p-4 text-amber-800">
+          <div className="my-2 md:my-3 bg-amber-50 border border-amber-200 rounded-md p-3 md:p-4 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
             <p className="text-sm">
               Esta actividad no está disponible para la categoría de{" "}
               {getCategoryLabel(forProfile.category).toLocaleLowerCase()}.

@@ -38,8 +38,7 @@ export default function TicketHistoryLinkEmailTemplate({
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>
               {firstName?.trim() ? `Hola ${firstName.trim()}, aquí` : "Aquí"}{" "}
-              tienes el enlace para ver todas tus entradas a nuestros
-              festivales.
+              tenés el enlace para ver todas tus entradas a nuestros festivales.
             </Text>
 
             <Section style={{ textAlign: "center", margin: "16px 0" }}>
@@ -49,7 +48,7 @@ export default function TicketHistoryLinkEmailTemplate({
             </Section>
 
             <Text style={{ ...styles.text, fontSize: "12px" }}>
-              ¿No funciona el botón? Copia y pega este enlace:
+              ¿No funciona el botón? Copiá y pegá este enlace:
             </Text>
             <Text
               style={{
@@ -62,9 +61,9 @@ export default function TicketHistoryLinkEmailTemplate({
             </Text>
 
             <Text style={{ ...styles.text, fontSize: "12px" }}>
-              El enlace funciona durante 30 días. No lo compartas: cualquier
+              El enlace funciona durante 30 días. No lo compartás: cualquier
               persona que lo tenga puede ver tus entradas. Si no lo pediste,
-              puedes ignorar este correo.
+              podés ignorar este correo.
             </Text>
           </Section>
           <EmailFooter />

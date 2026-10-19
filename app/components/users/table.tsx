@@ -68,7 +68,7 @@ export default function UsersTable({
                 value="updatedAt"
                 label="Última actualización"
               />
-              <TableHead className="sticky right-0 z-20 bg-white shadow-inner">
+              <TableHead className="sticky right-0 z-20 bg-card shadow-inner">
                 <span className="sr-only">Acciones</span>
               </TableHead>
             </TableRow>
@@ -111,7 +111,7 @@ export default function UsersTable({
                       DateTime.DATETIME_MED_WITH_SECONDS,
                     )}
                   </TableCell>
-                  <TableCell className="sticky right-0 z-20 bg-white shadow-inner">
+                  <TableCell className="sticky right-0 z-20 bg-card shadow-inner">
                     <ActionsCell user={user} />
                   </TableCell>
                 </TableRow>

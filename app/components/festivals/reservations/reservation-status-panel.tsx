@@ -17,19 +17,22 @@ const TONE_STYLES: Record<
   { badge: string; icon: LucideIcon }
 > = {
   action: {
-    badge: "bg-amber-100 border-amber-300 text-amber-900",
+    badge:
+      "bg-amber-100 border-amber-300 text-amber-900 dark:bg-amber-900/40 dark:border-amber-800 dark:text-amber-100",
     icon: AlertCircleIcon,
   },
   waiting: {
-    badge: "bg-blue-100 border-blue-300 text-blue-900",
+    badge:
+      "bg-blue-100 border-blue-300 text-blue-900 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-100",
     icon: ClockIcon,
   },
   done: {
-    badge: "bg-green-100 border-green-300 text-green-900",
+    badge:
+      "bg-green-100 border-green-300 text-green-900 dark:bg-green-900/40 dark:border-green-800 dark:text-green-100",
     icon: CheckCircle2Icon,
   },
   closed: {
-    badge: "bg-gray-100 border-gray-300 text-gray-700",
+    badge: "bg-muted border-border text-foreground",
     icon: XCircleIcon,
   },
 };
@@ -87,7 +90,7 @@ export default function ReservationStatusPanel({
           className={cn(
             "flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5 text-sm",
             copy.tone === "action"
-              ? "border-amber-300 bg-amber-50 text-amber-900"
+              ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
               : "bg-muted",
           )}
         >

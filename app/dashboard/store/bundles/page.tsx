@@ -65,7 +65,7 @@ export default async function BundlesPage() {
                       className={
                         bundle.isVisible
                           ? "text-sm text-destructive"
-                          : "text-sm text-amber-700"
+                          : "text-sm text-amber-700 dark:text-amber-300"
                       }
                     >
                       {bundle.isVisible ? "No se muestra: " : "Pendiente: "}

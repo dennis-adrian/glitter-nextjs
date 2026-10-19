@@ -16,7 +16,7 @@ export default function EnrolledBadge({
 
   return (
     <div
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 ${inReview ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-700"}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 ${inReview ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" : "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"}`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span className="text-xs font-medium">{label}</span>

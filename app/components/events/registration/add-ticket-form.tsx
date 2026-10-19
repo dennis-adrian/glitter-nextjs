@@ -83,7 +83,7 @@ export default function AddTicketForm({
                     return (
                       <FormItem
                         key={index}
-                        className="w-full border rounded-md p-3 hover:bg-primary-50 hover:text-primary-500 hover:border-primary-500 active:text-primary-500 active:bg-primary-50 active:border-primary-500 focus:text-primary-500 focus:bg-primary-50 focus:border-primary-500"
+                        className="w-full border rounded-md p-3 hover:bg-primary-50 hover:text-primary-500 hover:border-primary-500 active:text-primary-500 active:bg-primary-50 active:border-primary-500 focus:text-primary-500 focus:bg-primary-50 focus:border-primary-500 dark:hover:bg-primary-900/40 dark:active:bg-primary-900/40 dark:focus:bg-primary-900/40"
                       >
                         <FormControl>
                           <RadioGroupItem

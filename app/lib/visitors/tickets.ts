@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, eq, max, sql } from "drizzle-orm";
+import type { CreateEmailOptions } from "resend";
 
 import TicketEmailTemplate from "@/app/emails/ticket";
 import TicketHistoryLinkEmailTemplate from "@/app/emails/ticket-history-link";
@@ -95,6 +96,42 @@ function ticketHistoryUrl(visitorId: number) {
 }
 
 /**
+ * The ticket email, QR attached inline. One builder so the registration email
+ * and a staff resend from the dashboard cannot drift apart. Callers pass the
+ * stored visitor row, never one the browser supplied.
+ */
+export async function buildTicketIssuedEmail(input: {
+  visitor: typeof visitors.$inferSelect;
+  festival: FestivalBase;
+  ticket: typeof tickets.$inferSelect;
+}): Promise<CreateEmailOptions> {
+  const { visitor, festival, ticket } = input;
+  const qrBuffer = await generateQrBuffer(
+    getTicketCode(festival.festivalCode || "", ticket.ticketNumber || 0),
+  );
+
+  return {
+    from: TICKETS_FROM,
+    to: [visitor.email],
+    subject: `Ya tenés tu entrada para ingresar al festival ${festival.name}`,
+    react: TicketEmailTemplate({
+      visitor,
+      festival,
+      ticket,
+      ticketsUrl: ticketHistoryUrl(visitor.id),
+    }) as React.ReactElement,
+    attachments: [
+      {
+        filename: "qrcode.png",
+        content: qrBuffer,
+        // Resolves the template's `cid:ticket-qrcode` image.
+        contentId: "ticket-qrcode",
+      },
+    ],
+  };
+}
+
+/**
  * Mails a newly issued ticket to the address on the visitor's record — never
  * to one the browser supplied — with its QR and a link to all their tickets.
  */
@@ -108,29 +145,9 @@ export async function sendTicketIssuedEmail(
     });
     if (!visitor) return;
 
-    const qrBuffer = await generateQrBuffer(
-      getTicketCode(festival.festivalCode || "", ticket.ticketNumber || 0),
+    const result = await sendEmail(
+      await buildTicketIssuedEmail({ visitor, festival, ticket }),
     );
-
-    const result = await sendEmail({
-      from: TICKETS_FROM,
-      to: [visitor.email],
-      subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
-      react: TicketEmailTemplate({
-        visitor,
-        festival,
-        ticket,
-        ticketsUrl: ticketHistoryUrl(visitor.id),
-      }) as React.ReactElement,
-      attachments: [
-        {
-          filename: "qrcode.png",
-          content: qrBuffer,
-          // Resolves the template's `cid:ticket-qrcode` image.
-          contentId: "ticket-qrcode",
-        },
-      ],
-    });
     assertSent(result);
   } catch (error) {
     console.error("Ticket email failed", {

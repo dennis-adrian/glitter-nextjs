@@ -35,11 +35,13 @@ const PROOF_STATUS_CONFIG: Record<
 > = {
   pending_review: {
     label: "En revisión",
-    className: "text-amber-700 bg-amber-50 border-amber-200",
+    className:
+      "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/40 dark:border-amber-900",
   },
   rejected_resubmit: {
     label: "Corrección solicitada",
-    className: "text-orange-700 bg-orange-50 border-orange-200",
+    className:
+      "text-orange-700 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-950/40 dark:border-orange-900",
   },
   sin_prueba: {
     label: "Sin material",
@@ -47,11 +49,13 @@ const PROOF_STATUS_CONFIG: Record<
   },
   approved: {
     label: "Aprobada",
-    className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    className:
+      "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-900",
   },
   rejected_removed: {
     label: "Removido",
-    className: "text-red-700 bg-red-50 border-red-200",
+    className:
+      "text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/40 dark:border-red-900",
   },
 };
 

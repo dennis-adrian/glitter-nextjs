@@ -50,7 +50,7 @@ export default async function Page(props: {
             {enlace === "vencido" ? (
               <p
                 role="alert"
-                className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
               >
                 El enlace venció o no es válido. Pide uno nuevo.
               </p>
@@ -125,7 +125,9 @@ export default async function Page(props: {
                       : ""}
                   </p>
                 </div>
-                <Badge variant={entry.status === "checked_in" ? "green" : "outline"}>
+                <Badge
+                  variant={entry.status === "checked_in" ? "green" : "outline"}
+                >
                   {entry.status === "checked_in" ? "Asististe" : "No usada"}
                 </Badge>
               </li>

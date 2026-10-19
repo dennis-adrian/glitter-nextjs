@@ -19,16 +19,16 @@ export default function UserInfractionCard({
   let iconColor = "";
   switch (infraction.type.severity) {
     case "low":
-      iconColor = "text-blue-700";
+      iconColor = "text-blue-700 dark:text-blue-300";
       break;
     case "medium":
-      iconColor = "text-yellow-700";
+      iconColor = "text-yellow-700 dark:text-yellow-300";
       break;
     case "high":
-      iconColor = "text-orange-700";
+      iconColor = "text-orange-700 dark:text-orange-300";
       break;
     case "critical":
-      iconColor = "text-red-700";
+      iconColor = "text-red-700 dark:text-red-300";
       break;
   }
 

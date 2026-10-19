@@ -5,6 +5,10 @@
 @source "../node_modules/@uploadthing/react/dist";
 @source "../node_modules/@blocknote/shadcn/dist";
 
+/* Dark mode follows the `.dark` class next-themes puts on <html>, not the OS
+ * media query, so the in-app toggle can override the system setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-figtree), sans-serif;
   --font-display: var(--font-gabarito), sans-serif;
@@ -32,7 +36,7 @@
   --color-background-900: hsl(var(--background-900));
   --color-background-950: hsl(var(--background-950));
   --color-foreground: hsl(var(--foreground));
-  --color-primary: hsl(var(--primary-600));
+  --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
   --color-primary-50: hsl(var(--primary-50));
   --color-primary-100: hsl(var(--primary-100));
@@ -92,20 +96,25 @@
   --color-glitter-blue-950: hsl(var(--glitter-blue-950));
   --color-festicker: #fb0a76;
   --color-festicker-foreground: #ffffff;
-  --color-brand-ink: #29005c;
-  --color-brand-primary: #6200cb;
-  --color-brand-lavender: #eae2ff;
-  --color-brand-coral: #ff655b;
-  --color-brand-elevated: #fefbf8;
-  --color-brand-card: #ffffff;
-  --color-brand-neutral: #697281;
-  --color-brand-neutral-strong: #0e1624;
-  --color-brand-coral-soft: #ffe0db;
-  --color-brand-border: #f0e5ff;
-  --color-surface-base: #faf6f0;
-  --color-surface-card: #ffffff;
-  --color-surface-elevated: #fcfbf9;
-  --color-surface-muted: #f5f1eb;
+  /* Brand and surface roles resolve through variables so they flip with the
+     theme (values live in the :root and .dark blocks below). brand-deep is
+     the exception that stays dark in both themes: it is the ground for white
+     text, where brand-ink is a text colour that has to turn light. */
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-lavender: var(--brand-lavender);
+  --color-brand-coral: var(--brand-coral);
+  --color-brand-elevated: var(--brand-elevated);
+  --color-brand-card: var(--brand-card);
+  --color-brand-neutral: var(--brand-neutral);
+  --color-brand-neutral-strong: var(--brand-neutral-strong);
+  --color-brand-coral-soft: var(--brand-coral-soft);
+  --color-brand-border: var(--brand-border);
+  --color-surface-base: var(--surface-base);
+  --color-surface-card: var(--surface-card);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-muted: var(--surface-muted);
   --color-success-50: #ecfdf5;
   --color-success-500: #d1fae5;
   --color-success-700: #22c55e;
@@ -341,37 +350,141 @@
     --accent-800: 338 69% 20%;
     --accent-900: 338 69% 10%;
     --accent-950: 340 69% 5%;
+
+    --brand-ink: #29005c;
+    --brand-deep: #29005c;
+    --brand-primary: #6200cb;
+    --brand-lavender: #eae2ff;
+    --brand-coral: #ff655b;
+    --brand-elevated: #fefbf8;
+    --brand-card: #ffffff;
+    --brand-neutral: #697281;
+    --brand-neutral-strong: #0e1624;
+    --brand-coral-soft: #ffe0db;
+    --brand-border: #f0e5ff;
+    --surface-base: #faf6f0;
+    --surface-card: #ffffff;
+    --surface-elevated: #fcfbf9;
+    --surface-muted: #f5f1eb;
   }
 
+  /* Dark theme: a plum-tinted near-black, so the purple brand reads as part
+     of the ground rather than pasted on top of grey. The numbered ramps
+     (--primary-50…950 and friends) deliberately stay fixed, like Tailwind's
+     palette: a numbered step names a colour, a semantic token names a role,
+     and only roles change with the theme. Contrast on --background:
+     foreground 16.5:1, muted-foreground 7.5:1, primary 4.1:1, and white on
+     primary 4.6:1. */
   .dark {
-    --background: 0 0% 4%;
-    --foreground: 242 39% 87%;
-    --card: 0 0% 4%;
-    --card-foreground: 242 39% 87%;
-    --popover: 0 0% 4%;
-    --popover-foreground: 242 39% 87%;
-    --primary: 262 77% 51%;
-    --primary-foreground: 242 39% 87%;
-    /* The same tinted badge inverted for a dark ground: a coral-tinted
-       surface with light coral text, 7.4:1. Dormant — ThemeProvider is not
-       mounted in the root layout — but kept in step so it is not still pink
-       whenever dark mode is turned on. */
+    --background: 260 22% 7%;
+    --foreground: 35 25% 93%;
+    --card: 260 18% 10%;
+    --card-foreground: 35 25% 93%;
+    --popover: 260 18% 11%;
+    --popover-foreground: 35 25% 93%;
+    /* Lifted from the light theme's 52% so primary still reads as text on the
+       dark ground while keeping white labels on primary fills above 4.5:1. */
+    --primary: 262 85% 63%;
+    --primary-foreground: 0 0% 100%;
+    /* The tinted coral badge inverted for a dark ground: a coral-tinted
+       surface with light coral text, 7.8:1. */
     --secondary: 14 30% 18%;
     --secondary-foreground: 16 85% 78%;
-    --muted: 0 0% 80%;
-    --muted-foreground: 242 39% 87%;
-    --accent: 338 69% 35%;
-    --accent-foreground: 242 39% 87%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 240 37% 10%;
-    --border: 0 0% 60%;
-    --input: 0 0% 80%;
-    --ring: 338 69% 60%;
+    --muted: 260 14% 16%;
+    --muted-foreground: 255 10% 66%;
+    --accent: 260 28% 19%;
+    --accent-foreground: 255 90% 84%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 260 13% 21%;
+    --input: 260 12% 26%;
+    --ring: 262 85% 70%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    --brand-ink: #ebe4ff;
+    /* Lifted off --background (1.6:1) so a deep tile still reads as a tile. */
+    --brand-deep: #451a8f;
+    --brand-primary: #a78bfa;
+    --brand-lavender: #261d38;
+    --brand-coral: #ff655b;
+    --brand-elevated: #1b1722;
+    --brand-card: hsl(var(--card));
+    --brand-neutral: hsl(var(--muted-foreground));
+    --brand-neutral-strong: hsl(var(--foreground));
+    --brand-coral-soft: #3a221f;
+    --brand-border: #322a42;
+    --surface-base: hsl(var(--background));
+    --surface-card: hsl(var(--card));
+    --surface-elevated: #1b1722;
+    --surface-muted: hsl(var(--muted));
+
+    /* Clerk's components read these (see @clerk/ui foundations/colors). The
+       light theme keeps Clerk's own defaults, as it did before dark mode. */
+    --clerk-color-background: hsl(var(--card));
+    --clerk-color-foreground: hsl(var(--card-foreground));
+    --clerk-color-muted: hsl(var(--muted));
+    --clerk-color-muted-foreground: hsl(var(--muted-foreground));
+    --clerk-color-neutral: hsl(var(--foreground));
+    --clerk-color-primary: hsl(var(--primary));
+    --clerk-color-primary-foreground: hsl(var(--primary-foreground));
+    --clerk-color-input: hsl(var(--background));
+    --clerk-color-input-foreground: hsl(var(--foreground));
+    --clerk-color-danger: hsl(var(--destructive));
+    --clerk-color-ring: hsl(var(--ring) / 0.5);
+    --clerk-color-modal-backdrop: rgb(0 0 0 / 0.7);
+
+    /* Festival maps. Light values live next to each use as the fallback of
+       mapColor() in app/components/maps/map-utils.ts; only the dark sheet is
+       defined here. Translucent fills are tuned over --card, and every stand
+       label clears 6.5:1 on its fill. Solid fills that carry white text
+       (occupied, selected, confirmed, external) work on both sheets and have
+       no override. */
+    --map-ground: hsl(var(--card));
+    --map-grid: rgb(255 255 255 / 0.16);
+    --map-grid-line: rgb(255 255 255 / 0.1);
+    --map-ink: hsl(var(--foreground));
+    --map-muted-ink: hsl(var(--muted-foreground));
+    --map-label: hsl(var(--foreground));
+    --map-available-fill: rgb(139 92 246 / 0.18);
+    --map-available-hover: rgb(139 92 246 / 0.3);
+    --map-available-stroke: rgb(167 139 250 / 0.75);
+    --map-available-text: #c4b5fd;
+    --map-held-fill: rgb(245 158 11 / 0.26);
+    --map-held-hover: rgb(245 158 11 / 0.38);
+    --map-held-stroke: rgb(245 158 11 / 0.85);
+    --map-held-text: #fde68a;
+    --map-taken-fill: rgb(156 163 175 / 0.22);
+    --map-taken-hover: rgb(156 163 175 / 0.32);
+    --map-taken-stroke: rgb(156 163 175 / 0.5);
+    --map-taken-text: #d1d5db;
+    --map-unavailable-fill: rgb(255 255 255 / 0.04);
+    --map-unavailable-hover: rgb(255 255 255 / 0.07);
+    --map-unavailable-stroke: rgb(255 255 255 / 0.14);
+    --map-unavailable-text: #6b7280;
+    --map-dimmed-fill: rgb(255 255 255 / 0.06);
+    --map-dimmed-hover: rgb(255 255 255 / 0.1);
+    --map-dimmed-stroke: rgb(255 255 255 / 0.22);
+    --map-dimmed-text: #6b7280;
+    --map-open-fill: rgb(255 255 255 / 0.08);
+    --map-open-hover: rgb(255 255 255 / 0.13);
+    --map-open-stroke: rgb(255 255 255 / 0.28);
+    --map-open-text: #d1d5db;
+    --map-verifying-fill: rgb(59 130 246 / 0.32);
+    --map-verifying-hover: rgb(59 130 246 / 0.44);
+    --map-verifying-stroke: rgb(96 165 250 / 0.9);
+    --map-verifying-text: #dbeafe;
+    --map-overdue-fill: rgb(239 68 68 / 0.32);
+    --map-overdue-hover: rgb(239 68 68 / 0.44);
+    --map-overdue-stroke: rgb(248 113 113 / 0.9);
+    --map-overdue-text: #fee2e2;
+    --map-pending-fill: rgb(34 197 94 / 0.28);
+    --map-pending-hover: rgb(34 197 94 / 0.4);
+    --map-pending-stroke: rgb(74 222 128 / 0.9);
+    --map-pending-text: #dcfce7;
   }
 }
 

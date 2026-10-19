@@ -84,7 +84,7 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
             <span
               className={cn(
                 "flex items-center gap-1",
-                isOverdue && "text-red-600 font-medium",
+                isOverdue && "text-red-600 font-medium dark:text-red-400",
               )}
             >
               <ClockIcon className="w-3.5 h-3.5 shrink-0" />
@@ -151,25 +151,29 @@ function getInvoiceStatusConfig(status: InvoiceWithPayments["status"]) {
       return {
         icon: CheckCircle2Icon,
         label: "Pagada",
-        badgeStyle: "bg-green-600/10 text-green-800 border-green-600/20",
+        badgeStyle:
+          "bg-green-600/10 text-green-800 border-green-600/20 dark:text-green-200",
       };
     case "verification_payment":
       return {
         icon: ClockIcon,
         label: "En revisión",
-        badgeStyle: "bg-blue-500/10 text-blue-700 border-blue-500/20",
+        badgeStyle:
+          "bg-blue-500/10 text-blue-700 border-blue-500/20 dark:text-blue-300",
       };
     case "pending":
       return {
         icon: AlertCircleIcon,
         label: "Pendiente",
-        badgeStyle: "bg-orange-500/10 text-orange-700 border-orange-500/20",
+        badgeStyle:
+          "bg-orange-500/10 text-orange-700 border-orange-500/20 dark:text-orange-300",
       };
     case "cancelled":
       return {
         icon: XCircleIcon,
         label: "Cancelada",
-        badgeStyle: "bg-gray-500/10 text-gray-700 border-gray-500/20",
+        badgeStyle:
+          "bg-gray-500/10 text-gray-700 border-gray-500/20 dark:text-gray-300",
       };
   }
 }

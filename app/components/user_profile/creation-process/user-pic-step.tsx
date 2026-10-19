@@ -9,7 +9,7 @@ export default function UserPicStep(props: UserPicStepProps) {
   return (
     <>
       <StepDescription
-        title="Agrega una nueva foto de perfil"
+        title="Agregá una nueva foto de perfil"
         description="Esta imagen será la que se mostrará en tu perfil y en los festivales en los que participes."
       />
       <div className="mt-4">

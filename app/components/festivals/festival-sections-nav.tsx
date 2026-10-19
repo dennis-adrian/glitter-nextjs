@@ -103,7 +103,8 @@ export default function FestivalSectionsNav({
                               <span
                                 className={cn(
                                   "font-medium xl:hidden",
-                                  urgent && "text-amber-800",
+                                  urgent &&
+                                    "text-amber-800 dark:text-amber-200",
                                 )}
                               >
                                 {figure} ·{" "}
@@ -117,7 +118,7 @@ export default function FestivalSectionsNav({
                             className={cn(
                               "hidden shrink-0 text-xs tabular-nums xl:inline",
                               urgent
-                                ? "rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900"
+                                ? "rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
                                 : "text-muted-foreground",
                             )}
                           >

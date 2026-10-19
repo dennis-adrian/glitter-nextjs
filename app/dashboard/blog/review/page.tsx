@@ -27,13 +27,13 @@ export default async function DashboardBlogReviewPage() {
       </div>
 
       {posts.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground border rounded-md bg-white">
+        <div className="text-center py-16 text-muted-foreground border rounded-md bg-card">
           No hay artículos en revisión.
         </div>
       ) : (
         <ul className="space-y-4">
           {posts.map((p) => (
-            <li key={p.id} className="border rounded-md bg-white p-5 space-y-3">
+            <li key={p.id} className="border rounded-md bg-card p-5 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

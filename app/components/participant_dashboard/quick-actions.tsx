@@ -33,19 +33,22 @@ export default async function QuickActions({ profile }: Props) {
       icon: UserIcon,
       label: "Mi perfil",
       href: `/public_profiles/${profile.id}`,
-      color: "bg-violet-100 text-violet-600 group-hover:bg-violet-200",
+      color:
+        "bg-violet-100 text-violet-600 group-hover:bg-violet-200 dark:bg-violet-900/40 dark:text-violet-400 dark:group-hover:bg-violet-900/60",
     },
     {
       icon: StarIcon,
       label: "Participaciones",
       href: "/my_participations",
-      color: "bg-amber-100 text-amber-600 group-hover:bg-amber-200",
+      color:
+        "bg-amber-100 text-amber-600 group-hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-400 dark:group-hover:bg-amber-900/60",
     },
     {
       icon: ClockIcon,
       label: "Historial",
       href: "/my_history",
-      color: "bg-sky-100 text-sky-600 group-hover:bg-sky-200",
+      color:
+        "bg-sky-100 text-sky-600 group-hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-400 dark:group-hover:bg-sky-900/60",
     },
     ...(profile.status === "verified"
       ? [
@@ -53,7 +56,8 @@ export default async function QuickActions({ profile }: Props) {
             icon: ShoppingBagIcon,
             label: "Tienda",
             href: "/merch",
-            color: "bg-green-100 text-green-600 group-hover:bg-green-200",
+            color:
+              "bg-green-100 text-green-600 group-hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 dark:group-hover:bg-green-900/60",
           },
         ]
       : []),
@@ -61,7 +65,8 @@ export default async function QuickActions({ profile }: Props) {
       icon: PackageIcon,
       label: "Mis órdenes",
       href: "/my_orders",
-      color: "bg-rose-100 text-rose-600 group-hover:bg-rose-200",
+      color:
+        "bg-rose-100 text-rose-600 group-hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-400 dark:group-hover:bg-rose-900/60",
     },
     ...(creditsEnabled
       ? [
@@ -69,13 +74,15 @@ export default async function QuickActions({ profile }: Props) {
             icon: CoinsIcon,
             label: "Mis créditos",
             href: "/my_credits",
-            color: "bg-yellow-100 text-yellow-600 group-hover:bg-yellow-200",
+            color:
+              "bg-yellow-100 text-yellow-600 group-hover:bg-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-400 dark:group-hover:bg-yellow-900/60",
           },
           {
             icon: HelpCircleIcon,
             label: "Qué son los créditos",
             href: "/credits_info",
-            color: "bg-cyan-100 text-cyan-600 group-hover:bg-cyan-200",
+            color:
+              "bg-cyan-100 text-cyan-600 group-hover:bg-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-400 dark:group-hover:bg-cyan-900/60",
           },
         ]
       : []),

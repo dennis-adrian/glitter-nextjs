@@ -516,10 +516,10 @@ export default function PostFormInner({
       : "Cambios sin publicar";
 
   const workingBadgeClass = workingInReview
-    ? "border-sky-200 bg-sky-50 text-sky-700"
+    ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300"
     : workingHasRejection
-      ? "border-amber-200 bg-amber-50 text-amber-700"
-      : "border-slate-200 bg-slate-50 text-slate-700";
+      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+      : "border-border bg-muted text-foreground";
 
   return (
     <Form {...form}>

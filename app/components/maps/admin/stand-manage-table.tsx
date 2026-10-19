@@ -391,7 +391,7 @@ export default function StandManageTable({
                   {s.stands.length}
                 </span>
                 {sectorReservations > 0 && (
-                  <span className="ml-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-700">
+                  <span className="ml-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
                     {sectorReservations} res.
                   </span>
                 )}

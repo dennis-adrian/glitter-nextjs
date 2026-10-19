@@ -232,7 +232,7 @@ export const columns = (
                 <TooltipTrigger>
                   <Badge
                     variant="outline"
-                    className="gap-1 border-amber-500 text-amber-700"
+                    className="gap-1 border-amber-500 text-amber-700 dark:text-amber-300"
                   >
                     <EyeOffIcon className="size-3" />
                     Oculta
@@ -344,7 +344,7 @@ export const columns = (
           <Badge
             key={`external-category-${externalParticipant.id}`}
             variant="outline"
-            className="border-teal-600 text-teal-700 font-bold uppercase"
+            className="border-teal-600 text-teal-700 font-bold uppercase dark:text-teal-300"
           >
             {getExternalParticipantCategoryLabel(externalParticipant)}
           </Badge>

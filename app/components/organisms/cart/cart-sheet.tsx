@@ -46,7 +46,7 @@ import {
 import CartItemSkeleton from "./cart-item-skeleton";
 
 const hasStockProblem = (check: GuestStockValidationResult) =>
-  check.isOutOfStock || check.quantityExceedsStock;
+  check.isUnavailable || check.isOutOfStock || check.quantityExceedsStock;
 
 /** Tells the guest what applying a resolution changed in their cart. */
 function notifyReconcile(outcome: GuestBundleReconcileOutcome) {
@@ -439,7 +439,7 @@ export default function CartSheet() {
   const hasWarnings =
     cartData?.items.some((item) => {
       const w = getCartItemWarnings(item, cartData.items, bundleDemand);
-      return w.isOutOfStock || w.quantityExceedsStock;
+      return w.isUnavailable || w.isOutOfStock || w.quantityExceedsStock;
     }) || bundleLines.some((line) => line.issue != null);
 
   const total =
