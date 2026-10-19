@@ -84,7 +84,8 @@ export function DiscountCodeUses({
     <span
       className={cn(
         "tabular-nums",
-        currentUses >= maxUses && "font-medium text-amber-700",
+        currentUses >= maxUses &&
+          "font-medium text-amber-700 dark:text-amber-300",
       )}
     >
       {currentUses} / {maxUses}
@@ -116,7 +117,9 @@ export function DiscountCodeExpiry({
           suppressHydrationWarning
           className={cn(
             "text-xs",
-            expired ? "text-muted-foreground" : "text-amber-700",
+            expired
+              ? "text-muted-foreground"
+              : "text-amber-700 dark:text-amber-300",
           )}
         >
           {expired ? `Venció ${relative}` : `Vence ${relative}`}
@@ -139,7 +142,11 @@ export function DiscountCodeAudience({
   const [first, ...rest] = discountCode.assignedUsers;
   if (!first) {
     // Every assigned account was deleted; the code stays reserved, for no one.
-    return <span className="text-sm text-amber-700">Nadie (sin usuarios)</span>;
+    return (
+      <span className="text-sm text-amber-700 dark:text-amber-300">
+        Nadie (sin usuarios)
+      </span>
+    );
   }
 
   return (
