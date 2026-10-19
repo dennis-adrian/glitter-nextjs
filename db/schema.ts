@@ -5060,6 +5060,16 @@ export const mapTemplatesRelations = relations(mapTemplates, ({ one }) => ({
   }),
 }));
 
+/**
+ * Who may redeem a discount code. Stored rather than inferred from whether
+ * `discount_code_users` has rows: deleting the last assigned account must
+ * leave the code usable by nobody, not turn it into a public one.
+ */
+export const discountCodeAudienceEnum = pgEnum("discount_code_audience", [
+  "everyone",
+  "selected_users",
+]);
+
 export const discountCodes = pgTable("discount_codes", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),
@@ -5072,9 +5082,7 @@ export const discountCodes = pgTable("discount_codes", {
   festivalId: integer("festival_id").references(() => festivals.id, {
     onDelete: "set null",
   }),
-  userId: integer("user_id").references(() => users.id, {
-    onDelete: "set null",
-  }),
+  audience: discountCodeAudienceEnum("audience").default("everyone").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -5087,11 +5095,43 @@ export const discountCodesRelations = relations(
       fields: [discountCodes.festivalId],
       references: [festivals.id],
     }),
+    users: many(discountCodeUsers),
+    invoices: many(invoices),
+  }),
+);
+
+/** The accounts a `selected_users` discount code is reserved for. */
+export const discountCodeUsers = pgTable(
+  "discount_code_users",
+  {
+    id: serial("id").primaryKey(),
+    discountCodeId: integer("discount_code_id")
+      .notNull()
+      .references(() => discountCodes.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("discount_code_users_code_user_unique").on(
+      t.discountCodeId,
+      t.userId,
+    ),
+    index("discount_code_users_user_idx").on(t.userId),
+  ],
+);
+export const discountCodeUsersRelations = relations(
+  discountCodeUsers,
+  ({ one }) => ({
+    discountCode: one(discountCodes, {
+      fields: [discountCodeUsers.discountCodeId],
+      references: [discountCodes.id],
+    }),
     user: one(users, {
-      fields: [discountCodes.userId],
+      fields: [discountCodeUsers.userId],
       references: [users.id],
     }),
-    invoices: many(invoices),
   }),
 );
 

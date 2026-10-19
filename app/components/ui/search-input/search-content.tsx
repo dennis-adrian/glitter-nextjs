@@ -17,6 +17,8 @@ type Props = {
   onSelect: (e: SyntheticEvent<HTMLButtonElement>) => void;
   isLoading?: boolean;
   searchTerm?: string;
+  /** Shorter terms are not searched, so they get a hint, not "no results". */
+  minSearchLength?: number;
   defaultOptions?: SearchOption[];
   contentMaxHeightClassName?: string;
   contentStyle?: CSSProperties;
@@ -30,6 +32,7 @@ const SearchInputContent = ({
   isLoading,
   defaultOptions,
   searchTerm,
+  minSearchLength = 0,
   contentMaxHeightClassName,
   contentStyle,
   headerActions,
@@ -54,6 +57,18 @@ const SearchInputContent = ({
       />
     )) ?? [];
 
+  const trimmedTerm = searchTerm?.trim() ?? "";
+  const termTooShort =
+    trimmedTerm.length > 0 && trimmedTerm.length < minSearchLength;
+  // Nothing typed, nothing suggested and nothing to act on: an open panel
+  // would be a box with a heading over an empty list.
+  const isEmpty =
+    !isLoading &&
+    !trimmedTerm &&
+    searchItems.length === 0 &&
+    defaultItems.length === 0 &&
+    !headerActions;
+
   if (isLoading) {
     content = (
       <div className="flex items-center gap-2">
@@ -77,6 +92,12 @@ const SearchInputContent = ({
         <ul>{defaultItems}</ul>
       </>
     );
+  } else if (termTooShort) {
+    content = (
+      <p className="text-sm text-muted-foreground">
+        Escribí al menos {minSearchLength} caracteres para buscar.
+      </p>
+    );
   } else if (searchTerm && searchItems.length === 0) {
     content = (
       <p className="text-sm text-muted-foreground">
@@ -97,12 +118,18 @@ const SearchInputContent = ({
 
   return (
     <div
+      data-search-results
       className={cn(
-        "absolute top-0 left-0 w-full mt-3 rounded-lg shadow-md bg-card border p-4 min-h-32",
+        // Stacked like the app's popovers. Without a z-index of its own the
+        // panel sat in page order, so positioned content after it — avatars,
+        // whose images are absolutely placed — painted through it.
+        "absolute top-0 left-0 z-50 w-full mt-3 rounded-lg shadow-md bg-card border p-4",
+        // A one-line hint does not need room for a list.
+        !termTooShort && "min-h-32",
         (contentMaxHeightClassName || contentStyle?.maxHeight) &&
           "overflow-y-auto",
         contentMaxHeightClassName,
-        show ? "block" : "hidden",
+        show && !isEmpty ? "block" : "hidden",
       )}
       style={contentStyle}
     >
