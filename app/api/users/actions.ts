@@ -3,6 +3,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
+import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import {
   creditLedgerEntries,
@@ -151,16 +152,7 @@ function isPermanentDeletionBlocker(error: unknown): boolean {
   }
 
   // Postgres foreign_key_violation
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23503"
-  ) {
-    return true;
-  }
-
-  return false;
+  return hasPgErrorCode(error, "23503");
 }
 
 function toPendingDeletionError(error: unknown): string {

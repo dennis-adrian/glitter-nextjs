@@ -3,6 +3,7 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
+import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import {
   creditLedgerEntries,
@@ -74,15 +75,6 @@ async function hasLedgerReferencedFeatureAction(festivalId: number) {
     .limit(1);
 
   return Boolean(featureAction);
-}
-
-function isForeignKeyViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23503"
-  );
 }
 
 async function archiveLedgerReferencedFestival(festivalId: number) {
@@ -296,7 +288,8 @@ export async function deleteFestival(festivalId: number) {
       await tx.delete(festivals).where(eq(festivals.id, festivalId));
     });
   } catch (error) {
-    if (isForeignKeyViolation(error)) {
+    // Postgres foreign_key_violation
+    if (hasPgErrorCode(error, "23503")) {
       try {
         // A ledger entry may have posted after the initial lookup. The
         // RESTRICT FK is the final arbiter, so turn that expected race into
