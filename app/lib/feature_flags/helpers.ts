@@ -1,6 +1,8 @@
 import "server-only";
 
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { fetchFeatureFlagRule } from "@/app/lib/feature_flags/data";
 import {
@@ -35,6 +37,38 @@ export async function isFeatureEnabled(
 
   return isFeatureVisible(rule, profile);
 }
+
+/**
+ * `isFeatureEnabled` for the root layout's navbar and footer, which render
+ * inside every route — the `force-static` program pages included.
+ *
+ * A static render has no request behind it: `headers()` comes back empty, Clerk
+ * cannot see the header `clerkMiddleware` set, and the implicit lookup logs an
+ * error on every flag. The page is the same HTML for every visitor anyway, so
+ * there the flag is evaluated for a signed-out visitor, which is what the
+ * failed lookup fell back to. Everywhere else the result is identical to
+ * `isFeatureEnabled`.
+ */
+export async function isLayoutFeatureEnabled(
+  key: FeatureFlagKey,
+): Promise<boolean> {
+  const [rule, viewer] = await Promise.all([
+    fetchFeatureFlagRule(key),
+    resolveLayoutFlagViewer(),
+  ]);
+
+  return isFeatureVisible(rule, viewer);
+}
+
+/** Cached per request, so the navbar and footer resolve the viewer once. */
+const resolveLayoutFlagViewer = cache(async (): Promise<FeatureFlagViewer> => {
+  // Every real request carries headers (`host`, at least). Only a
+  // `force-static` render is handed an empty set.
+  const isStaticRender = (await headers()).keys().next().done;
+  if (isStaticRender) return null;
+
+  return getCurrentUserProfile();
+});
 
 /**
  * Whether the feature has launched for ordinary participants — independent of
