@@ -182,6 +182,18 @@ const SearchInput = ({
             // term; typing has to reopen it.
             setIsFocused(true);
           }}
+          onKeyDown={(e) => {
+            // Inside a form, Enter in a text box submits it: a coupon was
+            // saved with half its people, a reservation edit or an
+            // infraction sent before the admin finished. The box is never a
+            // field of its own, so Enter does nothing here. It does not pick
+            // a result either: those trail the typing by a debounce and a
+            // round trip, so the top one may answer the previous term.
+            // Composition (IME) Enter is left alone; it commits text.
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+            }
+          }}
           onFocus={() => setIsFocused(true)}
           onBlur={handleInputBlur}
         />

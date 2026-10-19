@@ -119,6 +119,32 @@ describe("SearchInput", () => {
     ).toBeTruthy();
   });
 
+  it("does not submit the form it sits in when Enter is pressed", () => {
+    const onSubmit = vi.fn((event: { preventDefault: () => void }) =>
+      event.preventDefault(),
+    );
+    render(
+      <form onSubmit={onSubmit}>
+        <SearchInput id="s" options={people} onSelect={vi.fn()} />
+        <button type="submit">Guardar</button>
+      </form>,
+    );
+    const input = screen.getByRole("searchbox");
+
+    // fireEvent returns false once a handler has prevented the default.
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(input, { key: "a" })).toBe(true);
+    // Mid-composition Enter commits IME text and must stay untouched.
+    expect(fireEvent.keyDown(input, { key: "Enter", isComposing: true })).toBe(
+      true,
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // The form's own button still submits it.
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   it("asks for a longer term instead of reporting no results", async () => {
     const onSearch = vi.fn();
     render(
