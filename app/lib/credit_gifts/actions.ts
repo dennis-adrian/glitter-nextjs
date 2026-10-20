@@ -191,21 +191,23 @@ export async function revokeCreditGiftAction(
         "No quedaba nadie con este regalo para retirar. Actualizá la página.",
     };
   }
+  // Each clause in lower case; only the sentence's first letter is raised,
+  // whichever clause ends up first.
   const parts: string[] = [];
   if (result.revoked > 0) {
     parts.push(
       result.revoked === 1
-        ? "Retiramos el regalo a 1 persona"
-        : `Retiramos el regalo a ${result.revoked} personas`,
+        ? "retiramos el regalo a 1 persona"
+        : `retiramos el regalo a ${result.revoked} personas`,
     );
   }
   if (result.cancelled > 0) {
-    // Said on its own when nobody had it yet: "Retiramos el regalo a 0
+    // Said on its own when nobody had it yet: "retiramos el regalo a 0
     // personas" would read as if nothing happened.
     parts.push(
       result.cancelled === 1
-        ? "Dejamos de enviarlo a 1 persona que todavía no lo había recibido"
-        : `Dejamos de enviarlo a ${result.cancelled} personas que todavía no lo habían recibido`,
+        ? "dejamos de enviarlo a 1 persona que todavía no lo había recibido"
+        : `dejamos de enviarlo a ${result.cancelled} personas que todavía no lo habían recibido`,
     );
   }
   if (result.negative > 0) {
@@ -222,14 +224,18 @@ export async function revokeCreditGiftAction(
         : `${result.failed} no se pudieron retirar, intentá de nuevo`,
     );
   }
-  return { success: result.failed === 0, message: `${parts.join("; ")}.` };
+  const sentence = `${parts.join("; ")}.`;
+  return {
+    success: result.failed === 0,
+    message: sentence.charAt(0).toUpperCase() + sentence.slice(1),
+  };
 }
 
 const RESEND_FAILURE_MESSAGES = {
   NOT_GRANTED: "Solo se puede reenviar a quien todavía tiene el regalo.",
   NO_EMAIL: "Esta persona no tiene un correo registrado.",
   EMAIL_PENDING:
-    "El primer correo todavía se está enviando. Esperá a que salga antes de reenviarlo.",
+    "El último correo todavía se está enviando. Esperá a que salga antes de reenviarlo.",
   SUPPRESSED:
     "Este correo está bloqueado porque rebotó o lo marcaron como spam. Desbloquealo en Correos bloqueados y volvé a intentarlo.",
 } as const;

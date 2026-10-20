@@ -40,6 +40,8 @@ async function fetchInboxPreview(view: View): Promise<InboxPage | null> {
 }
 
 type NotificationPopoverContentProps = {
+  /** The bell's own count, shown until this list has answered. */
+  knownCount: number | null;
   onCountChange: (count: number) => void;
   onNavigate: () => void;
 };
@@ -49,6 +51,7 @@ type NotificationPopoverContentProps = {
  * what the badge promised.
  */
 export default function NotificationPopoverContent({
+  knownCount,
   onCountChange,
   onNavigate,
 }: NotificationPopoverContentProps) {
@@ -114,9 +117,10 @@ export default function NotificationPopoverContent({
     onNavigate();
   }
 
-  // While a view loads, the last answer's count stands in rather than
-  // flashing "0 sin leer"; "Marcar todo" waits for the list itself.
-  const unreadCount = page?.unreadCount ?? result?.page?.unreadCount ?? 0;
+  // While a view loads, the bell's count stands in rather than "0 sin leer";
+  // it is also what an undo or another tab refreshes first. "Marcar todo"
+  // waits for the list itself.
+  const unreadCount = page?.unreadCount ?? knownCount ?? 0;
 
   return (
     <div className="flex max-h-[min(560px,80vh)] flex-col">

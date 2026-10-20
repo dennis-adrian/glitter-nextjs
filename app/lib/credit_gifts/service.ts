@@ -47,6 +47,8 @@ type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Attempts before a recipient that keeps erroring is marked failed. */
 const MAX_RECIPIENT_ATTEMPTS = 3;
+/** How long a "Retirar a todos" has to finish before a worker closes for it. */
+const WITHDRAW_GRACE_MS = 10 * 60_000;
 const DEFAULT_PROCESS_BUDGET_MS = 30_000;
 
 export type CreateCreditGiftFailure =
@@ -520,11 +522,36 @@ async function recordRecipientFailure(recipientId: number, error: unknown) {
  */
 async function completeGiftIfDone(
   gift: GiftForProcessing,
-  /** Set when a "Retirar a todos" is what left nobody pending. */
-  { withdrawn = false }: { withdrawn?: boolean } = {},
+  /** Set by "Retirar a todos" itself, once its revocations are done. */
+  { byRevokeAll = false }: { byRevokeAll?: boolean } = {},
 ) {
   const counts = await recipientCounts(gift.id);
   if (counts.pending > 0) return { completed: false, deliveryIds: [] };
+
+  // A "Retirar a todos" leaves its mark on the people it cancelled. While it
+  // is recent, the revoke is probably still taking the gift back from the
+  // others, and closing now would report counts from before that. The revoke
+  // closes the gift itself when it finishes; past the grace period (it died
+  // halfway), whoever comes next closes it as withdrawn.
+  const [withdrawal] = await db
+    .select({
+      cancelled: sql<number>`count(*)::int`,
+      recent: sql<boolean>`coalesce(bool_or(${notificationCampaignRecipients.processedAt} > now() - make_interval(secs => ${WITHDRAW_GRACE_MS / 1000})), false)`,
+    })
+    .from(notificationCampaignRecipients)
+    .where(
+      and(
+        eq(notificationCampaignRecipients.campaignId, gift.id),
+        eq(
+          notificationCampaignRecipients.skippedReason,
+          CREDIT_GIFT_SKIP_REASONS.cancelled,
+        ),
+      ),
+    );
+  if (!byRevokeAll && withdrawal?.recent) {
+    return { completed: false, deliveryIds: [] };
+  }
+  const withdrawn = byRevokeAll || Number(withdrawal?.cancelled ?? 0) > 0;
 
   return db.transaction(async (tx) => {
     const [closed] = await tx
@@ -750,7 +777,8 @@ export async function revokeCreditGift(input: {
     }
   }
   // Cancelling the last pending people can be what finishes the gift.
-  if (cancelled > 0) await completeGiftIfDone(gift, { withdrawn: true });
+  // Closed here, after the revocations, so the sender's summary counts them.
+  if (!input.userIds) await completeGiftIfDone(gift, { byRevokeAll: true });
   return result;
 }
 
@@ -950,7 +978,7 @@ export async function resendCreditGiftNotification(input: {
       return { ok: false, code: "EMAIL_PENDING" } as const;
     }
     // A bounced or reported address gets nothing, so "reenviado" would lie.
-    if (await isSuppressed(email)) {
+    if (await isSuppressed(email, tx)) {
       return { ok: false, code: "SUPPRESSED" } as const;
     }
 

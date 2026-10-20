@@ -72,12 +72,18 @@ export default function NotificationInbox({
   // Bumped by every local change, so an answer requested before one of them
   // cannot overwrite it.
   const changes = useRef(0);
-  // The items as last rendered, for handlers that run after an await and
-  // must compare with what is on screen now, not what was there at the click.
+  // The list as it is now, for handlers that run after an await and must
+  // compare with the latest list, not the one their closure saw. Every change
+  // goes through `updateItems`, which keeps the ref and the state in step.
   const itemsRef = useRef(items);
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
+
+  function updateItems(
+    change: (current: InboxNotification[]) => InboxNotification[],
+  ) {
+    const next = change(itemsRef.current);
+    itemsRef.current = next;
+    setItems(next);
+  }
 
   // The router can hand back this page's payload from its cache, on "back"
   // after opening an item for example, so the first page is asked for again
@@ -87,7 +93,7 @@ export default function NotificationInbox({
     const changesAtRequest = changes.current;
     void fetchInboxFirstPage(filter).then((page) => {
       if (!current || !page || changes.current !== changesAtRequest) return;
-      setItems(page.items);
+      updateItems(() => page.items);
       setUnreadCount(page.unreadCount);
       setCursor(page.nextCursor);
     });
@@ -109,7 +115,7 @@ export default function NotificationInbox({
       changes.current += 1;
       const read = new Set(ids);
       const now = new Date().toISOString();
-      setItems((current) =>
+      updateItems((current) =>
         current.map((item) =>
           read.has(item.id) ? { ...item, readAt: now } : item,
         ),
@@ -119,7 +125,7 @@ export default function NotificationInbox({
     onUndo: (ids) => {
       changes.current += 1;
       const restored = new Set(ids);
-      setItems((current) =>
+      updateItems((current) =>
         current.map((item) =>
           restored.has(item.id) ? { ...item, readAt: null } : item,
         ),
@@ -139,12 +145,9 @@ export default function NotificationInbox({
         Math.max(0, count + (next.readAt == null ? 1 : -1)),
       );
     }
-    const updated = itemsRef.current.map((item) =>
-      item.id === next.id ? next : item,
+    updateItems((current) =>
+      current.map((item) => (item.id === next.id ? next : item)),
     );
-    // Kept current before the next render, for a rollback in the same tick.
-    itemsRef.current = updated;
-    setItems(updated);
   }
 
   function loadMore() {
@@ -160,7 +163,7 @@ export default function NotificationInbox({
         });
         if (!response.ok) throw new Error("notifications_failed");
         const page = (await response.json()) as InboxPage;
-        setItems((current) => [
+        updateItems((current) => [
           ...current,
           ...page.items.filter(
             (item) => !current.some((existing) => existing.id === item.id),
@@ -226,7 +229,7 @@ export default function NotificationInbox({
                         onChange={replace}
                         onArchive={(archived) => {
                           changes.current += 1;
-                          setItems((current) =>
+                          updateItems((current) =>
                             current.filter((row) => row.id !== archived.id),
                           );
                           if (archived.readAt == null) {
@@ -235,7 +238,7 @@ export default function NotificationInbox({
                         }}
                         onRestore={(restored) => {
                           changes.current += 1;
-                          setItems((current) =>
+                          updateItems((current) =>
                             current.some((row) => row.id === restored.id)
                               ? current
                               : [...current, restored].sort(

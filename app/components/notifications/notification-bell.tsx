@@ -79,6 +79,7 @@ export default function NotificationBell() {
       >
         {open && (
           <NotificationPopoverContent
+            knownCount={count}
             onCountChange={setCount}
             onNavigate={() => setOpen(false)}
           />

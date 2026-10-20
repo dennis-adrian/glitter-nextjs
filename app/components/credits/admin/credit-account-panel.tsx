@@ -158,14 +158,21 @@ export default async function CreditAccountPanel({
                         cancelled invoice — is not offered either; see
                         `canRevertCreditEntry`. */}
                     {canAdjust && entry.creditGiftId != null ? (
-                      <Link
-                        href={`/dashboard/credits/gifts/${entry.creditGiftId}`}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        {entry.gift && !entry.isReverted
-                          ? "Retirar desde el regalo"
-                          : "Ver el regalo"}
-                      </Link>
+                      <>
+                        {entry.isReverted && (
+                          <span className="text-xs text-muted-foreground">
+                            Revertido
+                          </span>
+                        )}
+                        <Link
+                          href={`/dashboard/credits/gifts/${entry.creditGiftId}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {entry.gift && !entry.isReverted
+                            ? "Retirar desde el regalo"
+                            : "Ver el regalo"}
+                        </Link>
+                      </>
                     ) : (
                       canAdjust &&
                       (entry.type === "admin_grant" ||

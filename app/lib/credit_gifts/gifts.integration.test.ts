@@ -811,6 +811,43 @@ describeDatabase("credit gifts", () => {
     );
   });
 
+  it("lets a running revoke-all close the gift, not a worker that finishes first", async () => {
+    const admin = await createUser({ role: "admin" });
+    const [kept, cancelled] = await Promise.all([createUser(), createUser()]);
+    const created = await gifts.createCreditGift(
+      giftInput([kept.id, cancelled.id]),
+      { id: admin.id },
+    );
+    if (!created.ok) throw new Error("gift not created");
+    // The state a revoke-all leaves mid-loop: one person cancelled a moment
+    // ago, one credited and not yet taken back.
+    await integrationDb!
+      .update(notificationCampaignRecipients)
+      .set({
+        status: "skipped",
+        skippedReason: "Regalo retirado antes de acreditarse",
+        processedAt: new Date(),
+      })
+      .where(eq(notificationCampaignRecipients.userId, cancelled.id));
+
+    const worker = await gifts.processCreditGift(created.campaignId);
+    expect(worker).toMatchObject({ granted: 1, completed: false });
+    expect(await notificationsFor(admin.id)).toHaveLength(0);
+
+    // Past the grace period the revoke is taken to have died, and the next
+    // worker closes the gift as withdrawn.
+    await integrationDb!
+      .update(notificationCampaignRecipients)
+      .set({ processedAt: new Date(Date.now() - 11 * 60_000) })
+      .where(eq(notificationCampaignRecipients.userId, cancelled.id));
+    const later = await gifts.processCreditGift(created.campaignId);
+    expect(later.completed).toBe(true);
+    const [summary] = await notificationsFor(admin.id);
+    expect(summary!.title).toBe(
+      "Regalo retirado: «Un regalo para agradecerte»",
+    );
+  });
+
   it("never sends a gift email whose gift was revoked while it was in flight", async () => {
     const admin = await createUser({ role: "admin" });
     const ana = await createUser();

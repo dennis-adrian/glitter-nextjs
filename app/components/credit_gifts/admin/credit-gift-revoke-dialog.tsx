@@ -89,9 +89,16 @@ export default function CreditGiftRevokeDialog({
               ? `¿Retirar el regalo a ${single.name}?`
               : targets.length > 0
                 ? `¿Retirar el regalo a ${targets.length} personas?`
-                : "¿Dejar de enviar el regalo?"}
+                : cancelling > 0
+                  ? "¿Dejar de enviar el regalo?"
+                  : "No queda nada por retirar"}
           </AlertDialogTitle>
           <AlertDialogDescription>
+            {/* The list follows the page as it refreshes, so it can empty
+                while the dialog is open. */}
+            {targets.length === 0 &&
+              cancelling === 0 &&
+              "Nadie tiene este regalo y no queda nadie por recibirlo."}
             {targets.length > 0 &&
               `Se descuentan ${formatCreditCount(amountPerRecipient)} a ${single ? "esta persona" : "cada una"} y ${single ? "recibe" : "reciben"} un aviso neutral en la app y por correo. El movimiento queda en el historial.`}
             {cancelling > 0 &&

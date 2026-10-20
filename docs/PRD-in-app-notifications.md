@@ -89,8 +89,8 @@ Lives under **Créditos → Regalos** (`/dashboard/credits/gifts`), next to the 
 
 Confirming saves the gift, its details and one row per recipient (pending or skipped) in one transaction, then returns. A worker started with `after()` processes the pending recipients, one transaction each:
 
-1. lock the recipient row (`FOR UPDATE SKIP LOCKED`, so two workers split the work instead of waiting);
-2. lock the user and credit account in the canonical order and re-check eligibility;
+1. pick the next pending recipient, then lock the user and credit account, then the recipient row (`SKIP LOCKED`; a worker that loses the race moves on). This is the order profile deletion takes them in, so the two cannot deadlock;
+2. re-check that the recipient is still pending and eligible;
 3. post the grant with ledger key `credit-gift:{giftId}:{userId}`;
 4. `notify()` the participant: an inbox row and an email delivery row;
 5. mark the recipient granted, linking the ledger entry and the notification.
@@ -101,8 +101,9 @@ A crash resumes where it stopped (the notifications cron picks up pending recipi
 
 `/dashboard/credits/gifts/[giftId]`: the message as sent, the internal note, who sent it and when, counts (recipients, granted, omitted, failed, read in the app, emails sent), and a row per recipient with their state, email state, read state, current balance and revocation.
 
-- **Reenviar notificación** re-delivers the email for one recipient. It never grants again.
-- **Revocar** posts a linked reversal of that recipient's grant, or of every remaining grant. The dialog counts how many balances would go negative. A revoked recipient gets a neutral inbox item and email ("Ajustamos tu saldo de créditos"), never a celebration, and an unshown celebration banner for that gift is cancelled.
+- **Reenviar aviso** re-delivers the email for one recipient, to the address on file now. It never grants again. It is disabled, with the reason shown, while the last email is still on its way or while the address is on the bounce/spam list.
+- **Retirar** posts a linked reversal of that recipient's grant. **Retirar a todos** does it for everyone holding the gift and also stops it for whoever the worker has not credited yet. The dialog counts how many balances would go negative. A revoked recipient gets a neutral inbox item and email ("Ajustamos tu saldo de créditos"), never a celebration: the unshown banner and any queued "Recibiste…" email are cancelled, and a gift email is checked against its gift right before it is sent.
+- A gift's ledger entries are undone only from the gift page. The account and movements screens show "Retirar desde el regalo" instead of "Revertir", and the server refuses a revert of a gift entry from there.
 
 ### "Asignar créditos" dialog
 
