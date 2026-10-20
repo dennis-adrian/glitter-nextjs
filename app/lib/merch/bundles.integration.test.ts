@@ -56,6 +56,17 @@ vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: async () => session.profile,
   getCurrentBaseProfile: async () => session.profile,
 }));
+// The storefront closes itself while any festival is in progress
+// (app/lib/store_settings/closure.ts), and `test:integration` runs this file in
+// parallel with suites that create active festivals in the same database. Seen
+// through the real query, one of their festivals closes the store mid-test and
+// every cart action here refuses. Nothing in this file is about that
+// auto-close, so there is never an active festival here; the sections' own
+// store_settings still apply.
+vi.mock("@/app/lib/festivals/helpers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/lib/festivals/helpers")>()),
+  getActiveFestivalBase: async () => null,
+}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -410,7 +421,10 @@ describeDatabase("bundle checkout", () => {
     ({ fetchMerchCollections } = await import("@/app/lib/merch/collections"));
     cartActions = await import("@/app/lib/cart/actions");
     ({ deleteProduct } = await import("@/app/lib/products/actions"));
-  });
+    // Importing most of the store's server modules cold can outlast the
+    // default 15s hook timeout on a loaded machine; the other suites that load
+    // production modules here give it a minute too.
+  }, 60_000);
 
   afterEach(async () => {
     session.profile = null;
