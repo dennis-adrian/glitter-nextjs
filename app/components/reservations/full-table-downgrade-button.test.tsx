@@ -20,13 +20,14 @@ import { toast } from "sonner";
 
 const action = vi.mocked(downgradeFullTableReservationAction);
 
-function renderButton(disabledReason?: string) {
+function renderButton(disabledReason?: string, tablePriced?: boolean) {
   return render(
     <FullTableDowngradeButton
       reservationId={42}
       keptStandLabel="A1"
       releasedStandLabel="A2"
       disabledReason={disabledReason}
+      tablePriced={tablePriced}
     />,
   );
 }
@@ -72,8 +73,8 @@ describe("FullTableDowngradeButton", () => {
 
   /**
    * The three things an admin most needs to know are exactly the three this
-   * command decides differently from a refund: the invoice moves, the payments
-   * do not, and the access fee is gone.
+   * command decides differently from a refund: the invoice moves, it only
+   * runs with no money on the cobro, and the access fee is gone.
    */
   it("states what changes and what deliberately does not", () => {
     renderButton();
@@ -83,6 +84,36 @@ describe("FullTableDowngradeButton", () => {
     expect(text).toContain("vuelve a estar disponible");
     expect(text).toContain("un solo espacio");
     expect(text).toContain("no se devuelven");
+  });
+
+  /**
+   * The old copy said payments "quedan como están", which is only ever true
+   * when there are none: the service refuses a cobro with real money on it.
+   */
+  it("promises nothing about payments it would refuse", () => {
+    renderButton();
+    openDialog();
+
+    const text = screen.getByRole("alertdialog").textContent ?? "";
+    expect(text).not.toContain("Los pagos");
+    expect(text).toContain(
+      "manteniendo el descuento que ya tenía. Solo se puede reducir mientras el cobro no tenga pagos aprobados, comprobantes o solicitudes en revisión ni créditos aplicados. Los participantes quedan como están.",
+    );
+  });
+
+  /**
+   * A full table from before table pricing is never refused for money, so the
+   * rule is not stated there: the page would let it downgrade with payments.
+   */
+  it("states no money rule for a table priced before full-table pricing", () => {
+    renderButton(undefined, false);
+    openDialog();
+
+    const text = screen.getByRole("alertdialog").textContent ?? "";
+    expect(text).not.toContain("Solo se puede reducir");
+    expect(text).toContain(
+      "manteniendo el descuento que ya tenía. Los participantes quedan como están.",
+    );
   });
 
   it("sends the reservation and a fresh idempotency key on confirm", async () => {
@@ -129,6 +160,30 @@ describe("FullTableDowngradeButton", () => {
     expect(trigger.hasAttribute("disabled")).toBe(true);
     expect(
       screen.getByText("Solo un administrador general puede reducirla."),
+    ).toBeTruthy();
+
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Real money on the cobro makes the service refuse. The page passes that
+   * reason, and the admin reads it before confirming instead of in a refusal
+   * toast after.
+   */
+  it("stays visible but inert with the money reason the page passes", () => {
+    renderButton("No se puede reducir: el cobro tiene un pago aprobado.");
+
+    const trigger = screen.getByRole("button", {
+      name: "Reducir a media mesa",
+    });
+    expect(trigger.hasAttribute("disabled")).toBe(true);
+    expect(trigger.getAttribute("title")).toBe(
+      "No se puede reducir: el cobro tiene un pago aprobado.",
+    );
+    expect(
+      screen.getByText("No se puede reducir: el cobro tiene un pago aprobado."),
     ).toBeTruthy();
 
     fireEvent.click(trigger);

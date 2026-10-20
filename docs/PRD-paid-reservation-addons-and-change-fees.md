@@ -6,7 +6,7 @@
 
 **Status:** Phases 0–5 delivered. Phase 6 (rollout) is what remains; see §16 for per-phase status and open items.
 
-**Last updated:** 2026-09-04
+**Last updated:** 2026-09-30
 
 **Depends on:** [PLAN-stand-reservation-hardening.md](./PLAN-stand-reservation-hardening.md)
 
@@ -157,7 +157,7 @@ There are no automatic downgrades, partner removals, reservation cancellations, 
 - The participant explicitly chooses `Usar mis créditos`. The option appears only when they hold a usable balance; the payment screen never offers to sell them one.
 - MVP applies `min(spendable balance, invoice outstanding amount)`.
 - The allocation transaction locks and rechecks the account, refuses a negative balance, debits the spendable balance, and records the exact invoice allocation.
-- Outstanding amount is derived canonically as `invoice amount - approved cash payments - posted credit allocations`.
+- Outstanding amount is derived canonically as `invoice amount - (approved cash payments + posted credit allocations - repricing refunds)`. The last term is what an admin stand change or full-table upgrade already handed back from that tender as credits (tagged grants less release offsets), netted once against the reservation's live invoice by the shared tender reader; see [PRD-admin-stand-management §4.6](PRD-admin-stand-management.md). Without it a reservation moved to a cheaper stand and back would owe the refunded difference while its invoice showed nothing outstanding.
 - A partial allocation reduces the outstanding amount; normal voucher payment remains available for the remainder. Admin approval of that voucher fulfills the invoice only when the full canonical amount is covered.
 - A full credit allocation of a positive-value invoice marks it credit-paid and immediately runs its normal fulfillment effect.
 - A genuine zero-value invoice created by a discount/free entitlement still follows the hardening plan's `zero_value_entitlement` admin-review flow. Credits do not bypass it.
@@ -324,14 +324,17 @@ The original invoice/payment remains immutable. Create a new credit-paid reserva
 
 ```text
 shared price difference = shared price snapshot - individual price snapshot
+                          (0 when the reservation is a full table)
 amount due = shared price difference + late-partner feature price snapshot
 ```
 
+- **A full table pays the fee only** (Dennis, 2026-09-29). When the reservation has a `full_table_price_snapshot`, the shared price difference is `0` and the amount due is the late-partner feature price alone: a table is priced as its own product whatever its headcount (§7.1), so a second person costs nothing more. The halves keep their individual/shared snapshots, so this is decided on the table snapshot, never inferred from the half prices. A full table needs no shared snapshot to be priced.
 - Both components are charged in credits in one atomic action.
 - Original discounts apply only to the original invoice.
 - No discount is copied to either adjustment component.
 - The adjustment is owner-paid and visible to the added partner under the existing `owner pays, partner sees` policy.
-- Store both components separately for audit/reporting even if one credit spend covers the total.
+- Store both components separately for audit/reporting even if one credit spend covers the total. A full table's `shared_price_difference` item is still written, at `0`, so every late-partner action keeps the same two items.
+- **A paid difference counts as paid when the reservation is repriced** (Dennis, 2026-09-29). The `shared_price_difference` item of a fulfilled late-partner action whose spend has not been reversed is money paid toward the stand. Every admin command that reprices the reservation — stand switch/exchange, full-table upgrade and downgrade, admin partner edit — nets it out of the new cobro instead of billing it again. The stand switch/exchange and the full-table upgrade can also refund it as credits when the new price is below it; the refund records that part as the late partner's, so from then on only what was not handed back counts as paid. The downgrade and the admin partner edit only net it into the price and never move money. The feature fee never counts: it paid for adding someone late and stays spent. The arithmetic lives in [PRD-admin-stand-management §4.6](PRD-admin-stand-management.md). A full-table late partner prepaid nothing, so a later downgrade bills the two-person half in full, once.
 
 ---
 
@@ -363,7 +366,7 @@ stand_groups
 
 **A full table is a priced product, not the sum of its halves.** `full_table_price` replaces both halves' individual/shared prices on the reservation invoice — the aggregate occupies two stands and is billed once, for the table. Only a half-table booking falls through to §6.1's participant-count rule. This is separate from, and additional to, the credit access fee in §7.3: the fee buys permission to try, the table price is what the reservation costs. Turning a group back into a `visual_group` clears the price.
 
-Two consequences worth stating: a two-person full table is billed the table price, not the shared price; and an admin downgrade (§7.7) has to reprice the invoice down to a single half, because the reservation is no longer the product it was billed for.
+Three consequences worth stating: a two-person full table is billed the table price, not the shared price; a late partner added to a full table pays the late-partner fee alone, with no shared price difference (§6.2); and an admin downgrade (§7.7) has to reprice the invoice down to a single half, because the reservation is no longer the product it was billed for.
 
 Exactly-two membership is a cross-row invariant enforced by the canonical admin service and checked by the reservation health report. Each stand can belong to only one group through its existing `stand_group_id`, so resolving either half's companion is unambiguous.
 
@@ -484,8 +487,8 @@ If the voucher that funded consumed full-table credits is later rejected:
 
 The downgrade also reprices, because the reservation was billed for a table it no longer is (§7.1):
 
-- The invoice drops to the price of what remains — the shared price when the reservation was booked for two, otherwise the individual price — and keeps honouring any discount already agreed, clamped to the new total so `amount = original_amount - discount_amount` still holds.
-- It refuses outright when the invoice already has a payment row or a posted credit allocation. Money against the table's price would have to be refunded or re-applied, and that decision is not this command's to make.
+- The invoice drops to the price of what remains, priced by the shared repricing model ([PRD-admin-stand-management §4.6, §7.7](PRD-admin-stand-management.md)): `max(0, half price − late-partner prepaid difference)`, where the half price is the shared price when the reservation was booked for two, otherwise the individual price, and the prepaid difference is what a late partner already paid in credits (§6.2). It keeps honouring any discount already agreed, clamped to the new total, and carries any amount an admin wrote off with "Confirmar con saldo pendiente".
+- It refuses only on real money against a table-priced cobro: a comprobante or zero-value request in review, unreversed credit allocations, approved cash, or a legacy payment row no submission vouches for. Money against the table's price would have to be refunded or re-applied, and that decision is not this command's to make. A rejected comprobante's leftover payment row and credits already handed back do not block, and a full table from before table pricing (no `full_table_price_snapshot`) is never refused for money ([PRD-admin-stand-management §7.4](PRD-admin-stand-management.md)).
 - The released half's membership row is retained with `released_at` stamped, so the reservation's original shape stays queryable.
 - The access fee is not returned. The participant had the permission to try and used it.
 
@@ -531,11 +534,11 @@ The owner must have sufficient spendable credits before starting the partner act
 Once funded:
 
 1. Start the partner flow and select an eligible participant.
-2. Show the shared-price difference and feature price separately.
+2. Show the shared-price difference and feature price separately. On a full table show the fee alone and say why — the table costs the same for one person or two — rather than a zero-credit difference row.
 3. Confirm the total credit debit and owner-payment responsibility.
 4. In one transaction, acquire every applicable lock class in the §14 canonical total order for the owner and selected partner; skip unused classes without reordering the remaining classes.
 5. Revalidate live status, deadline, one-participant state, partner eligibility, price snapshots, and balance.
-6. Debit `shared difference + feature price`.
+6. Debit `shared difference + feature price` (the feature price alone on a full table, §6.2).
 7. Create a credit-paid reservation adjustment with both components.
 8. Insert the partner exactly once and append audit/notification events.
 
@@ -544,6 +547,7 @@ There is no long-lived partner claim and no payment-review waiting state. A race
 ### 8.4 Immutability
 
 - The original individual invoice/payment remains unchanged.
+- An admin reprice afterwards counts the paid shared-price difference as paid toward the stand (§6.2); the fee stays spent.
 - Partner fulfillment is immediate and idempotent.
 - Owner cannot replace or remove the partner through self-service.
 - Neither participant can change the stand, price snapshots, full-table mode, or ownership.
@@ -1097,8 +1101,8 @@ The command refuses anything but `pending` and rechecks that under lock, so a pa
 9. Full confirmation captures feature credits exactly once.
 10. Capacity-hold expiry preserves access; deactivation releases credit hold.
 11. Rejected source credits do not auto-downgrade.
-12. Manual downgrade retains the original half, safely releases the companion, and reprices the invoice to one half while honouring any discount.
-13. Manual downgrade refuses a reservation whose invoice already has a payment or a credit allocation, and leaves both halves attached.
+12. Manual downgrade retains the original half, safely releases the companion, and reprices the invoice to one half, net of a late partner's prepaid difference, while honouring any discount.
+13. Manual downgrade refuses a table-priced reservation with real money on its cobro — approved cash, unreversed credits, a comprobante or request in review, or a legacy payment row — and leaves both halves attached. It is allowed after a rejected comprobante or once the credits were handed back.
 14. An admin can release somebody else's abandoned activation; a non-admin cannot.
 15. The reservation invoice for a confirmed full table is the pair's `full_table_price`, not the sum or either half's price.
 
@@ -1109,11 +1113,13 @@ The command refuses anything but `pending` and rechecks that under lock, so a pa
 3. Feature hidden and direct action rejected at/after deadline.
 4. Top-up started before deadline does not extend it.
 5. Any live one-person illustration reservation is eligible; other categories are not.
-6. Late total equals snapshotted difference plus feature price.
+6. Late total equals snapshotted difference plus feature price; on a full table it equals the feature price alone, and the owner is debited only that.
 7. Original invoice/payment/discount remain unchanged.
 8. Same partner race charges/adds only one winner.
 9. Lost eligibility/deadline race produces no debit or mutation.
 10. Rejected source credits do not remove the added partner.
+11. A full-table late partner writes a `shared_price_difference` item of `0`, leaves the table's cobro untouched, and a later downgrade of the unpaid table bills the shared half once.
+12. A paid half-table difference counts as paid when an admin switches, upgrades, downgrades, or edits the partner (PRD-admin-stand-management §11).
 
 ### Release
 

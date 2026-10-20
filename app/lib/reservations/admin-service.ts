@@ -2,7 +2,6 @@ import "server-only";
 
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
-import { releaseInvoiceCreditAllocationsInTx } from "@/app/lib/credits/service";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
 import { activeReservationStandIds } from "@/app/lib/reservations/members";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
@@ -22,9 +21,16 @@ import {
   enqueueReservationNotification,
   scheduleReservationNotificationJobs,
 } from "@/app/lib/reservations/notification-outbox";
+import { recordedWriteOffAmount } from "@/app/lib/reservations/invoice-write-offs";
+import { latePartnerPrepaidAmount } from "@/app/lib/reservations/late-partner-prepaid";
 import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import { releaseReservationInvoiceCreditsInTx } from "@/app/lib/reservations/repricing-refunds";
 import { roundMoney } from "@/app/lib/reservations/money";
+import {
+  planReservationRepricing,
+  repriceInvoiceAmounts,
+} from "@/app/lib/reservations/repricing";
 import {
   cancelReservationSchema,
   extendDeadlineSchema,
@@ -86,10 +92,27 @@ async function synchronizeReservationParticipantPricing(
     participantCount > 1
       ? reservation.sharedPriceSnapshot
       : reservation.individualPriceSnapshot;
+  // The shared repricing model's gross: the headcount's price less what a late
+  // partner already paid in credits. Without the netting, swapping a late
+  // partner (snapshot at the individual price, two people) repriced the cobro
+  // to the full shared price and billed the difference a second time.
+  // Deliberately only the gross: this edit reprices `pending` cobros and never
+  // reopens, refunds or accepts.
   const nextPriceSnapshot =
     applicablePriceSnapshot == null
       ? reservation.priceAmountSnapshot
-      : roundMoney(applicablePriceSnapshot);
+      : planReservationRepricing({
+          newStandPrice: applicablePriceSnapshot,
+          latePartnerPrepaid: await latePartnerPrepaidAmount(
+            tx,
+            reservation.id,
+          ),
+          priceAmountSnapshot: reservation.priceAmountSnapshot,
+          liveInvoice: null,
+          coveredAmount: 0,
+          reservationStatus: "pending",
+          zeroValueEntitlementApproved: false,
+        }).grossAmount;
   const priceChanged =
     nextPriceSnapshot != null &&
     (reservation.priceAmountSnapshot == null ||
@@ -108,7 +131,13 @@ async function synchronizeReservationParticipantPricing(
   if (!priceChanged) return;
 
   const invoiceRows = await tx
-    .select({ id: invoices.id, discountAmount: invoices.discountAmount })
+    .select({
+      id: invoices.id,
+      originalAmount: invoices.originalAmount,
+      discountAmount: invoices.discountAmount,
+      amount: invoices.amount,
+      recordedWriteOffAmount: recordedWriteOffAmount(),
+    })
     .from(invoices)
     .where(
       and(
@@ -118,16 +147,15 @@ async function synchronizeReservationParticipantPricing(
     );
 
   for (const invoice of invoiceRows) {
-    const discountAmount = Math.min(
-      nextPriceSnapshot,
-      roundMoney(invoice.discountAmount),
-    );
+    // Discount clamped, write-off carried — the same per-cobro rewrite every
+    // other repricing command applies.
+    const repriced = repriceInvoiceAmounts(nextPriceSnapshot, invoice);
     await tx
       .update(invoices)
       .set({
-        originalAmount: nextPriceSnapshot,
-        discountAmount,
-        amount: roundMoney(nextPriceSnapshot - discountAmount),
+        originalAmount: repriced.originalAmount,
+        discountAmount: repriced.discountAmount,
+        amount: repriced.amount,
         updatedAt,
       })
       .where(eq(invoices.id, invoice.id));
@@ -228,13 +256,16 @@ export async function applyReservationCancellation(
   // invoice used to be destroyed: the allocation row stayed, the ledger kept
   // the spend, and nothing could hand them back. This is the one choke point
   // every cancellation reaches, so the refund belongs here rather than in each
-  // caller.
+  // caller. Net of what a repricing already refunded from the same credits:
+  // Bs500 paid in credits, moved to a Bs300 stand (Bs200 back) and cancelled
+  // returns Bs300 here, not Bs500.
   const invoiceIdsToRefund = await tx
     .select({ id: invoices.id })
     .from(invoices)
     .where(eq(invoices.reservationId, input.reservation.id));
   for (const invoice of invoiceIdsToRefund) {
-    const release = await releaseInvoiceCreditAllocationsInTx(tx, {
+    const release = await releaseReservationInvoiceCreditsInTx(tx, {
+      reservationId: input.reservation.id,
       invoiceId: invoice.id,
       idempotencyKey: `reservation-cancel:${input.reservation.id}:${invoice.id}`,
     });
@@ -258,6 +289,12 @@ export async function applyReservationCancellation(
           invoiceId: invoice.id,
           reason: input.reason ?? "reservation_cancelled",
           released: release.released,
+          ...(release.offsets.length > 0
+            ? {
+                refundOffsets: release.offsets,
+                returnedAmount: release.returnedAmount,
+              }
+            : {}),
         },
         idempotencyKey: `reservation-cancel-credits:${input.reservation.id}:${invoice.id}`,
       });

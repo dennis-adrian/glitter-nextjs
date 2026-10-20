@@ -136,6 +136,19 @@ export default function SettleShortfallDialog({
                 </dd>
               </div>
             )}
+            {/* Already handed back by a stand change, so it no longer covers
+                the cobro; without the line the items above add up to more
+                than was settled. */}
+            {tender.refundedAmount > 0 && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">
+                  Devuelto en créditos por un cambio de espacio
+                </dt>
+                <dd className="tabular-nums">
+                  −{formatMoney(tender.refundedAmount)}
+                </dd>
+              </div>
+            )}
             {tender.submittedCashAmount > 0 && (
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">

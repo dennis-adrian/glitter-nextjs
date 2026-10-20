@@ -11,13 +11,12 @@ import {
 import { activeReservationStandIds } from "@/app/lib/reservations/members";
 import { roundMoney } from "@/app/lib/reservations/money";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
+import { invoicesMoneyBlockerInTx } from "@/app/lib/reservations/full-table-downgrade-queries";
 import {
-  coveredAmountForInvoices,
   invoicesHaveProofUnderReview,
-  invoicesHaveTender,
   liveReservationIdForStand,
+  readRepricingMoneyInputs,
   readReservationInvoices,
-  standChangeRefundedAmount,
   standHasLiveHold,
 } from "@/app/lib/reservations/reservation-repricing";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -45,8 +44,11 @@ export type FullTableUpgradePreview = {
   /** A surplus can only be handed back to an owner. */
   hasOwner: boolean;
   /**
-   * Any payment or credit allocation row at all, the downgrade's own test for
-   * refusing: once this is true, the upgraded table can never be reduced back.
+   * Real money on the cobros — approved cash, unreversed credits, a proof in
+   * review or a legacy payment — judged by the downgrade's own predicate
+   * (`invoicesMoneyBlockerInTx`): once this is true, the upgraded table
+   * cannot be reduced back. A rejected proof's leftover row or credits
+   * already handed back do not count, since the downgrade ignores them too.
    */
   hasTender: boolean;
   /** Null when there is no priced, well-formed table to upgrade into. */
@@ -121,7 +123,7 @@ export async function fetchFullTableUpgradePreview(
         proofUnderReview: await invoicesHaveProofUnderReview(tx, invoiceIds),
         hasInvoice: liveInvoices.length > 0,
         hasOwner: reservation.ownerUserId != null,
-        hasTender: await invoicesHaveTender(tx, invoiceIds),
+        hasTender: (await invoicesMoneyBlockerInTx(tx, invoiceIds)) != null,
       };
 
       if (kept.standGroupId == null || kept.groupType !== "full_table") {
@@ -171,18 +173,12 @@ export async function fetchFullTableUpgradePreview(
 
       let plan: FullTableUpgradePlan | null = null;
       if (groupIssue == null && tablePrice != null) {
-        const coveredAmount = Math.max(
-          0,
-          roundMoney(
-            (await coveredAmountForInvoices(tx, liveInvoices)) -
-              (await standChangeRefundedAmount(tx, reservation.id)),
-          ),
-        );
         plan = planFullTableUpgrade({
           tablePrice,
           priceAmountSnapshot: reservation.priceAmountSnapshot,
           liveInvoice: liveInvoices[0] ?? null,
-          coveredAmount,
+          reservationStatus: reservation.status,
+          ...(await readRepricingMoneyInputs(tx, reservation.id, liveInvoices)),
         });
       }
 

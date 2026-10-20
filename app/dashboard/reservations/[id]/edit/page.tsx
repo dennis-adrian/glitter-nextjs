@@ -1,6 +1,7 @@
 import { fetchReservationForAdmin } from "@/app/lib/reservations/queries";
 import EditReservationForm from "@/app/components/reservations/edit-form";
 import FullTableDowngradeButton from "@/app/components/reservations/full-table-downgrade-button";
+import { fullTableDowngradeDisabledReason } from "@/app/components/reservations/full-table-downgrade-options";
 import FullTableUpgradeButton from "@/app/components/reservations/full-table-upgrade-button";
 import {
   describeFullTableUpgradeCard,
@@ -10,6 +11,7 @@ import StandChangeControl from "@/app/components/reservations/stand-change-contr
 import { standChangeDisabledReason } from "@/app/components/reservations/stand-change-options";
 import { fetchStandChangeOptions } from "@/app/lib/reservations/stand-change-queries";
 import { fetchFullTableUpgradePreview } from "@/app/lib/reservations/full-table-upgrade-queries";
+import { fetchFullTableDowngradeBlocker } from "@/app/lib/reservations/full-table-downgrade-queries";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -78,13 +80,18 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
 
   // The picker lists every stand in the festival, occupied ones included:
   // choosing one of those is how an admin reaches the exchange. A full table
-  // has no single half to widen, so its upgrade preview is not even asked for.
-  const [standChangeOptions, upgradePreview] = await Promise.all([
-    fetchStandChangeOptions(reservation.festivalId),
-    standSummary.isFullTable
-      ? Promise.resolve(null)
-      : fetchFullTableUpgradePreview(reservation.id),
-  ]);
+  // has no single half to widen, so its upgrade preview is not even asked for;
+  // a half has nothing to reduce, so neither is the downgrade's money check.
+  const [standChangeOptions, upgradePreview, downgradeBlocker] =
+    await Promise.all([
+      fetchStandChangeOptions(reservation.festivalId),
+      standSummary.isFullTable
+        ? Promise.resolve(null)
+        : fetchFullTableUpgradePreview(reservation.id),
+      standSummary.isFullTable && isGlobalAdmin
+        ? fetchFullTableDowngradeBlocker(reservation.id)
+        : Promise.resolve(null),
+    ]);
   const liveMembers = reservation.members.filter(
     (member) => member.releasedAt == null,
   );
@@ -107,6 +114,16 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
           preview: upgradePreview,
         })
       : null;
+  // Disabled with its reason when the service would refuse for money, rather
+  // than letting the admin confirm into the refusal toast.
+  const downgradeBlockedReason = fullTableDowngradeDisabledReason({
+    isGlobalAdmin,
+    moneyBlocker: downgradeBlocker?.moneyBlocker ?? null,
+  });
+  // The money rule only binds a table priced as a table; one from before table
+  // pricing downgrades whatever its cobro holds, so the copy only states the
+  // rule where it applies.
+  const tablePriced = reservation.fullTablePriceSnapshot != null;
   const upgradeDescription = upgradePreview
     ? describeFullTableUpgradeCard({
         preview: upgradePreview,
@@ -226,7 +243,10 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
               <CardDescription>
                 Esta reserva ocupa los dos espacios de una mesa. Si los créditos
                 que la pagaron fueron revertidos, podés dejarla con el espacio
-                que el participante eligió primero y devolver el otro al mapa.
+                que el participante eligió primero y devolver el otro al mapa
+                {tablePriced
+                  ? ", siempre que el cobro no tenga pagos ni créditos aplicados."
+                  : "."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -234,11 +254,8 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
                 reservationId={reservation.id}
                 keptStandLabel={formatStandLabel(keptStand)}
                 releasedStandLabel={formatStandLabel(releasedStand)}
-                disabledReason={
-                  isGlobalAdmin
-                    ? undefined
-                    : "Solo un administrador general puede reducirla."
-                }
+                disabledReason={downgradeBlockedReason ?? undefined}
+                tablePriced={tablePriced}
               />
             </CardContent>
           </Card>

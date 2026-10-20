@@ -1,21 +1,27 @@
 import "server-only";
 
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { grantCreditsInTx } from "@/app/lib/credits/service";
+import { recordedWriteOffAmount } from "@/app/lib/reservations/invoice-write-offs";
+import { loadInvoiceTenders } from "@/app/lib/payments/tender-queries";
+import { latePartnerPrepaidAmount } from "@/app/lib/reservations/late-partner-prepaid";
 import { roundMoney } from "@/app/lib/reservations/money";
-import { getInvoiceTenderTotalsInTx } from "@/app/lib/reservations/payment-service";
+import { applyAcceptedReservation } from "@/app/lib/reservations/payment-service";
+import { LATE_PARTNER_REFUND_AMOUNT_KEY } from "@/app/lib/reservations/repricing-refund-ledger";
+import { STAND_CHANGE_REFUND_RESERVATION_KEY } from "@/app/lib/reservations/repricing-refunds";
 import {
-  repriceInvoice,
-  type StandChangeSettlement,
-} from "@/app/lib/reservations/stand-change";
+  repriceInvoiceAmounts,
+  type RepricingSettlement,
+  type ReservationRepricing,
+} from "@/app/lib/reservations/repricing";
 import { db } from "@/db";
 import {
-  creditLedgerEntries,
   invoiceCreditAllocations,
   invoiceSettlementSubmissions,
   invoices,
   payments,
+  reservationParticipants,
   scheduledTasks,
   standHoldMembers,
   standHolds,
@@ -23,11 +29,19 @@ import {
   standReservations,
 } from "@/db/schema";
 
+export { latePartnerPrepaidAmount };
+// The refund tag lives with the ledger reader the invoice tender and the credit
+// release share (`repricing-refund-ledger.ts`); the tender nets refunds, so
+// nothing here reads them any more.
+export { STAND_CHANGE_REFUND_RESERVATION_KEY };
+
 /**
  * The money side of changing what a live reservation costs, shared by every
  * admin command that does it: the stand switch and exchange, and the full-table
- * upgrade. One implementation on purpose — a refund one command posts has to
- * be found by the next one, and two copies of the netting would drift.
+ * upgrade (the downgrade and the partner edit share the arithmetic in
+ * `repricing.ts`, but never move money). One implementation on purpose — a
+ * refund one command posts has to be found by the next one, and two copies of
+ * the netting would drift.
  */
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -39,13 +53,19 @@ export type ReservationInvoiceRow = {
   originalAmount: number;
   discountAmount: number;
   amount: number;
+  /** What "confirmar con saldo pendiente" waived on it, from its events. */
+  recordedWriteOffAmount: number;
 };
 
 /** How long a reopened balance gets to be paid — the booking interval. */
 export const PAYMENT_WINDOW_DAYS = 5;
 export const REMINDER_LEAD_DAYS = 1;
 
-/** Every invoice of a reservation, cancelled ones included. */
+/**
+ * Every invoice of a reservation, cancelled ones included, oldest first — so
+ * "the live cobro" (`liveInvoices[0]`) is the same row the tender nets a
+ * refund against, and the same row on every read.
+ */
 export async function readReservationInvoices(
   tx: DbTx,
   reservationId: number,
@@ -58,9 +78,11 @@ export async function readReservationInvoices(
       originalAmount: invoices.originalAmount,
       discountAmount: invoices.discountAmount,
       amount: invoices.amount,
+      recordedWriteOffAmount: recordedWriteOffAmount(),
     })
     .from(invoices)
-    .where(eq(invoices.reservationId, reservationId));
+    .where(eq(invoices.reservationId, reservationId))
+    .orderBy(asc(invoices.id));
 }
 
 /**
@@ -117,74 +139,81 @@ export async function invoicesHaveTender(
   return allocation != null;
 }
 
-/** Approved cash plus confirmed credits across a reservation's invoices. */
+/**
+ * What counts as paid on the cobro when a reservation is repriced: the sum of
+ * its live invoices' `coveredAmount` — approved cash plus unreversed credit
+ * allocations, less what earlier repricings already handed back.
+ *
+ * Read from the invoice tender rather than summed here, so a refund is netted
+ * exactly once, in one place, and the repricing plan and the cobro's own
+ * outstanding balance can never disagree: the plan that reopens a Bs200
+ * balance is looking at the same Bs200 the participant is asked to pay.
+ * Clamped at zero per cobro, and a late partner's payment is deliberately not
+ * in here — it is taken off the price instead (`planReservationRepricing`),
+ * so the cobro's own outstanding never shows it as owed.
+ */
 export async function coveredAmountForInvoices(
   tx: DbTx,
   invoiceRows: readonly Pick<ReservationInvoiceRow, "id" | "amount">[],
 ): Promise<number> {
+  const tenders = await loadInvoiceTenders(tx, invoiceRows);
   let covered = 0;
-  for (const invoice of invoiceRows) {
-    const totals = await getInvoiceTenderTotalsInTx(tx, invoice);
-    covered += totals.coveredAmount;
-  }
+  for (const tender of tenders.values()) covered += tender.coveredAmount;
   return roundMoney(covered);
 }
 
 /**
- * Marks a refund grant as belonging to a reservation, so later moves find it.
+ * Whether any of these cobros was confirmed through an approved zero-value
+ * entitlement — the request a participant sends for a cobro of Bs0.
  *
- * The command's idempotency key already names the reservation, but a key is an
- * identifier, not a field to query on. This is the field. Every command that
- * refunds a reservation's surplus tags its grant with it — the name predates
- * the full-table upgrade, and renaming it would orphan the grants already
- * posted under it.
+ * One of the two ways a reservation is confirmed at no cost, which a dearer
+ * reprice reopens for the difference (§4.6). The other, a live cobro of Bs0,
+ * the pure planner sees for itself; this one it cannot, because a later
+ * command that moves no money (the downgrade) can have raised the amount
+ * since.
  */
-export const STAND_CHANGE_REFUND_RESERVATION_KEY =
-  "standChangeRefundReservationId";
-
-/**
- * What earlier repricings have already handed back for this reservation.
- *
- * Coverage is computed from payments and credit allocations, and a refund
- * touches neither — it posts a grant into the participant's wallet. So without
- * this, every move re-measures the same coverage an earlier move already paid
- * out against: 500 → 300 refunds 200 and then 300 → 200 refunds another 200,
- * against 500 that was only ever tendered once. Moving back up is the mirror
- * image — 500 → 300 → 500 would read as fully covered on a stand the
- * participant no longer has the money for, because the 200 is in their wallet
- * now.
- *
- * Reversed grants are excluded, the same rule `computeInvoiceTender` applies to
- * allocations: an admin who undoes the refund from the wallet has put the
- * coverage back, and the reservation is covered again.
- *
- * Keyed on the reservation rather than the owner, because it is the
- * reservation's coverage being restated — a reservation whose owner changed
- * still had the money handed back exactly once.
- */
-export async function standChangeRefundedAmount(
+export async function invoicesHaveApprovedZeroValueEntitlement(
   tx: DbTx,
-  reservationId: number,
-): Promise<number> {
-  const [row] = await tx
-    .select({
-      amount: sql<string>`coalesce(sum(${creditLedgerEntries.amount}), 0)`,
-    })
-    .from(creditLedgerEntries)
+  invoiceIds: readonly number[],
+): Promise<boolean> {
+  if (invoiceIds.length === 0) return false;
+  const [submission] = await tx
+    .select({ id: invoiceSettlementSubmissions.id })
+    .from(invoiceSettlementSubmissions)
     .where(
       and(
-        eq(creditLedgerEntries.type, "admin_grant"),
-        sql`${creditLedgerEntries.metadata} ->> '${sql.raw(
-          STAND_CHANGE_REFUND_RESERVATION_KEY,
-        )}' = ${String(reservationId)}`,
-        sql`NOT EXISTS (
-          SELECT 1
-          FROM ${creditLedgerEntries} r
-          WHERE r.reverses_entry_id = ${creditLedgerEntries.id}
-        )`,
+        inArray(invoiceSettlementSubmissions.invoiceId, [...invoiceIds]),
+        eq(invoiceSettlementSubmissions.kind, "zero_value_entitlement"),
+        eq(invoiceSettlementSubmissions.status, "approved"),
       ),
-    );
-  return roundMoney(Number(row?.amount ?? 0));
+    )
+    .limit(1);
+  return submission != null;
+}
+
+/**
+ * The money inputs `planReservationRepricing` takes from the database, read
+ * the same way by every command that reprices (and by the upgrade's preview),
+ * so the dialog and the service measure one thing.
+ */
+export async function readRepricingMoneyInputs(
+  tx: DbTx,
+  reservationId: number,
+  liveInvoices: readonly Pick<ReservationInvoiceRow, "id" | "amount">[],
+): Promise<{
+  coveredAmount: number;
+  latePartnerPrepaid: number;
+  zeroValueEntitlementApproved: boolean;
+}> {
+  return {
+    coveredAmount: await coveredAmountForInvoices(tx, liveInvoices),
+    latePartnerPrepaid: await latePartnerPrepaidAmount(tx, reservationId),
+    zeroValueEntitlementApproved:
+      await invoicesHaveApprovedZeroValueEntitlement(
+        tx,
+        liveInvoices.map((invoice) => invoice.id),
+      ),
+  };
 }
 
 /** Whether an unexpired capacity hold covers this stand. */
@@ -233,34 +262,43 @@ export async function liveReservationIdForStand(
 }
 
 /**
- * Rewrites every live invoice for a new price, in place.
+ * Rewrites every live invoice for a new gross amount, in place.
  *
  * Every live invoice is repriced, `paid` ones included: a paid invoice whose
  * reservation got more expensive is exactly the case that has a balance to
  * carry, and skipping it would leave the reservation owing nothing on paper.
- * Cancelled invoices are history and stay as they were.
+ * Cancelled invoices are history and stay as they were. Each keeps its own
+ * discount (clamped) and its own write-off (`repriceInvoiceAmounts`).
  */
 export async function repriceLiveInvoices(
   tx: DbTx,
   input: {
     invoices: readonly Pick<
       ReservationInvoiceRow,
-      "id" | "status" | "discountAmount"
+      | "id"
+      | "status"
+      | "originalAmount"
+      | "discountAmount"
+      | "amount"
+      | "recordedWriteOffAmount"
     >[];
-    priceAmount: number;
-    settlement: StandChangeSettlement;
+    grossAmount: number;
+    settlement: RepricingSettlement;
     now: Date;
   },
 ) {
   for (const invoice of input.invoices) {
     if (invoice.status === "cancelled") continue;
-    const repriced = repriceInvoice(input.priceAmount, invoice.discountAmount);
+    const repriced = repriceInvoiceAmounts(input.grossAmount, invoice);
     await tx
       .update(invoices)
       .set({
-        ...repriced,
+        originalAmount: repriced.originalAmount,
+        discountAmount: repriced.discountAmount,
+        amount: repriced.amount,
         // A balance reopens the invoice; anything else keeps the status the
-        // repricing found, so a fully covered reservation stays paid.
+        // repricing found, so a fully covered reservation stays paid (and an
+        // acceptance marks it paid right after).
         ...(input.settlement.kind === "balance_due"
           ? { status: "pending" as const }
           : {}),
@@ -339,15 +377,46 @@ export async function reopenReservationForBalance(
     return;
   }
 
-  if (reservation.ownerUserId != null) {
-    await tx.insert(scheduledTasks).values({
-      dueDate: dueAt,
-      reminderTime: reminderAt,
-      profileId: reservation.ownerUserId,
-      reservationId: reservation.reservationId,
-      taskType: "stand_reservation",
-    });
-  }
+  // The reminder goes to whoever is asked to pay. That is the owner; a legacy
+  // row with none recorded falls back to the live cobro's holder — the payer —
+  // and then to the first participant, the same fallback an admin deadline
+  // extension uses. Only a reservation with neither has nobody to remind.
+  const profileId =
+    reservation.ownerUserId ??
+    (await taskHolderForOwnerlessReservation(tx, reservation.reservationId));
+  if (profileId == null) return;
+  await tx.insert(scheduledTasks).values({
+    dueDate: dueAt,
+    reminderTime: reminderAt,
+    profileId,
+    reservationId: reservation.reservationId,
+    taskType: "stand_reservation",
+  });
+}
+
+async function taskHolderForOwnerlessReservation(
+  tx: DbTx,
+  reservationId: number,
+): Promise<number | null> {
+  const [invoice] = await tx
+    .select({ userId: invoices.userId })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.reservationId, reservationId),
+        ne(invoices.status, "cancelled"),
+      ),
+    )
+    .orderBy(asc(invoices.id))
+    .limit(1);
+  if (invoice) return invoice.userId;
+  const [participant] = await tx
+    .select({ userId: reservationParticipants.userId })
+    .from(reservationParticipants)
+    .where(eq(reservationParticipants.reservationId, reservationId))
+    .orderBy(asc(reservationParticipants.id))
+    .limit(1);
+  return participant?.userId ?? null;
 }
 
 /**
@@ -359,10 +428,11 @@ export async function reopenReservationForBalance(
  * ordinary `admin_grant` ledger entry, so it shows up in the wallet with its
  * reason and can be reversed from the credit screen like any other.
  *
- * Tagged with the reservation so `standChangeRefundedAmount` can find it. The
+ * Tagged with the reservation so the invoice tender can find it. The
  * idempotency key stops one command paying twice; the tag is what stops the
  * *next* command doing it, by taking this refund back out of the coverage that
- * command is measured against. The caller must hold the owner's credit-account
+ * command is measured against — and what keeps the cobro's own outstanding
+ * balance honest if the reservation later moves back up. The caller must hold the owner's credit-account
  * lock, as `grantCreditsInTx` requires.
  */
 export async function refundOverpaymentAsCredits(
@@ -371,6 +441,13 @@ export async function refundOverpaymentAsCredits(
     reservationId: number;
     ownerUserId: number | null;
     refundAmount: number;
+    /**
+     * The part of `refundAmount` that returns a late partner's payment rather
+     * than money on the cobro (`ReservationRepricing.latePartnerRefundAmount`),
+     * recorded on the grant so the tender leaves it alone and the late-partner
+     * figure drops by it instead.
+     */
+    latePartnerRefundAmount?: number;
     reason: string;
     /**
      * Derived from the command's own key, not a fresh one: the ledger is
@@ -381,13 +458,97 @@ export async function refundOverpaymentAsCredits(
   },
 ) {
   if (input.ownerUserId == null) return;
+  const latePartnerPart = roundMoney(input.latePartnerRefundAmount ?? 0);
   await grantCreditsInTx(tx, {
     userId: input.ownerUserId,
     amount: input.refundAmount,
     reason: input.reason,
     metadata: {
       [STAND_CHANGE_REFUND_RESERVATION_KEY]: String(input.reservationId),
+      ...(latePartnerPart > 0
+        ? { [LATE_PARTNER_REFUND_AMOUNT_KEY]: String(latePartnerPart) }
+        : {}),
     },
     idempotencyKey: input.idempotencyKey,
   });
+}
+
+/**
+ * Applies a planned reprice's money: the cobro rewritten, then the settlement.
+ *
+ * Shared by the stand switch and the full-table upgrade, which must both call
+ * it after their membership writes: an acceptance confirms every live member
+ * stand, and it has to see the stands the reservation ends up on. The caller
+ * still owns the stand statuses it writes afterwards, which follow
+ * `plan.resultingStatus`, and it must hold the owner's credit-account lock
+ * whenever the plan is `overpaid`.
+ *
+ * The acceptance is the same write set as every other one
+ * (`applyAcceptedReservation`): reservation accepted, cobro paid, the
+ * `stand_reservation` task completed, member stands confirmed, and a
+ * `settlement_approved` event. No notification is sent — the admin commands
+ * that reprice notify nobody, and the participant is told out of band.
+ */
+export async function applyReservationRepricing(
+  tx: DbTx,
+  input: {
+    reservationId: number;
+    ownerUserId: number | null;
+    /** Fallback stand for the acceptance when no member row is live. */
+    standId: number;
+    invoices: readonly ReservationInvoiceRow[];
+    plan: ReservationRepricing;
+    actorUserId: number;
+    refund: { reason: string; idempotencyKey: string };
+    now: Date;
+  },
+) {
+  const { plan } = input;
+  if (!plan.priceChanged) return;
+
+  await repriceLiveInvoices(tx, {
+    invoices: input.invoices,
+    grossAmount: plan.grossAmount,
+    settlement: plan.settlement,
+    now: input.now,
+  });
+
+  if (plan.settlement.kind === "balance_due") {
+    await reopenReservationForBalance(
+      tx,
+      { reservationId: input.reservationId, ownerUserId: input.ownerUserId },
+      input.now,
+    );
+    return;
+  }
+
+  if (plan.settlement.kind === "overpaid") {
+    if (input.ownerUserId == null) {
+      // Every caller refuses this before writing; reaching it would drop the
+      // refund on the floor.
+      throw new Error("repricing_refund_without_owner");
+    }
+    await refundOverpaymentAsCredits(tx, {
+      reservationId: input.reservationId,
+      ownerUserId: input.ownerUserId,
+      refundAmount: plan.settlement.refundAmount,
+      latePartnerRefundAmount: plan.latePartnerRefundAmount,
+      reason: input.refund.reason,
+      idempotencyKey: input.refund.idempotencyKey,
+    });
+  }
+
+  if (plan.completesAcceptance) {
+    const liveInvoice = input.invoices.find(
+      (invoice) => invoice.status !== "cancelled",
+    );
+    if (!liveInvoice) throw new Error("repricing_acceptance_without_invoice");
+    await applyAcceptedReservation(
+      tx,
+      input.reservationId,
+      input.standId,
+      liveInvoice.id,
+      input.actorUserId,
+    );
+  }
 }

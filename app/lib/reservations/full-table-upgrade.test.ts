@@ -4,7 +4,7 @@ import {
   fullTableUpgradeExpectation,
   fullTableUpgradeMatchesExpectation,
   fullTableUpgradeSuccessMessage,
-  planFullTableUpgrade,
+  planFullTableUpgrade as planWithStatus,
   summarizeFullTableUpgradeSettlement,
 } from "@/app/lib/reservations/full-table-upgrade";
 
@@ -16,6 +16,29 @@ function invoice(amount: number, discountAmount = 0, originalAmount?: number) {
   };
 }
 
+/** An accepted reservation with no late partner, unless told otherwise. */
+function planFullTableUpgrade(
+  input: Omit<
+    Parameters<typeof planWithStatus>[0],
+    "latePartnerPrepaid" | "reservationStatus" | "zeroValueEntitlementApproved"
+  > &
+    Partial<
+      Pick<
+        Parameters<typeof planWithStatus>[0],
+        | "latePartnerPrepaid"
+        | "reservationStatus"
+        | "zeroValueEntitlementApproved"
+      >
+    >,
+) {
+  return planWithStatus({
+    latePartnerPrepaid: 0,
+    reservationStatus: "accepted",
+    zeroValueEntitlementApproved: false,
+    ...input,
+  });
+}
+
 describe("full-table upgrade plan", () => {
   it("reprices an unpaid half to the table price and settles nothing", () => {
     const plan = planFullTableUpgrade({
@@ -23,18 +46,57 @@ describe("full-table upgrade plan", () => {
       priceAmountSnapshot: 300,
       liveInvoice: invoice(300),
       coveredAmount: 0,
+      reservationStatus: "pending",
     });
     expect(plan).toEqual({
+      newStandPrice: 450,
+      latePartnerPrepaid: 0,
       fromPrice: 300,
       toPrice: 450,
+      grossAmount: 450,
       priceChanged: true,
       discountAmount: 0,
       currentInvoiceAmount: 300,
       writtenOffAmount: 0,
       newInvoiceAmount: 450,
+      effectiveAmount: 450,
       coveredAmount: 0,
+      confirmedAtNoCost: false,
+      owedAmount: 450,
       settlement: { kind: "none" },
+      latePartnerRefundAmount: 0,
+      completesAcceptance: false,
+      resultingStatus: "pending",
     });
+  });
+
+  it("nets a late partner's payment out of the table price", () => {
+    // Half I300/S500, cobro 300 paid, the late partner paid the 200 shared
+    // difference in credits: of a 450 table, 500 is already paid.
+    const plan = planFullTableUpgrade({
+      tablePrice: 450,
+      priceAmountSnapshot: 300,
+      liveInvoice: invoice(300),
+      coveredAmount: 300,
+      latePartnerPrepaid: 200,
+    });
+    expect(plan.toPrice).toBe(450);
+    expect(plan.grossAmount).toBe(250);
+    expect(plan.newInvoiceAmount).toBe(250);
+    expect(plan.settlement).toEqual({ kind: "overpaid", refundAmount: 50 });
+  });
+
+  it("confirms a pending half the table leaves exactly paid", () => {
+    const plan = planFullTableUpgrade({
+      tablePrice: 450,
+      priceAmountSnapshot: 500,
+      liveInvoice: invoice(500),
+      coveredAmount: 450,
+      reservationStatus: "pending",
+    });
+    expect(plan.settlement).toEqual({ kind: "none" });
+    expect(plan.completesAcceptance).toBe(true);
+    expect(plan.resultingStatus).toBe("accepted");
   });
 
   it("carries a balance when the half was paid and the table costs more", () => {
@@ -73,9 +135,11 @@ describe("full-table upgrade plan", () => {
     expect(plan.settlement).toEqual({ kind: "none" });
   });
 
-  it("settles nothing on an accepted reservation with nothing covered", () => {
+  it("asks an accepted reservation confirmed at no cost for the difference", () => {
     // A zero-value entitlement: discount took the half to zero, and the
-    // discount survives the reprice, so only the difference is on paper.
+    // discount survives the reprice, so the difference is what is owed — a
+    // reservation confirmed at no cost owes it like a paid one (Dennis,
+    // 2026-09-29; #551 left it accepted and settled).
     const plan = planFullTableUpgrade({
       tablePrice: 450,
       priceAmountSnapshot: 300,
@@ -83,7 +147,28 @@ describe("full-table upgrade plan", () => {
       coveredAmount: 0,
     });
     expect(plan.newInvoiceAmount).toBe(150);
+    expect(plan.confirmedAtNoCost).toBe(true);
+    expect(plan.settlement).toEqual({
+      kind: "balance_due",
+      outstandingAmount: 150,
+    });
+    expect(plan.resultingStatus).toBe("pending");
+  });
+
+  it("only reprices an accepted half whose positive cobro is marked paid with no payment rows", () => {
+    // Paid outside the system: not confirmed at no cost, so the pre-batch
+    // behaviour stands — the cobro moves to the table price and nothing is
+    // reopened.
+    const plan = planFullTableUpgrade({
+      tablePrice: 450,
+      priceAmountSnapshot: 300,
+      liveInvoice: invoice(300),
+      coveredAmount: 0,
+    });
+    expect(plan.confirmedAtNoCost).toBe(false);
+    expect(plan.newInvoiceAmount).toBe(450);
     expect(plan.settlement).toEqual({ kind: "none" });
+    expect(plan.resultingStatus).toBe("accepted");
   });
 
   it("keeps the discount and clamps it to the table price", () => {
@@ -107,8 +192,9 @@ describe("full-table upgrade plan", () => {
     expect(clamped.newInvoiceAmount).toBe(0);
   });
 
-  it("reports an earlier write-off that the reprice does not keep", () => {
+  it("keeps an earlier write-off off the new cobro", () => {
     // Admin confirmed a Bs300 cobro with 200 tendered: amount went to 200.
+    // The Bs100 waived is a fixed concession, so the table asks 450 - 100.
     const plan = planFullTableUpgrade({
       tablePrice: 450,
       priceAmountSnapshot: 300,
@@ -117,10 +203,10 @@ describe("full-table upgrade plan", () => {
     });
     expect(plan.currentInvoiceAmount).toBe(200);
     expect(plan.writtenOffAmount).toBe(100);
-    expect(plan.newInvoiceAmount).toBe(450);
+    expect(plan.newInvoiceAmount).toBe(350);
     expect(plan.settlement).toEqual({
       kind: "balance_due",
-      outstandingAmount: 250,
+      outstandingAmount: 150,
     });
   });
 
@@ -166,6 +252,7 @@ describe("full-table upgrade plan", () => {
       priceAmountSnapshot: 300,
       liveInvoice: invoice(300),
       coveredAmount: -20,
+      reservationStatus: "pending",
     });
     expect(plan.coveredAmount).toBe(0);
     expect(plan.settlement).toEqual({ kind: "none" });
@@ -247,5 +334,16 @@ describe("full-table upgrade success message", () => {
     ).toBe(
       "La reserva ahora ocupa la mesa completa. Se devolvieron Bs50.5 en créditos.",
     );
+  });
+
+  it("says when the upgrade confirmed the reservation", () => {
+    expect(
+      fullTableUpgradeSuccessMessage({ kind: "none", amount: 0 }, true),
+    ).toBe(
+      "La reserva ahora ocupa la mesa completa. Lo ya pagado cubre la mesa, así que quedó confirmada.",
+    );
+    expect(
+      fullTableUpgradeSuccessMessage({ kind: "overpaid", amount: 50 }, true),
+    ).toContain("Se devolvieron Bs50 en créditos. Lo ya pagado cubre la mesa");
   });
 });

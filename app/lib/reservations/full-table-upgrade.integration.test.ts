@@ -704,6 +704,7 @@ describeDatabase("admin full-table upgrade", () => {
           keptStandId: kept.id,
           addedStandId: companion.id,
           settlement: { kind: "none", amount: 0 },
+          accepted: false,
         },
         message: "La reserva ahora ocupa la mesa completa.",
       });
@@ -921,6 +922,7 @@ describeDatabase("admin full-table upgrade", () => {
           keptStandId: kept.id,
           addedStandId: companion.id,
           settlement: { kind: "overpaid", amount: 50 },
+          accepted: false,
         },
         message:
           "La reserva ahora ocupa la mesa completa. Se devolvieron Bs50 en créditos.",
@@ -1110,7 +1112,7 @@ describeDatabase("admin full-table upgrade", () => {
       expect((await readReservation(reservation.id)).status).toBe("pending");
     });
 
-    it("pins the switch's behaviour for an accepted zero-value reservation", async () => {
+    it("reopens an accepted zero-value reservation for the difference", async () => {
       const seeded = await seedFestival({
         userCount: 1,
         tables: [{ fullTablePrice: 450 }],
@@ -1137,20 +1139,70 @@ describeDatabase("admin full-table upgrade", () => {
       });
 
       const { result } = await upgradeAsPreviewed(reservation.id);
+      // Confirmed at no cost, it owes the 150 the discount does not reach
+      // like a paid reservation would (Dennis, 2026-09-29). #551 pinned the
+      // opposite: still accepted, the cobro marked paid at 150.
       expect(result).toMatchObject({
         success: true,
-        data: { settlement: { kind: "none", amount: 0 } },
+        data: { settlement: { kind: "balance_due", amount: 150 } },
       });
-      // Nothing covered means `none`: still accepted, the cobro still marked
-      // paid, though it now asks for the 150 the discount does not reach.
-      expect((await readReservation(reservation.id)).status).toBe("accepted");
+      expect((await readReservation(reservation.id)).status).toBe("pending");
       const repriced = await readInvoice(invoice.id);
+      expect(Number(repriced.discountAmount)).toBe(300);
       expect(Number(repriced.amount)).toBe(150);
-      expect(repriced.status).toBe("paid");
-      expect((await readStand(companion.id)).status).toBe("confirmed");
+      expect(repriced.status).toBe("pending");
+      expect((await readStand(kept.id)).status).toBe("reserved");
+      expect((await readStand(companion.id)).status).toBe("reserved");
+      const open = (await readTasks(reservation.id)).filter(
+        (task) => task.completedAt === null,
+      );
+      expect(open).toHaveLength(1);
+      expect(open[0].profileId).toBe(owner.id);
     });
 
-    it("pins the switch's behaviour for a reservation confirmed with a written-off balance", async () => {
+    /**
+     * A positive cobro marked paid with no payment rows was paid outside the
+     * system. Only a reservation confirmed at no cost owes the difference
+     * (Dennis, 2026-09-29), so this one keeps the pre-batch behaviour: the
+     * cobro moves to the table price and nothing reopens.
+     */
+    it("only reprices an accepted half marked paid with no payment rows", async () => {
+      const seeded = await seedFestival({
+        userCount: 1,
+        tables: [{ fullTablePrice: 450 }],
+      });
+      const [kept, companion] = seeded.tables[0].stands;
+      const owner = seeded.participants[0];
+      const { reservation, invoice } = await seedReservation({
+        festivalId: seeded.festival.id,
+        standId: kept.id,
+        ownerUserId: owner.id,
+        status: "accepted",
+        price: 300,
+        standStatus: "confirmed",
+        invoiceStatus: "paid",
+      });
+
+      const { preview, result } = await upgradeAsPreviewed(reservation.id);
+      expect(preview.plan?.confirmedAtNoCost).toBe(false);
+      expect(result).toMatchObject({
+        success: true,
+        data: { settlement: { kind: "none", amount: 0 }, accepted: false },
+      });
+      expect((await readReservation(reservation.id)).status).toBe("accepted");
+      const repriced = await readInvoice(invoice.id);
+      expect(Number(repriced.amount)).toBe(450);
+      expect(repriced.status).toBe("paid");
+      expect((await readStand(kept.id)).status).toBe("confirmed");
+      expect((await readStand(companion.id)).status).toBe("confirmed");
+      expect(
+        (await readTasks(reservation.id)).filter(
+          (task) => task.completedAt === null,
+        ),
+      ).toHaveLength(0);
+    });
+
+    it("keeps a written-off amount off the table's cobro", async () => {
       const seeded = await seedFestival({
         userCount: 1,
         tables: [{ fullTablePrice: 450 }],
@@ -1176,15 +1228,19 @@ describeDatabase("admin full-table upgrade", () => {
       expect(preview.plan).toMatchObject({
         currentInvoiceAmount: 200,
         writtenOffAmount: 100,
-        newInvoiceAmount: 450,
+        newInvoiceAmount: 350,
       });
-      // The write-off is not carried: the table is priced from scratch.
+      // The Bs100 waived is a fixed concession (Dennis, 2026-09-29): the table
+      // asks 450 - 100 against the 200 paid. #551 priced it from scratch and
+      // asked for 250.
       expect(result).toMatchObject({
         success: true,
-        data: { settlement: { kind: "balance_due", amount: 250 } },
+        data: { settlement: { kind: "balance_due", amount: 150 } },
       });
       expect((await readReservation(reservation.id)).status).toBe("pending");
-      expect(Number((await readInvoice(invoice.id)).amount)).toBe(450);
+      const repriced = await readInvoice(invoice.id);
+      expect(Number(repriced.originalAmount)).toBe(450);
+      expect(Number(repriced.amount)).toBe(350);
     });
 
     it("upgrades an external participant's reservation, which has no cobro", async () => {
@@ -1275,6 +1331,8 @@ describeDatabase("admin full-table upgrade", () => {
         festivalId: seeded.festival.id,
         standId: kept.id,
         ownerUserId: owner.id,
+        // Accepted with a positive cobro and no payment rows: paid outside
+        // the system, so the first render promises nothing to settle.
         status: "accepted",
         price: 300,
         standStatus: "confirmed",

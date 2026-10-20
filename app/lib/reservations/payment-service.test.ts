@@ -133,6 +133,7 @@ import {
 } from "@/app/lib/reservations/payment-service";
 import { fetchAdminUsers } from "@/app/lib/users/queries";
 import {
+  creditLedgerEntries,
   creditTopUps,
   invoiceSettlementSubmissions,
   invoiceCreditAllocations,
@@ -246,6 +247,7 @@ function createTx(options: {
                 ...(approvedCashPayment
                   ? [
                       {
+                        invoiceId: options.invoice.id,
                         paymentId: approvedCashPayment.id,
                         status: "approved" as const,
                       },
@@ -254,6 +256,7 @@ function createTx(options: {
                 ...(submission
                   ? [
                       {
+                        invoiceId: options.invoice.id,
                         paymentId: submission.paymentId ?? null,
                         status: (submission.status ?? "submitted") as
                           | "submitted"
@@ -294,7 +297,7 @@ function createTx(options: {
           }
           if (table === payments) {
             if (fields && "amount" in fields) {
-              if ("invoiceId" in fields) {
+              if ("invoiceId" in fields && !("id" in fields)) {
                 const payment = invoicePayments[0];
                 const rows = payment
                   ? [{ amount: payment.amount, invoiceId: payment.invoiceId }]
@@ -310,18 +313,13 @@ function createTx(options: {
               // cash in SQL. Already-approved cash is modelled as a payment
               // carrying an approved submission (see the submissions branch).
               return Promise.resolve(
-                approvedCashPayment
-                  ? [
-                      ...invoicePayments.map((payment) => ({
-                        id: payment.id,
-                        amount: payment.amount,
-                      })),
-                      approvedCashPayment,
-                    ]
-                  : invoicePayments.map((payment) => ({
-                      id: payment.id,
-                      amount: payment.amount,
-                    })),
+                [
+                  ...invoicePayments.map((payment) => ({
+                    id: payment.id,
+                    amount: payment.amount,
+                  })),
+                  ...(approvedCashPayment ? [approvedCashPayment] : []),
+                ].map((row) => ({ ...row, invoiceId: options.invoice.id })),
               );
             }
             const paymentRows = invoicePayments;
@@ -332,7 +330,35 @@ function createTx(options: {
             });
           }
           if (table === invoiceCreditAllocations) {
-            return Promise.resolve([{ amount: invoiceCreditAmount }]);
+            return Promise.resolve([
+              {
+                invoiceId: options.invoice.id,
+                amount: invoiceCreditAmount,
+                reversed: false,
+              },
+            ]);
+          }
+          if (table === creditLedgerEntries) {
+            // The tender's repricing-refund read: nothing was refunded.
+            return Object.assign(Promise.resolve([]), {
+              groupBy: vi.fn().mockResolvedValue([]),
+            });
+          }
+          if (
+            table === invoices &&
+            fields &&
+            "reservationId" in fields &&
+            "status" in fields &&
+            !("userId" in fields)
+          ) {
+            // The tender's read of which reservation a cobro belongs to.
+            return Promise.resolve([
+              {
+                id: options.invoice.id,
+                reservationId: options.invoice.reservationId,
+                status: options.invoice.status,
+              },
+            ]);
           }
           if (table === creditTopUps) {
             const rows = options.openCreditTopUps ?? [];

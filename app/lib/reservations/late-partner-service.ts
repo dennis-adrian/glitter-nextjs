@@ -43,7 +43,8 @@ import {
  * The owner forgot to bring somebody in at booking, or found them afterwards.
  * They pay two things in credits, in one debit: the difference between what
  * one person costs and what two cost, and the festival's fee for doing this
- * late.
+ * late. On a full table the first is zero — the table price does not depend on
+ * how many people stand at it — so the owner pays the fee alone.
  *
  * The original invoice is never touched (§8.4). That is the deliberate
  * difference from the admin partner flow, which reprices it — here the
@@ -182,6 +183,9 @@ export async function addLatePartner(input: {
         ownerUserId: standReservations.ownerUserId,
         individualPriceSnapshot: standReservations.individualPriceSnapshot,
         sharedPriceSnapshot: standReservations.sharedPriceSnapshot,
+        // Read under the lock with the rest: an admin upgrade or downgrade
+        // between rendering the quote and confirming changes what is owed.
+        fullTablePriceSnapshot: standReservations.fullTablePriceSnapshot,
       })
       .from(standReservations)
       .where(eq(standReservations.id, preview.id))
@@ -247,6 +251,7 @@ export async function addLatePartner(input: {
     const price = latePartnerPrice({
       individualPriceSnapshot: reservation.individualPriceSnapshot,
       sharedPriceSnapshot: reservation.sharedPriceSnapshot,
+      fullTablePriceSnapshot: reservation.fullTablePriceSnapshot,
       featurePrice: config.creditPrice,
     });
     // No shared price was agreed when this was booked, so there is no figure
@@ -273,7 +278,9 @@ export async function addLatePartner(input: {
     if (!action) return fail(reservationFailure("CONFLICT_RETRY"));
 
     // Both components recorded separately even though one debit covers them,
-    // so reporting can tell a price adjustment from a fee (§6.2).
+    // so reporting can tell a price adjustment from a fee (§6.2). A full
+    // table's difference is still written, at zero: every late partner keeps
+    // the same two items, and repricing counts that zero as nothing prepaid.
     await tx.insert(reservationFeatureActionItems).values([
       {
         featureActionId: action.id,
@@ -324,7 +331,8 @@ export async function addLatePartner(input: {
       .values({ reservationId: preview.id, userId: input.partnerUserId });
 
     // The reservation now holds two people. The invoice keeps its original
-    // amount on purpose — the difference was just paid in credits.
+    // amount on purpose — the difference was just paid in credits, or, on a
+    // full table, there was none to pay.
     await tx
       .update(standReservations)
       .set({ bookedParticipantCount: 2, updatedAt: new Date() })
@@ -343,6 +351,7 @@ export async function addLatePartner(input: {
         sharedPriceDifference: price.sharedPriceDifference,
         featurePrice: price.featurePrice,
         totalCredits: price.totalCredits,
+        fullTable: price.fullTable,
       },
       idempotencyKey: `late-partner:${input.idempotencyKey}`,
     });

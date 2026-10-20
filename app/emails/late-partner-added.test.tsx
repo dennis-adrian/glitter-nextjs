@@ -71,4 +71,44 @@ describe("LatePartnerAddedTemplate", () => {
       expect(html).not.toContain("sanci");
     }
   });
+
+  it("tells the owner the credits covered the difference and the fee", () => {
+    const html = render({
+      recipient: OWNER,
+      isOwner: true,
+      sharedPriceDifference: 30,
+    });
+
+    expect(html).toContain(
+      "la diferencia entre el precio individual y el compartido",
+    );
+  });
+
+  /**
+   * A full table costs the same for one person or two, so its owner paid the
+   * fee alone. Naming a difference would describe a charge that never
+   * happened.
+   */
+  it("mentions no price difference to a full-table owner", () => {
+    const html = render({
+      recipient: OWNER,
+      isOwner: true,
+      totalCredits: 25,
+      sharedPriceDifference: 0,
+    });
+
+    expect(html).toContain("25 créditos");
+    expect(html).toContain("el costo de agregar a alguien después de reservar");
+    expect(html).not.toContain("diferencia");
+    expect(html).toContain("cobro original no cambia");
+  });
+
+  /** A job queued before the difference was recorded keeps the old wording. */
+  it("keeps the full wording when the difference is unknown", () => {
+    const html = render({ recipient: OWNER, isOwner: true });
+
+    expect(html).toContain(
+      "la diferencia entre el precio individual y el compartido",
+    );
+  });
 });

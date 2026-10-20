@@ -12,6 +12,7 @@ import type {
   ConsoleEvent,
   ReservationConsoleDetail,
 } from "@/app/lib/reservations/console-detail";
+import { reservationStatusLabel } from "@/app/lib/reservations/status-labels";
 
 const EVENT_LABELS: Record<string, string> = {
   created: "Reserva creada",
@@ -79,6 +80,11 @@ function describePayload(event: ConsoleEvent): string | null {
       const difference = money(record.sharedPriceDifference);
       const feature = money(record.featurePrice);
       if (!total) return "Agregó un compañero";
+      // A full table pays the fee alone: its price does not depend on the
+      // headcount, so "Bs0 de diferencia" would only raise a question.
+      if (record.fullTable === true) {
+        return `Agregó un compañero a la mesa completa: ${total} en créditos, solo el costo de la función`;
+      }
       return difference && feature
         ? `Agregó un compañero: ${total} en créditos (${difference} de diferencia + ${feature} de la función)`
         : `Agregó un compañero: ${total} en créditos`;
@@ -184,31 +190,39 @@ export default function ConsoleDetailPanel({
               Créditos gastados en la reserva
             </p>
             <ul className="space-y-2">
-              {charged.map((action) => (
-                <li key={action.actionId} className="text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Bs{action.amount}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {featureActionLabel(action.type)}
-                    </span>
-                  </div>
-                  {action.items.length > 0 && (
-                    <ul className="mt-0.5 space-y-0.5">
-                      {action.items.map((item) => (
-                        <li
-                          key={`${action.actionId}-${item.kind}`}
-                          className="text-xs text-muted-foreground"
-                        >
-                          {featureItemLabel(item.kind)}: Bs{item.amount}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateWithTime(action.createdAt)}
-                  </p>
-                </li>
-              ))}
+              {charged.map((action) => {
+                // A Bs0 component charged nothing, so it explains nothing: a
+                // late partner on a full table stores its price difference at
+                // Bs0 (the table costs the same for one or two), and listing
+                // "Diferencia individual → compartido: Bs0" only raised the
+                // question of what was missing.
+                const items = action.items.filter((item) => item.amount !== 0);
+                return (
+                  <li key={action.actionId} className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Bs{action.amount}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {featureActionLabel(action.type)}
+                      </span>
+                    </div>
+                    {items.length > 0 && (
+                      <ul className="mt-0.5 space-y-0.5">
+                        {items.map((item) => (
+                          <li
+                            key={`${action.actionId}-${item.kind}`}
+                            className="text-xs text-muted-foreground"
+                          >
+                            {featureItemLabel(item.kind)}: Bs{item.amount}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateWithTime(action.createdAt)}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
             <p className="text-xs text-muted-foreground">
               No cubren el cobro; se pagaron aparte con créditos.
@@ -286,7 +300,8 @@ export default function ConsoleDetailPanel({
                     event.fromStatus !== event.toStatus && (
                       <span className="text-muted-foreground">
                         {" "}
-                        {event.fromStatus} → {event.toStatus}
+                        {reservationStatusLabel(event.fromStatus)} →{" "}
+                        {reservationStatusLabel(event.toStatus)}
                       </span>
                     )}
                   <p className="text-xs text-muted-foreground">

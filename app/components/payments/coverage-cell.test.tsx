@@ -47,6 +47,27 @@ describe("CoverageCell", () => {
     expect(screen.getByLabelText("Bs400 de Bs400 cubierto")).toBeDefined();
   });
 
+  /**
+   * Bs500 paid, moved to a Bs300 stand (Bs200 back), moved back to Bs500: the
+   * rows say Bs500, the cobro is covered Bs300. The refund is its own part so
+   * the parts add up to the bar.
+   */
+  it("subtracts what a stand change already handed back", () => {
+    const refunded = computeInvoiceTender({
+      amount: 500,
+      allocations: [],
+      payments: [{ id: 9, amount: 500 }],
+      submissions: [{ paymentId: 9, status: "approved" }],
+      refundedAmount: 200,
+    });
+    render(<CoverageCell state="partial" tender={refunded} />);
+
+    expect(
+      screen.getByText("Bs500 QR · −Bs200 devueltos en créditos"),
+    ).toBeDefined();
+    expect(screen.getByLabelText("Bs300 de Bs500 cubierto")).toBeDefined();
+  });
+
   it("names the passed deadline on an overdue invoice", () => {
     const untouched = computeInvoiceTender({
       amount: 150,

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 
 import {
   createCreditHoldForFeatureInTx,
@@ -17,6 +17,9 @@ import {
   hasCompleteFullTable,
 } from "@/app/lib/reservations/full-table-access";
 import { insertStandReservationEvent } from "@/app/lib/reservations/events";
+import { fullTableDowngradeMoneyBlockerInTx } from "@/app/lib/reservations/full-table-downgrade-queries";
+import { recordedWriteOffAmount } from "@/app/lib/reservations/invoice-write-offs";
+import { latePartnerPrepaidAmount } from "@/app/lib/reservations/late-partner-prepaid";
 import {
   lockCreditAccountRows,
   lockFestivalRow,
@@ -31,9 +34,12 @@ import {
   activeReservationStandIds,
   releaseReservationMember,
 } from "@/app/lib/reservations/members";
-import { roundMoney } from "@/app/lib/reservations/money";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
+import {
+  planReservationRepricing,
+  repriceInvoiceAmounts,
+} from "@/app/lib/reservations/repricing";
 import { denySelfServiceMutationBeforeOpen } from "@/app/lib/reservations/tx-eligibility";
 import {
   abandonRequest,
@@ -43,9 +49,7 @@ import {
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
-  invoiceCreditAllocations,
   invoices,
-  payments,
   reservationFeatureActions,
   standHoldMembers,
   standHolds,
@@ -442,8 +446,13 @@ export async function deactivateFullTableAccess(input: {
  * replacement payment, waive the debt, or come here.
  *
  * The reservation keeps the half the participant originally selected —
- * member position 0 — and only the companion is released. Credits, invoice,
- * payments and participants are all left exactly as they are.
+ * member position 0 — and only the companion is released. A table-priced
+ * reservation's cobro is repriced to that half (net of a late partner's
+ * payment, keeping its discount and write-off), which is why it refuses while
+ * real money sits on the cobro (`fullTableDowngradeMoneyBlockerInTx`): that
+ * money would have to be refunded or re-applied, and this command moves none.
+ * The access-fee credits, any wallet debt and the participants are left
+ * exactly as they are.
  */
 export async function downgradeFullTableReservation(input: {
   reservationId: number;
@@ -548,9 +557,14 @@ export async function downgradeFullTableReservation(input: {
     // whatever came before it. Releasing first would free the companion stand
     // and then report the downgrade as refused.
     let repricing: {
-      halfPrice: number;
-      invoiceId: number | null;
-      discountAmount: number;
+      grossAmount: number;
+      invoices: {
+        id: number;
+        originalAmount: number;
+        discountAmount: number;
+        amount: number;
+        recordedWriteOffAmount: number;
+      }[];
     } | null = null;
     if (reservation.fullTablePriceSnapshot != null) {
       const halfPrice =
@@ -559,41 +573,59 @@ export async function downgradeFullTableReservation(input: {
           ? Number(reservation.sharedPriceSnapshot)
           : Number(reservation.individualPriceSnapshot ?? 0);
 
-      const [invoice] = await tx
-        .select({ id: invoices.id, discountAmount: invoices.discountAmount })
+      // Every cobro locked before its money is read, so a comprobante or
+      // credits cannot land between the check and the reprice.
+      const invoiceRows = await tx
+        .select({
+          id: invoices.id,
+          status: invoices.status,
+          originalAmount: invoices.originalAmount,
+          discountAmount: invoices.discountAmount,
+          amount: invoices.amount,
+          recordedWriteOffAmount: recordedWriteOffAmount(),
+        })
         .from(invoices)
         .where(eq(invoices.reservationId, reservation.id))
-        .limit(1)
+        .orderBy(asc(invoices.id))
         .for("update");
 
-      if (invoice) {
-        // Anything already tendered against the table's price would have to be
-        // refunded or re-applied, which is a decision this command cannot make.
-        const [settled] = await tx
-          .select({ id: payments.id })
-          .from(payments)
-          .where(eq(payments.invoiceId, invoice.id))
-          .limit(1);
-        const [allocated] = await tx
-          .select({ id: invoiceCreditAllocations.id })
-          .from(invoiceCreditAllocations)
-          .where(eq(invoiceCreditAllocations.invoiceId, invoice.id))
-          .limit(1);
-        if (settled || allocated) {
-          await abandonRequest(tx, input.idempotencyKey);
-          return reservationFailure("FULL_TABLE_NOT_DOWNGRADABLE");
-        }
+      // Anything really tendered against the table's price would have to be
+      // refunded or re-applied, which is a decision this command cannot make.
+      // Only real money: a rejected comprobante's leftover payment row and
+      // credits an admin already handed back are nothing, and blocking on
+      // them left the table impossible to reduce.
+      if (
+        (await fullTableDowngradeMoneyBlockerInTx(tx, {
+          id: reservation.id,
+          fullTablePriceSnapshot: reservation.fullTablePriceSnapshot,
+        })) != null
+      ) {
+        await abandonRequest(tx, input.idempotencyKey);
+        return reservationFailure("FULL_TABLE_NOT_DOWNGRADABLE");
       }
 
+      // Priced with the shared repricing model's gross: the half's price less
+      // what a late partner already paid in credits (a partner added to the
+      // table before the fee-only rule still paid the shared difference, and
+      // the shared half would otherwise bill it again). Only the price: this
+      // command never moves money or status.
       repricing = {
-        halfPrice,
-        invoiceId: invoice?.id ?? null,
-        // Clamped to the new price, the same bound `applyReservationWriteSet`
-        // uses: a discount agreed against a full table can exceed half of one,
-        // and a discount larger than the invoice would invert the total.
-        discountAmount: Math.min(
-          halfPrice,
-          roundMoney(Number(invoice?.discountAmount ?? 0)),
+        grossAmount: planReservationRepricing({
+          newStandPrice: halfPrice,
+          latePartnerPrepaid: await latePartnerPrepaidAmount(
+            tx,
+            reservation.id,
+          ),
+          priceAmountSnapshot: null,
+          liveInvoice: null,
+          coveredAmount: 0,
+          reservationStatus: reservation.status,
+          zeroValueEntitlementApproved: false,
+        }).grossAmount,
+        // Cancelled cobros are history; every live one is repriced, as every
+        // other repricing command does.
+        invoices: invoiceRows.filter(
+          (invoice) => invoice.status !== "cancelled",
         ),
       };
     }
@@ -610,26 +642,27 @@ export async function downgradeFullTableReservation(input: {
     await releaseStandIfVacant(tx, releasedStandId);
 
     if (repricing) {
-      if (repricing.invoiceId != null) {
+      for (const invoice of repricing.invoices) {
+        // `amount` is what is owed, so it has to keep honouring the discount
+        // (clamped to the half: a discount agreed against a full table can
+        // exceed half of one) and any write-off. Writing the gross half price
+        // here billed a discounted participant the full amount.
+        const repriced = repriceInvoiceAmounts(repricing.grossAmount, invoice);
         await tx
           .update(invoices)
           .set({
-            // `amount` is what is owed, so it has to keep honouring the
-            // discount. Writing the gross half price here billed a discounted
-            // participant the full amount and broke the invoice's own
-            // `amount = originalAmount - discountAmount` invariant.
-            originalAmount: repricing.halfPrice,
-            discountAmount: repricing.discountAmount,
-            amount: roundMoney(repricing.halfPrice - repricing.discountAmount),
+            originalAmount: repriced.originalAmount,
+            discountAmount: repriced.discountAmount,
+            amount: repriced.amount,
             updatedAt: new Date(),
           })
-          .where(eq(invoices.id, repricing.invoiceId));
+          .where(eq(invoices.id, invoice.id));
       }
 
       await tx
         .update(standReservations)
         .set({
-          priceAmountSnapshot: repricing.halfPrice,
+          priceAmountSnapshot: repricing.grossAmount,
           fullTablePriceSnapshot: null,
           updatedAt: new Date(),
         })
