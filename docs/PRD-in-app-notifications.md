@@ -173,6 +173,10 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
 
 - **P2** Mirror the queued emails (12 reservation kinds, disciplinary notices, top-up rejection, participation decisions) through `notify()`. Admin copies land in Administración. Launch the bell for participants.
 - **P3** Comunicados: BlockNote composer, audiences, preview, test send, schedule, report, retry, duplicate, edit or retract in-app. Opt-outs for announcements.
+  - **Distribution lists** (Dennis, 2026-10-20), so admins pick a group instead of re-selecting people every time:
+    - **One list per festival, automatic.** Every festival, past ones included, has a "Confirmados · <festival>" list (participants with a confirmed reservation). Nobody creates it; it is computed when used, so it is always current.
+    - **Lists admins save:** a named filter (re-evaluated at send time) or a fixed, hand-picked group.
+    - Lists are available in the comunicado audience picker and in the credit-gift recipient picker.
 - **P4** Inline sends (profiles, activities, orders, programs, reminders) through `notify()`; visitor and guest mail gets delivery rows; per-participant Comunicaciones tab.
 - **P5** Delivery events from the Resend webhook on deliveries; preferences page.
 - **P6** Editable system copy; re-evaluate `@react-email/editor`.
