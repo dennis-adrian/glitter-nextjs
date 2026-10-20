@@ -39,11 +39,13 @@ export function useUnreadNotificationCount() {
     let inFlight = false;
     let again = false;
 
-    const poll = () => {
+    const poll = (announced = false) => {
       if (document.visibilityState !== "visible") return;
       if (inFlight) {
-        // Asked while answering: ask once more when this answer lands.
-        again = true;
+        // A change announced mid-request may postdate the answer on its way,
+        // so ask once more when it lands. Focus and visibility, which fire
+        // together, are already answered by the request in flight.
+        if (announced) again = true;
         return;
       }
       inFlight = true;
@@ -64,10 +66,10 @@ export function useUnreadNotificationCount() {
     };
 
     poll();
-    const timer = window.setInterval(poll, POLL_INTERVAL_MS);
+    const timer = window.setInterval(() => poll(), POLL_INTERVAL_MS);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
-    const unsubscribe = onNotificationsChanged(poll);
+    const unsubscribe = onNotificationsChanged(() => poll(true));
     return () => {
       current = false;
       window.clearInterval(timer);

@@ -248,25 +248,36 @@ async function recipientCounts(campaignId: number) {
   const rows = await db
     .select({
       status: notificationCampaignRecipients.status,
+      revoked: sql<boolean>`${notificationCampaignRecipients.revokedAt} IS NOT NULL`,
       count: count(),
     })
     .from(notificationCampaignRecipients)
     .where(eq(notificationCampaignRecipients.campaignId, campaignId))
-    .groupBy(notificationCampaignRecipients.status);
-  const byStatus = Object.fromEntries(
-    rows.map((row) => [row.status, Number(row.count)]),
-  ) as Partial<Record<string, number>>;
-  const pending = byStatus.pending ?? 0;
-  const granted = byStatus.granted ?? 0;
-  const skipped = byStatus.skipped ?? 0;
-  const failed = byStatus.failed ?? 0;
-  return {
-    pending,
-    granted,
-    skipped,
-    failed,
-    total: pending + granted + skipped + failed,
+    .groupBy(
+      notificationCampaignRecipients.status,
+      sql`${notificationCampaignRecipients.revokedAt} IS NOT NULL`,
+    );
+  const counts = {
+    pending: 0,
+    /** Granted and still holding it. */
+    granted: 0,
+    /** Granted, then taken back. */
+    revoked: 0,
+    skipped: 0,
+    failed: 0,
+    total: 0,
   };
+  for (const row of rows) {
+    const n = Number(row.count);
+    counts.total += n;
+    if (row.status === "granted") {
+      if (row.revoked) counts.revoked += n;
+      else counts.granted += n;
+    } else {
+      counts[row.status] += n;
+    }
+  }
+  return counts;
 }
 
 type GiftForProcessing = {
@@ -507,7 +518,11 @@ async function recordRecipientFailure(recipientId: number, error: unknown) {
  * Closes a gift once nobody is pending, and tells the admin who sent it. The
  * conditional update lets only one worker do it.
  */
-async function completeGiftIfDone(gift: GiftForProcessing) {
+async function completeGiftIfDone(
+  gift: GiftForProcessing,
+  /** Set when a "Retirar a todos" is what left nobody pending. */
+  { withdrawn = false }: { withdrawn?: boolean } = {},
+) {
   const counts = await recipientCounts(gift.id);
   if (counts.pending > 0) return { completed: false, deliveryIds: [] };
 
@@ -535,9 +550,12 @@ async function completeGiftIfDone(gift: GiftForProcessing) {
         data: {
           campaignId: gift.id,
           title: gift.title,
+          withdrawn,
           granted: counts.granted,
+          revoked: counts.revoked,
           skipped: counts.skipped,
           failed: counts.failed,
+          // What participants still hold, not what was ever credited.
           totalGranted: creditGiftTotal(
             gift.amountPerRecipient,
             counts.granted,
@@ -732,7 +750,7 @@ export async function revokeCreditGift(input: {
     }
   }
   // Cancelling the last pending people can be what finishes the gift.
-  if (cancelled > 0) await completeGiftIfDone(gift);
+  if (cancelled > 0) await completeGiftIfDone(gift, { withdrawn: true });
   return result;
 }
 
@@ -863,73 +881,93 @@ export type ResendGiftNotificationResult =
  * Mails a recipient's gift notice again, to the address on file now. It never
  * grants again: the new row only re-delivers the snapshot the inbox already
  * holds, under a key of its own so Resend does not fold it into the first.
+ *
+ * The checks and the insert share one transaction holding the recipient row,
+ * taken after the user and account like everywhere else: a revocation, or a
+ * second click from another tab, waits for it instead of slipping between
+ * "still holds the gift" and the new email.
  */
 export async function resendCreditGiftNotification(input: {
   campaignId: number;
   userId: number;
   actorId: number;
 }): Promise<ResendGiftNotificationResult> {
-  const [row] = await db
-    .select({
-      status: notificationCampaignRecipients.status,
-      notificationId: notificationCampaignRecipients.notificationId,
-      revokedAt: notificationCampaignRecipients.revokedAt,
-      kind: notifications.kind,
-      data: notifications.data,
-      email: users.email,
-    })
-    .from(notificationCampaignRecipients)
-    .innerJoin(
-      notifications,
-      eq(notifications.id, notificationCampaignRecipients.notificationId),
-    )
-    .innerJoin(users, eq(users.id, notificationCampaignRecipients.userId))
-    .where(
-      and(
-        eq(notificationCampaignRecipients.campaignId, input.campaignId),
-        eq(notificationCampaignRecipients.userId, input.userId),
-      ),
-    )
-    .limit(1);
-  if (
-    !row ||
-    row.status !== "granted" ||
-    row.revokedAt ||
-    row.notificationId == null
-  ) {
-    return { ok: false, code: "NOT_GRANTED" };
-  }
-  if (!row.email?.trim()) return { ok: false, code: "NO_EMAIL" };
+  return db.transaction(async (tx) => {
+    if (!(await lockCreditAccountForWriteInTx(tx, input.userId))) {
+      return { ok: false, code: "NOT_GRANTED" } as const;
+    }
+    const [recipient] = await tx
+      .select({
+        status: notificationCampaignRecipients.status,
+        notificationId: notificationCampaignRecipients.notificationId,
+        revokedAt: notificationCampaignRecipients.revokedAt,
+      })
+      .from(notificationCampaignRecipients)
+      .where(
+        and(
+          eq(notificationCampaignRecipients.campaignId, input.campaignId),
+          eq(notificationCampaignRecipients.userId, input.userId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (
+      !recipient ||
+      recipient.status !== "granted" ||
+      recipient.revokedAt ||
+      recipient.notificationId == null
+    ) {
+      return { ok: false, code: "NOT_GRANTED" } as const;
+    }
 
-  const [previous] = await db
-    .select({
-      id: notificationDeliveries.id,
-      status: notificationDeliveries.status,
-    })
-    .from(notificationDeliveries)
-    .where(eq(notificationDeliveries.notificationId, row.notificationId))
-    .orderBy(desc(notificationDeliveries.id))
-    .limit(1);
-  // The first one is still on its way: a second now would arrive twice.
-  if (previous?.status === "pending" || previous?.status === "processing") {
-    return { ok: false, code: "EMAIL_PENDING" };
-  }
-  // A bounced or reported address gets nothing, so "reenviado" would be a lie.
-  if (await isSuppressed(row.email)) return { ok: false, code: "SUPPRESSED" };
+    const [row] = await tx
+      .select({
+        kind: notifications.kind,
+        data: notifications.data,
+        email: users.email,
+      })
+      .from(notifications)
+      .innerJoin(users, eq(users.id, notifications.userId))
+      .where(eq(notifications.id, recipient.notificationId))
+      .limit(1);
+    if (!row) return { ok: false, code: "NOT_GRANTED" } as const;
+    const email = row.email?.trim();
+    if (!email) return { ok: false, code: "NO_EMAIL" } as const;
 
-  const [delivery] = await db
-    .insert(notificationDeliveries)
-    .values({
-      notificationId: row.notificationId,
-      userId: input.userId,
-      templateKey: row.kind,
-      recipientEmail: row.email.trim(),
-      payload: row.data,
-      idempotencyKey: `notification:${row.notificationId}:resend:${randomUUID()}`,
-      resendOfDeliveryId: previous?.id ?? null,
-      requestedByUserId: input.actorId,
-    })
-    .returning({ id: notificationDeliveries.id });
-  if (!delivery) throw new Error("credit_gift_resend_insert_failed");
-  return { ok: true, deliveryId: delivery.id };
+    const [previous] = await tx
+      .select({
+        id: notificationDeliveries.id,
+        status: notificationDeliveries.status,
+      })
+      .from(notificationDeliveries)
+      .where(
+        eq(notificationDeliveries.notificationId, recipient.notificationId),
+      )
+      .orderBy(desc(notificationDeliveries.id))
+      .limit(1);
+    // The last one is still on its way: another now would arrive twice.
+    if (previous?.status === "pending" || previous?.status === "processing") {
+      return { ok: false, code: "EMAIL_PENDING" } as const;
+    }
+    // A bounced or reported address gets nothing, so "reenviado" would lie.
+    if (await isSuppressed(email)) {
+      return { ok: false, code: "SUPPRESSED" } as const;
+    }
+
+    const [delivery] = await tx
+      .insert(notificationDeliveries)
+      .values({
+        notificationId: recipient.notificationId,
+        userId: input.userId,
+        templateKey: row.kind,
+        recipientEmail: email,
+        payload: row.data,
+        idempotencyKey: `notification:${recipient.notificationId}:resend:${randomUUID()}`,
+        resendOfDeliveryId: previous?.id ?? null,
+        requestedByUserId: input.actorId,
+      })
+      .returning({ id: notificationDeliveries.id });
+    if (!delivery) throw new Error("credit_gift_resend_insert_failed");
+    return { ok: true, deliveryId: delivery.id } as const;
+  });
 }

@@ -114,7 +114,9 @@ export default function NotificationPopoverContent({
     onNavigate();
   }
 
-  const unreadCount = page?.unreadCount ?? 0;
+  // While a view loads, the last answer's count stands in rather than
+  // flashing "0 sin leer"; "Marcar todo" waits for the list itself.
+  const unreadCount = page?.unreadCount ?? result?.page?.unreadCount ?? 0;
 
   return (
     <div className="flex max-h-[min(560px,80vh)] flex-col">
@@ -158,7 +160,7 @@ export default function NotificationPopoverContent({
           variant="link"
           size="sm"
           className="h-auto p-0 text-xs"
-          disabled={unreadCount === 0 || isPending}
+          disabled={!page || unreadCount === 0 || isPending}
           onClick={() => markAll("all")}
         >
           Marcar todo como leído

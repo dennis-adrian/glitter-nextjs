@@ -191,16 +191,21 @@ export async function revokeCreditGiftAction(
         "No quedaba nadie con este regalo para retirar. Actualizá la página.",
     };
   }
-  const parts = [
-    result.revoked === 1
-      ? "Retiramos el regalo a 1 persona"
-      : `Retiramos el regalo a ${result.revoked} personas`,
-  ];
+  const parts: string[] = [];
+  if (result.revoked > 0) {
+    parts.push(
+      result.revoked === 1
+        ? "Retiramos el regalo a 1 persona"
+        : `Retiramos el regalo a ${result.revoked} personas`,
+    );
+  }
   if (result.cancelled > 0) {
+    // Said on its own when nobody had it yet: "Retiramos el regalo a 0
+    // personas" would read as if nothing happened.
     parts.push(
       result.cancelled === 1
-        ? "1 que todavía no lo había recibido ya no lo va a recibir"
-        : `${result.cancelled} que todavía no lo habían recibido ya no lo van a recibir`,
+        ? "Dejamos de enviarlo a 1 persona que todavía no lo había recibido"
+        : `Dejamos de enviarlo a ${result.cancelled} personas que todavía no lo habían recibido`,
     );
   }
   if (result.negative > 0) {

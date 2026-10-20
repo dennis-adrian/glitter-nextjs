@@ -51,10 +51,12 @@ function resendBlocker(
     return "Solo se reenvía a quien tiene el regalo.";
   }
   if (row.emailState === "pending") {
-    return "El primer correo todavía se está enviando.";
+    return "El último correo todavía se está enviando.";
   }
-  if (row.emailState === "skipped") {
-    return "El correo está bloqueado: rebotó o lo marcaron como spam.";
+  // The address as it is now, not as it was when the last email was skipped:
+  // lifting the block, or a new address, makes it usable again.
+  if (row.emailBlocked) {
+    return "El correo está bloqueado. Desbloquealo en Correos bloqueados.";
   }
   return null;
 }
@@ -73,10 +75,13 @@ export default function CreditGiftRecipientsTable({
   recipients,
   canMutate,
 }: CreditGiftRecipientsTableProps) {
-  const [revoke, setRevoke] = useState<{
-    scope: "one" | "all";
-    targets: CreditGiftRevokeTarget[];
-  } | null>(null);
+  // One person is fixed when the dialog opens; "all" is whoever holds the
+  // gift as the page refreshes, which is what the server will act on.
+  const [revoke, setRevoke] = useState<
+    | { scope: "one"; targets: CreditGiftRevokeTarget[] }
+    | { scope: "all" }
+    | null
+  >(null);
 
   const holders = recipients
     .filter((row) => row.status === "granted" && !row.revokedAt)
@@ -98,7 +103,7 @@ export default function CreditGiftRecipientsTable({
           size="sm"
           variant="outline"
           disabled={!canMutate || (holders.length === 0 && pendingCount === 0)}
-          onClick={() => setRevoke({ scope: "all", targets: holders })}
+          onClick={() => setRevoke({ scope: "all" })}
         >
           Retirar a todos
         </Button>
@@ -124,6 +129,7 @@ export default function CreditGiftRecipientsTable({
           <TableBody>
             {recipients.map((row) => {
               const holds = row.status === "granted" && !row.revokedAt;
+              const resendReason = resendBlocker(row, canMutate);
               return (
                 <TableRow key={row.userId}>
                   <TableCell className="min-w-48">
@@ -184,7 +190,7 @@ export default function CreditGiftRecipientsTable({
                       <CreditGiftResendButton
                         campaignId={campaignId}
                         userId={row.userId}
-                        disabledReason={resendBlocker(row, canMutate)}
+                        disabledReason={resendReason}
                       />
                       <Button
                         type="button"
@@ -207,6 +213,13 @@ export default function CreditGiftRecipientsTable({
                         Retirar
                       </Button>
                     </div>
+                    {/* The other reasons are already on screen: the notice
+                        above the table, or the row's "Retirado"/"Omitido". */}
+                    {canMutate && holds && resendReason && (
+                      <p className="mt-1 max-w-56 text-xs text-muted-foreground sm:ml-auto">
+                        {resendReason}
+                      </p>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -217,7 +230,7 @@ export default function CreditGiftRecipientsTable({
       <CreditGiftRevokeDialog
         campaignId={campaignId}
         amountPerRecipient={amountPerRecipient}
-        targets={revoke?.targets ?? []}
+        targets={revoke?.scope === "all" ? holders : (revoke?.targets ?? [])}
         scope={revoke?.scope ?? "one"}
         pendingCount={pendingCount}
         open={revoke != null}

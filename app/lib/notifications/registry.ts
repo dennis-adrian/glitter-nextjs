@@ -61,9 +61,15 @@ const creditGiftRevokedSchema = z.object({
 const creditGiftCompletedSchema = z.object({
   campaignId: z.number().int().positive(),
   title: z.string(),
+  /** Closed by a "Retirar a todos", not by everyone being credited. */
+  withdrawn: z.boolean().default(false),
+  /** Still holding it. */
   granted: z.number().int().min(0),
+  /** Credited, then taken back. */
+  revoked: z.number().int().min(0).default(0),
   skipped: z.number().int().min(0),
   failed: z.number().int().min(0),
+  /** What the people in `granted` hold between them. */
   totalGranted: z.number().min(0),
 });
 
@@ -126,16 +132,32 @@ const kinds = {
     category: "admin",
     schema: creditGiftCompletedSchema,
     inApp: (data) => {
-      const parts = [countLabel(data.granted, "acreditado", "acreditados")];
+      const parts: string[] = [];
+      if (data.granted > 0 || (!data.withdrawn && data.revoked === 0)) {
+        parts.push(countLabel(data.granted, "acreditado", "acreditados"));
+      }
+      if (data.revoked > 0) {
+        parts.push(countLabel(data.revoked, "retirado", "retirados"));
+      }
       if (data.skipped > 0) {
-        parts.push(countLabel(data.skipped, "omitido", "omitidos"));
+        parts.push(
+          data.withdrawn
+            ? countLabel(
+                data.skipped,
+                "omitido o cancelado",
+                "omitidos o cancelados",
+              )
+            : countLabel(data.skipped, "omitido", "omitidos"),
+        );
       }
       if (data.failed > 0) {
         parts.push(countLabel(data.failed, "con error", "con error"));
       }
       return {
-        title: `Regalo enviado: «${data.title}»`,
-        body: `${parts.join(", ")}. Total: ${formatCredits(data.totalGranted)}.`,
+        title: data.withdrawn
+          ? `Regalo retirado: «${data.title}»`
+          : `Regalo enviado: «${data.title}»`,
+        body: `${parts.join(", ")}. Total vigente: ${formatCredits(data.totalGranted)}.`,
         actionPath: `/dashboard/credits/gifts/${data.campaignId}`,
         actionLabel: "Ver el regalo",
       };

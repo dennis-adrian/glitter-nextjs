@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   CREDIT_GIFT_SKIP_REASONS,
@@ -17,6 +17,7 @@ import { db } from "@/db";
 import {
   creditGiftDetails,
   creditLedgerEntries,
+  emailSuppressions,
   notificationCampaignRecipients,
   notificationCampaigns,
   notificationDeliveries,
@@ -194,6 +195,12 @@ export type CreditGiftRecipientRow = {
   emailState: CreditGiftEmailState;
   /** How many times the notice was mailed again by hand. */
   resendCount: number;
+  /**
+   * Whether the address is on the bounce/complaint list right now. Read live
+   * rather than from the last delivery, so lifting a block or changing the
+   * address makes "Reenviar aviso" usable again.
+   */
+  emailBlocked: boolean;
   ledgerBalance: number;
   revokedAt: Date | null;
   processedAt: Date | null;
@@ -295,7 +302,10 @@ export async function fetchCreditGift(
     .map((row) => row.notificationId)
     .filter((id): id is number => id != null);
 
-  const [balanceRows, deliveryRows] = await Promise.all([
+  const emailKeys = [
+    ...new Set(recipientRows.map((row) => row.email.trim().toLowerCase())),
+  ];
+  const [balanceRows, deliveryRows, blockedRows] = await Promise.all([
     userIds.length
       ? db
           .select({
@@ -321,7 +331,19 @@ export async function fetchCreditGift(
           )
           .orderBy(asc(notificationDeliveries.id))
       : Promise.resolve([]),
+    emailKeys.length
+      ? db
+          .select({ emailKey: emailSuppressions.emailKey })
+          .from(emailSuppressions)
+          .where(
+            and(
+              inArray(emailSuppressions.emailKey, emailKeys),
+              isNull(emailSuppressions.liftedAt),
+            ),
+          )
+      : Promise.resolve([]),
   ]);
+  const blocked = new Set(blockedRows.map((row) => row.emailKey));
 
   const balanceByUser = new Map(
     balanceRows.map((row) => [row.userId, Number(row.balance)]),
@@ -357,6 +379,7 @@ export async function fetchCreditGift(
         : "none",
     resendCount:
       row.notificationId != null ? (resends.get(row.notificationId) ?? 0) : 0,
+    emailBlocked: blocked.has(row.email.trim().toLowerCase()),
     ledgerBalance: balanceByUser.get(row.userId) ?? 0,
     revokedAt: row.revokedAt,
     processedAt: row.processedAt,

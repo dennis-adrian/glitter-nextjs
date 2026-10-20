@@ -162,7 +162,7 @@ export default async function CreditAccountPanel({
                         href={`/dashboard/credits/gifts/${entry.creditGiftId}`}
                         className="text-xs text-primary hover:underline"
                       >
-                        {entry.gift
+                        {entry.gift && !entry.isReverted
                           ? "Retirar desde el regalo"
                           : "Ver el regalo"}
                       </Link>

@@ -1,7 +1,7 @@
 "use client";
 
 import { BellIcon } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import NotificationFilterChips from "@/app/components/notifications/notification-filter-chips";
@@ -69,14 +69,24 @@ export default function NotificationInbox({
   const [cursor, setCursor] = useState(initialPage.nextCursor);
   const [loadFailed, setLoadFailed] = useState(false);
   const [isLoading, startLoading] = useTransition();
+  // Bumped by every local change, so an answer requested before one of them
+  // cannot overwrite it.
+  const changes = useRef(0);
+  // The items as last rendered, for handlers that run after an await and
+  // must compare with what is on screen now, not what was there at the click.
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   // The router can hand back this page's payload from its cache, on "back"
   // after opening an item for example, so the first page is asked for again
   // once mounted rather than trusting what the server rendered earlier.
   useEffect(() => {
     let current = true;
+    const changesAtRequest = changes.current;
     void fetchInboxFirstPage(filter).then((page) => {
-      if (!current || !page) return;
+      if (!current || !page || changes.current !== changesAtRequest) return;
       setItems(page.items);
       setUnreadCount(page.unreadCount);
       setCursor(page.nextCursor);
@@ -96,6 +106,7 @@ export default function NotificationInbox({
 
   const { markAll, isPending } = useMarkAllNotificationsRead({
     onRead: (ids) => {
+      changes.current += 1;
       const read = new Set(ids);
       const now = new Date().toISOString();
       setItems((current) =>
@@ -106,6 +117,7 @@ export default function NotificationInbox({
       setUnreadCount((count) => Math.max(0, count - ids.length));
     },
     onUndo: (ids) => {
+      changes.current += 1;
       const restored = new Set(ids);
       setItems((current) =>
         current.map((item) =>
@@ -117,19 +129,27 @@ export default function NotificationInbox({
   });
 
   function replace(next: InboxNotification) {
-    const previous = items.find((item) => item.id === next.id);
+    changes.current += 1;
+    // From the ref, not the render's `items`: a rollback after a failed
+    // action runs from a closure that still holds the pre-change list, and
+    // would otherwise see no change and leave the count off by one.
+    const previous = itemsRef.current.find((item) => item.id === next.id);
     if (previous && (previous.readAt == null) !== (next.readAt == null)) {
       setUnreadCount((count) =>
         Math.max(0, count + (next.readAt == null ? 1 : -1)),
       );
     }
-    setItems((current) =>
-      current.map((item) => (item.id === next.id ? next : item)),
+    const updated = itemsRef.current.map((item) =>
+      item.id === next.id ? next : item,
     );
+    // Kept current before the next render, for a rollback in the same tick.
+    itemsRef.current = updated;
+    setItems(updated);
   }
 
   function loadMore() {
     if (!cursor) return;
+    changes.current += 1;
     startLoading(async () => {
       setLoadFailed(false);
       try {
@@ -205,6 +225,7 @@ export default function NotificationInbox({
                         item={item}
                         onChange={replace}
                         onArchive={(archived) => {
+                          changes.current += 1;
                           setItems((current) =>
                             current.filter((row) => row.id !== archived.id),
                           );
@@ -213,11 +234,12 @@ export default function NotificationInbox({
                           }
                         }}
                         onRestore={(restored) => {
+                          changes.current += 1;
                           setItems((current) =>
                             current.some((row) => row.id === restored.id)
                               ? current
-                              : [...current, restored].sort((a, b) =>
-                                  b.createdAt.localeCompare(a.createdAt),
+                              : [...current, restored].sort(
+                                  (a, b) => b.id - a.id,
                                 ),
                           );
                           if (restored.readAt == null) {

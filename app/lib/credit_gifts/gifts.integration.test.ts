@@ -802,6 +802,48 @@ describeDatabase("credit gifts", () => {
       .from(notificationCampaigns)
       .where(eq(notificationCampaigns.id, created.campaignId));
     expect(campaign!.status).toBe("completed");
+
+    // The sender hears it was withdrawn, not "Regalo enviado".
+    const [summary] = await notificationsFor(admin.id);
+    expect(summary).toMatchObject({ kind: "credit_gift_completed" });
+    expect(summary!.title).toBe(
+      "Regalo retirado: «Un regalo para agradecerte»",
+    );
+  });
+
+  it("never sends a gift email whose gift was revoked while it was in flight", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const created = await gifts.createCreditGift(giftInput([ana.id]), {
+      id: admin.id,
+    });
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+    const [received] = await deliveriesFor(ana.id);
+
+    // The drain had claimed it when the revoke ran, so the revoke left it
+    // alone; the attempt then failed and put it back in the queue.
+    await integrationDb!
+      .update(notificationDeliveries)
+      .set({ status: "processing", leaseOwner: "elsewhere" })
+      .where(eq(notificationDeliveries.id, received!.id));
+    await gifts.revokeCreditGift({
+      campaignId: created.campaignId,
+      userIds: [ana.id],
+      actorId: admin.id,
+    });
+    await integrationDb!
+      .update(notificationDeliveries)
+      .set({ status: "pending", leaseOwner: null })
+      .where(eq(notificationDeliveries.id, received!.id));
+
+    await deliveries.sendNotificationDeliveries([received!.id], 30_000);
+    const [after] = await integrationDb!
+      .select()
+      .from(notificationDeliveries)
+      .where(eq(notificationDeliveries.id, received!.id));
+    expect(after).toMatchObject({ status: "skipped", lastError: "revoked" });
+    expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
   it("pages through items that share a timestamp without skipping any", async () => {

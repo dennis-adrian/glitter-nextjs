@@ -95,7 +95,7 @@ export default function CreditGiftRevokeDialog({
             {targets.length > 0 &&
               `Se descuentan ${formatCreditCount(amountPerRecipient)} a ${single ? "esta persona" : "cada una"} y ${single ? "recibe" : "reciben"} un aviso neutral en la app y por correo. El movimiento queda en el historial.`}
             {cancelling > 0 &&
-              ` ${cancelling === 1 ? "La persona que todavía no lo recibió ya no lo va a recibir" : `Las ${cancelling} personas que todavía no lo recibieron ya no lo van a recibir`}.`}
+              ` ${cancelling === 1 ? "La persona que todavía no lo recibió ya no lo va a recibir" : `Las ${cancelling} personas que todavía no lo recibieron ya no lo van a recibir`}. Si alguien lo recibe antes de que confirmes, también se le retira y se le avisa.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {negative.length > 0 && (

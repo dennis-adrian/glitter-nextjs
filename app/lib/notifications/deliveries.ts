@@ -9,7 +9,10 @@ import { buildEmailCopy } from "@/app/lib/notifications/registry";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
-import { notificationDeliveries } from "@/db/schema";
+import {
+  notificationCampaignRecipients,
+  notificationDeliveries,
+} from "@/db/schema";
 
 const MAX_ATTEMPTS = 5;
 const LEASE_DURATION_MS = 5 * 60 * 1000;
@@ -89,6 +92,16 @@ async function settle(
     );
 }
 
+async function giftWasRevoked(notificationId: number | null) {
+  if (notificationId == null) return false;
+  const [row] = await db
+    .select({ revokedAt: notificationCampaignRecipients.revokedAt })
+    .from(notificationCampaignRecipients)
+    .where(eq(notificationCampaignRecipients.notificationId, notificationId))
+    .limit(1);
+  return row?.revokedAt != null;
+}
+
 /**
  * Sends one delivery if it is due and nobody else holds it.
  *
@@ -96,6 +109,11 @@ async function settle(
  * would accept the request and deliver nothing, and the admin would read
  * "enviado". A snapshot that no longer renders fails for good, since retrying
  * it can only fail the same way.
+ *
+ * A gift email is checked against its gift right before sending: revoking
+ * cancels the queued ones, but one already claimed when the revoke ran comes
+ * back here after a failed attempt or an expired lease, and must not
+ * celebrate credits that were taken back.
  */
 export async function attemptNotificationDelivery(
   deliveryId: number,
@@ -106,6 +124,17 @@ export async function attemptNotificationDelivery(
 
   const now = new Date();
   try {
+    if (
+      delivery.templateKey === "credit_gift_received" &&
+      (await giftWasRevoked(delivery.notificationId))
+    ) {
+      await settle(delivery.id, owner, {
+        status: "skipped",
+        lastError: "revoked",
+      });
+      return { processed: true, status: "skipped" };
+    }
+
     if (await isSuppressed(delivery.recipientEmail)) {
       await settle(delivery.id, owner, {
         status: "skipped",

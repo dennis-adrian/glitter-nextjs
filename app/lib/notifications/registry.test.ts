@@ -63,14 +63,36 @@ describe("notification registry", () => {
       buildInAppCopy("credit_gift_completed", {
         campaignId: 3,
         title: "Regalo",
+        withdrawn: false,
         granted: 35,
+        revoked: 0,
         skipped: 2,
         failed: 0,
         totalGranted: 700,
       }),
     ).toMatchObject({
-      body: "35 acreditados, 2 omitidos. Total: Bs700.00.",
+      title: "Regalo enviado: «Regalo»",
+      body: "35 acreditados, 2 omitidos. Total vigente: Bs700.00.",
       actionPath: "/dashboard/credits/gifts/3",
+    });
+  });
+
+  it("says a gift taken back from everyone was withdrawn, not sent", () => {
+    // Nobody holds it any more, so "Regalo enviado" with a total would mislead.
+    expect(
+      buildInAppCopy("credit_gift_completed", {
+        campaignId: 3,
+        title: "Regalo",
+        withdrawn: true,
+        granted: 0,
+        revoked: 3,
+        skipped: 7,
+        failed: 0,
+        totalGranted: 0,
+      }),
+    ).toMatchObject({
+      title: "Regalo retirado: «Regalo»",
+      body: "3 retirados, 7 omitidos o cancelados. Total vigente: Bs0.00.",
     });
   });
 

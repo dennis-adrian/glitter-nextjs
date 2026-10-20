@@ -121,7 +121,7 @@ export default function CreditGiftMessageFields({
         >
           {titleHasPlaceholder
             ? `El título es igual para todos: sacá ${CREDIT_GIFT_NAME_PLACEHOLDER} y usalo en el mensaje.`
-            : "Es igual para todos. Lo ven en el correo, la app y la billetera."}
+            : "Es igual para todos. Lo ven en el correo y en la billetera."}
         </p>
       </div>
 
