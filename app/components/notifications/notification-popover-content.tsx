@@ -2,7 +2,7 @@
 
 import { BellIcon } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import NotificationItem from "@/app/components/notifications/notification-item";
 import { useMarkAllNotificationsRead } from "@/app/components/notifications/use-mark-all-notifications-read";
@@ -18,6 +18,23 @@ import { cn } from "@/lib/utils";
 
 type View = "unread" | "all";
 
+/** The popover's page, or null when it could not be loaded. */
+async function fetchInboxPreview(view: View): Promise<InboxPage | null> {
+  try {
+    const params = new URLSearchParams({
+      limit: String(NOTIFICATION_POPOVER_SIZE),
+    });
+    if (view === "unread") params.set("unread", "1");
+    const response = await fetch(`/api/notifications?${params}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as InboxPage;
+  } catch {
+    return null;
+  }
+}
+
 type NotificationPopoverContentProps = {
   onCountChange: (count: number) => void;
   onNavigate: () => void;
@@ -32,53 +49,55 @@ export default function NotificationPopoverContent({
   onNavigate,
 }: NotificationPopoverContentProps) {
   const [view, setView] = useState<View>("unread");
-  const [page, setPage] = useState<InboxPage | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  const load = useCallback(
-    async (nextView: View) => {
-      setFailed(false);
-      try {
-        const params = new URLSearchParams({
-          limit: String(NOTIFICATION_POPOVER_SIZE),
-        });
-        if (nextView === "unread") params.set("unread", "1");
-        const response = await fetch(`/api/notifications?${params}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error("notifications_failed");
-        const body = (await response.json()) as InboxPage;
-        setPage(body);
-        onCountChange(body.unreadCount);
-      } catch {
-        setFailed(true);
-      }
-    },
-    [onCountChange],
-  );
+  // Bumped to load again: "Reintentar", and an undo that changed the list.
+  const [attempt, setAttempt] = useState(0);
+  const key = `${view}:${attempt}`;
+  // Stored with the request it answers, so switching tabs shows a skeleton
+  // instead of the other tab's items.
+  const [result, setResult] = useState<{
+    key: string;
+    page: InboxPage | null;
+  } | null>(null);
 
   useEffect(() => {
-    void load(view);
-  }, [load, view]);
+    let current = true;
+    const requestKey = `${view}:${attempt}`;
+    void fetchInboxPreview(view).then((page) => {
+      if (!current) return;
+      setResult({ key: requestKey, page });
+      if (page) onCountChange(page.unreadCount);
+    });
+    return () => {
+      current = false;
+    };
+  }, [view, attempt, onCountChange]);
+
+  const answered = result?.key === key ? result : null;
+  const page = answered?.page ?? null;
+  const failed = answered != null && answered.page == null;
+  const retry = () => setAttempt((count) => count + 1);
 
   const { markAll, isPending } = useMarkAllNotificationsRead({
     onRead: (ids) => {
       const read = new Set(ids);
       const now = new Date().toISOString();
-      setPage((current) =>
-        current
+      setResult((current) =>
+        current?.page
           ? {
               ...current,
-              unreadCount: 0,
-              items: current.items.map((item) =>
-                read.has(item.id) ? { ...item, readAt: now } : item,
-              ),
+              page: {
+                ...current.page,
+                unreadCount: 0,
+                items: current.page.items.map((item) =>
+                  read.has(item.id) ? { ...item, readAt: now } : item,
+                ),
+              },
             }
           : current,
       );
       onCountChange(0);
     },
-    onUndo: () => void load(view),
+    onUndo: retry,
   });
 
   function open(item: InboxNotification) {
@@ -141,7 +160,7 @@ export default function NotificationPopoverContent({
             <p className="text-muted-foreground">
               No pudimos cargar tus notificaciones.
             </p>
-            <Button size="sm" variant="outline" onClick={() => void load(view)}>
+            <Button size="sm" variant="outline" onClick={retry}>
               Reintentar
             </Button>
           </div>

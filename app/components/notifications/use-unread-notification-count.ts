@@ -1,9 +1,23 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const POLL_INTERVAL_MS = 60_000;
+
+async function fetchUnreadCount(): Promise<number | null> {
+  try {
+    const response = await fetch("/api/notifications/unread-count", {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { count?: unknown };
+    return typeof body.count === "number" ? body.count : null;
+  } catch {
+    // A missed poll is retried on the next tick.
+    return null;
+  }
+}
 
 /**
  * The unread count, polled once a minute while the tab is visible, and again
@@ -15,46 +29,36 @@ export function useUnreadNotificationCount() {
   const [count, setCount] = useState<number | null>(null);
   const inFlight = useRef(false);
 
-  const refresh = useCallback(async () => {
-    if (inFlight.current) return;
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState !== "visible"
-    ) {
-      return;
-    }
-    inFlight.current = true;
-    try {
-      const response = await fetch("/api/notifications/unread-count", {
-        cache: "no-store",
-      });
-      if (!response.ok) return;
-      const body = (await response.json()) as { count?: unknown };
-      if (typeof body.count === "number") setCount(body.count);
-    } catch {
-      // A missed poll is retried on the next tick.
-    } finally {
-      inFlight.current = false;
-    }
-  }, []);
-
+  // Keyed by the path, so a navigation asks again right away.
   useEffect(() => {
-    void refresh();
-  }, [pathname, refresh]);
+    let current = true;
 
-  useEffect(() => {
-    const timer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
+    const poll = () => {
+      if (document.visibilityState !== "visible" || inFlight.current) return;
+      inFlight.current = true;
+      void fetchUnreadCount()
+        .then((next) => {
+          if (current && next != null) setCount(next);
+        })
+        .finally(() => {
+          inFlight.current = false;
+        });
     };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") poll();
+    };
+
+    poll();
+    const timer = window.setInterval(poll, POLL_INTERVAL_MS);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     return () => {
+      current = false;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [refresh]);
+  }, [pathname]);
 
-  return { count, setCount, refresh };
+  return { count, setCount };
 }
