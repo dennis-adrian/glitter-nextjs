@@ -7,12 +7,20 @@ import { useHydrated } from "@/app/hooks/use-hydrated";
 
 /**
  * Clerk's `<SignUp />`, kept out of the server render and out of hydration.
- * Same reason as `SignInForm`: `<SignUp />` reads `clerk.loaded` during render,
- * which is always false on the server and often true by hydration time.
+ * Same reasons as `SignInForm`: `<SignUp />` reads `clerk.loaded` during
+ * render, which is always false on the server and often true by hydration
+ * time, and Clerk's `fallback` would hide its mount point while it mounts.
  */
 export default function SignUpForm() {
   const hydrated = useHydrated();
-  const skeleton = <AuthFormSkeleton variant="signUp" />;
 
-  return hydrated ? <SignUp fallback={skeleton} /> : skeleton;
+  return (
+    <div className="group/auth contents">
+      {hydrated && <SignUp />}
+      <AuthFormSkeleton
+        variant="signUp"
+        className="group-has-[[data-clerk-component]>*]/auth:hidden"
+      />
+    </div>
+  );
 }

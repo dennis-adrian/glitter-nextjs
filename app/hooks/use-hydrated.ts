@@ -25,7 +25,8 @@ function getServerSnapshot() {
  * hydrating, React reads `getServerSnapshot`, so the first browser render
  * matches the server's; right after that commit it sees the snapshot changed
  * and renders again with `true`. No hydration mismatch, and no `setState` in
- * an effect (the same reason `use-recent-check-ins.ts` uses this hook).
+ * an effect (the same reason `use-recent-check-ins.ts` reads `sessionStorage`
+ * through `useSyncExternalStore`).
  *
  * React 19.3's `use(browser())` (Next's single-page-applications guide) gets
  * the same result by client-rendering the nearest `<Suspense>`. This hook needs

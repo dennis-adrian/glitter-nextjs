@@ -17,7 +17,8 @@ const clerk = vi.hoisted(() => ({ loaded: false }));
 /**
  * Same render shape as @clerk/react 6.4.x: the fallback while Clerk has not
  * mounted its card (it never does here), plus the mount point once loaded,
- * hidden while a fallback shows.
+ * hidden while a fallback shows. The forms must not pass a fallback: a hidden
+ * mount point loses the focus Clerk puts on a step's field.
  */
 vi.mock("@clerk/nextjs", () => {
   function clerkComponent(component: string) {
@@ -74,6 +75,12 @@ describe.each([
 ])("$route", ({ Page, component }) => {
   const mountPoint = `[data-clerk-component="${component}"]`;
 
+  function expectVisibleMountPoint(container: HTMLElement) {
+    const node = container.querySelector<HTMLElement>(mountPoint);
+    expect(node).not.toBeNull();
+    expect(node?.style.display).not.toBe("none");
+  }
+
   it.each([
     { loadedBeforeHydration: false },
     { loadedBeforeHydration: true },
@@ -81,8 +88,8 @@ describe.each([
     "hydrates without a mismatch when loadedBeforeHydration=$loadedBeforeHydration",
     async ({ loadedBeforeHydration }) => {
       const page = await Page();
-      const { html, host } = renderOnServer(page);
-      expect(html).not.toContain("data-clerk-component");
+      const { host } = renderOnServer(page);
+      expect(host.querySelector(mountPoint)).toBeNull();
 
       clerk.loaded = loadedBeforeHydration;
       const onRecoverableError = vi.fn();
@@ -102,7 +109,7 @@ describe.each([
     },
   );
 
-  it("shows the skeleton from the first HTML until Clerk mounts its card", async () => {
+  it("shows the skeleton from the first HTML, beside a visible mount point once Clerk loads", async () => {
     const page = await Page();
     const { html, host } = renderOnServer(page);
     expect(html).toContain("animate-pulse");
@@ -112,13 +119,15 @@ describe.each([
       root = hydrateRoot(host, page, { onRecoverableError: vi.fn() });
     });
 
+    // CSS hides the skeleton once Clerk's card is in the mount point.
     expect(host.querySelector(".animate-pulse")).not.toBeNull();
+    expectVisibleMountPoint(host);
   });
 
-  it("renders the form straight away after a client-side navigation", async () => {
+  it("renders the form after a client-side navigation", async () => {
     clerk.loaded = true;
     const { container } = render(await Page());
 
-    expect(container.querySelector(mountPoint)).not.toBeNull();
+    expectVisibleMountPoint(container);
   });
 });
