@@ -38,7 +38,7 @@ export default function NotificationDetail({
           <span
             className={
               notification.creditDelta > 0
-                ? "shrink-0 text-lg font-bold tabular-nums text-green-700"
+                ? "shrink-0 text-lg font-bold tabular-nums text-green-700 dark:text-green-400"
                 : "shrink-0 text-lg font-bold tabular-nums"
             }
           >

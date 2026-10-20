@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 import CreditGiftCelebrationBanner from "@/app/components/credit_gifts/credit-gift-celebration-banner";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import {
@@ -8,6 +10,11 @@ import {
 
 async function loadPendingCelebration(): Promise<PendingCelebration | null> {
   try {
+    // A `force-static` render (the program pages) has no request behind it:
+    // `headers()` is empty and Clerk cannot answer. The HTML is the same for
+    // every visitor there, so it carries no personal banner. Same test as
+    // `isLayoutFeatureEnabled`.
+    if ((await headers()).keys().next().done) return null;
     const viewer = await resolveInboxViewer();
     if (!viewer || viewer.role !== "user") return null;
     if (!(await isFeatureEnabled("credits", viewer))) return null;

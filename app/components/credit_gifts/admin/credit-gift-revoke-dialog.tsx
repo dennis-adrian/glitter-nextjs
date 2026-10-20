@@ -91,7 +91,7 @@ export default function CreditGiftRevokeDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         {negative.length > 0 && (
-          <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             {single
               ? `${single.name} ya usó parte de estos créditos: su saldo quedaría negativo y no podría usar créditos hasta regularizarlo.`
               : `${negative.length} ${negative.length === 1 ? "persona ya usó" : "personas ya usaron"} parte de estos créditos: su saldo quedaría negativo y no podrían usar créditos hasta regularizarlo.`}

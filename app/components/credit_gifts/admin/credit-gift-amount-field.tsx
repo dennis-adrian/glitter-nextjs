@@ -67,7 +67,7 @@ export default function CreditGiftAmountField({
         <span className="text-sm text-muted-foreground">créditos</span>
       </div>
       {invalid ? (
-        <p className="text-xs text-red-600">
+        <p className="text-xs text-red-600 dark:text-red-400">
           Ingresá un monto mayor a 0 y de hasta{" "}
           {CREDIT_GIFT_MAX_AMOUNT_PER_RECIPIENT} créditos, con dos decimales
           como máximo.

@@ -104,7 +104,7 @@ export default function CreditGiftPreview({
             variant="count"
             amount={amount}
             signed
-            className="shrink-0 text-sm font-medium text-green-600"
+            className="shrink-0 text-sm font-medium text-green-600 dark:text-green-400"
           />
         </div>
       </TabsContent>

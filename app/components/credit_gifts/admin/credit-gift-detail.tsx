@@ -44,7 +44,7 @@ export default function CreditGiftDetail({
       </div>
 
       {gift.status === "processing" && (
-        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           Estamos acreditando los créditos y enviando los avisos. Esta página se
           actualiza sola.
         </p>

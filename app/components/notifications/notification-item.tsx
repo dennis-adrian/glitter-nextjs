@@ -66,7 +66,9 @@ export default function NotificationItem({
           <span
             className={cn(
               "font-semibold tabular-nums",
-              item.creditDelta > 0 ? "text-green-700" : "text-foreground",
+              item.creditDelta > 0
+                ? "text-green-700 dark:text-green-400"
+                : "text-foreground",
             )}
           >
             {formatCreditDelta(item.creditDelta)}

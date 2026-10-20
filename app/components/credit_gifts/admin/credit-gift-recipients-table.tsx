@@ -133,8 +133,10 @@ export default function CreditGiftRecipientsTable({
                   <TableCell className="text-sm">
                     <span
                       className={cn(
-                        row.emailState === "failed" && "text-red-700",
-                        row.emailState === "skipped" && "text-amber-800",
+                        row.emailState === "failed" &&
+                          "text-red-700 dark:text-red-400",
+                        row.emailState === "skipped" &&
+                          "text-amber-800 dark:text-amber-300",
                       )}
                     >
                       {EMAIL_LABELS[row.emailState]}
@@ -149,7 +151,10 @@ export default function CreditGiftRecipientsTable({
                   <TableCell className="text-right tabular-nums">
                     <CreditAmount
                       amount={row.ledgerBalance}
-                      className={cn(row.ledgerBalance < 0 && "text-red-600")}
+                      className={cn(
+                        row.ledgerBalance < 0 &&
+                          "text-red-600 dark:text-red-400",
+                      )}
                     />
                   </TableCell>
                   <TableCell className="text-right">

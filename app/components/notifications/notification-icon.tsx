@@ -17,15 +17,25 @@ const CATEGORY_STYLES: Record<
 > = {
   reservations: {
     icon: CalendarCheckIcon,
-    className: "bg-green-100 text-green-800",
+    className:
+      "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300",
   },
   credits: { icon: WalletIcon, className: "bg-primary/10 text-primary" },
   announcements: {
     icon: MegaphoneIcon,
-    className: "bg-teal-100 text-teal-800",
+    className:
+      "bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300",
   },
-  account: { icon: UserIcon, className: "bg-blue-100 text-blue-800" },
-  admin: { icon: ShieldCheckIcon, className: "bg-amber-100 text-amber-900" },
+  account: {
+    icon: UserIcon,
+    className:
+      "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
+  },
+  admin: {
+    icon: ShieldCheckIcon,
+    className:
+      "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
+  },
 };
 
 /**
