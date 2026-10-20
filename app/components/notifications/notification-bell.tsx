@@ -4,7 +4,9 @@ import { BellIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import NotificationPopoverContent from "@/app/components/notifications/notification-popover-content";
+import NotificationPopoverContent, {
+  NOTIFICATION_POPOVER_HEADING_ID,
+} from "@/app/components/notifications/notification-popover-content";
 import { useUnreadNotificationCount } from "@/app/components/notifications/use-unread-notification-count";
 import {
   Popover,
@@ -69,7 +71,12 @@ export default function NotificationBell() {
         <BellIcon className="h-5 w-5" aria-hidden />
         {badge}
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-[400px] p-0">
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[400px] p-0"
+        aria-labelledby={NOTIFICATION_POPOVER_HEADING_ID}
+      >
         {open && (
           <NotificationPopoverContent
             onCountChange={setCount}

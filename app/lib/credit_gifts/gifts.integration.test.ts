@@ -461,6 +461,19 @@ describeDatabase("credit gifts", () => {
     await gifts.processCreditGift(created.campaignId);
     const [original] = await deliveriesFor(ana.id);
 
+    // While the first email is still queued, a re-send would deliver twice.
+    expect(
+      await gifts.resendCreditGiftNotification({
+        campaignId: created.campaignId,
+        userId: ana.id,
+        actorId: admin.id,
+      }),
+    ).toEqual({ ok: false, code: "EMAIL_PENDING" });
+
+    await integrationDb!
+      .update(notificationDeliveries)
+      .set({ status: "sent", sentAt: new Date() })
+      .where(eq(notificationDeliveries.id, original!.id));
     const resent = await gifts.resendCreditGiftNotification({
       campaignId: created.campaignId,
       userId: ana.id,
@@ -670,5 +683,151 @@ describeDatabase("credit gifts", () => {
       .set({ celebratedAt: new Date() })
       .where(inArray(notifications.id, pending!.notificationIds));
     expect(await inbox.fetchPendingGiftCelebration(ana.id)).toBeNull();
+  });
+
+  it("won't re-send to an address that bounced", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const created = await gifts.createCreditGift(giftInput([ana.id]), {
+      id: admin.id,
+    });
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+    await integrationDb!
+      .update(notificationDeliveries)
+      .set({ status: "skipped", lastError: "suppressed" })
+      .where(eq(notificationDeliveries.userId, ana.id));
+    await integrationDb!.insert(emailSuppressions).values({
+      emailKey: ana.email.toLowerCase(),
+      reason: "bounce",
+    });
+
+    expect(
+      await gifts.resendCreditGiftNotification({
+        campaignId: created.campaignId,
+        userId: ana.id,
+        actorId: admin.id,
+      }),
+    ).toEqual({ ok: false, code: "SUPPRESSED" });
+    expect(await deliveriesFor(ana.id)).toHaveLength(1);
+  });
+
+  it("refuses a reused key whose gift details changed", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const input = giftInput([ana.id]);
+    const first = await gifts.createCreditGift(input, { id: admin.id });
+    expect(first.ok).toBe(true);
+
+    // The response was lost, the admin lowered the amount and sent again.
+    expect(
+      await gifts.createCreditGift(
+        { ...input, amountPerRecipient: 5 },
+        { id: admin.id },
+      ),
+    ).toEqual({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+  });
+
+  it("keeps a gift's grant from being reverted outside the gift", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const created = await gifts.createCreditGift(giftInput([ana.id]), {
+      id: admin.id,
+    });
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+    const [grant] = await ledgerFor(ana.id);
+
+    const reverted = await credits.adjustCreditAccount({
+      userId: ana.id,
+      amount: -20,
+      reason: "Reversión",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: grant!.id,
+    });
+    expect(reverted).toEqual({ ok: false, code: "ENTRY_NOT_REVERTIBLE" });
+    expect(await balanceOf(ana.id)).toBe(20);
+  });
+
+  it("revoking cancels a gift email that has not gone out yet", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const created = await gifts.createCreditGift(giftInput([ana.id]), {
+      id: admin.id,
+    });
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+
+    await gifts.revokeCreditGift({
+      campaignId: created.campaignId,
+      userIds: [ana.id],
+      actorId: admin.id,
+    });
+
+    const rows = await deliveriesFor(ana.id);
+    const received = rows.find(
+      (row) => row.templateKey === "credit_gift_received",
+    );
+    const revoked = rows.find(
+      (row) => row.templateKey === "credit_gift_revoked",
+    );
+    expect(received).toMatchObject({ status: "skipped", lastError: "revoked" });
+    expect(revoked).toMatchObject({ status: "pending" });
+  });
+
+  it("revoking everyone mid-send stops it for whoever was still pending", async () => {
+    const admin = await createUser({ role: "admin" });
+    const recipients = await Promise.all([createUser(), createUser()]);
+    const created = await gifts.createCreditGift(
+      giftInput(recipients.map((user) => user.id)),
+      { id: admin.id },
+    );
+    if (!created.ok) throw new Error("gift not created");
+
+    // The worker has not reached anyone yet when the admin takes it back.
+    const result = await gifts.revokeCreditGift({
+      campaignId: created.campaignId,
+      actorId: admin.id,
+    });
+    expect(result).toMatchObject({ revoked: 0, cancelled: 2, failed: 0 });
+
+    const later = await gifts.processCreditGift(created.campaignId);
+    expect(later.granted).toBe(0);
+    for (const user of recipients) {
+      expect(await ledgerFor(user.id)).toHaveLength(0);
+      expect(await notificationsFor(user.id)).toHaveLength(0);
+    }
+    const [campaign] = await integrationDb!
+      .select({ status: notificationCampaigns.status })
+      .from(notificationCampaigns)
+      .where(eq(notificationCampaigns.id, created.campaignId));
+    expect(campaign!.status).toBe("completed");
+  });
+
+  it("pages through items that share a timestamp without skipping any", async () => {
+    const ana = await createUser();
+    // One transaction: every row gets the same now(), to the microsecond.
+    await integrationDb!.transaction(async (tx) => {
+      for (const n of [1, 2, 3]) {
+        await tx.insert(notifications).values({
+          userId: ana.id,
+          kind: "credit_gift_received",
+          category: "credits",
+          title: `Item ${n}`,
+          body: "",
+          dedupeKey: `same-tx-${n}`,
+        });
+      }
+    });
+    const viewer = { id: ana.id, role: "user" as const };
+
+    const first = await inbox.fetchInboxPage(viewer, { limit: 2 });
+    const second = await inbox.fetchInboxPage(viewer, {
+      limit: 2,
+      before: first.nextCursor,
+    });
+    const titles = [...first.items, ...second.items].map((item) => item.title);
+    expect(titles.sort()).toEqual(["Item 1", "Item 2", "Item 3"]);
+    expect(second.nextCursor).toBeNull();
   });
 });

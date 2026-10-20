@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { Button } from "@/app/components/ui/button";
+import { creditsAgree } from "@/app/lib/credit_gifts/definitions";
 import { markGiftsCelebratedAction } from "@/app/lib/notifications/actions";
 
 /**
@@ -47,7 +48,7 @@ export default function CreditGiftCelebrationBanner({
           <span className="font-semibold">
             Recibiste {formatCreditCount(totalCredits)} de regalo.
           </span>{" "}
-          Ya están en tu billetera.
+          {creditsAgree(totalCredits, "Ya está", "Ya están")} en tu billetera.
         </p>
         <Button asChild size="sm" variant="outline" className="shrink-0">
           <Link href="/my_credits" onClick={() => setVisible(false)}>

@@ -20,6 +20,7 @@ import {
 } from "@/app/components/ui/card";
 import { createCreditGiftAction } from "@/app/lib/credit_gifts/actions";
 import {
+  CREDIT_GIFT_NAME_PLACEHOLDER,
   CREDIT_GIFT_OCCASION_TEMPLATES,
   type CreditGiftOccasion,
   type CreditGiftRecipientOption,
@@ -69,6 +70,9 @@ export default function CreditGiftComposer() {
   if (eligible.length === 0) missing.push("al menos un participante");
   if (!amountValid) missing.push("un monto válido");
   if (!title.trim()) missing.push("un título");
+  if (title.includes(CREDIT_GIFT_NAME_PLACEHOLDER)) {
+    missing.push(`un título sin ${CREDIT_GIFT_NAME_PLACEHOLDER}`);
+  }
   if (!message.trim()) missing.push("un mensaje");
   if (!internalNote.trim()) missing.push("la nota interna");
   const canSubmit = missing.length === 0;
@@ -176,7 +180,8 @@ export default function CreditGiftComposer() {
           </CardHeader>
           <CardContent>
             <CreditGiftPreview
-              name={sample?.name ?? null}
+              name={sample?.greetingName ?? null}
+              sampleLabel={sample?.name ?? null}
               amount={amountPerRecipient}
               title={title}
               message={message}

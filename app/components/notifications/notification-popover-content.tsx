@@ -4,6 +4,7 @@ import { BellIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import NotificationItem from "@/app/components/notifications/notification-item";
 import { useMarkAllNotificationsRead } from "@/app/components/notifications/use-mark-all-notifications-read";
 import { Button } from "@/app/components/ui/button";
@@ -17,6 +18,9 @@ import {
 import { cn } from "@/lib/utils";
 
 type View = "unread" | "all";
+
+/** Names the popover for screen readers; the bell points its dialog at it. */
+export const NOTIFICATION_POPOVER_HEADING_ID = "notification-popover-heading";
 
 /** The popover's page, or null when it could not be loaded. */
 async function fetchInboxPreview(view: View): Promise<InboxPage | null> {
@@ -102,8 +106,10 @@ export default function NotificationPopoverContent({
 
   function open(item: InboxNotification) {
     if (item.readAt == null) {
-      void markNotificationReadAction(item.id);
       onCountChange(Math.max(0, (page?.unreadCount ?? 1) - 1));
+      void markNotificationReadAction(item.id)
+        .then(() => announceNotificationsChanged())
+        .catch(() => undefined);
     }
     onNavigate();
   }
@@ -113,18 +119,23 @@ export default function NotificationPopoverContent({
   return (
     <div className="flex max-h-[min(560px,80vh)] flex-col">
       <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-3">
-        <p className="font-display text-base font-bold">Notificaciones</p>
+        <h2
+          id={NOTIFICATION_POPOVER_HEADING_ID}
+          className="font-display text-base font-bold"
+        >
+          Notificaciones
+        </h2>
+        {/* Two toggle buttons rather than tabs: there is one list, filtered. */}
         <div
           className="inline-flex rounded-md bg-muted p-0.5 text-xs"
-          role="tablist"
+          role="group"
           aria-label="Qué notificaciones mostrar"
         >
           {(["unread", "all"] as const).map((value) => (
             <button
               key={value}
               type="button"
-              role="tab"
-              aria-selected={view === value}
+              aria-pressed={view === value}
               onClick={() => setView(value)}
               className={cn(
                 "rounded px-2.5 py-1",
@@ -172,7 +183,7 @@ export default function NotificationPopoverContent({
         ) : page.items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-6 py-10 text-center text-sm text-muted-foreground">
             <BellIcon className="h-8 w-8" aria-hidden />
-            {view === "unread" ? (
+            {!page.isEmptyInbox ? (
               <p>¡Estás al día!</p>
             ) : (
               <p>

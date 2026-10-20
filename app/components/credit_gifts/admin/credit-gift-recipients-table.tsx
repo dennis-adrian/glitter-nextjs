@@ -38,7 +38,26 @@ const EMAIL_LABELS: Record<CreditGiftEmailState, string> = {
   sent: "Enviado",
   failed: "Falló",
   skipped: "Bloqueado",
+  cancelled: "No enviado: regalo retirado",
 };
+
+/** Why "Reenviar aviso" is off for this row, or null when it can be used. */
+function resendBlocker(
+  row: CreditGiftRecipientRow,
+  canMutate: boolean,
+): string | null {
+  if (!canMutate) return "Solo un administrador general puede reenviarlo.";
+  if (row.status !== "granted" || row.revokedAt) {
+    return "Solo se reenvía a quien tiene el regalo.";
+  }
+  if (row.emailState === "pending") {
+    return "El primer correo todavía se está enviando.";
+  }
+  if (row.emailState === "skipped") {
+    return "El correo está bloqueado: rebotó o lo marcaron como spam.";
+  }
+  return null;
+}
 
 type CreditGiftRecipientsTableProps = {
   campaignId: number;
@@ -66,6 +85,9 @@ export default function CreditGiftRecipientsTable({
       name: row.name,
       ledgerBalance: row.ledgerBalance,
     }));
+  const pendingCount = recipients.filter(
+    (row) => row.status === "pending",
+  ).length;
 
   return (
     <div className="space-y-2">
@@ -75,7 +97,7 @@ export default function CreditGiftRecipientsTable({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canMutate || holders.length === 0}
+          disabled={!canMutate || (holders.length === 0 && pendingCount === 0)}
           onClick={() => setRevoke({ scope: "all", targets: holders })}
         >
           Retirar a todos
@@ -162,7 +184,7 @@ export default function CreditGiftRecipientsTable({
                       <CreditGiftResendButton
                         campaignId={campaignId}
                         userId={row.userId}
-                        disabled={!canMutate || !holds}
+                        disabledReason={resendBlocker(row, canMutate)}
                       />
                       <Button
                         type="button"
@@ -197,6 +219,7 @@ export default function CreditGiftRecipientsTable({
         amountPerRecipient={amountPerRecipient}
         targets={revoke?.targets ?? []}
         scope={revoke?.scope ?? "one"}
+        pendingCount={pendingCount}
         open={revoke != null}
         onOpenChange={(open) => !open && setRevoke(null)}
       />

@@ -44,6 +44,7 @@ function toOption(
   return {
     id: row.id,
     name: getUserName(row) || row.email,
+    greetingName: getUserName(row) || null,
     email: row.email,
     imageUrl: row.imageUrl,
     status: row.status,
@@ -178,7 +179,10 @@ export type CreditGiftEmailState =
   | "pending"
   | "sent"
   | "failed"
-  | "skipped";
+  /** The address bounced or reported us. */
+  | "skipped"
+  /** Never sent because the gift was taken back first. */
+  | "cancelled";
 
 export type CreditGiftRecipientRow = {
   userId: number;
@@ -210,14 +214,16 @@ export type CreditGiftDetail = {
   recipients: CreditGiftRecipientRow[];
 };
 
-function emailStateOf(status: string | undefined): CreditGiftEmailState {
-  switch (status) {
+function emailStateOf(
+  delivery: { status: string; lastError: string | null } | undefined,
+): CreditGiftEmailState {
+  switch (delivery?.status) {
     case "sent":
       return "sent";
     case "failed":
       return "failed";
     case "skipped":
-      return "skipped";
+      return delivery.lastError === "revoked" ? "cancelled" : "skipped";
     case "pending":
     case "processing":
       return "pending";
@@ -305,31 +311,31 @@ export async function fetchCreditGift(
           .select({
             notificationId: notificationDeliveries.notificationId,
             status: notificationDeliveries.status,
+            lastError: notificationDeliveries.lastError,
             resendOfDeliveryId: notificationDeliveries.resendOfDeliveryId,
-            createdAt: notificationDeliveries.createdAt,
             id: notificationDeliveries.id,
           })
           .from(notificationDeliveries)
           .where(
             inArray(notificationDeliveries.notificationId, notificationIds),
           )
-          .orderBy(
-            asc(notificationDeliveries.createdAt),
-            asc(notificationDeliveries.id),
-          )
+          .orderBy(asc(notificationDeliveries.id))
       : Promise.resolve([]),
   ]);
 
   const balanceByUser = new Map(
     balanceRows.map((row) => [row.userId, Number(row.balance)]),
   );
-  // The latest attempt is what the admin needs to know about, and only the
-  // first delivery of each notification is the gift notice itself.
-  const latestDelivery = new Map<number, string>();
+  // The latest attempt is what the admin needs to know about; earlier ones
+  // only count as re-sends.
+  const latestDelivery = new Map<
+    number,
+    { status: string; lastError: string | null }
+  >();
   const resends = new Map<number, number>();
   for (const row of deliveryRows) {
     if (row.notificationId == null) continue;
-    latestDelivery.set(row.notificationId, row.status);
+    latestDelivery.set(row.notificationId, row);
     if (row.resendOfDeliveryId != null) {
       resends.set(
         row.notificationId,

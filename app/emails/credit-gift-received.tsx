@@ -13,6 +13,7 @@ import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
+import { creditsAgree } from "@/app/lib/credit_gifts/definitions";
 
 export type CreditGiftReceivedEmailProps = {
   /** First name or display name; omitted from the greeting when empty. */
@@ -58,8 +59,9 @@ export default function CreditGiftReceivedEmail({
               {message}
             </Text>
             <Text style={styles.text}>
-              Ya están en tu billetera: podés usarlos para pagar tus reservas y
-              las funciones opcionales del festival.
+              {creditsAgree(amount, "Ya está", "Ya están")} en tu billetera:
+              podés {creditsAgree(amount, "usarlo", "usarlos")} para pagar tus
+              reservas y las funciones opcionales del festival.
             </Text>
             <Button href={`${baseUrl}/my_credits`} style={styles.button}>
               Ver mi billetera

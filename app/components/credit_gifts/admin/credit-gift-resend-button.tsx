@@ -7,15 +7,19 @@ import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { resendCreditGiftNotificationAction } from "@/app/lib/credit_gifts/actions";
 
-/** Mails the gift notice again. Never credits again. */
+/**
+ * Mails the gift notice again. Never credits again. When it cannot be used,
+ * it stays visible, disabled, with the reason on hover and for screen
+ * readers; the email column next to it says the same in words.
+ */
 export default function CreditGiftResendButton({
   campaignId,
   userId,
-  disabled,
+  disabledReason,
 }: {
   campaignId: number;
   userId: number;
-  disabled: boolean;
+  disabledReason: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -25,7 +29,11 @@ export default function CreditGiftResendButton({
       type="button"
       size="sm"
       variant="ghost"
-      disabled={disabled || isPending}
+      disabled={disabledReason != null || isPending}
+      title={disabledReason ?? undefined}
+      aria-label={
+        disabledReason ? `Reenviar aviso: ${disabledReason}` : undefined
+      }
       onClick={() =>
         startTransition(async () => {
           try {

@@ -1,7 +1,17 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
-import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  notInArray,
+  sql,
+} from "drizzle-orm";
 
 import {
   type CreateCreditGiftInput,
@@ -19,6 +29,7 @@ import {
   reverseAdminGrantInTx,
 } from "@/app/lib/credits/service";
 import { roundCredits } from "@/app/lib/credits/balances";
+import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { notify } from "@/app/lib/notifications/notify";
 import { getUserName } from "@/app/lib/users/utils";
 import { db } from "@/db";
@@ -125,12 +136,40 @@ export async function createCreditGift(
     .select({
       id: notificationCampaigns.id,
       createdByUserId: notificationCampaigns.createdByUserId,
+      title: notificationCampaigns.title,
+      message: notificationCampaigns.message,
+      amountPerRecipient: creditGiftDetails.amountPerRecipient,
+      occasion: creditGiftDetails.occasion,
+      internalNote: creditGiftDetails.internalNote,
     })
     .from(notificationCampaigns)
+    .innerJoin(
+      creditGiftDetails,
+      eq(creditGiftDetails.campaignId, notificationCampaigns.id),
+    )
     .where(eq(notificationCampaigns.idempotencyKey, input.idempotencyKey))
     .limit(1);
   if (existing) {
-    if (existing.createdByUserId !== actor.id) {
+    // A key reused with different terms is a different gift, not a retry.
+    // The composer keeps its key after a lost response, and replaying the
+    // first gift there would tell the admin an edited one went out.
+    const recipientIds = await db
+      .select({ userId: notificationCampaignRecipients.userId })
+      .from(notificationCampaignRecipients)
+      .where(eq(notificationCampaignRecipients.campaignId, existing.id));
+    const sameRecipients =
+      recipientIds.length === input.recipientIds.length &&
+      recipientIds.every((row) => input.recipientIds.includes(row.userId));
+    if (
+      existing.createdByUserId !== actor.id ||
+      !sameRecipients ||
+      Number(existing.amountPerRecipient) !==
+        roundCredits(input.amountPerRecipient) ||
+      existing.title !== input.title.trim() ||
+      existing.message !== input.message.trim() ||
+      existing.occasion !== input.occasion ||
+      existing.internalNote !== input.internalNote.trim()
+    ) {
       return { ok: false, code: "IDEMPOTENCY_CONFLICT" };
     }
     const counts = await recipientCounts(existing.id);
@@ -273,7 +312,8 @@ type RecipientStep =
   | {
       done: false;
       recipientId: number;
-      outcome: "granted" | "skipped";
+      /** "contended": another worker, or a revoke-all, got there first. */
+      outcome: "granted" | "skipped" | "contended";
       deliveryIds: readonly number[];
     };
 
@@ -281,16 +321,42 @@ type RecipientStep =
  * Credits the next pending recipient, all in one transaction: the grant, the
  * inbox item, the email row and the recipient's state commit together.
  *
- * `SKIP LOCKED` lets the request's worker and the cron split a gift instead of
- * queueing behind each other. The ledger key is what makes a double grant
- * impossible even so.
+ * Locks follow the canonical order: the user, then the credit account, then
+ * the recipient row. Profile deletion holds the user lock while its delete
+ * cascades onto recipient rows, so taking the recipient first could deadlock
+ * with it. The candidate is therefore picked without a lock and re-checked
+ * once locked; a worker that loses the race moves on. The ledger key is what
+ * makes a double grant impossible even so.
  */
 async function processNextRecipient(
   gift: GiftForProcessing,
   /** Set as soon as a row is claimed, so a failure can be pinned on it. */
   claimed: { recipientId: number | null },
+  /** Rows this run already lost to someone else, so it does not spin on them. */
+  passed: ReadonlySet<number>,
 ): Promise<RecipientStep> {
+  const [candidate] = await db
+    .select({
+      id: notificationCampaignRecipients.id,
+      userId: notificationCampaignRecipients.userId,
+    })
+    .from(notificationCampaignRecipients)
+    .where(
+      and(
+        eq(notificationCampaignRecipients.campaignId, gift.id),
+        eq(notificationCampaignRecipients.status, "pending"),
+        passed.size > 0
+          ? notInArray(notificationCampaignRecipients.id, [...passed])
+          : undefined,
+      ),
+    )
+    .orderBy(asc(notificationCampaignRecipients.id))
+    .limit(1);
+  if (!candidate) return { done: true } as const;
+  claimed.recipientId = candidate.id;
+
   return db.transaction(async (tx) => {
+    const writable = await lockCreditAccountForWriteInTx(tx, candidate.userId);
     const [recipient] = await tx
       .select({
         id: notificationCampaignRecipients.id,
@@ -300,15 +366,20 @@ async function processNextRecipient(
       .from(notificationCampaignRecipients)
       .where(
         and(
-          eq(notificationCampaignRecipients.campaignId, gift.id),
+          eq(notificationCampaignRecipients.id, candidate.id),
           eq(notificationCampaignRecipients.status, "pending"),
         ),
       )
-      .orderBy(asc(notificationCampaignRecipients.id))
       .limit(1)
       .for("update", { skipLocked: true });
-    if (!recipient) return { done: true } as const;
-    claimed.recipientId = recipient.id;
+    if (!recipient) {
+      return {
+        done: false,
+        recipientId: candidate.id,
+        outcome: "contended",
+        deliveryIds: [],
+      } as const;
+    }
 
     const skip = async (reason: CreditGiftSkipReason) => {
       await tx
@@ -328,9 +399,7 @@ async function processNextRecipient(
       } as const;
     };
 
-    if (!(await lockCreditAccountForWriteInTx(tx, recipient.userId))) {
-      return skip("deletion_pending");
-    }
+    if (!writable) return skip("deletion_pending");
     const [user] = await tx
       .select({
         id: users.id,
@@ -509,11 +578,12 @@ export async function processCreditGift(
   if (!gift) return result;
 
   const startedAt = Date.now();
+  const passed = new Set<number>();
   while (Date.now() - startedAt < budgetMs) {
     let step: RecipientStep;
     const claimed = { recipientId: null as number | null };
     try {
-      step = await processNextRecipient(gift, claimed);
+      step = await processNextRecipient(gift, claimed, passed);
     } catch (error) {
       console.error("Credit gift recipient failed", {
         campaignId,
@@ -528,6 +598,10 @@ export async function processCreditGift(
       break;
     }
     if (step.done) break;
+    if (step.outcome === "contended") {
+      passed.add(step.recipientId);
+      continue;
+    }
     if (step.outcome === "granted") result.granted += 1;
     else result.skipped += 1;
     result.deliveryIds.push(...step.deliveryIds);
@@ -569,6 +643,8 @@ export async function resumeProcessingCreditGifts({
 
 export type RevokeCreditGiftResult = {
   revoked: number;
+  /** Recipients not yet credited, who now never will be. */
+  cancelled: number;
   /** Recipients whose balance went below zero with the reversal. */
   negative: number;
   failed: number;
@@ -578,7 +654,12 @@ export type RevokeCreditGiftResult = {
 /**
  * Takes a gift back from some recipients, or from all of them, one
  * transaction each: the linked reversal, the neutral notice and its email,
- * and the cancelled celebration commit together.
+ * the unsent gift email and the cancelled celebration commit together.
+ *
+ * Taking it back from everyone also stops it from reaching whoever the worker
+ * has not credited yet. That runs first: a recipient the worker is crediting
+ * right now keeps its lock until it commits, so it ends up either cancelled
+ * here or credited and then revoked below, never credited after the fact.
  *
  * A balance can go negative, which blocks credit use until regularized; the
  * dialog warns before this runs and the debt report picks it up after.
@@ -591,6 +672,25 @@ export async function revokeCreditGift(input: {
 }): Promise<RevokeCreditGiftResult | null> {
   const gift = await loadGift(input.campaignId);
   if (!gift) return null;
+
+  let cancelled = 0;
+  if (!input.userIds) {
+    const rows = await db
+      .update(notificationCampaignRecipients)
+      .set({
+        status: "skipped",
+        skippedReason: CREDIT_GIFT_SKIP_REASONS.cancelled,
+        processedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(notificationCampaignRecipients.campaignId, gift.id),
+          eq(notificationCampaignRecipients.status, "pending"),
+        ),
+      )
+      .returning({ id: notificationCampaignRecipients.id });
+    cancelled = rows.length;
+  }
 
   const targets = await db
     .select({ userId: notificationCampaignRecipients.userId })
@@ -609,6 +709,7 @@ export async function revokeCreditGift(input: {
 
   const result: RevokeCreditGiftResult = {
     revoked: 0,
+    cancelled,
     negative: 0,
     failed: 0,
     deliveryIds: [],
@@ -630,6 +731,8 @@ export async function revokeCreditGift(input: {
       result.failed += 1;
     }
   }
+  // Cancelling the last pending people can be what finishes the gift.
+  if (cancelled > 0) await completeGiftIfDone(gift);
   return result;
 }
 
@@ -639,6 +742,14 @@ async function revokeRecipientInTx(
   userId: number,
   actorId: number,
 ) {
+  // The user and account first, then the recipient row: the same order the
+  // worker and profile deletion take them in. Deletion is refused while a
+  // ledger entry exists, so a false here is a deletion that is already
+  // failing; the revocation waits for it to clear.
+  if (!(await lockCreditAccountForWriteInTx(tx, userId))) {
+    throw new Error("credit_gift_revoke_deletion_pending");
+  }
+
   const [recipient] = await tx
     .select({
       id: notificationCampaignRecipients.id,
@@ -664,12 +775,6 @@ async function revokeRecipientInTx(
     recipient.ledgerEntryId == null
   ) {
     return null;
-  }
-
-  // Deletion is refused while a ledger entry exists, so this only trips on a
-  // deletion that is already failing; the reversal waits for it to clear.
-  if (!(await lockCreditAccountForWriteInTx(tx, userId))) {
-    throw new Error("credit_gift_revoke_deletion_pending");
   }
 
   const reversal = await reverseAdminGrantInTx(tx, {
@@ -711,8 +816,9 @@ async function revokeRecipientInTx(
     email: user?.email,
   });
 
-  // A banner for a gift that is gone would celebrate credits the person no
-  // longer has.
+  // A banner, or a "Recibiste…" email still waiting its turn, for a gift that
+  // is gone would celebrate credits the person no longer has. One already
+  // handed to Resend cannot be called back.
   if (recipient.notificationId != null) {
     await tx
       .update(notifications)
@@ -721,6 +827,15 @@ async function revokeRecipientInTx(
         and(
           eq(notifications.id, recipient.notificationId),
           isNull(notifications.celebratedAt),
+        ),
+      );
+    await tx
+      .update(notificationDeliveries)
+      .set({ status: "skipped", lastError: "revoked", updatedAt: new Date() })
+      .where(
+        and(
+          eq(notificationDeliveries.notificationId, recipient.notificationId),
+          eq(notificationDeliveries.status, "pending"),
         ),
       );
   }
@@ -739,7 +854,10 @@ async function revokeRecipientInTx(
 
 export type ResendGiftNotificationResult =
   | { ok: true; deliveryId: number }
-  | { ok: false; code: "NOT_GRANTED" | "NO_EMAIL" };
+  | {
+      ok: false;
+      code: "NOT_GRANTED" | "NO_EMAIL" | "EMAIL_PENDING" | "SUPPRESSED";
+    };
 
 /**
  * Mails a recipient's gift notice again, to the address on file now. It never
@@ -784,11 +902,20 @@ export async function resendCreditGiftNotification(input: {
   if (!row.email?.trim()) return { ok: false, code: "NO_EMAIL" };
 
   const [previous] = await db
-    .select({ id: notificationDeliveries.id })
+    .select({
+      id: notificationDeliveries.id,
+      status: notificationDeliveries.status,
+    })
     .from(notificationDeliveries)
     .where(eq(notificationDeliveries.notificationId, row.notificationId))
-    .orderBy(sql`${notificationDeliveries.createdAt} desc`)
+    .orderBy(desc(notificationDeliveries.id))
     .limit(1);
+  // The first one is still on its way: a second now would arrive twice.
+  if (previous?.status === "pending" || previous?.status === "processing") {
+    return { ok: false, code: "EMAIL_PENDING" };
+  }
+  // A bounced or reported address gets nothing, so "reenviado" would be a lie.
+  if (await isSuppressed(row.email)) return { ok: false, code: "SUPPRESSED" };
 
   const [delivery] = await db
     .insert(notificationDeliveries)

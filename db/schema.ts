@@ -7221,7 +7221,8 @@ export const notifications = pgTable(
       t.userId,
       t.dedupeKey,
     ),
-    index("notifications_user_created_idx").on(t.userId, t.createdAt),
+    // The inbox pages by id, newest first, within one person's items.
+    index("notifications_user_id_idx").on(t.userId, t.id),
     index("notifications_user_unread_idx")
       .on(t.userId, t.createdAt)
       .where(sql`${t.readAt} IS NULL AND ${t.archivedAt} IS NULL`),

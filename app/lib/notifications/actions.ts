@@ -1,24 +1,30 @@
 "use server";
 
-import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import {
   canSeeAdminNotifications,
+  MAX_SERIAL_ID,
   NOTIFICATION_FILTERS,
 } from "@/app/lib/notifications/definitions";
 import {
   type InboxViewer,
   resolveInboxViewer,
   resolveInboxViewerWithAccess,
+  retentionCutoff,
 } from "@/app/lib/notifications/queries";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
 
 type ActionResult = { success: boolean; message?: string };
 
-const idSchema = z.coerce.number().int().positive();
-const idsSchema = z.array(idSchema).min(1).max(500);
+const idSchema = z.coerce.number().int().positive().max(MAX_SERIAL_ID);
+/**
+ * Generous on purpose: "Deshacer" sends back every id "Marcar todo" read, and
+ * the 180-day window keeps that list far below this.
+ */
+const idsSchema = z.array(idSchema).min(1).max(5_000);
 const filterSchema = z.enum(NOTIFICATION_FILTERS);
 
 const UNAVAILABLE: ActionResult = {
@@ -104,6 +110,8 @@ export async function markAllNotificationsReadAction(
         ownedBy(viewer),
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
+        // Only what the inbox shows: items past retention stay as they were.
+        gt(notifications.createdAt, retentionCutoff()),
         filter === "all" ? undefined : eq(notifications.category, filter),
         canSeeAdminNotifications(viewer.role)
           ? undefined

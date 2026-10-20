@@ -1,8 +1,9 @@
 "use client";
 
 import { BellIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
+import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import NotificationFilterChips from "@/app/components/notifications/notification-filter-chips";
 import NotificationItem from "@/app/components/notifications/notification-item";
 import NotificationItemMenu from "@/app/components/notifications/notification-item-menu";
@@ -16,7 +17,25 @@ import {
   type NotificationDateGroup,
   notificationDateGroup,
   type NotificationFilter,
+  NOTIFICATION_PAGE_SIZE,
 } from "@/app/lib/notifications/definitions";
+
+async function fetchInboxFirstPage(
+  filter: NotificationFilter,
+): Promise<InboxPage | null> {
+  try {
+    const params = new URLSearchParams({
+      limit: String(NOTIFICATION_PAGE_SIZE),
+    });
+    if (filter !== "all") params.set("filter", filter);
+    const response = await fetch(`/api/notifications?${params}`, {
+      cache: "no-store",
+    });
+    return response.ok ? ((await response.json()) as InboxPage) : null;
+  } catch {
+    return null;
+  }
+}
 
 type NotificationInboxProps = {
   initialPage: InboxPage;
@@ -50,6 +69,30 @@ export default function NotificationInbox({
   const [cursor, setCursor] = useState(initialPage.nextCursor);
   const [loadFailed, setLoadFailed] = useState(false);
   const [isLoading, startLoading] = useTransition();
+
+  // The router can hand back this page's payload from its cache, on "back"
+  // after opening an item for example, so the first page is asked for again
+  // once mounted rather than trusting what the server rendered earlier.
+  useEffect(() => {
+    let current = true;
+    void fetchInboxFirstPage(filter).then((page) => {
+      if (!current || !page) return;
+      setItems(page.items);
+      setUnreadCount(page.unreadCount);
+      setCursor(page.nextCursor);
+    });
+    return () => {
+      current = false;
+    };
+  }, [filter]);
+
+  function open(item: InboxNotification) {
+    if (item.readAt != null) return;
+    replace({ ...item, readAt: new Date().toISOString() });
+    void markNotificationReadAction(item.id)
+      .then(() => announceNotificationsChanged())
+      .catch(() => undefined);
+  }
 
   const { markAll, isPending } = useMarkAllNotificationsRead({
     onRead: (ids) => {
@@ -156,11 +199,7 @@ export default function NotificationInbox({
                   <NotificationItem
                     key={item.id}
                     item={item}
-                    onOpen={(opened) => {
-                      if (opened.readAt == null) {
-                        void markNotificationReadAction(opened.id);
-                      }
-                    }}
+                    onOpen={open}
                     menu={
                       <NotificationItemMenu
                         item={item}

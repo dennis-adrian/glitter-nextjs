@@ -109,6 +109,6 @@ CREATE UNIQUE INDEX "notification_deliveries_idempotency_key_unique" ON "notific
 CREATE INDEX "notification_deliveries_status_next_attempt_idx" ON "notification_deliveries" USING btree ("status","next_attempt_at");--> statement-breakpoint
 CREATE INDEX "notification_deliveries_notification_idx" ON "notification_deliveries" USING btree ("notification_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "notifications_user_dedupe_key_unique" ON "notifications" USING btree ("user_id","dedupe_key");--> statement-breakpoint
-CREATE INDEX "notifications_user_created_idx" ON "notifications" USING btree ("user_id","created_at");--> statement-breakpoint
+CREATE INDEX "notifications_user_id_idx" ON "notifications" USING btree ("user_id","id");--> statement-breakpoint
 CREATE INDEX "notifications_user_unread_idx" ON "notifications" USING btree ("user_id","created_at") WHERE "notifications"."read_at" IS NULL AND "notifications"."archived_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "notifications_campaign_idx" ON "notifications" USING btree ("campaign_id");

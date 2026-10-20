@@ -1400,6 +1400,7 @@ export async function adjustCreditAccount(input: {
           userId: creditLedgerEntries.userId,
           amount: creditLedgerEntries.amount,
           type: creditLedgerEntries.type,
+          metadata: creditLedgerEntries.metadata,
         })
         .from(creditLedgerEntries)
         .where(eq(creditLedgerEntries.id, input.reversesEntryId))
@@ -1407,11 +1408,13 @@ export async function adjustCreditAccount(input: {
       // Only an admin's own entry is undoable here. A top-up is undone by
       // rejecting its voucher, and a spend by whatever booked it — reversing
       // either from this screen would leave the thing it paid for standing
-      // with no matching money.
+      // with no matching money. A credit gift is undone from its own page,
+      // which also records the revocation and tells the participant.
       if (
         !target ||
         target.userId !== input.userId ||
-        (target.type !== "admin_grant" && target.type !== "admin_adjustment")
+        (target.type !== "admin_grant" && target.type !== "admin_adjustment") ||
+        typeof target.metadata?.creditGiftId === "string"
       ) {
         return failure("ENTRY_NOT_REVERTIBLE");
       }
@@ -1538,15 +1541,23 @@ export async function grantCreditsInTx(
  * Takes the user and credit-account locks a credit write needs, in the
  * canonical order, for a workflow that writes inside its own transaction.
  *
- * False when the profile is being deleted: the deletion takes the same user
- * lock, so a credit posted after this check could strand a ledger entry on an
- * account that is about to disappear.
+ * False when the profile is being deleted, or already is: the deletion takes
+ * the same user lock, so a credit posted after this check could strand a
+ * ledger entry on an account that is about to disappear.
  */
 export async function lockCreditAccountForWriteInTx(
   tx: CreditTx,
   userId: number,
 ): Promise<boolean> {
   if (!(await lockCreditUserForMutation(tx, userId))) return false;
+  // Checked under the lock: creating the account row for a user deleted a
+  // moment ago would fail on its foreign key instead of reading as "gone".
+  const [user] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) return false;
   await lockCreditAccount(tx, userId);
   return true;
 }

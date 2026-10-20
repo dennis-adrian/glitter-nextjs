@@ -15,6 +15,7 @@ import {
   personalizeCreditGiftMessage,
 } from "@/app/lib/credit_gifts/definitions";
 import { searchCreditGiftRecipients } from "@/app/lib/credit_gifts/queries";
+import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import {
   createCreditGift,
   processCreditGift,
@@ -99,7 +100,9 @@ const CREATE_FAILURE_MESSAGES = {
     "Ninguna de las personas elegidas puede recibir créditos.",
   CONFIRMATION_MISMATCH:
     "El total que escribiste no coincide con el del regalo.",
-  IDEMPOTENCY_CONFLICT: "No se pudo regalar. Intentá de nuevo.",
+  // The first attempt did go through, with the details as they were then.
+  IDEMPOTENCY_CONFLICT:
+    "Este regalo ya se había guardado con otros datos. Revisá la lista de regalos antes de enviarlo de nuevo.",
 } as const;
 
 /**
@@ -150,9 +153,9 @@ export async function createCreditGiftAction(
 }
 
 const revokeSchema = z.object({
-  campaignId: z.coerce.number().int().positive(),
+  campaignId: z.coerce.number().int().positive().max(MAX_SERIAL_ID),
   userIds: z
-    .array(z.coerce.number().int().positive())
+    .array(z.coerce.number().int().positive().max(MAX_SERIAL_ID))
     .min(1)
     .max(100)
     .optional(),
@@ -181,7 +184,7 @@ export async function revokeCreditGiftAction(
   scheduleNotificationDeliveries(result.deliveryIds);
   revalidatePath(`${GIFTS_PATH}/${parsed.data.campaignId}`);
 
-  if (result.revoked === 0 && result.failed === 0) {
+  if (result.revoked === 0 && result.failed === 0 && result.cancelled === 0) {
     return {
       success: false,
       message:
@@ -193,6 +196,13 @@ export async function revokeCreditGiftAction(
       ? "Retiramos el regalo a 1 persona"
       : `Retiramos el regalo a ${result.revoked} personas`,
   ];
+  if (result.cancelled > 0) {
+    parts.push(
+      result.cancelled === 1
+        ? "1 que todavía no lo había recibido ya no lo va a recibir"
+        : `${result.cancelled} que todavía no lo habían recibido ya no lo van a recibir`,
+    );
+  }
   if (result.negative > 0) {
     parts.push(
       result.negative === 1
@@ -210,9 +220,18 @@ export async function revokeCreditGiftAction(
   return { success: result.failed === 0, message: `${parts.join("; ")}.` };
 }
 
+const RESEND_FAILURE_MESSAGES = {
+  NOT_GRANTED: "Solo se puede reenviar a quien todavía tiene el regalo.",
+  NO_EMAIL: "Esta persona no tiene un correo registrado.",
+  EMAIL_PENDING:
+    "El primer correo todavía se está enviando. Esperá a que salga antes de reenviarlo.",
+  SUPPRESSED:
+    "Este correo está bloqueado porque rebotó o lo marcaron como spam. Desbloquealo en Correos bloqueados y volvé a intentarlo.",
+} as const;
+
 const resendSchema = z.object({
-  campaignId: z.coerce.number().int().positive(),
-  userId: z.coerce.number().int().positive(),
+  campaignId: z.coerce.number().int().positive().max(MAX_SERIAL_ID),
+  userId: z.coerce.number().int().positive().max(MAX_SERIAL_ID),
 });
 
 /** Mails the notice again. Never credits again. */
@@ -254,13 +273,7 @@ export async function resendCreditGiftNotificationAction(
     actorId: actor.id,
   });
   if (!result.ok) {
-    return {
-      success: false,
-      message:
-        result.code === "NO_EMAIL"
-          ? "Esta persona no tiene un correo registrado."
-          : "Solo se puede reenviar a quien todavía tiene el regalo.",
-    };
+    return { success: false, message: RESEND_FAILURE_MESSAGES[result.code] };
   }
 
   scheduleNotificationDeliveries([result.deliveryId]);

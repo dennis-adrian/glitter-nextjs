@@ -30,19 +30,23 @@ type CreditGiftRevokeDialogProps = {
   /** One person, or everyone who still holds the gift. */
   targets: CreditGiftRevokeTarget[];
   scope: "one" | "all";
+  /** With scope "all": people the worker has not credited yet. */
+  pendingCount?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
 /**
  * Takes a gift back. Says up front how many balances would go negative, since
- * a negative balance blocks every credit use until it is regularized.
+ * a negative balance blocks every credit use until it is regularized, and,
+ * while the gift is still going out, that it stops there for the rest.
  */
 export default function CreditGiftRevokeDialog({
   campaignId,
   amountPerRecipient,
   targets,
   scope,
+  pendingCount = 0,
   open,
   onOpenChange,
 }: CreditGiftRevokeDialogProps) {
@@ -51,7 +55,9 @@ export default function CreditGiftRevokeDialog({
   const negative = targets.filter(
     (target) => roundCredits(target.ledgerBalance - amountPerRecipient) < 0,
   );
-  const single = scope === "one" ? targets[0] : null;
+  const single =
+    scope === "one" || targets.length === 1 ? (targets[0] ?? null) : null;
+  const cancelling = scope === "all" ? pendingCount : 0;
 
   function revoke() {
     startTransition(async () => {
@@ -81,26 +87,28 @@ export default function CreditGiftRevokeDialog({
           <AlertDialogTitle>
             {single
               ? `¿Retirar el regalo a ${single.name}?`
-              : `¿Retirar el regalo a ${targets.length} personas?`}
+              : targets.length > 0
+                ? `¿Retirar el regalo a ${targets.length} personas?`
+                : "¿Dejar de enviar el regalo?"}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Se descuentan {formatCreditCount(amountPerRecipient)} a{" "}
-            {single ? "esta persona" : "cada una"} y{" "}
-            {single ? "recibe" : "reciben"} un aviso neutral en la app y por
-            correo. El movimiento queda en el historial.
+            {targets.length > 0 &&
+              `Se descuentan ${formatCreditCount(amountPerRecipient)} a ${single ? "esta persona" : "cada una"} y ${single ? "recibe" : "reciben"} un aviso neutral en la app y por correo. El movimiento queda en el historial.`}
+            {cancelling > 0 &&
+              ` ${cancelling === 1 ? "La persona que todavía no lo recibió ya no lo va a recibir" : `Las ${cancelling} personas que todavía no lo recibieron ya no lo van a recibir`}.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {negative.length > 0 && (
           <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             {single
-              ? `${single.name} ya usó parte de estos créditos: su saldo quedaría negativo y no podría usar créditos hasta regularizarlo.`
-              : `${negative.length} ${negative.length === 1 ? "persona ya usó" : "personas ya usaron"} parte de estos créditos: su saldo quedaría negativo y no podrían usar créditos hasta regularizarlo.`}
+              ? `El saldo de ${single.name} quedaría negativo, y no podría usar créditos hasta regularizarlo.`
+              : `${negative.length === 1 ? "1 persona quedaría" : `${negative.length} personas quedarían`} con saldo negativo, sin poder usar créditos hasta regularizarlo.`}
           </p>
         )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            disabled={isPending || targets.length === 0}
+            disabled={isPending || (targets.length === 0 && cancelling === 0)}
             onClick={(event) => {
               event.preventDefault();
               revoke();

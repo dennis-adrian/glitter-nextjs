@@ -99,10 +99,12 @@ const kinds = {
     schema: creditGiftRevokedSchema,
     inApp: (data) => ({
       title: "Ajustamos tu saldo de créditos",
+      // No article before the count ("los 1 crédito"), and no guess at why a
+      // balance ended negative: it may have been negative before the gift.
       body:
         data.debtAmount > 0
-          ? `Retiramos los ${formatCreditCount(data.amount)} del regalo «${data.title}». Te queda un saldo pendiente de ${formatCreditCount(data.debtAmount)}: hasta regularizarlo no vas a poder usar créditos.`
-          : `Retiramos los ${formatCreditCount(data.amount)} del regalo «${data.title}».`,
+          ? `Retiramos de tu billetera el regalo «${data.title}» (${formatCreditCount(data.amount)}). Con este ajuste te queda un saldo pendiente de ${formatCreditCount(data.debtAmount)}: hasta regularizarlo no vas a poder usar créditos.`
+          : `Retiramos de tu billetera el regalo «${data.title}» (${formatCreditCount(data.amount)}).`,
       actionPath: "/my_credits",
       actionLabel: "Ver mi billetera",
     }),

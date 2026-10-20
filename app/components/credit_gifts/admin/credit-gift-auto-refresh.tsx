@@ -3,25 +3,36 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-const INTERVAL_MS = 3_000;
-/** The request's worker has 100 seconds; after that the cron takes over. */
-const MAX_DURATION_MS = 2 * 60_000;
+const FAST_INTERVAL_MS = 3_000;
+/** The request's own worker is done by then; the rest waits for the cron. */
+const FAST_PHASE_MS = 2 * 60_000;
+const SLOW_INTERVAL_MS = 30_000;
 
-/** Refreshes the gift page while its recipients are still being credited. */
+/**
+ * Refreshes the gift page while its recipients are still being credited:
+ * every few seconds while the request's worker runs, then every half minute
+ * for as long as the cron is finishing it.
+ */
 export default function CreditGiftAutoRefresh({ active }: { active: boolean }) {
   const router = useRouter();
 
   useEffect(() => {
     if (!active) return;
     const startedAt = Date.now();
-    const timer = window.setInterval(() => {
-      if (Date.now() - startedAt > MAX_DURATION_MS) {
-        window.clearInterval(timer);
-        return;
-      }
+    let timer: number | undefined;
+    const tick = () => {
       if (document.visibilityState === "visible") router.refresh();
-    }, INTERVAL_MS);
-    return () => window.clearInterval(timer);
+      schedule();
+    };
+    const schedule = () => {
+      const fast = Date.now() - startedAt < FAST_PHASE_MS;
+      timer = window.setTimeout(
+        tick,
+        fast ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS,
+      );
+    };
+    schedule();
+    return () => window.clearTimeout(timer);
   }, [active, router]);
 
   return null;

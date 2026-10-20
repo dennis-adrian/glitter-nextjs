@@ -45,6 +45,7 @@ export default function CreditGiftMessageFields({
   disabled = false,
 }: CreditGiftMessageFieldsProps) {
   const messageRef = useRef<HTMLTextAreaElement>(null);
+  const titleHasPlaceholder = title.includes(CREDIT_GIFT_NAME_PLACEHOLDER);
 
   function insertName() {
     const field = messageRef.current;
@@ -107,7 +108,21 @@ export default function CreditGiftMessageFields({
           maxLength={CREDIT_GIFT_TITLE_MAX_LENGTH}
           onChange={(event) => onTitleChange(event.target.value)}
           disabled={disabled}
+          aria-invalid={titleHasPlaceholder}
+          aria-describedby="credit-gift-title-hint"
         />
+        <p
+          id="credit-gift-title-hint"
+          className={
+            titleHasPlaceholder
+              ? "text-xs text-red-600 dark:text-red-400"
+              : "text-xs text-muted-foreground"
+          }
+        >
+          {titleHasPlaceholder
+            ? `El título es igual para todos: sacá ${CREDIT_GIFT_NAME_PLACEHOLDER} y usalo en el mensaje.`
+            : "Es igual para todos. Lo ven en el correo, la app y la billetera."}
+        </p>
       </div>
 
       <div className="space-y-2">

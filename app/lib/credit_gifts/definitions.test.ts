@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   CREDIT_GIFT_MAX_RECIPIENTS,
+  CREDIT_GIFT_OCCASION_TEMPLATES,
   CreateCreditGiftSchema,
   creditGiftSkipReason,
+  creditsAgree,
   creditGiftTotal,
   isValidCreditGiftAmount,
   personalizeCreditGiftMessage,
@@ -34,9 +36,36 @@ describe("personalizeCreditGiftMessage", () => {
         null,
       ),
     ).toBe("¡Gracias por ser parte de Glitter! ¡Hola!");
+    // A sentence that opened with the name still opens in upper case.
     expect(personalizeCreditGiftMessage("{nombre}, te regalamos", "")).toBe(
-      "te regalamos",
+      "Te regalamos",
     );
+  });
+});
+
+describe("occasion presets", () => {
+  it("leave the greeting and the wallet line to the email", () => {
+    // The email opens with "¡Hola …!" and closes with "Ya están en tu
+    // billetera"; a preset repeating either reads twice.
+    for (const { message } of Object.values(CREDIT_GIFT_OCCASION_TEMPLATES)) {
+      expect(message).not.toMatch(/¡Hola/);
+      expect(message).not.toMatch(/billetera/);
+    }
+  });
+
+  it("read well for a participant with no name", () => {
+    for (const { message } of Object.values(CREDIT_GIFT_OCCASION_TEMPLATES)) {
+      const text = personalizeCreditGiftMessage(message, null);
+      expect(text).not.toContain("{nombre}");
+      expect(text).not.toMatch(/\s[,.!?]|,[!?.]|^[a-zñáéíóú]/u);
+    }
+  });
+});
+
+describe("creditsAgree", () => {
+  it("agrees the verb with one credit or several", () => {
+    expect(creditsAgree(1, "Ya está", "Ya están")).toBe("Ya está");
+    expect(creditsAgree(20, "Ya está", "Ya están")).toBe("Ya están");
   });
 });
 
@@ -69,6 +98,15 @@ describe("gift limits", () => {
     expect(
       CreateCreditGiftSchema.safeParse({ ...validInput, recipientIds: [1, 1] })
         .success,
+    ).toBe(false);
+  });
+
+  it("refuses {nombre} in the title, which everyone gets as written", () => {
+    expect(
+      CreateCreditGiftSchema.safeParse({
+        ...validInput,
+        title: "Gracias, {nombre}",
+      }).success,
     ).toBe(false);
   });
 

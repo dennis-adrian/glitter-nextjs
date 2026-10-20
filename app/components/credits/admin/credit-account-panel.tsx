@@ -157,7 +157,17 @@ export default async function CreditAccountPanel({
                         another — an undo, or credits handed back from a
                         cancelled invoice — is not offered either; see
                         `canRevertCreditEntry`. */}
-                    {canAdjust &&
+                    {canAdjust && entry.creditGiftId != null ? (
+                      <Link
+                        href={`/dashboard/credits/gifts/${entry.creditGiftId}`}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {entry.gift
+                          ? "Retirar desde el regalo"
+                          : "Ver el regalo"}
+                      </Link>
+                    ) : (
+                      canAdjust &&
                       (entry.type === "admin_grant" ||
                         entry.type === "admin_adjustment") &&
                       entry.reversesEntryId == null &&
@@ -171,7 +181,8 @@ export default async function CreditAccountPanel({
                           entryId={entry.id}
                           amount={entry.amount}
                         />
-                      ))}
+                      ))
+                    )}
                   </div>
                 </li>
               ))}

@@ -71,6 +71,8 @@ export type CreditWalletEntry = {
   isReverted: boolean;
   /** Set on a credit gift's grant: its title and message as this person got it. */
   gift: { title: string; message: string } | null;
+  /** The gift a grant or its revocation belongs to; undone only from there. */
+  creditGiftId: number | null;
   /**
    * The team's note on an admin entry. Null whenever the owner is the one
    * reading: it is written for the admin history, not for the wallet.
@@ -262,6 +264,7 @@ export async function fetchCreditWallet(
       reversesEntryId: row.reversesEntryId,
       isReverted: revertedIds.has(row.id),
       gift: giftMessages.get(row.id) ?? null,
+      creditGiftId: readCreditGiftId(row.metadata),
       internalNote:
         actor.id !== userId
           ? readMetadataText(row.metadata, "internalNote")

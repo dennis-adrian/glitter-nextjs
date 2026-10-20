@@ -1,4 +1,10 @@
+import { DateTime } from "luxon";
+
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import type { notificationCategoryEnum } from "@/db/schema";
+
+/** Postgres `integer`: an id past this makes the query itself fail. */
+export const MAX_SERIAL_ID = 2_147_483_647;
 
 /**
  * Client-safe shapes and labels for the inbox. Anything that renders email or
@@ -89,14 +95,21 @@ export type InboxNotification = {
 
 export type InboxPage = {
   items: InboxNotification[];
+  /** Unread items under the page's filter, so "Marcar todo" matches it. */
   unreadCount: number;
+  /**
+   * True when the viewer has no notification at all in view, which is a
+   * different empty state from "everything is read".
+   */
+  isEmptyInbox: boolean;
   /** Pass back as `before` to load the next page; null on the last one. */
   nextCursor: string | null;
 };
 
 /** The one place that turns a stored path into a link the inbox may follow. */
 export function safeActionPath(path: string | null | undefined): string | null {
-  if (!path || !path.startsWith("/") || path.startsWith("//")) return null;
+  // "//host" and "/\host" both leave the site in a browser.
+  if (!path || !path.startsWith("/") || /^\/[/\\]/.test(path)) return null;
   return path;
 }
 
@@ -124,18 +137,18 @@ export const NOTIFICATION_DATE_GROUP_LABELS: Record<
   earlier: "Anteriores",
 };
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-/** Calendar days in the viewer's time zone, not 24-hour windows. */
+/**
+ * Calendar days in Bolivia time, not 24-hour windows. A fixed zone rather
+ * than the runtime's: the inbox renders on a UTC server and hydrates in the
+ * browser, and the two must put every item in the same group.
+ */
 export function notificationDateGroup(
   createdAt: Date,
   now = new Date(),
 ): NotificationDateGroup {
-  const days = Math.round(
-    (startOfDay(now).getTime() - startOfDay(createdAt).getTime()) / 86_400_000,
-  );
+  const day = (date: Date) =>
+    DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).startOf("day");
+  const days = Math.round(day(now).diff(day(createdAt), "days").days);
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 7) return "week";

@@ -3,6 +3,7 @@
 import { MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import { Button } from "@/app/components/ui/button";
 import {
   DropdownMenu,
@@ -43,32 +44,42 @@ export default function NotificationItemMenu({
       readAt: unread ? new Date().toISOString() : null,
     };
     onChange(next);
-    const result = unread
-      ? await markNotificationReadAction(item.id)
-      : await markNotificationUnreadAction(item.id);
-    if (!result.success) {
+    try {
+      const result = unread
+        ? await markNotificationReadAction(item.id)
+        : await markNotificationUnreadAction(item.id);
+      if (!result.success) throw new Error("notification_update_failed");
+      announceNotificationsChanged();
+    } catch {
       onChange(item);
       toast.error("No pudimos actualizar la notificación.");
     }
   }
 
+  async function restore() {
+    try {
+      const undo = await unarchiveNotificationAction(item.id);
+      if (!undo.success) throw new Error("notification_restore_failed");
+      onRestore(item);
+      announceNotificationsChanged();
+    } catch {
+      toast.error("No pudimos deshacerlo. Intentá de nuevo.");
+    }
+  }
+
   async function archive() {
     onArchive(item);
-    const result = await archiveNotificationAction(item.id);
-    if (!result.success) {
+    try {
+      const result = await archiveNotificationAction(item.id);
+      if (!result.success) throw new Error("notification_archive_failed");
+      announceNotificationsChanged();
+    } catch {
       onRestore(item);
       toast.error("No pudimos archivar la notificación.");
       return;
     }
     toast.success("Notificación archivada.", {
-      action: {
-        label: "Deshacer",
-        onClick: () => {
-          void unarchiveNotificationAction(item.id).then((undo) => {
-            if (undo.success) onRestore(item);
-          });
-        },
-      },
+      action: { label: "Deshacer", onClick: () => void restore() },
     });
   }
 

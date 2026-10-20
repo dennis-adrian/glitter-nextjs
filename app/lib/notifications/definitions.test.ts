@@ -57,20 +57,35 @@ describe("links", () => {
 });
 
 describe("notificationDateGroup", () => {
-  const now = new Date(2026, 9, 18, 10, 0);
+  // Bolivia is UTC-4 all year.
+  const now = new Date("2026-10-18T10:00:00-04:00");
 
   it("groups by calendar day, not by 24-hour windows", () => {
-    expect(notificationDateGroup(new Date(2026, 9, 18, 0, 5), now)).toBe(
-      "today",
-    );
-    expect(notificationDateGroup(new Date(2026, 9, 17, 23, 55), now)).toBe(
-      "yesterday",
-    );
-    expect(notificationDateGroup(new Date(2026, 9, 13, 12, 0), now)).toBe(
-      "week",
-    );
-    expect(notificationDateGroup(new Date(2026, 9, 11, 12, 0), now)).toBe(
-      "earlier",
-    );
+    expect(
+      notificationDateGroup(new Date("2026-10-18T00:05:00-04:00"), now),
+    ).toBe("today");
+    expect(
+      notificationDateGroup(new Date("2026-10-17T23:55:00-04:00"), now),
+    ).toBe("yesterday");
+    expect(
+      notificationDateGroup(new Date("2026-10-13T12:00:00-04:00"), now),
+    ).toBe("week");
+    expect(
+      notificationDateGroup(new Date("2026-10-11T12:00:00-04:00"), now),
+    ).toBe("earlier");
+  });
+
+  it("uses Bolivia's calendar, so a UTC server and a browser agree", () => {
+    // 21:00 in La Paz is already tomorrow in UTC. Seen the next morning it
+    // is "Ayer" for everyone, whatever zone the code runs in.
+    const evening = new Date("2026-10-17T21:00:00-04:00");
+    const nextMorning = new Date("2026-10-18T10:00:00-04:00");
+    expect(notificationDateGroup(evening, nextMorning)).toBe("yesterday");
+  });
+});
+
+describe("safeActionPath", () => {
+  it("refuses a backslash path a browser would read as another host", () => {
+    expect(safeActionPath("/\\evil.example")).toBeNull();
   });
 });

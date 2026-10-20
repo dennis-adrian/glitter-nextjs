@@ -48,15 +48,15 @@ export default function CreditGiftRevokedEmail({
               {name?.trim() ? `¡Hola ${name.trim()}!` : "¡Hola!"}
             </Text>
             <Text style={styles.text}>
-              Retiramos los <strong>{credits}</strong> de regalo que te enviamos
-              con el mensaje «{title}». Ya no figuran en tu billetera.
+              Retiramos de tu billetera el regalo «{title}» que te habíamos
+              enviado: <strong>{credits}</strong>.
             </Text>
             {debtAmount > 0 ? (
               <Text style={styles.text}>
-                Como ya habías usado parte de ellos, te queda un saldo pendiente
-                de <strong>{formatCreditCount(debtAmount)}</strong>. Lo que
-                pagaste con esos créditos sigue en pie, pero hasta regularizar
-                el saldo no vas a poder usar créditos. Escribinos a{" "}
+                Con este ajuste te queda un saldo pendiente de{" "}
+                <strong>{formatCreditCount(debtAmount)}</strong>. Todo lo que ya
+                pagaste con créditos sigue en pie, pero hasta regularizar el
+                saldo no vas a poder usar créditos. Escribinos a{" "}
                 <span style={styles.email}>soporte@productoraglitter.com</span>{" "}
                 y lo resolvemos.
               </Text>

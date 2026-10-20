@@ -1,18 +1,7 @@
 import "server-only";
 
 import { auth } from "@clerk/nextjs/server";
-import {
-  and,
-  desc,
-  eq,
-  gt,
-  inArray,
-  isNull,
-  lt,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
@@ -21,6 +10,7 @@ import {
   type InboxNotification,
   type InboxPage,
   NOTIFICATION_PAGE_SIZE,
+  MAX_SERIAL_ID,
   NOTIFICATION_RETENTION_DAYS,
   type NotificationFilter,
   safeActionPath,
@@ -60,7 +50,8 @@ export async function resolveInboxViewerWithAccess(): Promise<InboxViewer | null
   return (await isFeatureEnabled("notifications", viewer)) ? viewer : null;
 }
 
-function retentionCutoff(now = new Date()) {
+/** Items older than this leave the inbox; every read and write shares it. */
+export function retentionCutoff(now = new Date()) {
   return new Date(now.getTime() - NOTIFICATION_RETENTION_DAYS * 86_400_000);
 }
 
@@ -77,13 +68,20 @@ function visibleTo(viewer: InboxViewer, now = new Date()) {
   );
 }
 
+function inFilter(filter: NotificationFilter) {
+  return filter === "all" ? undefined : eq(notifications.category, filter);
+}
+
 export async function fetchUnreadNotificationCount(
   viewer: InboxViewer,
+  filter: NotificationFilter = "all",
 ): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(notifications)
-    .where(and(visibleTo(viewer), isNull(notifications.readAt)));
+    .where(
+      and(visibleTo(viewer), inFilter(filter), isNull(notifications.readAt)),
+    );
   return Number(row?.count ?? 0);
 }
 
@@ -104,18 +102,25 @@ function toInboxNotification(row: NotificationRow): InboxNotification {
   };
 }
 
-function encodeCursor(row: NotificationRow) {
-  return `${row.createdAt.toISOString()}_${row.id}`;
+/**
+ * The cursor is the last id shown. Ids follow insertion order, which is the
+ * order the inbox shows; a timestamp cursor lost the microseconds a JS Date
+ * cannot hold, and with them every row sharing the boundary row's
+ * millisecond.
+ */
+function decodeCursor(value: string | null | undefined): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const id = Number(value);
+  return id > 0 && id <= MAX_SERIAL_ID ? id : null;
 }
 
-function decodeCursor(value: string | null | undefined) {
-  if (!value) return null;
-  const [iso, id] = value.split("_");
-  const createdAt = iso ? new Date(iso) : null;
-  const numericId = Number(id);
-  if (!createdAt || Number.isNaN(createdAt.getTime())) return null;
-  if (!Number.isInteger(numericId) || numericId <= 0) return null;
-  return { createdAt, id: numericId };
+async function hasNoVisibleNotifications(viewer: InboxViewer) {
+  const [row] = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(visibleTo(viewer))
+    .limit(1);
+  return !row;
 }
 
 export async function fetchInboxPage(
@@ -131,7 +136,7 @@ export async function fetchInboxPage(
     Math.max(options.limit ?? NOTIFICATION_PAGE_SIZE, 1),
     50,
   );
-  const cursor = decodeCursor(options.before);
+  const before = decodeCursor(options.before);
   const filter = options.filter ?? "all";
 
   const rows = await db
@@ -140,28 +145,26 @@ export async function fetchInboxPage(
     .where(
       and(
         visibleTo(viewer),
-        filter === "all" ? undefined : eq(notifications.category, filter),
+        inFilter(filter),
         options.unreadOnly ? isNull(notifications.readAt) : undefined,
-        cursor
-          ? or(
-              lt(notifications.createdAt, cursor.createdAt),
-              and(
-                eq(notifications.createdAt, cursor.createdAt),
-                lt(notifications.id, cursor.id),
-              ),
-            )
-          : undefined,
+        before ? lt(notifications.id, before) : undefined,
       ),
     )
-    .orderBy(desc(notifications.createdAt), desc(notifications.id))
+    .orderBy(desc(notifications.id))
     .limit(limit + 1);
 
   const page = rows.slice(0, limit);
   const last = page.at(-1);
+  const [unreadCount, isEmptyInbox] = await Promise.all([
+    fetchUnreadNotificationCount(viewer, filter),
+    // Only worth asking when this page came back empty.
+    page.length === 0 ? hasNoVisibleNotifications(viewer) : false,
+  ]);
   return {
     items: page.map(toInboxNotification),
-    unreadCount: await fetchUnreadNotificationCount(viewer),
-    nextCursor: rows.length > limit && last ? encodeCursor(last) : null,
+    unreadCount,
+    isEmptyInbox,
+    nextCursor: rows.length > limit && last ? String(last.id) : null,
   };
 }
 

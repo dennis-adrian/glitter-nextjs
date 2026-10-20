@@ -4,10 +4,11 @@ import { z } from "zod";
 
 import CreditGiftDetail from "@/app/components/credit_gifts/admin/credit-gift-detail";
 import { fetchCreditGift } from "@/app/lib/credit_gifts/queries";
+import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
-const giftIdSchema = z.coerce.number().int().positive();
+const giftIdSchema = z.coerce.number().int().positive().max(MAX_SERIAL_ID);
 
 export default async function CreditGiftPage(props: {
   params: Promise<{ giftId: string }>;

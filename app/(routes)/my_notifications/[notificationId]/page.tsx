@@ -5,12 +5,13 @@ import { z } from "zod";
 import MarkNotificationRead from "@/app/components/notifications/mark-notification-read";
 import NotificationDetail from "@/app/components/notifications/notification-detail";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import {
   fetchNotificationForViewer,
   resolveInboxViewer,
 } from "@/app/lib/notifications/queries";
 
-const idSchema = z.coerce.number().int().positive();
+const idSchema = z.coerce.number().int().positive().max(MAX_SERIAL_ID);
 
 export default async function NotificationPage(props: {
   params: Promise<{ notificationId: string }>;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { roundCredits } from "@/app/lib/credits/balances";
+import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import type { creditGiftOccasionEnum } from "@/db/schema";
 
 /**
@@ -46,7 +47,13 @@ export const CREDIT_GIFT_OCCASION_LABELS: Record<CreditGiftOccasion, string> = {
   other: "Otro",
 };
 
-/** What picking an occasion pre-fills. Every word stays editable. */
+/**
+ * What picking an occasion pre-fills. Every word stays editable.
+ *
+ * The messages carry neither a greeting nor "ya están en tu billetera": the
+ * email opens with "¡Hola {nombre}!" and closes with the wallet line itself,
+ * and the inbox item's title already says how many credits arrived.
+ */
 export const CREDIT_GIFT_OCCASION_TEMPLATES: Record<
   CreditGiftOccasion,
   { title: string; message: string }
@@ -54,27 +61,25 @@ export const CREDIT_GIFT_OCCASION_TEMPLATES: Record<
   thanks: {
     title: "Un regalo para agradecerte",
     message:
-      "¡Gracias por ser parte de Glitter, {nombre}! Te regalamos estos créditos para que los uses en tu próxima reserva.",
+      "¡Gracias por ser parte de Glitter, {nombre}! Este regalo es para tu próxima reserva.",
   },
   compensation: {
     title: "Créditos de compensación",
     message:
-      "{nombre}, sabemos que algo no salió como esperabas. Te dejamos estos créditos en tu billetera para compensarte.",
+      "{nombre}, sabemos que algo no salió como esperabas y queremos compensarte.",
   },
   prize: {
     title: "¡Ganaste un premio!",
-    message:
-      "¡Felicitaciones, {nombre}! Estos créditos son tu premio. Ya están en tu billetera.",
+    message: "¡Felicitaciones, {nombre}! Este es tu premio.",
   },
   welcome: {
     title: "Bienvenida a Glitter",
     message:
-      "¡Hola {nombre}! Te damos la bienvenida a Glitter con estos créditos para tu primera reserva.",
+      "Te damos la bienvenida a Glitter, {nombre}. Este regalo es para tu primera reserva.",
   },
   other: {
     title: "Te regalamos créditos",
-    message:
-      "¡Hola {nombre}! Te regalamos estos créditos. Ya están en tu billetera.",
+    message: "{nombre}, este regalo es de parte de todo el equipo de Glitter.",
   },
 };
 
@@ -101,7 +106,17 @@ export function personalizeCreditGiftMessage(
       .replace(/^[,\s]+/, "")
       .replace(/\s{2,}/g, " ")
       .trim()
+      // "{nombre}, sabemos…" would otherwise open in lower case.
+      .replace(
+        /^([¡¿]?)(\p{Ll})/u,
+        (_, mark: string, letter: string) => `${mark}${letter.toUpperCase()}`,
+      )
   );
+}
+
+/** "Ya está" for one credit, "Ya están" for several: the verb agrees. */
+export function creditsAgree(amount: number, one: string, many: string) {
+  return amount === 1 ? one : many;
 }
 
 export function creditGiftTotal(
@@ -131,13 +146,23 @@ const amountSchema = z.coerce
 
 export const CreateCreditGiftSchema = z.object({
   recipientIds: z
-    .array(z.coerce.number().int().positive())
+    .array(z.coerce.number().int().positive().max(MAX_SERIAL_ID))
     .min(1)
     .max(CREDIT_GIFT_MAX_RECIPIENTS)
     .refine((ids) => new Set(ids).size === ids.length, "duplicate_recipients"),
   amountPerRecipient: amountSchema,
   occasion: z.enum(CREDIT_GIFT_OCCASIONS),
-  title: z.string().trim().min(1).max(CREDIT_GIFT_TITLE_MAX_LENGTH),
+  // The title is shared as written (email heading, wallet row, admin pages),
+  // so a placeholder there would reach everyone as "{nombre}".
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .max(CREDIT_GIFT_TITLE_MAX_LENGTH)
+    .refine(
+      (title) => !title.includes(CREDIT_GIFT_NAME_PLACEHOLDER),
+      "placeholder_in_title",
+    ),
   message: z.string().trim().min(1).max(CREDIT_GIFT_MESSAGE_MAX_LENGTH),
   internalNote: z
     .string()
@@ -156,6 +181,7 @@ export const CREDIT_GIFT_SKIP_REASONS = {
   not_verified: "Perfil no verificado",
   banned: "Cuenta suspendida",
   deletion_pending: "Cuenta en eliminación",
+  cancelled: "Regalo retirado antes de acreditarse",
 } as const;
 export type CreditGiftSkipReason = keyof typeof CREDIT_GIFT_SKIP_REASONS;
 
@@ -178,7 +204,13 @@ export function creditGiftSkipReason(recipient: {
 /** A participant as the composer lists them. */
 export type CreditGiftRecipientOption = {
   id: number;
+  /** How the admin sees them: the profile name, or the email without one. */
   name: string;
+  /**
+   * What `{nombre}` becomes for them, exactly as the gift will say it: null
+   * when the profile has no name, never the email address.
+   */
+  greetingName: string | null;
   email: string;
   imageUrl: string | null;
   status: string;

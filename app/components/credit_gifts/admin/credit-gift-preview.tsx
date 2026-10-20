@@ -19,8 +19,13 @@ import {
 import { NOTIFICATION_SENDER_NAME } from "@/app/lib/notifications/definitions";
 
 type CreditGiftPreviewProps = {
-  /** The sample recipient's name, or null before anyone is added. */
+  /**
+   * What `{nombre}` becomes for the sample recipient, exactly as the send
+   * fills it: null for a profile without a name, and before anyone is added.
+   */
   name: string | null;
+  /** Who the sample recipient is, for the admin; may be their email. */
+  sampleLabel: string | null;
   amount: number;
   title: string;
   message: string;
@@ -28,10 +33,11 @@ type CreditGiftPreviewProps = {
 
 /**
  * What one recipient will see, in the three places a gift lands. Rendered for
- * the first person on the list, so `{nombre}` shows a real name.
+ * the first person on the list, personalized the way the send will do it.
  */
 export default function CreditGiftPreview({
   name,
+  sampleLabel,
   amount,
   title,
   message,
@@ -59,7 +65,9 @@ export default function CreditGiftPreview({
         <TabsTrigger value="wallet">Billetera</TabsTrigger>
       </TabsList>
       <p className="text-xs text-muted-foreground">
-        {name ? `Así lo ve ${name}.` : "Así lo ve cada participante."}
+        {sampleLabel
+          ? `Así lo ve ${sampleLabel}.`
+          : "Así lo ve cada participante."}
       </p>
       <TabsContent value="inbox" className="mt-0">
         <div className="overflow-hidden rounded-lg border bg-background">
