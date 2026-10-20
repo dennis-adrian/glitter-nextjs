@@ -21,7 +21,7 @@ export function CartSheetCheckoutFooter({
   return (
     <div className="px-6 py-4 border-t space-y-4">
       {showStockWarning && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-amber-600 dark:text-amber-400">
           Revisá tu carrito, algunos productos cambiaron de disponibilidad.
         </p>
       )}

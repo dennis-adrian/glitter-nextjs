@@ -181,7 +181,10 @@ function Amount({ amount }: { amount: number }) {
     <CreditAmount
       amount={amount}
       signed
-      className={cn("font-medium", amount > 0 && "text-green-700")}
+      className={cn(
+        "font-medium",
+        amount > 0 && "text-green-700 dark:text-green-300",
+      )}
     />
   );
 }
@@ -342,7 +345,7 @@ export default function CreditLedgerDataTable({
             <CreditAmount
               amount={totals.creditsIn}
               signed
-              className="font-medium text-green-700"
+              className="font-medium text-green-700 dark:text-green-300"
             />{" "}
             · salidas{" "}
             <CreditAmount

@@ -8,6 +8,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
 import Link from "next/link";
 
+import ThemeImage from "@/app/components/atoms/theme-image";
 import MarketingBannerCarousel from "@/app/components/marketing/marketing-banner-carousel";
 import PreviewLandingBar from "@/app/components/landing/preview-landing-bar";
 import { Button } from "@/app/components/ui/button";
@@ -283,7 +284,7 @@ function Event({
                 <time
                   dateTime={dateStamp.dateTime}
                   aria-label={dateLabel}
-                  className="grid min-w-28 place-items-center rounded-[18px] bg-brand-ink px-5 py-4 text-center font-display text-white"
+                  className="grid min-w-28 place-items-center rounded-[18px] bg-brand-deep px-5 py-4 text-center font-display text-white"
                 >
                   <span className="text-3xl font-extrabold leading-none tracking-[-1px] sm:text-4xl">
                     {dateStamp.primary}
@@ -296,7 +297,7 @@ function Event({
                   </span>
                 </time>
               ) : (
-                <div className="flex min-h-28 min-w-28 items-center justify-center rounded-[18px] bg-brand-ink px-5 py-4 text-center font-display font-bold text-white">
+                <div className="flex min-h-28 min-w-28 items-center justify-center rounded-[18px] bg-brand-deep px-5 py-4 text-center font-display font-bold text-white">
                   Fecha por confirmar
                 </div>
               )}
@@ -381,7 +382,7 @@ function Audience({
           {value.items.map((card) => (
             <article
               key={card.id}
-              className="flex h-full flex-col rounded-[20px] border border-brand-border bg-white p-6"
+              className="flex h-full flex-col rounded-[20px] border border-brand-border bg-brand-card p-6"
             >
               <div className="relative h-44 w-full overflow-hidden sm:h-50">
                 <Image
@@ -645,7 +646,7 @@ function Community({
               {value.testimonials.map((item) => (
                 <figure
                   key={item.id}
-                  className="flex h-full flex-col justify-between rounded-[20px] border border-brand-border bg-white p-6"
+                  className="flex h-full flex-col justify-between rounded-[20px] border border-brand-border bg-brand-card p-6"
                 >
                   <blockquote className="text-sm leading-5 text-brand-neutral">
                     “{item.quote}”
@@ -788,6 +789,9 @@ function FooterList({
   );
 }
 
+/** The stock footer logo, which has a white twin for the dark theme. */
+const PRIMARY_LOGO_URL = "/img/logo/glitter-logo-full-primary-1696x739.png";
+
 function Footer({ value }: { value: LandingPageContentV1["footer"] }) {
   const icon = (network: string) =>
     network === "facebook"
@@ -802,13 +806,24 @@ function Footer({ value }: { value: LandingPageContentV1["footer"] }) {
       <div className="mx-auto max-w-[1280px]">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr] lg:gap-16">
           <div className="max-w-sm">
-            <Image
-              src={value.logo.url}
-              alt={value.logo.alt}
-              width={140}
-              height={50}
-              className="h-auto w-[140px] object-contain"
-            />
+            {value.logo.url === PRIMARY_LOGO_URL ? (
+              <ThemeImage
+                srcLight={PRIMARY_LOGO_URL}
+                srcDark="/img/logo/glitter-logo-full-white-1696x741.png"
+                alt={value.logo.alt}
+                width={140}
+                height={50}
+                className="h-auto w-[140px] object-contain"
+              />
+            ) : (
+              <Image
+                src={value.logo.url}
+                alt={value.logo.alt}
+                width={140}
+                height={50}
+                className="h-auto w-[140px] object-contain"
+              />
+            )}
             <p className="mt-4 text-sm leading-5 text-brand-neutral">
               {value.description}
             </p>
@@ -948,7 +963,7 @@ export default function LandingV4({
     ) : null,
   };
   return (
-    <div className="bg-[#FFFDF9] text-brand-neutral-strong">
+    <div className="bg-[#FFFDF9] text-brand-neutral-strong dark:bg-brand-elevated">
       {preview ? (
         <PreviewLandingBar announcement={content.announcement} />
       ) : null}

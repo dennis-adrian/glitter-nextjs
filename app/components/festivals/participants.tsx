@@ -30,7 +30,7 @@ export default async function ParticipantsGrid(props: ParticipantsProps) {
 
   return (
     <div className="relative flex flex-col border rounded-md max-h-[600px] lg:max-h-[1000px] overflow-x-auto grow">
-      <div className="sticky top-0 left-0 bg-white/90 z-10 border-b px-4">
+      <div className="sticky top-0 left-0 bg-card/90 z-10 border-b px-4">
         <h1 className="font-semibold text-xl my-4">
           Participantes Confirmados
         </h1>

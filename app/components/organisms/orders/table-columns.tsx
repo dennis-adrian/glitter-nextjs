@@ -213,7 +213,7 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
         <span
           className={cn(
             "flex items-center gap-1 capitalize",
-            isOverdue && "font-medium text-red-600",
+            isOverdue && "font-medium text-red-600 dark:text-red-400",
           )}
         >
           {isOverdue && <AlertTriangleIcon className="h-3 w-3 shrink-0" />}

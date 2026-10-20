@@ -38,7 +38,7 @@ export default function PostRow({ post }: { post: PublicPostListItem }) {
           </div>
         )}
 
-        <h3 className="text-lg font-semibold leading-snug transition-colors group-hover:text-pink-600 sm:text-xl">
+        <h3 className="text-lg font-semibold leading-snug transition-colors group-hover:text-pink-600 dark:group-hover:text-pink-400 sm:text-xl">
           {post.title}
         </h3>
 

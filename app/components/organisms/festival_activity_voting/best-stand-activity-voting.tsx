@@ -57,7 +57,7 @@ export default function BestStandActivityVoting({
         {activityVariants.map((variant) => (
           <div
             key={variant.id}
-            className="border border-gray-200 rounded-md p-3 flex gap-2"
+            className="border border-border rounded-md p-3 flex gap-2"
           >
             {variant.imageUrl && (
               <Image
@@ -78,16 +78,16 @@ export default function BestStandActivityVoting({
                   : "Sin categoría"}
               </Heading>
               {getValidParticipantsForVariant(variant).length === 0 ? (
-                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
                   <CircleAlertIcon className="w-5 h-5 text-amber-500 shrink-0" />
-                  <p className="text-sm text-amber-800">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
                     No hay participantes disponibles para votar
                   </p>
                 </div>
               ) : hasParticipantVotedForVariant(variant, currentProfile.id) ? (
-                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-md p-3 text-emerald-800">
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-md p-3 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-200">
                   <CircleCheckIcon className="w-5 h-5 text-emerald-500" />
-                  <p className="text-sm text-emerald-800">
+                  <p className="text-sm text-emerald-800 dark:text-emerald-200">
                     Ya votaste en esta categoría
                   </p>
                 </div>

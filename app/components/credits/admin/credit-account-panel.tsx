@@ -80,7 +80,13 @@ export default async function CreditAccountPanel({
             <CreditAmount amount={wallet.balances.spendableBalance} />
           </dd>
           <dt className="text-muted-foreground">Saldo en el libro</dt>
-          <dd className={inDebt ? "text-right text-red-600" : "text-right"}>
+          <dd
+            className={
+              inDebt
+                ? "text-right text-red-600 dark:text-red-400"
+                : "text-right"
+            }
+          >
             <CreditAmount amount={wallet.balances.ledgerBalance} />
           </dd>
           {wallet.balances.activeHolds > 0 && (
@@ -141,7 +147,7 @@ export default async function CreditAccountPanel({
                       signed
                       className={
                         entry.amount > 0
-                          ? "text-sm font-medium text-green-600"
+                          ? "text-sm font-medium text-green-600 dark:text-green-400"
                           : "text-sm font-medium"
                       }
                     />

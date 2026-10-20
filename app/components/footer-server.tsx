@@ -1,5 +1,5 @@
 import Footer from "@/app/components/footer";
-import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { isLayoutFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 
 /**
  * Resolves the footer's feature flags server-side.
@@ -11,7 +11,7 @@ import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
  * same way `Navbar` wraps `NavbarClient`.
  */
 export default async function FooterServer() {
-  const blogEnabled = await isFeatureEnabled("blog");
+  const blogEnabled = await isLayoutFeatureEnabled("blog");
 
   return <Footer blogEnabled={blogEnabled} />;
 }

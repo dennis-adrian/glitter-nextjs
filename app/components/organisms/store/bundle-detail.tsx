@@ -289,7 +289,7 @@ export default function BundleDetail({ bundle }: { bundle: PublicBundle }) {
                       </fieldset>
                     )}
                     {component.productStatus === "presale" && (
-                      <p className="flex items-center gap-1 text-xs text-amber-700">
+                      <p className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
                         <ClockIcon className="size-3" aria-hidden="true" />
                         Pre-venta
                         {component.productAvailableDate &&

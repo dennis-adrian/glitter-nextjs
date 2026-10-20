@@ -87,7 +87,7 @@ const StandArtists = ({ festivalId, participants, stand }: Props) => {
         </span>
         <Badge
           variant="outline"
-          className="rounded-full border-teal-600 text-teal-700"
+          className="rounded-full border-teal-600 text-teal-700 dark:text-teal-300"
         >
           {externalParticipants[0].categoryLabel}
         </Badge>

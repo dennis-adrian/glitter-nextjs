@@ -288,4 +288,112 @@ describeDatabase("order creation category snapshots", () => {
 
     expect(line.storeCategoryAtPurchase).toBe("merch");
   });
+
+  it("refuses a hidden product on a registered order without writing", async () => {
+    const fixture = await createFixture();
+    await integrationDb!
+      .update(products)
+      .set({ isVisible: false })
+      .where(eq(products.id, fixture.merchProductId));
+    const ordersBefore = await integrationDb!
+      .select({ id: orders.id })
+      .from(orders)
+      .where(eq(orders.userId, fixture.userId));
+
+    await expect(
+      integrationDb!.transaction((tx) =>
+        createOrderInTx(
+          tx as OrderTx,
+          [
+            {
+              productId: fixture.merchProductId,
+              productVariantId: null,
+              quantity: 1,
+            },
+          ],
+          fixture.userId,
+          "integration@example.test",
+          "Integration Buyer",
+        ),
+      ),
+    ).rejects.toMatchObject({
+      cause: "product_unavailable",
+      message: expect.stringContaining("ya no está disponible"),
+    });
+
+    const ordersAfter = await integrationDb!
+      .select({ id: orders.id })
+      .from(orders)
+      .where(eq(orders.userId, fixture.userId));
+    const [product] = await integrationDb!
+      .select()
+      .from(products)
+      .where(eq(products.id, fixture.merchProductId));
+
+    expect(ordersAfter).toHaveLength(ordersBefore.length);
+    expect(product.stock).toBe(10);
+  });
+
+  it("refuses a hidden product on a guest order, even beside a visible one", async () => {
+    const fixture = await createFixture();
+    await integrationDb!
+      .update(products)
+      .set({ isVisible: false })
+      .where(eq(products.id, fixture.merchProductId));
+    const guestEmail = `invitada-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`;
+    const [visibleMerch] = await integrationDb!
+      .insert(products)
+      .values({
+        name: `Visible ${guestEmail}`,
+        slug: `integration-actions-visible-${guestEmail.split("@")[0]}`,
+        price: 12,
+        stock: 4,
+        isPurchasable: true,
+        storeCategory: "merch",
+      })
+      .returning();
+
+    try {
+      await expect(
+        integrationDb!.transaction((tx) =>
+          createGuestOrderInTx(
+            tx as OrderTx,
+            [
+              {
+                productId: visibleMerch.id,
+                productVariantId: null,
+                quantity: 1,
+              },
+              {
+                productId: fixture.merchProductId,
+                productVariantId: null,
+                quantity: 1,
+              },
+            ],
+            "Invitada",
+            guestEmail,
+            "+59171234567",
+          ),
+        ),
+      ).rejects.toMatchObject({ cause: "product_unavailable" });
+
+      const ordersAfter = await integrationDb!
+        .select({ id: orders.id })
+        .from(orders)
+        .where(eq(orders.guestEmail, guestEmail));
+      const stock = await integrationDb!
+        .select({ id: products.id, stock: products.stock })
+        .from(products)
+        .where(inArray(products.id, [visibleMerch.id, fixture.merchProductId]));
+
+      expect(ordersAfter).toHaveLength(0);
+      expect(
+        Object.fromEntries(stock.map((row) => [row.id, row.stock])),
+      ).toEqual({ [visibleMerch.id]: 4, [fixture.merchProductId]: 10 });
+    } finally {
+      await integrationDb!
+        .delete(products)
+        .where(eq(products.id, visibleMerch.id));
+    }
+  });
 });

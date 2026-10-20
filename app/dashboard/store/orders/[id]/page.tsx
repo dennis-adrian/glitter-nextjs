@@ -502,7 +502,7 @@ export default async function OrderDetailPage({
                     Límite de pago
                   </span>
                   <span
-                    className={`text-right flex items-center gap-1 capitalize ${isOverdue ? "text-red-600 font-medium" : ""}`}
+                    className={`text-right flex items-center gap-1 capitalize ${isOverdue ? "text-red-600 dark:text-red-400 font-medium" : ""}`}
                   >
                     {isOverdue && (
                       <AlertTriangleIcon className="h-3 w-3 shrink-0" />

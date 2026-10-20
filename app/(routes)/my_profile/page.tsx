@@ -26,7 +26,7 @@ export default async function Page() {
             Esto puede ser un error temporal. Intentá de nuevo con los mismos
             datos o contactate con nuestro equipo de soporte en{" "}
             <Link
-              className="underline text-blue-500"
+              className="underline text-blue-500 dark:text-blue-400"
               href="mailto:soporte@productoraglitter.com"
             >
               soporte@productoraglitter.com

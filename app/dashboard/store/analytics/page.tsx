@@ -39,7 +39,7 @@ function StatsCardsSkeleton() {
 
 function LowStockSkeleton() {
   return (
-    <div className="rounded-lg border border-amber-200/50 bg-card p-4">
+    <div className="rounded-lg border border-amber-200/50 bg-card p-4 dark:border-amber-900">
       <div className="flex items-center gap-2 pb-2">
         <Skeleton className="h-5 w-5 shrink-0" />
         <Skeleton className="h-5 w-24" />

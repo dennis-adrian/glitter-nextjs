@@ -87,10 +87,15 @@ export default function ComboboxInput<T extends FieldValues>({
                         disabled={option.disabled}
                         onSelect={() => {
                           if (option.disabled) return;
+                          // Dirty, or a form that enables saving only once
+                          // something changed keeps its button off when the
+                          // pick is the only change. Validated, so an error
+                          // from a submit with nothing picked clears.
                           form.setValue(
                             name,
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             option.value as any,
+                            { shouldDirty: true, shouldValidate: true },
                           );
                           setOpen(false);
                         }}

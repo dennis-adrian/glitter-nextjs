@@ -109,7 +109,7 @@ export function MultipleSelectCombobox(props: ComboboxProps) {
                   selected.map((option) => (
                     <span
                       key={option.value}
-                      className="text-sm font-normal bg-primary-50 py-1 px-2 rounded-md"
+                      className="text-sm font-normal bg-primary-50 py-1 px-2 rounded-md dark:bg-accent"
                     >
                       {option.label}
                     </span>

@@ -15,8 +15,8 @@ export default function PendingActionNotice({
 
   if (expired) {
     return (
-      <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-        <p className="text-xs leading-tight text-stone-700">
+      <div className="rounded-lg border border-border bg-muted/50 p-3">
+        <p className="text-xs leading-tight text-foreground">
           {enrolledConfig.pendingLabel}
         </p>
       </div>
@@ -26,12 +26,16 @@ export default function PendingActionNotice({
   return (
     <div
       className={`rounded-lg border p-3 space-y-1 ${
-        d ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
+        d
+          ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40"
+          : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40"
       }`}
     >
       <p
         className={`text-sm font-medium ${
-          d ? "text-red-700" : "text-amber-800"
+          d
+            ? "text-red-700 dark:text-red-300"
+            : "text-amber-800 dark:text-amber-200"
         }`}
       >
         {enrolledConfig.pendingLabel}
@@ -44,7 +48,9 @@ export default function PendingActionNotice({
       {enrolledConfig.ctaType === "upload" && enrolledConfig.deadlineDate && (
         <div
           className={`flex items-start gap-1 pt-1 ${
-            d ? "text-red-700" : "text-amber-800"
+            d
+              ? "text-red-700 dark:text-red-300"
+              : "text-amber-800 dark:text-amber-200"
           }`}
         >
           <ClockIcon

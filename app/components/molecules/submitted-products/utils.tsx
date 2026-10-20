@@ -6,11 +6,17 @@ export const getStatusIcon = (
 ) => {
   switch (status) {
     case "approved":
-      return <CheckCircleIcon className="w-4 h-4 text-green-800" />;
+      return (
+        <CheckCircleIcon className="w-4 h-4 text-green-800 dark:text-green-200" />
+      );
     case "rejected":
-      return <AlertCircleIcon className="w-4 h-4 text-red-800" />;
+      return (
+        <AlertCircleIcon className="w-4 h-4 text-red-800 dark:text-red-200" />
+      );
     default:
-      return <ClockIcon className="w-4 h-4 text-amber-800" />;
+      return (
+        <ClockIcon className="w-4 h-4 text-amber-800 dark:text-amber-200" />
+      );
   }
 };
 
@@ -19,11 +25,11 @@ export const getStatusColor = (
 ) => {
   switch (status) {
     case "approved":
-      return "bg-green-50 text-green-800 border border-green-200";
+      return "bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/40 dark:text-green-200 dark:border-green-900";
     case "rejected":
-      return "bg-red-50 text-red-800 border border-red-200";
+      return "bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900";
     default:
-      return "bg-amber-50 text-amber-800 border border-amber-200";
+      return "bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900";
   }
 };
 

@@ -27,6 +27,8 @@ type Props = {
   onSelect: (selectedId: number) => void;
   onSearch?: (term: string) => void;
   isLoading?: boolean;
+  /** See `SearchContent`; the caller's search ignores shorter terms. */
+  minSearchLength?: number;
 };
 
 const SearchInput = ({
@@ -42,6 +44,7 @@ const SearchInput = ({
   onSelect,
   onSearch,
   isLoading,
+  minSearchLength,
 }: Props) => {
   const [inputText, setInputText] = useState("");
   const [searchedOptions, setSearchedOptions] =
@@ -172,7 +175,25 @@ const SearchInput = ({
           type="search"
           placeholder={placeholder}
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          onChange={(e) => {
+            setInputText(e.target.value);
+            // A pick closes the panel but leaves focus in the box (the option
+            // keeps it on mousedown), so onFocus never fires for the next
+            // term; typing has to reopen it.
+            setIsFocused(true);
+          }}
+          onKeyDown={(e) => {
+            // Inside a form, Enter in a text box submits it: a coupon was
+            // saved with half its people, a reservation edit or an
+            // infraction sent before the admin finished. The box is never a
+            // field of its own, so Enter does nothing here. It does not pick
+            // a result either: those trail the typing by a debounce and a
+            // round trip, so the top one may answer the previous term.
+            // Composition (IME) Enter is left alone; it commits text.
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+            }
+          }}
           onFocus={() => setIsFocused(true)}
           onBlur={handleInputBlur}
         />
@@ -187,6 +208,7 @@ const SearchInput = ({
           options={visibleOptions}
           onSelect={handleSelect}
           searchTerm={inputText}
+          minSearchLength={minSearchLength}
           isLoading={isLoading}
         />
       </div>

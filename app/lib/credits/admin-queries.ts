@@ -6,7 +6,6 @@ import {
   desc,
   eq,
   gte,
-  ilike,
   inArray,
   isNotNull,
   lt,
@@ -31,6 +30,7 @@ import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { roundMoney } from "@/app/lib/reservations/money";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { userSearchCondition } from "@/app/lib/users/search-condition";
 import { getUserName } from "@/app/lib/users/utils";
 import { db } from "@/db";
 import {
@@ -141,26 +141,6 @@ type UserSummary = {
   lastName: string | null;
   email: string;
 };
-
-export function userSearchCondition(query: string): SQL | undefined {
-  const term = query.trim();
-  if (!term) return undefined;
-  const pattern = `%${term}%`;
-  const conditions: SQL[] = [
-    ilike(users.displayName, pattern),
-    ilike(users.firstName, pattern),
-    ilike(users.lastName, pattern),
-    ilike(users.email, pattern),
-    sql`concat_ws(' ', ${users.firstName}, ${users.lastName}) ilike ${pattern}`,
-  ];
-  // An id is what the rest of the dashboard shows next to a person, so it is
-  // worth finding someone by it.
-  const id = Number(term.replace(/^#/, ""));
-  if (Number.isInteger(id) && id > 0 && id <= 2_147_483_647) {
-    conditions.push(eq(users.id, id));
-  }
-  return or(...conditions);
-}
 
 // ---------------------------------------------------------------------------
 // Accounts

@@ -58,7 +58,7 @@ export default function ParticipationsCell({ participations }: Props) {
                   <td className="p-2">
                     <Link
                       href={`/festivals/${festival.festivalId}`}
-                      className="text-blue-600 underline"
+                      className="text-blue-600 underline dark:text-blue-400"
                       target="_blank"
                       rel="noopener noreferrer"
                     >

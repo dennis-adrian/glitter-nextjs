@@ -39,7 +39,8 @@ export function getActivityMarker(
       legendLabel: "En cuponera",
       symbol: "%",
       Icon: BookOpenIcon,
-      softClassName: "border-amber-200 bg-amber-50 text-amber-800",
+      softClassName:
+        "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
       swatchClassName: "border-amber-700 bg-amber-600",
       badgeFill: "#F59E0B",
       participationLabel: "Participa en la cuponera",
@@ -52,7 +53,8 @@ export function getActivityMarker(
       legendLabel: "Carrera de sellos",
       symbol: "★",
       Icon: StampIcon,
-      softClassName: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      softClassName:
+        "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
       swatchClassName: "border-emerald-800 bg-emerald-600",
       badgeFill: "#059669",
       participationLabel: "Participa en la carrera de sellos",
@@ -65,7 +67,8 @@ export function getActivityMarker(
       legendLabel: "Cacería de stickers",
       symbol: "♦",
       Icon: SearchIcon,
-      softClassName: "border-pink-200 bg-pink-50 text-pink-800",
+      softClassName:
+        "border-pink-200 bg-pink-50 text-pink-800 dark:border-pink-900 dark:bg-pink-950/40 dark:text-pink-200",
       swatchClassName: "border-pink-800 bg-pink-600",
       badgeFill: "#DB2777",
       participationLabel: "Participa en la cacería de stickers",
@@ -78,7 +81,8 @@ export function getActivityMarker(
       legendLabel: "Sticker del festival",
       symbol: "✦",
       Icon: SparklesIcon,
-      softClassName: "border-sky-200 bg-sky-50 text-sky-800",
+      softClassName:
+        "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200",
       swatchClassName: "border-sky-800 bg-sky-600",
       badgeFill: "#0284C7",
       participationLabel: "Participa en el sticker del festival",
@@ -90,7 +94,8 @@ export function getActivityMarker(
     legendLabel: "Actividad del festival",
     symbol: "•",
     Icon: SparklesIcon,
-    softClassName: "border-primary-200 bg-primary-50 text-primary-800",
+    softClassName:
+      "border-primary-200 bg-primary-50 text-primary-800 dark:border-primary-900 dark:bg-primary-950/40 dark:text-primary-200",
     swatchClassName: "border-primary-700 bg-primary-600",
     badgeFill: "hsl(262, 77%, 49%)",
     participationLabel: "Participa en esta actividad",

@@ -69,13 +69,18 @@ export default function GuestCartItemRow({
       subtotal={subtotal}
       warnings={
         <>
+          {stockIssue?.isUnavailable && (
+            <span className="inline-block text-xs text-destructive font-medium mt-1">
+              Ya no está disponible
+            </span>
+          )}
           {stockIssue?.isOutOfStock && (
             <span className="inline-block text-xs text-destructive font-medium mt-1">
               Sin stock
             </span>
           )}
           {!stockIssue?.isOutOfStock && stockIssue?.quantityExceedsStock && (
-            <span className="inline-block text-xs text-amber-600 font-medium mt-1">
+            <span className="inline-block text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
               {stockIssue.stock === 1
                 ? "Solo queda 1 disponible"
                 : `Solo quedan ${stockIssue.stock} disponibles`}

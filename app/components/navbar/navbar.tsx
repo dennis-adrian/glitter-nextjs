@@ -1,6 +1,6 @@
 import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
-import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { isLayoutFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
 import { fetchProgramsNavTarget } from "@/app/lib/programs/data";
 
@@ -17,8 +17,8 @@ import { fetchProgramsNavTarget } from "@/app/lib/programs/data";
  */
 async function resolveProgramsHref(): Promise<string | null> {
   const [navEnabled, programsEnabled] = await Promise.all([
-    isFeatureEnabled("programs_nav_entry"),
-    isFeatureEnabled("paid_programs"),
+    isLayoutFeatureEnabled("programs_nav_entry"),
+    isLayoutFeatureEnabled("paid_programs"),
   ]);
 
   if (!navEnabled || !programsEnabled) return null;
@@ -37,9 +37,9 @@ export default async function Navbar() {
     landingContent,
   ] = await Promise.all([
     resolveProgramsHref(),
-    isFeatureEnabled("credits"),
-    isFeatureEnabled("blog"),
-    isFeatureEnabled("notifications"),
+    isLayoutFeatureEnabled("credits"),
+    isLayoutFeatureEnabled("blog"),
+    isLayoutFeatureEnabled("notifications"),
     getPublishedLandingContent(),
   ]);
 

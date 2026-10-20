@@ -9,7 +9,7 @@ import {
   type CreditGiftSkipReason,
 } from "@/app/lib/credit_gifts/definitions";
 import { classifyCreditGiftRecipients } from "@/app/lib/credit_gifts/service";
-import { userSearchCondition } from "@/app/lib/credits/admin-queries";
+import { userSearchCondition } from "@/app/lib/users/search-condition";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { getUserName } from "@/app/lib/users/utils";

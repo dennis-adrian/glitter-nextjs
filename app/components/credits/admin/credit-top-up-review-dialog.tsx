@@ -146,7 +146,9 @@ export default function CreditTopUpReviewDialog({
               <dt className="text-muted-foreground">Saldo si se rechaza</dt>
               <dd
                 className={
-                  balanceAfterReversal < 0 ? "font-medium text-red-600" : ""
+                  balanceAfterReversal < 0
+                    ? "font-medium text-red-600 dark:text-red-400"
+                    : ""
                 }
               >
                 <CreditAmount amount={balanceAfterReversal} />

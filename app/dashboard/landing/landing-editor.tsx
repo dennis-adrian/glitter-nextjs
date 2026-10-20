@@ -382,7 +382,7 @@ function CropPreview({
       </span>
       <button
         type="button"
-        className="absolute bottom-2 right-2 inline-flex h-8 items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-2.5 text-xs font-medium text-brand-ink shadow-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="absolute bottom-2 right-2 inline-flex h-8 items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-2.5 text-xs font-medium text-brand-ink shadow-sm transition-colors hover:bg-white dark:border-white/15 dark:bg-card/90 dark:hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={center}
       >

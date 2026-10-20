@@ -41,13 +41,13 @@ export default function InfoTabContent({
               height={140}
             />
           ) : (
-            <div className="bg-emerald-100 p-3 rounded-full w-fit">
-              <Palette className="h-6 w-6 text-[#3C8837]" />
+            <div className="bg-emerald-100 dark:bg-emerald-900/40 p-3 rounded-full w-fit">
+              <Palette className="h-6 w-6 text-[#3C8837] dark:text-green-400" />
             </div>
           )}
           <Link
             href={`/festivals/${festival.id}#mapa`}
-            className="text-sm text-[#3C8837] underline"
+            className="text-sm text-[#3C8837] dark:text-green-400 underline"
           >
             Ver mapa
           </Link>

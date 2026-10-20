@@ -48,14 +48,14 @@ export default function InvitationProgress({
           <Progress value={value} aria-label="Progreso del envío" />
           <p className="text-sm tabular-nums text-muted-foreground">
             {state.sent.toLocaleString("es-BO")} de{" "}
-            {expected.toLocaleString("es-BO")} enviadas. No cierres esta
-            ventana hasta que termine.
+            {expected.toLocaleString("es-BO")} enviadas. No cierres esta ventana
+            hasta que termine.
           </p>
         </>
       ) : null}
 
       {state.status === "done" && !pendingRetry ? (
-        <div className="flex items-start gap-2 rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-900">
+        <div className="flex items-start gap-2 rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-900 dark:border-green-800 dark:bg-green-950/40 dark:text-green-100">
           <CheckCircle2Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>
             {state.sent > 0
@@ -65,9 +65,8 @@ export default function InvitationProgress({
         </div>
       ) : null}
 
-      {(state.status === "done" || state.status === "error") &&
-      pendingRetry ? (
-        <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+      {(state.status === "done" || state.status === "error") && pendingRetry ? (
+        <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
           <div className="flex items-start gap-2">
             <CircleAlertIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <div className="space-y-1">
@@ -111,7 +110,11 @@ export default function InvitationProgress({
       {state.status !== "sending" && state.skipped > 0 ? (
         <p className="text-xs text-muted-foreground">
           Se omitieron{" "}
-          {plural(state.skipped, "correo inválido o repetido", "correos inválidos o repetidos")}
+          {plural(
+            state.skipped,
+            "correo inválido o repetido",
+            "correos inválidos o repetidos",
+          )}
           .
         </p>
       ) : null}

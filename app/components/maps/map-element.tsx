@@ -4,6 +4,7 @@ import { MAP_ELEMENT_TYPES } from "@/app/lib/map_elements/definitions";
 import type { MapElementLike } from "@/app/components/maps/map-types";
 import MapElementIcon from "./map-element-icon";
 import { getLabelLayout } from "./map-element-label-utils";
+import { mapColor } from "./map-utils";
 
 type MapElementProps = {
   element: MapElementLike;
@@ -20,11 +21,13 @@ export default function MapElement({ element }: MapElementProps) {
 
   const iconSize = Math.min(width, height) * 0.5;
 
-  // Label color: use stroke at full opacity for solid elements, darker for label type
+  // Label color: use stroke at full opacity for solid elements, darker for label
+  // type. Some strokes are too dark to read on the dark map, so the dark theme
+  // swaps every solid element's label for neutral ink.
   const labelColor =
     element.type === "label"
-      ? "#374151"
-      : config.strokeColor.replace(/[\d.]+\)$/, "1)");
+      ? mapColor("ink", "#374151")
+      : mapColor("label", config.strokeColor.replace(/[\d.]+\)$/, "1)"));
 
   return (
     <g transform={`translate(${left}, ${top})`}>
@@ -51,11 +54,13 @@ export default function MapElement({ element }: MapElementProps) {
             cx={width / 2}
             cy={height / 2}
             size={iconSize}
-            color={element.type === "label" ? "#374151" : "#ffffff"}
+            color={
+              element.type === "label" ? mapColor("ink", "#374151") : "#ffffff"
+            }
           />
         </g>
       )}
-      {/* Label with white background */}
+      {/* Label on a chip of the map ground, masking the dot grid behind it */}
       {displayLabel &&
         (() => {
           const fs = Math.min(Math.max(labelFontSize, 0.5), 6);
@@ -79,7 +84,7 @@ export default function MapElement({ element }: MapElementProps) {
                 width={estTextWidth + padX * 2}
                 height={fs + padY * 2}
                 rx={fs * 0.35}
-                fill="white"
+                fill={mapColor("ground", "white")}
                 opacity={0.85}
                 style={{ pointerEvents: "none" }}
               />
