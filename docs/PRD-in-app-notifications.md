@@ -30,6 +30,7 @@ Credit gifts ship first because they exercise the whole pipeline (business chang
 - Mirroring the existing reservation, payment, discipline and enrollment emails in the inbox (phase 2).
 - Admin-written announcements (comunicados), rich text, scheduling (phase 3).
 - Notification preferences and email opt-outs (phase 3 for announcements, phase 5 for the rest).
+- Push notifications to the device's own notification center (phase 2b).
 - Editable email copy (phase 6).
 - Backfilling past emails into the inbox.
 
@@ -172,6 +173,15 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
 ## 10. Later phases
 
 - **P2** Mirror the queued emails (12 reservation kinds, disciplinary notices, top-up rejection, participation decisions) through `notify()`. Admin copies land in Administración. Launch the bell for participants.
+- **P2b** Push notifications (Dennis, 2026-10-20): alerts in the operating system's notification center, not only in the bell.
+  - **How:** standard web push. A web app manifest and a service worker; VAPID keys as server secrets; the `web-push` library on the server. No vendor and no native app.
+  - **Devices:** a `push_subscriptions` table, one row per browser or device a person allowed (endpoint, keys, a device label, last used). A subscription the push service reports as gone (404/410) is removed.
+  - **Sending:** push is a third channel on the phase 1 delivery queue, next to in-app and email, with the same retries and per-delivery records. Each kind in the registry says whether it pushes; the text is the inbox title and body, and tapping opens the item. Sensitive kinds (disciplinary notices) push a generic "Tenés una notificación nueva" instead of their content.
+  - **Asking permission:** never on page load. A "Recibir avisos en este dispositivo" control in the bell and in `/my_notifications`, offered again after a meaningful moment (a confirmed reservation, a gift). When the browser cannot do it, or permission was denied, the control stays visible, disabled, with the reason and how to change it.
+  - **iPhone:** iOS delivers web push only to a site added to the home screen (iOS 16.4 and later). On an iPhone that has not added it, the control explains how ("Compartir → Agregar a inicio") instead of offering permission. Android and desktop browsers work without installing.
+  - **Device list:** people see the devices that receive their avisos and can remove any of them.
+  - **Rollout:** behind a `push_notifications` flag, admins first, like the bell.
+  - **Done when:** a participant who turned it on (Android, desktop, or an iPhone with Glitter on the home screen) gets a system notification for a gift or a reservation update, and tapping it opens that item.
 - **P3** Comunicados: BlockNote composer, audiences, preview, test send, schedule, report, retry, duplicate, edit or retract in-app. Opt-outs for announcements.
   - **Distribution lists** (Dennis, 2026-10-20), so admins pick a group instead of re-selecting people every time:
     - **One list per festival, automatic.** Every festival, past ones included, has a "Confirmados · <festival>" list (participants with a confirmed reservation). Nobody creates it; it is computed when used, so it is always current.
