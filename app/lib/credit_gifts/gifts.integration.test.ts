@@ -848,6 +848,36 @@ describeDatabase("credit gifts", () => {
     );
   });
 
+  it("rewrites the sender's summary when everyone is revoked after it closed", async () => {
+    const admin = await createUser({ role: "admin" });
+    const recipients = await Promise.all([createUser(), createUser()]);
+    const created = await gifts.createCreditGift(
+      giftInput(recipients.map((user) => user.id)),
+      { id: admin.id },
+    );
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+    const [sent] = await notificationsFor(admin.id);
+    expect(sent!.title).toBe("Regalo enviado: «Un regalo para agradecerte»");
+    await integrationDb!
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.id, sent!.id));
+
+    await gifts.revokeCreditGift({
+      campaignId: created.campaignId,
+      actorId: admin.id,
+    });
+
+    const [rewritten] = await notificationsFor(admin.id);
+    expect(rewritten).toMatchObject({
+      id: sent!.id,
+      title: "Regalo retirado: «Un regalo para agradecerte»",
+      body: "2 retirados. Total vigente: Bs0.00.",
+      readAt: null,
+    });
+  });
+
   it("never sends a gift email whose gift was revoked while it was in flight", async () => {
     const admin = await createUser({ role: "admin" });
     const ana = await createUser();

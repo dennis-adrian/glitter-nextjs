@@ -77,11 +77,18 @@ export default function CreditGiftRecipientsTable({
 }: CreditGiftRecipientsTableProps) {
   // One person is fixed when the dialog opens; "all" is whoever holds the
   // gift as the page refreshes, which is what the server will act on.
-  const [revoke, setRevoke] = useState<
+  const [revoke, setRevokeState] = useState<
     | { scope: "one"; targets: CreditGiftRevokeTarget[] }
     | { scope: "all" }
     | null
   >(null);
+  // Separate from the content: closing keeps the last one on screen through
+  // the exit animation instead of flashing an empty dialog.
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  function setRevoke(next: NonNullable<typeof revoke>) {
+    setRevokeState(next);
+    setRevokeOpen(true);
+  }
 
   const holders = recipients
     .filter((row) => row.status === "granted" && !row.revokedAt)
@@ -233,8 +240,8 @@ export default function CreditGiftRecipientsTable({
         targets={revoke?.scope === "all" ? holders : (revoke?.targets ?? [])}
         scope={revoke?.scope ?? "one"}
         pendingCount={pendingCount}
-        open={revoke != null}
-        onOpenChange={(open) => !open && setRevoke(null)}
+        open={revokeOpen}
+        onOpenChange={setRevokeOpen}
       />
     </div>
   );

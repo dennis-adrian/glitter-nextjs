@@ -31,6 +31,7 @@ import {
 import { roundCredits } from "@/app/lib/credits/balances";
 import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { notify } from "@/app/lib/notifications/notify";
+import { buildInAppCopy } from "@/app/lib/notifications/registry";
 import { getUserName } from "@/app/lib/users/utils";
 import { db } from "@/db";
 import {
@@ -776,10 +777,45 @@ export async function revokeCreditGift(input: {
       result.failed += 1;
     }
   }
-  // Cancelling the last pending people can be what finishes the gift.
   // Closed here, after the revocations, so the sender's summary counts them.
-  if (!input.userIds) await completeGiftIfDone(gift, { byRevokeAll: true });
+  // If someone closed it first (a worker finishing its last grant as the
+  // click landed, or a gift that was already complete), the summary they
+  // wrote predates the revocations, so it is rewritten as withdrawn.
+  if (!input.userIds) {
+    const closed = await completeGiftIfDone(gift, { byRevokeAll: true });
+    if (!closed.completed) await rewriteSummaryAsWithdrawn(gift);
+  }
   return result;
+}
+
+/**
+ * Brings the sender's existing summary in line with a "Retirar a todos" that
+ * ran after it was written, and marks it unread so the change is seen. Does
+ * nothing when there is no summary yet (the gift is still open).
+ */
+async function rewriteSummaryAsWithdrawn(gift: GiftForProcessing) {
+  if (gift.createdByUserId == null) return;
+  const counts = await recipientCounts(gift.id);
+  const data = {
+    campaignId: gift.id,
+    title: gift.title,
+    withdrawn: true,
+    granted: counts.granted,
+    revoked: counts.revoked,
+    skipped: counts.skipped,
+    failed: counts.failed,
+    totalGranted: creditGiftTotal(gift.amountPerRecipient, counts.granted),
+  };
+  const copy = buildInAppCopy("credit_gift_completed", data);
+  await db
+    .update(notifications)
+    .set({ title: copy.title, body: copy.body, data, readAt: null })
+    .where(
+      and(
+        eq(notifications.userId, gift.createdByUserId),
+        eq(notifications.dedupeKey, `credit-gift-completed:${gift.id}`),
+      ),
+    );
 }
 
 async function revokeRecipientInTx(
