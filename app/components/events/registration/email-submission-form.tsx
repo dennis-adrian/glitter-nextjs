@@ -25,7 +25,7 @@ import { startVisitorRegistration } from "@/app/lib/visitors/registration-action
 
 const FormSchema = z.object({
   email: z.email({
-    error: "El correo electronico no es valido",
+    error: "El correo electrónico no es válido",
   }),
 });
 

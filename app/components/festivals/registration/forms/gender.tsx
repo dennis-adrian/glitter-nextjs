@@ -62,7 +62,7 @@ export default function GenderForm(props: GenderFormProps) {
           formControl={form.control}
           name="gender"
           options={genderOptions}
-          placeholder="Elige una opción"
+          placeholder="Elegí una opción"
           side="top"
         />
         <SubmitButton

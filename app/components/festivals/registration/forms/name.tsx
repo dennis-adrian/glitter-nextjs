@@ -38,13 +38,13 @@ export default function NameForm(props: NameFormProps) {
           <TextInput
             bottomBorderOnly
             name="firstName"
-            placeholder="Ingresa tu nombre"
+            placeholder="Ingresá tu nombre"
             autoComplete="given-name"
           />
           <TextInput
             bottomBorderOnly
             name="lastName"
-            placeholder="Ingresa tu apellido"
+            placeholder="Ingresá tu apellido"
             autoComplete="family-name"
           />
         </div>

@@ -35,7 +35,7 @@ const ProfilePictureField = ({ profile }: { profile: ProfileType }) => {
         </Modal>
       </div>
       <span className="text-xs text-center text-muted-foreground">
-        Haz clic en la imagen para editarla
+        Hacé clic en la imagen para editarla
       </span>
     </div>
   );

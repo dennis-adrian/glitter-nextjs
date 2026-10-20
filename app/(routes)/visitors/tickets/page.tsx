@@ -42,7 +42,7 @@ export default async function Page(props: {
           <CardHeader>
             <CardTitle>Mis entradas</CardTitle>
             <CardDescription>
-              Ingresa el correo con el que te registraste y te enviaremos un
+              Ingresá el correo con el que te registraste y te enviaremos un
               enlace para ver todas tus entradas.
             </CardDescription>
           </CardHeader>
@@ -52,7 +52,7 @@ export default async function Page(props: {
                 role="alert"
                 className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
               >
-                El enlace venció o no es válido. Pide uno nuevo.
+                El enlace venció o no es válido. Pedí uno nuevo.
               </p>
             ) : null}
             <TicketHistoryLinkForm />
@@ -88,7 +88,7 @@ export default async function Page(props: {
         </h2>
         {upcoming.length === 0 ? (
           <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No tienes entradas para próximos festivales.
+            No tenés entradas para próximos festivales.
           </p>
         ) : (
           <div className="flex flex-wrap justify-center gap-4 sm:justify-start">

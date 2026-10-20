@@ -28,14 +28,14 @@ function personName(label: "nombre" | "apellido") {
     .min(2, { error: `El ${label} tiene que tener al menos dos letras` })
     .max(60, { error: `El ${label} es demasiado largo` })
     .regex(NAME_PATTERN, {
-      error: `Usa solo letras, espacios y guiones en tu ${label}`,
+      error: `Usá solo letras, espacios y guiones en tu ${label}`,
     });
 }
 
 /** `yyyy-MM-dd`, the calendar day the visitor picked. */
 const birthdate = z
   .string()
-  .min(1, { error: "Ingresa tu fecha de nacimiento" })
+  .min(1, { error: "Ingresá tu fecha de nacimiento" })
   .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "La fecha no es válida" })
   .refine((value) => DateTime.fromISO(value).isValid, {
     error: "La fecha no es válida",
@@ -50,7 +50,7 @@ const birthdate = z
       (formatDate(new Date()).minus({ years: VISITOR_MIN_AGE }).toISODate() ??
         ""),
     {
-      error: `Debes tener al menos ${VISITOR_MIN_AGE} años para registrarte`,
+      error: `Debés tener al menos ${VISITOR_MIN_AGE} años para registrarte`,
     },
   );
 

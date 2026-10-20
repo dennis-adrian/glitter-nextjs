@@ -18,7 +18,7 @@ export const REGISTRATION_CLOSED_MESSAGE =
 export const DOOR_REGISTRATION_OFF_MESSAGE =
   "El registro en puerta no está habilitado para este festival.";
 export const DOOR_REGISTRATION_NOT_TODAY_MESSAGE =
-  "El registro en puerta abre los días del festival. Mientras tanto, puedes obtener tu entrada en línea.";
+  "El registro en puerta abre los días del festival. Mientras tanto, podés obtener tu entrada en línea.";
 
 export function normalizeVisitorEmail(email: string) {
   return email.trim().toLowerCase();

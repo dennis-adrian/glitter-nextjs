@@ -44,7 +44,7 @@ export default function VisitorTickets({
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">Tus Entradas</h1>
           <p className="text-sm text-muted-foreground">
-            ¿No eres {view.displayName}?{" "}
+            ¿No sos {view.displayName}?{" "}
             <button
               type="button"
               className="font-medium text-foreground underline disabled:opacity-50"
@@ -64,7 +64,7 @@ export default function VisitorTickets({
       </div>
       {view.tickets.length === 0 ? (
         <div className="flex border py-8 px-4 text-center rounded-md text-muted-foreground justify-center items-center flex-col gap-2">
-          <span>No tienes entradas para este evento</span>
+          <span>No tenés entradas para este evento</span>
           {canAddTicket ? (
             <Button onClick={() => setShowForm(true)}>
               <PlusCircleIcon className="mr-1 inline-block h-4 w-4" />
@@ -85,7 +85,7 @@ export default function VisitorTickets({
       )}
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        ¿Buscas tus entradas de otros festivales?{" "}
+        ¿Buscás tus entradas de otros festivales?{" "}
         <Link href="/visitors/tickets" className="font-medium underline">
           Ver todas mis entradas
         </Link>

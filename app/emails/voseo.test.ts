@@ -1,19 +1,15 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { sourceFiles, tuteoHits } from "@/app/lib/voseo-scan";
+
 /**
- * Participants and visitors are written to in voseo (tenés, podés, completá,
- * and in the negative no compartás, no te preocupés), and each email keeps
- * one grammatical person throughout. Tuteo slips in one line at a time and
- * ends up mixed with the voseo around it: the payment reminder once opened
- * "Recuerda hacer el pago" above "Si tenés alguna duda".
- *
- * This is a backstop, not a proof. Lower-case imperatives mid-sentence
- * (ahorra, abre, crea) read the same as third person, so they are left to
- * review. Subjects built in app/lib/** are not scanned here either: those
- * modules also hold in-app messages, and the send-site tests pin the subjects.
+ * Each participant and visitor email keeps to voseo, one grammatical person
+ * throughout; the patterns and their limits live in app/lib/voseo-scan.
+ * Subjects built in app/lib/** are not scanned here: those modules also hold
+ * in-app messages, and the send-site tests pin the subjects.
  *
  * Add a template below only when it is sent to the admin list alone.
  */
@@ -34,53 +30,21 @@ const ADMIN_ONLY: Record<string, string> = {
 
 const EMAILS_DIR = path.join(process.cwd(), "app/emails");
 
-// `\b` stops at accented letters in JS, so the edges are Unicode lookarounds.
-const TUTEO =
-  /(?<!\p{L})(tienes|puedes|quieres|debes|necesitas|deseas|pierdes|haz|a ti|copia y pega|comunícate|contáctanos|escríbenos|inscríbete|súbelo|alístate|mándanos|asegúrate)(?!\p{L})/giu;
-// Case-sensitive: capitalised, these open a sentence and can only be a command.
-const TUTEO_IMPERATIVE =
-  /(?<!\p{L})(Recuerda|Completa|Muestra|Guarda|Sube|Abre|Usa|Evita|Ingresa|Revisa|Elige|Accede|Visita|Crea|Descarga|Presenta|Confirma|Selecciona|Envía|Paga|Agrega|Actualiza|Alístate)(?!\p{L})/gu;
-// Negative commands take the voseo subjunctive (no compartás, no te
-// preocupés). "que no …" is left out: a subordinate clause keeps the
-// standard form, like the "que completes" the rule already allows.
-const TUTEO_NEGATIVE =
-  /(?<!(?<!\p{L})que\s+)(?<!\p{L})no\s+(?:(?:te|lo|la|los|las|le|les|nos|me)\s+)*(?:compartas|preocupes|olvides|dudes|dejes|pierdas|esperes|respondas|reenvíes|uses|borres|confundas|cierres|intentes)(?!\p{L})/giu;
-
-function templateFiles(dir = EMAILS_DIR, prefix = ""): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      return templateFiles(path.join(dir, entry.name), relative);
-    }
-    return /\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)
-      ? [relative]
-      : [];
-  });
-}
-
 describe("email templates", () => {
   it("keeps participant and visitor emails in voseo", () => {
-    const offenders: string[] = [];
-
-    for (const file of templateFiles()) {
-      if (ADMIN_ONLY[file]) continue;
-      const source = readFileSync(path.join(EMAILS_DIR, file), "utf8");
-      for (const match of source.matchAll(TUTEO)) {
-        offenders.push(`${file}: ${match[0]}`);
-      }
-      for (const match of source.matchAll(TUTEO_IMPERATIVE)) {
-        offenders.push(`${file}: ${match[0]}`);
-      }
-      for (const match of source.matchAll(TUTEO_NEGATIVE)) {
-        offenders.push(`${file}: ${match[0].replace(/\s+/g, " ")}`);
-      }
-    }
+    const offenders = sourceFiles(EMAILS_DIR)
+      .filter((file) => !ADMIN_ONLY[file])
+      .flatMap((file) =>
+        tuteoHits(readFileSync(path.join(EMAILS_DIR, file), "utf8")).map(
+          (hit) => `${file}: ${hit}`,
+        ),
+      );
 
     expect(offenders).toEqual([]);
   });
 
   it("tells a tuteo negative command from voseo and from a subordinate clause", () => {
-    const hits = (text: string) => [...text.matchAll(TUTEO_NEGATIVE)].length;
+    const hits = (text: string) => tuteoHits(text).length;
     expect(hits("No lo compartas")).toBe(1);
     expect(hits("no te\n    preocupes")).toBe(1);
     expect(hits("No lo compartás")).toBe(0);
@@ -90,9 +54,10 @@ describe("email templates", () => {
 
   it("finds the files it is meant to scan", () => {
     // Guards the guard: a moved directory would otherwise pass vacuously.
-    const files = templateFiles();
+    const files = sourceFiles(EMAILS_DIR);
     expect(files).toContain("ticket.tsx");
     expect(files).toContain("verification_confimation/email-template.tsx");
+    expect(files).not.toContain("ticket.test.tsx");
     // A renamed or deleted admin template must not leave a stale exemption.
     for (const file of Object.keys(ADMIN_ONLY)) {
       expect(existsSync(path.join(EMAILS_DIR, file)), file).toBe(true);

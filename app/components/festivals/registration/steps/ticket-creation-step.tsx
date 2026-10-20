@@ -62,7 +62,7 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
       {ticket ? (
         <div>
           <div className="text-sm md:text-base text-center mb-1">
-            Muestra tu entrada en puerta para ingresar al evento
+            Mostrá tu entrada en puerta para ingresar al evento
           </div>
           <Tickets
             tickets={[ticket]}
@@ -73,7 +73,7 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="text-center text-sm md:text-lg border-2 border-dotted border-muted p-4 rounded-md text-muted-foreground">
-            Aún no tienes entrada para hoy
+            Aún no tenés entrada para hoy
           </div>
           <Button disabled={pending} className="w-full" onClick={claim}>
             {pending ? (

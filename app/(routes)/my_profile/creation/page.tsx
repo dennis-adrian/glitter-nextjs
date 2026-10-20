@@ -27,7 +27,7 @@ export default async function ProfileCreationPage() {
               Error al crear o validar tu perfil
             </h1>
             <p className="text-sm text-muted-foreground">
-              Por favor, intenta nuevamente con los mismos datos o contactate
+              Por favor, intentá nuevamente con los mismos datos o contactate
               con nuestro equipo de soporte{" "}
               <Link
                 className="underline text-blue-500 dark:text-blue-400"

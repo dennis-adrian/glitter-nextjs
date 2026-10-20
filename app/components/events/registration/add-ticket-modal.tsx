@@ -36,7 +36,7 @@ export default function AddTicketModal(props: AddTicketModalProps) {
         <div className={`${isDesktop ? "" : "px-4"} pt-2`}>
           {props.festivalDates.length === 0 ? (
             <div className="py-8 text-center border rounded-md text-muted-foreground">
-              Ya tienes entradas para todas las fechas
+              Ya tenés entradas para todas las fechas
             </div>
           ) : (
             <AddTicketForm

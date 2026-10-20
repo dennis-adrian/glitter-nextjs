@@ -102,7 +102,7 @@ export default function PublicProfile({
                   </div>
                 ) : (
                   <div className="text-muted-foreground flex justify-center text-sm">
-                    No tienes bio
+                    No tenés bio
                     <FrownIcon className="ml-2 h-4 w-4" />
                   </div>
                 )}

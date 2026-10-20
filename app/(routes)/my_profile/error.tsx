@@ -25,7 +25,7 @@ export default function Error({
           () => reset()
         }
       >
-        Intenta de nuevo
+        Intentá de nuevo
       </Button>
     </main>
   );
