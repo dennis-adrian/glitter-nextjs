@@ -1,6 +1,6 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.85.0",
+  "version": "2.86.0",
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "engines": {
@@ -38,8 +38,8 @@
     "@blocknote/server-util": "^0.54.0",
     "@blocknote/shadcn": "^0.54.0",
     "@clerk/backend": "^3.16.10",
-    "@clerk/localizations": "^3.37.4",
-    "@clerk/nextjs": "^7.2.3",
+    "@clerk/localizations": "4.15.5",
+    "@clerk/nextjs": "^7.2.4",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
