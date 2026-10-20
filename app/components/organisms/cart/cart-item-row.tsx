@@ -132,6 +132,11 @@ export default function CartItemRow({
       lineLabel={item.transactionType === "rental" ? "Alquiler" : null}
       warnings={
         <>
+          {warnings.isUnavailable && (
+            <span className="inline-block text-xs text-destructive font-medium mt-1">
+              Ya no está disponible
+            </span>
+          )}
           {warnings.isOutOfStock && (
             <span className="inline-block text-xs text-destructive font-medium mt-1">
               Sin stock

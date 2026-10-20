@@ -282,6 +282,11 @@ export default function AdminAdjustOrderForm({
                       <span className="rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
                         {getStoreCategoryBadgeLabel(product.storeCategory)}
                       </span>
+                      {!product.isVisible && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          Oculto en la tienda
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Bs {(selectedVariant?.price ?? product.price).toFixed(2)}{" "}
@@ -316,6 +321,7 @@ export default function AdminAdjustOrderForm({
                       size="sm"
                       variant="outline"
                       disabled={
+                        !product.isVisible ||
                         (product.requiresVariant && !selectedVariant) ||
                         stock <= 0
                       }
