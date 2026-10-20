@@ -89,7 +89,7 @@ export default function EnrollmentHeader({
       </div>
 
       {promo ? (
-        <div className="flex flex-col gap-1 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-950 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-950 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-100 sm:flex-row sm:items-center sm:justify-between">
           <span className="break-words">
             <strong>{promo.code}</strong> · {promo.partnerName} ·{" "}
             {promo.discountPercent}%

@@ -146,7 +146,7 @@ export default function UploadProductModal({
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1 items-center w-[120px] mx-auto">
-            <div className="relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] border border-gray-200 rounded-lg">
+            <div className="relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] border border-border rounded-lg">
               {currentImage && (
                 <Image
                   className="object-contain"
@@ -159,9 +159,9 @@ export default function UploadProductModal({
                 <CloudUploadIcon
                   className={cn(
                     "w-5 h-5",
-                    isUploading && "animate-pulse text-gray-500",
+                    isUploading && "animate-pulse text-muted-foreground",
                     uploadedImage && !isUploading && "text-emerald-500",
-                    !uploadedImage && !isUploading && "text-gray-500",
+                    !uploadedImage && !isUploading && "text-muted-foreground",
                   )}
                 />
               </div>

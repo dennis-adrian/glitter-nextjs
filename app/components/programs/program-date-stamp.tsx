@@ -51,7 +51,7 @@ export default function ProgramDateStamp({
     return (
       <div
         className={cn(
-          "flex min-h-28 min-w-28 shrink-0 items-center justify-center rounded-[18px] bg-brand-ink px-5 py-4 text-center font-display font-bold text-white",
+          "flex min-h-28 min-w-28 shrink-0 items-center justify-center rounded-[18px] bg-brand-deep px-5 py-4 text-center font-display font-bold text-white",
           className,
         )}
       >
@@ -64,7 +64,7 @@ export default function ProgramDateStamp({
     <time
       dateTime={stamp.dateTime}
       className={cn(
-        "grid shrink-0 place-content-center bg-brand-ink text-center font-display text-white",
+        "grid shrink-0 place-content-center bg-brand-deep text-center font-display text-white",
         FRAME[size],
         className,
       )}

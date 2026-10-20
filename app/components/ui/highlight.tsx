@@ -8,9 +8,11 @@ const highlightVariants = cva(
   {
     variants: {
       variant: {
-        neutral: "bg-amber-100 text-amber-900",
+        neutral:
+          "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100",
         warning: "bg-destructive/10 text-destructive",
-        brand: "bg-primary-50 text-primary-700",
+        brand:
+          "bg-primary-50 text-primary-700 dark:bg-primary/15 dark:text-accent-foreground",
       },
     },
     defaultVariants: {

@@ -9,6 +9,7 @@ import { CheckoutPageLayout } from "@/app/components/organisms/checkout/checkout
 import CheckoutRentalIneligible from "@/app/components/organisms/checkout/checkout-rental-ineligible";
 import GuestCheckoutView from "@/app/components/organisms/checkout/guest-checkout-view";
 import { fetchCartWithItems } from "@/app/lib/cart/actions";
+import { isCartLineUnavailable } from "@/app/lib/cart/utils";
 import { getLineUnitPrice } from "@/app/lib/orders/utils";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getVariantLabel } from "@/app/lib/products/variants";
@@ -34,6 +35,15 @@ export default async function CheckoutPage() {
   }
   const bundleItems = cart.bundles.map(toCheckoutBundleItem);
   const bundleIssue = cart.bundles.find((line) => line.issue)?.message ?? null;
+  const unavailableItem = cart.items.find((item) =>
+    isCartLineUnavailable(item.product, item.transactionType),
+  );
+  const unavailableLabel = unavailableItem
+    ? getVariantLabel(unavailableItem.variant)
+    : null;
+  const itemIssue = unavailableItem
+    ? `${unavailableItem.product.name}${unavailableLabel ? ` (${unavailableLabel})` : ""} ya no está disponible.`
+    : null;
 
   const orderLines: CheckoutLineItem[] = cart.items.map((i) => ({
     key: i.id,
@@ -115,7 +125,7 @@ export default async function CheckoutPage() {
         hasRentalItems={hasRentalItems}
         hasAvailableItems={availableItems.length > 0 || bundleHasAvailable}
         hasPresaleItems={presaleLines.length > 0 || bundleHasPresale}
-        blockingMessage={bundleIssue}
+        blockingMessage={bundleIssue ?? itemIssue}
         rentalContexts={checkoutRentalContexts}
         initialReservationId={persistedRentalItem?.rentalReservationId ?? null}
       />

@@ -47,7 +47,7 @@ export function PaymentSummary({
           {hasDiscount && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Descuento</span>
-              <span className="text-green-600">
+              <span className="text-green-600 dark:text-green-400">
                 -Bs{invoice.discountAmount}
               </span>
             </div>
@@ -55,13 +55,17 @@ export function PaymentSummary({
           {approvedCashAmount > 0 && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Pagos aprobados</span>
-              <span className="text-green-600">-Bs{approvedCashAmount}</span>
+              <span className="text-green-600 dark:text-green-400">
+                -Bs{approvedCashAmount}
+              </span>
             </div>
           )}
           {creditAppliedAmount > 0 && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Créditos aplicados</span>
-              <span className="text-green-600">-Bs{creditAppliedAmount}</span>
+              <span className="text-green-600 dark:text-green-400">
+                -Bs{creditAppliedAmount}
+              </span>
             </div>
           )}
           {refundedAmount > 0 && (

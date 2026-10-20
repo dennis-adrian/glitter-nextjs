@@ -31,7 +31,7 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
   if (!actionableInvoices || actionableInvoices.length === 0) {
     return (
       <div className="p-20">
-        <p className="text-center text-2xl font-bold text-gray-500">
+        <p className="text-center text-2xl font-bold text-muted-foreground">
           No tenés pagos pendientes
         </p>
       </div>

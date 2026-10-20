@@ -19,7 +19,7 @@ export default function PausedParticipantDashboard({ profile }: Props) {
       <div>
         <div className="flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-1.5 text-sm text-slate-700 mb-1">
+            <div className="flex items-center gap-1.5 text-sm text-foreground mb-1">
               <PauseCircleIcon className="size-4" />
               <span>Cuenta pausada</span>
             </div>
@@ -44,7 +44,7 @@ export default function PausedParticipantDashboard({ profile }: Props) {
       </div>
 
       <div className="mt-6 max-w-2xl">
-        <Card className="border-slate-200 bg-slate-50/60">
+        <Card className="border-border bg-muted/50">
           <CardContent className="p-5 space-y-3">
             <p className="font-semibold">Tu cuenta está pausada</p>
             <p className="text-sm text-muted-foreground">

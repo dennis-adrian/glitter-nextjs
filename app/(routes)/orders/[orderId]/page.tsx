@@ -108,7 +108,7 @@ export default async function GuestOrderPage(props: {
                         {item.quantity} × Bs {item.priceAtPurchase.toFixed(2)}
                       </p>
                       {item.product.status === "presale" && (
-                        <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-0.5">
+                        <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">
                           <ClockIcon className="w-3 h-3" />
                           Pre-venta
                         </span>
@@ -130,12 +130,12 @@ export default async function GuestOrderPage(props: {
 
         {/* Payment CTA */}
         {order.status === "pending" && (
-          <Card className="border-blue-200 bg-blue-50">
+          <Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40">
             <CardContent className="p-6 space-y-3">
-              <Heading level={4} className="text-blue-800">
+              <Heading level={4} className="text-blue-800 dark:text-blue-200">
                 Tu pedido está pendiente de pago
               </Heading>
-              <p className="text-sm text-blue-900">
+              <p className="text-sm text-blue-900 dark:text-blue-100">
                 Podés pagar ahora con tu banco mediante código QR y subir el
                 comprobante para que confirmemos tu pedido.
               </p>
@@ -152,12 +152,12 @@ export default async function GuestOrderPage(props: {
         )}
 
         {order.status === "payment_verification" && (
-          <Card className="border-amber-200 bg-amber-50">
+          <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
             <CardContent className="p-6">
-              <Heading level={4} className="text-amber-800">
+              <Heading level={4} className="text-amber-800 dark:text-amber-200">
                 Verificando tu pago
               </Heading>
-              <p className="text-sm text-amber-900 mt-2">
+              <p className="text-sm text-amber-900 dark:text-amber-100 mt-2">
                 Recibimos tu comprobante y lo estamos revisando. Te
                 notificaremos al correo <strong>{order.guestEmail}</strong>{" "}
                 cuando confirmemos el pago.
@@ -167,12 +167,12 @@ export default async function GuestOrderPage(props: {
         )}
 
         {order.status === "paid" && (
-          <Card className="border-green-200 bg-green-50">
+          <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40">
             <CardContent className="p-6">
-              <Heading level={4} className="text-green-800">
+              <Heading level={4} className="text-green-800 dark:text-green-200">
                 ¡Pago confirmado!
               </Heading>
-              <p className="text-sm text-green-900 mt-2">
+              <p className="text-sm text-green-900 dark:text-green-100 mt-2">
                 Tu pago fue verificado. Coordinaremos la entrega contigo.
               </p>
             </CardContent>
@@ -180,12 +180,12 @@ export default async function GuestOrderPage(props: {
         )}
 
         {order.status === "delivered" && (
-          <Card className="border-green-200 bg-green-50">
+          <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40">
             <CardContent className="p-6">
-              <Heading level={4} className="text-green-800">
+              <Heading level={4} className="text-green-800 dark:text-green-200">
                 ¡Entregado!
               </Heading>
-              <p className="text-sm text-green-900 mt-2">
+              <p className="text-sm text-green-900 dark:text-green-100 mt-2">
                 Tu orden fue entregada. ¡Gracias por tu compra!
               </p>
             </CardContent>

@@ -14,6 +14,7 @@ import {
 } from "@/app/api/users/definitions";
 import { isParticipantSelectable } from "@/app/lib/categories/visibility";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
+import ProfileReviewRequestEmailTemplate from "@/app/emails/profile-review-request";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
 import {
   buildWhereClauseForProfileFetching,
@@ -27,11 +28,18 @@ import {
   pickSelfEditableProfileFields,
   SelfEditableProfile,
 } from "@/app/lib/users/profile-fields";
+import { profileReviewBlocker } from "@/app/lib/users/profile-review";
 import {
   fetchAdminUsers,
   fetchUserProfileById,
   getCurrentClerkUser,
 } from "@/app/lib/users/queries";
+import {
+  latestRejectionReason,
+  updateUserStatusWithAudit,
+  UserStatus,
+} from "@/app/lib/users/status-events";
+import { getUserName } from "@/app/lib/users/utils";
 import { verifyProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
@@ -143,6 +151,10 @@ export async function updateProfile(
   }
 
   try {
+    // Read before the write, so the admin notice below can tell the save that
+    // completes a profile from later edits to an already-complete one.
+    const wasComplete = isProfileComplete(await fetchUserProfileById(userId));
+
     await db
       .update(users)
       .set({
@@ -151,7 +163,7 @@ export async function updateProfile(
       })
       .where(eq(users.id, userId));
 
-    await verifyProfileCompletion(userId);
+    await verifyProfileCompletion(userId, wasComplete);
   } catch (error) {
     console.error("Error updating profile", error);
     return {
@@ -252,6 +264,9 @@ export async function updateProfileCategories(
     ) {
       return { success: false, message: "No autorizado" };
     }
+    const wasComplete = isProfileComplete(
+      await fetchUserProfileById(profileId),
+    );
 
     await db.transaction(async (tx) => {
       await tx
@@ -264,30 +279,25 @@ export async function updateProfileCategories(
         .delete(profileSubcategories)
         .where(eq(profileSubcategories.profileId, profileId));
 
-      subcategoryIds.forEach(async (subcategoryId) => {
-        await tx
-          .insert(profileSubcategories)
-          .values({ profileId, subcategoryId });
-      });
+      // One awaited insert: a failed write has to roll the transaction back
+      // and reach the catch below, not surface as an unhandled rejection.
+      if (subcategoryIds.length > 0) {
+        await tx.insert(profileSubcategories).values(
+          subcategoryIds.map((subcategoryId) => ({
+            profileId,
+            subcategoryId,
+          })),
+        );
+      }
     });
 
+    // The participant's notice never throws, so the completion check after it
+    // always runs, and a failed check cannot skip the notice.
     if (options && options.sendUserEmail) {
-      const fullProfile = await fetchUserProfileById(profileId);
-      // The update is committed; a failed notice must not report it as failed.
-      try {
-        const result = await sendEmail({
-          to: [fullProfile!.email],
-          from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-          subject: "Actualización de perfil",
-          react: SubcategoryUpdateEmailTemplate({
-            profile: fullProfile!,
-          }) as React.ReactElement,
-        });
-        assertSent(result);
-      } catch (error) {
-        console.error("Error sending subcategory update email", error);
-      }
+      await sendSubcategoryUpdateEmail(profileId);
     }
+
+    await verifyProfileCompletion(profileId, wasComplete);
   } catch (error) {
     console.error("Error updating profile", error);
     return {
@@ -318,6 +328,9 @@ export async function upsertUserSocialProfiles(
 
   try {
     const socialsTypesToInsert = socials.map((social) => social.type);
+    const wasComplete = isProfileComplete(
+      await fetchUserProfileById(profileId),
+    );
 
     await db.transaction(async (tx) => {
       const existingSocials = await tx.query.userSocials.findMany({
@@ -330,7 +343,9 @@ export async function upsertUserSocialProfiles(
         (social) => !existingSocials.some((s) => s.type === social.type),
       );
 
-      existingSocials.forEach(async (social) => {
+      // Awaited one by one: a failed write has to roll the transaction back
+      // and reach the catch below, not surface as an unhandled rejection.
+      for (const social of existingSocials) {
         const socialToUpdate = socials.find((s) => s.type === social.type);
         if (socialToUpdate) {
           await tx
@@ -338,16 +353,18 @@ export async function upsertUserSocialProfiles(
             .set({ username: socialToUpdate.username, updatedAt: new Date() })
             .where(eq(userSocials.id, social.id));
         }
-      });
+      }
 
-      socialsToInsert.forEach(async (social) => {
+      for (const social of socialsToInsert) {
         await tx.insert(userSocials).values({
           userId: profileId,
           type: social.type,
           username: social.username,
         });
-      });
+      }
     });
+
+    await verifyProfileCompletion(profileId, wasComplete);
   } catch (error) {
     console.error("Error adding user social profiles", error);
     return {
@@ -363,9 +380,33 @@ export async function upsertUserSocialProfiles(
   };
 }
 
+// Not exported, like verifyProfileCompletion below: it emails a participant
+// from a bare profile id. Never throws: the category update is committed, and
+// a failed notice must not report it as failed.
+async function sendSubcategoryUpdateEmail(profileId: number) {
+  try {
+    const fullProfile = await fetchUserProfileById(profileId);
+    if (!fullProfile) {
+      throw new Error(`Profile ${profileId} not found`);
+    }
+
+    const result = await sendEmail({
+      to: [fullProfile.email],
+      from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+      subject: "Actualización de perfil",
+      react: SubcategoryUpdateEmailTemplate({
+        profile: fullProfile,
+      }) as React.ReactElement,
+    });
+    assertSent(result);
+  } catch (error) {
+    console.error("Error sending subcategory update email", error);
+  }
+}
+
 // Not exported: every export of a "use server" module is a server action, and
 // this one fans out admin email from a bare profile id.
-async function verifyProfileCompletion(userId: number) {
+async function verifyProfileCompletion(userId: number, wasComplete: boolean) {
   const fullProfile = await fetchUserProfileById(userId);
   if (fullProfile && isProfileComplete(fullProfile)) {
     await db
@@ -378,9 +419,11 @@ async function verifyProfileCompletion(userId: number) {
         ),
       );
 
-    // we only want to send the email hopefully once, for the profile to be verified
-    // once verified we don't care to send it again
-    if (fullProfile.status === "pending" || fullProfile.status === "rejected") {
+    // Admins hear about a profile once: on the save that completes it. Edits to
+    // a profile that was already complete are not a new review, and verified
+    // profiles need none. Rejected profiles ask for their review themselves
+    // (requestProfileReview); completing one is not yet a request.
+    if (!wasComplete && fullProfile.status === "pending") {
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((admin) => admin.email);
       // The profile update is committed; a failed notice must not report it
@@ -438,9 +481,13 @@ export async function updateProfilePicture(
     ) {
       return {
         success: false,
-        message: "No pudimos verificar la imagen. Vuelve a subirla.",
+        message: "No pudimos verificar la imagen. Volvé a subirla.",
       };
     }
+
+    const wasComplete = isProfileComplete(
+      await fetchUserProfileById(profileId),
+    );
 
     await db
       .update(users)
@@ -450,6 +497,8 @@ export async function updateProfilePicture(
       })
       .where(eq(users.id, profileId));
 
+    await verifyProfileCompletion(profileId, wasComplete);
+
     // Re-saving the current picture must not delete the file the row still
     // points at.
     if (
@@ -457,8 +506,14 @@ export async function updateProfilePicture(
       oldImageUrl !== imageUrl &&
       oldImageUrl.includes("utfs")
     ) {
-      const [, key] = oldImageUrl.split("/f/");
-      await utapi.deleteFiles(key);
+      // The new picture is committed; a failed cleanup only leaves an orphaned
+      // file behind and must not report the save as failed.
+      try {
+        const [, key] = oldImageUrl.split("/f/");
+        await utapi.deleteFiles(key);
+      } catch (error) {
+        console.error("Error deleting the previous profile picture", error);
+      }
     }
   } catch (error) {
     console.error("Error updating profile picture", error);
@@ -472,6 +527,110 @@ export async function updateProfilePicture(
   return {
     success: true,
     message: "Imagen de perfil actualizada correctamente",
+  };
+}
+
+function profileReviewRefusal(status: UserStatus | undefined) {
+  return {
+    success: false,
+    message:
+      status === "pending"
+        ? "Tu perfil ya está en revisión. Te vamos a escribir cuando nuestro equipo lo revise."
+        : "Solo podés pedir una nueva revisión si tu perfil fue rechazado.",
+  };
+}
+
+/**
+ * A rejected participant sends their corrected profile back to the admins:
+ * rejected → pending, recorded with the participant as the actor. It is
+ * one-shot per rejection, because only an admin's rejectProfile can make the
+ * profile rejected again.
+ */
+export async function requestProfileReview(profileId: number) {
+  const actor = await getCurrentUserProfile();
+  // Owner only: admins have verifyProfile and rejectProfile for this.
+  if (!actor || actor.id !== profileId) {
+    return { success: false, message: "No autorizado" };
+  }
+
+  if (actor.status !== "rejected") {
+    return profileReviewRefusal(actor.status);
+  }
+
+  const blocker = profileReviewBlocker(actor);
+  if (blocker) {
+    return { success: false, message: blocker };
+  }
+
+  let previousReason: string | null;
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      // The lock serializes a double click: the second request finds the
+      // profile already pending and stops before a second admin email.
+      const [locked] = await tx
+        .select({ status: users.status })
+        .from(users)
+        .where(eq(users.id, profileId))
+        .limit(1)
+        .for("update");
+
+      if (locked?.status !== "rejected") {
+        return { result: "refused" as const, status: locked?.status };
+      }
+
+      const reason = await latestRejectionReason(tx, profileId);
+
+      await updateUserStatusWithAudit(tx, {
+        userId: profileId,
+        fromStatus: "rejected",
+        toStatus: "pending",
+        reason: "Nueva revisión pedida por el participante.",
+        createdByUserId: actor.id,
+      });
+
+      return { result: "requested" as const, previousReason: reason };
+    });
+
+    if (outcome.result === "refused") {
+      return profileReviewRefusal(outcome.status);
+    }
+    previousReason = outcome.previousReason;
+  } catch (error) {
+    console.error("Error requesting profile review", error);
+    return {
+      success: false,
+      message:
+        "No pudimos pedir la nueva revisión. Intentá de nuevo en unos minutos.",
+    };
+  }
+
+  // The status change is committed; a failed notice must not report it as
+  // failed.
+  try {
+    const admins = await fetchAdminUsers();
+    const result = await sendEmail({
+      to: admins.map((admin) => admin.email),
+      from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+      subject: `${getUserName(actor)} pidió una nueva revisión de su perfil`,
+      react: ProfileReviewRequestEmailTemplate({
+        profile: actor,
+        previousReason,
+      }) as React.ReactElement,
+    });
+    assertSent(result);
+  } catch (error) {
+    console.error("Error sending profile review request email", error);
+  }
+
+  revalidatePath("/my_profile");
+  revalidatePath("/portal");
+  revalidatePath("/dashboard/users");
+  revalidatePath("/dashboard/profile_requests");
+  revalidatePath(`/dashboard/users/${profileId}`);
+  return {
+    success: true,
+    message:
+      "Tu perfil volvió a quedar en revisión. Te vamos a escribir cuando nuestro equipo lo revise.",
   };
 }
 

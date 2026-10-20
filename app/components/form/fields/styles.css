@@ -135,3 +135,40 @@
   top: -204px;
   width: 240px;
 }
+
+/* The library's own defaults are light-only (white grounds, #222 text, a
+   whitesmoke hover). On a dark ground, point them at the theme tokens. */
+.dark .phone-input {
+  --react-international-phone-background-color: hsl(var(--background));
+  --react-international-phone-text-color: hsl(var(--foreground));
+  --react-international-phone-border-color: hsl(var(--input));
+  --react-international-phone-country-selector-background-color-hover: hsl(
+    var(--muted)
+  );
+  --react-international-phone-country-selector-arrow-color: hsl(
+    var(--muted-foreground)
+  );
+  --react-international-phone-dropdown-item-background-color: hsl(
+    var(--popover)
+  );
+  --react-international-phone-dropdown-item-text-color: hsl(
+    var(--popover-foreground)
+  );
+  --react-international-phone-dropdown-item-dial-code-color: hsl(
+    var(--muted-foreground)
+  );
+  --react-international-phone-selected-dropdown-item-background-color: hsl(
+    var(--accent)
+  );
+  --react-international-phone-selected-dropdown-item-text-color: hsl(
+    var(--accent-foreground)
+  );
+  --react-international-phone-selected-dropdown-item-dial-code-color: hsl(
+    var(--accent-foreground)
+  );
+  --react-international-phone-dropdown-preferred-list-divider-color: hsl(
+    var(--border)
+  );
+  --react-international-phone-disabled-background-color: hsl(var(--muted));
+  --react-international-phone-disabled-text-color: hsl(var(--muted-foreground));
+}

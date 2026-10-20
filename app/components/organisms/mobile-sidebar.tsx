@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useClerk, useUser } from "@clerk/nextjs";
 
+import ThemeImage from "@/app/components/atoms/theme-image";
+import { ThemeSegmentedControl } from "@/app/components/mode-toggle";
 import { Separator } from "@/app/components/ui/separator";
 import {
   Sheet,
@@ -29,6 +30,7 @@ import {
   ImagesIcon,
   LibraryBigIcon,
   LogOutIcon,
+  MailXIcon,
   MicIcon,
   PackageIcon,
   QrCodeIcon,
@@ -105,8 +107,9 @@ const MobileSidebar = ({
           <SheetTitle>
             <SheetClose asChild>
               <Link href="/">
-                <Image
-                  src="/img/logo/glitter-logo-full-primary-1696x739.png"
+                <ThemeImage
+                  srcLight="/img/logo/glitter-logo-full-primary-1696x739.png"
+                  srcDark="/img/logo/glitter-logo-full-white-1696x741.png"
                   alt="Productora Glitter"
                   width={1696}
                   height={739}
@@ -188,6 +191,10 @@ const MobileSidebar = ({
           ) : null}
           {profile && profile.role === "festival_admin" && (
             <>
+              <MobileSidebarItem href="/dashboard/festivals">
+                <CalendarIcon className="mr-2 h-6 w-6" />
+                Festivales
+              </MobileSidebarItem>
               <MobileSidebarItem href="/dashboard/infractions?limit=25&offset=0">
                 <CircleAlertIcon className="mr-2 h-6 w-6" />
                 Infracciones
@@ -364,6 +371,10 @@ const MobileSidebar = ({
                   <ToggleLeftIcon className="mr-2 h-6 w-6" />
                   Funcionalidades
                 </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/emails">
+                  <MailXIcon className="mr-2 h-6 w-6" />
+                  Correos bloqueados
+                </MobileSidebarItem>
               </div>
             </>
           )}
@@ -385,6 +396,10 @@ const MobileSidebar = ({
             </>
           )}
         </ul>
+        <div className="flex flex-col gap-2 border-t border-brand-border pt-4">
+          <span className="text-sm font-medium text-brand-neutral">Tema</span>
+          <ThemeSegmentedControl />
+        </div>
       </SheetContent>
     </Sheet>
   );

@@ -27,7 +27,7 @@ export default function ProfileCompletionEmailTemplate(
   return (
     <Html>
       <Head />
-      <Preview>Un usuario a completado su perfil</Preview>
+      <Preview>Un usuario ha completado su perfil</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
@@ -39,7 +39,7 @@ export default function ProfileCompletionEmailTemplate(
               El usuario <strong>{userName}</strong> ha completado su perfil.
             </Text>
             <Text style={styles.text}>
-              Puedes revisar su perfil en el siguiente enlace:
+              Podés revisar su perfil en el siguiente enlace:
             </Text>
             <Button
               href={`${baseUrl}/dashboard/users/${props.profile.id}`}

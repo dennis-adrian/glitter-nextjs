@@ -5,11 +5,11 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
-  id: z.coerce.number(),
+  id: z.coerce.number().int().positive(),
 });
 
 export default async function AllowedParticipantsPage(props: {
-  params: Promise<z.infer<typeof ParamsSchema>>;
+  params: Promise<{ id: string }>;
 }) {
   const params = await props.params;
   const validatedParams = ParamsSchema.safeParse(params);
@@ -39,7 +39,11 @@ export default async function AllowedParticipantsPage(props: {
       <h1 className="text-xl md:text-2xl font-bold">
         Participantes Habilitados
       </h1>
-      <UsersBuckets users={allUsersOrderedByCategory} festivalId={params.id} />
+      {/* The parsed id: the route param itself is a string. */}
+      <UsersBuckets
+        users={allUsersOrderedByCategory}
+        festivalId={validatedParams.data.id}
+      />
     </div>
   );
 }

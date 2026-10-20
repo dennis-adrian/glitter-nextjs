@@ -119,7 +119,7 @@ export default function PublicMapTooltip({
 									) : (
 										<Badge
 											variant="outline"
-											className="mt-1 rounded-full border-teal-600 text-[10px] text-teal-700"
+											className="mt-1 rounded-full border-teal-600 text-[10px] text-teal-700 dark:text-teal-300"
 										>
 											{p.categoryLabel}
 										</Badge>

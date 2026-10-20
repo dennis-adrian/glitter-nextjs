@@ -8,8 +8,12 @@
  * not just the events this app writes by hand.
  */
 
-/** Query params whose value is a credential rather than an analytics dimension. */
-const SENSITIVE_QUERY_PARAMS = ["token"];
+/**
+ * Query params whose value is a credential or personal data rather than an
+ * analytics dimension. `email` and `visitorId` are what visitor registration
+ * links used to carry; old bookmarks and emails still have them.
+ */
+const SENSITIVE_QUERY_PARAMS = ["token", "email", "visitorId"];
 
 const SENSITIVE_PARAM_PATTERN = new RegExp(
   `([?&](?:${SENSITIVE_QUERY_PARAMS.join("|")})=)[^&#]*`,

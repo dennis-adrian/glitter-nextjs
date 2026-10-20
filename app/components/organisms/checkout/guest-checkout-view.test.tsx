@@ -203,3 +203,31 @@ it("shows current names and prices for bundles whose choices no longer resolve",
   );
   expect(screen.getByTestId("total").textContent).toBe("120");
 });
+
+it("blocks a guest from confirming a line whose product was hidden", async () => {
+  mocks.cart = {
+    guestItems: [item],
+    guestBundles: [],
+    guestCartHydrated: true,
+    reconcileGuestBundles: vi
+      .fn()
+      .mockReturnValue({ removed: 0, droppedUnits: 0 }),
+  };
+  mocks.actions.validateGuestCartStock.mockResolvedValue([
+    {
+      lineKey: item.lineKey,
+      productId: 7,
+      productVariantId: null,
+      stock: 0,
+      isUnavailable: true,
+      isOutOfStock: false,
+      quantityExceedsStock: false,
+    },
+  ]);
+  render(<GuestCheckoutView />);
+  await waitFor(() =>
+    expect(screen.getByTestId("blocking").textContent).toBe(
+      "Tote ya no está disponible.",
+    ),
+  );
+});

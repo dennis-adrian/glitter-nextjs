@@ -8,7 +8,11 @@ const sendEmailMock = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
+vi.mock("next/headers", () => ({ cookies: vi.fn(), headers: vi.fn() }));
+vi.mock("@/app/vendors/resend", () => ({
+  sendEmail: sendEmailMock,
+  sendBatchEmails: sendEmailMock,
+}));
 vi.mock("@/app/lib/users/helpers", () => {
   const isStaff = (profile: { role: string } | null) =>
     profile?.role === "admin" || profile?.role === "festival_admin";
@@ -44,11 +48,13 @@ vi.mock("@/db", () => ({
 }));
 
 import * as ticketActions from "@/app/data/tickets/actions";
-import * as visitorActions from "@/app/data/visitors/actions";
+import * as ticketQueries from "@/app/data/tickets/queries";
 import { createBadge } from "@/app/lib/badges/actions";
 import * as festivalSectorActions from "@/app/lib/festival_sectors/actions";
 import * as festivalActions from "@/app/lib/festivals/actions";
+import * as invitationActions from "@/app/lib/festivals/invitations";
 import { createTag, deleteTag } from "@/app/lib/tags/actions";
+import * as registrationActions from "@/app/lib/visitors/registration-actions";
 
 const {
   fetchAllFestivalEnrolledUsers,
@@ -59,24 +65,35 @@ const {
   fetchFestivals,
   fetchProfileEnrollmentInFestival,
   getFestivalAvailableUsers,
-  sendUserEmailsTemp,
+  setFestivalActive,
+  updateFestivalEventDayRegistration,
   updateFestivalRegistration,
 } = festivalActions;
-const {
-  fetchTicketsByFestival,
-  fetchVerifiedTicketsByFestivalTotal,
-  sendTicketEmail,
-  updateTicket,
-  verifyTicket,
-} = ticketActions;
+const { updateTicket, verifyTicket } = ticketActions;
+const { fetchTicketsByFestival, fetchVerifiedTicketsByFestivalTotal } =
+  ticketQueries;
+const { fetchInvitationAudience, sendParticipantInvitationsToUsers } =
+  invitationActions;
 
 // Valid inputs throughout, so an action missing its guard would get past
 // validation and reach the database instead of failing for another reason.
 const WRITES: [string, () => Promise<unknown>][] = [
-  ["updateFestivalRegistration", () => updateFestivalRegistration(true, 1)],
+  ["updateFestivalRegistration", () => updateFestivalRegistration(1, true)],
+  [
+    "updateFestivalEventDayRegistration",
+    () => updateFestivalEventDayRegistration(1, true),
+  ],
+  ["setFestivalActive", () => setFestivalActive(1, true)],
+  [
+    "fetchInvitationAudience",
+    () => fetchInvitationAudience(1, "visitor_registration"),
+  ],
+  [
+    "sendParticipantInvitationsToUsers",
+    () => sendParticipantInvitationsToUsers(1, [1, 2]),
+  ],
   ["updateTicket", () => updateTicket(1, "checked_in")],
   ["verifyTicket", () => verifyTicket(1, 1)],
-  ["sendTicketEmail", () => sendTicketEmail(1)],
   [
     "createTag",
     () => createTag({ label: "Acuarela", category: "illustration" }),
@@ -119,7 +136,6 @@ const READS: [string, () => Promise<unknown>, unknown][] = [
     () => fetchVerifiedTicketsByFestivalTotal(1),
     0,
   ],
-  ["sendUserEmailsTemp", () => sendUserEmailsTemp([1, 2], 1), undefined],
 ];
 
 describe.each([
@@ -184,39 +200,33 @@ describe("public visitor actions", () => {
   });
 
   it("looks nobody up for a value that is not an email", async () => {
-    expect(await visitorActions.fetchVisitorByEmail("1 OR 1=1")).toBeNull();
-    expect(dbTouched.count).toBe(0);
-  });
-
-  it("refuses a registration without the visitor's details", async () => {
-    const result = await visitorActions.createVisitor({
-      id: 999,
-      email: "not-an-email",
-    } as Parameters<typeof visitorActions.createVisitor>[0]);
+    const result = await registrationActions.startVisitorRegistration({
+      festivalId: 1,
+      email: "1 OR 1=1",
+      mode: "online",
+    });
 
     expect(result).toMatchObject({ success: false });
     expect(dbTouched.count).toBe(0);
   });
 
-  it("refuses a ticket that names no visitor's address", async () => {
-    const result = await ticketActions.createTicket({
-      date: new Date("2026-11-01T00:00:00.000Z"),
-      email: "",
+  it("refuses a ticket for a value that is not a date", async () => {
+    const result = await registrationActions.claimTicket({
       festivalId: 1,
+      date: "nope",
     });
 
-    expect(result).toMatchObject({ success: false, ticket: null });
+    expect(result).toMatchObject({ success: false });
     expect(dbTouched.count).toBe(0);
   });
 
-  it("refuses a ticket keyed on a visitor id", async () => {
-    const result = await ticketActions.createTicket({
-      date: new Date("2026-11-01T00:00:00.000Z"),
-      visitorId: 7,
+  it("refuses a door ticket for more people than one admits", async () => {
+    const result = await registrationActions.claimDoorTicket({
       festivalId: 1,
-    } as unknown as Parameters<typeof ticketActions.createTicket>[0]);
+      numberOfVisitors: 11,
+    });
 
-    expect(result).toMatchObject({ success: false, ticket: null });
+    expect(result).toMatchObject({ success: false });
     expect(dbTouched.count).toBe(0);
   });
 });
@@ -236,10 +246,12 @@ describe("server-only reads are not server actions", () => {
     [festivalSectorActions, "fetchFullFestivalById"],
     [festivalSectorActions, "fetchConfirmedProfilesByFestivalId"],
     [festivalSectorActions, "fetchSectorWithStandsAndReservations"],
-    [visitorActions, "fetchVisitor"],
-    [visitorActions, "fetchVisitors"],
-    [visitorActions, "fetchVisitorsEmails"],
     [ticketActions, "fetchTicket"],
+    [ticketActions, "fetchTicketsByFestival"],
+    [ticketActions, "fetchVerifiedTicketsByFestivalTotal"],
+    [registrationActions, "issueTicket"],
+    [registrationActions, "sendTicketIssuedEmail"],
+    [registrationActions, "visitorRegistrationView"],
   ] as [Record<string, unknown>, string][])("%#: %s", (module, name) => {
     expect(module).not.toHaveProperty(name);
   });

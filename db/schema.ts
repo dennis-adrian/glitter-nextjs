@@ -5060,6 +5060,16 @@ export const mapTemplatesRelations = relations(mapTemplates, ({ one }) => ({
   }),
 }));
 
+/**
+ * Who may redeem a discount code. Stored rather than inferred from whether
+ * `discount_code_users` has rows: deleting the last assigned account must
+ * leave the code usable by nobody, not turn it into a public one.
+ */
+export const discountCodeAudienceEnum = pgEnum("discount_code_audience", [
+  "everyone",
+  "selected_users",
+]);
+
 export const discountCodes = pgTable("discount_codes", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),
@@ -5072,9 +5082,7 @@ export const discountCodes = pgTable("discount_codes", {
   festivalId: integer("festival_id").references(() => festivals.id, {
     onDelete: "set null",
   }),
-  userId: integer("user_id").references(() => users.id, {
-    onDelete: "set null",
-  }),
+  audience: discountCodeAudienceEnum("audience").default("everyone").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -5087,11 +5095,43 @@ export const discountCodesRelations = relations(
       fields: [discountCodes.festivalId],
       references: [festivals.id],
     }),
+    users: many(discountCodeUsers),
+    invoices: many(invoices),
+  }),
+);
+
+/** The accounts a `selected_users` discount code is reserved for. */
+export const discountCodeUsers = pgTable(
+  "discount_code_users",
+  {
+    id: serial("id").primaryKey(),
+    discountCodeId: integer("discount_code_id")
+      .notNull()
+      .references(() => discountCodes.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("discount_code_users_code_user_unique").on(
+      t.discountCodeId,
+      t.userId,
+    ),
+    index("discount_code_users_user_idx").on(t.userId),
+  ],
+);
+export const discountCodeUsersRelations = relations(
+  discountCodeUsers,
+  ({ one }) => ({
+    discountCode: one(discountCodes, {
+      fields: [discountCodeUsers.discountCodeId],
+      references: [discountCodes.id],
+    }),
     user: one(users, {
-      fields: [discountCodes.userId],
+      fields: [discountCodeUsers.userId],
       references: [users.id],
     }),
-    invoices: many(invoices),
   }),
 );
 
@@ -5214,6 +5254,102 @@ export const actionRateLimits = pgTable(
   (t) => [
     index("action_rate_limits_updated_idx").on(t.updatedAt),
     check("action_rate_limits_count_positive", sql`${t.requestCount} > 0`),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Bulk email: who a mailing must skip                                         */
+/* See docs/email-unsubscribe-and-bounces.md.                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Why an address gets no bulk mail at all: it bounced for good, or its owner
+ * reported one of our emails as spam. Both arrive from Resend's webhook.
+ */
+export const emailSuppressionReasonEnum = pgEnum("email_suppression_reason", [
+  "bounce",
+  "complaint",
+]);
+
+/** Kinds of bulk mail a person can stop receiving one at a time. */
+export const emailTopicEnum = pgEnum("email_topic", [
+  /** Visitors invited to get their ticket when acreditación opens. */
+  "visitor_invitations",
+  /** Participants told a festival they can join is open. */
+  "participant_invitations",
+  /**
+   * Every kind of bulk mail, including topics added later: for someone who
+   * asked to stop all of it, set by an admin.
+   */
+  "all",
+]);
+
+/**
+ * Addresses no bulk mailing may reach. Keyed by the normalized address, not a
+ * visitor or user, so it holds across both tables, case variants of the same
+ * address, and deleted profiles.
+ */
+export const emailSuppressions = pgTable(
+  "email_suppressions",
+  {
+    id: serial("id").primaryKey(),
+    /** `lower(trim(address))`. */
+    emailKey: text("email_key").notNull(),
+    reason: emailSuppressionReasonEnum("reason").notNull(),
+    /** The Resend email that bounced or was reported, when known. */
+    resendEmailId: text("resend_email_id"),
+    /** What the receiving server answered, for a bounce. */
+    detail: text("detail"),
+    /**
+     * When Resend created the newest event applied to this row. Webhooks can
+     * repeat and arrive out of order; an older event never overrides it.
+     */
+    lastEventAt: timestamp("last_event_at"),
+    /**
+     * Resend lifted the suppression: the address may be mailed again. The row
+     * stays, so a late copy of the event that suppressed it is recognised
+     * as older and ignored.
+     */
+    liftedAt: timestamp("lifted_at"),
+    /** The admin who unblocked it; null when Resend lifted it. */
+    liftedByUserId: integer("lifted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("email_suppressions_email_key_unique").on(t.emailKey),
+    check(
+      "email_suppressions_email_key_normalized",
+      sql`${t.emailKey} = lower(trim(${t.emailKey})) and ${t.emailKey} <> ''`,
+    ),
+  ],
+);
+
+/** People who asked to stop receiving one topic of bulk mail. */
+export const emailUnsubscribes = pgTable(
+  "email_unsubscribes",
+  {
+    id: serial("id").primaryKey(),
+    /** `lower(trim(address))`. */
+    emailKey: text("email_key").notNull(),
+    topic: emailTopicEnum("topic").notNull(),
+    /** The admin who added it for them; null when they did it themselves. */
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("email_unsubscribes_email_key_topic_unique").on(
+      t.emailKey,
+      t.topic,
+    ),
+    check(
+      "email_unsubscribes_email_key_normalized",
+      sql`${t.emailKey} = lower(trim(${t.emailKey})) and ${t.emailKey} <> ''`,
+    ),
   ],
 );
 

@@ -1,134 +1,105 @@
 "use client";
 
+import ComboboxInput from "@/app/components/form/fields/combobox";
 import DateInput from "@/app/components/form/fields/date";
-import { Button } from "@/app/components/ui/button";
-import { DateTime } from "luxon";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
-import ComboboxInput from "@/app/components/form/fields/combobox";
+import AssignedUsersPicker from "@/app/components/organisms/discount_codes/assigned-users-picker";
+import {
+  buildDiscountCodeFormSchema,
+  discountCodeFormDefaults,
+  toDiscountCodeInput,
+  type DiscountCodeFormValues,
+} from "@/app/components/organisms/discount_codes/discount-code-form-schema";
 import SubmitButton from "@/app/components/simple-submit-button";
+import { Button } from "@/app/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/app/components/ui/form";
+import { Label } from "@/app/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
 import { Switch } from "@/app/components/ui/switch";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/app/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/app/components/ui/popover";
-import { cn } from "@/app/lib/utils";
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import {
   createDiscountCode,
   updateDiscountCode,
 } from "@/app/lib/discount_codes/actions";
-import { DiscountCodeBase } from "@/app/lib/discount_codes/definitions";
+import type {
+  DiscountCodeAudience,
+  DiscountCodeWithRelations,
+} from "@/app/lib/discount_codes/definitions";
+import {
+  MAX_DISCOUNT_CODE_USERS,
+  storeDay,
+} from "@/app/lib/discount_codes/utils";
+import { cn } from "@/app/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
-
-const FormSchema = z.object({
-  code: z.string().trim().min(1, "El código es requerido"),
-  discountUnit: z.enum(["percentage", "amount"]),
-  discountValue: z.coerce.number().positive("El valor debe ser mayor a 0"),
-  maxUses: z
-    .preprocess(
-      (value) => (value === "" ? null : value),
-      z.coerce.number().int().positive().nullable(),
-    )
-    .optional(),
-  festivalId: z.coerce.number().int().positive().nullable().optional(),
-  userId: z.coerce.number().int().positive().nullable().optional(),
-  expiresAt: z.coerce.date({
-    message: "La fecha de vencimiento es requerida",
-  }),
-  isActive: z.boolean().default(true),
-});
 
 type Option = { label: string; value: string };
 
-export type UserOption = {
-  value: string;
-  displayName: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-};
-
 type DiscountCodeFormProps = {
   festivalsOptions: Option[];
-  usersOptions: UserOption[];
-  discountCode?: DiscountCodeBase;
+  discountCode?: DiscountCodeWithRelations;
 };
 
-function getUserDisplayName(user: UserOption) {
-  return (
-    (user.displayName ??
-      [user.firstName, user.lastName].filter(Boolean).join(" ")) ||
-    user.email
-  );
-}
+const discountUnitOptions: Option[] = [
+  { label: "Porcentaje (%)", value: "percentage" },
+  { label: "Monto fijo (Bs)", value: "amount" },
+];
+
+const audienceOptions: {
+  value: DiscountCodeAudience;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "everyone",
+    label: "Cualquier usuario",
+    description: "Lo puede aplicar quien tenga el código.",
+  },
+  {
+    value: "selected_users",
+    label: "Usuarios específicos",
+    description: "Solo funciona en los cobros de las personas que elijas.",
+  },
+];
+
+const expiryShortcuts = [
+  { label: "1 semana", plus: { weeks: 1 } },
+  { label: "1 mes", plus: { months: 1 } },
+  { label: "1 año", plus: { years: 1 } },
+] as const;
 
 export default function DiscountCodeForm({
   festivalsOptions,
-  usersOptions,
   discountCode,
 }: DiscountCodeFormProps) {
   const router = useRouter();
   const isEditing = !!discountCode;
-  const [userOpen, setUserOpen] = useState(false);
 
-  const form = useForm<
-    z.input<typeof FormSchema>,
-    unknown,
-    z.output<typeof FormSchema>
-  >({
-    resolver: zodResolver(FormSchema),
-    defaultValues: {
-      code: discountCode?.code ?? "",
-      discountUnit: discountCode?.discountUnit ?? "percentage",
-      discountValue: discountCode?.discountValue ?? undefined,
-      maxUses: discountCode?.maxUses ?? undefined,
-      festivalId: discountCode?.festivalId ?? undefined,
-      userId: discountCode?.userId ?? undefined,
-      expiresAt: discountCode?.expiresAt
-        ? new Date(discountCode.expiresAt)
-        : undefined,
-      isActive: discountCode?.isActive ?? true,
-    },
+  const form = useForm<DiscountCodeFormValues>({
+    resolver: zodResolver(buildDiscountCodeFormSchema(discountCode)),
+    defaultValues: discountCodeFormDefaults(discountCode),
   });
+  const discountUnit = useWatch({
+    control: form.control,
+    name: "discountUnit",
+  });
+  const audience = useWatch({ control: form.control, name: "audience" });
 
-  const action = form.handleSubmit(async (data) => {
-    const payload = {
-      ...data,
-      code: data.code.toUpperCase(),
-      maxUses: data.maxUses ?? null,
-      festivalId: data.festivalId ?? null,
-      userId: data.userId ?? null,
-    };
-
-    let res;
-    if (isEditing) {
-      res = await updateDiscountCode(discountCode.id, payload);
-    } else {
-      res = await createDiscountCode(payload);
-    }
+  const action = form.handleSubmit(async (values) => {
+    const payload = toDiscountCodeInput(values, discountCode);
+    const res = isEditing
+      ? await updateDiscountCode(discountCode.id, payload)
+      : await createDiscountCode(payload);
 
     if (res.success) {
       toast.success(res.message);
@@ -138,170 +109,153 @@ export default function DiscountCodeForm({
     }
   });
 
-  const discountUnitOptions: Option[] = [
-    { label: "Porcentaje (%)", value: "percentage" },
-    { label: "Monto fijo (Bs)", value: "amount" },
-  ];
-
   return (
     <Form {...form}>
-      <form className="grid gap-4" onSubmit={action}>
+      <form className="grid gap-5" onSubmit={action} noValidate>
         <TextInput
           label="Código"
           name="code"
-          placeholder="EJEMPLO2025"
+          placeholder="EJEMPLO2026"
           className="uppercase"
+          autoComplete="off"
+          description="Letras, números, guiones o guiones bajos. Mayúsculas y minúsculas valen lo mismo."
         />
-        <SelectInput
-          formControl={form.control}
-          label="Tipo de descuento"
-          name="discountUnit"
-          options={discountUnitOptions}
-          placeholder="Seleccionar tipo"
-        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SelectInput
+            formControl={form.control}
+            label="Tipo de descuento"
+            name="discountUnit"
+            options={discountUnitOptions}
+            placeholder="Seleccionar tipo"
+          />
+          <TextInput
+            label={discountUnit === "percentage" ? "Valor (%)" : "Valor (Bs)"}
+            name="discountValue"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            max={discountUnit === "percentage" ? "100" : undefined}
+            step="0.01"
+            placeholder="0"
+          />
+        </div>
         <TextInput
-          label="Valor"
-          name="discountValue"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="0"
-        />
-        <TextInput
-          label="Límite de usos (opcional, vacío = ilimitado)"
+          label="Límite de usos"
           name="maxUses"
           type="number"
-          min="1"
+          inputMode="numeric"
+          min={String(Math.max(1, discountCode?.currentUses ?? 1))}
           step="1"
           placeholder="Sin límite"
+          description={
+            isEditing
+              ? `Vacío = ilimitado. Usado ${discountCode.currentUses} ${discountCode.currentUses === 1 ? "vez" : "veces"} hasta ahora.`
+              : "Vacío = ilimitado. Cuenta los usos de todas las personas juntas."
+          }
         />
         <ComboboxInput
           form={form}
-          label="Festival (opcional, vacío = global)"
+          label="Festival"
           name="festivalId"
-          options={festivalsOptions}
+          options={[
+            { value: "", label: "Todos los festivales" },
+            ...festivalsOptions,
+          ]}
           placeholder="Todos los festivales"
+          description="Elegí uno para que el código solo aplique a reservas de ese festival."
         />
+
         <FormField
           control={form.control}
-          name="userId"
-          render={({ field }) => {
-            const selectedUser = usersOptions.find(
-              (u) => u.value === String(field.value),
-            );
-
-            return (
-              <FormItem className="flex flex-col gap-2 w-full">
-                <FormLabel>Usuario (opcional, vacío = cualquiera)</FormLabel>
-                <Popover open={userOpen} onOpenChange={setUserOpen}>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant="outline"
-                        role="combobox"
+          name="audience"
+          render={({ field }) => (
+            <FormItem className="grid gap-2">
+              <FormLabel>¿Quién puede usarlo?</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="grid gap-2 sm:grid-cols-2"
+                >
+                  {audienceOptions.map((option) => {
+                    const id = `audience-${option.value}`;
+                    const selected = field.value === option.value;
+                    return (
+                      <Label
+                        key={option.value}
+                        htmlFor={id}
                         className={cn(
-                          "w-full justify-between h-auto min-h-10",
-                          !field.value && "text-muted-foreground",
+                          "flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal transition-colors",
+                          selected
+                            ? "border-primary bg-primary/5"
+                            : "hover:border-foreground/20",
                         )}
                       >
-                        {selectedUser ? (
-                          <span className="flex flex-col items-start text-left">
-                            <span className="text-sm">
-                              {getUserDisplayName(selectedUser)}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {selectedUser.email}
-                            </span>
+                        <RadioGroupItem
+                          id={id}
+                          value={option.value}
+                          className="mt-0.5"
+                        />
+                        <span className="grid gap-0.5">
+                          <span className="text-sm font-medium">
+                            {option.label}
                           </span>
-                        ) : (
-                          "Cualquier usuario"
-                        )}
-                        <ChevronsUpDownIcon className="opacity-50 shrink-0" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0" align="start">
-                    <Command>
-                      <CommandInput
-                        placeholder="Buscar por nombre o email..."
-                        className="h-9"
-                      />
-                      <CommandList>
-                        <CommandEmpty>Sin resultados.</CommandEmpty>
-                        <CommandGroup>
-                          {usersOptions.map((user) => {
-                            const searchValue = [
-                              user.displayName,
-                              user.firstName,
-                              user.lastName,
-                              user.email,
-                            ]
-                              .filter(Boolean)
-                              .join(" ");
+                          <span className="text-xs text-muted-foreground">
+                            {option.description}
+                          </span>
+                        </span>
+                      </Label>
+                    );
+                  })}
+                </RadioGroup>
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
-                            return (
-                              <CommandItem
-                                key={user.value}
-                                value={searchValue}
-                                onSelect={() => {
-                                  form.setValue("userId", Number(user.value), {
-                                    shouldDirty: true,
-                                  });
-                                  setUserOpen(false);
-                                }}
-                              >
-                                <div className="flex flex-col">
-                                  <span>{getUserDisplayName(user)}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {user.email}
-                                  </span>
-                                </div>
-                                <CheckIcon
-                                  className={cn(
-                                    "ml-auto shrink-0",
-                                    String(field.value) === user.value
-                                      ? "opacity-100"
-                                      : "opacity-0",
-                                  )}
-                                />
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+        {audience === "selected_users" && (
+          <FormField
+            control={form.control}
+            name="assignedUsers"
+            render={({ field }) => (
+              <FormItem className="grid gap-2">
+                <FormLabel>Usuarios</FormLabel>
+                <AssignedUsersPicker
+                  value={field.value}
+                  onChange={(next) =>
+                    form.setValue("assignedUsers", next, {
+                      shouldDirty: true,
+                      shouldValidate: form.formState.isSubmitted,
+                    })
+                  }
+                  max={MAX_DISCOUNT_CODE_USERS}
+                />
                 <FormMessage />
               </FormItem>
-            );
-          }}
-        />
+            )}
+          />
+        )}
+
         <div className="grid gap-2">
           <DateInput
             formControl={form.control}
-            label="Fecha de vencimiento"
-            name="expiresAt"
+            label="Válido hasta"
+            name="expiresOn"
+            min={storeDay()}
+            description="Incluido: el código deja de funcionar al terminar ese día (hora de Bolivia)."
           />
-          <div className="flex gap-2">
-            {(
-              [
-                { label: "1 semana", plus: { weeks: 1 } },
-                { label: "1 mes", plus: { months: 1 } },
-                { label: "1 año", plus: { years: 1 } },
-              ] as const
-            ).map(({ label, plus }) => (
+          <div className="flex flex-wrap gap-2">
+            {expiryShortcuts.map(({ label, plus }) => (
               <Button
                 key={label}
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  form.setValue(
-                    "expiresAt",
-                    DateTime.now().plus(plus).toJSDate(),
-                    { shouldDirty: true },
-                  )
+                  form.setValue("expiresOn", storeDay(plus), {
+                    shouldDirty: true,
+                    shouldValidate: form.formState.isSubmitted,
+                  })
                 }
               >
                 {label}
@@ -309,18 +263,24 @@ export default function DiscountCodeForm({
             ))}
           </div>
         </div>
+
         <FormField
           control={form.control}
           name="isActive"
           render={({ field }) => (
-            <FormItem className="flex items-center gap-3">
+            <FormItem className="flex items-start gap-3 space-y-0">
               <FormControl>
                 <Switch
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
               </FormControl>
-              <FormLabel className="mt-0!">Activo</FormLabel>
+              <div className="grid gap-0.5">
+                <FormLabel className="mt-0!">Activo</FormLabel>
+                <FormDescription>
+                  Apagalo para pausar el código sin perder su configuración.
+                </FormDescription>
+              </div>
             </FormItem>
           )}
         />

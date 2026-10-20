@@ -132,13 +132,18 @@ export default function CartItemRow({
       lineLabel={item.transactionType === "rental" ? "Alquiler" : null}
       warnings={
         <>
+          {warnings.isUnavailable && (
+            <span className="inline-block text-xs text-destructive font-medium mt-1">
+              Ya no está disponible
+            </span>
+          )}
           {warnings.isOutOfStock && (
             <span className="inline-block text-xs text-destructive font-medium mt-1">
               Sin stock
             </span>
           )}
           {warnings.quantityExceedsStock && (
-            <span className="inline-block text-xs text-amber-600 font-medium mt-1">
+            <span className="inline-block text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
               Solo quedan {warnings.availableStock}
             </span>
           )}

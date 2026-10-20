@@ -6,6 +6,8 @@ import VerificationStatusLabel from "@/app/components/atoms/verification-status-
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
+import RequestReviewForm from "@/app/components/user_profile/request-review-form";
+import { profileReviewBlocker } from "@/app/lib/users/profile-review";
 
 type RestrictedStatus = "pending" | "rejected" | "banned";
 
@@ -28,7 +30,8 @@ const STATUS_CONFIG: Record<
   pending: {
     icon: HourglassIcon,
     iconClass: "text-blue-600",
-    cardClass: "border-blue-200 bg-blue-50/40",
+    cardClass:
+      "border-blue-200 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/40",
     title: "Tu perfil está en revisión",
     description:
       "Nuestro equipo está verificando tu información. Mientras tanto, podés actualizar tu perfil para asegurarte de que esté completo antes de que finalice la revisión.",
@@ -37,16 +40,18 @@ const STATUS_CONFIG: Record<
   rejected: {
     icon: CircleAlertIcon,
     iconClass: "text-yellow-600",
-    cardClass: "border-yellow-200 bg-yellow-50/40",
+    cardClass:
+      "border-yellow-200 bg-yellow-50/40 dark:border-yellow-900 dark:bg-yellow-950/40",
     title: "Tu perfil fue rechazado",
     description:
-      "Encontramos algunos problemas con tu perfil que impiden verificarlo. Actualizá tu información y volvé a solicitar la verificación.",
-    ctaLabel: "Actualizar mi perfil",
+      "Encontramos algunos problemas con tu perfil que impiden verificarlo. Revisá el motivo en el correo que te enviamos, corregí tus datos y pedí una nueva revisión.",
+    ctaLabel: "Corregir mi perfil",
   },
   banned: {
     icon: BanIcon,
     iconClass: "text-red-600",
-    cardClass: "border-red-200 bg-red-50/40",
+    cardClass:
+      "border-red-200 bg-red-50/40 dark:border-red-900 dark:bg-red-950/40",
     title: "Tu perfil fue deshabilitado",
     description:
       "Tu cuenta ha sido deshabilitada. Si creés que esto es un error, contactate con nuestro equipo de soporte en soporte@productoraglitter.com.",
@@ -95,7 +100,7 @@ export default function RestrictedDashboard({ profile, status }: Props) {
         <Card className={cardClass}>
           <CardContent className="p-5 flex flex-col gap-4">
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border">
+              <div className="mt-0.5 w-8 h-8 rounded-full bg-card flex items-center justify-center shrink-0 border">
                 <StatusIcon className={`w-4 h-4 ${iconClass}`} />
               </div>
               <div className="flex flex-col gap-1">
@@ -109,6 +114,12 @@ export default function RestrictedDashboard({ profile, status }: Props) {
               <Button asChild className="w-full">
                 <Link href="/my_profile">{ctaLabel}</Link>
               </Button>
+            )}
+            {status === "rejected" && (
+              <RequestReviewForm
+                profileId={profile.id}
+                disabledReason={profileReviewBlocker(profile)}
+              />
             )}
           </CardContent>
         </Card>

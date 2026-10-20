@@ -43,7 +43,7 @@ function RemovedNotice({
 }) {
   return (
     <>
-      <div className="rounded-lg border p-3 text-red-700 bg-red-50 border-red-200">
+      <div className="rounded-lg border p-3 text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/40 dark:border-red-900">
         <p className="text-xs">
           No podés volver a inscribirte en esta actividad
         </p>
@@ -125,7 +125,7 @@ function WaitlistStatusBadge({
   hasActiveInvite?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 text-sm rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
+    <div className="flex items-center gap-2 text-sm rounded-md border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 px-3 py-2">
       <Hourglass className="w-3 h-3 shrink-0" />
       {hasActiveInvite ? (
         <p className="font-medium">¡Tenés un cupo disponible!</p>

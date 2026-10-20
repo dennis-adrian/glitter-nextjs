@@ -32,7 +32,7 @@ export function ReserveStandCard(props: ReserveStandCardProps) {
           <RedirectButton
             size="sm"
             variant="link"
-            className="text-amber-900 underline"
+            className="text-amber-900 dark:text-amber-100 underline"
             href={`/festivals/${props.festival.id}/terms`}
           >
             Términos y condiciones
@@ -55,7 +55,7 @@ export function ReserveStandCard(props: ReserveStandCardProps) {
         <RedirectButton
           size="sm"
           variant="link"
-          className="text-amber-900 underline"
+          className="text-amber-900 dark:text-amber-100 underline"
           href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/reservations/new`}
         >
           Reservar espacio

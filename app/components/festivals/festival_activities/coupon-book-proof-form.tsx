@@ -100,7 +100,7 @@ export default function CouponBookProofForm({
   return (
     <div className="space-y-4">
       {proofDisplayState === "rejected_resubmit" && adminFeedback && (
-        <div className="flex gap-2 rounded-md border border-orange-200 bg-orange-50 p-3 text-orange-800 text-sm">
+        <div className="flex gap-2 rounded-md border border-orange-200 bg-orange-50 p-3 text-orange-800 text-sm dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-200">
           <AlertCircleIcon className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
             <p className="font-medium">Se solicitaron correcciones</p>

@@ -71,7 +71,7 @@ export default function ReservationParticipantsSection({
               <button
                 type="button"
                 aria-label="Quitar acompañante"
-                className="text-destructive hover:text-red-600"
+                className="text-destructive hover:text-red-600 dark:hover:text-red-400"
                 onClick={onRemovePartner}
               >
                 <Trash2Icon className="h-4 w-4" />

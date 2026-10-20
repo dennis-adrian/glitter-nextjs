@@ -9,14 +9,18 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        cta: "bg-brand-primary text-primary-foreground hover:bg-brand-primary/90",
+        // brand-primary lightens in dark mode to stay legible as text, which
+        // is too pale under a white label, so the fill falls back to primary.
+        cta: "bg-brand-primary text-primary-foreground hover:bg-brand-primary/90 dark:bg-primary dark:hover:bg-primary/90",
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
-          "border border-primary bg-transparent text-primary hover:bg-primary-100",
-        secondary: "bg-primary-100 text-primary-900 hover:bg-primary-100/80",
-        ghost: "text-primary hover:bg-primary-100 hover:text-primary-900",
+          "border border-primary bg-transparent text-primary hover:bg-accent",
+        secondary:
+          "bg-accent text-primary-900 hover:bg-accent/80 dark:text-accent-foreground",
+        ghost:
+          "text-primary hover:bg-accent hover:text-primary-900 dark:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

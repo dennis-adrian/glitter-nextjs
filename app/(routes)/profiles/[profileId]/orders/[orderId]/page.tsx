@@ -67,7 +67,7 @@ export default async function UserOrderPage(props: {
     <div className={`container p-3 md:p-6${canPay ? " pb-32 lg:pb-0" : ""}`}>
       <div className="mb-4">
         <Heading>Detalles del Pedido</Heading>
-        <p className="text-gray-500">
+        <p className="text-muted-foreground">
           Orden #{order.id} • Pedido realizado el{" "}
           {formatDisplayDate(order.createdAt, {
             month: "long",
@@ -79,7 +79,7 @@ export default async function UserOrderPage(props: {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Order Items */}
-          <div className="bg-white rounded-xl shadow-xs border p-6">
+          <div className="bg-card rounded-xl shadow-xs border p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center">
               <BoxIcon className="h-5 w-5 mr-2" />
               Artículos
@@ -100,7 +100,7 @@ export default async function UserOrderPage(props: {
 
                 return (
                   <div key={item.id} className="py-4 flex gap-4">
-                    <div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                    <div className="h-20 w-20 rounded-md overflow-hidden bg-muted shrink-0">
                       <Image
                         src={
                           getProductVariantImageUrl(
@@ -134,10 +134,10 @@ export default async function UserOrderPage(props: {
                         </p>
                       </div>
                       <div className="flex justify-between mt-1">
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-muted-foreground">
                           Cantidad: {item.quantity}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-muted-foreground">
                           Bs{item.priceAtPurchase.toFixed(2)} cada uno
                         </p>
                       </div>
@@ -203,7 +203,7 @@ export default async function UserOrderPage(props: {
       </div>
       {/* Mobile sticky action bar */}
       {canPay && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg px-4 py-3 z-10">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t shadow-lg px-4 py-3 z-10">
           <div className="flex flex-col gap-2">
             <Button
               asChild

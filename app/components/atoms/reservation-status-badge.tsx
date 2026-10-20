@@ -5,17 +5,17 @@ import { cn } from "@/app/lib/utils";
 
 const statusColors = {
   pending:
-    "bg-gray-500/20 border border-gray-300 text-gray-800 hover:bg-gray-500/30 hover:border-gray-300",
+    "bg-gray-500/20 border border-gray-300 text-gray-800 hover:bg-gray-500/30 hover:border-gray-300 dark:border-gray-700 dark:text-gray-200 dark:hover:border-gray-700",
   accepted:
-    "bg-green-500/20 border border-green-300 text-green-800 hover:bg-green-500/30 hover:border-green-300",
+    "bg-green-500/20 border border-green-300 text-green-800 hover:bg-green-500/30 hover:border-green-300 dark:border-green-700 dark:text-green-200 dark:hover:border-green-700",
   verification_payment:
-    "bg-blue-500/20 border border-blue-300 text-blue-800 hover:bg-blue-500/30 hover:border-blue-300",
+    "bg-blue-500/20 border border-blue-300 text-blue-800 hover:bg-blue-500/30 hover:border-blue-300 dark:border-blue-700 dark:text-blue-200 dark:hover:border-blue-700",
   rejected:
-    "bg-red-500/20 border border-red-300 text-red-800 hover:bg-red-500/30 hover:border-red-300",
+    "bg-red-500/20 border border-red-300 text-red-800 hover:bg-red-500/30 hover:border-red-300 dark:border-red-700 dark:text-red-200 dark:hover:border-red-700",
   cancelled:
-    "bg-orange-500/20 border border-orange-300 text-orange-800 hover:bg-orange-500/30 hover:border-orange-300",
+    "bg-orange-500/20 border border-orange-300 text-orange-800 hover:bg-orange-500/30 hover:border-orange-300 dark:border-orange-700 dark:text-orange-200 dark:hover:border-orange-700",
   released:
-    "bg-slate-500/20 border border-slate-300 text-slate-800 hover:bg-slate-500/30 hover:border-slate-300",
+    "bg-slate-500/20 border border-slate-300 text-slate-800 hover:bg-slate-500/30 hover:border-slate-300 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-700",
 } satisfies Record<ReservationBase["status"], string>;
 
 export default function ReservationStatusBadge({

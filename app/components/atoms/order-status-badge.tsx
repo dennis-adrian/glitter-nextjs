@@ -22,32 +22,32 @@ const STATUS_PRESENTATION: Record<OrderStatus, StatusPresentation> = {
   pending: {
     tone: "neutral",
     icon: ClockIcon,
-    pill: "text-gray-500 border-gray-200 bg-gray-50",
+    pill: "text-gray-500 border-gray-200 bg-gray-50 dark:text-muted-foreground dark:border-border dark:bg-muted/60",
   },
   payment_verification: {
     tone: "info",
     icon: CogIcon,
-    pill: "text-blue-600 border-blue-200 bg-blue-50",
+    pill: "text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-900 dark:bg-blue-950/40",
   },
   processing: {
     tone: "info",
     icon: CogIcon,
-    pill: "text-blue-600 border-blue-200 bg-blue-50",
+    pill: "text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-900 dark:bg-blue-950/40",
   },
   paid: {
     tone: "warning",
     icon: CreditCardIcon,
-    pill: "text-amber-700 border-amber-200 bg-amber-50",
+    pill: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-900 dark:bg-amber-950/40",
   },
   delivered: {
     tone: "success",
     icon: CheckCircleIcon,
-    pill: "text-green-700 border-green-200 bg-green-50",
+    pill: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-900 dark:bg-green-950/40",
   },
   cancelled: {
     tone: "danger",
     icon: AlertCircleIcon,
-    pill: "text-red-600 border-red-200 bg-red-50",
+    pill: "text-red-600 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-900 dark:bg-red-950/40",
   },
 };
 

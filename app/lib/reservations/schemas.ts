@@ -87,11 +87,18 @@ export const correctSettlementProofSchema = z.object({
   idempotencyKey: uuidSchema,
 });
 
-export const reviewFestivalParticipationRequestSchema = z.object({
-  requestId: positiveIntSchema,
-  status: z.enum(["accepted", "rejected"]),
-  reason: z.string().trim().max(1000).optional(),
-});
+/** Only a rejection carries a reason; one sent with an approval is dropped. */
+export const reviewFestivalParticipationRequestSchema = z.discriminatedUnion(
+  "status",
+  [
+    z.object({ requestId: positiveIntSchema, status: z.literal("accepted") }),
+    z.object({
+      requestId: positiveIntSchema,
+      status: z.literal("rejected"),
+      reason: z.string().trim().max(1000).optional(),
+    }),
+  ],
+);
 
 export const reviewBecomeArtistRequestSchema = z.object({
   requestId: positiveIntSchema,
@@ -198,17 +205,6 @@ export const createAdminReservationSchema = z.object({
 export const extendDeadlineSchema = z.object({
   reservationId: positiveIntSchema,
   dueAt: z.coerce.date(),
-});
-
-export const discountCodeMutationSchema = z.object({
-  code: z.string().trim().min(1).max(64),
-  discountUnit: z.enum(["percentage", "amount"]),
-  discountValue: moneyAmountSchema,
-  maxUses: z.number().int().positive().nullable().optional(),
-  expiresAt: z.coerce.date(),
-  isActive: z.boolean().optional(),
-  festivalId: positiveIntSchema.nullable().optional(),
-  userId: positiveIntSchema.nullable().optional(),
 });
 
 export function parseUnknown<T>(

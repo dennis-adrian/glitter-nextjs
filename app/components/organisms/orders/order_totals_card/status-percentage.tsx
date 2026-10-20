@@ -29,9 +29,11 @@ export default function StatusPercentage({
   const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
       case "pending":
-        return <ClockIcon className="h-4 w-4 text-gray-500" />;
+        return <ClockIcon className="h-4 w-4 text-muted-foreground" />;
       case "paid":
-        return <CreditCardIcon className="h-4 w-4 text-amber-700" />;
+        return (
+          <CreditCardIcon className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+        );
       case "processing":
         return <CogIcon className="h-4 w-4 text-blue-600" />;
       case "delivered":
@@ -41,7 +43,7 @@ export default function StatusPercentage({
       case "cancelled":
         return <AlertCircleIcon className="h-4 w-4 text-red-600" />;
       default:
-        return <ClockIcon className="h-4 w-4 text-gray-500" />;
+        return <ClockIcon className="h-4 w-4 text-muted-foreground" />;
     }
   };
 

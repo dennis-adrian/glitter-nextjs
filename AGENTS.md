@@ -4,7 +4,7 @@
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
@@ -45,7 +45,7 @@ Environment notes for this VM (the startup update script already runs `pnpm inst
   - `CLOUD_AGENT_ALL_SECRET_NAMES` is the full dashboard list. `CLOUD_AGENT_INJECTED_SECRET_NAMES` is only the subset copied onto **this** process; missing names often still exist on a parent `/proc/<pid>/environ` (commonly the `/exec-daemon/node` supervisor).
   - Before `pnpm dev`, `pnpm seed`, sourcing `.env.local`, or any Clerk-backed check, run `pnpm env:sync`. That rewrites git-ignored `.env.local` from process/parent secrets plus local Postgres and refuses to write placeholders when a real value exists. `pnpm dev` / `pnpm migrate` / `pnpm seed` already run this first.
   - If `pnpm env:sync` prints `clerk=missing`, stop and say the dashboard Clerk secrets are unavailable. Never fabricate well-formed fake keys so the app "boots".
-  - Resend and PostHog stay no-ops unless `VERCEL_ENV` is production. Do not treat a redacted `VERCEL_ENV` as a missing secret.
+  - Resend is a no-op only when `VERCEL_ENV` is development: staging (preview) deployments send real email, bulk invitations included. PostHog stays a no-op unless `VERCEL_ENV` is production. Do not treat a redacted `VERCEL_ENV` as a missing secret.
 - Apply migrations after schema changes: `pnpm migrate` (dev DB), or `pnpm migrate:test` for the disposable Docker Postgres. `migrate:test` builds its own connection string from `compose.test.yml`'s fixed credentials and `GLITTER_TEST_DB_PORT`, so there is nothing to export and `.env.local` cannot redirect it at a real database.
 
 ```bash
@@ -57,7 +57,7 @@ pnpm db:test:up && pnpm migrate:test
 
 - After migrate, run `pnpm seed` for Clerk demo users + local profiles (see **Development seed** below). Merch products, variants, and independent collections are seeded with local demo artwork.
 - Commands: env file `pnpm env:sync`; dev server `pnpm dev` (http://localhost:3000); lint `pnpm exec eslint .` (repo currently has pre-existing lint errors/warnings — there is no `lint` npm script); unit tests `pnpm exec vitest run`; integration tests `pnpm test:integration` (needs the migrated Docker Postgres from `pnpm db:test:up` + `pnpm migrate:test`); build `pnpm build` (runs `drizzle-kit generate` then `next build`).
-- `next dev`/`next build` rewrite the `nextjs-agent-rules` block in this file; commit that change rather than fighting it.
+- `next dev` rewrites the `nextjs-agent-rules` block in this file (`next build` does not); commit that change rather than fighting it.
 
 ## Development seed (demo users)
 

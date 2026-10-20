@@ -61,13 +61,13 @@ export default function PublicInfoForm(props: PublicInfoFormProps) {
           bottomBorderOnly
           label="Nombre"
           name="firstName"
-          placeholder="Ingresa tu nombre"
+          placeholder="Ingresá tu nombre"
         />
         <TextInput
           bottomBorderOnly
           label="Apellido"
           name="lastName"
-          placeholder="Ingresa tu apellido"
+          placeholder="Ingresá tu apellido"
         />
         <TextInput
           bottomBorderOnly

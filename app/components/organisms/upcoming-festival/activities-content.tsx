@@ -18,7 +18,7 @@ export default function ActivitiesContent({
 }: ActivitiesContentProps) {
   if (reservationStatus !== "accepted") {
     return (
-      <div className="border border-gray-200 bg-gray-50 p-4 rounded-md text-sm text-muted-foreground">
+      <div className="border border-border bg-muted/50 p-4 rounded-md text-sm text-muted-foreground">
         <p>
           No puedes inscribirte en actividades hasta que tu reserva sea
           confirmada.
@@ -31,7 +31,7 @@ export default function ActivitiesContent({
 
   if (activities.length === 0) {
     return (
-      <div className="border border-gray-200 bg-gray-50 p-4 rounded-md text-sm text-muted-foreground">
+      <div className="border border-border bg-muted/50 p-4 rounded-md text-sm text-muted-foreground">
         No se encontraron actividades para este festival
       </div>
     );
@@ -58,7 +58,7 @@ export default function ActivitiesContent({
         {userActivities.length > 0 && (
           <div>
             <Heading level={3}>Tus inscripciones</Heading>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Aquí puedes ver las actividades en las que te has inscrito.
             </p>
             <div className="flex flex-col gap-3 md:gap-4 mt-3">
@@ -91,7 +91,7 @@ export default function ActivitiesContent({
         {availableActivities.length > 0 && (
           <div className="mt-3">
             <Heading level={3}>Actividades Exclusivas</Heading>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Inscríbete en actividades especiales para expositores.
             </p>
 

@@ -1,7 +1,7 @@
 import {
   fetchTicketsByFestival,
   fetchVerifiedTicketsByFestivalTotal,
-} from "@/app/data/tickets/actions";
+} from "@/app/data/tickets/queries";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import {

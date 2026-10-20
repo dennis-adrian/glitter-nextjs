@@ -25,7 +25,7 @@ export default function CreditPendingPurchaseRow({
       >
         <div className="min-w-0">
           <p className="text-sm font-medium">Compra de créditos en curso</p>
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
             Falta el comprobante · tocá para pagar
           </p>
           <p className="text-xs text-muted-foreground">

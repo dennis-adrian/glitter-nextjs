@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+  CartItemWithProduct,
   GuestCartBundle,
   GuestCartItem,
 } from "@/app/lib/cart/definitions";
@@ -12,8 +13,10 @@ import {
   buildBundleLineKey,
   bundleLineCapNotice,
   getBundleDemandLines,
+  getCartItemWarnings,
   getGuestItemStockCap,
   guestBundleSignature,
+  isCartLineUnavailable,
   productLineCapNotice,
   reconcileGuestBundleLines,
   replaceGuestBundleLine,
@@ -316,5 +319,73 @@ describe("getBundleDemandLines", () => {
         quantity: 2,
       },
     ]);
+  });
+});
+
+describe("isCartLineUnavailable", () => {
+  const offered = { isVisible: true, isPurchasable: true, isRentable: true };
+
+  it("refuses a hidden product for either transaction", () => {
+    const hidden = { ...offered, isVisible: false };
+    expect(isCartLineUnavailable(hidden, "purchase")).toBe(true);
+    expect(isCartLineUnavailable(hidden, "rental")).toBe(true);
+  });
+
+  it("refuses a visible product only for a transaction it is not offered for", () => {
+    expect(isCartLineUnavailable(offered)).toBe(false);
+    expect(
+      isCartLineUnavailable({ ...offered, isPurchasable: false }, "purchase"),
+    ).toBe(true);
+    expect(
+      isCartLineUnavailable({ ...offered, isPurchasable: false }, "rental"),
+    ).toBe(false);
+    expect(
+      isCartLineUnavailable({ ...offered, isRentable: false }, "rental"),
+    ).toBe(true);
+  });
+});
+
+describe("getCartItemWarnings", () => {
+  const cartLine = (
+    product: Partial<CartItemWithProduct["product"]>,
+  ): CartItemWithProduct =>
+    ({
+      id: 3,
+      cartId: 1,
+      productId: 7,
+      productVariantId: null,
+      quantity: 1,
+      transactionType: "purchase",
+      product: {
+        id: 7,
+        name: "Tote",
+        stock: 5,
+        rentalStock: null,
+        rentalStockMode: "shared",
+        isVisible: true,
+        isPurchasable: true,
+        isRentable: false,
+        variants: [],
+        ...product,
+      },
+      variant: null,
+    }) as unknown as CartItemWithProduct;
+
+  it("reports a hidden product as unavailable, not as out of stock", () => {
+    expect(getCartItemWarnings(cartLine({ isVisible: false }))).toEqual({
+      isUnavailable: true,
+      isOutOfStock: false,
+      quantityExceedsStock: false,
+      availableStock: 0,
+    });
+  });
+
+  it("leaves a visible product's stock warnings as they were", () => {
+    expect(getCartItemWarnings(cartLine({}))).toEqual({
+      isUnavailable: false,
+      isOutOfStock: false,
+      quantityExceedsStock: false,
+      availableStock: 5,
+    });
   });
 });

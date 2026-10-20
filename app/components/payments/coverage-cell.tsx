@@ -29,18 +29,23 @@ import {
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { cn } from "@/app/lib/utils";
 
-// No `dark:` variants: this project's Tailwind resolves them from
-// prefers-color-scheme, which is independent of the app's own light/dark
-// theme, so a dark-scheme browser on a light page picked the pale text and the
-// badge became unreadable. Every other badge in the app states one colour.
+// `dark:` follows the `.dark` class next-themes puts on <html> (see the custom
+// variant in globals.css), not prefers-color-scheme, so the pale text only
+// applies when the app itself is dark.
 const STYLES: Record<CoverageState, string> = {
-  unpaid: "bg-gray-500/15 border border-gray-400 text-gray-800",
-  partial: "bg-amber-500/15 border border-amber-400 text-amber-900",
-  awaiting_confirmation: "bg-teal-500/15 border border-teal-400 text-teal-900",
-  under_review: "bg-blue-500/15 border border-blue-400 text-blue-900",
-  overdue: "bg-red-500/15 border border-red-400 text-red-900",
-  paid: "bg-green-500/15 border border-green-500 text-green-900",
-  cancelled: "bg-gray-500/15 border border-gray-400 text-gray-700",
+  unpaid:
+    "bg-gray-500/15 border border-gray-400 text-gray-800 dark:border-gray-700 dark:text-gray-200",
+  partial:
+    "bg-amber-500/15 border border-amber-400 text-amber-900 dark:border-amber-700 dark:text-amber-100",
+  awaiting_confirmation:
+    "bg-teal-500/15 border border-teal-400 text-teal-900 dark:border-teal-700 dark:text-teal-100",
+  under_review:
+    "bg-blue-500/15 border border-blue-400 text-blue-900 dark:border-blue-700 dark:text-blue-100",
+  overdue:
+    "bg-red-500/15 border border-red-400 text-red-900 dark:border-red-700 dark:text-red-100",
+  paid: "bg-green-500/15 border border-green-500 text-green-900 dark:text-green-100",
+  cancelled:
+    "bg-gray-500/15 border border-gray-400 text-gray-700 dark:border-gray-700 dark:text-gray-300",
 };
 
 const ICONS: Record<CoverageState, typeof MinusIcon> = {
@@ -201,7 +206,7 @@ export default function CoverageCell({
       ) : (
         state === "overdue" &&
         dueAt && (
-          <span className="text-xs text-red-700">
+          <span className="text-xs text-red-700 dark:text-red-300">
             Venció el {formatDateWithTime(new Date(dueAt))}
           </span>
         )

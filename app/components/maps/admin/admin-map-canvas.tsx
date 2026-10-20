@@ -14,7 +14,7 @@ import MapCanvas from "@/app/components/maps/map-canvas";
 import DraggableMapStand from "./draggable-map-stand";
 import DraggableMapElement from "./draggable-map-element";
 import AdminMapStandGroups from "./admin-map-stand-groups";
-import { STAND_SIZE } from "../map-utils";
+import { STAND_SIZE, mapColor } from "../map-utils";
 
 export type GuideLine = {
   axis: "horizontal" | "vertical";
@@ -573,7 +573,7 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
             y1={bounds.minY}
             x2={x}
             y2={endY}
-            stroke="#d1d5db"
+            stroke={mapColor("grid-line", "#d1d5db")}
             strokeWidth={0.1}
             strokeDasharray="0.5,0.5"
             style={{ pointerEvents: "none" }}
@@ -588,7 +588,7 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
             y1={y}
             x2={endX}
             y2={y}
-            stroke="#d1d5db"
+            stroke={mapColor("grid-line", "#d1d5db")}
             strokeWidth={0.1}
             strokeDasharray="0.5,0.5"
             style={{ pointerEvents: "none" }}

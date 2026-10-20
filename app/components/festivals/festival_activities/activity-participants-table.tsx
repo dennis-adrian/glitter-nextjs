@@ -98,23 +98,28 @@ const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
   {
     sin_prueba: {
       label: "Sin material",
-      className: "text-amber-700 border-amber-300 bg-amber-50",
+      className:
+        "text-amber-700 border-amber-300 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-950/40",
     },
     pending_review: {
       label: "En revisión",
-      className: "bg-amber-50 text-amber-800 border-amber-300",
+      className:
+        "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800",
     },
     approved: {
       label: "Aprobada",
-      className: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      className:
+        "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-900",
     },
     rejected_resubmit: {
       label: "Corrección solicitada",
-      className: "bg-orange-100 text-orange-800 border-orange-300",
+      className:
+        "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/40 dark:text-orange-200 dark:border-orange-800",
     },
     rejected_removed: {
       label: "Removido",
-      className: "bg-red-100 text-red-800 border-red-300",
+      className:
+        "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/40 dark:text-red-200 dark:border-red-800",
     },
   };
 

@@ -15,6 +15,7 @@ import {
 } from "@/app/lib/festivals/definitions";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
+import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import {
   festivalActivities,
@@ -555,14 +556,7 @@ export async function enrollInActivity(
     }
   } catch (error: unknown) {
     console.error("Error enrolling in activity", error);
-    const code =
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      typeof (error as { code: string }).code === "string"
-        ? (error as { code: string }).code
-        : "";
-    if (code === "23505") {
+    if (hasPgErrorCode(error, "23505")) {
       return {
         success: false,
         message: "Ya estás inscrito en esta actividad",

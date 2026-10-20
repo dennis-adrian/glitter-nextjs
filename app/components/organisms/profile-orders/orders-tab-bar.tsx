@@ -66,7 +66,7 @@ export default function OrdersTabBar({
               className={`flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 isActive
                   ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
               }`}
             >
               {tab.label}
@@ -75,7 +75,7 @@ export default function OrdersTabBar({
                   className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
                     isActive
                       ? "bg-primary/10 text-primary"
-                      : "bg-gray-100 text-gray-600"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {count}

@@ -12,7 +12,7 @@ export default function QrCodeDownload({ qrCodeUrl }: { qrCodeUrl?: string }) {
 
   if (!qrCodeUrl)
     return (
-      <div className="text-muted-foreground">
+      <div className="text-muted-foreground dark:text-slate-500">
         <span>No se encontró un código QR para el pago</span>
       </div>
     );
@@ -39,7 +39,8 @@ export default function QrCodeDownload({ qrCodeUrl }: { qrCodeUrl?: string }) {
       />
       <Button
         disabled={downloading}
-        className="w-full md:max-w-fit"
+        // Sits on PaymentQrCode's white plate, which stays white in dark mode.
+        className="w-full md:max-w-fit dark:border-primary-600 dark:text-primary-600 dark:hover:bg-primary-100"
         variant="outline"
         onClick={downloadQRCode}
       >

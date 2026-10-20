@@ -35,14 +35,33 @@ const DrawerDialog = ({
   isDesktop = false,
   open,
   onOpenChange,
+  dismissible,
   ...props
-}: DrawerDialogProps & DialogProps) => {
-  const Component = isDesktop ? Dialog : Drawer;
+}: DrawerDialogProps &
+  DialogProps & {
+    /**
+     * Drawer only: false stops a swipe from dragging it away, for while it
+     * holds work that must not be interrupted. A dialog has no swipe.
+     */
+    dismissible?: boolean;
+  }) => {
+  if (isDesktop) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange} modal={props.modal}>
+        {children}
+      </Dialog>
+    );
+  }
 
   return (
-    <Component open={open} onOpenChange={onOpenChange} modal={props.modal}>
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      modal={props.modal}
+      dismissible={dismissible}
+    >
       {children}
-    </Component>
+    </Drawer>
   );
 };
 

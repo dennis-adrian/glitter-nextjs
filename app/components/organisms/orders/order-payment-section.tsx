@@ -148,11 +148,11 @@ export default function OrderPaymentSection({
       </div>
 
       <div className="flex flex-col gap-4">
-        <div className="bg-primary-50 border border-primary-700 rounded-lg p-4">
+        <div className="bg-primary-50 dark:bg-primary-950/40 border border-primary-700 rounded-lg p-4">
           <Heading className="text-primary mb-2" level={4}>
             Instrucciones de pago
           </Heading>
-          <ol className="list-decimal list-inside text-primary-900 text-sm">
+          <ol className="list-decimal list-inside text-primary-900 dark:text-primary-100 text-sm">
             <li>Escaneá el código QR con la app de tu banco</li>
             <li>
               Ingresá el monto exacto de{" "}
@@ -191,9 +191,10 @@ function StatusCard({
   children?: React.ReactNode;
 }) {
   const colorClasses = {
-    green: "border-green-200 bg-green-50",
-    blue: "border-blue-200 bg-blue-50",
-    red: "border-red-200 bg-red-50",
+    green:
+      "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40",
+    blue: "border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40",
+    red: "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40",
   };
 
   return (

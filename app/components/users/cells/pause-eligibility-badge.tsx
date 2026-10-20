@@ -28,7 +28,8 @@ export default function PauseEligibilityBadge({
     <Badge
       variant={REASON_VARIANTS[reason] ?? "outline"}
       className={cn(
-        isEligible && "bg-amber-100 text-amber-800 border-amber-200",
+        isEligible &&
+          "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-900",
         className,
       )}
     >

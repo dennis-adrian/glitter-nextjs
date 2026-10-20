@@ -49,7 +49,7 @@ export default function OrderVoucherDialog({ voucherUrl, orderId }: Props) {
             href={voucherUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
           >
             <ExternalLinkIcon className="h-3 w-3" />
             Abrir en pantalla completa

@@ -1,5 +1,9 @@
 "use server";
 
+import { db } from "@/db";
+import { festivals } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -49,6 +53,21 @@ export async function upsertFestivalFeatureConfigAction(
   }
 
   try {
+    const festival = await db.query.festivals.findFirst({
+      columns: { status: true },
+      where: eq(festivals.id, parsed.data.festivalId),
+    });
+    if (!festival) {
+      return { success: false, message: "Festival no encontrado." };
+    }
+    // An archived festival is history: its prices stay as they were.
+    if (festival.status === "archived") {
+      return {
+        success: false,
+        message: "Un festival archivado no se puede configurar.",
+      };
+    }
+
     const result = await upsertFestivalFeatureConfig({
       ...parsed.data,
       deadlineOverrideAt: parsed.data.deadlineOverrideAt

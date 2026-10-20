@@ -13,7 +13,7 @@ export default function TeamMember({ reservationId, member }: TeamMemberProps) {
   const memberInitials = member.firstName.charAt(0) + member.lastName.charAt(0);
 
   return (
-    <div className="p-3 bg-gray-50 rounded-lg">
+    <div className="p-3 bg-muted/50 rounded-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Avatar>
@@ -21,7 +21,7 @@ export default function TeamMember({ reservationId, member }: TeamMemberProps) {
           </Avatar>
           <div>
             <p className="font-medium">{memberName}</p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {member.identificationNumber}
             </p>
           </div>

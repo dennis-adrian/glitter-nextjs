@@ -61,7 +61,7 @@ function Figure({
           signed={signed}
           className={cn(
             "font-display text-lg font-semibold tabular-nums",
-            tone === "red" && "text-red-600",
+            tone === "red" && "text-red-600 dark:text-red-400",
             amount === 0 && "text-muted-foreground",
           )}
         />

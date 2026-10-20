@@ -91,7 +91,7 @@ export default async function OrderPaymentPage(props: {
 
       <div className="space-y-4">
         {order.status === "pending" && order.paymentDueDate && (
-          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-4 py-2.5">
             <CalendarClockIcon className="h-4 w-4 shrink-0" />
             <span>
               Fecha límite de pago:{" "}
