@@ -61,8 +61,14 @@ export default function AssignedUsersPicker({
       return;
     }
     startSearch(async () => {
-      const rows = await searchDiscountCodeUsers(term);
-      if (latestTerm.current === term) setResults(rows);
+      try {
+        const rows = await searchDiscountCodeUsers(term);
+        if (latestTerm.current === term) setResults(rows);
+      } catch {
+        if (latestTerm.current === term) {
+          toast.error("No se pudo buscar usuarios. Intentá de nuevo.");
+        }
+      }
     });
   }
 
