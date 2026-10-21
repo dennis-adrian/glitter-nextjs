@@ -2,8 +2,8 @@
 
 **Product:** Glitter
 **Feature area:** Participant inbox, admin communications, credits
-**Status:** Phase 1 in review
-**Last updated:** 2026-10-20
+**Status:** Phase 1 merged to develop; phase 2 in review (§11)
+**Last updated:** 2026-10-21
 
 ---
 
@@ -120,7 +120,7 @@ Existing entries keep their reason visible to the participant, as before.
 ## 7. Participant experience
 
 - **Bell** (flag `notifications`): unread badge, polled every 60 seconds while the tab is visible, on focus and after navigation. Desktop opens a popover with the latest items, "No leídas / Todas" and "Marcar todo como leído" (disabled when nothing is unread); phones go to the page.
-- **Page** `/my_notifications`: category chips (Todas, Reservas, Pagos y créditos, Anuncios, plus Administración for admins), date groups (Hoy, Ayer, Esta semana, Anteriores), per-item "Marcar como no leída" and "Archivar", and "Ver más".
+- **Page** `/my_notifications`: category chips (Todas, Reservas, Pagos y créditos, Anuncios once phase 3 fills it, plus Administración for admins), date groups (Hoy, Ayer, Esta semana, Anteriores), per-item "Marcar como no leída" and "Archivar", and "Ver más".
 - **Detail** `/my_notifications/[id]`: the full message and its one action, with no sign-off (Dennis, 2026-10-21; the gift emails have none either). Opening it marks it read.
 - **Tapping an item** (Dennis, 2026-10-20). A message someone wrote, like a gift, opens its detail page so it is read whole, with the action as a button ("Ver mi billetera"). A system notice goes straight to its screen; one without a link opens its detail page. Links are always paths inside Glitter.
 - **Empty states:** "Todavía no tenés notificaciones…" and, once everything is read, "¡Estás al día!".
@@ -146,7 +146,7 @@ The migration is generated from `db/schema.ts`. Every Vercel deploy applies it t
 
 ### Kind registry
 
-Each kind declares its category, how its inbox copy and link are built from the snapshot, and its email template, sender and subject. Copy is defined once, next to the template. Phase 1 kinds: `credit_gift_received`, `credit_gift_revoked` (both with email), `credit_gift_completed` (admin, in-app only).
+Each kind declares its category, how its inbox copy and link are built from the snapshot, and its email template, sender and subject. Copy is defined once, next to the template. Phase 1 kinds: `credit_gift_received`, `credit_gift_revoked` (both with email), `credit_gift_completed` (admin, in-app only). Phase 2 adds the in-app copies of the queued emails (§11); a kind can also say whether tapping it opens its own page and whether it is sensitive.
 
 ### Delivery worker
 
@@ -173,7 +173,7 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
 
 ## 10. Later phases
 
-- **P2** Mirror the queued emails (12 reservation kinds, disciplinary notices, top-up rejection, participation decisions) through `notify()`. Admin copies land in Administración. Launch the bell for participants.
+- **P2** Mirror the queued emails (12 reservation kinds, disciplinary notices, top-up rejection, participation decisions) through `notify()`. Admin copies land in Administración. Launch the bell for participants. In review: see §11.
 - **P2b** Push notifications (Dennis, 2026-10-20): alerts in the operating system's notification center, not only in the bell.
   - **Step 0: installable Glitter (PWA)** (Dennis, 2026-10-20). Its own small PR, ahead of push. It can ship any time before the rest of P2b: installing is useful by itself (home-screen icon, full screen, no browser bar), and push on iPhone needs it.
     - **Today:** not installable. There is no manifest, and the largest logo in the repo is 160 px.
@@ -205,3 +205,73 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
 - **P4** Inline sends (profiles, activities, orders, programs, reminders) through `notify()`; visitor and guest mail gets delivery rows; per-participant Comunicaciones tab.
 - **P5** Delivery events from the Resend webhook on deliveries; preferences page.
 - **P6** Editable system copy; re-evaluate `@react-email/editor`.
+
+---
+
+## 11. Phase 2: the queued emails in the inbox
+
+Every email queued through the two outboxes now also lands in the inbox of the person it is sent to, written in the same transaction that queues it. The emails themselves do not change. With that, the bell is ready to launch for participants.
+
+The outboxes queue 21 kinds of email: the 12 in `RESERVATION_NOTIFICATION_KINDS` (which already include the top-up rejection and both participation decisions), 4 infraction notices and 5 sanction notices.
+
+### Decisions
+
+Proposed 2026-10-21, for Dennis to confirm in review. Each one is a small change if he decides otherwise.
+
+| #   | Decision                  | Phase 2 rule                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Emails                    | Unchanged. They keep going out through `reservation_notification_jobs` and `disciplinary_notification_jobs`, rendered as today. The inbox items are in-app only kinds. Moving these emails onto `notification_deliveries` is later work.                                                                                                                                                      |
+| 2   | Where the copy is written | Where the job is queued: `enqueueReservationNotification(s)` and the disciplinary `insertNotificationJob`, plus the worker when it rebuilds a sanction retry. Every current and future call site goes through those. Each job states its `audience`, participant or admin.                                                                                                                    |
+| 3   | Strict mirror             | One inbox item per queued email, for the same person, only when the job is new. An email the outbox deduplicates away (a second proof for the same reservation) gets no item either. `settlement_rejected` gets none: its email is never sent while the reservation is still pending.                                                                                                         |
+| 4   | Never blocks the change   | The copies are written in a savepoint. If it fails, they are lost and logged (`[notifications] Inbox copy … failed`, with the kind, the job and the Postgres code); the payment, cancellation or sanction still commits and its email still goes. If the change rolls back, so do they. The expired-sanction cron and the retry worker now write the job and its copy in one transaction too. |
+| 5   | One read per event        | The emails one event queues (an owner and every admin) are mirrored together: one savepoint and one read of the reservation, festival, stands and people. These transactions hold the lock that serialises reservation writes, so the copies must not add a round of reads per admin.                                                                                                         |
+| 6   | Snapshot                  | Read inside that transaction, so the item says what was true then: festival, stands ("B48 y B49"), names, reason or note, due date, setup date and place. Never an email address or the acting admin. Payments, deadlines and admin copies name the cobro's holder; releases and late partners speak as the booking's owner.                                                                  |
+| 7   | Admin copies              | Their own kinds, in Administración, for whoever the outbox emails (role `admin`): new reservation, proof submitted, Bs0 review requested, confirmed with credits. Not for the admin who did it, nor for one paying their own cobro (they get the participant's copy).                                                                                                                         |
+| 8   | Owner and partner         | Told apart where the email does (deadline extension, release, partner added). A partner's copy never says what the owner paid.                                                                                                                                                                                                                                                                |
+| 9   | Opening an item           | An item opens its own page when it carries text someone wrote for this person: a gift's message, a cancellation or participation reason, a top-up rejection reason, a resolution, void or revocation note. Otherwise it goes straight to its screen. The registry decides, per item. A reason the code fills in ("Actualización administrativa") does not count.                              |
+| 10  | Receipts start read       | An item about something the person just did themselves (their proof, their Bs0 request, their release, the partner they added) is written as read: it stays in their history without lighting the badge. A voucher an admin uploads for them from the console is news instead: its copy says it was registered for them, and it starts unread.                                                |
+| 11  | Disciplinary notices      | Category "Cuenta" (shown under Todas), link to the participant's history, which paused participants can now open too. Marked sensitive, so a push (P2b) will only say that something arrived. Reservation access reopening files under Reservas and links to that festival's map.                                                                                                             |
+| 12  | Admin hints               | Fields whose text the participant reads (cancellation reason, participation reason, resolution, void and revocation notes) say "Lo va a ver el participante en el correo y en sus notificaciones."                                                                                                                                                                                            |
+| 13  | Anuncios                  | The chip is hidden until phase 3 files comunicados there: an always-empty filter reads as something missing.                                                                                                                                                                                                                                                                                  |
+| 14  | Launch                    | The `notifications` flag keeps its "Solo administración" default. Items are written for everyone from the deploy on, so flipping it later loses nothing; see the checklist below.                                                                                                                                                                                                             |
+| 15  | No backfill               | Emails queued before the deploy get no item, as in phase 1.                                                                                                                                                                                                                                                                                                                                   |
+| 16  | Deleting a profile        | Admin copies and partners' items name other people. Each stores the named person's id next to the name, and deleting that profile (by request or by the deletion cron) rewrites those items with "Perfil eliminado", as program purchases already do. The person's own items go with their user row.                                                                                          |
+
+### Kinds
+
+Participant items:
+
+| Outbox kind                       | Inbox kind                                       | Category         | Goes to                                                 |
+| --------------------------------- | ------------------------------------------------ | ---------------- | ------------------------------------------------------- |
+| `proof_submitted`                 | `reservation_proof_submitted`                    | Pagos y créditos | The reservation                                         |
+| `zero_value_review_requested`     | `reservation_zero_value_review_requested`        | Reservas         | The reservation                                         |
+| `settlement_approved`             | `reservation_confirmed`                          | Reservas         | The reservation                                         |
+| `settlement_rejected`             | none (no email is sent)                          |                  |                                                         |
+| `reservation_rejected`            | `reservation_cancelled`                          | Reservas         | The reservation, or its own page when there is a reason |
+| `deadline_extended`               | `reservation_payment_deadline_extended`          | Pagos y créditos | The reservation                                         |
+| `reservation_released`            | `reservation_released`                           | Reservas         | The festival's map, to reserve again                    |
+| `late_partner_added`              | `reservation_partner_added`                      | Reservas         | The reservation                                         |
+| `festival_participation_approved` | `festival_participation_approved`                | Reservas         | The festival's terms page, where reserving starts       |
+| `festival_participation_rejected` | `festival_participation_rejected`                | Reservas         | Its own page                                            |
+| `credit_top_up_rejected`          | `credit_top_up_rejected`                         | Pagos y créditos | Its own page, with "Ver mi billetera"                   |
+| infraction notices (4)            | `infraction_{registered,edited,resolved,voided}` | Cuenta           | The history, or its own page when there is a note       |
+| sanction notices (4)              | `sanction_{approved,edited,expired,revoked}`     | Cuenta           | The history, or its own page when there is a note       |
+| reservation access reopened       | `sanction_reservation_access_enabled`            | Reservas         | That festival's map                                     |
+
+Admin items, all in Administración: `reservation_created_admin` (the reservation's edit page), `reservation_proof_submitted_admin` and `reservation_zero_value_review_requested_admin` (Cobros in the console), `reservation_confirmed_with_credits_admin` (Créditos in the console).
+
+### Launch checklist
+
+1. Deploy. Items start being written for everyone.
+2. As an admin in that environment: open the bell, check an Administración item and one mirrored participant item (for example, cancel and restore a test reservation, or reject a test top-up).
+3. Optionally, target two or three trusted participants with the flag before opening it to everyone.
+4. Dennis flips `notifications` to Pública in `/dashboard/feature_flags`, per environment.
+
+The bell also waits until the person's profile has loaded (holding its place meanwhile, without asking for a count), so an account still finishing sign-up does not get a bell whose inbox cannot load, and `/my_notifications` asks a signed-out visitor to sign in instead of answering "not found".
+
+### Not in phase 2, and open questions
+
+- The reservation payment reminder and the other emails sent inline rather than queued (profile, order, program and activity mail) stay in P4. Once the bell is public, the payment reminder is the one reservation email with no inbox item.
+- A proof sent back for correction notifies nobody, by email or in the app. A follow-up kind could say "Revisá el pago de tu reserva" with the new deadline, never the admin's internal correction reason.
+- A participant an admin assigns a stand to is not told until the payment reminder: `reservation_created` is only queued for admins. A participant item ("Te asignamos el espacio…") would be new copy, not a mirror.
+- Query logging prints parameters for every statement, including the inbox copy and the outbox payloads; that predates phase 2.

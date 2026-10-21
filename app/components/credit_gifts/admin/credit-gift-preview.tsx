@@ -81,6 +81,7 @@ export default function CreditGiftPreview({
               actionPath: "/my_credits",
               actionLabel: "Ver mi billetera",
               creditDelta: amount,
+              opensDetail: true,
               readAt: null,
               createdAt: now,
             }}

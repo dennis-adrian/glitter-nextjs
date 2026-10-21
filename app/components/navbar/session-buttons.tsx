@@ -16,7 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
-import NotificationBell from "@/app/components/notifications/notification-bell";
+import NotificationBell, {
+  NotificationBellPlaceholder,
+} from "@/app/components/notifications/notification-bell";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
@@ -117,11 +119,16 @@ export default function SessionButtons({
     />
   );
 
-  if (!notificationsEnabled || !isSignedIn) return dropdown;
+  // A Clerk session without a profile row (sign-up still finishing) has no
+  // inbox: its unread count and page would only answer "not found". The bell
+  // waits for the profile, holding its place meanwhile.
+  if (!notificationsEnabled || !isSignedIn || (!isProfileLoading && !profile)) {
+    return dropdown;
+  }
 
   return (
     <div className="flex items-center gap-1 sm:gap-2">
-      <NotificationBell />
+      {profile ? <NotificationBell /> : <NotificationBellPlaceholder />}
       {dropdown}
     </div>
   );

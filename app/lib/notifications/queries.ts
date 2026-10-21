@@ -15,7 +15,10 @@ import {
   type NotificationFilter,
   safeActionPath,
 } from "@/app/lib/notifications/definitions";
-import { notificationCreditDelta } from "@/app/lib/notifications/registry";
+import {
+  notificationCreditDelta,
+  notificationOpensDetail,
+} from "@/app/lib/notifications/registry";
 import { db } from "@/db";
 import {
   notificationCampaignRecipients,
@@ -97,6 +100,7 @@ function toInboxNotification(row: NotificationRow): InboxNotification {
     actionPath: safeActionPath(row.actionPath),
     actionLabel: row.actionLabel,
     creditDelta: notificationCreditDelta(row.kind, row.data),
+    opensDetail: notificationOpensDetail(row.kind, row.data),
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
@@ -173,6 +177,11 @@ export type NotificationDetail = InboxNotification & {
   message: string | null;
 };
 
+/** The kinds whose snapshot keeps a message longer than the inbox body. */
+const KINDS_WITH_MESSAGE: ReadonlySet<string> = new Set([
+  "credit_gift_received",
+]);
+
 export async function fetchNotificationForViewer(
   viewer: InboxViewer,
   notificationId: number,
@@ -184,7 +193,9 @@ export async function fetchNotificationForViewer(
     .limit(1);
   if (!row) return null;
   const message =
-    row.data && typeof row.data.message === "string" ? row.data.message : null;
+    KINDS_WITH_MESSAGE.has(row.kind) && typeof row.data?.message === "string"
+      ? row.data.message
+      : null;
   return { ...toInboxNotification(row), message };
 }
 

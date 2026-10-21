@@ -54,6 +54,9 @@ vi.mock("@/app/lib/festivals/utils", () => ({
 vi.mock("@/app/lib/infractions/notifications", () => ({
   scrubDisciplinaryNotificationJobsForUser: vi.fn(),
 }));
+vi.mock("@/app/lib/notifications/scrub", () => ({
+  scrubNotificationsNamingUser: vi.fn(),
+}));
 vi.mock("@/app/lib/programs/anonymization", () => ({
   anonymizeProgramPurchasesForUser: vi.fn(),
 }));

@@ -26,6 +26,8 @@ import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   enqueueReservationNotification,
+  enqueueReservationNotifications,
+  type ReservationNotificationInput,
   type ReservationNotificationKind,
 } from "@/app/lib/reservations/notification-queue";
 import {
@@ -719,30 +721,38 @@ export async function enqueueAdminAndOwnerNotifications(
     ownerEmail: string | null | undefined;
     adminEmails: Array<{ id: number; email: string | null }>;
     payload?: Record<string, unknown>;
+    /**
+     * Who did it. Their own admin inbox does not hear about it, and an
+     * owner's copy of something an admin did for them is not a receipt.
+     */
+    actorUserId?: number | null;
   },
 ): Promise<number[]> {
-  const jobIds: number[] = [];
+  const inputs: ReservationNotificationInput[] = [];
   if (input.ownerEmail) {
-    const id = await enqueueReservationNotification(tx, {
+    inputs.push({
       kind: input.kind,
       reservationId: input.reservationId,
       userId: input.ownerUserId,
       recipientEmail: input.ownerEmail,
       payload: input.payload,
+      audience: "participant",
+      actorUserId: input.actorUserId,
     });
-    if (id) jobIds.push(id);
   }
   for (const admin of input.adminEmails) {
     if (!admin.email) continue;
-    const id = await enqueueReservationNotification(tx, {
+    inputs.push({
       kind: input.kind,
       reservationId: input.reservationId,
       userId: admin.id,
       recipientEmail: admin.email,
       payload: input.payload,
       deduplicationKey: `${input.kind}:${input.reservationId}:admin:${admin.id}`,
+      audience: "admin",
+      actorUserId: input.actorUserId,
     });
-    if (id) jobIds.push(id);
   }
-  return jobIds;
+  const jobIds = await enqueueReservationNotifications(tx, inputs);
+  return jobIds.filter((id): id is number => id != null);
 }

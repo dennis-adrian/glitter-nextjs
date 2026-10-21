@@ -535,6 +535,7 @@ export async function reviewCreditTopUp(input: {
           kind: "credit_top_up_rejected",
           userId: topUp.userId,
           recipientEmail: recipient.email,
+          audience: "participant",
           // Keyed on the top-up, not the reservation the outbox usually
           // dedupes by: credit jobs carry no reservation, so the default key
           // would collide across every rejected purchase this person ever has.

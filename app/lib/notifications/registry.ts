@@ -1,46 +1,30 @@
 import "server-only";
 
-import type { ReactElement } from "react";
 import { z } from "zod";
 
-import {
-  formatCreditCount,
-  formatCredits,
-} from "@/app/components/credits/credit-amount";
+import { formatCreditCount, formatCredits } from "@/app/lib/credits/format";
 import CreditGiftReceivedEmail from "@/app/emails/credit-gift-received";
 import CreditGiftRevokedEmail from "@/app/emails/credit-gift-revoked";
-import type { NotificationCategory } from "@/app/lib/notifications/definitions";
+import { disciplinaryKinds } from "@/app/lib/notifications/kinds/disciplinary";
+import { reservationOutboxKinds } from "@/app/lib/notifications/kinds/reservation-outbox";
+import type {
+  EmailCopy,
+  InAppCopy,
+  KindDefinition,
+} from "@/app/lib/notifications/kinds/types";
+
+export type { EmailCopy, InAppCopy } from "@/app/lib/notifications/kinds/types";
 
 /**
  * Every kind of notification, with its copy defined once: the inbox item and,
  * when it has one, the email. Both render from the same stored snapshot, so a
  * retry or a re-send says exactly what the first send said.
+ *
+ * The phase 2 mirrors live in `kinds/`, one module per outbox. They have no
+ * email here: their outbox still sends it.
  */
 
 const PRODUCTORA_FROM = "Productora Glitter <creditos@productoraglitter.com>";
-
-export type InAppCopy = {
-  title: string;
-  body: string;
-  actionPath: string | null;
-  actionLabel: string | null;
-};
-
-export type EmailCopy = {
-  from: string;
-  subject: string;
-  react: ReactElement;
-};
-
-type KindDefinition<Data> = {
-  category: NotificationCategory;
-  schema: z.ZodType<Data>;
-  inApp: (data: Data) => InAppCopy;
-  /** Absent for in-app-only kinds. */
-  email?: (data: Data) => EmailCopy;
-  /** Credits this moved, for the inbox's "+20". */
-  creditDelta?: (data: Data) => number | null;
-};
 
 const creditGiftReceivedSchema = z.object({
   campaignId: z.number().int().positive(),
@@ -98,6 +82,8 @@ const kinds = {
       }),
     }),
     creditDelta: (data) => data.amount,
+    // A message someone wrote: read whole on its own page.
+    opensDetail: () => true,
   } satisfies KindDefinition<z.infer<typeof creditGiftReceivedSchema>>,
 
   credit_gift_revoked: {
@@ -163,6 +149,9 @@ const kinds = {
       };
     },
   } satisfies KindDefinition<z.infer<typeof creditGiftCompletedSchema>>,
+
+  ...reservationOutboxKinds,
+  ...disciplinaryKinds,
 } as const;
 
 export type NotificationKind = keyof typeof kinds;
@@ -223,6 +212,32 @@ export function notificationCreditDelta(
   if (!def.creditDelta) return null;
   const parsed = def.schema.safeParse(data);
   return parsed.success ? def.creditDelta(parsed.data) : null;
+}
+
+/**
+ * Whether tapping the item opens its own page; see `KindDefinition`. A
+ * snapshot a later schema no longer reads opens the page anyway: it shows the
+ * stored title, body and action, and never cuts a written message short.
+ */
+export function notificationOpensDetail(kind: string, data: unknown): boolean {
+  if (!isNotificationKind(kind)) return false;
+  const def = definition(kind);
+  if (!def.opensDetail) return false;
+  const parsed = def.schema.safeParse(data);
+  return parsed.success ? def.opensDetail(parsed.data) : true;
+}
+
+/** Whether the item is written already read; see `KindDefinition`. */
+export function notificationStartsRead<K extends NotificationKind>(
+  kind: K,
+  data: NotificationData<K>,
+): boolean {
+  return definition(kind).startsRead?.(data) ?? false;
+}
+
+/** Disciplinary notices, whose content stays off a lock screen. */
+export function isSensitiveNotificationKind(kind: string): boolean {
+  return isNotificationKind(kind) && definition(kind).sensitive === true;
 }
 
 export function parseNotificationData<K extends NotificationKind>(

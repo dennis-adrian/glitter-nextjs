@@ -31,6 +31,22 @@ const triggerClassName =
   "relative grid h-9 w-9 place-items-center rounded-full text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 /**
+ * Holds the bell's place while the profile loads, so the navbar does not
+ * shift, without asking for an unread count nobody may have yet.
+ */
+export function NotificationBellPlaceholder() {
+  return (
+    <span
+      aria-hidden
+      data-testid="notification-bell-placeholder"
+      className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground"
+    >
+      <BellIcon className="h-5 w-5" />
+    </span>
+  );
+}
+
+/**
  * The bell: a popover on desktop, the full page on phones, where a popover
  * has no room and the back button should work.
  */
