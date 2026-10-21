@@ -1,5 +1,5 @@
 import { Analytics } from "@vercel/analytics/react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 
 import { esMX } from "@clerk/localizations";
@@ -17,6 +17,7 @@ import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
+import { installedAppName, THEME_COLORS } from "./lib/installable-app";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -32,6 +33,19 @@ export const metadata: Metadata = {
     title: "Productora Glitter",
     description: "Creamos festivales para que los artistas brillen",
   },
+  // Added to an iPhone's home screen, it opens full screen under this name.
+  appleWebApp: {
+    title: installedAppName(),
+    statusBarStyle: "default",
+  },
+};
+
+/** The browser bar matches the navbar in each theme. */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
+  ],
 };
 
 export default function RootLayout({
