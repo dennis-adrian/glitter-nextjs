@@ -121,7 +121,7 @@ Existing entries keep their reason visible to the participant, as before.
 
 - **Bell** (flag `notifications`): unread badge, polled every 60 seconds while the tab is visible, on focus and after navigation. Desktop opens a popover with the latest items, "No leídas / Todas" and "Marcar todo como leído" (disabled when nothing is unread); phones go to the page.
 - **Page** `/my_notifications`: category chips (Todas, Reservas, Pagos y créditos, Anuncios once phase 3 fills it, plus Administración for admins), date groups (Hoy, Ayer, Esta semana, Anteriores), per-item "Marcar como no leída" and "Archivar", and "Ver más".
-- **Detail** `/my_notifications/[id]`: the full message signed "Productora Glitter" and its one action. Opening it marks it read.
+- **Detail** `/my_notifications/[id]`: the full message and its one action, with no sign-off (Dennis, 2026-10-21; the gift emails have none either). Opening it marks it read.
 - **Tapping an item** (Dennis, 2026-10-20). A message someone wrote, like a gift, opens its detail page so it is read whole, with the action as a button ("Ver mi billetera"). A system notice goes straight to its screen; one without a link opens its detail page. Links are always paths inside Glitter.
 - **Empty states:** "Todavía no tenés notificaciones…" and, once everything is read, "¡Estás al día!".
 - **Wallet:** a gift's movement reads "Regalo de Glitter", with its title and the full message.

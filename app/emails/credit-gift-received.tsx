@@ -27,7 +27,7 @@ export type CreditGiftReceivedEmailProps = {
 /**
  * A credit gift from the team (docs/PRD-in-app-notifications.md §7).
  *
- * Signed by Productora Glitter, never by the admin who sent it. The credits are
+ * Sent as Productora Glitter, never as the admin who sent it. The credits are
  * already in the wallet, so there is nothing to claim: the only action is
  * looking at them.
  */
@@ -66,9 +66,6 @@ export default function CreditGiftReceivedEmail({
             <Button href={`${baseUrl}/my_credits`} style={styles.button}>
               Ver mi billetera
             </Button>
-            <Text style={{ ...styles.text, marginTop: "16px" }}>
-              Productora Glitter
-            </Text>
           </Section>
         </Container>
         <EmailFooter />
