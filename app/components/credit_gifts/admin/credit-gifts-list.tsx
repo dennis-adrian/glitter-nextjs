@@ -91,7 +91,7 @@ export default function CreditGiftsList({
                     <CreditAmount
                       amount={creditGiftTotal(
                         gift.amountPerRecipient,
-                        gift.counts.granted,
+                        gift.counts.granted - gift.counts.revoked,
                       )}
                     />
                   </TableCell>
