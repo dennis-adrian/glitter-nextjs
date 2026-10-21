@@ -3,14 +3,11 @@ import Link from "next/link";
 import NotificationIcon from "@/app/components/notifications/notification-icon";
 import { Button } from "@/app/components/ui/button";
 import { formatDateWithTime } from "@/app/lib/formatters";
-import {
-  NOTIFICATION_CATEGORY_LABELS,
-  NOTIFICATION_SENDER_NAME,
-} from "@/app/lib/notifications/definitions";
+import { NOTIFICATION_CATEGORY_LABELS } from "@/app/lib/notifications/definitions";
 import { formatCreditDelta } from "@/app/lib/notifications/format";
 import type { NotificationDetail as NotificationDetailData } from "@/app/lib/notifications/queries";
 
-/** One item in full, signed by the team, with its one action. */
+/** One item in full, with its one action. */
 export default function NotificationDetail({
   notification,
 }: {
@@ -48,9 +45,6 @@ export default function NotificationDetail({
       </header>
 
       <p className="whitespace-pre-line leading-relaxed">{text}</p>
-      <p className="text-sm text-muted-foreground">
-        {NOTIFICATION_SENDER_NAME}
-      </p>
 
       {notification.actionPath && notification.actionLabel && (
         <Button asChild>

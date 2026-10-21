@@ -75,9 +75,6 @@ export const NOTIFICATION_RETENTION_DAYS = 180;
 export const NOTIFICATION_PAGE_SIZE = 20;
 export const NOTIFICATION_POPOVER_SIZE = 8;
 
-/** The sender every participant-facing message is signed with. */
-export const NOTIFICATION_SENDER_NAME = "Productora Glitter";
-
 /** What the inbox shows of one notification. Never carries an email address. */
 export type InboxNotification = {
   id: number;

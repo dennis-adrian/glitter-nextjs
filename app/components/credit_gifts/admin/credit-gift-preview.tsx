@@ -16,7 +16,6 @@ import {
   isValidCreditGiftAmount,
   personalizeCreditGiftMessage,
 } from "@/app/lib/credit_gifts/definitions";
-import { NOTIFICATION_SENDER_NAME } from "@/app/lib/notifications/definitions";
 
 type CreditGiftPreviewProps = {
   /**
@@ -103,9 +102,6 @@ export default function CreditGiftPreview({
             <p className="text-xs font-medium">{title}</p>
             <p className="whitespace-pre-line text-xs text-muted-foreground">
               {personalized}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {NOTIFICATION_SENDER_NAME}
             </p>
           </div>
           <CreditAmount
