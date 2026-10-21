@@ -93,14 +93,22 @@ export function legacyParserAgrees(endpoint: string): boolean {
 export async function sendPush(
   target: PushTarget,
   payload: string,
-  options: { vapid: VapidConfig; topic: string },
+  options: {
+    vapid: VapidConfig;
+    topic: string;
+    /** What is left of the push's lifetime; never more than 48 h. */
+    ttlSeconds: number;
+  },
 ): Promise<PushSendResult> {
   if (!legacyParserAgrees(target.endpoint)) {
     throw new Error("push_endpoint_rejected");
   }
   const audience = new URL(target.endpoint).origin;
   const result = await webpush.sendNotification(target, payload, {
-    TTL: PUSH_TTL_SECONDS,
+    TTL: Math.max(
+      0,
+      Math.min(PUSH_TTL_SECONDS, Math.floor(options.ttlSeconds)),
+    ),
     urgency: "normal",
     topic: options.topic,
     timeout: PUSH_REQUEST_TIMEOUT_MS,

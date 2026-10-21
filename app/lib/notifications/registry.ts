@@ -112,6 +112,9 @@ const kinds = {
       }),
     }),
     creditDelta: (data) => -data.amount,
+    // Names the gift an admin titled, and any debt: read on its own page,
+    // and kept off a lock screen.
+    opensDetail: () => true,
     push: true,
   } satisfies KindDefinition<z.infer<typeof creditGiftRevokedSchema>>,
 

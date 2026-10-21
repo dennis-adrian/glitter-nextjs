@@ -301,6 +301,16 @@ describe("every kind", () => {
     ).toBe(true);
   });
 
+  it("keeps a revoked gift's title and the debt on the item's own page", () => {
+    // The push then says only "Tocá para ver el detalle." under its title.
+    expect(
+      notificationOpensDetail(
+        "credit_gift_revoked",
+        FIXTURES.credit_gift_revoked,
+      ),
+    ).toBe(true);
+  });
+
   it("never pushes a receipt for something the person just did", () => {
     expect(
       notificationPushes("reservation_proof_submitted", {

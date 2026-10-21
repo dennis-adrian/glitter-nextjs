@@ -465,6 +465,72 @@ describe("savePushDeviceAction", () => {
   });
 });
 
+describe("a device query that fails", () => {
+  /** What drizzle throws: the failed query with its params in the message. */
+  function failedQuery(keys: { p256dh: string; auth: string }) {
+    return Object.assign(
+      new Error(
+        `Failed query: insert into "push_subscriptions" ...\nparams: ${ENDPOINT},${keys.p256dh},${keys.auth}`,
+      ),
+      { name: "DrizzleQueryError", cause: { code: "57P01" } },
+    );
+  }
+
+  it.each([
+    ["turning avisos on", false],
+    ["a later visit", true],
+  ])(
+    "tells the person to try again and logs no endpoint or key, for %s",
+    async (_, refreshOnly) => {
+      const keys = browserKeys();
+      const error = failedQuery(keys);
+      savePushSubscriptionMock.mockRejectedValue(error);
+      refreshPushSubscriptionMock.mockRejectedValue(error);
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const result = await savePushDeviceAction({
+        endpoint: ENDPOINT,
+        keys,
+        refreshOnly,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        message:
+          "No pudimos guardar los avisos de este dispositivo. Intentá de nuevo.",
+      });
+      const output = JSON.stringify(logged.mock.calls);
+      expect(output).toContain("DrizzleQueryError");
+      expect(output).toContain("57P01");
+      expect(output).not.toContain(ENDPOINT);
+      expect(output).not.toContain(keys.p256dh);
+      expect(output).not.toContain(keys.auth);
+      logged.mockRestore();
+    },
+  );
+
+  it("does the same when forgetting, removing or releasing a device", async () => {
+    const keys = browserKeys();
+    removePushSubscriptionsMock.mockRejectedValue(failedQuery(keys));
+    releaseForeignPushSubscriptionMock.mockRejectedValue(failedQuery(keys));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const results = [
+      await forgetPushDeviceAction(ENDPOINT),
+      await removePushDeviceAction(7),
+      await releaseForeignPushDeviceAction({
+        endpoint: ENDPOINT,
+        auth: keys.auth,
+      }),
+    ];
+
+    expect(results.every((result) => result.success === false)).toBe(true);
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(ENDPOINT);
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(keys.auth);
+    logged.mockRestore();
+  });
+});
+
 describe("removePushDeviceAction", () => {
   it("removes one of the viewer's own devices, whatever the flags say", async () => {
     resolveInboxViewerWithAccessMock.mockResolvedValue(null);

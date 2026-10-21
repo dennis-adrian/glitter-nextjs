@@ -712,7 +712,13 @@ describeDatabase("web push deliveries", () => {
         endpoint: device.endpoint,
         keys: { p256dh: device.p256dh, auth: device.auth },
       });
-      expect(options).toEqual({ vapid: VAPID, topic: `n${notificationId}` });
+      expect(options).toMatchObject({
+        vapid: VAPID,
+        topic: `n${notificationId}`,
+      });
+      // A fresh push keeps (almost) all of its 48 hours.
+      expect(options.ttlSeconds).toBeGreaterThan(172_700);
+      expect(options.ttlSeconds).toBeLessThanOrEqual(172_800);
       const item = await itemById(notificationId);
       expect(JSON.parse(payload)).toEqual({
         v: 1,
@@ -785,13 +791,16 @@ describeDatabase("web push deliveries", () => {
         deliveryIds: [pushId],
       } = await notifyNow({
         userId: ana.id,
-        kind: "credit_gift_revoked",
+        kind: "reservation_confirmed",
         data: {
-          campaignId: 1,
-          name: "Ana",
-          amount: 5,
-          title: "Un regalo",
-          debtAmount: 0,
+          reservationId: 7,
+          festivalId: 3,
+          festivalName: "Glitter Vol. 9",
+          standLabel: "B48",
+          standCount: 1,
+          profileId: ana.id,
+          startsAt: null,
+          locationLabel: null,
         },
       });
 
@@ -802,6 +811,36 @@ describeDatabase("web push deliveries", () => {
         title: item.title,
         body: item.body,
       });
+    });
+
+    it("keeps a revoked gift's admin-written title and the debt off the lock screen", async () => {
+      const ana = await createUser();
+      await addDevice(ana.id);
+      const {
+        notificationId,
+        deliveryIds: [pushId],
+      } = await notifyNow({
+        userId: ana.id,
+        kind: "credit_gift_revoked",
+        data: {
+          campaignId: 1,
+          name: "Ana",
+          amount: 5,
+          title: "Compensación por el error en tu cobro",
+          debtAmount: 3,
+        },
+      });
+
+      await deliveries.attemptNotificationDelivery(pushId!);
+
+      const item = await itemById(notificationId);
+      const pushed = sendPushMock.mock.calls[0]![1];
+      expect(JSON.parse(pushed)).toMatchObject({
+        title: item.title,
+        body: "Tocá para ver el detalle.",
+      });
+      expect(pushed).not.toContain("Compensación");
+      expect(pushed).not.toContain("saldo pendiente");
     });
 
     it.each([410, 404])(

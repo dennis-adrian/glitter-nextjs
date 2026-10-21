@@ -29,6 +29,9 @@ function sameOriginPath(value) {
   try {
     const url = new URL(value, self.location.origin);
     if (url.origin !== self.location.origin) return FALLBACK_PATH;
+    // "/.//host" passes the origin check but its path reads as "//host",
+    // which a browser resolves to another site.
+    if (url.pathname.startsWith("//")) return FALLBACK_PATH;
     return url.pathname + url.search + url.hash;
   } catch {
     return FALLBACK_PATH;

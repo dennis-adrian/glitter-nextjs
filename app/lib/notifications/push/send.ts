@@ -135,9 +135,11 @@ export async function attemptPushDelivery(delivery: {
   if (delivery.pushSubscriptionId == null) {
     return { kind: "skip", reason: "no_device" };
   }
-  if (Date.now() - delivery.createdAt.getTime() > PUSH_TTL_SECONDS * 1000) {
-    return { kind: "skip", reason: "expired" };
-  }
+  // A late send (throttled, or handed back) keeps only what is left of the
+  // push's lifetime, so an offline device never gets it past that.
+  const ttlSeconds =
+    PUSH_TTL_SECONDS - (Date.now() - delivery.createdAt.getTime()) / 1000;
+  if (ttlSeconds <= 0) return { kind: "skip", reason: "expired" };
   const vapid = pushVapidConfig();
   if (!vapid) return { kind: "release", reason: "unconfigured" };
 
@@ -226,7 +228,7 @@ export async function attemptPushDelivery(delivery: {
         keys: { p256dh: row.p256dh, auth: row.auth },
       },
       payload,
-      { vapid, topic: pushTopic(row.id) },
+      { vapid, topic: pushTopic(row.id), ttlSeconds },
     );
     result = classifyPushResponse(response);
   } catch (error) {

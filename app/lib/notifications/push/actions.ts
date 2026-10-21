@@ -58,6 +58,36 @@ const subscriptionSchema = z.object({
 
 const idSchema = z.coerce.number().int().positive().max(MAX_SERIAL_ID);
 
+const DEVICE_ERROR = {
+  success: false,
+  message:
+    "No pudimos guardar los avisos de este dispositivo. Intentá de nuevo.",
+} as const;
+
+/**
+ * Runs a device query, and keeps a failure out of the logs: these queries take
+ * the endpoint and keys as params, and a failed query's error repeats its
+ * params in its message. Only the error type and the database code are told.
+ */
+async function deviceQuery<T>(
+  label: string,
+  work: () => Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false }> {
+  try {
+    return { ok: true, value: await work() };
+  } catch (error) {
+    const cause = error instanceof Error ? error.cause : undefined;
+    console.error(`Push device ${label} failed`, {
+      errorType: error instanceof Error ? error.name : typeof error,
+      code:
+        cause && typeof cause === "object" && "code" in cause
+          ? String(cause.code)
+          : undefined,
+    });
+    return { ok: false };
+  }
+}
+
 /** A label is only shown to its owner, but still kept to one plain line. */
 function cleanLabel(label: string | null | undefined) {
   // Control characters and invisible direction marks become spaces; the cut
@@ -132,12 +162,17 @@ export async function savePushDeviceAction(
     label: cleanLabel(label),
   };
   if (refreshOnly) {
-    return { success: true, deviceId: await refreshPushSubscription(device) };
+    const refreshed = await deviceQuery("refresh", () =>
+      refreshPushSubscription(device),
+    );
+    if (!refreshed.ok) return DEVICE_ERROR;
+    return { success: true, deviceId: refreshed.value };
   }
-  const deviceId = await savePushSubscription(device);
-  if (deviceId === "deleting") return UNAVAILABLE;
-  if (deviceId == null) return INVALID;
-  return { success: true, deviceId };
+  const saved = await deviceQuery("save", () => savePushSubscription(device));
+  if (!saved.ok) return DEVICE_ERROR;
+  if (saved.value === "deleting") return UNAVAILABLE;
+  if (saved.value == null) return INVALID;
+  return { success: true, deviceId: saved.value };
 }
 
 /**
@@ -152,8 +187,10 @@ export async function removePushDeviceAction(
   if (!viewer) return UNAVAILABLE;
   const parsed = idSchema.safeParse(id);
   if (!parsed.success) return INVALID;
-  await removePushSubscriptions(viewer.id, { ids: [parsed.data] });
-  return { success: true };
+  const removed = await deviceQuery("remove", () =>
+    removePushSubscriptions(viewer.id, { ids: [parsed.data] }),
+  );
+  return removed.ok ? { success: true } : DEVICE_ERROR;
 }
 
 /**
@@ -174,11 +211,11 @@ export async function releaseForeignPushDeviceAction(
     })
     .safeParse(input);
   if (!parsed.success) return INVALID;
-  const released = await releaseForeignPushSubscription({
-    userId: viewer.id,
-    ...parsed.data,
-  });
-  return { success: true, released };
+  const released = await deviceQuery("release", () =>
+    releaseForeignPushSubscription({ userId: viewer.id, ...parsed.data }),
+  );
+  if (!released.ok) return DEVICE_ERROR;
+  return { success: true, released: released.value };
 }
 
 /**
@@ -192,6 +229,8 @@ export async function forgetPushDeviceAction(
   if (!viewer) return UNAVAILABLE;
   const parsed = z.string().min(1).max(MAX_ENDPOINT_LENGTH).safeParse(endpoint);
   if (!parsed.success) return INVALID;
-  await removePushSubscriptions(viewer.id, { endpoint: parsed.data });
-  return { success: true };
+  const forgotten = await deviceQuery("forget", () =>
+    removePushSubscriptions(viewer.id, { endpoint: parsed.data }),
+  );
+  return forgotten.ok ? { success: true } : DEVICE_ERROR;
 }

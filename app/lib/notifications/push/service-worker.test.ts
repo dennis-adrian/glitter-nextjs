@@ -403,14 +403,21 @@ describe("tapping a notification", () => {
     expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
   });
 
-  it.each(["https://evil.test/x", "//evil.test/x", "javascript:alert(1)", ""])(
-    "opens the inbox instead of %j",
-    async (url) => {
-      const tab = openTab(`${ORIGIN}/merch`);
-      await tap(worker, { url }, [tab]);
-      expect(tab.navigate).toHaveBeenCalledWith(INBOX);
-    },
-  );
+  it.each([
+    "https://evil.test/x",
+    "//evil.test/x",
+    "javascript:alert(1)",
+    "",
+    // Same origin until the path resolves as "//evil.test".
+    "/.//evil.test/x",
+    "/%2e//evil.test/x",
+    "/a/..//evil.test/x",
+    `${ORIGIN}//evil.test/x`,
+  ])("opens the inbox instead of %j", async (url) => {
+    const tab = openTab(`${ORIGIN}/merch`);
+    await tap(worker, { url }, [tab]);
+    expect(tab.navigate).toHaveBeenCalledWith(INBOX);
+  });
 
   it.each([
     { carrying: "no data", data: null },

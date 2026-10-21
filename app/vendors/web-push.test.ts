@@ -97,7 +97,7 @@ describe("sendPush", () => {
     await sendPush(
       subscription("https://fcm.googleapis.com/fcm/send/a"),
       JSON.stringify({ title: "🎉".repeat(120), body: "\u0002".repeat(240) }),
-      { vapid: keys, topic: "n2147483647" },
+      { vapid: keys, topic: "n2147483647", ttlSeconds: 172_800 },
     );
 
     const [request] = built;
@@ -111,6 +111,18 @@ describe("sendPush", () => {
       new RegExp(`^vapid t=[^,]+, k=${keys.publicKey}$`),
     );
     expect((request.body as Buffer).length).toBeLessThanOrEqual(4096);
+  });
+
+  it("sends only what is left of a late push's lifetime", async () => {
+    const send = vi
+      .spyOn(webpush, "sendNotification")
+      .mockResolvedValue({ statusCode: 201, body: "", headers: {} });
+    await sendPush(subscription("https://web.push.apple.com/a"), "{}", {
+      vapid: vapid(),
+      topic: "n1",
+      ttlSeconds: 3_600.7,
+    });
+    expect(send.mock.calls[0][2]?.TTL).toBe(3_600);
   });
 
   it("signs again once the hour is up", async () => {
@@ -127,13 +139,25 @@ describe("sendPush", () => {
         "https://updates.push.services.mozilla.com/w",
       );
 
-      await sendPush(target, "{}", { vapid: keys, topic: "n1" });
+      await sendPush(target, "{}", {
+        vapid: keys,
+        topic: "n1",
+        ttlSeconds: 172_800,
+      });
       vi.advanceTimersByTime(59 * 60 * 1000);
-      await sendPush(target, "{}", { vapid: keys, topic: "n1" });
+      await sendPush(target, "{}", {
+        vapid: keys,
+        topic: "n1",
+        ttlSeconds: 172_800,
+      });
       expect(sign).toHaveBeenCalledTimes(1);
 
       vi.advanceTimersByTime(2 * 60 * 1000);
-      await sendPush(target, "{}", { vapid: keys, topic: "n1" });
+      await sendPush(target, "{}", {
+        vapid: keys,
+        topic: "n1",
+        ttlSeconds: 172_800,
+      });
       expect(sign).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
@@ -150,10 +174,12 @@ describe("sendPush", () => {
     await sendPush(subscription("https://web.push.apple.com/a"), "{}", {
       vapid: keys,
       topic: "n1",
+      ttlSeconds: 172_800,
     });
     await sendPush(subscription("https://web.push.apple.com/b"), "{}", {
       vapid: keys,
       topic: "n2",
+      ttlSeconds: 172_800,
     });
     await sendPush(
       subscription("https://fcm.googleapis.com/fcm/send/c"),
@@ -161,6 +187,7 @@ describe("sendPush", () => {
       {
         vapid: keys,
         topic: "n3",
+        ttlSeconds: 172_800,
       },
     );
 
@@ -185,7 +212,7 @@ describe("sendPush", () => {
       sendPush(
         subscription("https://127.0.0.1;.fcm.googleapis.com/fcm/send/x"),
         "{}",
-        { vapid: vapid(), topic: "n1" },
+        { vapid: vapid(), topic: "n1", ttlSeconds: 172_800 },
       ),
     ).rejects.toThrow("push_endpoint_rejected");
     expect(send).not.toHaveBeenCalled();
