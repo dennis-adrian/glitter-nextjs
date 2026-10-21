@@ -29,13 +29,19 @@ async function resolveProgramsHref(): Promise<string | null> {
 }
 
 export default async function Navbar() {
-  const [programsHref, creditsEnabled, blogEnabled, landingContent] =
-    await Promise.all([
-      resolveProgramsHref(),
-      isLayoutFeatureEnabled("credits"),
-      isLayoutFeatureEnabled("blog"),
-      getPublishedLandingContent(),
-    ]);
+  const [
+    programsHref,
+    creditsEnabled,
+    blogEnabled,
+    notificationsEnabled,
+    landingContent,
+  ] = await Promise.all([
+    resolveProgramsHref(),
+    isLayoutFeatureEnabled("credits"),
+    isLayoutFeatureEnabled("blog"),
+    isLayoutFeatureEnabled("notifications"),
+    getPublishedLandingContent(),
+  ]);
 
   return (
     <div data-site-navbar data-sticky-top className="sticky top-0 z-50">
@@ -44,6 +50,7 @@ export default async function Navbar() {
         programsHref={programsHref}
         creditsEnabled={creditsEnabled}
         blogEnabled={blogEnabled}
+        notificationsEnabled={notificationsEnabled}
       />
     </div>
   );

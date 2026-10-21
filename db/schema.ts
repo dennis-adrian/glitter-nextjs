@@ -7087,3 +7087,333 @@ export const postShareLinksRelations = relations(postShareLinks, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+/**
+ * In-app notifications (docs/PRD-in-app-notifications.md).
+ *
+ * Which inbox filter an item belongs to. Phase 1 only posts `credits` and
+ * `admin`; the rest exist so the filters are there before the kinds that fill
+ * them.
+ */
+export const notificationCategoryEnum = pgEnum("notification_category", [
+  "reservations",
+  "credits",
+  "announcements",
+  "account",
+  "admin",
+]);
+export const notificationDeliveryStatusEnum = pgEnum(
+  "notification_delivery_status",
+  ["pending", "processing", "sent", "failed", "skipped"],
+);
+export const notificationCampaignTypeEnum = pgEnum(
+  "notification_campaign_type",
+  ["credit_gift"],
+);
+export const notificationCampaignStatusEnum = pgEnum(
+  "notification_campaign_status",
+  ["processing", "completed"],
+);
+export const notificationCampaignRecipientStatusEnum = pgEnum(
+  "notification_campaign_recipient_status",
+  ["pending", "granted", "skipped", "failed"],
+);
+export const creditGiftOccasionEnum = pgEnum("credit_gift_occasion", [
+  "thanks",
+  "compensation",
+  "prize",
+  "welcome",
+  "other",
+]);
+
+/**
+ * Admin-initiated sends. Phase 1 has one type, a credit gift, whose amount and
+ * internal note live in `credit_gift_details`.
+ *
+ * `title` and `message` are what participants see. `message` keeps its
+ * `{nombre}` placeholder; each recipient's notification stores the rendered
+ * copy.
+ */
+export const notificationCampaigns = pgTable(
+  "notification_campaigns",
+  {
+    id: serial("id").primaryKey(),
+    type: notificationCampaignTypeEnum("type").notNull(),
+    status: notificationCampaignStatusEnum("status")
+      .default("processing")
+      .notNull(),
+    title: text("title").notNull(),
+    message: text("message").notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Minted per confirm click, so a double submit is one gift, not two. */
+    idempotencyKey: text("idempotency_key").notNull(),
+    completedAt: timestamp("completed_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("notification_campaigns_idempotency_key_unique").on(
+      t.idempotencyKey,
+    ),
+    index("notification_campaigns_type_created_idx").on(t.type, t.createdAt),
+    index("notification_campaigns_processing_idx")
+      .on(t.createdAt)
+      .where(sql`${t.status} = 'processing'`),
+  ],
+);
+
+export const creditGiftDetails = pgTable(
+  "credit_gift_details",
+  {
+    campaignId: integer("campaign_id")
+      .primaryKey()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    amountPerRecipient: money("amount_per_recipient").notNull(),
+    occasion: creditGiftOccasionEnum("occasion").notNull(),
+    /** Why the team sent it. Admin pages only; never shown to participants. */
+    internalNote: text("internal_note").notNull(),
+  },
+  (t) => [
+    check(
+      "credit_gift_details_amount_positive",
+      sql`${t.amountPerRecipient} > 0`,
+    ),
+  ],
+);
+
+/**
+ * One in-app item per person per event: the inbox copy, kept as it was shown.
+ *
+ * `data` is a participant-safe snapshot, so the item reads the same after the
+ * thing it is about changes. `action_path` is an app path, never a tokenised
+ * URL. Retention is a read-time cutoff; rows are never deleted for age.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    category: notificationCategoryEnum("category").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    actionPath: text("action_path"),
+    actionLabel: text("action_label"),
+    data: jsonb("data").$type<Record<string, unknown>>().default({}).notNull(),
+    campaignId: integer("campaign_id").references(
+      () => notificationCampaigns.id,
+      { onDelete: "set null" },
+    ),
+    /** Per user: an event notifies a person once however often it fires. */
+    dedupeKey: text("dedupe_key").notNull(),
+    readAt: timestamp("read_at"),
+    archivedAt: timestamp("archived_at"),
+    /** When the one-time celebration banner was shown, or cancelled. */
+    celebratedAt: timestamp("celebrated_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("notifications_user_dedupe_key_unique").on(
+      t.userId,
+      t.dedupeKey,
+    ),
+    // The inbox pages by id, newest first, within one person's items.
+    index("notifications_user_id_idx").on(t.userId, t.id),
+    index("notifications_user_unread_idx")
+      .on(t.userId, t.createdAt)
+      .where(sql`${t.readAt} IS NULL AND ${t.archivedAt} IS NULL`),
+    index("notifications_campaign_idx").on(t.campaignId),
+    check(
+      "notifications_action_path_relative",
+      sql`${t.actionPath} IS NULL OR ${t.actionPath} LIKE '/%'`,
+    ),
+  ],
+);
+
+/**
+ * One email to send. Meant to replace the per-domain outbox tables over time.
+ *
+ * `payload` is the snapshot the template renders from, so a retry or a
+ * re-send renders the same email and Resend's idempotency key behaves.
+ */
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    /** Null for mail with no inbox copy (visitors and guests, later phases). */
+    notificationId: integer("notification_id").references(
+      () => notifications.id,
+      { onDelete: "cascade" },
+    ),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    templateKey: text("template_key").notNull(),
+    recipientEmail: text("recipient_email").notNull(),
+    payload: jsonb("payload")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    status: notificationDeliveryStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    lastError: text("last_error"),
+    providerMessageId: text("provider_message_id"),
+    /** Dedup for the row itself; the Resend key is derived from the id. */
+    idempotencyKey: text("idempotency_key").notNull(),
+    resendOfDeliveryId: integer("resend_of_delivery_id"),
+    requestedByUserId: integer("requested_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    sentAt: timestamp("sent_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("notification_deliveries_idempotency_key_unique").on(
+      t.idempotencyKey,
+    ),
+    index("notification_deliveries_status_next_attempt_idx").on(
+      t.status,
+      t.nextAttemptAt,
+    ),
+    index("notification_deliveries_notification_idx").on(t.notificationId),
+    foreignKey({
+      name: "notification_deliveries_resend_of_delivery_id_fk",
+      columns: [t.resendOfDeliveryId],
+      foreignColumns: [t.id],
+    }).onDelete("set null"),
+  ],
+);
+
+export const notificationCampaignRecipients = pgTable(
+  "notification_campaign_recipients",
+  {
+    id: serial("id").primaryKey(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: notificationCampaignRecipientStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    /** Why a recipient was left out, in the admin's words. */
+    skippedReason: text("skipped_reason"),
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    ledgerEntryId: integer("ledger_entry_id").references(
+      () => creditLedgerEntries.id,
+      { onDelete: "restrict" },
+    ),
+    notificationId: integer("notification_id").references(
+      () => notifications.id,
+      { onDelete: "set null" },
+    ),
+    reversalEntryId: integer("reversal_entry_id").references(
+      () => creditLedgerEntries.id,
+      { onDelete: "restrict" },
+    ),
+    revokedAt: timestamp("revoked_at"),
+    revokedByUserId: integer("revoked_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    processedAt: timestamp("processed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("notification_campaign_recipients_campaign_user_unique").on(
+      t.campaignId,
+      t.userId,
+    ),
+    index("notification_campaign_recipients_pending_idx")
+      .on(t.campaignId)
+      .where(sql`${t.status} = 'pending'`),
+    index("notification_campaign_recipients_ledger_entry_idx").on(
+      t.ledgerEntryId,
+    ),
+    check(
+      "notification_campaign_recipients_skip_reason",
+      sql`(${t.status} = 'skipped') = (${t.skippedReason} IS NOT NULL)`,
+    ),
+    check(
+      "notification_campaign_recipients_revoked_was_granted",
+      sql`${t.revokedAt} IS NULL OR (${t.status} = 'granted' AND ${t.reversalEntryId} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const notificationCampaignsRelations = relations(
+  notificationCampaigns,
+  ({ one, many }) => ({
+    createdBy: one(users, {
+      fields: [notificationCampaigns.createdByUserId],
+      references: [users.id],
+    }),
+    creditGift: one(creditGiftDetails),
+    recipients: many(notificationCampaignRecipients),
+  }),
+);
+
+export const creditGiftDetailsRelations = relations(
+  creditGiftDetails,
+  ({ one }) => ({
+    campaign: one(notificationCampaigns, {
+      fields: [creditGiftDetails.campaignId],
+      references: [notificationCampaigns.id],
+    }),
+  }),
+);
+
+export const notificationsRelations = relations(
+  notifications,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [notifications.userId],
+      references: [users.id],
+    }),
+    campaign: one(notificationCampaigns, {
+      fields: [notifications.campaignId],
+      references: [notificationCampaigns.id],
+    }),
+    deliveries: many(notificationDeliveries),
+  }),
+);
+
+export const notificationDeliveriesRelations = relations(
+  notificationDeliveries,
+  ({ one }) => ({
+    notification: one(notifications, {
+      fields: [notificationDeliveries.notificationId],
+      references: [notifications.id],
+    }),
+  }),
+);
+
+export const notificationCampaignRecipientsRelations = relations(
+  notificationCampaignRecipients,
+  ({ one }) => ({
+    campaign: one(notificationCampaigns, {
+      fields: [notificationCampaignRecipients.campaignId],
+      references: [notificationCampaigns.id],
+    }),
+    user: one(users, {
+      fields: [notificationCampaignRecipients.userId],
+      references: [users.id],
+    }),
+    notification: one(notifications, {
+      fields: [notificationCampaignRecipients.notificationId],
+      references: [notifications.id],
+    }),
+  }),
+);

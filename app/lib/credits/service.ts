@@ -1323,7 +1323,14 @@ export async function resolveCreditDebt(input: {
 export async function adjustCreditAccount(input: {
   userId: number;
   amount: number;
+  /** What the participant reads in their movements. May be empty with a note. */
   reason: string;
+  /**
+   * Why the team moved the balance, for the admin history only. Kept apart
+   * from `reason` so "compensación por cambio de sector" never lands in a
+   * participant's wallet.
+   */
+  internalNote?: string;
   idempotencyKey: string;
   /**
    * The admin entry this one undoes, if any.
@@ -1344,12 +1351,14 @@ export async function adjustCreditAccount(input: {
     !Number.isFinite(input.amount) ||
     input.amount === 0 ||
     Math.abs(roundCredits(input.amount) - input.amount) >= 1e-9 ||
-    !input.reason.trim() ||
+    (!input.reason.trim() && !input.internalNote?.trim()) ||
     !input.idempotencyKey.trim()
   ) {
     return failure("INVALID_AMOUNT");
   }
   const amount = roundCredits(input.amount);
+  const reason = input.reason.trim();
+  const internalNote = input.internalNote?.trim();
   return db.transaction(async (tx) => {
     if (!(await lockCreditUserForMutation(tx, input.userId))) {
       return failure("USER_DELETION_PENDING");
@@ -1391,6 +1400,7 @@ export async function adjustCreditAccount(input: {
           userId: creditLedgerEntries.userId,
           amount: creditLedgerEntries.amount,
           type: creditLedgerEntries.type,
+          metadata: creditLedgerEntries.metadata,
         })
         .from(creditLedgerEntries)
         .where(eq(creditLedgerEntries.id, input.reversesEntryId))
@@ -1398,11 +1408,13 @@ export async function adjustCreditAccount(input: {
       // Only an admin's own entry is undoable here. A top-up is undone by
       // rejecting its voucher, and a spend by whatever booked it — reversing
       // either from this screen would leave the thing it paid for standing
-      // with no matching money.
+      // with no matching money. A credit gift is undone from its own page,
+      // which also records the revocation and tells the participant.
       if (
         !target ||
         target.userId !== input.userId ||
-        (target.type !== "admin_grant" && target.type !== "admin_adjustment")
+        (target.type !== "admin_grant" && target.type !== "admin_adjustment") ||
+        typeof target.metadata?.creditGiftId === "string"
       ) {
         return failure("ENTRY_NOT_REVERTIBLE");
       }
@@ -1426,7 +1438,8 @@ export async function adjustCreditAccount(input: {
         idempotencyKey: input.idempotencyKey,
         reversesEntryId: input.reversesEntryId ?? null,
         metadata: {
-          reason: input.reason.trim(),
+          ...(reason ? { reason } : {}),
+          ...(internalNote ? { internalNote } : {}),
           ...(input.adminUserId != null
             ? { adminUserId: String(input.adminUserId) }
             : {}),
@@ -1522,6 +1535,125 @@ export async function grantCreditsInTx(
   if (!entry) return null;
   await updateCachedBalance(tx, input.userId, amount);
   return { ledgerEntryId: entry.id };
+}
+
+/**
+ * Takes the user and credit-account locks a credit write needs, in the
+ * canonical order, for a workflow that writes inside its own transaction.
+ *
+ * False when the profile is being deleted, or already is: the deletion takes
+ * the same user lock, so a credit posted after this check could strand a
+ * ledger entry on an account that is about to disappear.
+ */
+export async function lockCreditAccountForWriteInTx(
+  tx: CreditTx,
+  userId: number,
+): Promise<boolean> {
+  if (!(await lockCreditUserForMutation(tx, userId))) return false;
+  // Checked under the lock: creating the account row for a user deleted a
+  // moment ago would fail on its foreign key instead of reading as "gone".
+  const [user] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) return false;
+  await lockCreditAccount(tx, userId);
+  return true;
+}
+
+/**
+ * Undoes one `admin_grant` inside a caller's transaction, posting its opposite
+ * linked through `reverses_entry_id`, as `adjustCreditAccount` does from the
+ * account screen.
+ *
+ * The caller must hold the account through `lockCreditAccountForWriteInTx`.
+ * The same idempotency key replays the first reversal; any other second
+ * attempt is refused, so the account can never be short by the grant twice.
+ * The balance may go negative, which blocks credit use until regularized.
+ */
+export async function reverseAdminGrantInTx(
+  tx: CreditTx,
+  input: {
+    userId: number;
+    grantEntryId: number;
+    reason: string;
+    idempotencyKey: string;
+    adminUserId: number;
+    metadata?: Record<string, string>;
+  },
+): Promise<CreditResult<{ ledgerEntryId: number; amount: number }>> {
+  if (!input.reason.trim() || !input.idempotencyKey.trim()) {
+    return failure("INVALID_AMOUNT");
+  }
+
+  const [existing] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+      amount: creditLedgerEntries.amount,
+      reversesEntryId: creditLedgerEntries.reversesEntryId,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.idempotencyKey, input.idempotencyKey))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    if (
+      existing.userId !== input.userId ||
+      existing.reversesEntryId !== input.grantEntryId
+    ) {
+      return failure("IDEMPOTENCY_CONFLICT");
+    }
+    return {
+      ok: true,
+      data: { ledgerEntryId: existing.id, amount: Number(existing.amount) },
+    };
+  }
+
+  const [target] = await tx
+    .select({
+      id: creditLedgerEntries.id,
+      userId: creditLedgerEntries.userId,
+      amount: creditLedgerEntries.amount,
+      type: creditLedgerEntries.type,
+    })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.id, input.grantEntryId))
+    .limit(1);
+  if (
+    !target ||
+    target.userId !== input.userId ||
+    target.type !== "admin_grant"
+  ) {
+    return failure("ENTRY_NOT_REVERTIBLE");
+  }
+  const [alreadyReverted] = await tx
+    .select({ id: creditLedgerEntries.id })
+    .from(creditLedgerEntries)
+    .where(eq(creditLedgerEntries.reversesEntryId, input.grantEntryId))
+    .limit(1);
+  if (alreadyReverted) return failure("ENTRY_ALREADY_REVERTED");
+
+  const amount = -roundCredits(Number(target.amount));
+  const [entry] = await tx
+    .insert(creditLedgerEntries)
+    .values({
+      userId: input.userId,
+      amount,
+      type: "admin_adjustment",
+      idempotencyKey: input.idempotencyKey,
+      reversesEntryId: input.grantEntryId,
+      metadata: {
+        ...input.metadata,
+        reason: input.reason.trim(),
+        adminUserId: String(input.adminUserId),
+      },
+    })
+    .returning({ id: creditLedgerEntries.id });
+  if (!entry) return failure("IDEMPOTENCY_CONFLICT");
+  await updateCachedBalance(tx, input.userId, amount);
+  return { ok: true, data: { ledgerEntryId: entry.id, amount } };
 }
 
 export { exactCreditShortfall };

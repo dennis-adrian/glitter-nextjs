@@ -39,12 +39,12 @@ function open(canAdjust = true) {
   );
 }
 
-function fill(amount: string, reason = "Compensación") {
+function fill(amount: string, note = "Compensación por el cambio de sector") {
   fireEvent.change(screen.getByLabelText("Cantidad de créditos"), {
     target: { value: amount },
   });
-  fireEvent.change(screen.getByLabelText("Motivo"), {
-    target: { value: reason },
+  fireEvent.change(screen.getByLabelText("Motivo interno"), {
+    target: { value: note },
   });
 }
 
@@ -63,7 +63,26 @@ describe("CreditAdjustDialog", () => {
     expect(adjustCreditAccountAction.mock.calls[0][0]).toMatchObject({
       userId: 11,
       amount: 20,
-      reason: "Compensación",
+      internalNote: "Compensación por el cambio de sector",
+      reason: "",
+    });
+  });
+
+  it("keeps the internal note apart from what the participant reads", async () => {
+    // The team's reason stays in the admin history; the wallet only shows
+    // the detail written for the participant.
+    open();
+    fill("20");
+    fireEvent.change(
+      screen.getByLabelText("Detalle para el participante (opcional)"),
+      { target: { value: "Devolución por la reserva cancelada" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Otorgar/ }));
+
+    await waitFor(() => expect(adjustCreditAccountAction).toHaveBeenCalled());
+    expect(adjustCreditAccountAction.mock.calls[0][0]).toMatchObject({
+      internalNote: "Compensación por el cambio de sector",
+      reason: "Devolución por la reserva cancelada",
     });
   });
 
@@ -80,9 +99,8 @@ describe("CreditAdjustDialog", () => {
     });
   });
 
-  it("refuses to submit without a reason", () => {
-    // The ledger entry is the only record of why a balance moved, and it is
-    // what the participant reads in their own movements.
+  it("refuses to submit without an internal reason", () => {
+    // The ledger entry is the only record of why a balance moved.
     open();
     fireEvent.change(screen.getByLabelText("Cantidad de créditos"), {
       target: { value: "20" },

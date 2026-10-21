@@ -139,8 +139,15 @@ export async function liftSuppression(input: {
 }
 
 /** The address bounced or reported us, and Resend has not lifted it. */
-export async function isSuppressed(address: string) {
-  const [row] = await db
+export async function isSuppressed(
+  address: string,
+  /**
+   * A caller inside a transaction passes it, so the check does not check out
+   * a second pooled connection while the first holds locks.
+   */
+  executor: Pick<typeof db, "select"> = db,
+) {
+  const [row] = await executor
     .select({ id: emailSuppressions.id })
     .from(emailSuppressions)
     .where(

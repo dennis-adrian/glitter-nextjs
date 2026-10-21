@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { type CreditBalances } from "@/app/lib/credits/balances";
 import { readCreditBalances } from "@/app/lib/credits/service";
+import { fetchGiftMessagesForLedgerEntries } from "@/app/lib/notifications/queries";
 import { roundMoney } from "@/app/lib/reservations/money";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -68,6 +69,15 @@ export type CreditWalletEntry = {
    * adjustment reverted months later would otherwise still offer its button.
    */
   isReverted: boolean;
+  /** Set on a credit gift's grant: its title and message as this person got it. */
+  gift: { title: string; message: string } | null;
+  /** The gift a grant or its revocation belongs to; undone only from there. */
+  creditGiftId: number | null;
+  /**
+   * The team's note on an admin entry. Null whenever the owner is the one
+   * reading: it is written for the admin history, not for the wallet.
+   */
+  internalNote: string | null;
 };
 
 export type CreditWallet = {
@@ -91,6 +101,18 @@ function displayTopUpStatus(
     return "expired";
   }
   return status as CreditTopUpDisplayStatus;
+}
+
+function readCreditGiftId(metadata: unknown): number | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const id = Number((metadata as { creditGiftId?: unknown }).creditGiftId);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function readMetadataText(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function readReason(metadata: unknown): string | null {
@@ -197,6 +219,17 @@ export async function fetchCreditWallet(
     }
   }
 
+  const giftEntryIds = entryRows
+    .filter(
+      (row) =>
+        row.type === "admin_grant" && readCreditGiftId(row.metadata) != null,
+    )
+    .map((row) => row.id);
+  const giftMessages = await fetchGiftMessagesForLedgerEntries(
+    userId,
+    giftEntryIds,
+  );
+
   return {
     balances,
     topUps: topUpRows.map((row) => {
@@ -230,6 +263,12 @@ export async function fetchCreditWallet(
       createdAt: row.createdAt,
       reversesEntryId: row.reversesEntryId,
       isReverted: revertedIds.has(row.id),
+      gift: giftMessages.get(row.id) ?? null,
+      creditGiftId: readCreditGiftId(row.metadata),
+      internalNote:
+        actor.id !== userId
+          ? readMetadataText(row.metadata, "internalNote")
+          : null,
     })),
   };
 }

@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
+import NotificationBell from "@/app/components/notifications/notification-bell";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
@@ -23,10 +24,13 @@ import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 export default function SessionButtons({
   profile,
   creditsEnabled,
+  notificationsEnabled = false,
   isProfileLoading,
 }: {
   profile?: NavbarProfile | null;
   creditsEnabled: boolean;
+  /** The bell, for whoever the `notifications` flag lets in. */
+  notificationsEnabled?: boolean;
   /** Forwarded to the dropdown so a `null` profile is not read as loading. */
   isProfileLoading: boolean;
 }) {
@@ -105,11 +109,20 @@ export default function SessionButtons({
     );
   }
 
-  return (
+  const dropdown = (
     <UserDropdown
       profile={profile}
       creditsEnabled={creditsEnabled}
       isProfileLoading={isProfileLoading}
     />
+  );
+
+  if (!notificationsEnabled || !isSignedIn) return dropdown;
+
+  return (
+    <div className="flex items-center gap-1 sm:gap-2">
+      <NotificationBell />
+      {dropdown}
+    </div>
   );
 }

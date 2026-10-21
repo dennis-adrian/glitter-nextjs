@@ -16,12 +16,15 @@ type Props = {
   creditsEnabled: boolean;
   /** Hides the blog entry until the blog is public. */
   blogEnabled: boolean;
+  /** Shows the bell to whoever the `notifications` flag lets in. */
+  notificationsEnabled: boolean;
 };
 
 export default function NavbarClient({
   programsHref,
   creditsEnabled,
   blogEnabled,
+  notificationsEnabled,
 }: Props) {
   const { profile, isLoading } = useNavbarProfile();
 
@@ -73,6 +76,7 @@ export default function NavbarClient({
             <SessionButtons
               profile={profile}
               creditsEnabled={creditsEnabled}
+              notificationsEnabled={notificationsEnabled}
               isProfileLoading={isLoading}
             />
           </li>
