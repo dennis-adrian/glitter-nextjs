@@ -14,7 +14,6 @@ import {
 } from "@/app/components/ui/card";
 import { CREDIT_GIFT_WALLET_LABEL } from "@/app/lib/credit_gifts/definitions";
 import { formatDateWithTime } from "@/app/lib/formatters";
-import { NOTIFICATION_SENDER_NAME } from "@/app/lib/notifications/definitions";
 import {
   type FeatureHold,
   type CreditWalletEntry,
@@ -105,9 +104,6 @@ export default function CreditLedgerList({
                   <p className="text-xs font-medium">{entry.gift.title}</p>
                   <p className="whitespace-pre-line text-xs text-muted-foreground">
                     {entry.gift.message}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {NOTIFICATION_SENDER_NAME}
                   </p>
                 </>
               ) : (
