@@ -2,8 +2,8 @@
 
 **Product:** Glitter
 **Feature area:** Participant inbox, admin communications, credits
-**Status:** Phase 1 in progress
-**Last updated:** 2026-10-18
+**Status:** Phase 1 in review
+**Last updated:** 2026-10-20
 
 ---
 
@@ -174,7 +174,21 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
 
 - **P2** Mirror the queued emails (12 reservation kinds, disciplinary notices, top-up rejection, participation decisions) through `notify()`. Admin copies land in Administración. Launch the bell for participants.
 - **P2b** Push notifications (Dennis, 2026-10-20): alerts in the operating system's notification center, not only in the bell.
-  - **How:** standard web push. A web app manifest and a service worker; VAPID keys as server secrets; the `web-push` library on the server. No vendor and no native app.
+  - **Step 0: installable Glitter (PWA)** (Dennis, 2026-10-20). Its own small PR, ahead of push. It can ship any time before the rest of P2b: installing is useful by itself (home-screen icon, full screen, no browser bar), and push on iPhone needs it.
+    - **Today:** not installable. There is no manifest, and the largest logo in the repo is 160 px.
+    - **Manifest:** `app/manifest.ts` (Next's built-in convention). Name and short name "Glitter", `start_url` `/`, `display: standalone`, brand background and theme colors, icons. Preview and development builds put `getEnvLabel()` in the name, as page titles do, so a staging install is told apart from production.
+    - **Icons:** 192 and 512 px (Chrome requires both), a maskable 512 with a safe-zone margin (Android crops it to a circle or rounded square), and a 180 px `app/apple-icon.png` for iPhone. Needs square isotype artwork at 512 px or larger, or a vector source.
+    - **Metadata:** `appleWebApp` (title, status bar style) in the root layout's `metadata`. `themeColor` goes in a `viewport` export, since it is deprecated in `metadata`, with light and dark values.
+    - **No service worker yet.** Current Chrome and Edge offer install with just HTTPS, the manifest and some engagement; iPhone installs from Compartir → Agregar a inicio. The worker arrives with push (below), and it never caches pages, so a deploy is never hidden behind stale screens.
+    - **No install banner.** Android and desktop browsers offer install themselves. The iPhone instructions come with the push control (below).
+    - **Paths:** `proxy.ts`'s matcher already skips paths with a file extension, so Clerk does not touch the manifest or the icons.
+    - **To test on real phones:**
+      - Clerk sign-in inside the installed app.
+      - iPhone copies Safari's cookies once, at install; after that, signing in or out in one does not reach the other.
+      - Links that leave the site, such as UploadThing files, open in the browser and people can get back to the app.
+    - **Done when:** Android Chrome and desktop Chrome or Edge offer "Instalar", the iPhone home-screen icon opens Glitter full screen with the right icon, and a signed-in person stays signed in after installing.
+  - **How:** standard web push. The manifest from step 0, a service worker, VAPID keys as server secrets, and the `web-push` library on the server. No vendor and no native app.
+  - **Service worker:** `public/sw.js`, with push and notification-click handlers only and no fetch handler. It is served with `Cache-Control: no-cache, no-store, must-revalidate` and a strict CSP through `next.config` headers, so an update reaches everyone on their next visit.
   - **Devices:** a `push_subscriptions` table, one row per browser or device a person allowed (endpoint, keys, a device label, last used). A subscription the push service reports as gone (404/410) is removed.
   - **Sending:** push is a third channel on the phase 1 delivery queue, next to in-app and email, with the same retries and per-delivery records. Each kind in the registry says whether it pushes; the text is the inbox title and body, and tapping opens the item. Sensitive kinds (disciplinary notices) push a generic "Tenés una notificación nueva" instead of their content.
   - **Asking permission:** never on page load. A "Recibir avisos en este dispositivo" control in the bell and in `/my_notifications`, offered again after a meaningful moment (a confirmed reservation, a gift). When the browser cannot do it, or permission was denied, the control stays visible, disabled, with the reason and how to change it.
