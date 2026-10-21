@@ -7091,9 +7091,9 @@ export const postShareLinksRelations = relations(postShareLinks, ({ one }) => ({
 /**
  * In-app notifications (docs/PRD-in-app-notifications.md).
  *
- * Which inbox filter an item belongs to. Phase 1 only posts `credits` and
- * `admin`; the rest exist so the filters are there before the kinds that fill
- * them.
+ * Which inbox filter an item belongs to. `announcements` waits for phase 3's
+ * comunicados; `account` items (disciplinary notices) only show under
+ * "Todas".
  */
 export const notificationCategoryEnum = pgEnum("notification_category", [
   "reservations",

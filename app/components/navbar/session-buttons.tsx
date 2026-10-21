@@ -117,7 +117,11 @@ export default function SessionButtons({
     />
   );
 
-  if (!notificationsEnabled || !isSignedIn) return dropdown;
+  // A Clerk session without a profile row (sign-up still finishing) has no
+  // inbox: its unread count and page would only answer "not found".
+  if (!notificationsEnabled || !isSignedIn || (!isProfileLoading && !profile)) {
+    return dropdown;
+  }
 
   return (
     <div className="flex items-center gap-1 sm:gap-2">

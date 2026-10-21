@@ -15,7 +15,10 @@ import {
   type NotificationFilter,
   safeActionPath,
 } from "@/app/lib/notifications/definitions";
-import { notificationCreditDelta } from "@/app/lib/notifications/registry";
+import {
+  notificationCreditDelta,
+  notificationOpensDetail,
+} from "@/app/lib/notifications/registry";
 import { db } from "@/db";
 import {
   notificationCampaignRecipients,
@@ -97,6 +100,7 @@ function toInboxNotification(row: NotificationRow): InboxNotification {
     actionPath: safeActionPath(row.actionPath),
     actionLabel: row.actionLabel,
     creditDelta: notificationCreditDelta(row.kind, row.data),
+    opensDetail: notificationOpensDetail(row.kind, row.data),
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };

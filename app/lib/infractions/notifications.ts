@@ -21,6 +21,7 @@ import SanctionLifecycleEmail, {
   getSanctionEmailSubject,
   type SanctionEmailKind,
 } from "@/app/emails/sanction-lifecycle";
+import { mirrorDisciplinaryNotificationJob } from "@/app/lib/notifications/mirrors/disciplinary-jobs";
 import {
   sanctionFestivalScopeLabel,
   sanctionStatusLabel,
@@ -288,6 +289,8 @@ async function insertNotificationJob(
     payload: StoredDisciplinaryNotificationPayload;
     lastError?: string | null;
     now?: Date;
+    /** For the inbox copy only; the email payload does not carry it. */
+    festivalId?: number | null;
   },
 ) {
   const now = input.now ?? new Date();
@@ -315,7 +318,20 @@ async function insertNotificationJob(
     })
     .returning({ id: disciplinaryNotificationJobs.id });
 
-  if (inserted) return inserted.id;
+  if (inserted) {
+    // A retry row has no snapshot yet: its copy is written when the worker
+    // hydrates it. One the dedupe key swallowed gets none, like its email.
+    const payload = input.payload;
+    if (input.userId !== null && payload.entityType !== "sanction_enqueue_retry") {
+      await mirrorDisciplinaryNotificationJob(executor, {
+        deduplicationKey: input.deduplicationKey,
+        userId: input.userId,
+        payload,
+        festivalId: input.festivalId,
+      });
+    }
+    return inserted.id;
+  }
 
   const existing = await executor.query.disciplinaryNotificationJobs.findFirst({
     where: eq(
@@ -407,6 +423,8 @@ export async function enqueueSanctionLifecycleNotification(
     deduplicationKey: string;
     participantNote?: string | null;
     festivalName?: string | null;
+    /** The festival reservation access opened for; the inbox links to it. */
+    festivalId?: number | null;
     reservationEligibleAt?: Date | null;
     now?: Date;
   },
@@ -425,6 +443,7 @@ export async function enqueueSanctionLifecycleNotification(
     recipientEmail: snapshot.profile.email,
     now: input.now,
     payload: snapshot,
+    festivalId: input.festivalId,
   });
 }
 
@@ -727,6 +746,12 @@ async function processClaimedNotificationJob(
         .returning();
       if (!prepared) return "claim_lost" as const;
       deliverableJob = prepared;
+      // The copy its enqueue could not write, now that there is a snapshot.
+      await mirrorDisciplinaryNotificationJob(db, {
+        deduplicationKey: prepared.deduplicationKey,
+        userId: payload.profile.id,
+        payload,
+      });
     }
 
     result = await deliverDisciplinaryNotificationPayload(
@@ -871,6 +896,7 @@ export async function enqueueEnabledReservationAccessNotifications(
           candidate.reservationEligibleAt.toISOString(),
         ].join(":"),
         festivalName: candidate.festivalName,
+        festivalId: candidate.festivalId,
         reservationEligibleAt: candidate.reservationEligibleAt,
         now,
       });

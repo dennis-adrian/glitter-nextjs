@@ -109,7 +109,12 @@ export function getSanctionEmailSubject(kind: SanctionEmailKind) {
   return copy[kind].subject;
 }
 
-function getSanctionDescription(typeLabel: string) {
+/** The wording the inbox item shares with this email (its title and note label). */
+export function getSanctionEmailCopy(kind: SanctionEmailKind) {
+  return copy[kind];
+}
+
+export function getSanctionDescription(typeLabel: string) {
   const descriptions: Record<string, string> = {
     advertencia: "una advertencia",
     ban: "un bloqueo del acceso a las reservas",
@@ -119,7 +124,7 @@ function getSanctionDescription(typeLabel: string) {
   return descriptions[typeLabel.toLocaleLowerCase("es")] ?? typeLabel;
 }
 
-function getSanctionScopeDescription(
+export function getSanctionScopeDescription(
   scopeLabel: string,
   isCurrentSanction: boolean,
 ) {

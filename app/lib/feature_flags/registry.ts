@@ -54,8 +54,10 @@ export const FEATURE_FLAGS = {
   notifications: {
     label: "Notificaciones en la app",
     description:
-      "La campana del menú, `/my_notifications` y el detalle de cada notificación. Las notificaciones se guardan para todos aunque la bandera esté oculta, así que al publicarla cada participante ve lo que ya recibió. Los correos, la billetera y el aviso de regalos de créditos no dependen de esta bandera.",
-    defaultVisibility: "admin_only",
+      "La campana del menú, `/my_notifications` y el detalle de cada notificación: reservas, pagos, compras de créditos rechazadas, postulaciones, infracciones y sanciones, regalos de créditos, y los avisos de Administración para el rol administrador. Se guardan para todos aunque la bandera esté oculta, así que al publicarla cada participante ve lo que ya recibió. Los correos, la billetera y el aviso de regalos de créditos no dependen de esta bandera.",
+    // Public once phase 2 put every queued email in the inbox. Only creates
+    // missing rows: an environment that has one keeps what it says.
+    defaultVisibility: "public",
   },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 

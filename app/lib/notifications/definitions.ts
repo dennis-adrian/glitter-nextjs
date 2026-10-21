@@ -89,6 +89,11 @@ export type InboxNotification = {
   actionLabel: string | null;
   /** Credits added, for the "+20" next to a gift. Null when nothing moved. */
   creditDelta: number | null;
+  /**
+   * Tapping opens the item's own page rather than its action: it carries text
+   * someone wrote for this person, which the list cuts to two lines.
+   */
+  opensDetail: boolean;
   readAt: string | null;
   createdAt: string;
 };
@@ -114,14 +119,15 @@ export function safeActionPath(path: string | null | undefined): string | null {
 }
 
 /**
- * Where clicking an item goes. A message someone wrote opens its own page, so
- * it can be read whole; a system notice goes straight to what it is about.
+ * Where clicking an item goes. A message someone wrote (a gift, a reason, a
+ * note) opens its own page, so it can be read whole; a system notice goes
+ * straight to what it is about. Which is which is the registry's call.
  */
 export function notificationHref(
-  item: Pick<InboxNotification, "id" | "kind" | "actionPath">,
+  item: Pick<InboxNotification, "id" | "actionPath" | "opensDetail">,
 ) {
   const detail = `/my_notifications/${item.id}`;
-  if (item.kind === "credit_gift_received") return detail;
+  if (item.opensDetail) return detail;
   return safeActionPath(item.actionPath) ?? detail;
 }
 

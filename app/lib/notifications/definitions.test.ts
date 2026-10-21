@@ -31,28 +31,35 @@ describe("links", () => {
     expect(safeActionPath(null)).toBeNull();
   });
 
-  it("opens a gift's own page and a notice's destination", () => {
+  it("opens a message's own page and a notice's destination", () => {
     expect(
       notificationHref({
         id: 4,
-        kind: "credit_gift_received",
         actionPath: "/my_credits",
+        opensDetail: true,
       }),
     ).toBe("/my_notifications/4");
     expect(
       notificationHref({
         id: 5,
-        kind: "credit_gift_revoked",
         actionPath: "/my_credits",
+        opensDetail: false,
       }),
     ).toBe("/my_credits");
     expect(
       notificationHref({
         id: 6,
-        kind: "credit_gift_revoked",
         actionPath: null,
+        opensDetail: false,
       }),
     ).toBe("/my_notifications/6");
+    expect(
+      notificationHref({
+        id: 7,
+        actionPath: "//evil.example",
+        opensDetail: false,
+      }),
+    ).toBe("/my_notifications/7");
   });
 });
 

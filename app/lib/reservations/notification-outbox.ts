@@ -741,6 +741,7 @@ export async function enqueueAdminAndOwnerNotifications(
       recipientEmail: admin.email,
       payload: input.payload,
       deduplicationKey: `${input.kind}:${input.reservationId}:admin:${admin.id}`,
+      audience: "admin",
     });
     if (id) jobIds.push(id);
   }

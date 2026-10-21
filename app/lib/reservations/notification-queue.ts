@@ -2,6 +2,10 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import {
+  type MirrorAudience,
+  mirrorReservationNotificationJob,
+} from "@/app/lib/notifications/mirrors/reservation-jobs";
 import { db } from "@/db";
 import { reservationNotificationJobs } from "@/db/schema";
 
@@ -16,6 +20,10 @@ type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * both lived in one module, importing it to queue a job dragged Resend and
  * `UPLOADTHING_TOKEN` into services whose unit tests have no business knowing
  * either. Writers import this; only the job runner imports the outbox.
+ *
+ * Queuing a job also writes its inbox copy (phase 2 of
+ * docs/PRD-in-app-notifications.md), which needs no template or send key: the
+ * inbox renders from the registry's in-app copy alone.
  */
 export const RESERVATION_NOTIFICATION_KINDS = [
   "reservation_created",
@@ -53,6 +61,11 @@ export async function enqueueReservationNotification(
     recipientEmail: string;
     payload?: Record<string, unknown>;
     deduplicationKey?: string;
+    /**
+     * Whose copy this is. An admin's lands in Administración; the email is
+     * the same either way, told apart at delivery.
+     */
+    audience?: MirrorAudience;
   },
 ): Promise<number | null> {
   const email = input.recipientEmail.trim();
@@ -62,6 +75,10 @@ export async function enqueueReservationNotification(
   const deduplicationKey =
     input.deduplicationKey ??
     `${input.kind}:${reservationId ?? "none"}:${email.toLowerCase()}`;
+  const payload = {
+    ...(reservationId != null ? { reservationId } : {}),
+    ...input.payload,
+  };
 
   const [inserted] = await tx
     .insert(reservationNotificationJobs)
@@ -71,10 +88,7 @@ export async function enqueueReservationNotification(
       reservationId,
       notificationKind: input.kind,
       recipientEmail: email,
-      payload: {
-        ...(reservationId != null ? { reservationId } : {}),
-        ...input.payload,
-      },
+      payload,
       status: "pending",
       attempts: 0,
       nextAttemptAt: now,
@@ -86,7 +100,21 @@ export async function enqueueReservationNotification(
     })
     .returning({ id: reservationNotificationJobs.id });
 
-  if (inserted) return inserted.id;
+  if (inserted) {
+    // Only for an email that will actually go out: one the dedupe key just
+    // swallowed gets no inbox copy either.
+    if (input.userId != null) {
+      await mirrorReservationNotificationJob(tx, {
+        jobId: inserted.id,
+        kind: input.kind,
+        reservationId,
+        userId: input.userId,
+        payload,
+        audience: input.audience ?? "participant",
+      });
+    }
+    return inserted.id;
+  }
 
   const existing = await tx.query.reservationNotificationJobs.findFirst({
     where: eq(reservationNotificationJobs.deduplicationKey, deduplicationKey),
