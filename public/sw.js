@@ -85,31 +85,39 @@ self.addEventListener("notificationclick", (event) => {
 });
 
 /**
- * Navigating needs no user activation, but only works on a window this
- * worker controls (`clients.claim()` makes that every open tab). Focusing and
- * opening a window share the tap's single allowance in Chromium, so a window
- * is focused only once it shows the item, and opened only when none could.
+ * Reuses a Glitter tab only when it is already in the inbox: navigating any
+ * other would throw away whatever the person was doing there, such as a form
+ * half filled. That tab is focused first, while the tap still allows it
+ * (Firefox gives it a second, Safari two), and then sent to the item.
+ * Otherwise a new window opens; in the installed app it opens in the app.
  */
 async function openPath(path) {
   const controlled = await self.clients.matchAll({ type: "window" });
-  const existing = controlled.find(
-    (client) => new URL(client.url).origin === self.location.origin,
-  );
-  if (existing && typeof existing.navigate === "function") {
-    let navigated = null;
+  const inbox = controlled.find((client) => {
+    const url = new URL(client.url);
+    return (
+      url.origin === self.location.origin &&
+      url.pathname.startsWith(FALLBACK_PATH)
+    );
+  });
+  if (inbox) {
+    let focused = null;
     try {
-      navigated = await existing.navigate(path);
+      focused = await inbox.focus();
     } catch {
-      // Not navigable after all: open a window below.
+      // Not allowed any more: try to take it to the item anyway.
     }
-    if (navigated) {
-      try {
-        await navigated.focus();
-      } catch {
-        // It shows the item either way.
+    const tab = focused ?? inbox;
+    try {
+      if (typeof tab.navigate === "function") {
+        await tab.navigate(path);
+        return;
       }
-      return;
+    } catch {
+      // Not navigable from here.
     }
+    // In front already; a second window would be refused in Chromium.
+    if (focused) return;
   }
   await self.clients.openWindow(path);
 }

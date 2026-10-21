@@ -130,6 +130,74 @@ export function PushControl({
       "Te avisamos acá cuando haya novedades de tus reservas, pagos y créditos, aunque no tengas Glitter abierto.";
   }
 
+  const deviceList = devices.length > 0 && (
+    <details className="group border-t pt-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        Tus dispositivos ({devices.length})
+      </summary>
+      <ul className="mt-2 space-y-2">
+        {devices.map((row) => (
+          <li
+            key={row.id}
+            className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">
+                  {row.label ?? "Dispositivo"}
+                </span>
+                {row.id === device.deviceId && (
+                  <Badge variant="secondary">Este dispositivo</Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Último uso: {row.lastUsedLabel}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              aria-label={`Quitar ${row.label ?? "dispositivo"} (último uso ${row.lastUsedLabel})`}
+              onClick={() => remove(row)}
+            >
+              <XIcon className="h-4 w-4" aria-hidden />
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+
+  // Once on, one line: the inbox below is not pushed down on every visit.
+  if (on) {
+    return (
+      <section
+        aria-labelledby="push-control-heading"
+        className="space-y-2 rounded-lg border px-4 py-3"
+      >
+        <h2 id="push-control-heading" className="sr-only">
+          Avisos en este dispositivo
+        </h2>
+        <div className="flex items-center gap-3">
+          <BellRingIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+          <p className="min-w-0 flex-1 text-sm">{status}</p>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto shrink-0 p-0"
+            disabled={busy}
+            aria-label="Dejar de recibir avisos en este dispositivo"
+            onClick={turnOff}
+          >
+            Desactivar
+          </Button>
+        </div>
+        {deviceList}
+      </section>
+    );
+  }
+
   return (
     <section
       aria-labelledby="push-control-heading"
@@ -150,61 +218,18 @@ export function PushControl({
 
       {/* An iPhone outside the home-screen app gets the steps, not a button
           it could never use there. */}
-      {support !== "unknown" &&
-        !support.startsWith("ios-") &&
-        (on ? (
-          <Button variant="outline" size="sm" disabled={busy} onClick={turnOff}>
-            Dejar de recibir avisos en este dispositivo
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            disabled={busy || reason != null || device.phase === "checking"}
-            aria-busy={device.phase === "working"}
-            onClick={turnOn}
-          >
-            {ENABLE_PUSH_LABEL}
-          </Button>
-        ))}
-
-      {devices.length > 0 && (
-        <details className="group border-t pt-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            Tus dispositivos ({devices.length})
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {devices.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">
-                      {row.label ?? "Dispositivo"}
-                    </span>
-                    {row.id === device.deviceId && (
-                      <Badge variant="secondary">Este dispositivo</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Último uso: {row.lastUsedLabel}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  disabled={busy}
-                  aria-label={`Quitar ${row.label ?? "dispositivo"} (último uso ${row.lastUsedLabel})`}
-                  onClick={() => remove(row)}
-                >
-                  <XIcon className="h-4 w-4" aria-hidden />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </details>
+      {support !== "unknown" && !support.startsWith("ios-") && (
+        <Button
+          size="sm"
+          disabled={busy || reason != null || device.phase === "checking"}
+          aria-busy={device.phase === "working"}
+          onClick={turnOn}
+        >
+          {ENABLE_PUSH_LABEL}
+        </Button>
       )}
+
+      {deviceList}
     </section>
   );
 }

@@ -323,33 +323,46 @@ describe("showing a push", () => {
 });
 
 describe("tapping a notification", () => {
-  it("takes an open Glitter tab to its page, then brings it forward", async () => {
-    const tab = openTab(`${ORIGIN}/merch`);
+  it("brings a tab already in the inbox forward, then takes it to the item", async () => {
+    const tab = openTab(`${ORIGIN}/my_notifications?filter=all`);
     await tap(worker, { url: "/my_notifications/7" }, [tab]);
     // Only tabs this worker controls can be navigated.
     expect(worker.self.clients.matchAll).toHaveBeenCalledWith({
       type: "window",
     });
-    expect(tab.navigate).toHaveBeenCalledWith("/my_notifications/7");
     expect(tab.focus).toHaveBeenCalledTimes(1);
-    expect(tab.navigate.mock.invocationCallOrder[0]).toBeLessThan(
-      tab.focus.mock.invocationCallOrder[0],
+    expect(tab.navigate).toHaveBeenCalledWith("/my_notifications/7");
+    // Focused first, while the tap still allows it.
+    expect(tab.focus.mock.invocationCallOrder[0]).toBeLessThan(
+      tab.navigate!.mock.invocationCallOrder[0],
     );
     expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
   });
 
-  it("opens a new tab when the open one cannot be navigated", async () => {
-    const tab = openTab(`${ORIGIN}/merch`, { navigate: undefined });
+  it("opens a new window rather than take away a tab on another page", async () => {
+    // It could hold a form half filled.
+    const tab = openTab(`${ORIGIN}/dashboard/festivals/3/edit`);
     await tap(worker, { url: "/my_notifications/7" }, [tab]);
-    // Focusing first would spend the tap, and the new tab would be refused.
+    expect(tab.navigate).not.toHaveBeenCalled();
     expect(tab.focus).not.toHaveBeenCalled();
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
       "/my_notifications/7",
     );
   });
 
-  it("opens a new tab when navigating the open one fails", async () => {
-    const tab = openTab(`${ORIGIN}/merch`, {
+  it("still takes the inbox tab to the item when it cannot take focus", async () => {
+    const tab = openTab(`${ORIGIN}/my_notifications`, {
+      focus: vi.fn(async () => {
+        throw new Error("InvalidAccessError");
+      }),
+    });
+    await tap(worker, { url: "/my_notifications/7" }, [tab]);
+    expect(tab.navigate).toHaveBeenCalledWith("/my_notifications/7");
+    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
+  });
+
+  it("leaves the inbox tab in front when it cannot be navigated", async () => {
+    const tab = openTab(`${ORIGIN}/my_notifications`, {
       navigate: vi.fn(async () => {
         throw new TypeError(
           "This service worker is not the client's active one",
@@ -357,26 +370,25 @@ describe("tapping a notification", () => {
       }),
     });
     await tap(worker, { url: "/my_notifications/7" }, [tab]);
-    expect(tab.navigate).toHaveBeenCalledWith("/my_notifications/7");
-    expect(tab.focus).not.toHaveBeenCalled();
+    expect(tab.focus).toHaveBeenCalledTimes(1);
+    // The tap's one window interaction went to the focus.
+    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
+  });
+
+  it("opens a new window when the inbox tab can neither take focus nor be navigated", async () => {
+    const tab = openTab(`${ORIGIN}/my_notifications`, {
+      focus: vi.fn(async () => {
+        throw new Error("InvalidAccessError");
+      }),
+      navigate: undefined,
+    });
+    await tap(worker, { url: "/my_notifications/7" }, [tab]);
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
       "/my_notifications/7",
     );
   });
 
-  it("keeps the tab it navigated when that tab cannot take focus", async () => {
-    const tab = openTab(`${ORIGIN}/merch`, {
-      focus: vi.fn(async () => {
-        throw new Error("InvalidAccessError");
-      }),
-    });
-    await tap(worker, { url: "/my_notifications/7" }, [tab]);
-    expect(tab.navigate).toHaveBeenCalledWith("/my_notifications/7");
-    // It already shows the item: a second tab would be a duplicate.
-    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
-  });
-
-  it("opens a new tab when no Glitter tab is open", async () => {
+  it("opens a new window when no Glitter tab is open", async () => {
     await tap(worker, { url: "/my_notifications/7" });
     expect(worker.self.clients.openWindow).toHaveBeenCalledTimes(1);
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
@@ -384,8 +396,8 @@ describe("tapping a notification", () => {
     );
   });
 
-  it("leaves tabs of other sites alone", async () => {
-    const other = openTab("https://evil.test/inbox");
+  it("leaves tabs of other sites alone, inbox or not", async () => {
+    const other = openTab("https://evil.test/my_notifications");
     await tap(worker, { url: "/my_notifications/7" }, [other]);
     expect(other.focus).not.toHaveBeenCalled();
     expect(other.navigate).not.toHaveBeenCalled();
@@ -394,12 +406,13 @@ describe("tapping a notification", () => {
     );
   });
 
-  it("finds the Glitter tab among tabs of other sites", async () => {
+  it("finds the Glitter inbox tab among other tabs", async () => {
     const other = openTab("https://evil.test/inbox");
-    const ours = openTab(`${ORIGIN}/supplies`);
-    await tap(worker, { url: "/my_notifications/7" }, [other, ours]);
-    expect(other.focus).not.toHaveBeenCalled();
-    expect(ours.navigate).toHaveBeenCalledWith("/my_notifications/7");
+    const page = openTab(`${ORIGIN}/supplies`);
+    const inbox = openTab(`${ORIGIN}/my_notifications/3`);
+    await tap(worker, { url: "/my_notifications/7" }, [other, page, inbox]);
+    expect(page.navigate).not.toHaveBeenCalled();
+    expect(inbox.navigate).toHaveBeenCalledWith("/my_notifications/7");
     expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
   });
 
@@ -414,7 +427,7 @@ describe("tapping a notification", () => {
     "/a/..//evil.test/x",
     `${ORIGIN}//evil.test/x`,
   ])("opens the inbox instead of %j", async (url) => {
-    const tab = openTab(`${ORIGIN}/merch`);
+    const tab = openTab(`${ORIGIN}/my_notifications`);
     await tap(worker, { url }, [tab]);
     expect(tab.navigate).toHaveBeenCalledWith(INBOX);
   });

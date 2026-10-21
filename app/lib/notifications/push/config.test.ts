@@ -12,7 +12,11 @@ function keyPair() {
   ecdh.generateKeys();
   return {
     VAPID_PUBLIC_KEY: ecdh.getPublicKey().toString("base64url"),
-    VAPID_PRIVATE_KEY: ecdh.getPrivateKey().toString("base64url"),
+    // Node drops a private key's leading zero bytes; VAPID wants all 32.
+    VAPID_PRIVATE_KEY: Buffer.from(
+      ecdh.getPrivateKey("hex").padStart(64, "0"),
+      "hex",
+    ).toString("base64url"),
   };
 }
 

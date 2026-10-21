@@ -134,7 +134,11 @@ function vapidKeys(): Vapid {
   ecdh.generateKeys();
   return {
     publicKey: ecdh.getPublicKey().toString("base64url"),
-    privateKey: ecdh.getPrivateKey().toString("base64url"),
+    // Node drops a private key's leading zero bytes; VAPID wants all 32.
+    privateKey: Buffer.from(
+      ecdh.getPrivateKey("hex").padStart(64, "0"),
+      "hex",
+    ).toString("base64url"),
     subject: "mailto:soporte@productoraglitter.com",
   };
 }
@@ -1420,6 +1424,65 @@ describeDatabase("web push deliveries", () => {
       expect(counts).toEqual({ sent: 3, skipped: 0, failed: 0, retry: 0 });
       // Two 600 ms gaps would take 1.2 s on their own.
       expect(elapsed).toBeLessThan(1_200);
+    });
+
+    it("right after a commit, sends the pushes it just queued and leaves retries to the cron", async () => {
+      const [fresh, retried, old] = await Promise.all([
+        createUser(),
+        createUser(),
+        createUser(),
+      ]);
+      for (const person of [fresh, retried, old]) await addDevice(person.id);
+      const {
+        pushIds: [freshId],
+      } = await queueGiftPush(fresh.id);
+      const {
+        pushIds: [retriedId],
+      } = await queueGiftPush(retried.id);
+      const {
+        pushIds: [oldId],
+      } = await queueGiftPush(old.id);
+      await integrationDb!
+        .update(notificationDeliveries)
+        .set({ attempts: 1 })
+        .where(eq(notificationDeliveries.id, retriedId!));
+      await integrationDb!
+        .update(notificationDeliveries)
+        .set({ createdAt: sql`now() - interval '20 minutes'` })
+        .where(eq(notificationDeliveries.id, oldId!));
+      // An email due now is not the push drain's either.
+      const anaEmail = await notifyNow({
+        userId: fresh.id,
+        kind: "credit_gift_revoked",
+        data: {
+          campaignId: 1,
+          name: "Ana",
+          amount: 5,
+          title: "Un regalo",
+          debtAmount: 0,
+        },
+        email: fresh.email,
+      });
+      const emailId = anaEmail.deliveryIds[0]!;
+      expect((await deliveryById(emailId)).channel).toBe("email");
+
+      await deliveries.drainDuePushDeliveries();
+
+      expect((await deliveryById(freshId!)).status).toBe("sent");
+      expect((await deliveryById(retriedId!)).status).toBe("pending");
+      expect((await deliveryById(oldId!)).status).toBe("pending");
+      expect((await deliveryById(emailId)).status).toBe("pending");
+      expect(sendEmailMock).not.toHaveBeenCalled();
+
+      // The cron's pass takes them, oldest first.
+      await deliveries.sendDuePushDeliveries({
+        limit: 1_000,
+        budgetMs: 10_000,
+      });
+
+      expect((await deliveryById(retriedId!)).status).toBe("sent");
+      expect((await deliveryById(oldId!)).status).toBe("sent");
+      expect((await deliveryById(emailId)).status).toBe("pending");
     });
 
     it("still spaces one email from the next", async () => {

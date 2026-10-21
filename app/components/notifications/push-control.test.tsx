@@ -557,6 +557,26 @@ describe("the avisos control on /my_notifications", () => {
       expect(enableButton()).toBe(null);
     });
 
+    it("shrinks to one line once on, with the devices folded away", async () => {
+      installBrowser({ permission: "granted", subscribedWith: KEY });
+      savedDevices.set(ENDPOINT, 7);
+      const { container } = render(
+        <PushControl publicKey={KEY} devices={DEVICES} />,
+      );
+
+      await screen.findByText(ON_STATUS);
+      // No explanation and no full-width button above the inbox.
+      expect(screen.queryByText(/Te avisamos acá/)).toBe(null);
+      expect(
+        screen.getByRole("button", { name: DISABLE_LABEL }).textContent,
+      ).toBe("Desactivar");
+      expect(container.querySelector("details")?.open).toBe(false);
+      // Still named for screen readers.
+      expect(
+        screen.getByRole("region", { name: "Avisos en este dispositivo" }),
+      ).toBeTruthy();
+    });
+
     it("stops the browser when the device was removed from another one meanwhile", async () => {
       const browser = installBrowser({
         permission: "granted",

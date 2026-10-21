@@ -16,7 +16,11 @@ function vapid() {
   ecdh.generateKeys();
   return {
     publicKey: ecdh.getPublicKey().toString("base64url"),
-    privateKey: ecdh.getPrivateKey().toString("base64url"),
+    // Node drops a private key's leading zero bytes; VAPID wants all 32.
+    privateKey: Buffer.from(
+      ecdh.getPrivateKey("hex").padStart(64, "0"),
+      "hex",
+    ).toString("base64url"),
     subject: "mailto:soporte@productoraglitter.com",
   };
 }
