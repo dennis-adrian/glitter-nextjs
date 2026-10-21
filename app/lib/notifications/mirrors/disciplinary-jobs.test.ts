@@ -140,7 +140,10 @@ describe("buildDisciplinaryJobNotification", () => {
     expect(item.category).toBe("reservations");
     expect(item.sensitive).toBe(true);
     expect(item.copy.title).toBe("Ya podés acceder a las reservas");
-    expect(item.copy.body).toContain("de Glitter Vol. 9 desde el");
+    // Bolivia time, worded like every other date in the inbox.
+    expect(item.copy.body).toBe(
+      "El período de espera de tu sanción finalizó. Ya podés acceder a las reservas de Glitter Vol. 9 desde el 1 nov 2026 a las 10:00 AM.",
+    );
     expect(item.copy.actionPath).toBe(
       "/profiles/21/festivals/3/reservations/new",
     );

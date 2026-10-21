@@ -12,7 +12,7 @@ import {
   type SanctionEmailKind,
 } from "@/app/emails/sanction-lifecycle";
 import { formatDisplayDate } from "@/app/lib/formatters";
-import { SUPPORT_LINE } from "@/app/lib/notifications/kinds/copy";
+import { atTime, SUPPORT_LINE } from "@/app/lib/notifications/kinds/copy";
 import type { KindDefinition } from "@/app/lib/notifications/kinds/types";
 
 /**
@@ -96,7 +96,7 @@ function sanctionBody(kind: SanctionEmailKind, data: SanctionData) {
   if (kind === "reservation_access_enabled") {
     const festival = data.festivalName ? ` de ${data.festivalName}` : "";
     const from = data.reservationEligibleAt
-      ? ` desde el ${formatDisplayDate(data.reservationEligibleAt, DateTime.DATETIME_MED)}`
+      ? ` desde el ${formatDisplayDate(data.reservationEligibleAt, DateTime.DATE_MED)} ${atTime(data.reservationEligibleAt)}`
       : "";
     return `El período de espera de tu sanción finalizó. Ya podés acceder a las reservas${festival}${from}.`;
   }
