@@ -51,11 +51,21 @@ export function canSeeAdminNotifications(role: string | null | undefined) {
   return role === "admin";
 }
 
+/**
+ * Filters with nothing to show yet. "Anuncios" waits for phase 3's comunicados:
+ * an always-empty chip reads as something missing.
+ */
+const UNUSED_FILTERS: ReadonlySet<NotificationFilter> = new Set([
+  "announcements",
+]);
+
 export function visibleNotificationFilters(
   role: string | null | undefined,
 ): NotificationFilter[] {
   return NOTIFICATION_FILTERS.filter(
-    (filter) => filter !== "admin" || canSeeAdminNotifications(role),
+    (filter) =>
+      !UNUSED_FILTERS.has(filter) &&
+      (filter !== "admin" || canSeeAdminNotifications(role)),
   );
 }
 

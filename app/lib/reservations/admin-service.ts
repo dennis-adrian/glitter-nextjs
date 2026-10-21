@@ -311,6 +311,7 @@ export async function applyReservationCancellation(
       reservationId: input.reservation.id,
       userId: recipient.id,
       recipientEmail: recipient.email,
+      audience: "participant",
       payload: input.reason ? { reason: input.reason } : undefined,
     });
     if (jobId) jobIds.push(jobId);
@@ -829,6 +830,7 @@ export async function extendReservationPaymentDeadline(
           reservationId: reservation.id,
           userId: recipient.id,
           recipientEmail: email,
+          audience: "participant",
           payload: { dueAt: dueAt.toISOString() },
           deduplicationKey: `deadline_extended:${reservation.id}:${dueAt.toISOString()}:${key}`,
         });

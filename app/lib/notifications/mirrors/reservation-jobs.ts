@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import {
   mirrorFailureType,
@@ -10,18 +10,13 @@ import { notify } from "@/app/lib/notifications/notify";
 import type { ReservationNotificationKind } from "@/app/lib/reservations/notification-queue";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
-import {
-  creditTopUps,
-  festivals,
-  standReservations,
-  users,
-} from "@/db/schema";
+import { creditTopUps, festivals, standReservations } from "@/db/schema";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * The inbox half of the reservation outbox (phase 2): every email it queues
- * gets an in-app copy, written in the transaction that queues the email.
+ * gets an in-app copy, written in the transaction that queues it.
  *
  * The email itself is untouched; it still goes out through the outbox, which
  * renders from live data at send time. The inbox item is a snapshot of the
@@ -39,6 +34,11 @@ export type ReservationJobToMirror = {
   userId: number;
   payload: Record<string, unknown>;
   audience: MirrorAudience;
+  /**
+   * Who did what the email reports. An admin is not told, in their own
+   * inbox, about something they just did.
+   */
+  actorUserId?: number | null;
 };
 
 /** What a reservation looked like inside the transaction that queued the job. */
@@ -46,8 +46,15 @@ export type ReservationContext = {
   reservationId: number;
   festivalId: number;
   festivalName: string;
+  locationLabel: string | null;
+  /** When the festival's first day starts, if it has dates. */
+  startsAt: Date | null;
+  /** Who booked it: the owner's voice in a release or a late partner. */
   ownerUserId: number | null;
-  /** Whose name the cobro is in: the email's "owner". */
+  /**
+   * Whose name the cobro is in (the first live invoice's user): the email's
+   * "owner" for payments, deadlines and the admin copies.
+   */
   payerUserId: number | null;
   /** The originally selected half, for a reservation with no members. */
   standLabel: string;
@@ -64,6 +71,16 @@ export type ReservationContext = {
 
 const UNNAMED_PARTICIPANT = "Un participante";
 const UNNAMED_PARTNER = "tu compañero";
+
+/**
+ * Reasons the code fills in when no admin typed one. The email still shows
+ * them; the inbox does not present them as a reason worth opening.
+ */
+const PLACEHOLDER_REASONS = new Set([
+  "Actualización administrativa",
+  "Cancelado desde el estado de pago",
+  "Revisión administrativa",
+]);
 
 /** The inbox item for a job, keyed so a person gets one per queued email. */
 export function reservationJobDedupeKey(jobId: number) {
@@ -164,51 +181,72 @@ export function buildReservationJobNotification(
   job: ReservationJobToMirror,
   context: ReservationContext,
 ): MirrorNotification | null {
-  const admin = job.audience === "admin";
   const own = { ...reservationRef(context), profileId: job.userId };
   const participantName = nameOf(
     context,
     context.payerUserId,
     UNNAMED_PARTICIPANT,
   );
-  const adminRef = { ...reservationRef(context), participantName };
+
+  if (job.audience === "admin") {
+    // Their own reservation or their own click: an admin who pays their own
+    // cobro already has the participant's copy, and one who assigns stands
+    // does not need a badge per stand.
+    if (job.userId === context.payerUserId || job.userId === job.actorUserId) {
+      return null;
+    }
+    const data = { ...reservationRef(context), participantName };
+    switch (job.kind) {
+      case "reservation_created":
+        return { kind: "reservation_created_admin", data };
+      case "proof_submitted":
+        return { kind: "reservation_proof_submitted_admin", data };
+      case "zero_value_review_requested":
+        return { kind: "reservation_zero_value_review_requested_admin", data };
+      // Admins are only queued for this when credits confirmed it alone.
+      case "settlement_approved":
+        return { kind: "reservation_confirmed_with_credits_admin", data };
+      default:
+        return null;
+    }
+  }
 
   switch (job.kind) {
+    // Only admins are ever told: the owner is on the screen that made it.
     case "reservation_created":
-      // Only admins are ever told: the owner is on the screen that made it.
-      return admin ? { kind: "reservation_created_admin", data: adminRef } : null;
+      return null;
 
     case "proof_submitted":
-      return admin
-        ? { kind: "reservation_proof_submitted_admin", data: adminRef }
-        : { kind: "reservation_proof_submitted", data: own };
+      return { kind: "reservation_proof_submitted", data: own };
 
     case "zero_value_review_requested":
-      return admin
-        ? {
-            kind: "reservation_zero_value_review_requested_admin",
-            data: adminRef,
-          }
-        : { kind: "reservation_zero_value_review_requested", data: own };
+      return { kind: "reservation_zero_value_review_requested", data: own };
 
     case "settlement_approved":
-      // Admins are only queued for this when credits confirmed it alone.
-      return admin
-        ? { kind: "reservation_confirmed_with_credits_admin", data: adminRef }
-        : { kind: "reservation_confirmed", data: own };
+      return {
+        kind: "reservation_confirmed",
+        data: {
+          ...own,
+          startsAt: context.startsAt?.toISOString() ?? null,
+          locationLabel: context.locationLabel,
+        },
+      };
 
     case "settlement_rejected":
       return null;
 
-    case "reservation_rejected":
-      if (admin) return null;
+    case "reservation_rejected": {
+      const reason = payloadText(job.payload, "reason");
       return {
         kind: "reservation_cancelled",
-        data: { ...own, reason: payloadText(job.payload, "reason") },
+        data: {
+          ...own,
+          reason: reason && !PLACEHOLDER_REASONS.has(reason) ? reason : null,
+        },
       };
+    }
 
     case "deadline_extended": {
-      if (admin) return null;
       const dueAt = payloadIsoDate(job.payload, "dueAt");
       if (!dueAt) return null;
       return {
@@ -223,7 +261,6 @@ export function buildReservationJobNotification(
     }
 
     case "reservation_released": {
-      if (admin) return null;
       // Every member is retired by now: name what this release freed.
       const releasedStandIds = payloadNumberArray(
         job.payload,
@@ -251,7 +288,6 @@ export function buildReservationJobNotification(
     }
 
     case "late_partner_added": {
-      if (admin) return null;
       const ownerId = context.ownerUserId ?? context.payerUserId;
       const isOwner = job.userId === ownerId;
       return {
@@ -334,24 +370,46 @@ export function buildTopUpRejectedJobNotification(
   };
 }
 
+const NAME_COLUMNS = {
+  id: true,
+  displayName: true,
+  firstName: true,
+  lastName: true,
+} as const;
+
+/** One statement: the reservation, its festival, stands, cobros and people. */
 async function loadReservationContext(
   tx: DbTx,
   reservationId: number,
-  extraUserIds: readonly number[],
 ): Promise<ReservationContext | null> {
   const reservation = await tx.query.standReservations.findFirst({
     where: eq(standReservations.id, reservationId),
     columns: { id: true, festivalId: true, ownerUserId: true },
     with: {
-      festival: { columns: { name: true } },
+      festival: {
+        columns: { name: true, locationLabel: true },
+        with: {
+          festivalDates: {
+            columns: { startDate: true },
+            orderBy: (date, { asc }) => [asc(date.startDate)],
+            limit: 1,
+          },
+        },
+      },
       stand: { columns: { label: true, standNumber: true } },
+      owner: { columns: NAME_COLUMNS },
       members: {
         columns: { standId: true, position: true, releasedAt: true },
         with: { stand: { columns: { label: true, standNumber: true } } },
       },
+      participants: {
+        columns: { userId: true },
+        with: { user: { columns: NAME_COLUMNS } },
+      },
       invoices: {
         columns: { id: true, status: true, userId: true },
         orderBy: (invoice, { asc }) => [asc(invoice.id)],
+        with: { user: { columns: NAME_COLUMNS } },
       },
     },
   });
@@ -361,34 +419,21 @@ async function loadReservationContext(
   const invoice =
     reservation.invoices.find((row) => row.status !== "cancelled") ??
     reservation.invoices[0];
-  const payerUserId = invoice?.userId ?? reservation.ownerUserId;
 
-  const nameIds = [
-    ...new Set(
-      [payerUserId, reservation.ownerUserId, ...extraUserIds].filter(
-        (id): id is number => id != null,
-      ),
-    ),
-  ];
-  const people =
-    nameIds.length === 0
-      ? []
-      : await tx
-          .select({
-            id: users.id,
-            displayName: users.displayName,
-            firstName: users.firstName,
-            lastName: users.lastName,
-          })
-          .from(users)
-          .where(inArray(users.id, nameIds));
+  const people = [
+    reservation.owner,
+    ...reservation.participants.map((participant) => participant.user),
+    ...reservation.invoices.map((row) => row.user),
+  ].filter((person): person is NonNullable<typeof person> => person != null);
 
   return {
     reservationId: reservation.id,
     festivalId: reservation.festivalId,
     festivalName: reservation.festival.name,
+    locationLabel: reservation.festival.locationLabel?.trim() || null,
+    startsAt: reservation.festival.festivalDates[0]?.startDate ?? null,
     ownerUserId: reservation.ownerUserId,
-    payerUserId,
+    payerUserId: invoice?.userId ?? reservation.ownerUserId,
     standLabel: formatStandLabel(reservation.stand),
     members: reservation.members
       .map((member) => ({
@@ -406,24 +451,39 @@ async function loadReservationContext(
   };
 }
 
+/** Reads shared by every job of one batch, which is one event. */
+type BatchReads = Map<string, Promise<unknown>>;
+
+function readOnce<T>(reads: BatchReads, key: string, load: () => Promise<T>) {
+  let read = reads.get(key) as Promise<T> | undefined;
+  if (!read) {
+    read = load();
+    reads.set(key, read);
+  }
+  return read;
+}
+
 async function buildFromTransaction(
   tx: DbTx,
   job: ReservationJobToMirror,
+  reads: BatchReads,
 ): Promise<MirrorNotification | null> {
   switch (job.kind) {
     case "festival_participation_approved":
     case "festival_participation_rejected": {
       const festivalId = payloadNumber(job.payload, "festivalId");
       if (festivalId == null) return null;
-      const [festival] = await tx
-        .select({
-          id: festivals.id,
-          name: festivals.name,
-          reservationsStartDate: festivals.reservationsStartDate,
-        })
-        .from(festivals)
-        .where(eq(festivals.id, festivalId))
-        .limit(1);
+      const [festival] = await readOnce(reads, `festival:${festivalId}`, () =>
+        tx
+          .select({
+            id: festivals.id,
+            name: festivals.name,
+            reservationsStartDate: festivals.reservationsStartDate,
+          })
+          .from(festivals)
+          .where(eq(festivals.id, festivalId))
+          .limit(1),
+      );
       return festival
         ? buildParticipationJobNotification(job, festival, new Date())
         : null;
@@ -432,15 +492,17 @@ async function buildFromTransaction(
     case "credit_top_up_rejected": {
       const topUpId = payloadNumber(job.payload, "topUpId");
       if (topUpId == null) return null;
-      const [topUp] = await tx
-        .select({
-          id: creditTopUps.id,
-          amount: creditTopUps.amount,
-          rejectionReason: creditTopUps.rejectionReason,
-        })
-        .from(creditTopUps)
-        .where(eq(creditTopUps.id, topUpId))
-        .limit(1);
+      const [topUp] = await readOnce(reads, `top-up:${topUpId}`, () =>
+        tx
+          .select({
+            id: creditTopUps.id,
+            amount: creditTopUps.amount,
+            rejectionReason: creditTopUps.rejectionReason,
+          })
+          .from(creditTopUps)
+          .where(eq(creditTopUps.id, topUpId))
+          .limit(1),
+      );
       return topUp
         ? buildTopUpRejectedJobNotification(job, {
             ...topUp,
@@ -450,12 +512,12 @@ async function buildFromTransaction(
     }
 
     default: {
-      if (job.reservationId == null) return null;
-      const partnerUserId = payloadNumber(job.payload, "partnerUserId");
-      const context = await loadReservationContext(
-        tx,
-        job.reservationId,
-        partnerUserId != null ? [partnerUserId] : [],
+      const reservationId = job.reservationId;
+      if (reservationId == null) return null;
+      const context = await readOnce(
+        reads,
+        `reservation:${reservationId}`,
+        () => loadReservationContext(tx, reservationId),
       );
       return context ? buildReservationJobNotification(job, context) : null;
     }
@@ -463,32 +525,42 @@ async function buildFromTransaction(
 }
 
 /**
- * Writes the inbox copy of a job the caller just queued, inside the caller's
- * transaction, so the two commit or roll back together.
+ * Writes the inbox copies of jobs the caller just queued for one event
+ * (an owner and every admin, or every participant), inside the caller's
+ * transaction, so they commit or roll back with it.
  *
- * It runs in a savepoint and never throws: a snapshot that fails to load or
- * validate costs the inbox item and is logged, but cannot undo a payment
- * approval or a cancellation that the email already reports.
+ * One savepoint and one read of the reservation for the whole batch: this
+ * runs while the transaction holds the lock that serialises reservation
+ * writes, so a copy per admin must not mean a round of reads per admin.
+ *
+ * It never throws: a snapshot that fails to load or validate costs the
+ * batch's inbox items and is logged, but cannot undo a payment approval or a
+ * cancellation that the email already reports. Savepoints are named by depth,
+ * so never run two of these at once on one transaction.
  */
-export async function mirrorReservationNotificationJob(
+export async function mirrorReservationNotificationJobs(
   tx: DbTx,
-  job: ReservationJobToMirror,
+  jobs: readonly ReservationJobToMirror[],
 ): Promise<void> {
+  if (jobs.length === 0) return;
   try {
     await tx.transaction(async (savepoint) => {
-      const built = await buildFromTransaction(savepoint, job);
-      if (!built) return;
-      await notify(savepoint, {
-        userId: job.userId,
-        kind: built.kind,
-        data: built.data,
-        dedupeKey: reservationJobDedupeKey(job.jobId),
-      } as Parameters<typeof notify>[1]);
+      const reads: BatchReads = new Map();
+      for (const job of jobs) {
+        const built = await buildFromTransaction(savepoint, job, reads);
+        if (!built) continue;
+        await notify(savepoint, {
+          userId: job.userId,
+          kind: built.kind,
+          data: built.data,
+          dedupeKey: reservationJobDedupeKey(job.jobId),
+        } as Parameters<typeof notify>[1]);
+      }
     });
   } catch (error) {
     console.error("[notifications] Inbox copy of a queued email failed", {
-      kind: job.kind,
-      jobId: job.jobId,
+      kinds: [...new Set(jobs.map((job) => job.kind))],
+      jobIds: jobs.map((job) => job.jobId),
       error: mirrorFailureType(error),
     });
   }

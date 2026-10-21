@@ -2,10 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import {
-  formatCreditCount,
-  formatCredits,
-} from "@/app/components/credits/credit-amount";
+import { formatCreditCount, formatCredits } from "@/app/lib/credits/format";
 import CreditGiftReceivedEmail from "@/app/emails/credit-gift-received";
 import CreditGiftRevokedEmail from "@/app/emails/credit-gift-revoked";
 import { disciplinaryKinds } from "@/app/lib/notifications/kinds/disciplinary";
@@ -217,13 +214,25 @@ export function notificationCreditDelta(
   return parsed.success ? def.creditDelta(parsed.data) : null;
 }
 
-/** Whether tapping the item opens its own page; see `KindDefinition`. */
+/**
+ * Whether tapping the item opens its own page; see `KindDefinition`. A
+ * snapshot a later schema no longer reads opens the page anyway: it shows the
+ * stored title, body and action, and never cuts a written message short.
+ */
 export function notificationOpensDetail(kind: string, data: unknown): boolean {
   if (!isNotificationKind(kind)) return false;
   const def = definition(kind);
   if (!def.opensDetail) return false;
   const parsed = def.schema.safeParse(data);
-  return parsed.success ? def.opensDetail(parsed.data) : false;
+  return parsed.success ? def.opensDetail(parsed.data) : true;
+}
+
+/** Whether the item is written already read; see `KindDefinition`. */
+export function notificationStartsRead<K extends NotificationKind>(
+  kind: K,
+  data: NotificationData<K>,
+): boolean {
+  return definition(kind).startsRead?.(data) ?? false;
 }
 
 /** Disciplinary notices, whose content stays off a lock screen. */

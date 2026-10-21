@@ -13,6 +13,7 @@ import {
   isSensitiveNotificationKind,
   notificationCategory,
   notificationOpensDetail,
+  parseNotificationData,
 } from "@/app/lib/notifications/registry";
 
 const profile = {
@@ -30,12 +31,15 @@ function render(payload: DisciplinaryNotificationPayload, festivalId?: number) {
     payload,
     festivalId,
   });
+  // Through the schema, as `notify()` does before it stores anything.
+  const data = parseNotificationData(built.kind, built.data);
+  expect(data, `${built.kind} snapshot fails its schema`).not.toBeNull();
   return {
     kind: built.kind,
-    data: built.data as Record<string, unknown>,
+    data: data as Record<string, unknown>,
     category: notificationCategory(built.kind),
-    copy: buildInAppCopy(built.kind, built.data as never),
-    opensDetail: notificationOpensDetail(built.kind, built.data),
+    copy: buildInAppCopy(built.kind, data as never),
+    opensDetail: notificationOpensDetail(built.kind, data),
     sensitive: isSensitiveNotificationKind(built.kind),
   };
 }
@@ -76,7 +80,7 @@ describe("buildDisciplinaryJobNotification", () => {
     expect(item.sensitive).toBe(true);
     expect(item.copy).toEqual({
       title: "Se registró una infracción en tu historial",
-      body: "El motivo registrado es «No Show». Corresponde a tu participación en Glitter Vol. 9.",
+      body: "El motivo registrado es «No Show». Corresponde a tu participación en Glitter Vol. 9.\n\nSi tenés dudas, escribinos a soporte@productoraglitter.com.",
       actionPath: "/profiles/21/infractions",
       actionLabel: "Ver mi historial",
     });
@@ -96,7 +100,7 @@ describe("buildDisciplinaryJobNotification", () => {
     });
     expect(item.kind).toBe("infraction_voided");
     expect(item.copy.body).toBe(
-      "Anulamos la infracción por «No Show», así que ya no se tendrá en cuenta.\n\nMotivo de la anulación: Se registró por error.",
+      "Anulamos la infracción por «No Show», así que ya no se tendrá en cuenta.\n\nMotivo de la anulación: Se registró por error.\n\nSi tenés dudas, escribinos a soporte@productoraglitter.com.",
     );
     expect(item.opensDetail).toBe(true);
   });
@@ -107,7 +111,7 @@ describe("buildDisciplinaryJobNotification", () => {
     expect(item.category).toBe("account");
     expect(item.copy.title).toBe("Se aprobó una sanción en tu historial");
     expect(item.copy.body).toBe(
-      "La sanción consiste en un retraso para acceder a las reservas. Esta medida se aplicará empezando el próximo festival. La medida se tomó por los siguientes motivos: No Show, Incumplimiento.",
+      "La sanción consiste en un retraso para acceder a las reservas. Esta medida se aplicará empezando el próximo festival. La medida se tomó por los siguientes motivos: No Show, Incumplimiento.\n\nSi tenés dudas, escribinos a soporte@productoraglitter.com.",
     );
   });
 

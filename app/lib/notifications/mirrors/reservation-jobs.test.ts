@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -6,6 +6,7 @@ import {
   buildParticipationJobNotification,
   buildReservationJobNotification,
   buildTopUpRejectedJobNotification,
+  mirrorReservationNotificationJobs,
   type ReservationContext,
   type ReservationJobToMirror,
 } from "@/app/lib/notifications/mirrors/reservation-jobs";
@@ -14,6 +15,8 @@ import {
   notificationCategory,
   notificationCreditDelta,
   notificationOpensDetail,
+  notificationStartsRead,
+  parseNotificationData,
 } from "@/app/lib/notifications/registry";
 
 const OWNER = 10;
@@ -24,6 +27,8 @@ const context: ReservationContext = {
   reservationId: 7,
   festivalId: 3,
   festivalName: "Glitter Vol. 9",
+  locationLabel: null,
+  startsAt: null,
   ownerUserId: OWNER,
   payerUserId: OWNER,
   standLabel: "B48",
@@ -51,30 +56,38 @@ function job(
   };
 }
 
-/** Builds the item and renders its copy, as `notify()` would store it. */
+/**
+ * Builds the item and renders its copy as `notify()` would store it: through
+ * the kind's schema first, which `notify()` refuses to skip.
+ */
 function render(built: ReturnType<typeof buildReservationJobNotification>) {
   if (!built) throw new Error("expected an inbox item");
+  const data = parseNotificationData(built.kind, built.data);
+  expect(data, `${built.kind} snapshot fails its schema`).not.toBeNull();
   return {
     kind: built.kind,
     category: notificationCategory(built.kind),
-    copy: buildInAppCopy(built.kind, built.data as never),
-    delta: notificationCreditDelta(built.kind, built.data),
-    opensDetail: notificationOpensDetail(built.kind, built.data),
+    copy: buildInAppCopy(built.kind, data as never),
+    delta: notificationCreditDelta(built.kind, data),
+    opensDetail: notificationOpensDetail(built.kind, data),
+    startsRead: notificationStartsRead(built.kind, data as never),
   };
 }
 
 describe("buildReservationJobNotification", () => {
-  it("tells the payer their voucher arrived, linking to their own payments page", () => {
+  it("tells the payer their voucher arrived, as a receipt already read", () => {
     const item = render(buildReservationJobNotification(job({}), context));
     expect(item.kind).toBe("reservation_proof_submitted");
     expect(item.category).toBe("credits");
     expect(item.copy.title).toBe("Recibimos tu comprobante de pago");
     expect(item.copy.body).toContain("los espacios B48 y B49");
     expect(item.copy.body).toContain("Glitter Vol. 9");
+    // Their own reservation page, which outlives the payment.
     expect(item.copy.actionPath).toBe(
-      "/profiles/10/festivals/3/reservations/7/payments",
+      "/profiles/10/festivals/3/reservations/7",
     );
     expect(item.opensDetail).toBe(false);
+    expect(item.startsRead).toBe(true);
   });
 
   it("files the admin copy under Administración with the participant's name", () => {
@@ -86,7 +99,9 @@ describe("buildReservationJobNotification", () => {
     );
     expect(item.kind).toBe("reservation_proof_submitted_admin");
     expect(item.category).toBe("admin");
-    expect(item.copy.title).toBe("Ana Pérez subió el comprobante de su reserva");
+    expect(item.copy.title).toBe(
+      "Ana Pérez subió el comprobante de su reserva",
+    );
     expect(item.copy.actionPath).toBe(
       "/dashboard/festivals/3/reservations?lens=cobros&reservation=7",
     );
@@ -188,8 +203,11 @@ describe("buildReservationJobNotification", () => {
       ),
     );
     expect(owner.kind).toBe("reservation_payment_deadline_extended");
-    expect(owner.copy.title).toBe("Se extendió el plazo de pago de tu reserva");
-    expect(owner.copy.actionLabel).toBe("Completar el pago");
+    expect(owner.copy.title).toBe("Tenés más tiempo para pagar tu reserva");
+    expect(owner.copy.actionPath).toBe(
+      "/profiles/10/festivals/3/reservations/7",
+    );
+    expect(owner.startsRead).toBe(false);
     // Bolivia time: 22:00 UTC is 6:00 PM in La Paz.
     expect(owner.copy.body).toContain("6:00 PM");
 
@@ -200,11 +218,11 @@ describe("buildReservationJobNotification", () => {
       ),
     );
     expect(partner.copy.title).toBe(
-      "Se extendió el plazo de pago de la reserva que compartís",
+      "Hay más tiempo para pagar la reserva que compartís",
     );
-    expect(partner.copy.body).toContain("Ana Pérez");
+    expect(partner.copy.body).toContain("a nombre de Ana Pérez");
     expect(partner.copy.actionPath).toBe(
-      "/profiles/11/festivals/3/reservations/7/payments",
+      "/profiles/11/festivals/3/reservations/7",
     );
   });
 
@@ -262,8 +280,11 @@ describe("buildReservationJobNotification", () => {
       ),
     );
     expect(owner.copy.title).toBe("Agregaste a Bruno a tu reserva");
-    expect(owner.copy.body).toContain("12.50 créditos");
+    expect(owner.copy.body).toBe(
+      "Ahora compartís los espacios B48 y B49 en Glitter Vol. 9 con Bruno. Se usaron 12.50 créditos y tu cobro original no cambia.",
+    );
     expect(owner.delta).toBe(-12.5);
+    expect(owner.startsRead).toBe(true);
 
     const partner = render(
       buildReservationJobNotification(
@@ -271,10 +292,96 @@ describe("buildReservationJobNotification", () => {
         context,
       ),
     );
-    expect(partner.copy.title).toBe("Vas a compartir un espacio en Glitter Vol. 9");
+    expect(partner.copy.title).toBe("Ana Pérez te agregó a su reserva");
     expect(partner.copy.body).toContain("No tenés que pagar nada");
     expect(partner.copy.body).not.toContain("12.50");
     expect(partner.delta).toBeNull();
+    expect(partner.startsRead).toBe(false);
+  });
+
+  it("keeps an admin's own reservation and own clicks out of Administración", () => {
+    // An admin paying their own cobro already has the participant's copy.
+    expect(
+      buildReservationJobNotification(
+        job({ userId: OWNER, audience: "admin" }),
+        context,
+      ),
+    ).toBeNull();
+    // An admin assigning a stand is not told about it.
+    expect(
+      buildReservationJobNotification(
+        job({
+          kind: "reservation_created",
+          userId: ADMIN,
+          audience: "admin",
+          actorUserId: ADMIN,
+        }),
+        context,
+      ),
+    ).toBeNull();
+    // Every other admin still is.
+    expect(
+      buildReservationJobNotification(
+        job({
+          kind: "reservation_created",
+          userId: ADMIN + 1,
+          audience: "admin",
+          actorUserId: ADMIN,
+        }),
+        context,
+      )?.kind,
+    ).toBe("reservation_created_admin");
+  });
+
+  it("does not open a cancellation for a reason the code filled in", () => {
+    const item = render(
+      buildReservationJobNotification(
+        job({
+          kind: "reservation_rejected",
+          payload: { reservationId: 7, reason: "Actualización administrativa" },
+        }),
+        context,
+      ),
+    );
+    expect(item.copy.body).not.toContain("Motivo");
+    expect(item.opensDetail).toBe(false);
+  });
+
+  it("tells a confirmed participant when and where to set up", () => {
+    const item = render(
+      buildReservationJobNotification(job({ kind: "settlement_approved" }), {
+        ...context,
+        // 10:00 in La Paz; setup an hour earlier.
+        startsAt: new Date("2026-11-14T14:00:00Z"),
+        locationLabel: "Centro Patiño",
+      }),
+    );
+    expect(item.copy.body).toContain("en Centro Patiño a las 9:00 AM");
+    expect(item.copy.body).toContain("para armar tus espacios");
+
+    const undated = render(
+      buildReservationJobNotification(job({ kind: "settlement_approved" }), {
+        ...context,
+        startsAt: null,
+      }),
+    );
+    expect(undated.copy.body).toMatch(/¡Te esperamos!$/);
+  });
+
+  it("speaks as the booking's owner even when someone else holds the cobro", () => {
+    const item = render(
+      buildReservationJobNotification(
+        job({
+          kind: "reservation_released",
+          userId: PARTNER,
+          payload: { creditPrice: 15 },
+        }),
+        { ...context, payerUserId: PARTNER },
+      ),
+    );
+    // The partner pays, but the owner released it: no spend on their copy.
+    expect(item.copy.title).toBe("Se liberó la reserva que compartías");
+    expect(item.delta).toBeNull();
   });
 
   it("falls back to the parent stand when no member is loaded", () => {
@@ -331,7 +438,9 @@ describe("buildParticipationJobNotification", () => {
       ),
     );
     expect(item.copy.actionPath).toBeNull();
-    expect(item.copy.body).toContain("El motivo que registramos es: Cupo completo");
+    expect(item.copy.body).toContain(
+      "El motivo que registramos es: Cupo completo",
+    );
     expect(item.opensDetail).toBe(true);
   });
 });
@@ -352,7 +461,9 @@ describe("buildTopUpRejectedJobNotification", () => {
     expect(item.category).toBe("credits");
     expect(item.copy.body).toContain("20 créditos");
     expect(item.copy.body).toContain("saldo pendiente de 8 créditos");
-    expect(item.copy.body).toMatch(/Motivo: El comprobante no es legible$/);
+    expect(item.copy.body).toContain(
+      "\n\nMotivo: El comprobante no es legible\n\nSi tenés dudas, escribinos a soporte@productoraglitter.com.",
+    );
     expect(item.delta).toBe(-20);
     expect(item.opensDetail).toBe(true);
     expect(item.copy.actionPath).toBe("/my_credits");
@@ -371,5 +482,41 @@ describe("buildTopUpRejectedJobNotification", () => {
     );
     expect(item.copy.body).not.toContain("pendiente");
     expect(item.copy.body).toContain("Motivo: No se indicó un motivo.");
+  });
+});
+
+describe("mirrorReservationNotificationJobs", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("never throws, and logs only the error's code", async () => {
+    const error = Object.assign(
+      new Error(
+        'Failed query: insert into "notifications" ...\nparams: Ana Pérez,Tu reserva fue cancelada',
+      ),
+      { cause: { code: "23514" } },
+    );
+    const tx = { transaction: vi.fn().mockRejectedValue(error) };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      mirrorReservationNotificationJobs(tx as never, [
+        job({ jobId: 1 }),
+        job({ jobId: 2, userId: ADMIN, audience: "admin" }),
+      ]),
+    ).resolves.toBeUndefined();
+
+    expect(log).toHaveBeenCalledWith(
+      "[notifications] Inbox copy of a queued email failed",
+      { kinds: ["proof_submitted"], jobIds: [1, 2], error: "pg:23514" },
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain("Ana");
+  });
+
+  it("opens no savepoint when there is nothing to write", async () => {
+    const tx = { transaction: vi.fn() };
+    await mirrorReservationNotificationJobs(tx as never, []);
+    expect(tx.transaction).not.toHaveBeenCalled();
   });
 });

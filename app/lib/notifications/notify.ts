@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import {
   buildInAppCopy,
@@ -8,6 +8,7 @@ import {
   notificationCategory,
   type NotificationData,
   type NotificationKind,
+  notificationStartsRead,
   parseNotificationData,
 } from "@/app/lib/notifications/registry";
 import { safeActionPath } from "@/app/lib/notifications/definitions";
@@ -71,6 +72,7 @@ export async function notify<K extends NotificationKind>(
       data: data as Record<string, unknown>,
       campaignId: input.campaignId ?? null,
       dedupeKey: input.dedupeKey,
+      readAt: notificationStartsRead(input.kind, data) ? sql`now()` : null,
     })
     .onConflictDoNothing({
       target: [notifications.userId, notifications.dedupeKey],

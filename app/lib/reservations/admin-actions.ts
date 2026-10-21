@@ -384,6 +384,7 @@ export async function createAdminReservation(
           id: admin.id,
           email: admin.email,
         })),
+        actorUserId: currentProfile.id,
       });
 
       return finish({ reservationId: reservation.id, jobIds });

@@ -51,6 +51,7 @@ export function RejectReservationForm({
           name="reason"
           placeholder="Ingresa una razón para cancelar la reserva"
           maxLength={1000}
+          description="Lo va a ver el participante en el correo y en sus notificaciones."
         />
         <SubmitButton
           className="flex w-full"

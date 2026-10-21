@@ -108,9 +108,12 @@ export async function mirrorDisciplinaryNotificationJob(
       } as Parameters<typeof notify>[1]);
     });
   } catch (error) {
-    console.error("[notifications] Inbox copy of a disciplinary notice failed", {
-      kind: `${job.payload.entityType}:${job.payload.kind}`,
-      error: mirrorFailureType(error),
-    });
+    console.error(
+      "[notifications] Inbox copy of a disciplinary notice failed",
+      {
+        kind: `${job.payload.entityType}:${job.payload.kind}`,
+        error: mirrorFailureType(error),
+      },
+    );
   }
 }

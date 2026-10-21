@@ -363,6 +363,7 @@ export async function addLatePartner(input: {
         reservationId: preview.id,
         userId: recipient.id,
         recipientEmail: recipient.email,
+        audience: "participant",
         // Keyed on the action, not just the reservation: the default
         // `kind:reservationId:email` key collides when a reservation gains a
         // partner twice (one added, removed by an admin, another added), and

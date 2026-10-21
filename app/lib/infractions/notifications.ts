@@ -322,7 +322,10 @@ async function insertNotificationJob(
     // A retry row has no snapshot yet: its copy is written when the worker
     // hydrates it. One the dedupe key swallowed gets none, like its email.
     const payload = input.payload;
-    if (input.userId !== null && payload.entityType !== "sanction_enqueue_retry") {
+    if (
+      input.userId !== null &&
+      payload.entityType !== "sanction_enqueue_retry"
+    ) {
       await mirrorDisciplinaryNotificationJob(executor, {
         deduplicationKey: input.deduplicationKey,
         userId: input.userId,
@@ -727,31 +730,37 @@ async function processClaimedNotificationJob(
           ? new Date(input.reservationEligibleAt)
           : null,
       });
-      const [prepared] = await db
-        .update(disciplinaryNotificationJobs)
-        .set({
-          userId: payload.profile.id,
-          recipientEmail: payload.profile.email,
-          payload,
-          lastError: null,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(disciplinaryNotificationJobs.id, job.id),
-            eq(disciplinaryNotificationJobs.status, "processing"),
-            eq(disciplinaryNotificationJobs.leaseOwner, owner),
-          ),
-        )
-        .returning();
+      // The snapshot and the inbox copy its enqueue could not write commit
+      // together: once hydrated, the job is never hydrated again.
+      const prepared = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(disciplinaryNotificationJobs)
+          .set({
+            userId: payload.profile.id,
+            recipientEmail: payload.profile.email,
+            payload,
+            lastError: null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(disciplinaryNotificationJobs.id, job.id),
+              eq(disciplinaryNotificationJobs.status, "processing"),
+              eq(disciplinaryNotificationJobs.leaseOwner, owner),
+            ),
+          )
+          .returning();
+        if (row) {
+          await mirrorDisciplinaryNotificationJob(tx, {
+            deduplicationKey: row.deduplicationKey,
+            userId: payload.profile.id,
+            payload,
+          });
+        }
+        return row;
+      });
       if (!prepared) return "claim_lost" as const;
       deliverableJob = prepared;
-      // The copy its enqueue could not write, now that there is a snapshot.
-      await mirrorDisciplinaryNotificationJob(db, {
-        deduplicationKey: prepared.deduplicationKey,
-        userId: payload.profile.id,
-        payload,
-      });
     }
 
     result = await deliverDisciplinaryNotificationPayload(
@@ -880,26 +889,31 @@ export async function enqueueEnabledReservationAccessNotifications(
 
   const jobIds: number[] = [];
   for (const candidate of candidates) {
-    if (!candidate.reservationEligibleAt) continue;
+    const reservationEligibleAt = candidate.reservationEligibleAt;
+    if (!reservationEligibleAt) continue;
 
     let jobId: number;
     try {
-      jobId = await enqueueSanctionLifecycleNotification(tx, {
-        sanctionId: candidate.sanctionId,
-        kind: "reservation_access_enabled",
-        deduplicationKey: [
-          "sanction",
-          candidate.sanctionId,
-          "festival",
-          candidate.festivalId,
-          "reservation-access",
-          candidate.reservationEligibleAt.toISOString(),
-        ].join(":"),
-        festivalName: candidate.festivalName,
-        festivalId: candidate.festivalId,
-        reservationEligibleAt: candidate.reservationEligibleAt,
-        now,
-      });
+      // A savepoint per candidate: a database error on one must not abort
+      // the reconciliation for every other sanction in this run.
+      jobId = await tx.transaction((candidateTx) =>
+        enqueueSanctionLifecycleNotification(candidateTx, {
+          sanctionId: candidate.sanctionId,
+          kind: "reservation_access_enabled",
+          deduplicationKey: [
+            "sanction",
+            candidate.sanctionId,
+            "festival",
+            candidate.festivalId,
+            "reservation-access",
+            reservationEligibleAt.toISOString(),
+          ].join(":"),
+          festivalName: candidate.festivalName,
+          festivalId: candidate.festivalId,
+          reservationEligibleAt,
+          now,
+        }),
+      );
     } catch (error) {
       console.error(
         "[disciplinary-notifications] Failed to enqueue reservation-access notification",

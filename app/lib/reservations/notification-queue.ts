@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 
 import {
   type MirrorAudience,
-  mirrorReservationNotificationJob,
+  mirrorReservationNotificationJobs,
+  type ReservationJobToMirror,
 } from "@/app/lib/notifications/mirrors/reservation-jobs";
 import { db } from "@/db";
 import { reservationNotificationJobs } from "@/db/schema";
@@ -22,8 +23,10 @@ type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * either. Writers import this; only the job runner imports the outbox.
  *
  * Queuing a job also writes its inbox copy (phase 2 of
- * docs/PRD-in-app-notifications.md), which needs no template or send key: the
- * inbox renders from the registry's in-app copy alone.
+ * docs/PRD-in-app-notifications.md). That brings in the notification
+ * registry, which keeps each kind's in-app copy next to its email's and so
+ * imports templates, but still no send key and no env:
+ * notification-queue.light.test.ts holds it to that.
  */
 export const RESERVATION_NOTIFICATION_KINDS = [
   "reservation_created",
@@ -52,22 +55,24 @@ export const RESERVATION_NOTIFICATION_KINDS = [
 export type ReservationNotificationKind =
   (typeof RESERVATION_NOTIFICATION_KINDS)[number];
 
-export async function enqueueReservationNotification(
-  tx: DbTx,
-  input: {
-    kind: ReservationNotificationKind;
-    reservationId?: number | null;
-    userId?: number | null;
-    recipientEmail: string;
-    payload?: Record<string, unknown>;
-    deduplicationKey?: string;
-    /**
-     * Whose copy this is. An admin's lands in Administración; the email is
-     * the same either way, told apart at delivery.
-     */
-    audience?: MirrorAudience;
-  },
-): Promise<number | null> {
+export type ReservationNotificationInput = {
+  kind: ReservationNotificationKind;
+  reservationId?: number | null;
+  userId?: number | null;
+  recipientEmail: string;
+  payload?: Record<string, unknown>;
+  deduplicationKey?: string;
+  /**
+   * Whose copy this is. An admin's lands in Administración; the email is the
+   * same either way, told apart at delivery. Required, so a new admin email
+   * cannot file a participant's copy for an admin by default.
+   */
+  audience: MirrorAudience;
+  /** Who did what the email reports; see `ReservationJobToMirror`. */
+  actorUserId?: number | null;
+};
+
+async function insertJob(tx: DbTx, input: ReservationNotificationInput) {
   const email = input.recipientEmail.trim();
   if (!email) return null;
   const now = new Date();
@@ -101,24 +106,56 @@ export async function enqueueReservationNotification(
     .returning({ id: reservationNotificationJobs.id });
 
   if (inserted) {
-    // Only for an email that will actually go out: one the dedupe key just
-    // swallowed gets no inbox copy either.
-    if (input.userId != null) {
-      await mirrorReservationNotificationJob(tx, {
-        jobId: inserted.id,
-        kind: input.kind,
-        reservationId,
-        userId: input.userId,
-        payload,
-        audience: input.audience ?? "participant",
-      });
-    }
-    return inserted.id;
+    // Only an email that will actually go out gets an inbox copy: one the
+    // dedupe key just swallowed gets none either.
+    const mirror: ReservationJobToMirror | null =
+      input.userId != null
+        ? {
+            jobId: inserted.id,
+            kind: input.kind,
+            reservationId,
+            userId: input.userId,
+            payload,
+            audience: input.audience,
+            actorUserId: input.actorUserId ?? null,
+          }
+        : null;
+    return { id: inserted.id, mirror };
   }
 
   const existing = await tx.query.reservationNotificationJobs.findFirst({
     where: eq(reservationNotificationJobs.deduplicationKey, deduplicationKey),
     columns: { id: true },
   });
-  return existing?.id ?? null;
+  return existing ? { id: existing.id, mirror: null } : null;
+}
+
+export async function enqueueReservationNotification(
+  tx: DbTx,
+  input: ReservationNotificationInput,
+): Promise<number | null> {
+  const [jobId] = await enqueueReservationNotifications(tx, [input]);
+  return jobId ?? null;
+}
+
+/**
+ * Queues the emails one event sends (an owner and every admin, say), then
+ * writes all their inbox copies at once: one savepoint and one read of the
+ * reservation, instead of one of each per recipient.
+ *
+ * Returns each input's job id, or null where nothing was queued.
+ */
+export async function enqueueReservationNotifications(
+  tx: DbTx,
+  inputs: readonly ReservationNotificationInput[],
+): Promise<Array<number | null>> {
+  const jobIds: Array<number | null> = [];
+  const mirrors: ReservationJobToMirror[] = [];
+  for (const input of inputs) {
+    const queued = await insertJob(tx, input);
+    jobIds.push(queued?.id ?? null);
+    if (queued?.mirror) mirrors.push(queued.mirror);
+  }
+  await mirrorReservationNotificationJobs(tx, mirrors);
+  return jobIds;
 }

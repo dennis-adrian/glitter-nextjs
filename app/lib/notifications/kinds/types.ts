@@ -35,6 +35,12 @@ export type KindDefinition<Data> = {
    */
   opensDetail?: (data: Data) => boolean;
   /**
+   * Whether the item is written already read: a receipt for something the
+   * person just did themselves ("Recibimos tu comprobante") belongs in their
+   * history, but is not news worth a badge.
+   */
+  startsRead?: (data: Data) => boolean;
+  /**
    * Disciplinary notices. A push (phase 2b) says only that something arrived,
    * never what, since it shows on a lock screen.
    */

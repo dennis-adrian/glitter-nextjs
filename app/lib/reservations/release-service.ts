@@ -333,6 +333,7 @@ export async function releaseReservation(input: {
         reservationId: reservation.id,
         userId: recipient.id,
         recipientEmail: recipient.email,
+        audience: "participant",
         payload: {
           creditPrice: config.creditPrice,
           releasedStandIds: memberStandIds,

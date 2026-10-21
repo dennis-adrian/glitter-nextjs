@@ -1,14 +1,19 @@
 import { DateTime } from "luxon";
 import { z } from "zod";
 
-import { formatCreditCount } from "@/app/components/credits/credit-amount";
-import { formatDisplayDate, formatFullDate } from "@/app/lib/formatters";
+import { formatCreditCount } from "@/app/lib/credits/format";
+import {
+  formatDate,
+  formatDisplayDate,
+  formatFullDate,
+} from "@/app/lib/formatters";
+import { SUPPORT_LINE } from "@/app/lib/notifications/kinds/copy";
 import type { KindDefinition } from "@/app/lib/notifications/kinds/types";
 import { consoleHref } from "@/app/lib/reservations/console-lenses";
 
 /**
  * The inbox copies of the reservation outbox's emails (phase 2). In-app only:
- * the outbox still sends each email, and `mirrorReservationNotificationJob`
+ * the outbox still sends each email, and `mirrorReservationNotificationJobs`
  * writes these in the same transaction that queues it.
  *
  * Each body says what its email says, shorter and without the greeting.
@@ -31,6 +36,12 @@ const participantReservationSchema = reservationSchema.extend({
 });
 
 const roleSchema = z.enum(["owner", "partner"]);
+
+const confirmedSchema = participantReservationSchema.extend({
+  /** When the festival's first day starts, if it has dates. */
+  startsAt: z.string().datetime().nullable(),
+  locationLabel: z.string().nullable(),
+});
 
 const cancelledSchema = participantReservationSchema.extend({
   /** Typed by the admin who cancelled; the email shows it too. */
@@ -114,8 +125,9 @@ function reservationPath(data: ParticipantReservation) {
   return `/profiles/${data.profileId}/festivals/${data.festivalId}/reservations/${data.reservationId}`;
 }
 
-function paymentsPath(data: ParticipantReservation) {
-  return `${reservationPath(data)}/payments`;
+/** "5 nov 2026 a las 6:00 PM", in Bolivia time. */
+function dateAndTime(iso: string, dateFormat = DateTime.DATE_MED) {
+  return `${formatDisplayDate(iso, dateFormat)} a las ${formatDisplayDate(iso, DateTime.TIME_SIMPLE)}`;
 }
 
 /** A reason or note as its own paragraph, read whole on the item's page. */
@@ -124,16 +136,19 @@ function withParagraph(body: string, label: string, text: string | null) {
 }
 
 export const reservationOutboxKinds = {
-  /** To the payer, once their voucher is in. */
+  /** To the payer, once their voucher is in. A receipt for their own upload. */
   reservation_proof_submitted: {
     category: "credits",
     schema: participantReservationSchema,
     inApp: (data) => ({
       title: "Recibimos tu comprobante de pago",
       body: `Recibimos el comprobante que subiste para ${theStands(data)} en ${data.festivalName}. Te avisamos cuando confirmemos tu reserva.`,
-      actionPath: paymentsPath(data),
-      actionLabel: "Ver el pago",
+      // The reservation, not its payments page: that one empties out once the
+      // cobro is paid, and the item stays for months.
+      actionPath: reservationPath(data),
+      actionLabel: "Ver mi reserva",
     }),
+    startsRead: () => true,
   } satisfies KindDefinition<ParticipantReservation>,
 
   /** To the owner of a Bs0 cobro, once they ask for it to be confirmed. */
@@ -142,23 +157,31 @@ export const reservationOutboxKinds = {
     schema: participantReservationSchema,
     inApp: (data) => ({
       title: "Tu reserva está en revisión",
-      body: `Registramos tu reserva gratuita para ${theStands(data)} en ${data.festivalName}: tu código de descuento cubrió el costo total. Te avisamos cuando la confirmemos.`,
+      body: `Registramos tu reserva sin costo ${ofTheStands(data)} en ${data.festivalName}. Te avisamos cuando la confirmemos.`,
       actionPath: reservationPath(data),
-      actionLabel: "Ver la reserva",
+      actionLabel: "Ver mi reserva",
     }),
+    startsRead: () => true,
   } satisfies KindDefinition<ParticipantReservation>,
 
   /** To the payer, when the reservation is confirmed by any route. */
   reservation_confirmed: {
     category: "reservations",
-    schema: participantReservationSchema,
-    inApp: (data) => ({
-      title: "¡Tu reserva está confirmada!",
-      body: `Confirmamos tu reserva para ${theStands(data)} en ${data.festivalName}. ¡Te esperamos!`,
-      actionPath: reservationPath(data),
-      actionLabel: "Ver la reserva",
-    }),
-  } satisfies KindDefinition<ParticipantReservation>,
+    schema: confirmedSchema,
+    inApp: (data) => {
+      // Setup starts an hour before the doors open, as the email says.
+      const setup =
+        data.startsAt && data.locationLabel
+          ? ` Te esperamos el ${formatFullDate(new Date(data.startsAt))} en ${data.locationLabel} a las ${formatDisplayDate(formatDate(data.startsAt).minus({ hours: 1 }), DateTime.TIME_SIMPLE)} para armar ${data.standCount > 1 ? "tus espacios" : "tu espacio"}.`
+          : " ¡Te esperamos!";
+      return {
+        title: "¡Tu reserva está confirmada!",
+        body: `Confirmamos tu reserva ${ofTheStands(data)} en ${data.festivalName}.${setup}`,
+        actionPath: reservationPath(data),
+        actionLabel: "Ver mi reserva",
+      };
+    },
+  } satisfies KindDefinition<z.infer<typeof confirmedSchema>>,
 
   /** To every participant of a reservation an admin cancelled. */
   reservation_cancelled: {
@@ -167,7 +190,7 @@ export const reservationOutboxKinds = {
     inApp: (data) => ({
       title: "Tu reserva fue cancelada",
       body: withParagraph(
-        `Tu reserva para ${theStands(data)} en ${data.festivalName} fue cancelada, y ${data.standCount > 1 ? "los espacios quedaron disponibles" : "el espacio quedó disponible"} de nuevo.`,
+        `Cancelamos tu reserva ${ofTheStands(data)} en ${data.festivalName} y ${data.standCount > 1 ? "los espacios volvieron a quedar disponibles" : "el espacio volvió a quedar disponible"}.`,
         "Motivo:",
         data.reason,
       ),
@@ -177,26 +200,28 @@ export const reservationOutboxKinds = {
     opensDetail: (data) => data.reason != null,
   } satisfies KindDefinition<z.infer<typeof cancelledSchema>>,
 
-  /** To every participant; only the owner can upload the voucher. */
+  /**
+   * To every participant; only the owner can upload the voucher. Both link to
+   * the reservation, which carries the new deadline and the owner's pay
+   * button, and still makes sense after the cobro is paid.
+   */
   reservation_payment_deadline_extended: {
     category: "credits",
     schema: deadlineExtendedSchema,
-    inApp: (data) => {
-      const due = `${formatDisplayDate(data.dueAt, DateTime.DATE_MED)} a las ${formatDisplayDate(data.dueAt, DateTime.TIME_SIMPLE)}`;
-      return data.role === "owner"
+    inApp: (data) =>
+      data.role === "owner"
         ? {
-            title: "Se extendió el plazo de pago de tu reserva",
-            body: `La nueva fecha límite para pagar tu reserva ${ofTheStands(data)} en ${data.festivalName} es el ${due}. Recordá subir el comprobante antes de esa fecha.`,
-            actionPath: paymentsPath(data),
-            actionLabel: "Completar el pago",
+            title: "Tenés más tiempo para pagar tu reserva",
+            body: `La nueva fecha límite es el ${dateAndTime(data.dueAt)}. Subí el comprobante antes para confirmar tu reserva ${ofTheStands(data)} en ${data.festivalName}.`,
+            actionPath: reservationPath(data),
+            actionLabel: "Ver mi reserva",
           }
         : {
-            title: "Se extendió el plazo de pago de la reserva que compartís",
-            body: `La nueva fecha límite para pagar la reserva que compartís con ${data.ownerName} en ${data.festivalName} es el ${due}. El cobro está a nombre de ${data.ownerName}, así que le corresponde subir el comprobante.`,
-            actionPath: paymentsPath(data),
-            actionLabel: "Ver el estado del pago",
-          };
-    },
+            title: "Hay más tiempo para pagar la reserva que compartís",
+            body: `La nueva fecha límite para pagar la reserva ${ofTheStands(data)} en ${data.festivalName} es el ${dateAndTime(data.dueAt)}. El cobro está a nombre de ${data.ownerName}, así que le toca subir el comprobante.`,
+            actionPath: reservationPath(data),
+            actionLabel: "Ver la reserva",
+          },
   } satisfies KindDefinition<z.infer<typeof deadlineExtendedSchema>>,
 
   /** To the owner who released it and to the partner who is finding out. */
@@ -208,6 +233,8 @@ export const reservationOutboxKinds = {
         data.standCount > 1
           ? "Esos espacios volvieron al mapa y otra persona puede tomarlos."
           : "Ese espacio volvió al mapa y otra persona puede tomarlo.";
+      // The map, not the reservation: the released reservation's page speaks
+      // as its owner, which is wrong for a partner.
       const actionPath = `/profiles/${data.profileId}/festivals/${data.festivalId}/reservations/new`;
       if (data.role === "owner") {
         const cost =
@@ -230,6 +257,8 @@ export const reservationOutboxKinds = {
     },
     creditDelta: (data) =>
       data.role === "owner" && data.creditPrice ? -data.creditPrice : null,
+    // The owner did it; the partner is finding out.
+    startsRead: (data) => data.role === "owner",
   } satisfies KindDefinition<z.infer<typeof releasedSchema>>,
 
   /** To the owner who paid and to the partner who was added. */
@@ -240,22 +269,23 @@ export const reservationOutboxKinds = {
       data.role === "owner"
         ? {
             title: `Agregaste a ${data.partnerName} a tu reserva`,
-            body: `Agregamos a ${data.partnerName} a tu reserva ${ofTheStands(data)} en ${data.festivalName}. ${
+            body: `Ahora compartís ${theStands(data)} en ${data.festivalName} con ${data.partnerName}. ${
               data.totalCredits
-                ? `Se usaron ${formatCreditCount(data.totalCredits)}, y tu cobro original no cambia.`
+                ? `Se usaron ${formatCreditCount(data.totalCredits)} y tu cobro original no cambia.`
                 : "Tu cobro original no cambia."
             }`,
             actionPath: reservationPath(data),
-            actionLabel: "Ver la reserva",
+            actionLabel: "Ver mi reserva",
           }
         : {
-            title: `Vas a compartir un espacio en ${data.festivalName}`,
-            body: `${data.ownerName} te agregó a su reserva ${ofTheStands(data)} en ${data.festivalName}. No tenés que pagar nada: ${data.ownerName} ya se hizo cargo del costo.`,
+            title: `${data.ownerName} te agregó a su reserva`,
+            body: `Van a compartir ${theStands(data)} en ${data.festivalName}. No tenés que pagar nada: ${data.ownerName} ya se hizo cargo del costo.`,
             actionPath: reservationPath(data),
             actionLabel: "Ver la reserva",
           },
     creditDelta: (data) =>
       data.role === "owner" && data.totalCredits ? -data.totalCredits : null,
+    startsRead: (data) => data.role === "owner",
   } satisfies KindDefinition<z.infer<typeof partnerAddedSchema>>,
 
   festival_participation_approved: {
@@ -266,7 +296,8 @@ export const reservationOutboxKinds = {
       body:
         data.reservationsOpen || !data.reservationsStartDate
           ? "Ya podés continuar con la reserva de tu espacio."
-          : `Vas a poder reservar tu espacio a partir del ${formatFullDate(new Date(data.reservationsStartDate))}.`,
+          : // Reservations open at an hour, not on a day.
+            `Vas a poder reservar tu espacio desde el ${dateAndTime(data.reservationsStartDate, DateTime.DATE_FULL)}.`,
       actionPath: `/festivals/${data.festivalId}/terms`,
       actionLabel: "Reservar mi espacio",
     }),
@@ -277,12 +308,12 @@ export const reservationOutboxKinds = {
     category: "reservations",
     schema: participationRejectedSchema,
     inApp: (data) => ({
-      title: `Tu postulación para ${data.festivalName}`,
-      body: withParagraph(
+      title: `Novedades sobre tu postulación para ${data.festivalName}`,
+      body: `${withParagraph(
         `Gracias por tu interés en participar en ${data.festivalName}. Lamentablemente, tu postulación no fue aprobada en esta ocasión.`,
         "El motivo que registramos es:",
         data.reason,
-      ),
+      )}\n\n${SUPPORT_LINE}`,
       actionPath: null,
       actionLabel: null,
     }),
@@ -294,7 +325,7 @@ export const reservationOutboxKinds = {
     schema: topUpRejectedSchema,
     inApp: (data) => ({
       title: "No pudimos confirmar tu compra de créditos",
-      body: withParagraph(
+      body: `${withParagraph(
         `Revisamos el comprobante de tu compra de ${formatCreditCount(data.amount)} y no pudimos confirmarlo, así que descontamos esos créditos de tu billetera.${
           data.debtAmount > 0
             ? ` Con este ajuste te queda un saldo pendiente de ${formatCreditCount(data.debtAmount)}: hasta regularizarlo no vas a poder usar créditos. Lo que ya reservaste o activaste sigue en pie.`
@@ -302,7 +333,7 @@ export const reservationOutboxKinds = {
         }`,
         "Motivo:",
         data.reason,
-      ),
+      )}\n\n${SUPPORT_LINE}`,
       actionPath: "/my_credits",
       actionLabel: "Ver mi billetera",
     }),

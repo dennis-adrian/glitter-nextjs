@@ -12,6 +12,7 @@ import {
   type SanctionEmailKind,
 } from "@/app/emails/sanction-lifecycle";
 import { formatDisplayDate } from "@/app/lib/formatters";
+import { SUPPORT_LINE } from "@/app/lib/notifications/kinds/copy";
 import type { KindDefinition } from "@/app/lib/notifications/kinds/types";
 
 /**
@@ -53,8 +54,9 @@ function historyPath(data: { profileId: number }) {
   return `/profiles/${data.profileId}/infractions`;
 }
 
+/** The body, its note as a paragraph of its own, and the support line. */
 function withNote(body: string, label: string, note: string | null) {
-  return note ? `${body}\n\n${label} ${note}` : body;
+  return `${note ? `${body}\n\n${label} ${note}` : body}\n\n${SUPPORT_LINE}`;
 }
 
 function infractionBody(kind: InfractionEmailKind, data: InfractionData) {
@@ -118,7 +120,9 @@ function sanctionKind(kind: SanctionEmailKind): KindDefinition<SanctionData> {
     schema: sanctionSchema,
     inApp: (data) => ({
       title: copy.subject,
-      body: withNote(sanctionBody(kind, data), copy.noteLabel, data.note),
+      body: access
+        ? sanctionBody(kind, data)
+        : withNote(sanctionBody(kind, data), copy.noteLabel, data.note),
       ...(access && data.festivalId
         ? {
             actionPath: `/profiles/${data.profileId}/festivals/${data.festivalId}/reservations/new`,

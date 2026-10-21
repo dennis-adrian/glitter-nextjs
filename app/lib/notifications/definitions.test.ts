@@ -15,6 +15,15 @@ describe("inbox filters", () => {
     expect(visibleNotificationFilters("user")).not.toContain("admin");
   });
 
+  it("hides Anuncios until there are announcements to file there", () => {
+    expect(visibleNotificationFilters("user")).toEqual([
+      "all",
+      "reservations",
+      "credits",
+    ]);
+    expect(parseNotificationFilter("announcements", "user")).toBe("all");
+  });
+
   it("falls back to all for an unknown or forbidden filter", () => {
     expect(parseNotificationFilter("credits", "user")).toBe("credits");
     expect(parseNotificationFilter("admin", "user")).toBe("all");
