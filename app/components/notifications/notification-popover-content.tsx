@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import NotificationItem from "@/app/components/notifications/notification-item";
+import { PushOffer } from "@/app/components/notifications/push-control";
 import { useMarkAllNotificationsRead } from "@/app/components/notifications/use-mark-all-notifications-read";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
@@ -44,6 +45,8 @@ type NotificationPopoverContentProps = {
   knownCount: number | null;
   onCountChange: (count: number) => void;
   onNavigate: () => void;
+  /** Offers avisos in the footer; null when they are not open. */
+  pushPublicKey?: string | null;
 };
 
 /**
@@ -54,6 +57,7 @@ export default function NotificationPopoverContent({
   knownCount,
   onCountChange,
   onNavigate,
+  pushPublicKey = null,
 }: NotificationPopoverContentProps) {
   const [view, setView] = useState<View>("unread");
   // Bumped to load again: "Reintentar", and an undo that changed the list.
@@ -205,7 +209,7 @@ export default function NotificationPopoverContent({
         )}
       </div>
 
-      <div className="border-t px-4 py-2.5 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-4 py-2.5 text-sm">
         <Link
           href="/my_notifications"
           onClick={onNavigate}
@@ -213,6 +217,11 @@ export default function NotificationPopoverContent({
         >
           Ver todas
         </Link>
+        <PushOffer
+          publicKey={pushPublicKey}
+          onNavigate={onNavigate}
+          showBlocked
+        />
       </div>
     </div>
   );

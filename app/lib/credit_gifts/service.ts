@@ -1005,11 +1005,14 @@ export async function resendCreditGiftNotification(input: {
       })
       .from(notificationDeliveries)
       .where(
-        eq(notificationDeliveries.notificationId, recipient.notificationId),
+        and(
+          eq(notificationDeliveries.notificationId, recipient.notificationId),
+          eq(notificationDeliveries.channel, "email"),
+        ),
       )
       .orderBy(desc(notificationDeliveries.id))
       .limit(1);
-    // The last one is still on its way: another now would arrive twice.
+    // The last email is still on its way: another now would arrive twice.
     if (previous?.status === "pending" || previous?.status === "processing") {
       return { ok: false, code: "EMAIL_PENDING" } as const;
     }
@@ -1024,6 +1027,8 @@ export async function resendCreditGiftNotification(input: {
         notificationId: recipient.notificationId,
         userId: input.userId,
         templateKey: row.kind,
+        // "Reenviar aviso" re-sends the email only.
+        channel: "email",
         recipientEmail: email,
         payload: row.data,
         idempotencyKey: `notification:${recipient.notificationId}:resend:${randomUUID()}`,

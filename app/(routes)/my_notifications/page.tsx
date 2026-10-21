@@ -1,8 +1,14 @@
+import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 
 import Title from "@/app/components/atoms/heading";
 import NotificationInbox from "@/app/components/notifications/notification-inbox";
+import { PushControl } from "@/app/components/notifications/push-control";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { formatDisplayDate } from "@/app/lib/formatters";
+import { isPushEnabledFor } from "@/app/lib/notifications/push/access";
+import { pushPublicKey } from "@/app/lib/notifications/push/config";
+import { fetchPushDevices } from "@/app/lib/notifications/push/devices";
 import {
   parseNotificationFilter,
   visibleNotificationFilters,
@@ -23,13 +29,33 @@ export default async function MyNotificationsPage(props: {
     (await props.searchParams).filter,
     viewer.role,
   );
-  const page = await fetchInboxPage(viewer, { filter });
+  const [page, pushEnabled] = await Promise.all([
+    fetchInboxPage(viewer, { filter }),
+    isPushEnabledFor(viewer),
+  ]);
+  const devices = pushEnabled ? await fetchPushDevices(viewer.id) : [];
 
   return (
     <div className="container max-w-2xl p-3 md:p-6">
       <div className="mb-4">
         <Title>Notificaciones</Title>
       </div>
+      {/* Outside the keyed inbox, so changing filter keeps its state. */}
+      {pushEnabled && (
+        <div className="mb-4">
+          <PushControl
+            publicKey={pushPublicKey()}
+            devices={devices.map((device) => ({
+              id: device.id,
+              label: device.label,
+              lastUsedLabel: formatDisplayDate(
+                device.lastUsedAt,
+                DateTime.DATE_MED,
+              ),
+            }))}
+          />
+        </div>
+      )}
       {/* Keyed by filter: a new filter is a new list, not a merge. */}
       <NotificationInbox
         key={filter}

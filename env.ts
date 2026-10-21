@@ -31,6 +31,12 @@ import { getClientEnv } from "./env.client";
 
 export { getClientEnv };
 
+/** An empty value, as copied from .env.example, counts as unset. */
+const optionalSecret = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(1).optional(),
+);
+
 const serverSchema = z
   .object({
     // Auth
@@ -49,10 +55,14 @@ const serverSchema = z
     RESEND_API_KEY: z.string().min(1),
     // Signs Resend's webhook (whsec_…); without it the webhook refuses events.
     // An empty `RESEND_WEBHOOK_SECRET=` (as copied from .env.example) is unset.
-    RESEND_WEBHOOK_SECRET: z.preprocess(
-      (value) => (value === "" ? undefined : value),
-      z.string().min(1).optional(),
-    ),
+    RESEND_WEBHOOK_SECRET: optionalSecret,
+
+    // Web push (VAPID), one pair per environment. Optional: without all three
+    // push is off and the control says so. Their shape is checked where push
+    // reads them, so a bad value turns push off instead of failing the boot.
+    VAPID_PUBLIC_KEY: optionalSecret,
+    VAPID_PRIVATE_KEY: optionalSecret,
+    VAPID_SUBJECT: optionalSecret,
 
     // File storage
     UPLOADTHING_TOKEN: z.string().min(1),

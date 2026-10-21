@@ -1,5 +1,6 @@
 "use client";
 
+import { forgetThisBrowserForPush } from "@/app/components/notifications/use-push-device";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { useClerk } from "@clerk/nextjs";
@@ -10,6 +11,7 @@ export default function TryAgainForm() {
   const form = useForm();
 
   const action = form.handleSubmit(async () => {
+    await forgetThisBrowserForPush();
     signOut({
       redirectUrl: "/sign_in",
     });

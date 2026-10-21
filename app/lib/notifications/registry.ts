@@ -84,6 +84,7 @@ const kinds = {
     creditDelta: (data) => data.amount,
     // A message someone wrote: read whole on its own page.
     opensDetail: () => true,
+    push: true,
   } satisfies KindDefinition<z.infer<typeof creditGiftReceivedSchema>>,
 
   credit_gift_revoked: {
@@ -111,6 +112,7 @@ const kinds = {
       }),
     }),
     creditDelta: (data) => -data.amount,
+    push: true,
   } satisfies KindDefinition<z.infer<typeof creditGiftRevokedSchema>>,
 
   /** To the admin who sent a gift, once every recipient is processed. */
@@ -233,6 +235,18 @@ export function notificationStartsRead<K extends NotificationKind>(
   data: NotificationData<K>,
 ): boolean {
   return definition(kind).startsRead?.(data) ?? false;
+}
+
+/**
+ * Whether this notification also goes to the person's devices; see
+ * `KindDefinition.push`. An item written already read never does.
+ */
+export function notificationPushes<K extends NotificationKind>(
+  kind: K,
+  data: NotificationData<K>,
+): boolean {
+  const def = definition(kind);
+  return def.push === true && !(def.startsRead?.(data) ?? false);
 }
 
 /** Disciplinary notices, whose content stays off a lock screen. */

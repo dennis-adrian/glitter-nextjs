@@ -327,7 +327,11 @@ export async function fetchCreditGift(
           })
           .from(notificationDeliveries)
           .where(
-            inArray(notificationDeliveries.notificationId, notificationIds),
+            and(
+              inArray(notificationDeliveries.notificationId, notificationIds),
+              // The page reports the email; pushes to devices are not mail.
+              eq(notificationDeliveries.channel, "email"),
+            ),
           )
           .orderBy(asc(notificationDeliveries.id))
       : Promise.resolve([]),

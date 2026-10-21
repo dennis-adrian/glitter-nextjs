@@ -21,6 +21,7 @@ import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defin
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getUserName } from "@/app/lib/users/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { drainDuePushDeliveries } from "@/app/lib/notifications/deliveries";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
@@ -68,11 +69,16 @@ export function scheduleReservationNotificationJobs(jobIds: readonly number[]) {
     ...new Set(jobIds.filter((id) => Number.isInteger(id) && id > 0)),
   ];
   if (unique.length === 0) return;
-  after(() => {
-    void Promise.all(
-      unique.map((jobId) => attemptReservationNotificationJob(jobId)),
-    );
-  });
+  // Returned, so the platform keeps the function alive until every attempt
+  // settles; allSettled, so one failed claim does not end that early. The
+  // jobs' inbox copies may have queued pushes, whose ids no caller sees: the
+  // drain sends the fresh ones.
+  after(() =>
+    Promise.allSettled([
+      ...unique.map((jobId) => attemptReservationNotificationJob(jobId)),
+      drainDuePushDeliveries(),
+    ]),
+  );
 }
 
 async function claimJob(jobId: number, owner: string) {

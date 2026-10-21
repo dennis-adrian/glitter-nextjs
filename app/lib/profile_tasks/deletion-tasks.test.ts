@@ -171,6 +171,13 @@ function claimTx(
         returning: vi.fn(async () => [{ id: pendingInserts.shift() ?? 0 }]),
       })),
     })),
+    // The profile's push devices go under the user lock.
+    delete: vi.fn(() => ({
+      where: vi.fn(async () => {
+        lockedForUpdate.push("push_subscriptions:delete");
+        return [];
+      }),
+    })),
   };
 }
 
@@ -690,8 +697,13 @@ describe("handleDeletionEmails", () => {
     await handleDeletionEmails();
 
     // Both rows are locked, and the user row goes first: that is what stops a
-    // concurrent run from inserting a second active outbox entry.
-    expect(lockedForUpdate).toEqual(["users:update", "pending:update"]);
+    // concurrent run from inserting a second active outbox entry. The push
+    // devices go under that lock, before Clerk is called.
+    expect(lockedForUpdate).toEqual([
+      "users:update",
+      "push_subscriptions:delete",
+      "pending:update",
+    ]);
   });
 
   it("skips a profile whose row disappeared while waiting for the lock", async () => {

@@ -1,6 +1,7 @@
 import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
 import { isLayoutFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { layoutPushPublicKey } from "@/app/lib/notifications/push/access";
 import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
 import { fetchProgramsNavTarget } from "@/app/lib/programs/data";
 
@@ -34,12 +35,14 @@ export default async function Navbar() {
     creditsEnabled,
     blogEnabled,
     notificationsEnabled,
+    pushPublicKey,
     landingContent,
   ] = await Promise.all([
     resolveProgramsHref(),
     isLayoutFeatureEnabled("credits"),
     isLayoutFeatureEnabled("blog"),
     isLayoutFeatureEnabled("notifications"),
+    layoutPushPublicKey(),
     getPublishedLandingContent(),
   ]);
 
@@ -51,6 +54,7 @@ export default async function Navbar() {
         creditsEnabled={creditsEnabled}
         blogEnabled={blogEnabled}
         notificationsEnabled={notificationsEnabled}
+        pushPublicKey={pushPublicKey}
       />
     </div>
   );

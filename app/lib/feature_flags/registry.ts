@@ -59,6 +59,13 @@ export const FEATURE_FLAGS = {
     // public default would launch with the first request after deploy.
     defaultVisibility: "admin_only",
   },
+  push_notifications: {
+    label: "Avisos en el dispositivo",
+    description:
+      "El control «Recibir avisos en este dispositivo» en la campana y en `/my_notifications`, y el envío de esas notificaciones al centro de notificaciones del teléfono o la computadora. Requiere también la bandera «Notificaciones en la app»: tocar un aviso abre la notificación. En iPhone los avisos llegan solo con Glitter agregado a la pantalla de inicio. Apagarla deja de enviar avisos en el siguiente envío, aunque los dispositivos sigan registrados.",
+    // Same as the bell: launched by flipping it once an admin has tried it.
+    defaultVisibility: "admin_only",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

@@ -14,6 +14,8 @@ import {
   notificationCategory,
   notificationCreditDelta,
   notificationOpensDetail,
+  notificationPushes,
+  notificationStartsRead,
   parseNotificationData,
 } from "@/app/lib/notifications/registry";
 
@@ -263,6 +265,54 @@ describe("every kind", () => {
     expect(sensitive).toHaveLength(9);
     expect(
       sensitive.every((kind) => /^(infraction|sanction)_/.test(kind)),
+    ).toBe(true);
+  });
+
+  it("pushes participant news and the admin copies that ask for action", () => {
+    const pushing = NOTIFICATION_KINDS.filter((kind) =>
+      notificationPushes(kind, FIXTURES[kind] as never),
+    );
+    const admin = pushing.filter(
+      (kind) => notificationCategory(kind) === "admin",
+    );
+    expect(admin.sort()).toEqual([
+      "reservation_proof_submitted_admin",
+      "reservation_zero_value_review_requested_admin",
+    ]);
+    expect(
+      NOTIFICATION_KINDS.filter(
+        (kind) =>
+          notificationCategory(kind) !== "admin" &&
+          !notificationPushes(kind, FIXTURES[kind] as never),
+      ),
+      "every participant kind pushes unless its fixture starts read",
+    ).toEqual(
+      NOTIFICATION_KINDS.filter(
+        (kind) =>
+          notificationCategory(kind) !== "admin" &&
+          notificationStartsRead(kind, FIXTURES[kind] as never),
+      ),
+    );
+    // Every sensitive kind pushes, with the generic text.
+    expect(
+      NOTIFICATION_KINDS.filter(isSensitiveNotificationKind).every((kind) =>
+        pushing.includes(kind),
+      ),
+    ).toBe(true);
+  });
+
+  it("never pushes a receipt for something the person just did", () => {
+    expect(
+      notificationPushes("reservation_proof_submitted", {
+        ...(FIXTURES.reservation_proof_submitted as object),
+        selfSubmitted: true,
+      } as never),
+    ).toBe(false);
+    expect(
+      notificationPushes("reservation_proof_submitted", {
+        ...(FIXTURES.reservation_proof_submitted as object),
+        selfSubmitted: false,
+      } as never),
     ).toBe(true);
   });
 

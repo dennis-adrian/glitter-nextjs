@@ -9,6 +9,14 @@ vi.mock("@/env", () => {
 vi.mock("@/app/vendors/resend", () => {
   throw new Error("queuing a job imported Resend");
 });
+// Writing a push delivery is one INSERT in `notify()`; sending it is the
+// worker's, with its keys and library.
+vi.mock("@/app/vendors/web-push", () => {
+  throw new Error("queuing a job imported the push sender");
+});
+vi.mock("@/app/lib/notifications/push/config", () => {
+  throw new Error("queuing a job imported the VAPID keys");
+});
 vi.mock("@/db", () => ({ db: {} }));
 
 describe("notification-queue", () => {

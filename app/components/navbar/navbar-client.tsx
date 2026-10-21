@@ -18,6 +18,8 @@ type Props = {
   blogEnabled: boolean;
   /** Shows the bell to whoever the `notifications` flag lets in. */
   notificationsEnabled: boolean;
+  /** Offers avisos in the bell; null when they are not open to this viewer. */
+  pushPublicKey?: string | null;
 };
 
 export default function NavbarClient({
@@ -25,6 +27,7 @@ export default function NavbarClient({
   creditsEnabled,
   blogEnabled,
   notificationsEnabled,
+  pushPublicKey = null,
 }: Props) {
   const { profile, isLoading } = useNavbarProfile();
 
@@ -77,6 +80,7 @@ export default function NavbarClient({
               profile={profile}
               creditsEnabled={creditsEnabled}
               notificationsEnabled={notificationsEnabled}
+              pushPublicKey={pushPublicKey}
               isProfileLoading={isLoading}
             />
           </li>

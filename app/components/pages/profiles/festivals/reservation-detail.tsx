@@ -8,6 +8,7 @@ import AddLatePartnerButton from "@/app/components/festivals/reservations/add-la
 import ReleaseReservationButton from "@/app/components/festivals/reservations/release-reservation-button";
 import ReservationSpaceSummary from "@/app/components/festivals/reservations/reservation-space-summary";
 import ReservationStatusPanel from "@/app/components/festivals/reservations/reservation-status-panel";
+import { PushOffer } from "@/app/components/notifications/push-control";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDisplayDate, formatDateTime } from "@/app/lib/formatters";
@@ -17,6 +18,7 @@ import { fetchReservationForParticipant } from "@/app/lib/reservations/queries";
 import { fetchLatePartnerOffer } from "@/app/lib/reservations/late-partner-queries";
 import { fetchReleaseOffer } from "@/app/lib/reservations/release-queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { pushPublicKeyFor } from "@/app/lib/notifications/push/access";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { getUserName } from "@/app/lib/users/utils";
 
@@ -75,25 +77,41 @@ export default async function ReservationDetailPage({
   );
 
   const isOwner = reservation.ownerUserId === currentProfile?.id;
+  const isParticipant = reservation.participants.some(
+    (participant) => participant.userId === currentProfile?.id,
+  );
+  const pushOfferPrompt =
+    reservation.status === "verification_payment"
+      ? "¿Querés que te avisemos en este dispositivo cuando se confirme?"
+      : reservation.status === "accepted"
+        ? "¿Querés enterarte al instante de las novedades de tu reserva?"
+        : null;
 
   // Release is paid for in credits and finished in the wallet, so with credits
   // still behind their flag there is no route from the button to a released
   // reservation. The offer goes rather than quoting a price nobody can pay.
-  const [creditsEnabled, releaseOffer, latePartnerOffer] = await Promise.all([
-    isFeatureEnabled("credits"),
-    fetchReleaseOffer({
-      userId: currentProfile?.id ?? 0,
-      festivalId,
-      reservationStatus: reservation.status,
-      isOwner,
-    }),
-    isOwner
-      ? fetchLatePartnerOffer({
-          reservationId,
-          userId: currentProfile?.id ?? 0,
-        })
-      : null,
-  ]);
+  const [creditsEnabled, releaseOffer, latePartnerOffer, pushPublicKey] =
+    await Promise.all([
+      isFeatureEnabled("credits"),
+      fetchReleaseOffer({
+        userId: currentProfile?.id ?? 0,
+        festivalId,
+        reservationStatus: reservation.status,
+        isOwner,
+      }),
+      isOwner
+        ? fetchLatePartnerOffer({
+            reservationId,
+            userId: currentProfile?.id ?? 0,
+          })
+        : null,
+      // Waiting on a review, or just confirmed: moments worth offering
+      // avisos again (PRD P2b). Only to the people on the reservation, not to
+      // an admin looking at it.
+      pushOfferPrompt && isParticipant
+        ? pushPublicKeyFor(currentProfile)
+        : null,
+    ]);
 
   // Always shown while the feature is on, because a deadline nobody mentions
   // is a deadline somebody misses (§5). Gated on the flag for the same reason
@@ -186,6 +204,11 @@ export default async function ReservationDetailPage({
       <Card>
         <CardContent className="space-y-4 p-5 md:p-6">
           <ReservationStatusPanel copy={copy} deadlineLabel={paymentDeadline} />
+          <PushOffer
+            publicKey={pushPublicKey}
+            prompt={pushOfferPrompt ?? undefined}
+            className="border-t pt-4"
+          />
 
           {/* A partner sees the reservation and its price but never the
               payment: the owner pays (PRD §14). */}
