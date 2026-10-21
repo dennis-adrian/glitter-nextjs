@@ -69,9 +69,6 @@ export default function CreditGiftRevokedEmail({
             <Button href={`${baseUrl}/my_credits`} style={styles.button}>
               Ver mi billetera
             </Button>
-            <Text style={{ ...styles.text, marginTop: "16px" }}>
-              Productora Glitter
-            </Text>
           </Section>
         </Container>
         <EmailFooter />
