@@ -78,7 +78,7 @@ export default function CreditGiftDetail({
             <p className="font-medium">{gift.title}</p>
             <p className="whitespace-pre-line text-sm">{gift.message}</p>
             <p className="text-xs text-muted-foreground">
-              Firmado por Productora Glitter. {"{nombre}"} se reemplaza por el
+              Se envía como Productora Glitter. {"{nombre}"} se reemplaza por el
               nombre de cada persona.
             </p>
           </CardContent>
