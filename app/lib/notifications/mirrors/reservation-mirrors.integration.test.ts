@@ -465,6 +465,7 @@ describeDatabase("reservation outbox inbox mirrors (Postgres)", () => {
         standLabel: STANDS,
         standCount: 2,
         profileId: f.owner.id,
+        selfSubmitted: true,
       });
     });
 
@@ -995,6 +996,7 @@ describeDatabase("reservation outbox inbox mirrors (Postgres)", () => {
         standLabel: STANDS,
         standCount: 2,
         participantName: f.owner.name,
+        participantUserId: f.owner.id,
       });
     });
 
@@ -1052,6 +1054,43 @@ describeDatabase("reservation outbox inbox mirrors (Postgres)", () => {
       }
     });
 
+    it("tells the participant, unread, when an admin uploads the voucher for them", async () => {
+      const f = await seedFixture();
+
+      // The console's "subir comprobante": an admin submits for the payer.
+      await integrationDb!.transaction((tx) =>
+        outbox.enqueueAdminAndOwnerNotifications(tx, {
+          kind: "proof_submitted",
+          reservationId: f.reservationId,
+          ownerUserId: f.owner.id,
+          ownerEmail: f.owner.email,
+          adminEmails: [f.admin, f.secondAdmin].map((person) => ({
+            id: person.id,
+            email: person.email,
+          })),
+          payload: { invoiceId: f.invoiceId, submissionId: 8 },
+          actorUserId: f.admin.id,
+        }),
+      );
+
+      const [ownerJob] = await jobsOf(f.owner.id);
+      const receipt = await onlyItemOf(f.owner, ownerJob!.id);
+      expect(receipt).toMatchObject({
+        kind: "reservation_proof_submitted",
+        body: `Registramos un comprobante de pago para tu reserva de los espacios ${STANDS} en ${f.festivalName}. Te avisamos cuando confirmemos tu reserva.`,
+        readAt: null,
+      });
+      expect(receipt.data).toMatchObject({ selfSubmitted: false });
+
+      // The admin who uploaded it is emailed, as today, but not told in-app.
+      expect(await jobsOf(f.admin.id)).toHaveLength(1);
+      expect(await inboxOf(f.admin.id)).toEqual([]);
+      const [secondJob] = await jobsOf(f.secondAdmin.id);
+      expect((await onlyItemOf(f.secondAdmin, secondJob!.id)).kind).toBe(
+        "reservation_proof_submitted_admin",
+      );
+    });
+
     it("files the Bs0 review and the credits confirmation under the right console lens", async () => {
       const f = await seedFixture();
       for (const kind of [
@@ -1091,6 +1130,53 @@ describeDatabase("reservation outbox inbox mirrors (Postgres)", () => {
         "reservation_zero_value_review_requested",
         "reservation_confirmed",
       ]);
+    });
+  });
+
+  describe("profile deletion", () => {
+    it("takes a deleted participant's name out of other people's items", async () => {
+      const f = await seedFixture();
+      await integrationDb!.transaction((tx) =>
+        outbox.enqueueAdminAndOwnerNotifications(tx, {
+          kind: "proof_submitted",
+          reservationId: f.reservationId,
+          ownerUserId: f.owner.id,
+          ownerEmail: f.owner.email,
+          adminEmails: [{ id: f.admin.id, email: f.admin.email }],
+          payload: { invoiceId: f.invoiceId, submissionId: 9 },
+        }),
+      );
+      const [partnerJob] = await enqueue(
+        participantInput(f, f.partner, {
+          kind: "deadline_extended",
+          payload: { dueAt: "2026-11-05T22:00:00.000Z" },
+        }),
+      );
+      const { scrubNotificationsNamingUser } =
+        await import("@/app/lib/notifications/scrub");
+
+      const scrubbed = await integrationDb!.transaction((tx) =>
+        scrubNotificationsNamingUser(tx, f.owner.id),
+      );
+
+      expect(scrubbed).toBe(2);
+      const [adminJob] = await jobsOf(f.admin.id);
+      const adminItem = await onlyItemOf(f.admin, adminJob!.id);
+      expect(adminItem.title).toBe(
+        "Perfil eliminado subió el comprobante de su reserva",
+      );
+      expect(adminItem.data).toMatchObject({
+        participantName: "Perfil eliminado",
+        participantUserId: null,
+      });
+      const partnerItem = await onlyItemOf(f.partner, partnerJob!);
+      expect(partnerItem.body).toContain("a nombre de Perfil eliminado");
+      expect(JSON.stringify(partnerItem)).not.toContain(f.owner.name);
+      expect(JSON.stringify(adminItem)).not.toContain(f.owner.name);
+      // The person's own items are left for the user row's cascade.
+      expect((await inboxOf(f.owner.id))[0]?.title).toBe(
+        "Recibimos tu comprobante de pago",
+      );
     });
   });
 

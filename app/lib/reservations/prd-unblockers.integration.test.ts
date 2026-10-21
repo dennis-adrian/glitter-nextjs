@@ -1666,6 +1666,7 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     expect(createdItem!.data).toEqual({
       ...reservationRef,
       participantName: owner.displayName,
+      participantUserId: owner.id,
     });
 
     const proofKey = randomUUID();
@@ -1708,7 +1709,11 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     });
     // A receipt for their own upload: kept, but it does not light the badge.
     expect(proofItem!.readAt).toBeInstanceOf(Date);
-    expect(proofItem!.data).toEqual({ ...reservationRef, profileId: owner.id });
+    expect(proofItem!.data).toEqual({
+      ...reservationRef,
+      profileId: owner.id,
+      selfSubmitted: true,
+    });
 
     const adminProofItem = (await inboxFor(admin.id)).find(
       (row) => row.dedupeKey === jobDedupeKey(adminProofJob!.id),
@@ -1723,6 +1728,7 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     expect(adminProofItem!.data).toEqual({
       ...reservationRef,
       participantName: owner.displayName,
+      participantUserId: owner.id,
     });
 
     const [submission] = await integrationDb!
@@ -2142,6 +2148,7 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       profileId: owner.id,
       role: "owner",
       ownerName: owner.displayName,
+      ownerUserId: owner.id,
       dueAt: dueAt.toISOString(),
     });
 
@@ -2160,6 +2167,7 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       profileId: partner.id,
       role: "partner",
       ownerName: owner.displayName,
+      ownerUserId: owner.id,
       dueAt: dueAt.toISOString(),
     });
     // Only the cobro's holder can upload the voucher; the partner is told who.

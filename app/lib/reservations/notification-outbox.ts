@@ -721,7 +721,10 @@ export async function enqueueAdminAndOwnerNotifications(
     ownerEmail: string | null | undefined;
     adminEmails: Array<{ id: number; email: string | null }>;
     payload?: Record<string, unknown>;
-    /** Who did it: their own admin inbox does not hear about it. */
+    /**
+     * Who did it. Their own admin inbox does not hear about it, and an
+     * owner's copy of something an admin did for them is not a receipt.
+     */
     actorUserId?: number | null;
   },
 ): Promise<number[]> {
@@ -734,6 +737,7 @@ export async function enqueueAdminAndOwnerNotifications(
       recipientEmail: input.ownerEmail,
       payload: input.payload,
       audience: "participant",
+      actorUserId: input.actorUserId,
     });
   }
   for (const admin of input.adminEmails) {

@@ -8,6 +8,7 @@ const selectMock = vi.hoisted(() => vi.fn());
 const deleteClerkUserMock = vi.hoisted(() => vi.fn());
 const anonymizeMock = vi.hoisted(() => vi.fn());
 const detachPostsMock = vi.hoisted(() => vi.fn());
+const scrubInboxNamesMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
@@ -30,6 +31,10 @@ vi.mock("@/app/lib/programs/anonymization", () => ({
 
 vi.mock("@/app/lib/posts/anonymization", () => ({
   detachPostsForDeletedUser: detachPostsMock,
+}));
+
+vi.mock("@/app/lib/notifications/scrub", () => ({
+  scrubNotificationsNamingUser: scrubInboxNamesMock,
 }));
 
 vi.mock("@/app/vendors/resend", () => ({
@@ -221,10 +226,12 @@ describe("handleDeletionEmails", () => {
     deleteClerkUserMock.mockReset();
     anonymizeMock.mockReset();
     detachPostsMock.mockReset();
+    scrubInboxNamesMock.mockReset();
     sendEmailMock.mockReset();
 
     anonymizeMock.mockResolvedValue(undefined);
     detachPostsMock.mockResolvedValue({ deleted: 0, detached: 0 });
+    scrubInboxNamesMock.mockResolvedValue(0);
     sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
     updateMock.mockImplementation(recordingUpdate());
     // db.select(...)...limit() drives the deletion-email drain.
@@ -258,6 +265,8 @@ describe("handleDeletionEmails", () => {
     expect(anonymizeMock).toHaveBeenCalledTimes(1);
     // Posts are settled on the same path, before the user row goes.
     expect(detachPostsMock).toHaveBeenCalledTimes(1);
+    // So is their name in other people's inbox items.
+    expect(scrubInboxNamesMock).toHaveBeenCalledWith(expect.anything(), 12);
     expect(result).toEqual([task]);
     // The task row itself is removed by the ON DELETE CASCADE on profile_id;
     // closing the outbox entry is what marks the work done. The address is
@@ -367,6 +376,7 @@ describe("handleDeletionEmails", () => {
     // Only the claim transaction ran, so the profile row was never deleted.
     expect(transactionMock).toHaveBeenCalledTimes(1);
     expect(anonymizeMock).not.toHaveBeenCalled();
+    expect(scrubInboxNamesMock).not.toHaveBeenCalled();
     expect(result).toEqual([]);
     expect(sendEmailMock).not.toHaveBeenCalled();
     expect(writes).toContainEqual(

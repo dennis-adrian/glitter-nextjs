@@ -10,6 +10,7 @@ import {
   ScheduledTaskWithProfile,
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
+import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { db } from "@/db";
@@ -366,6 +367,9 @@ export async function handleDeletionEmails(): Promise<
           // Published articles stay under "Equipo Glitter"; drafts and other
           // never-public posts go with their author.
           await detachPostsForDeletedUser(tx, task.profile.id);
+
+          // Their own inbox goes with the row; other people's items name them.
+          await scrubNotificationsNamingUser(tx, task.profile.id);
 
           await tx.delete(users).where(eq(users.id, task.profile.id));
 

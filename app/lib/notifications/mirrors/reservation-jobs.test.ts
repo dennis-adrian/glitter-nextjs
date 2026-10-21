@@ -299,6 +299,28 @@ describe("buildReservationJobNotification", () => {
     expect(partner.startsRead).toBe(false);
   });
 
+  it("does not file an admin's upload as the participant's own receipt", () => {
+    const item = render(
+      buildReservationJobNotification(job({ actorUserId: ADMIN }), context),
+    );
+    expect(item.kind).toBe("reservation_proof_submitted");
+    expect(item.copy.body).toMatch(
+      /^Registramos un comprobante de pago para tu reserva de los espacios B48 y B49/,
+    );
+    expect(item.startsRead).toBe(false);
+  });
+
+  it("keeps the id of whoever an item names, for profile deletion", () => {
+    const built = buildReservationJobNotification(
+      job({ userId: ADMIN, audience: "admin" }),
+      context,
+    );
+    expect(built?.data).toMatchObject({
+      participantName: "Ana Pérez",
+      participantUserId: OWNER,
+    });
+  });
+
   it("keeps an admin's own reservation and own clicks out of Administración", () => {
     // An admin paying their own cobro already has the participant's copy.
     expect(

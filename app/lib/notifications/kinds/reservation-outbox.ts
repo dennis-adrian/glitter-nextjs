@@ -7,7 +7,7 @@ import {
   formatDisplayDate,
   formatFullDate,
 } from "@/app/lib/formatters";
-import { SUPPORT_LINE } from "@/app/lib/notifications/kinds/copy";
+import { atTime, SUPPORT_LINE } from "@/app/lib/notifications/kinds/copy";
 import type { KindDefinition } from "@/app/lib/notifications/kinds/types";
 import { consoleHref } from "@/app/lib/reservations/console-lenses";
 
@@ -37,6 +37,14 @@ const participantReservationSchema = reservationSchema.extend({
 
 const roleSchema = z.enum(["owner", "partner"]);
 
+const submittedSchema = participantReservationSchema.extend({
+  /**
+   * Whether the person sent it themselves. An admin can upload a voucher for
+   * them from the console; that is news to them, not a receipt.
+   */
+  selfSubmitted: z.boolean().default(true),
+});
+
 const confirmedSchema = participantReservationSchema.extend({
   /** When the festival's first day starts, if it has dates. */
   startsAt: z.string().datetime().nullable(),
@@ -48,16 +56,25 @@ const cancelledSchema = participantReservationSchema.extend({
   reason: z.string().nullable(),
 });
 
+/**
+ * The profile a copy names next to the name itself, so deleting that profile
+ * can find the copy and scrub the name (`scrubNotificationsNamingUser`).
+ * Null once scrubbed.
+ */
+const namedUserId = z.number().int().positive().nullable();
+
 const deadlineExtendedSchema = participantReservationSchema.extend({
   role: roleSchema,
   /** Whose name the cobro is in; only they can upload the voucher. */
   ownerName: z.string(),
+  ownerUserId: namedUserId,
   dueAt: z.string().datetime(),
 });
 
 const releasedSchema = participantReservationSchema.extend({
   role: roleSchema,
   ownerName: z.string(),
+  ownerUserId: namedUserId,
   /** What releasing cost the owner. Null in a partner's copy. */
   creditPrice: z.number().min(0).nullable(),
 });
@@ -65,7 +82,9 @@ const releasedSchema = participantReservationSchema.extend({
 const partnerAddedSchema = participantReservationSchema.extend({
   role: roleSchema,
   ownerName: z.string(),
+  ownerUserId: namedUserId,
   partnerName: z.string(),
+  partnerUserId: namedUserId,
   /** What adding the partner cost the owner. Null in the partner's copy. */
   totalCredits: z.number().min(0).nullable(),
 });
@@ -103,6 +122,7 @@ const topUpRejectedSchema = z.object({
 const adminReservationSchema = reservationSchema.extend({
   /** Whose reservation it is: the cobro's holder, as the email names them. */
   participantName: z.string(),
+  participantUserId: namedUserId,
 });
 
 type ParticipantReservation = z.infer<typeof participantReservationSchema>;
@@ -127,7 +147,7 @@ function reservationPath(data: ParticipantReservation) {
 
 /** "5 nov 2026 a las 6:00 PM", in Bolivia time. */
 function dateAndTime(iso: string, dateFormat = DateTime.DATE_MED) {
-  return `${formatDisplayDate(iso, dateFormat)} a las ${formatDisplayDate(iso, DateTime.TIME_SIMPLE)}`;
+  return `${formatDisplayDate(iso, dateFormat)} ${atTime(iso)}`;
 }
 
 /** A reason or note as its own paragraph, read whole on the item's page. */
@@ -136,33 +156,37 @@ function withParagraph(body: string, label: string, text: string | null) {
 }
 
 export const reservationOutboxKinds = {
-  /** To the payer, once their voucher is in. A receipt for their own upload. */
+  /** To the payer, once a voucher is in: usually a receipt for their upload. */
   reservation_proof_submitted: {
     category: "credits",
-    schema: participantReservationSchema,
+    schema: submittedSchema,
     inApp: (data) => ({
       title: "Recibimos tu comprobante de pago",
-      body: `Recibimos el comprobante que subiste para ${theStands(data)} en ${data.festivalName}. Te avisamos cuando confirmemos tu reserva.`,
+      body: `${
+        data.selfSubmitted
+          ? `Recibimos el comprobante que subiste para ${theStands(data)}`
+          : `Registramos un comprobante de pago para tu reserva ${ofTheStands(data)}`
+      } en ${data.festivalName}. Te avisamos cuando confirmemos tu reserva.`,
       // The reservation, not its payments page: that one empties out once the
       // cobro is paid, and the item stays for months.
       actionPath: reservationPath(data),
       actionLabel: "Ver mi reserva",
     }),
-    startsRead: () => true,
-  } satisfies KindDefinition<ParticipantReservation>,
+    startsRead: (data) => data.selfSubmitted,
+  } satisfies KindDefinition<z.infer<typeof submittedSchema>>,
 
-  /** To the owner of a Bs0 cobro, once they ask for it to be confirmed. */
+  /** To the owner of a Bs0 cobro, once it is sent to be confirmed. */
   reservation_zero_value_review_requested: {
     category: "reservations",
-    schema: participantReservationSchema,
+    schema: submittedSchema,
     inApp: (data) => ({
       title: "Tu reserva está en revisión",
       body: `Registramos tu reserva sin costo ${ofTheStands(data)} en ${data.festivalName}. Te avisamos cuando la confirmemos.`,
       actionPath: reservationPath(data),
       actionLabel: "Ver mi reserva",
     }),
-    startsRead: () => true,
-  } satisfies KindDefinition<ParticipantReservation>,
+    startsRead: (data) => data.selfSubmitted,
+  } satisfies KindDefinition<z.infer<typeof submittedSchema>>,
 
   /** To the payer, when the reservation is confirmed by any route. */
   reservation_confirmed: {
@@ -172,7 +196,7 @@ export const reservationOutboxKinds = {
       // Setup starts an hour before the doors open, as the email says.
       const setup =
         data.startsAt && data.locationLabel
-          ? ` Te esperamos el ${formatFullDate(new Date(data.startsAt))} en ${data.locationLabel} a las ${formatDisplayDate(formatDate(data.startsAt).minus({ hours: 1 }), DateTime.TIME_SIMPLE)} para armar ${data.standCount > 1 ? "tus espacios" : "tu espacio"}.`
+          ? ` Te esperamos el ${formatFullDate(new Date(data.startsAt))} en ${data.locationLabel} ${atTime(formatDate(data.startsAt).minus({ hours: 1 }))} para armar ${data.standCount > 1 ? "tus espacios" : "tu espacio"}.`
           : " ¡Te esperamos!";
       return {
         title: "¡Tu reserva está confirmada!",

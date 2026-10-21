@@ -169,6 +169,11 @@ function reservationRef(
   };
 }
 
+/** Whether the recipient did it themselves, rather than an admin for them. */
+function submittedBy(job: ReservationJobToMirror) {
+  return job.actorUserId == null || job.actorUserId === job.userId;
+}
+
 /**
  * The inbox item for one reservation job, or null when it has none.
  *
@@ -195,7 +200,11 @@ export function buildReservationJobNotification(
     if (job.userId === context.payerUserId || job.userId === job.actorUserId) {
       return null;
     }
-    const data = { ...reservationRef(context), participantName };
+    const data = {
+      ...reservationRef(context),
+      participantName,
+      participantUserId: context.payerUserId,
+    };
     switch (job.kind) {
       case "reservation_created":
         return { kind: "reservation_created_admin", data };
@@ -217,10 +226,16 @@ export function buildReservationJobNotification(
       return null;
 
     case "proof_submitted":
-      return { kind: "reservation_proof_submitted", data: own };
+      return {
+        kind: "reservation_proof_submitted",
+        data: { ...own, selfSubmitted: submittedBy(job) },
+      };
 
     case "zero_value_review_requested":
-      return { kind: "reservation_zero_value_review_requested", data: own };
+      return {
+        kind: "reservation_zero_value_review_requested",
+        data: { ...own, selfSubmitted: submittedBy(job) },
+      };
 
     case "settlement_approved":
       return {
@@ -255,6 +270,7 @@ export function buildReservationJobNotification(
           ...own,
           role: job.userId === context.payerUserId ? "owner" : "partner",
           ownerName: participantName,
+          ownerUserId: context.payerUserId,
           dueAt,
         },
       };
@@ -280,6 +296,7 @@ export function buildReservationJobNotification(
           profileId: job.userId,
           role: isOwner ? "owner" : "partner",
           ownerName: nameOf(context, ownerId, UNNAMED_PARTICIPANT),
+          ownerUserId: ownerId,
           creditPrice: isOwner
             ? Math.max(0, payloadAmount(job.payload, "creditPrice") ?? 0)
             : null,
@@ -290,17 +307,16 @@ export function buildReservationJobNotification(
     case "late_partner_added": {
       const ownerId = context.ownerUserId ?? context.payerUserId;
       const isOwner = job.userId === ownerId;
+      const partnerId = payloadNumber(job.payload, "partnerUserId");
       return {
         kind: "reservation_partner_added",
         data: {
           ...own,
           role: isOwner ? "owner" : "partner",
           ownerName: nameOf(context, ownerId, UNNAMED_PARTICIPANT),
-          partnerName: nameOf(
-            context,
-            payloadNumber(job.payload, "partnerUserId"),
-            UNNAMED_PARTNER,
-          ),
+          ownerUserId: ownerId,
+          partnerName: nameOf(context, partnerId, UNNAMED_PARTNER),
+          partnerUserId: partnerId,
           totalCredits: isOwner
             ? Math.max(0, payloadAmount(job.payload, "totalCredits") ?? 0)
             : null,
