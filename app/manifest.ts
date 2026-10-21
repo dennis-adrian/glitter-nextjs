@@ -1,10 +1,7 @@
 import type { MetadataRoute } from "next";
 
-import {
-  ICON_BACKGROUND,
-  installedAppName,
-  THEME_COLORS,
-} from "@/app/lib/installable-app";
+import { installedAppName } from "@/app/lib/installable-app";
+import { ICON_BACKGROUND, THEME_COLORS } from "@/app/lib/theme-colors";
 
 /**
  * What lets browsers offer to install Glitter: a home-screen icon, full

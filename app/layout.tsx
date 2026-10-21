@@ -17,7 +17,8 @@ import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
-import { installedAppName, THEME_COLORS } from "./lib/installable-app";
+import { installedAppName } from "./lib/installable-app";
+import { THEME_COLORS } from "./lib/theme-colors";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -40,7 +41,11 @@ export const metadata: Metadata = {
   },
 };
 
-/** The browser bar matches the navbar in each theme. */
+/**
+ * The browser bar matches the navbar. These follow the device's light or dark
+ * setting; ThemeProvider switches them to the theme the person picked in
+ * Glitter once the page loads.
+ */
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
