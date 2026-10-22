@@ -207,6 +207,20 @@ async function settle() {
   }
 }
 
+/** Ends what tests leave open; see `openUntilTheTestEnds`. */
+const endsAfterTheTest: Array<() => void> = [];
+
+/**
+ * A prompt left open, or a worker that never activates, for as long as the
+ * test runs; then it fails, so the operation waiting on it ends. The controls
+ * share whether one is in flight, and one stuck would block the next test.
+ */
+function openUntilTheTestEnds<T>(): Promise<T> {
+  return new Promise<T>((_, reject) => {
+    endsAfterTheTest.push(() => reject(new Error("The test is over")));
+  });
+}
+
 function enableButton() {
   return screen.queryByRole("button", {
     name: ENABLE_PUSH_LABEL,
@@ -262,9 +276,12 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
   vi.useRealTimers();
+  const open = endsAfterTheTest.splice(0);
+  for (const end of open) end();
+  if (open.length > 0) await settle();
+  cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   for (const key of navigatorOverrides.splice(0)) {
@@ -303,7 +320,7 @@ describe("the avisos control on /my_notifications", () => {
   it("asks for the permission inside the tap, before anything is awaited", async () => {
     const browser = installBrowser();
     // The prompt stays open: nothing after it may have run yet.
-    browser.requestPermission.mockReturnValue(new Promise(() => {}));
+    browser.requestPermission.mockReturnValue(openUntilTheTestEnds());
     render(<PushControl publicKey={KEY} devices={[]} />);
     const button = await enabledButton();
     const registrations = browser.serviceWorker.register.mock.calls.length;
@@ -364,7 +381,7 @@ describe("the avisos control on /my_notifications", () => {
   it("stays busy from the tap until the device is saved, also once the prompt is answered", async () => {
     const browser = installBrowser();
     browser.answerPrompt("granted");
-    browser.serviceWorker.ready = new Promise(() => {});
+    browser.serviceWorker.ready = openUntilTheTestEnds();
     render(<PushControl publicKey={KEY} devices={[]} />);
 
     fireEvent.click(await enabledButton());
@@ -916,7 +933,7 @@ describe("the short avisos offer", () => {
 
   it("ignores a second tap while the first is still asking", async () => {
     const browser = installBrowser();
-    browser.requestPermission.mockReturnValue(new Promise(() => {}));
+    browser.requestPermission.mockReturnValue(openUntilTheTestEnds());
     render(<PushOffer publicKey={KEY} />);
     const button = await screen.findByRole("button", {
       name: ENABLE_PUSH_LABEL,
@@ -967,6 +984,93 @@ describe("the short avisos offer", () => {
 
     await waitFor(() => expect(offer.innerHTML).toBe(""));
     expect(browser.subscription).toBeTruthy();
+  });
+
+  it("keeps the subscription it makes when the page control checks meanwhile", async () => {
+    const browser = installBrowser();
+    browser.answerPrompt("granted");
+    render(
+      <>
+        <PushControl publicKey={KEY} devices={[]} />
+        <div data-testid="offer">
+          <PushOffer publicKey={KEY} />
+        </div>
+      </>,
+    );
+    const offer = screen.getByTestId("offer");
+    const button = await within(offer).findByRole("button", {
+      name: ENABLE_PUSH_LABEL,
+    });
+    await settle();
+    const registrations: Array<() => void> = [];
+    browser.serviceWorker.register.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          registrations.push(() => resolve(browser.registration)),
+        ),
+    );
+    let finishSave = () => {};
+    const save = mocks.savePushDeviceAction.getMockImplementation()!;
+    mocks.savePushDeviceAction.mockImplementation(
+      async (input: { refreshOnly?: boolean }) => {
+        if (!input.refreshOnly) {
+          await new Promise<void>((resolve) => {
+            finishSave = resolve;
+          });
+        }
+        return save(input);
+      },
+    );
+
+    fireEvent.click(button);
+    await settle();
+    // Each control's check, set off by the granted permission, and the
+    // offer's own flow, which subscribes and starts saving the device.
+    expect(registrations).toHaveLength(3);
+    registrations[1]();
+    await settle();
+    expect(calls).toEqual(["subscribe"]);
+    // The page control's check then finds the subscription whose device is
+    // still being saved; it would get "no device" back.
+    registrations[0]();
+    registrations[2]();
+    await settle();
+    browser.serviceWorker.register.mockImplementation(
+      async () => browser.registration,
+    );
+    finishSave();
+
+    await waitFor(() => expect(offer.innerHTML).toBe(""));
+    expect(browser.subscription).toBeTruthy();
+    expect(calls).toEqual(["subscribe", "save", "refresh"]);
+    expect((await screen.findByText(ON_STATUS)).textContent).toBe(ON_STATUS);
+  });
+
+  it("ignores a tap on the page control while the offer is still asking", async () => {
+    const browser = installBrowser();
+    browser.requestPermission.mockReturnValue(openUntilTheTestEnds());
+    render(
+      <>
+        <PushControl publicKey={KEY} devices={[]} />
+        <div data-testid="offer">
+          <PushOffer publicKey={KEY} />
+        </div>
+      </>,
+    );
+    const offer = screen.getByTestId("offer");
+    fireEvent.click(
+      await within(offer).findByRole("button", { name: ENABLE_PUSH_LABEL }),
+    );
+
+    fireEvent.click(
+      await within(screen.getByRole("region")).findByRole("button", {
+        name: ENABLE_PUSH_LABEL,
+      }),
+    );
+    await settle();
+
+    expect(browser.requestPermission).toHaveBeenCalledTimes(1);
+    expect(mocks.toastError).not.toHaveBeenCalled();
   });
 
   it("links an iPhone in a Safari tab to the steps on /my_notifications", () => {

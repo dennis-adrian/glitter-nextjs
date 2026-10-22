@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import {
   forgetPushDeviceAction,
@@ -147,6 +147,13 @@ type DeviceState = { phase: PushDevicePhase; deviceId: number | null };
 
 const OFF: DeviceState = { phase: "off", deviceId: null };
 
+/**
+ * Avisos being turned on or off, by any control on the page: the browser has
+ * one subscription, so one change at a time. Meanwhile no control's check may
+ * undo it or overwrite "working"; each checks again once it is over.
+ */
+const inFlight = { current: false };
+
 export type PushDeviceResult =
   | { ok: true }
   /** `message` null: nothing to report, such as a declined prompt. */
@@ -177,9 +184,6 @@ export function usePushDevice({
     deviceId: null,
   });
   const version = useDeviceVersion();
-  // While turning avisos on or off, a check started by the permission or
-  // subscription changing underneath must not overwrite "working".
-  const inFlight = useRef(false);
   const canPush =
     publicKey != null && (support === "default" || support === "granted");
 
