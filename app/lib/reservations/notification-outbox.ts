@@ -53,7 +53,7 @@ const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 // live in `notification-queue` so a writer can enqueue without importing every
 // email template.
 export { RESERVATION_NOTIFICATION_KINDS } from "@/app/lib/reservations/notification-queue";
-export { enqueueReservationNotification };
+export { enqueueReservationNotification, enqueueReservationNotifications };
 export type { ReservationNotificationKind };
 
 function computeNextAttemptAt(attemptCount: number, now = new Date()) {

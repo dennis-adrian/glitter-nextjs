@@ -22,7 +22,10 @@ import {
   activeReservationStandIds,
   releaseReservationMember,
 } from "@/app/lib/reservations/members";
-import { enqueueReservationNotification } from "@/app/lib/reservations/notification-queue";
+import {
+  enqueueReservationNotifications,
+  type ReservationNotificationInput,
+} from "@/app/lib/reservations/notification-queue";
 import { releaseStandIfVacant } from "@/app/lib/reservations/occupancy";
 import { statusAllowsRelease } from "@/app/lib/reservations/participant-status";
 import {
@@ -325,10 +328,10 @@ export async function releaseReservation(input: {
             .from(users)
             .where(inArray(users.id, lockedParticipantIds));
 
-    const jobIds: number[] = [];
+    const inputs: ReservationNotificationInput[] = [];
     for (const recipient of recipients) {
       if (!recipient.email) continue;
-      const jobId = await enqueueReservationNotification(tx, {
+      inputs.push({
         kind: "reservation_released",
         reservationId: reservation.id,
         userId: recipient.id,
@@ -339,8 +342,12 @@ export async function releaseReservation(input: {
           releasedStandIds: memberStandIds,
         },
       });
-      if (jobId) jobIds.push(jobId);
     }
+    // Queued together, so their inbox copies share one read of the
+    // reservation.
+    const jobIds = (await enqueueReservationNotifications(tx, inputs)).filter(
+      (jobId): jobId is number => jobId != null,
+    );
 
     await completeRequest(tx, input.idempotencyKey, {
       releasedStandIds: memberStandIds.join(","),

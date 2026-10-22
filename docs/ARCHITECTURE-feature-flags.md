@@ -287,9 +287,15 @@ changing one requires a redeploy before it takes effect. That is not a kill swit
 
 ## 9. Current flags
 
-| Key             | Purpose                                                                                                                                                                      | Default  |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `paid_programs` | Paid programs and sessions — Glitter Week catalogue, sales, QR check-in. See [ARCHITECTURE-paid-programs-and-sessions.md](./ARCHITECTURE-paid-programs-and-sessions.md) §14. | `hidden` |
+| Key                  | Purpose                                                                                                                                                                      | Default      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `paid_programs`      | Paid programs and sessions — Glitter Week catalogue, sales, QR check-in. See [ARCHITECTURE-paid-programs-and-sessions.md](./ARCHITECTURE-paid-programs-and-sessions.md) §14. | `hidden`     |
+| `programs_nav_entry` | The Charlas y Talleres entry in the main menu, apart from `paid_programs`, so sign-ups can open by direct link before they are announced. Shown only when both are visible.  | `hidden`     |
+| `blog`               | The public blog: list, articles, category and tag pages, and their menu and footer links. Writing from the admin panel does not depend on it.                                | `hidden`     |
+| `blog_contributors`  | Participants with accepted reservations at 3 or more festivals can write articles from the portal and send them for review. Independent of `blog`.                           | `hidden`     |
+| `credits`            | The participants' credit wallet: `/my_credits`, its explainer page and buying credits for optional features such as the full table.                                          | `hidden`     |
+| `notifications`      | The bell, `/my_notifications` and each item's page. Items are written for everyone while it is hidden. See [PRD-in-app-notifications.md](./PRD-in-app-notifications.md) §11. | `admin_only` |
+| `push_notifications` | Avisos on the device: the control and the sends. Needs `notifications` too. See [PRD-in-app-notifications.md](./PRD-in-app-notifications.md) §10, P2b.                       | `admin_only` |
 
 ## 10. Possible extensions
 
