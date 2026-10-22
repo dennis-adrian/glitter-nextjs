@@ -1,8 +1,8 @@
 /**
  * Draws the images an installed Glitter shows from the isotype's SVG source
- * (public/img/logo/glitter-isotype.svg): the home-screen icons and the iPhone
- * and iPad launch screens. Run after changing the logo, the purple or the
- * launch-screen list, and commit what it writes:
+ * (public/img/logo/glitter-isotype.svg): the home-screen icons, the iPhone
+ * and iPad launch screens and the notification badge. Run after changing the
+ * logo, the purple or the launch-screen list, and commit what it writes:
  *
  *   pnpm app-images
  */
@@ -25,13 +25,30 @@ const SOURCE = path.join(ROOT, "public/img/logo/glitter-isotype.svg");
 const SPLASH_DIR = path.join(ROOT, "public/splash");
 
 /**
- * The artwork's width in SVG units (the G and the sparkle together), and the
- * point the designer centred it on: the middle of the 114 x 115 frame. The
- * bounding box sits 3 units to the right of that on purpose, so the G's
+ * The artwork's bounding box in SVG units (the G and the sparkle together),
+ * and the point the designer centred it on: the middle of the 114 x 115
+ * frame. The box sits 3 units to the right of that on purpose, so the G's
  * weight reads centred; placing by the box would push it left.
  */
-const ARTWORK_WIDTH = 88.684;
+const ARTWORK_BOX = { left: 15.646, top: 19.24, right: 104.33, bottom: 95.761 };
+const ARTWORK_WIDTH = ARTWORK_BOX.right - ARTWORK_BOX.left;
 const DESIGN_CENTRE = { x: 57, y: 57.5 };
+const BOX_CENTRE = {
+  x: (ARTWORK_BOX.left + ARTWORK_BOX.right) / 2,
+  y: (ARTWORK_BOX.top + ARTWORK_BOX.bottom) / 2,
+};
+
+/**
+ * The notification badge Android shows in the status bar: only its alpha
+ * counts, so white on transparent. The artwork fills the 20 of the icon's 24
+ * dp it may use, centred by its box, as the sparkle would otherwise reach
+ * into the margin.
+ */
+const BADGE = {
+  file: "public/icons/glitter-badge-96.png",
+  size: 96,
+  artwork: 80,
+};
 
 /**
  * Icons: the artwork is 0.6875 of the icon's width, which keeps its farthest
@@ -54,7 +71,10 @@ function artworkPaths(svg: string) {
   return paths;
 }
 
-/** The artwork, `artworkWidth` wide, centred on a `width` x `height` canvas. */
+/**
+ * The artwork, `artworkWidth` wide, on a `width` x `height` canvas, with its
+ * `centre` (the designer's, unless given) in the middle.
+ */
 function canvasSvg(
   paths: string[],
   {
@@ -62,16 +82,18 @@ function canvasSvg(
     height,
     artworkWidth,
     background,
+    centre = DESIGN_CENTRE,
   }: {
     width: number;
     height: number;
     artworkWidth: number;
     background: string | null;
+    centre?: { x: number; y: number };
   },
 ) {
   const scale = artworkWidth / ARTWORK_WIDTH;
-  const x = width / 2 - DESIGN_CENTRE.x * scale;
-  const y = height / 2 - DESIGN_CENTRE.y * scale;
+  const x = width / 2 - centre.x * scale;
+  const y = height / 2 - centre.y * scale;
   return Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
       (background
@@ -128,6 +150,20 @@ async function main() {
     const bytes = await writeOpaquePng(svg, path.join(ROOT, file));
     written.push(`${file} (${bytes} B)`);
   }
+
+  const badge = await sharp(
+    canvasSvg(paths, {
+      width: BADGE.size,
+      height: BADGE.size,
+      artworkWidth: BADGE.artwork,
+      background: null,
+      centre: BOX_CENTRE,
+    }),
+  )
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  writeFileSync(path.join(ROOT, BADGE.file), badge);
+  written.push(`${BADGE.file} (${badge.length} B)`);
 
   // Start clean, so a size dropped from the list does not linger.
   rmSync(SPLASH_DIR, { recursive: true, force: true });
