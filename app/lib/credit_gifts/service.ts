@@ -30,6 +30,7 @@ import {
 } from "@/app/lib/credits/service";
 import { roundCredits } from "@/app/lib/credits/balances";
 import { isSuppressed } from "@/app/lib/emails/suppressions";
+import { loggableError } from "@/app/lib/errors/loggable-error";
 import { notify } from "@/app/lib/notifications/notify";
 import { buildInAppCopy } from "@/app/lib/notifications/registry";
 import { getUserName } from "@/app/lib/users/utils";
@@ -124,17 +125,13 @@ export async function classifyCreditGiftRecipients(userIds: readonly number[]) {
 }
 
 /**
- * Saves a gift and one row per recipient, and returns. Nothing is credited
- * here: `processCreditGift` does that one recipient per transaction, so a
- * gift to 100 people never sits inside one request.
- *
- * The typed total is checked here as well as in the dialog. The dialog is a
- * courtesy; this is what keeps a crafted request from skipping it.
+ * What a submit with an already-used key gets: the gift that key created, or
+ * a conflict when the terms differ. Null when no gift holds the key.
  */
-export async function createCreditGift(
+async function replayCreditGift(
   input: CreateCreditGiftInput,
   actor: { id: number },
-): Promise<CreateCreditGiftResult> {
+): Promise<CreateCreditGiftResult | null> {
   const [existing] = await db
     .select({
       id: notificationCampaigns.id,
@@ -152,38 +149,54 @@ export async function createCreditGift(
     )
     .where(eq(notificationCampaigns.idempotencyKey, input.idempotencyKey))
     .limit(1);
-  if (existing) {
-    // A key reused with different terms is a different gift, not a retry.
-    // The composer keeps its key after a lost response, and replaying the
-    // first gift there would tell the admin an edited one went out.
-    const recipientIds = await db
-      .select({ userId: notificationCampaignRecipients.userId })
-      .from(notificationCampaignRecipients)
-      .where(eq(notificationCampaignRecipients.campaignId, existing.id));
-    const sameRecipients =
-      recipientIds.length === input.recipientIds.length &&
-      recipientIds.every((row) => input.recipientIds.includes(row.userId));
-    if (
-      existing.createdByUserId !== actor.id ||
-      !sameRecipients ||
-      Number(existing.amountPerRecipient) !==
-        roundCredits(input.amountPerRecipient) ||
-      existing.title !== input.title.trim() ||
-      existing.message !== input.message.trim() ||
-      existing.occasion !== input.occasion ||
-      existing.internalNote !== input.internalNote.trim()
-    ) {
-      return { ok: false, code: "IDEMPOTENCY_CONFLICT" };
-    }
-    const counts = await recipientCounts(existing.id);
-    return {
-      ok: true,
-      campaignId: existing.id,
-      eligibleCount: counts.total - counts.skipped,
-      skippedCount: counts.skipped,
-      created: false,
-    };
+  if (!existing) return null;
+
+  // A key reused with different terms is a different gift, not a retry.
+  // The composer keeps its key after a lost response, and replaying the
+  // first gift there would tell the admin an edited one went out.
+  const recipientIds = await db
+    .select({ userId: notificationCampaignRecipients.userId })
+    .from(notificationCampaignRecipients)
+    .where(eq(notificationCampaignRecipients.campaignId, existing.id));
+  const sameRecipients =
+    recipientIds.length === input.recipientIds.length &&
+    recipientIds.every((row) => input.recipientIds.includes(row.userId));
+  if (
+    existing.createdByUserId !== actor.id ||
+    !sameRecipients ||
+    Number(existing.amountPerRecipient) !==
+      roundCredits(input.amountPerRecipient) ||
+    existing.title !== input.title.trim() ||
+    existing.message !== input.message.trim() ||
+    existing.occasion !== input.occasion ||
+    existing.internalNote !== input.internalNote.trim()
+  ) {
+    return { ok: false, code: "IDEMPOTENCY_CONFLICT" };
   }
+  const counts = await recipientCounts(existing.id);
+  return {
+    ok: true,
+    campaignId: existing.id,
+    eligibleCount: counts.total - counts.skipped,
+    skippedCount: counts.skipped,
+    created: false,
+  };
+}
+
+/**
+ * Saves a gift and one row per recipient, and returns. Nothing is credited
+ * here: `processCreditGift` does that one recipient per transaction, so a
+ * gift to 100 people never sits inside one request.
+ *
+ * The typed total is checked here as well as in the dialog. The dialog is a
+ * courtesy; this is what keeps a crafted request from skipping it.
+ */
+export async function createCreditGift(
+  input: CreateCreditGiftInput,
+  actor: { id: number },
+): Promise<CreateCreditGiftResult> {
+  const replay = await replayCreditGift(input, actor);
+  if (replay) return replay;
 
   const reasons = await classifyCreditGiftRecipients(input.recipientIds);
   if (reasons.size !== input.recipientIds.length) {
@@ -204,6 +217,8 @@ export async function createCreditGift(
   }
 
   const campaignId = await db.transaction(async (tx) => {
+    // A double submit that got past the lookup above waits here for the
+    // first to commit, then inserts nothing.
     const [campaign] = await tx
       .insert(notificationCampaigns)
       .values({
@@ -213,8 +228,9 @@ export async function createCreditGift(
         createdByUserId: actor.id,
         idempotencyKey: input.idempotencyKey,
       })
+      .onConflictDoNothing({ target: notificationCampaigns.idempotencyKey })
       .returning({ id: notificationCampaigns.id });
-    if (!campaign) throw new Error("credit_gift_insert_failed");
+    if (!campaign) return null;
 
     await tx.insert(creditGiftDetails).values({
       campaignId: campaign.id,
@@ -237,6 +253,11 @@ export async function createCreditGift(
     );
     return campaign.id;
   });
+  if (campaignId == null) {
+    const replay = await replayCreditGift(input, actor);
+    if (!replay) throw new Error("credit_gift_idempotency_key_taken");
+    return replay;
+  }
 
   return {
     ok: true,
@@ -487,12 +508,12 @@ async function processNextRecipient(
  * name and Postgres code, never a message that could carry row data.
  */
 function failureLabel(error: unknown): string {
-  if (error instanceof Error) {
-    if (/^[a-z_:0-9]+$/.test(error.message)) return error.message;
-    const code = (error as { code?: unknown }).code;
-    return typeof code === "string" ? `${error.name}:${code}` : error.name;
+  if (error instanceof Error && /^[a-z_:0-9]+$/.test(error.message)) {
+    return error.message;
   }
-  return typeof error;
+  // Drizzle wraps every failed query; the Postgres code is on its cause.
+  const { name, code } = loggableError(error);
+  return code ? `${name}:${code}` : name;
 }
 
 /**
@@ -867,7 +888,10 @@ async function revokeRecipientInTx(
     adminUserId: actorId,
     metadata: { creditGiftId: String(gift.id) },
   });
-  if (!reversal.ok) throw new Error(`credit_gift_revoke_${reversal.code}`);
+  if (!reversal.ok) {
+    // Lower-cased so failureLabel logs it as one of our codes.
+    throw new Error(`credit_gift_revoke_${reversal.code.toLowerCase()}`);
+  }
 
   const balances = await getCreditBalancesInTx(tx, userId);
   const debtAmount = Math.max(0, roundCredits(-balances.ledgerBalance));

@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
@@ -68,11 +68,13 @@ type CreditService = typeof import("@/app/lib/credits/service");
 type Deliveries = typeof import("@/app/lib/notifications/deliveries");
 type InboxQueries = typeof import("@/app/lib/notifications/queries");
 type Notify = typeof import("@/app/lib/notifications/notify");
+type AppDb = (typeof import("@/db"))["db"];
 let gifts: GiftService;
 let credits: CreditService;
 let deliveries: Deliveries;
 let inbox: InboxQueries;
 let notifyModule: Notify;
+let appDb: AppDb;
 
 const createdUserIds: number[] = [];
 const createdEmails: string[] = [];
@@ -140,6 +142,19 @@ async function deliveriesFor(userId: number) {
     .where(eq(notificationDeliveries.userId, userId));
 }
 
+/** Resolves once some connection waits on a lock that backend `pid` holds. */
+async function waitUntilBlockedBy(pid: number) {
+  for (let attempt = 0; ; attempt += 1) {
+    const { rows } = await pool!.query<{ waiting: number }>(
+      "SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))",
+      [pid],
+    );
+    if (rows[0]!.waiting > 0) return;
+    if (attempt > 250) throw new Error("Nothing ever waited.");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
 describeDatabase("credit gifts", () => {
   beforeAll(async () => {
     process.env.POSTGRES_URL = testDatabaseUrl!;
@@ -151,6 +166,8 @@ describeDatabase("credit gifts", () => {
     deliveries = await import("@/app/lib/notifications/deliveries");
     inbox = await import("@/app/lib/notifications/queries");
     notifyModule = await import("@/app/lib/notifications/notify");
+    // The service's own drizzle instance; @/db builds its pool on import.
+    appDb = (await import("@/db")).db;
 
     try {
       await integrationDb!
@@ -405,6 +422,79 @@ describeDatabase("credit gifts", () => {
     if (!first.ok || !second.ok) throw new Error("gift not created");
     expect(second.campaignId).toBe(first.campaignId);
     expect(second.created).toBe(false);
+  });
+
+  it("answers a concurrent double submit with the first gift", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const input = giftInput([ana.id]);
+
+    // The first submit stops after its inserts, before COMMIT: its key is
+    // written but not visible, so the second submit's lookup misses it and
+    // its insert waits on the key's unique index.
+    let holding!: (pid: number) => void;
+    const firstPid = new Promise<number>((resolve) => {
+      holding = resolve;
+    });
+    let commitFirst!: () => void;
+    const firstMayCommit = new Promise<void>((resolve) => {
+      commitFirst = resolve;
+    });
+    const realTransaction = appDb.transaction.bind(appDb);
+    const hold = vi
+      .spyOn(appDb, "transaction")
+      .mockImplementationOnce(((callback, config) =>
+        realTransaction(async (tx) => {
+          const result = await callback(tx);
+          const { rows } = await tx.execute<{ pid: number }>(
+            sql`select pg_backend_pid() as pid`,
+          );
+          holding(rows[0]!.pid);
+          await firstMayCommit;
+          return result;
+        }, config)) as AppDb["transaction"]);
+
+    const firstSubmit = gifts.createCreditGift(input, { id: admin.id });
+    try {
+      // Fails at once, not at the timeout, if the first submit never gets
+      // as far as holding its commit.
+      const finishedEarly = firstSubmit.then(() => {
+        throw new Error("The first submit finished without holding.");
+      });
+      finishedEarly.catch(() => undefined);
+      const pid = await Promise.race([firstPid, finishedEarly]);
+      const secondSubmit = gifts.createCreditGift(input, { id: admin.id });
+      // Reported by the Promise.all below, not as an unhandled rejection.
+      secondSubmit.catch(() => undefined);
+      await waitUntilBlockedBy(pid);
+      commitFirst();
+
+      const [first, second] = await Promise.all([firstSubmit, secondSubmit]);
+      if (!first.ok) throw new Error("gift not created");
+      expect(first.created).toBe(true);
+      expect(second).toEqual({
+        ok: true,
+        campaignId: first.campaignId,
+        eligibleCount: 1,
+        skippedCount: 0,
+        created: false,
+      });
+    } finally {
+      commitFirst();
+      hold.mockRestore();
+      await firstSubmit.catch(() => undefined);
+    }
+
+    const campaigns = await integrationDb!
+      .select({ id: notificationCampaigns.id })
+      .from(notificationCampaigns)
+      .where(eq(notificationCampaigns.idempotencyKey, input.idempotencyKey));
+    expect(campaigns).toHaveLength(1);
+    const recipients = await integrationDb!
+      .select({ userId: notificationCampaignRecipients.userId })
+      .from(notificationCampaignRecipients)
+      .where(eq(notificationCampaignRecipients.campaignId, campaigns[0]!.id));
+    expect(recipients).toEqual([{ userId: ana.id }]);
   });
 
   it("revokes into a negative balance, says so, and cancels the banner", async () => {
@@ -746,6 +836,48 @@ describeDatabase("credit gifts", () => {
       reversesEntryId: grant!.id,
     });
     expect(reverted).toEqual({ ok: false, code: "ENTRY_NOT_REVERTIBLE" });
+    expect(await balanceOf(ana.id)).toBe(20);
+  });
+
+  it("logs a revocation the ledger refuses by its code", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const bea = await createUser();
+    const created = await gifts.createCreditGift(
+      giftInput([ana.id, bea.id]),
+      { id: admin.id },
+    );
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+
+    // A broken link: Ana's row points at Bea's grant, which the ledger will
+    // not reverse on Ana's account.
+    const [beaGrant] = await ledgerFor(bea.id);
+    await integrationDb!
+      .update(notificationCampaignRecipients)
+      .set({ ledgerEntryId: beaGrant!.id })
+      .where(
+        and(
+          eq(notificationCampaignRecipients.campaignId, created.campaignId),
+          eq(notificationCampaignRecipients.userId, ana.id),
+        ),
+      );
+
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const result = await gifts.revokeCreditGift({
+        campaignId: created.campaignId,
+        userIds: [ana.id],
+        actorId: admin.id,
+      });
+      expect(result).toMatchObject({ revoked: 0, failed: 1 });
+      expect(logged).toHaveBeenCalledWith("Credit gift revocation failed", {
+        campaignId: created.campaignId,
+        errorType: "credit_gift_revoke_entry_not_revertible",
+      });
+    } finally {
+      logged.mockRestore();
+    }
     expect(await balanceOf(ana.id)).toBe(20);
   });
 
