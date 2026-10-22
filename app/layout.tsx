@@ -1,5 +1,5 @@
 import { Analytics } from "@vercel/analytics/react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 
 import { esMX } from "@clerk/localizations";
@@ -12,11 +12,13 @@ import { Toaster } from "@/components/ui/sonner";
 import { figtree, gabarito } from "@/ui/fonts";
 
 import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
+import InstalledAppHead from "@/app/components/installed-app-head";
 import Navbar from "@/app/components/navbar/navbar";
 import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
+import { THEME_COLORS } from "./lib/theme-colors";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -32,6 +34,19 @@ export const metadata: Metadata = {
     title: "Productora Glitter",
     description: "Creamos festivales para que los artistas brillen",
   },
+  // No `appleWebApp` or apple icon here: InstalledAppHead renders those tags.
+};
+
+/**
+ * The browser bar matches the navbar. These follow the device's light or dark
+ * setting; ThemeProvider switches them to the theme the person picked in
+ * Glitter once the page loads.
+ */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
+  ],
 };
 
 export default function RootLayout({
@@ -43,6 +58,7 @@ export default function RootLayout({
     // next-themes sets the theme class on <html> before React hydrates.
     <html lang="es" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
+        <InstalledAppHead />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

@@ -26,6 +26,7 @@ import {
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
+import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { deleteClerkUser } from "@/app/lib/users/clerk";
@@ -216,6 +217,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           };
         }
 
+        await forgetPushDevices(tx, lockedUser.id);
         return {
           ok: true as const,
           pendingId: existingPending.id,
@@ -256,6 +258,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           clerkId: lockedUser.clerkId,
         })
         .returning({ id: pendingUserDeletions.id });
+      await forgetPushDevices(tx, lockedUser.id);
 
       return {
         ok: true as const,

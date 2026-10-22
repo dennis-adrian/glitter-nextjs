@@ -16,7 +16,21 @@ import { getPostgresUrl } from "@/env";
  */
 const SHARE_TOKEN_RE = /^[0-9a-f]{64}$/;
 
+/**
+ * A push subscription's endpoint and keys let whoever holds our VAPID key show
+ * text on that device as Glitter. Every string written to the table is
+ * masked; reads never take them as params.
+ */
+const PUSH_SUBSCRIPTION_WRITE_RE =
+  /^\s*(?:insert\s+into|update|delete\s+from)\s+"?push_subscriptions"?/i;
+
 function redactQueryParams(query: string, params: unknown[]): unknown[] {
+  if (PUSH_SUBSCRIPTION_WRITE_RE.test(query)) {
+    return params.map((param) =>
+      typeof param === "string" ? "[REDACTED_PUSH]" : param,
+    );
+  }
+
   if (/post_share_links/i.test(query)) {
     return params.map((param) =>
       typeof param === "string" && SHARE_TOKEN_RE.test(param)

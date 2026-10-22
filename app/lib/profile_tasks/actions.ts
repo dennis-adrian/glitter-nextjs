@@ -10,6 +10,7 @@ import {
   ScheduledTaskWithProfile,
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
+import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
@@ -269,6 +270,7 @@ export async function handleDeletionEmails(): Promise<
 
         // The profile went away while we waited for the lock.
         if (!lockedUser) continue;
+        await forgetPushDevices(tx, lockedUser.id);
 
         // A row left over from an earlier run is resumed rather than
         // duplicated; a null clerkDeletedAt just means "not confirmed yet".

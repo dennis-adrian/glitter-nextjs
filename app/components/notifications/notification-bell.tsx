@@ -50,7 +50,12 @@ export function NotificationBellPlaceholder() {
  * The bell: a popover on desktop, the full page on phones, where a popover
  * has no room and the back button should work.
  */
-export default function NotificationBell() {
+export default function NotificationBell({
+  pushPublicKey = null,
+}: {
+  /** Offers avisos in the popover; phones get the offer on the page. */
+  pushPublicKey?: string | null;
+}) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { count, setCount } = useUnreadNotificationCount();
   const [open, setOpen] = useState(false);
@@ -98,6 +103,7 @@ export default function NotificationBell() {
             knownCount={count}
             onCountChange={setCount}
             onNavigate={() => setOpen(false)}
+            pushPublicKey={pushPublicKey}
           />
         )}
       </PopoverContent>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
+import { PushOffer } from "@/app/components/notifications/push-control";
 import { Button } from "@/app/components/ui/button";
 import { creditsAgree } from "@/app/lib/credit_gifts/definitions";
 import { markGiftsCelebratedAction } from "@/app/lib/notifications/actions";
@@ -17,9 +18,12 @@ import { markGiftsCelebratedAction } from "@/app/lib/notifications/actions";
 export default function CreditGiftCelebrationBanner({
   notificationIds,
   totalCredits,
+  pushPublicKey = null,
 }: {
   notificationIds: number[];
   totalCredits: number;
+  /** Offers avisos for next time; null when they are not open. */
+  pushPublicKey?: string | null;
 }) {
   const [visible, setVisible] = useState(true);
   const marked = useRef(false);
@@ -44,12 +48,15 @@ export default function CreditGiftCelebrationBanner({
         >
           <GiftIcon className="h-5 w-5" />
         </span>
-        <p className="min-w-0 flex-1 text-sm">
-          <span className="font-semibold">
-            Recibiste {formatCreditCount(totalCredits)} de regalo.
-          </span>{" "}
-          {creditsAgree(totalCredits, "Ya está", "Ya están")} en tu billetera.
-        </p>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-sm">
+            <span className="font-semibold">
+              Recibiste {formatCreditCount(totalCredits)} de regalo.
+            </span>{" "}
+            {creditsAgree(totalCredits, "Ya está", "Ya están")} en tu billetera.
+          </p>
+          <PushOffer publicKey={pushPublicKey} />
+        </div>
         <Button asChild size="sm" variant="outline" className="shrink-0">
           <Link href="/my_credits" onClick={() => setVisible(false)}>
             Ver mi billetera
@@ -60,7 +67,7 @@ export default function CreditGiftCelebrationBanner({
           size="icon"
           variant="ghost"
           className="h-8 w-8 shrink-0"
-          aria-label="Cerrar aviso"
+          aria-label="Cerrar"
           onClick={() => setVisible(false)}
         >
           <XIcon className="h-4 w-4" />

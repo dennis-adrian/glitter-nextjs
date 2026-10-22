@@ -8,6 +8,7 @@ import {
   notificationCategory,
   type NotificationData,
   type NotificationKind,
+  notificationPushes,
   notificationStartsRead,
   parseNotificationData,
 } from "@/app/lib/notifications/registry";
@@ -27,8 +28,10 @@ export type NotifyResult = {
 
 /**
  * Records one notification for one person inside the caller's transaction: the
- * inbox item and, when the kind has an email and an address is given, its
- * delivery row. Either both commit with the business change or neither does.
+ * inbox item; when the kind has an email and an address is given, its email
+ * delivery; and when the kind pushes, one push delivery per device the person
+ * turned avisos on for. All of it commits with the business change or none
+ * does.
  *
  * Nothing is sent here. Pass the returned ids to
  * `scheduleNotificationDeliveries` after the transaction commits; the cron
@@ -109,6 +112,29 @@ export async function notify<K extends NotificationKind>(
       })
       .returning({ id: notificationDeliveries.id });
     if (delivery) deliveryIds.push(delivery.id);
+  }
+
+  if (notificationPushes(input.kind, data)) {
+    // One statement whether or not the person has devices: no read first,
+    // since the reservation mirrors run while holding the festival's lock.
+    // The push renders from the inbox item when sent, so no payload is kept.
+    // FOR KEY SHARE: a device removed meanwhile is skipped rather than
+    // failing the foreign key, which would take the inbox item down with it.
+    const pushed = await tx.execute<{ id: number }>(sql`
+      INSERT INTO notification_deliveries
+        (notification_id, user_id, template_key, channel,
+         push_subscription_id, payload, idempotency_key)
+      SELECT ${inserted.id}::integer, ${input.userId}::integer,
+        ${input.kind}::text, 'push'::notification_delivery_channel,
+        ps.id, '{}'::jsonb,
+        ${`notification:${inserted.id}:push:`}::text || ps.id
+      FROM push_subscriptions ps
+      WHERE ps.user_id = ${input.userId}::integer
+      ORDER BY ps.id
+      FOR KEY SHARE
+      RETURNING id
+    `);
+    for (const row of pushed.rows) deliveryIds.push(Number(row.id));
   }
 
   return { notificationId: inserted.id, deliveryIds, created: true };

@@ -7106,6 +7106,11 @@ export const notificationDeliveryStatusEnum = pgEnum(
   "notification_delivery_status",
   ["pending", "processing", "sent", "failed", "skipped"],
 );
+/** Where a delivery goes: an email address, or one device's push service. */
+export const notificationDeliveryChannelEnum = pgEnum(
+  "notification_delivery_channel",
+  ["email", "push"],
+);
 export const notificationCampaignTypeEnum = pgEnum(
   "notification_campaign_type",
   ["credit_gift"],
@@ -7235,10 +7240,55 @@ export const notifications = pgTable(
 );
 
 /**
- * One email to send. Meant to replace the per-domain outbox tables over time.
+ * A browser or device someone allowed to show their avisos (web push). One row
+ * per push subscription; the endpoint is unique, so the same browser signed in
+ * as someone else moves to that person.
  *
- * `payload` is the snapshot the template renders from, so a retry or a
- * re-send renders the same email and Resend's idempotency key behaves.
+ * The endpoint and keys let anyone holding our VAPID key show text on that
+ * device as Glitter: they are never sent to the client, logged, or copied into
+ * a delivery.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    /**
+     * The VAPID public key it subscribed with. A server running other keys
+     * (another environment pointed at this database, or keys rotated since)
+     * cannot reach it, and leaves its pushes for one that can.
+     */
+    applicationServerKey: text("application_server_key").notNull(),
+    /** "iPhone", "Chrome en Windows": what the device list shows. */
+    deviceLabel: text("device_label"),
+    /** Saved again or sent to; the device list's "Último uso". */
+    lastUsedAt: timestamp("last_used_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("push_subscriptions_endpoint_unique").on(t.endpoint),
+    index("push_subscriptions_user_idx").on(t.userId, t.lastUsedAt),
+    check(
+      "push_subscriptions_endpoint_https",
+      sql`${t.endpoint} LIKE 'https://%'`,
+    ),
+  ],
+);
+
+/**
+ * One message to send: an email, or a push to one device. Meant to replace the
+ * per-domain outbox tables over time.
+ *
+ * An email's `payload` is the snapshot the template renders from, so a retry
+ * or a re-send renders the same email and Resend's idempotency key behaves. A
+ * push stores none: it renders from its inbox item when it is sent, so a scrub
+ * or an archive in between reaches it.
  */
 export const notificationDeliveries = pgTable(
   "notification_deliveries",
@@ -7253,7 +7303,19 @@ export const notificationDeliveries = pgTable(
       onDelete: "set null",
     }),
     templateKey: text("template_key").notNull(),
-    recipientEmail: text("recipient_email").notNull(),
+    channel: notificationDeliveryChannelEnum("channel")
+      .default("email")
+      .notNull(),
+    /** Set for email, null for push. */
+    recipientEmail: text("recipient_email"),
+    /**
+     * The device a push goes to. Null for email, and for a push whose device
+     * was removed since: the row stays as history and is skipped.
+     */
+    pushSubscriptionId: integer("push_subscription_id").references(
+      () => pushSubscriptions.id,
+      { onDelete: "set null" },
+    ),
     payload: jsonb("payload")
       .$type<Record<string, unknown>>()
       .default({})
@@ -7287,6 +7349,16 @@ export const notificationDeliveries = pgTable(
       t.nextAttemptAt,
     ),
     index("notification_deliveries_notification_idx").on(t.notificationId),
+    // Both are SET NULL foreign keys: deleting a user or a device would
+    // otherwise scan the table.
+    index("notification_deliveries_user_idx").on(t.userId),
+    index("notification_deliveries_push_subscription_idx").on(
+      t.pushSubscriptionId,
+    ),
+    check(
+      "notification_deliveries_recipient_per_channel",
+      sql`(${t.channel} = 'email') = (${t.recipientEmail} IS NOT NULL)`,
+    ),
     foreignKey({
       name: "notification_deliveries_resend_of_delivery_id_fk",
       columns: [t.resendOfDeliveryId],
