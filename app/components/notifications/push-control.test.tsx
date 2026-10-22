@@ -374,6 +374,54 @@ describe("the avisos control on /my_notifications", () => {
     expect(canTurnOn()).toBe(false);
   });
 
+  it("leaves the new subscription alone when that check finds it before the device is saved, and checks again once saved", async () => {
+    const browser = installBrowser();
+    browser.answerPrompt("granted");
+    render(<PushControl publicKey={KEY} devices={[]} />);
+    const button = await enabledButton();
+    const registrations: Array<() => void> = [];
+    browser.serviceWorker.register.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          registrations.push(() => resolve(browser.registration)),
+        ),
+    );
+    let finishSave = () => {};
+    const save = mocks.savePushDeviceAction.getMockImplementation()!;
+    mocks.savePushDeviceAction.mockImplementation(
+      async (input: { refreshOnly?: boolean }) => {
+        if (!input.refreshOnly) {
+          await new Promise<void>((resolve) => {
+            finishSave = resolve;
+          });
+        }
+        return save(input);
+      },
+    );
+
+    fireEvent.click(button);
+    await settle();
+    // The check the granted permission set off registers first, then the
+    // tap's own flow, which subscribes and starts saving the device.
+    expect(registrations).toHaveLength(2);
+    registrations[1]();
+    await settle();
+    expect(calls).toEqual(["subscribe"]);
+    // The check then finds the subscription whose device is still being saved.
+    registrations[0]();
+    await settle();
+    browser.serviceWorker.register.mockImplementation(
+      async () => browser.registration,
+    );
+    finishSave();
+
+    await waitFor(() =>
+      expect(calls).toEqual(["subscribe", "save", "refresh"]),
+    );
+    expect(browser.subscription).toBeTruthy();
+    expect((await screen.findByText(ON_STATUS)).textContent).toBe(ON_STATUS);
+  });
+
   it("takes a declined prompt as an answer: no error, and the control explains the block", async () => {
     const browser = installBrowser();
     browser.answerPrompt("denied");

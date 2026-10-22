@@ -187,12 +187,17 @@ export function usePushDevice({
     if (!canPush || !publicKey) return;
     const key = publicKey;
     let current = true;
+    // While avisos are being turned on or off, the subscription found may be
+    // the one being saved right now; a newer check may know better too.
+    // Either way this one must not undo it, and reports nothing (null).
+    const superseded = () => !current || inFlight.current;
 
-    async function check(): Promise<DeviceState> {
+    async function check(): Promise<DeviceState | null> {
       // Registering never prompts, and doing it now spares the tap the wait.
       const registered = await registerWorker();
       const subscription = await registered.pushManager.getSubscription();
       if (!subscription) return OFF;
+      if (superseded()) return null;
       if (
         !subscribedWithKey(subscription.options.applicationServerKey, key) ||
         support !== "granted"
@@ -211,6 +216,7 @@ export function usePushDevice({
         refreshOnly: true,
       });
       if (result.success && result.deviceId == null) {
+        if (superseded()) return null;
         // Removed from the list meanwhile: stop the browser too.
         await subscription.unsubscribe().catch(() => false);
         return OFF;
@@ -220,7 +226,7 @@ export function usePushDevice({
 
     check()
       .then((next) => {
-        if (current && !inFlight.current) setState(next);
+        if (next && current && !inFlight.current) setState(next);
       })
       .catch(() => {
         if (current && !inFlight.current) setState(OFF);
@@ -241,11 +247,15 @@ export function usePushDevice({
         : Promise.resolve(Notification.permission);
     if (!publicKey) return { ok: false, message: ENABLE_ERROR };
     inFlight.current = true;
+    let result: PushDeviceResult;
     try {
-      return await turnOn(asked, publicKey);
+      result = await turnOn(asked, publicKey);
     } finally {
       inFlight.current = false;
     }
+    // Once done, so the checks this sets off do not take it as in flight.
+    if (result.ok) announcePushDeviceChanged();
+    return result;
   }
 
   async function turnOn(
@@ -298,18 +308,20 @@ export function usePushDevice({
       return { ok: false, message: result?.message ?? ENABLE_ERROR };
     }
     setState({ phase: "on", deviceId: result.deviceId });
-    announcePushDeviceChanged();
     return { ok: true };
   }
 
   async function disable(): Promise<PushDeviceResult> {
     if (inFlight.current) return { ok: false, message: null };
     inFlight.current = true;
+    let result: PushDeviceResult;
     try {
-      return await turnOff(state.deviceId);
+      result = await turnOff(state.deviceId);
     } finally {
       inFlight.current = false;
     }
+    if (result.ok) announcePushDeviceChanged();
+    return result;
   }
 
   async function turnOff(deviceId: number | null): Promise<PushDeviceResult> {
@@ -335,7 +347,6 @@ export function usePushDevice({
           : Promise.resolve(null)
     ).catch(() => null);
     setState(OFF);
-    announcePushDeviceChanged();
     return { ok: true };
   }
 
