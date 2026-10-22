@@ -5,8 +5,8 @@ import { ICON_BACKGROUND } from "@/app/lib/theme-colors";
 
 /**
  * What lets browsers offer to install Glitter: a home-screen icon, full
- * screen, no browser bar. There is no service worker yet; it arrives with
- * push, and will never cache pages.
+ * screen, no browser bar. The service worker (public/sw.js) only shows
+ * pushes; it never caches pages.
  */
 export default function manifest(): MetadataRoute.Manifest {
   const name = installedAppName();
