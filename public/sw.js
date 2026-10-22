@@ -97,7 +97,8 @@ async function openPath(path) {
     const url = new URL(client.url);
     return (
       url.origin === self.location.origin &&
-      url.pathname.startsWith(FALLBACK_PATH)
+      (url.pathname === FALLBACK_PATH ||
+        url.pathname.startsWith(`${FALLBACK_PATH}/`))
     );
   });
   if (inbox) {

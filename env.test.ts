@@ -49,8 +49,14 @@ describe("VAPID keys", () => {
   });
 
   it("do not fail the boot when only some are set: push checks them itself", async () => {
-    const env = await loadEnv({ VAPID_PRIVATE_KEY: "not-a-key" });
+    // The others are emptied, so keys in the shell or .env.local don't count.
+    const env = await loadEnv({
+      VAPID_PUBLIC_KEY: "",
+      VAPID_PRIVATE_KEY: "not-a-key",
+      VAPID_SUBJECT: "",
+    });
     expect(env.VAPID_PRIVATE_KEY).toBe("not-a-key");
     expect(env.VAPID_PUBLIC_KEY).toBeUndefined();
+    expect(env.VAPID_SUBJECT).toBeUndefined();
   });
 });

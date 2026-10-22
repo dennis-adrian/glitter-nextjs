@@ -350,6 +350,19 @@ describe("tapping a notification", () => {
     );
   });
 
+  it.each(["/my_notifications_archive", "/my_notificationsx/7"])(
+    "does not take %s for the inbox",
+    async (pathname) => {
+      const tab = openTab(`${ORIGIN}${pathname}`);
+      await tap(worker, { url: "/my_notifications/7" }, [tab]);
+      expect(tab.navigate).not.toHaveBeenCalled();
+      expect(tab.focus).not.toHaveBeenCalled();
+      expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
+        "/my_notifications/7",
+      );
+    },
+  );
+
   it("still takes the inbox tab to the item when it cannot take focus", async () => {
     const tab = openTab(`${ORIGIN}/my_notifications`, {
       focus: vi.fn(async () => {

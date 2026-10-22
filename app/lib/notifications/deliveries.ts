@@ -304,7 +304,8 @@ export async function sendNotificationDeliveries(
   const counts = { sent: 0, skipped: 0, failed: 0, retry: 0 };
   let emailedBefore = false;
   for (const id of deliveryIds) {
-    if (Date.now() - startedAt > budgetMs) break;
+    // A budget of 0 (the cron's run already used up) sends nothing.
+    if (Date.now() - startedAt >= budgetMs) break;
     // The gap goes before the next request after an email, which is when
     // Resend's per-second limit could bite; a push in between costs nothing.
     if (emailedBefore) await wait(SEND_SPACING_MS);

@@ -1063,6 +1063,27 @@ describeDatabase("web push deliveries", () => {
       expect(await deviceById(gone.id)).toBeNull();
       expect(await deviceById(working.id)).not.toBeNull();
     });
+
+    it("claims and sends nothing when the run has no time left", async () => {
+      const ana = await createUser();
+      await addDevice(ana.id);
+      const { pushIds } = await queueGiftPush(ana.id);
+      expect(pushIds).toHaveLength(1);
+
+      expect(await deliveries.sendNotificationDeliveries(pushIds, 0)).toEqual({
+        sent: 0,
+        skipped: 0,
+        failed: 0,
+        retry: 0,
+      });
+
+      expect(await deliveryById(pushIds[0])).toMatchObject({
+        status: "pending",
+        attempts: 0,
+        leaseOwner: null,
+      });
+      expect(sendPushMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("pushes no longer worth sending", () => {
