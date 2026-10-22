@@ -10,7 +10,8 @@
 export const THEME_COLORS = { light: "#fefbf8", dark: "#1b1722" } as const;
 
 /**
- * The purple behind the isotype in the icons, so the launch screen around
- * the icon reads as one piece.
+ * The brand purple (`primary-600`, as in the logo's SVG) behind the isotype
+ * in the icons and the launch screens, so a launch screen and its icon read
+ * as one piece.
  */
-export const ICON_BACKGROUND = "#6523e7";
+export const ICON_BACKGROUND = "#6523e6";

@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx scripts/sync-env-local.ts --exec next dev",
     "env:sync": "tsx scripts/sync-env-local.ts",
+    "app-images": "tsx scripts/generate-app-images.ts",
     "build": "pnpm generate && next build",
     "start": "next start",
     "generate": "drizzle-kit generate",
@@ -144,6 +145,7 @@
     "eslint-config-next": "^16.4.2",
     "jsdom": "^29.0.1",
     "prettier": "^3.8.4",
+    "sharp": "0.35.5",
     "storybook": "^10.5.10",
     "tailwindcss": "^4",
     "tsx": "^4.23.9",

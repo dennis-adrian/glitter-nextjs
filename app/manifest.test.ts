@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ICON_BACKGROUND } from "@/app/lib/theme-colors";
 
 const envLabel = vi.hoisted(() => ({ value: "" }));
 
@@ -57,9 +60,46 @@ describe("the web app manifest", () => {
     }
   });
 
-  it("gives iPhones a 180 px home-screen icon", () => {
-    expect(pngSize(path.join(process.cwd(), "app", "apple-icon.png"))).toBe(
-      "180x180",
+  it("opens on the brand purple, as the icons are drawn", async () => {
+    expect(manifest()).toMatchObject({
+      background_color: ICON_BACKGROUND,
+      theme_color: ICON_BACKGROUND,
+    });
+    for (const icon of manifest().icons ?? []) {
+      const corner = await sharp(path.join(process.cwd(), "public", icon.src))
+        .extract({ left: 0, top: 0, width: 1, height: 1 })
+        .removeAlpha()
+        .raw()
+        .toBuffer();
+      expect(`#${corner.toString("hex")}`, icon.src).toBe(ICON_BACKGROUND);
+    }
+  });
+
+  it("keeps the maskable icon's artwork inside the circle Android always shows", async () => {
+    const maskable = manifest().icons?.find(
+      (icon) => icon.purpose === "maskable",
     );
+    const { data, info } = await sharp(
+      path.join(process.cwd(), "public", maskable?.src ?? ""),
+    )
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const centre = info.width / 2;
+    let farthest = 0;
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 0; x < info.width; x++) {
+        // Any pixel lighter than the purple's green channel is artwork.
+        const green = data[(y * info.width + x) * info.channels + 1];
+        if (green > 0x40) {
+          farthest = Math.max(
+            farthest,
+            Math.hypot(x + 0.5 - centre, y + 0.5 - centre),
+          );
+        }
+      }
+    }
+    // The safe zone is a circle 80% of the icon's width across.
+    expect(farthest / info.width).toBeLessThan(0.4);
   });
 });

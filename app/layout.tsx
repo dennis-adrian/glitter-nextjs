@@ -12,12 +12,12 @@ import { Toaster } from "@/components/ui/sonner";
 import { figtree, gabarito } from "@/ui/fonts";
 
 import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
+import InstalledAppHead from "@/app/components/installed-app-head";
 import Navbar from "@/app/components/navbar/navbar";
 import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
-import { installedAppName } from "./lib/installable-app";
 import { THEME_COLORS } from "./lib/theme-colors";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
@@ -34,11 +34,7 @@ export const metadata: Metadata = {
     title: "Productora Glitter",
     description: "Creamos festivales para que los artistas brillen",
   },
-  // Added to an iPhone's home screen, it opens full screen under this name.
-  appleWebApp: {
-    title: installedAppName(),
-    statusBarStyle: "default",
-  },
+  // No `appleWebApp` or apple icon here: InstalledAppHead renders those tags.
 };
 
 /**
@@ -62,6 +58,7 @@ export default function RootLayout({
     // next-themes sets the theme class on <html> before React hydrates.
     <html lang="es" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
+        <InstalledAppHead />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
