@@ -137,7 +137,7 @@ All copy is in voseo.
 ### Tables
 
 - `notifications`: one row per person per event. `kind`, `category`, `title`, `body`, `action_path` (never a tokenised URL), `action_label`, `data` (participant-safe snapshot), `campaign_id`, `dedupe_key` with `unique(user_id, dedupe_key)`, `read_at`, `archived_at`, `celebrated_at`, `created_at`.
-- `notification_deliveries`: one row per email (and, since P2b, per push) to send. `template_key`, `recipient_email`, `payload` (snapshot), `status` (`pending`, `processing`, `sent`, `failed`, `skipped`), attempts, backoff, lease, `last_error`, `provider_message_id`, `idempotency_key` (unique), `resend_of_delivery_id`, `requested_by_user_id`.
+- `notification_deliveries`: one row per email (and, since P2b, per push) to send. `template_key`, `recipient_email` (email rows only), `payload` (the email's snapshot; empty for push, which is built when sent), `status` (`pending`, `processing`, `sent`, `failed`, `skipped`), attempts, backoff, lease, `last_error`, `provider_message_id`, `idempotency_key` (unique), `resend_of_delivery_id`, `requested_by_user_id`.
 - `notification_campaigns`: admin-initiated sends; phase 1 has one type, `credit_gift`. Status, public title and message, creator, timestamps.
 - `notification_campaign_recipients`: one row per recipient: status, skip reason, attempts, `ledger_entry_id`, `notification_id`, revocation (`reversal_entry_id`, `revoked_at`, `revoked_by_user_id`). `unique(campaign_id, user_id)`.
 - `credit_gift_details`: `amount_per_recipient`, `occasion`, `internal_note`.
@@ -233,7 +233,7 @@ The outboxes queue 21 kinds of email: the 12 in `RESERVATION_NOTIFICATION_KINDS`
 
 ### Decisions
 
-Proposed 2026-10-21 and merged as written (#591). Each one is a small change if Dennis decides otherwise.
+Proposed 2026-10-21 and merged as written (#591), except that decision 5 then batched only owner-and-admin emails; the emails sent to every participant were batched in a follow-up. Each one is a small change if Dennis decides otherwise.
 
 | #   | Decision                  | Phase 2 rule                                                                                                                                                                                                                                                                                                                                                                                  |
 | --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

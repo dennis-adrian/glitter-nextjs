@@ -85,9 +85,10 @@ export function buildDisciplinaryJobNotification(
 }
 
 /**
- * Writes the inbox copy of a notice the caller just queued, in a savepoint of
- * the caller's transaction, so it commits or rolls back with the job. Every
- * caller passes one; given `db`, it would run in a transaction of its own.
+ * Writes the inbox copy of a notice the caller just queued (or, in the worker,
+ * a retry it just filled in), in a savepoint of the caller's transaction, so
+ * it commits or rolls back with that write. Every caller passes one; given
+ * `db`, it would run in a transaction of its own.
  *
  * It never throws: a failure costs the inbox item and is logged, and cannot
  * undo the sanction or the infraction the email already reports.
