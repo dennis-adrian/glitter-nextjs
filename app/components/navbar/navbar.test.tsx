@@ -28,6 +28,9 @@ vi.mock("@/app/lib/landing_content/data", () => ({
 vi.mock("@/app/lib/programs/data", () => ({
   fetchProgramsNavTarget: vi.fn(async () => "/programs/demo"),
 }));
+vi.mock("@/app/lib/notifications/push/config", () => ({
+  pushPublicKey: () => "vapid-public-key",
+}));
 vi.mock("@/app/components/navbar/navbar-client", () => ({
   default: () => null,
 }));
@@ -64,6 +67,8 @@ describe("Navbar", () => {
       programsHref: null,
       creditsEnabled: false,
       blogEnabled: false,
+      notificationsEnabled: false,
+      pushPublicKey: null,
     });
     expect(currentProfileMock).not.toHaveBeenCalled();
   });
@@ -76,6 +81,22 @@ describe("Navbar", () => {
       programsHref: "/programs/demo",
       creditsEnabled: true,
       blogEnabled: true,
+      notificationsEnabled: true,
+      pushPublicKey: "vapid-public-key",
+    });
+  });
+
+  it("offers avisos only with both the inbox and the push flag", async () => {
+    headersMock.mockResolvedValue(new Headers({ host: "localhost:3000" }));
+    currentProfileMock.mockResolvedValue({ id: 7, role: "admin" });
+    fetchRuleMock.mockImplementation(async (key: string) => ({
+      visibility: key === "push_notifications" ? "hidden" : "admin_only",
+      targetedUserIds: [],
+    }));
+
+    expect(await navbarClientProps()).toMatchObject({
+      notificationsEnabled: true,
+      pushPublicKey: null,
     });
   });
 });

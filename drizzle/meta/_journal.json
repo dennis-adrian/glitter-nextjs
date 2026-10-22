@@ -2094,6 +2094,13 @@
       "when": 1792461918253,
       "tag": "0299_in_app_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1792558747565,
+      "tag": "0300_push_notifications",
+      "breakpoints": true
     }
   ]
 }

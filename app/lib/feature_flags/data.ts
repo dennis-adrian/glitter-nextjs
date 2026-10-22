@@ -103,9 +103,9 @@ async function fetchFlagTargets(flagId: number): Promise<FeatureFlagTarget[]> {
  *
  * - It is the same value `fetchOrCreateFlagRow` would have written had it been
  *   able to reach the database, so the fallback invents no new behaviour.
- * - Every default is `hidden` and the target list empties, so the failure is
- *   fail-closed: an unreachable database can only ever hide a feature, never
- *   reveal one.
+ * - Every default is `hidden` or `admin_only` and the target list empties, so
+ *   the failure is fail-closed for participants: an unreachable database can
+ *   only ever hide a feature from them, never reveal one.
  *
  * That keeps a prerender of a public page from dying on a flag lookup — during
  * `next build` without a database, or on a transient outage in production,

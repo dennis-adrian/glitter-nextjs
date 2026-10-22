@@ -8,6 +8,7 @@ const currentProfileMock = vi.hoisted(() => vi.fn());
 const releaseOfferMock = vi.hoisted(() => vi.fn());
 const latePartnerOfferMock = vi.hoisted(() => vi.fn());
 const featureFlagMock = vi.hoisted(() => vi.fn());
+const pushKeyMock = vi.hoisted(() => vi.fn(async () => null));
 
 vi.mock("@/app/lib/reservations/queries", () => ({
   fetchReservationForParticipant: fetchReservationMock,
@@ -27,6 +28,16 @@ vi.mock("@/app/lib/reservations/participant-actions", () => ({
 }));
 vi.mock("@/app/lib/feature_flags/helpers", () => ({
   isFeatureEnabled: featureFlagMock,
+}));
+vi.mock("@/app/lib/notifications/push/access", () => ({
+  pushPublicKeyFor: pushKeyMock,
+}));
+// The avisos offer is a client component reaching a "use server" module.
+vi.mock("@/app/lib/notifications/push/actions", () => ({
+  savePushDeviceAction: vi.fn(),
+  removePushDeviceAction: vi.fn(),
+  forgetPushDeviceAction: vi.fn(),
+  releaseForeignPushDeviceAction: vi.fn(),
 }));
 // The button is a client component reaching a "use server" module.
 vi.mock("@/app/lib/reservations/release-actions", () => ({
@@ -130,6 +141,27 @@ async function render(
 
 describe("ReservationDetailPage", () => {
   afterEach(() => vi.clearAllMocks());
+
+  it("offers avisos again while a payment is reviewed or once confirmed", async () => {
+    await render(reservation({ status: "accepted" }));
+    expect(pushKeyMock).toHaveBeenCalledWith(OWNER);
+
+    pushKeyMock.mockClear();
+    await render(reservation({ status: "verification_payment" }));
+    expect(pushKeyMock).toHaveBeenCalledWith(OWNER);
+
+    pushKeyMock.mockClear();
+    await render(reservation());
+    expect(pushKeyMock).not.toHaveBeenCalled();
+  });
+
+  it("does not offer avisos to an admin looking at someone's reservation", async () => {
+    await render(reservation({ status: "accepted" }), {
+      id: 99,
+      displayName: "Admin",
+    });
+    expect(pushKeyMock).not.toHaveBeenCalled();
+  });
 
   it("shows what was booked and where it stands", async () => {
     const html = await render(reservation());

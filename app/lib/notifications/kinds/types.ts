@@ -41,8 +41,14 @@ export type KindDefinition<Data> = {
    */
   startsRead?: (data: Data) => boolean;
   /**
-   * Disciplinary notices. A push (phase 2b) says only that something arrived,
-   * never what, since it shows on a lock screen.
+   * Whether it also goes to the person's devices as a push, for those who
+   * turned avisos on. Participant news does; of the Administración copies,
+   * only those asking an admin to act. A receipt that starts read never does.
+   */
+  push?: true;
+  /**
+   * Disciplinary notices. A push says only that something arrived, never
+   * what, since it shows on a lock screen.
    */
   sensitive?: true;
 };

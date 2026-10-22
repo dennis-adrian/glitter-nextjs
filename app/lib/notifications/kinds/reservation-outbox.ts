@@ -159,6 +159,7 @@ export const reservationOutboxKinds = {
   /** To the payer, once a voucher is in: usually a receipt for their upload. */
   reservation_proof_submitted: {
     category: "credits",
+    push: true,
     schema: submittedSchema,
     inApp: (data) => ({
       title: "Recibimos tu comprobante de pago",
@@ -178,6 +179,7 @@ export const reservationOutboxKinds = {
   /** To the owner of a Bs0 cobro, once it is sent to be confirmed. */
   reservation_zero_value_review_requested: {
     category: "reservations",
+    push: true,
     schema: submittedSchema,
     inApp: (data) => ({
       title: "Tu reserva está en revisión",
@@ -191,6 +193,7 @@ export const reservationOutboxKinds = {
   /** To the payer, when the reservation is confirmed by any route. */
   reservation_confirmed: {
     category: "reservations",
+    push: true,
     schema: confirmedSchema,
     inApp: (data) => {
       // Setup starts an hour before the doors open, as the email says.
@@ -210,6 +213,7 @@ export const reservationOutboxKinds = {
   /** To every participant of a reservation an admin cancelled. */
   reservation_cancelled: {
     category: "reservations",
+    push: true,
     schema: cancelledSchema,
     inApp: (data) => ({
       title: "Tu reserva fue cancelada",
@@ -231,6 +235,7 @@ export const reservationOutboxKinds = {
    */
   reservation_payment_deadline_extended: {
     category: "credits",
+    push: true,
     schema: deadlineExtendedSchema,
     inApp: (data) =>
       data.role === "owner"
@@ -251,6 +256,7 @@ export const reservationOutboxKinds = {
   /** To the owner who released it and to the partner who is finding out. */
   reservation_released: {
     category: "reservations",
+    push: true,
     schema: releasedSchema,
     inApp: (data) => {
       const freed =
@@ -288,6 +294,7 @@ export const reservationOutboxKinds = {
   /** To the owner who paid and to the partner who was added. */
   reservation_partner_added: {
     category: "reservations",
+    push: true,
     schema: partnerAddedSchema,
     inApp: (data) =>
       data.role === "owner"
@@ -314,6 +321,7 @@ export const reservationOutboxKinds = {
 
   festival_participation_approved: {
     category: "reservations",
+    push: true,
     schema: participationApprovedSchema,
     inApp: (data) => ({
       title: `Tu postulación para ${data.festivalName} fue aprobada`,
@@ -330,6 +338,7 @@ export const reservationOutboxKinds = {
   /** No action, as the email has none: the item opens its own page. */
   festival_participation_rejected: {
     category: "reservations",
+    push: true,
     schema: participationRejectedSchema,
     inApp: (data) => ({
       title: `Novedades sobre tu postulación para ${data.festivalName}`,
@@ -346,6 +355,7 @@ export const reservationOutboxKinds = {
 
   credit_top_up_rejected: {
     category: "credits",
+    push: true,
     schema: topUpRejectedSchema,
     inApp: (data) => ({
       title: "No pudimos confirmar tu compra de créditos",
@@ -379,6 +389,7 @@ export const reservationOutboxKinds = {
 
   reservation_proof_submitted_admin: {
     category: "admin",
+    push: true,
     schema: adminReservationSchema,
     inApp: (data) => ({
       title: `${data.participantName} subió el comprobante de su reserva`,
@@ -394,6 +405,7 @@ export const reservationOutboxKinds = {
 
   reservation_zero_value_review_requested_admin: {
     category: "admin",
+    push: true,
     schema: adminReservationSchema,
     inApp: (data) => ({
       title: `${data.participantName} pidió revisar una reserva sin costo`,

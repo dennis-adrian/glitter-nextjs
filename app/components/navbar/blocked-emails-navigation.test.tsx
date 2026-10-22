@@ -5,6 +5,13 @@ import type { NavbarProfile } from "@/app/api/users/definitions";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
 import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 
+// Server actions: the sign-out path and the bell reach them.
+vi.mock("@/app/lib/notifications/push/actions", () => ({
+  savePushDeviceAction: vi.fn(),
+  removePushDeviceAction: vi.fn(),
+  forgetPushDeviceAction: vi.fn(),
+  releaseForeignPushDeviceAction: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),

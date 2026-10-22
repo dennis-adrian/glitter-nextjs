@@ -19,6 +19,7 @@ import {
 import NotificationBell, {
   NotificationBellPlaceholder,
 } from "@/app/components/notifications/notification-bell";
+import { useReleaseForeignPushDevice } from "@/app/components/notifications/use-push-device";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
@@ -27,12 +28,15 @@ export default function SessionButtons({
   profile,
   creditsEnabled,
   notificationsEnabled = false,
+  pushPublicKey = null,
   isProfileLoading,
 }: {
   profile?: NavbarProfile | null;
   creditsEnabled: boolean;
   /** The bell, for whoever the `notifications` flag lets in. */
   notificationsEnabled?: boolean;
+  /** Offers avisos in the bell's popover; null when they are not open. */
+  pushPublicKey?: string | null;
   /** Forwarded to the dropdown so a `null` profile is not read as loading. */
   isProfileLoading: boolean;
 }) {
@@ -40,6 +44,7 @@ export default function SessionButtons({
   const router = useRouter();
   const pathname = usePathname();
   const { isLoaded, isSignedIn } = useUser();
+  useReleaseForeignPushDevice(isSignedIn && profile ? profile.id : null);
 
   if (isNoNavigationPage(pathname)) {
     return null;
@@ -128,7 +133,11 @@ export default function SessionButtons({
 
   return (
     <div className="flex items-center gap-1 sm:gap-2">
-      {profile ? <NotificationBell /> : <NotificationBellPlaceholder />}
+      {profile ? (
+        <NotificationBell pushPublicKey={pushPublicKey} />
+      ) : (
+        <NotificationBellPlaceholder />
+      )}
       {dropdown}
     </div>
   );

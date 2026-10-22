@@ -88,6 +88,7 @@ function infractionKind(
       actionLabel: "Ver mi historial",
     }),
     opensDetail: (data) => data.note != null,
+    push: true,
     sensitive: true,
   };
 }
@@ -131,6 +132,7 @@ function sanctionKind(kind: SanctionEmailKind): KindDefinition<SanctionData> {
         : { actionPath: historyPath(data), actionLabel: "Ver mi historial" }),
     }),
     opensDetail: (data) => data.note != null,
+    push: true,
     sensitive: true,
   };
 }

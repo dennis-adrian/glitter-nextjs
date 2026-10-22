@@ -4,6 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NavbarProfile } from "@/app/api/users/definitions";
 import SessionButtons from "@/app/components/navbar/session-buttons";
 
+// Server actions: the sign-out path and the bell reach them.
+vi.mock("@/app/lib/notifications/push/actions", () => ({
+  savePushDeviceAction: vi.fn(),
+  removePushDeviceAction: vi.fn(),
+  forgetPushDeviceAction: vi.fn(),
+  releaseForeignPushDeviceAction: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
