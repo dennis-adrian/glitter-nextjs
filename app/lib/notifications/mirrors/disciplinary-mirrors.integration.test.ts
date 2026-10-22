@@ -1142,14 +1142,19 @@ describeDatabase("disciplinary outbox → inbox mirror", () => {
       expect(stored!.status).toBe("under_review");
       expect(await itemsOf(ana.id)).toEqual([]);
 
-      // Logged with the kind and the Postgres code, never the copy's text.
+      // Logged with the kind, the job's key and the Postgres code, never the
+      // copy's text.
       const mirrorErrors = consoleError.mock.calls.filter(([message]) =>
         String(message).startsWith(MIRROR_FAILURE),
       );
       expect(mirrorErrors).toEqual([
         [
           "[notifications] Inbox copy of a disciplinary notice failed",
-          { kind: "infraction:registered", error: "pg:22012" },
+          {
+            kind: "infraction:registered",
+            jobKey: deduplicationKey,
+            error: "pg:22012",
+          },
         ],
       ]);
       expect(JSON.stringify(mirrorErrors)).not.toContain(ana.email);
@@ -1208,7 +1213,11 @@ describeDatabase("disciplinary outbox → inbox mirror", () => {
       ).toEqual([
         [
           "[notifications] Inbox copy of a disciplinary notice failed",
-          { kind: "sanction:expired", error: "pg:22012" },
+          {
+            kind: "sanction:expired",
+            jobKey: `sanction:${sanctionId}:expired`,
+            error: "pg:22012",
+          },
         ],
       ]);
       consoleError.mockClear();

@@ -287,9 +287,11 @@ changing one requires a redeploy before it takes effect. That is not a kill swit
 
 ## 9. Current flags
 
-| Key             | Purpose                                                                                                                                                                      | Default  |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `paid_programs` | Paid programs and sessions — Glitter Week catalogue, sales, QR check-in. See [ARCHITECTURE-paid-programs-and-sessions.md](./ARCHITECTURE-paid-programs-and-sessions.md) §14. | `hidden` |
+| Key                  | Purpose                                                                                                                                                                      | Default      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `paid_programs`      | Paid programs and sessions — Glitter Week catalogue, sales, QR check-in. See [ARCHITECTURE-paid-programs-and-sessions.md](./ARCHITECTURE-paid-programs-and-sessions.md) §14. | `hidden`     |
+| `notifications`      | The bell, `/my_notifications` and each item's page. Items are written for everyone while it is hidden. See [PRD-in-app-notifications.md](./PRD-in-app-notifications.md) §11. | `admin_only` |
+| `push_notifications` | Avisos on the device: the control and the sends. Needs `notifications` too. See [PRD-in-app-notifications.md](./PRD-in-app-notifications.md) §10, P2b.                       | `admin_only` |
 
 ## 10. Possible extensions
 

@@ -18,7 +18,10 @@ import {
   readReservationParticipantIds,
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
-import { enqueueReservationNotification } from "@/app/lib/reservations/notification-queue";
+import {
+  enqueueReservationNotifications,
+  type ReservationNotificationInput,
+} from "@/app/lib/reservations/notification-queue";
 import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import {
   abandonRequest,
@@ -355,10 +358,10 @@ export async function addLatePartner(input: {
         inArray(users.id, uniqueSortedIds([actor.id, input.partnerUserId])),
       );
 
-    const jobIds: number[] = [];
+    const inputs: ReservationNotificationInput[] = [];
     for (const recipient of recipients) {
       if (!recipient.email) continue;
-      const jobId = await enqueueReservationNotification(tx, {
+      inputs.push({
         kind: "late_partner_added",
         reservationId: preview.id,
         userId: recipient.id,
@@ -376,8 +379,12 @@ export async function addLatePartner(input: {
           featurePrice: price.featurePrice,
         },
       });
-      if (jobId) jobIds.push(jobId);
     }
+    // Queued together, so their inbox copies share one read of the
+    // reservation.
+    const jobIds = (await enqueueReservationNotifications(tx, inputs)).filter(
+      (jobId): jobId is number => jobId != null,
+    );
 
     await completeRequest(tx, input.idempotencyKey, {
       featureActionId: action.id,

@@ -85,10 +85,9 @@ export function buildDisciplinaryJobNotification(
 }
 
 /**
- * Writes the inbox copy of a notice the caller just queued. On a transaction
- * it runs in a savepoint, so it commits or rolls back with the job; on `db`
- * (the expired-sanction path and a hydrated retry, which run outside one) in a
- * transaction of its own.
+ * Writes the inbox copy of a notice the caller just queued, in a savepoint of
+ * the caller's transaction, so it commits or rolls back with the job. Every
+ * caller passes one; given `db`, it would run in a transaction of its own.
  *
  * It never throws: a failure costs the inbox item and is logged, and cannot
  * undo the sanction or the infraction the email already reports.
@@ -112,6 +111,7 @@ export async function mirrorDisciplinaryNotificationJob(
       "[notifications] Inbox copy of a disciplinary notice failed",
       {
         kind: `${job.payload.entityType}:${job.payload.kind}`,
+        jobKey: job.deduplicationKey,
         error: mirrorFailureType(error),
       },
     );
