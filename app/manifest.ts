@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { installedAppName } from "@/app/lib/installable-app";
-import { ICON_BACKGROUND, THEME_COLORS } from "@/app/lib/theme-colors";
+import { ICON_BACKGROUND } from "@/app/lib/theme-colors";
 
 /**
  * What lets browsers offer to install Glitter: a home-screen icon, full
@@ -19,8 +19,11 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     scope: "/",
     display: "standalone",
+    // Android's launch screen: the icon on this purple, under a status bar
+    // of the same purple. Once a page loads, its own theme-color (the
+    // navbar's) takes over the bar.
     background_color: ICON_BACKGROUND,
-    theme_color: THEME_COLORS.light,
+    theme_color: ICON_BACKGROUND,
     icons: [
       {
         src: "/icons/glitter-192.png",
