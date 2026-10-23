@@ -104,4 +104,30 @@ describe("safeActionPath", () => {
   it("refuses a backslash path a browser would read as another host", () => {
     expect(safeActionPath("/\\evil.example")).toBeNull();
   });
+
+  it("refuses tabs and newlines the URL parser drops", () => {
+    expect(safeActionPath("/\t/evil.example")).toBeNull();
+    expect(safeActionPath("/\n\\evil.example")).toBeNull();
+    expect(safeActionPath("/\r/evil.example")).toBeNull();
+    expect(safeActionPath("/my_credits\n")).toBeNull();
+  });
+
+  it("refuses spaces and other control characters", () => {
+    expect(safeActionPath("/my credits")).toBeNull();
+    expect(safeActionPath("/my_credits\u0000")).toBeNull();
+    expect(safeActionPath("/my_credits\u007f")).toBeNull();
+  });
+
+  it("refuses a path that resolves to one starting with //", () => {
+    expect(safeActionPath("/.//evil.example")).toBeNull();
+    expect(safeActionPath("/a/..//evil.example")).toBeNull();
+  });
+
+  it("keeps an app path as written, query and fragment included", () => {
+    const path = "/dashboard/festivals/3/reservations?lens=cobros&focus=9#top";
+    expect(safeActionPath(path)).toBe(path);
+    expect(safeActionPath("/profiles/2/infractions")).toBe(
+      "/profiles/2/infractions",
+    );
+  });
 });
