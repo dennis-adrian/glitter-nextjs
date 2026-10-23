@@ -1,6 +1,7 @@
 import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
 import { isLayoutFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { layoutPushPublicKey } from "@/app/lib/notifications/push/access";
 import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
 import { fetchProgramsNavTarget } from "@/app/lib/programs/data";
 
@@ -29,13 +30,21 @@ async function resolveProgramsHref(): Promise<string | null> {
 }
 
 export default async function Navbar() {
-  const [programsHref, creditsEnabled, blogEnabled, landingContent] =
-    await Promise.all([
-      resolveProgramsHref(),
-      isLayoutFeatureEnabled("credits"),
-      isLayoutFeatureEnabled("blog"),
-      getPublishedLandingContent(),
-    ]);
+  const [
+    programsHref,
+    creditsEnabled,
+    blogEnabled,
+    notificationsEnabled,
+    pushPublicKey,
+    landingContent,
+  ] = await Promise.all([
+    resolveProgramsHref(),
+    isLayoutFeatureEnabled("credits"),
+    isLayoutFeatureEnabled("blog"),
+    isLayoutFeatureEnabled("notifications"),
+    layoutPushPublicKey(),
+    getPublishedLandingContent(),
+  ]);
 
   return (
     <div data-site-navbar data-sticky-top className="sticky top-0 z-50">
@@ -44,6 +53,8 @@ export default async function Navbar() {
         programsHref={programsHref}
         creditsEnabled={creditsEnabled}
         blogEnabled={blogEnabled}
+        notificationsEnabled={notificationsEnabled}
+        pushPublicKey={pushPublicKey}
       />
     </div>
   );

@@ -10,6 +10,7 @@ import Title from "@/app/components/atoms/heading";
 import UserInfractionCard from "@/app/components/molecules/user-infraction-card";
 import UserSanctionCard from "@/app/components/molecules/user-sanction-card";
 import { fetchParticipantDisciplinaryHistory } from "@/app/lib/infractions/participant-queries";
+import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { PackageOpenIcon } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -36,7 +37,11 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
   const { profileId: paramsProfileId } = validatedParams.data;
 
   const currentProfile = await getCurrentUserProfile();
-  await protectRoute(currentProfile || undefined, paramsProfileId);
+  // Read-only, like /my_history that links here: a paused participant still
+  // reads their history, and the notices about it link here.
+  await protectRoute(currentProfile || undefined, paramsProfileId, {
+    allowedStatuses: [...PARTICIPANT_READ_ONLY_ROUTE_STATUSES],
+  });
 
   const history = await fetchParticipantDisciplinaryHistory(paramsProfileId);
   const hasContent =

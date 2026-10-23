@@ -51,6 +51,21 @@ export const FEATURE_FLAGS = {
       "Billetera de créditos para participantes: `/my_credits`, la página explicativa y la compra de créditos para funciones opcionales como la mesa completa. La cola de revisión del panel de administración no depende de esta bandera.",
     defaultVisibility: "hidden",
   },
+  notifications: {
+    label: "Notificaciones en la app",
+    description:
+      "La campana del menú, `/my_notifications` y el detalle de cada notificación: reservas, pagos, compras de créditos rechazadas, postulaciones, infracciones y sanciones, regalos de créditos, y los avisos de Administración para el rol administrador. Se guardan para todos aunque la bandera esté oculta, así que al publicarla cada participante ve lo que ya recibió. Los correos, la billetera y el aviso de regalos de créditos no dependen de esta bandera.",
+    // Launched by flipping it, once an admin has seen the release work: a
+    // public default would launch with the first request after deploy.
+    defaultVisibility: "admin_only",
+  },
+  push_notifications: {
+    label: "Avisos en el dispositivo",
+    description:
+      "El control «Recibir avisos en este dispositivo» en la campana y en `/my_notifications`, y el envío de esas notificaciones al centro de notificaciones del teléfono o la computadora. Requiere también la bandera «Notificaciones en la app»: tocar un aviso abre la notificación. En iPhone los avisos llegan solo con Glitter agregado a la pantalla de inicio. Apagarla deja de enviar avisos en el siguiente envío, aunque los dispositivos sigan registrados.",
+    // Same as the bell: launched by flipping it once an admin has tried it.
+    defaultVisibility: "admin_only",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

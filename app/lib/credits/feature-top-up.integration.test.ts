@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
@@ -11,10 +11,12 @@ import {
   describe,
   expect,
   it,
+  type MockInstance,
   vi,
 } from "vitest";
 
 import { canFundInvoiceCreditAllocation } from "@/app/lib/credits/balances";
+import { formatCreditCount } from "@/app/lib/credits/format";
 import { FESTIVAL_TERMS_DOCUMENT_SLUG } from "@/app/lib/festival-terms/constants";
 import * as schema from "@/db/schema";
 import {
@@ -28,6 +30,7 @@ import {
   festivalTermsVersions,
   festivals,
   invoices,
+  notifications,
   reservationFeatureActionItems,
   reservationFeatureActions,
   reservationNotificationJobs,
@@ -56,6 +59,8 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   scheduleReservationNotificationJobs: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// Nothing here sends: the outbox only queues, and its inbox copies are rows.
+vi.mock("@/app/vendors/resend", () => ({ sendEmail: vi.fn() }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -102,7 +107,21 @@ let createStandHold: (typeof import("@/app/lib/reservations/hold-service"))["cre
 let confirmStandHold: (typeof import("@/app/lib/reservations/hold-service"))["confirmStandHold"];
 let releaseReservation: (typeof import("@/app/lib/reservations/release-service"))["releaseReservation"];
 let addLatePartner: (typeof import("@/app/lib/reservations/late-partner-service"))["addLatePartner"];
+let notificationCreditDelta: (typeof import("@/app/lib/notifications/registry"))["notificationCreditDelta"];
+let notificationOpensDetail: (typeof import("@/app/lib/notifications/registry"))["notificationOpensDetail"];
 let publishedTermsVersionId: number;
+/**
+ * A mirror that throws is caught and logged, never rethrown, so a broken
+ * inbox copy would otherwise pass every test that only looks at the email.
+ */
+let consoleErrorSpy: MockInstance<typeof console.error>;
+
+function isInboxCopyFailure(args: unknown[]) {
+  return (
+    typeof args[0] === "string" &&
+    args[0].startsWith("[notifications] Inbox copy")
+  );
+}
 
 const ACCESS_PRICE = 50;
 const STAND_PRICE = 200;
@@ -127,6 +146,7 @@ const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
  */
 describeDatabase("feature credit top-up", () => {
   beforeAll(async () => {
+    consoleErrorSpy = vi.spyOn(console, "error");
     process.env.POSTGRES_URL = testDatabaseUrl!;
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
@@ -144,6 +164,8 @@ describeDatabase("feature credit top-up", () => {
       await import("@/app/lib/reservations/release-service"));
     ({ addLatePartner } =
       await import("@/app/lib/reservations/late-partner-service"));
+    ({ notificationCreditDelta, notificationOpensDetail } =
+      await import("@/app/lib/notifications/registry"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -166,6 +188,9 @@ describeDatabase("feature credit top-up", () => {
 
   afterEach(async () => {
     currentProfileMock.mockReset();
+    const inboxCopyFailures =
+      consoleErrorSpy.mock.calls.filter(isInboxCopyFailure);
+    consoleErrorSpy.mockClear();
     const db = integrationDb!;
     for (const fixture of fixtures.splice(0)) {
       const reservationRows = await db
@@ -173,6 +198,20 @@ describeDatabase("feature credit top-up", () => {
         .from(standReservations)
         .where(eq(standReservations.festivalId, fixture.festivalId));
       const reservationIds = reservationRows.map((row) => row.id);
+      // Queued emails outlive their user and reservation (ON DELETE SET
+      // NULL), so they go first, while they can still be found. Their inbox
+      // copies cascade with the users below.
+      const jobScopes = [
+        ...(fixture.userIds.length > 0
+          ? [inArray(reservationNotificationJobs.userId, fixture.userIds)]
+          : []),
+        ...(reservationIds.length > 0
+          ? [inArray(reservationNotificationJobs.reservationId, reservationIds)]
+          : []),
+      ];
+      if (jobScopes.length > 0) {
+        await db.delete(reservationNotificationJobs).where(or(...jobScopes));
+      }
       if (reservationIds.length > 0) {
         await db
           .delete(invoices)
@@ -255,9 +294,14 @@ describeDatabase("feature credit top-up", () => {
       }
       await db.delete(festivals).where(eq(festivals.id, fixture.festivalId));
     }
+    expect(
+      inboxCopyFailures,
+      "an inbox copy failed and was swallowed; see the logged error",
+    ).toEqual([]);
   });
 
   afterAll(async () => {
+    consoleErrorSpy?.mockRestore();
     await pool?.end();
   });
 
@@ -414,6 +458,29 @@ describeDatabase("feature credit top-up", () => {
       })
       .from(creditTopUps)
       .where(eq(creditTopUps.userId, userId));
+  }
+
+  /**
+   * One person's inbox, oldest first. Phase 2 gives every email the outbox
+   * queues an in-app copy, written in the transaction that queued it.
+   */
+  async function notificationsFor(userId: number) {
+    return integrationDb!
+      .select({
+        id: notifications.id,
+        kind: notifications.kind,
+        category: notifications.category,
+        title: notifications.title,
+        body: notifications.body,
+        actionPath: notifications.actionPath,
+        actionLabel: notifications.actionLabel,
+        data: notifications.data,
+        dedupeKey: notifications.dedupeKey,
+        readAt: notifications.readAt,
+      })
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(asc(notifications.id));
   }
 
   it("issues exactly the shortfall, once, inside the upload window", async () => {
@@ -886,6 +953,47 @@ describeDatabase("feature credit top-up", () => {
       },
     ]);
 
+    // Its inbox copy, in the same transaction and keyed on the job.
+    const [rejectionJob] = await integrationDb!
+      .select({ id: reservationNotificationJobs.id })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(rejected).toMatchObject({ data: { jobIds: [rejectionJob.id] } });
+
+    const rejectionItems = (await notificationsFor(user.id)).filter(
+      (row) => row.kind === "credit_top_up_rejected",
+    );
+    expect(rejectionItems).toHaveLength(1);
+    const [rejectionItem] = rejectionItems;
+    expect(rejectionItem).toMatchObject({
+      category: "credits",
+      title: "No pudimos confirmar tu compra de créditos",
+      actionPath: "/my_credits",
+      actionLabel: "Ver mi billetera",
+      dedupeKey: `reservation-job:${rejectionJob.id}`,
+      // Nobody told them yet: unlike a receipt, it arrives unread.
+      readAt: null,
+      data: {
+        topUpId,
+        amount: ACCESS_PRICE,
+        reason: "El comprobante no corresponde.",
+        // The same snapshot the email renders from, not a fresh balance.
+        debtAmount: (queued[0].payload as { debtAmount: number }).debtAmount,
+      },
+    });
+    expect(rejectionItem.body).toContain(
+      "Motivo: El comprobante no corresponde.",
+    );
+    expect(rejectionItem.body).toContain(
+      `te queda un saldo pendiente de ${formatCreditCount(ACCESS_PRICE)}`,
+    );
+    expect(
+      notificationCreditDelta(rejectionItem.kind, rejectionItem.data),
+    ).toBe(-ACCESS_PRICE);
+    expect(
+      notificationOpensDetail(rejectionItem.kind, rejectionItem.data),
+    ).toBe(true);
+
     // Reviewing again replays the same answer without reversing twice or
     // telling them twice.
     const replayed = await reviewCreditTopUp({
@@ -904,6 +1012,12 @@ describeDatabase("feature credit top-up", () => {
       .from(reservationNotificationJobs)
       .where(eq(reservationNotificationJobs.userId, user.id));
     expect(afterReplay).toHaveLength(1);
+
+    // No second email, so no second inbox item either.
+    const inboxAfterReplay = (await notificationsFor(user.id)).filter(
+      (row) => row.kind === "credit_top_up_rejected",
+    );
+    expect(inboxAfterReplay.map((row) => row.id)).toEqual([rejectionItem.id]);
   });
 
   /**
@@ -938,6 +1052,7 @@ describeDatabase("feature credit top-up", () => {
       .from(reservationNotificationJobs)
       .where(eq(reservationNotificationJobs.userId, user.id));
     expect(queued).toEqual([]);
+    expect(await notificationsFor(user.id)).toEqual([]);
   });
 
   /**
@@ -1051,7 +1166,7 @@ describeDatabase("feature credit top-up", () => {
      * notified — not only whoever pressed the button.
      */
     it("tells every participant, not just the owner", async () => {
-      const { user, reservationId } =
+      const { festival, user, reservationId } =
         await seedPendingReservation(RELEASE_PRICE);
 
       const [partner] = await integrationDb!
@@ -1077,6 +1192,7 @@ describeDatabase("feature credit top-up", () => {
 
       const queued = await integrationDb!
         .select({
+          id: reservationNotificationJobs.id,
           kind: reservationNotificationJobs.notificationKind,
           recipientEmail: reservationNotificationJobs.recipientEmail,
           userId: reservationNotificationJobs.userId,
@@ -1095,6 +1211,72 @@ describeDatabase("feature credit top-up", () => {
         // recomputing it at send time would report a later config change.
         expect(row.payload).toMatchObject({ creditPrice: RELEASE_PRICE });
       }
+
+      // Each email has an inbox copy keyed on its job, and they differ the
+      // way the emails do: the owner gets a receipt, the partner the news.
+      const jobIdFor = new Map(queued.map((row) => [row.userId, row.id]));
+      const mapPath = (profileId: number) =>
+        `/profiles/${profileId}/festivals/${festival.id}/reservations/new`;
+
+      const ownerInbox = await notificationsFor(user.id);
+      expect(ownerInbox).toHaveLength(1);
+      const [ownerItem] = ownerInbox;
+      expect(ownerItem).toMatchObject({
+        kind: "reservation_released",
+        category: "reservations",
+        title: "Liberaste tu reserva",
+        // The map, so they can pick another stand straight away.
+        actionPath: mapPath(user.id),
+        actionLabel: "Ver espacios disponibles",
+        dedupeKey: `reservation-job:${jobIdFor.get(user.id)}`,
+        data: {
+          reservationId,
+          festivalId: festival.id,
+          festivalName: festival.name,
+          profileId: user.id,
+          role: "owner",
+          creditPrice: RELEASE_PRICE,
+        },
+      });
+      expect(ownerItem.body).toContain(festival.name);
+      expect(ownerItem.body).toContain(
+        `Se usaron ${formatCreditCount(RELEASE_PRICE)} para liberarla`,
+      );
+      // They pressed the button: the copy is filed already read.
+      expect(ownerItem.readAt).not.toBeNull();
+      expect(notificationCreditDelta(ownerItem.kind, ownerItem.data)).toBe(
+        -RELEASE_PRICE,
+      );
+
+      const partnerInbox = await notificationsFor(partner.id);
+      expect(partnerInbox).toHaveLength(1);
+      const [partnerItem] = partnerInbox;
+      expect(partnerItem).toMatchObject({
+        kind: "reservation_released",
+        category: "reservations",
+        title: "Se liberó la reserva que compartías",
+        actionPath: mapPath(partner.id),
+        actionLabel: "Ver espacios disponibles",
+        dedupeKey: `reservation-job:${jobIdFor.get(partner.id)}`,
+        data: {
+          reservationId,
+          festivalId: festival.id,
+          profileId: partner.id,
+          role: "partner",
+          ownerName: user.displayName,
+          creditPrice: null,
+        },
+      });
+      expect(partnerItem.body).toContain(
+        `${user.displayName} liberó la reserva`,
+      );
+      // What the owner paid is not the partner's business.
+      expect(partnerItem.body).not.toMatch(/cr[eé]dito/i);
+      // They are finding out, so it arrives unread.
+      expect(partnerItem.readAt).toBeNull();
+      expect(
+        notificationCreditDelta(partnerItem.kind, partnerItem.data),
+      ).toBeNull();
 
       // One release frees every participant on it (PRD §9.3).
       const remaining = await integrationDb!
@@ -1121,6 +1303,8 @@ describeDatabase("feature credit top-up", () => {
       expect(first.success).toBe(true);
       expect(second.success).toBe(true);
       expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+      // Nor telling them twice.
+      expect(await notificationsFor(user.id)).toHaveLength(1);
     });
 
     /**
@@ -1394,6 +1578,9 @@ describeDatabase("feature credit top-up", () => {
         .where(eq(reservationParticipants.reservationId, reservationId));
       expect(participants).toHaveLength(2);
       expect((await readCreditBalances(user.id)).ledgerBalance).toBe(0);
+      // Nor telling either of them twice.
+      expect(await notificationsFor(user.id)).toHaveLength(1);
+      expect(await notificationsFor(partner.id)).toHaveLength(1);
     });
 
     it("refuses a reservation that already has a partner", async () => {
@@ -1566,7 +1753,7 @@ describeDatabase("feature credit top-up", () => {
     });
 
     it("tells the owner and the new partner", async () => {
-      const { user, reservationId, partner } =
+      const { festival, user, reservationId, partner } =
         await seedReservationWithPartner(LATE_PARTNER_TOTAL);
 
       await addLatePartner({
@@ -1577,6 +1764,7 @@ describeDatabase("feature credit top-up", () => {
 
       const queued = await integrationDb!
         .select({
+          id: reservationNotificationJobs.id,
           kind: reservationNotificationJobs.notificationKind,
           userId: reservationNotificationJobs.userId,
         })
@@ -1589,6 +1777,68 @@ describeDatabase("feature credit top-up", () => {
       expect(queued.every((row) => row.kind === "late_partner_added")).toBe(
         true,
       );
+
+      // And their inbox copies: a receipt for the owner who paid, an
+      // invitation for the partner who did not ask for it.
+      const jobIdFor = new Map(queued.map((row) => [row.userId, row.id]));
+      const reservationPath = (profileId: number) =>
+        `/profiles/${profileId}/festivals/${festival.id}/reservations/${reservationId}`;
+
+      const ownerInbox = await notificationsFor(user.id);
+      expect(ownerInbox).toHaveLength(1);
+      const [ownerItem] = ownerInbox;
+      expect(ownerItem).toMatchObject({
+        kind: "reservation_partner_added",
+        category: "reservations",
+        title: `Agregaste a ${partner.displayName} a tu reserva`,
+        actionPath: reservationPath(user.id),
+        actionLabel: "Ver mi reserva",
+        dedupeKey: `reservation-job:${jobIdFor.get(user.id)}`,
+        data: {
+          reservationId,
+          festivalId: festival.id,
+          profileId: user.id,
+          role: "owner",
+          ownerName: user.displayName,
+          partnerName: partner.displayName,
+          totalCredits: LATE_PARTNER_TOTAL,
+        },
+      });
+      expect(ownerItem.body).toContain(
+        `Se usaron ${formatCreditCount(LATE_PARTNER_TOTAL)} y tu cobro original no cambia.`,
+      );
+      expect(ownerItem.readAt).not.toBeNull();
+      expect(notificationCreditDelta(ownerItem.kind, ownerItem.data)).toBe(
+        -LATE_PARTNER_TOTAL,
+      );
+
+      const partnerInbox = await notificationsFor(partner.id);
+      expect(partnerInbox).toHaveLength(1);
+      const [partnerItem] = partnerInbox;
+      expect(partnerItem).toMatchObject({
+        kind: "reservation_partner_added",
+        category: "reservations",
+        title: `${user.displayName} te agregó a su reserva`,
+        actionPath: reservationPath(partner.id),
+        actionLabel: "Ver la reserva",
+        dedupeKey: `reservation-job:${jobIdFor.get(partner.id)}`,
+        data: {
+          reservationId,
+          festivalId: festival.id,
+          profileId: partner.id,
+          role: "partner",
+          ownerName: user.displayName,
+          partnerName: partner.displayName,
+          totalCredits: null,
+        },
+      });
+      expect(partnerItem.body).toContain("No tenés que pagar nada");
+      // What the owner paid stays in the owner's copy.
+      expect(partnerItem.body).not.toMatch(/cr[eé]dito/i);
+      expect(partnerItem.readAt).toBeNull();
+      expect(
+        notificationCreditDelta(partnerItem.kind, partnerItem.data),
+      ).toBeNull();
     });
   });
 

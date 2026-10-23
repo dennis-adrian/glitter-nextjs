@@ -46,6 +46,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { NavbarProfile } from "@/app/api/users/definitions";
+import { forgetThisBrowserForPush } from "@/app/components/notifications/use-push-device";
 
 type MobileSidebarItemProps = {
   href: string;
@@ -384,7 +385,10 @@ const MobileSidebar = ({
               <SheetClose asChild>
                 <Button
                   className="p-2"
-                  onClick={() => signOut(() => router.push("/"))}
+                  onClick={async () => {
+                    await forgetThisBrowserForPush();
+                    await signOut(() => router.push("/"));
+                  }}
                   variant="ghost"
                 >
                   <LogOutIcon className="mr-2 h-6 w-6" />

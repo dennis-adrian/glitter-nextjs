@@ -19,9 +19,10 @@ import {
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
 import {
-  enqueueReservationNotification,
+  enqueueReservationNotifications,
   scheduleReservationNotificationJobs,
 } from "@/app/lib/reservations/notification-outbox";
+import type { ReservationNotificationInput } from "@/app/lib/reservations/notification-queue";
 import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibility";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { roundMoney } from "@/app/lib/reservations/money";
@@ -303,19 +304,21 @@ export async function applyReservationCancellation(
           .where(inArray(users.id, userIds));
 
   const allowedRecipientIds = new Set(uniqueSortedIds(userIds));
-  const jobIds: number[] = [];
-  for (const recipient of recipients) {
-    if (!allowedRecipientIds.has(recipient.id)) continue;
-    const jobId = await enqueueReservationNotification(tx, {
-      kind: "reservation_rejected",
-      reservationId: input.reservation.id,
-      userId: recipient.id,
-      recipientEmail: recipient.email,
-      payload: input.reason ? { reason: input.reason } : undefined,
-    });
-    if (jobId) jobIds.push(jobId);
-  }
-  return jobIds;
+  // Queued together, so their inbox copies share one read of the reservation.
+  const jobIds = await enqueueReservationNotifications(
+    tx,
+    recipients
+      .filter((recipient) => allowedRecipientIds.has(recipient.id))
+      .map((recipient) => ({
+        kind: "reservation_rejected" as const,
+        reservationId: input.reservation.id,
+        userId: recipient.id,
+        recipientEmail: recipient.email,
+        audience: "participant" as const,
+        payload: input.reason ? { reason: input.reason } : undefined,
+      })),
+  );
+  return jobIds.filter((jobId): jobId is number => jobId != null);
 }
 
 export async function lockAndApplyReservationCancellation(
@@ -816,7 +819,7 @@ export async function extendReservationPaymentDeadline(
               .from(users)
               .where(inArray(users.id, lockedParticipantIds));
 
-      const jobIds: number[] = [];
+      const inputs: ReservationNotificationInput[] = [];
       const seen = new Set<string>();
       for (const recipient of recipients) {
         const email = recipient.email?.trim();
@@ -824,16 +827,21 @@ export async function extendReservationPaymentDeadline(
         const key = email.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        const jobId = await enqueueReservationNotification(tx, {
+        inputs.push({
           kind: "deadline_extended",
           reservationId: reservation.id,
           userId: recipient.id,
           recipientEmail: email,
+          audience: "participant",
           payload: { dueAt: dueAt.toISOString() },
           deduplicationKey: `deadline_extended:${reservation.id}:${dueAt.toISOString()}:${key}`,
         });
-        if (jobId) jobIds.push(jobId);
       }
+      // Queued together, so their inbox copies share one read of the
+      // reservation.
+      const jobIds = (await enqueueReservationNotifications(tx, inputs)).filter(
+        (jobId): jobId is number => jobId != null,
+      );
 
       return finish({ ok: true, jobIds });
     });

@@ -2,6 +2,7 @@ import { useClerk } from "@clerk/nextjs";
 import { LogOutIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { forgetThisBrowserForPush } from "@/app/components/notifications/use-push-device";
 import { DropdownMenuItem } from "@/app/components/ui/dropdown-menu";
 
 const SignOutButton = () => {
@@ -9,7 +10,12 @@ const SignOutButton = () => {
   const router = useRouter();
 
   return (
-    <DropdownMenuItem onClick={() => signOut(() => router.push("/"))}>
+    <DropdownMenuItem
+      onClick={async () => {
+        await forgetThisBrowserForPush();
+        await signOut(() => router.push("/"));
+      }}
+    >
       <LogOutIcon className="mr-2 h-4 w-4" />
       <span>Cerrar Sesión</span>
     </DropdownMenuItem>

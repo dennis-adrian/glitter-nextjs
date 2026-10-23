@@ -122,7 +122,7 @@ export default function ReviewRequestForm({
             disabled={!isPending}
             description={
               isPending
-                ? "Lo va a ver el participante en el correo."
+                ? "Lo va a ver el participante en el correo y en sus notificaciones."
                 : "Esta solicitud ya fue revisada. El motivo solo se envía al rechazar una solicitud pendiente."
             }
           />

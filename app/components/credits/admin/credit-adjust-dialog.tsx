@@ -32,9 +32,10 @@ type CreditAdjustDialogProps = {
 /**
  * Hands credits to a participant, or takes them back.
  *
- * There is no payment behind it, which is exactly why the reason is required:
- * the ledger entry is the only record of why the balance moved, and it is the
- * one the participant sees in their own movements.
+ * There is no payment behind it, which is exactly why the internal reason is
+ * required: the ledger entry is the only record of why the balance moved. What
+ * the participant reads is a separate, optional field, so a note like
+ * "compensación por cambio de sector" never lands in their wallet.
  */
 export default function CreditAdjustDialog({
   userId,
@@ -47,7 +48,8 @@ export default function CreditAdjustDialog({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
+  const [internalNote, setInternalNote] = useState("");
+  const [participantDetail, setParticipantDetail] = useState("");
   // Minted once per attempt rather than per call, so a double submit of the
   // same adjustment lands as one ledger entry instead of two.
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
@@ -63,11 +65,12 @@ export default function CreditAdjustDialog({
     Number.isFinite(parsedAmount) &&
     parsedAmount > 0 &&
     Math.abs(roundCredits(parsedAmount) - parsedAmount) < 1e-9;
-  const canSubmit = canAdjust && amountValid && reason.trim().length > 0;
+  const canSubmit = canAdjust && amountValid && internalNote.trim().length > 0;
 
   function reset() {
     setAmount("");
-    setReason("");
+    setInternalNote("");
+    setParticipantDetail("");
   }
 
   function adjust(direction: 1 | -1) {
@@ -76,7 +79,8 @@ export default function CreditAdjustDialog({
         const result = await adjustCreditAccountAction({
           userId,
           amount: roundCredits(parsedAmount) * direction,
-          reason: reason.trim(),
+          reason: participantDetail.trim(),
+          internalNote: internalNote.trim(),
           idempotencyKey,
         });
         if (!result.success) {
@@ -123,8 +127,9 @@ export default function CreditAdjustDialog({
           <Alert>
             <AlertCircleIcon className="h-4 w-4" />
             <AlertDescription>
-              El movimiento queda en el historial del participante con el motivo
-              que escribas. Los créditos quedan disponibles al instante.
+              El movimiento queda en el historial del participante. El motivo
+              interno solo lo ve el equipo. Los créditos quedan disponibles al
+              instante.
             </AlertDescription>
           </Alert>
 
@@ -156,20 +161,41 @@ export default function CreditAdjustDialog({
           <div className="space-y-2">
             <label
               className="text-sm font-medium"
-              htmlFor={`adjust-reason-${userId}`}
+              htmlFor={`adjust-note-${userId}`}
             >
-              Motivo
+              Motivo interno
             </label>
             <Textarea
-              id={`adjust-reason-${userId}`}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Ej: compensación por una reserva caída."
+              id={`adjust-note-${userId}`}
+              value={internalNote}
+              onChange={(event) => setInternalNote(event.target.value)}
+              placeholder="Ej: compensación por el cambio de sector."
               maxLength={1000}
               disabled={isPending}
             />
             <p className="text-xs text-muted-foreground">
-              Lo ve el participante en sus movimientos.
+              Solo lo ve el equipo, en el historial de créditos.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label
+              className="text-sm font-medium"
+              htmlFor={`adjust-detail-${userId}`}
+            >
+              Detalle para el participante (opcional)
+            </label>
+            <Textarea
+              id={`adjust-detail-${userId}`}
+              value={participantDetail}
+              onChange={(event) => setParticipantDetail(event.target.value)}
+              placeholder="Ej: devolución por la reserva cancelada."
+              maxLength={1000}
+              disabled={isPending}
+            />
+            <p className="text-xs text-muted-foreground">
+              Lo ve el participante en sus movimientos. Si lo dejás vacío, solo
+              ve el tipo de movimiento.
             </p>
           </div>
 

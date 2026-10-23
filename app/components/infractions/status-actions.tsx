@@ -110,6 +110,12 @@ export default function InfractionStatusActions({
               maxLength={2000}
             />
           )}
+          {(activeAction.requiresNote === "voidReason" ||
+            activeAction.requiresNote === "resolutionNotes") && (
+            <p className="text-xs text-muted-foreground">
+              Lo va a ver el participante en el correo y en sus notificaciones.
+            </p>
+          )}
           <Button
             type="button"
             onClick={submit}

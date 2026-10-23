@@ -1,9 +1,23 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Reached through the menu's ProfileQuickViewInfo, whose social badges import
 // the server action module and with it the server env schema. Nothing here
 // invokes it.
+// Server actions: the sign-out path and the bell reach them.
+vi.mock("@/app/lib/notifications/push/actions", () => ({
+  savePushDeviceAction: vi.fn(),
+  removePushDeviceAction: vi.fn(),
+  forgetPushDeviceAction: vi.fn(),
+  releaseForeignPushDeviceAction: vi.fn(),
+}));
 vi.mock("@/app/lib/users/actions", () => ({
   deleteUserSocial: vi.fn(),
 }));
@@ -175,7 +189,8 @@ describe("UserDropdown", () => {
     const menu = await openMenu();
     fireEvent.click(within(menu).getByText("Cerrar Sesión"));
 
-    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    // After this browser's avisos are let go of, which needs no profile.
+    await waitFor(() => expect(mocks.signOut).toHaveBeenCalledTimes(1));
   });
 
   it("points a user with no profile at the recovery page", async () => {

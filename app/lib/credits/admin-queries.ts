@@ -602,6 +602,10 @@ export type CreditLedgerRow = {
   amount: number;
   kind: CreditLedgerKind;
   reason: string | null;
+  /** The team's own note, never shown to the participant. */
+  internalNote: string | null;
+  /** The credit gift a grant or its revocation belongs to. */
+  creditGiftId: number | null;
   user: UserSummary;
   /** The purchase an issuance or a voucher reversal belongs to. */
   topUp: {
@@ -838,6 +842,8 @@ async function queryCreditLedger(
         amount: Number(row.amount),
         kind: row.kind,
         reason: readMetadata(row.metadata, "reason"),
+        internalNote: readMetadata(row.metadata, "internalNote"),
+        creditGiftId: readMetadataId(row.metadata, "creditGiftId"),
         user: {
           id: row.userId,
           displayName: row.displayName,

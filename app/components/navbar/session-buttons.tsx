@@ -16,6 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
+import NotificationBell, {
+  NotificationBellPlaceholder,
+} from "@/app/components/notifications/notification-bell";
+import { useReleaseForeignPushDevice } from "@/app/components/notifications/use-push-device";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
@@ -23,10 +27,16 @@ import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 export default function SessionButtons({
   profile,
   creditsEnabled,
+  notificationsEnabled = false,
+  pushPublicKey = null,
   isProfileLoading,
 }: {
   profile?: NavbarProfile | null;
   creditsEnabled: boolean;
+  /** The bell, for whoever the `notifications` flag lets in. */
+  notificationsEnabled?: boolean;
+  /** Offers avisos in the bell's popover; null when they are not open. */
+  pushPublicKey?: string | null;
   /** Forwarded to the dropdown so a `null` profile is not read as loading. */
   isProfileLoading: boolean;
 }) {
@@ -34,6 +44,7 @@ export default function SessionButtons({
   const router = useRouter();
   const pathname = usePathname();
   const { isLoaded, isSignedIn } = useUser();
+  useReleaseForeignPushDevice(isSignedIn && profile ? profile.id : null);
 
   if (isNoNavigationPage(pathname)) {
     return null;
@@ -105,11 +116,29 @@ export default function SessionButtons({
     );
   }
 
-  return (
+  const dropdown = (
     <UserDropdown
       profile={profile}
       creditsEnabled={creditsEnabled}
       isProfileLoading={isProfileLoading}
     />
+  );
+
+  // A Clerk session without a profile row (sign-up still finishing) has no
+  // inbox: its unread count and page would only answer "not found". The bell
+  // waits for the profile, holding its place meanwhile.
+  if (!notificationsEnabled || !isSignedIn || (!isProfileLoading && !profile)) {
+    return dropdown;
+  }
+
+  return (
+    <div className="flex items-center gap-1 sm:gap-2">
+      {profile ? (
+        <NotificationBell pushPublicKey={pushPublicKey} />
+      ) : (
+        <NotificationBellPlaceholder />
+      )}
+      {dropdown}
+    </div>
   );
 }
