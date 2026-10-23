@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ScheduledTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
+import { creditLedgerEntries } from "@/db/schema";
 
 const transactionMock = vi.hoisted(() => vi.fn());
 const updateMock = vi.hoisted(() => vi.fn());
@@ -111,10 +112,13 @@ function claimTx(
   insertIds: number[] = [],
   /** Per task, whether the user row still exists when the lock is taken. */
   userStillPresent: boolean[] = [],
+  /** Per locked profile, whether it holds credit ledger entries by then. */
+  holdsCredits: boolean[] = [],
 ) {
   const pendingLookups = [...lookups];
   const pendingInserts = [...insertIds];
   const userLocks = [...userStillPresent];
+  const ledgerLookups = [...holdsCredits];
 
   return {
     // Eligibility scan: excludes backing-off / capped rows, oldest first.
@@ -144,27 +148,9 @@ function claimTx(
       },
     },
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          // user row lock: .limit(1).for("update")
-          limit: vi.fn(() => ({
-            for: vi.fn(async (mode: string) => {
-              lockedForUpdate.push(`users:${mode}`);
-              return userLocks.shift() === false ? [] : [{ id: 1 }];
-            }),
-          })),
-          // outbox lookup: .orderBy(...).limit(1).for("update")
-          orderBy: vi.fn(() => ({
-            limit: vi.fn(() => ({
-              for: vi.fn(async (mode: string) => {
-                lockedForUpdate.push(`pending:${mode}`);
-                const row = pendingLookups.shift();
-                return row ? [row] : [];
-              }),
-            })),
-          })),
-        })),
-      })),
+      from: vi.fn((table: unknown) =>
+        table === creditLedgerEntries ? ledgerCheck() : rowLookups(),
+      ),
     })),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
@@ -179,6 +165,42 @@ function claimTx(
       }),
     })),
   };
+
+  // Credit history check under the user lock: .where(...).limit(1)
+  function ledgerCheck() {
+    return {
+      where: vi.fn(() => ({
+        limit: vi.fn(async () => {
+          lockedForUpdate.push("credit_ledger_entries:read");
+          return ledgerLookups.shift() ? [{ id: 1 }] : [];
+        }),
+      })),
+    };
+  }
+
+  function rowLookups() {
+    return {
+      where: vi.fn(() => ({
+        // user row lock: .limit(1).for("update")
+        limit: vi.fn(() => ({
+          for: vi.fn(async (mode: string) => {
+            lockedForUpdate.push(`users:${mode}`);
+            return userLocks.shift() === false ? [] : [{ id: 1 }];
+          }),
+        })),
+        // outbox lookup: .orderBy(...).limit(1).for("update")
+        orderBy: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            for: vi.fn(async (mode: string) => {
+              lockedForUpdate.push(`pending:${mode}`);
+              const row = pendingLookups.shift();
+              return row ? [row] : [];
+            }),
+          })),
+        })),
+      })),
+    };
+  }
 }
 
 /** Per-profile transaction whose delete blows up, to exercise the catch. */
@@ -580,11 +602,13 @@ describe("handleDeletionEmails", () => {
     expect(persisted).toContain("constraint=invoices_user_id_users_id_fk");
     expect(persisted).not.toContain("leak@example.com");
     expect(persisted.length).toBeLessThanOrEqual(120);
-    // The unredacted error still reaches the logs.
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Error deleting profile locally",
-      pgError,
-    );
+    // The logs get the error's class and code, never the error itself: its
+    // message quotes the row.
+    const logged = consoleSpy.mock.calls.find(
+      ([label]) => label === "Error deleting profile locally",
+    )?.[1];
+    expect(logged).not.toBeInstanceOf(Error);
+    expect(logged).toEqual({ name: "Error", code: "23503" });
   });
 
   it("truncates an oversized detail to the persisted bound", async () => {
@@ -697,13 +721,65 @@ describe("handleDeletionEmails", () => {
     await handleDeletionEmails();
 
     // Both rows are locked, and the user row goes first: that is what stops a
-    // concurrent run from inserting a second active outbox entry. The push
-    // devices go under that lock, before Clerk is called.
+    // concurrent run from inserting a second active outbox entry. Credit
+    // history is checked and the push devices go under that lock, before
+    // Clerk is called.
     expect(lockedForUpdate).toEqual([
       "users:update",
+      "credit_ledger_entries:read",
       "push_subscriptions:delete",
       "pending:update",
     ]);
+  });
+
+  it("leaves a profile alone when credits land between the scan and the lock", async () => {
+    const held = makeTask({ taskId: 82, profileId: 92, clerkId: "user_gift" });
+    const free = makeTask({ taskId: 83, profileId: 93, clerkId: "user_free" });
+    deleteClerkUserMock.mockResolvedValue(deletedOk);
+    const claim = claimTx([held, free], [undefined], [102], [], [true, false]);
+    runTransactions(claim, deleteTx([{ id: 93 }]));
+
+    const result = await handleDeletionEmails();
+
+    // The ledger's RESTRICT would block the local delete after Clerk was gone,
+    // so the held profile gets no outbox row, no Clerk call and keeps its
+    // devices. The next profile in the batch goes ahead.
+    expect(lockedForUpdate).toEqual([
+      "users:update",
+      "credit_ledger_entries:read",
+      "users:update",
+      "credit_ledger_entries:read",
+      "push_subscriptions:delete",
+      "pending:update",
+    ]);
+    expect(claim.insert).toHaveBeenCalledTimes(1);
+    expect(deleteClerkUserMock).toHaveBeenCalledTimes(1);
+    expect(deleteClerkUserMock).toHaveBeenCalledWith("user_free");
+    expect(result).toEqual([free]);
+  });
+
+  it("does not resume an outbox row once the profile holds credits", async () => {
+    const task = makeTask({ taskId: 84, profileId: 94, clerkId: "user_old" });
+    const claim = claimTx(
+      [task],
+      [{ id: 103, clerkDeletedAt: null, attempts: 2 }],
+      [],
+      [],
+      [true],
+    );
+    runTransactions(claim);
+
+    const result = await handleDeletionEmails();
+
+    // Rows left by runs before this check existed stay as they are: Clerk is
+    // not retried and no attempt is spent on a delete that cannot succeed.
+    expect(lockedForUpdate).toEqual([
+      "users:update",
+      "credit_ledger_entries:read",
+    ]);
+    expect(deleteClerkUserMock).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+    expect(result).toEqual([]);
   });
 
   it("skips a profile whose row disappeared while waiting for the lock", async () => {
