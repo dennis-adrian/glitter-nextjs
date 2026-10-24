@@ -32,14 +32,28 @@ function goTo(request: Request, path: string, openedId?: number) {
 }
 
 /**
+ * Whether Glitter or the person sent this request, so it may change
+ * something: the service worker or a page of Glitter (same origin), Clerk's
+ * sign-in hop on its own subdomain (same site), or the person directly
+ * (none). Never another site's link or form, which would otherwise mark
+ * someone's notifications read. Browsers too old to say are let through.
+ */
+function sentByGlitter(request: Request) {
+  const site = request.headers.get("sec-fetch-site");
+  return site == null || ["same-origin", "same-site", "none"].includes(site);
+}
+
+/**
  * Where tapping a notification on the device leads: the item is marked read
  * and the person lands where tapping it in the inbox would take them (a
  * reservation update to its reservation, or its own page when it carries
  * text someone wrote, as every gift does); a disciplinary notice opens its
  * own page (`notificationTapHref`). For a device that opens Glitter on this
  * link: a cold start, or a new window. An app already open goes straight to
- * the push's `href` instead, without reloading.
+ * the push's `href` instead, without reloading, and asks this route in the
+ * background to mark it read.
  *
+ * A request from another site is redirected the same way but marks nothing.
  * A signed-out visitor never gets here: the proxy sends them to sign in and
  * back.
  */
@@ -59,7 +73,7 @@ export async function GET(
   const notification = await fetchNotificationForViewer(viewer, id);
   if (!notification) return goTo(request, "/my_notifications", id);
 
-  if (notification.readAt == null) {
+  if (notification.readAt == null && sentByGlitter(request)) {
     // Never holds the person up: the item's page marks it read too.
     await markNotificationRead(viewer, notification.id).catch(() => undefined);
   }

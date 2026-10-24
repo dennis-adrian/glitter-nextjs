@@ -23,9 +23,11 @@ import { GET } from "./route";
 const VIEWER = { id: 3, role: "user" };
 
 /** Where opening `id` sends the person, and the cookie it leaves. */
-async function open(id: string) {
+async function open(id: string, headers: Record<string, string> = {}) {
   const response = await GET(
-    new Request(`https://glitter.test/my_notifications/${id}/open`),
+    new Request(`https://glitter.test/my_notifications/${id}/open`, {
+      headers,
+    }),
     { params: Promise.resolve({ notificationId: id }) },
   );
   expect(response.status).toBe(303);
@@ -88,6 +90,37 @@ describe("opening a notification from the device", () => {
 
     expect(await open("41")).toBe("/my_notifications/41");
     expect(mocks.markRead).toHaveBeenCalledWith(VIEWER, 41);
+  });
+
+  it.each(["same-origin", "same-site", "none"])(
+    "marks it read when the request says it came from %s",
+    async (site) => {
+      mocks.notification.mockResolvedValue({
+        id: 41,
+        kind: "reservation_confirmed",
+        readAt: null,
+        actionPath: "/profiles/3/festivals/2/reservations/9",
+        opensDetail: false,
+      });
+
+      await open("41", { "sec-fetch-site": site });
+      expect(mocks.markRead).toHaveBeenCalledWith(VIEWER, 41);
+    },
+  );
+
+  it("marks nothing for a link on another site, but still takes the person there", async () => {
+    mocks.notification.mockResolvedValue({
+      id: 41,
+      kind: "reservation_confirmed",
+      readAt: null,
+      actionPath: "/profiles/3/festivals/2/reservations/9",
+      opensDetail: false,
+    });
+
+    expect(await open("41", { "sec-fetch-site": "cross-site" })).toBe(
+      "/profiles/3/festivals/2/reservations/9",
+    );
+    expect(mocks.markRead).not.toHaveBeenCalled();
   });
 
   it("does not mark it again when it was already read", async () => {
