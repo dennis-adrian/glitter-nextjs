@@ -222,7 +222,7 @@ describe("showing a push", () => {
     expect(title).toBe("Recibiste créditos");
     expect(options.body).toBe("Ya podés usarlos en tu próxima reserva.");
     expect(options.tag).toBe("notification-42");
-    expect(options.data).toEqual({ url: "/my_notifications/42" });
+    expect(options.data).toEqual({ url: "/my_notifications/42/open" });
   });
 
   it("shows a disciplinary notice as the server worded it for a lock screen", async () => {
@@ -236,7 +236,7 @@ describe("showing a push", () => {
     const { title, options } = await push(worker, pushData(payload));
     expect(title).toBe(SENSITIVE_PUSH_TITLE);
     expect(options.body).toBe(SENSITIVE_PUSH_BODY);
-    expect(options.data).toEqual({ url: "/my_notifications/9" });
+    expect(options.data).toEqual({ url: "/my_notifications/9/open" });
   });
 
   it("names an untitled notification Glitter and keeps its text", async () => {

@@ -15,3 +15,20 @@ export function onNotificationsChanged(listener: () => void) {
   window.addEventListener(NOTIFICATIONS_CHANGED, listener);
   return () => window.removeEventListener(NOTIFICATIONS_CHANGED, listener);
 }
+
+const NOTIFICATION_RECEIVED = "glitter:notification-received";
+
+/**
+ * An aviso reached this browser while Glitter is open (the service worker
+ * says so): the inbox on screen asks for its first page again, and the bell
+ * for its count.
+ */
+export function announceNotificationReceived() {
+  window.dispatchEvent(new Event(NOTIFICATION_RECEIVED));
+  announceNotificationsChanged();
+}
+
+export function onNotificationReceived(listener: () => void) {
+  window.addEventListener(NOTIFICATION_RECEIVED, listener);
+  return () => window.removeEventListener(NOTIFICATION_RECEIVED, listener);
+}

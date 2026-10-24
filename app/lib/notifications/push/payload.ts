@@ -45,12 +45,12 @@ function truncate(value: string, max: number) {
 }
 
 /**
- * Tapping a push always opens the item's own page: it marks the item read,
- * shows the whole text and the action, and works the same for a disciplinary
- * notice whose push said nothing.
+ * Tapping a push opens the item as tapping it in the inbox does: marked read,
+ * then its screen, or its own page when it carries a message. The route does
+ * both, so it works however the device opens Glitter.
  */
 export function pushNotificationUrl(notificationId: number) {
-  return `/my_notifications/${notificationId}`;
+  return `/my_notifications/${notificationId}/open`;
 }
 
 export function buildPushPayload(item: {

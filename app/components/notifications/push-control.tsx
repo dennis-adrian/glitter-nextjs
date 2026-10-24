@@ -20,10 +20,12 @@ import { removePushDeviceAction } from "@/app/lib/notifications/push/actions";
 import type { PushSupport } from "@/app/lib/notifications/push/support";
 import { cn } from "@/lib/utils";
 
-export const ENABLE_PUSH_LABEL = "Recibir avisos en este dispositivo";
+export const ENABLE_PUSH_LABEL = "Recibir notificaciones en este dispositivo";
 
-const ENABLED_TOAST = "Listo, vas a recibir avisos en este dispositivo.";
-const DISABLED_TOAST = "Ya no vas a recibir avisos en este dispositivo.";
+const ENABLED_TOAST =
+  "Listo, vas a recibir notificaciones en este dispositivo.";
+const DISABLED_TOAST =
+  "Ya no vas a recibir notificaciones en este dispositivo.";
 
 /** One row of the device list, formatted on the server. */
 export type PushDeviceRow = {
@@ -43,19 +45,19 @@ function blockedReason(
 ): string | null {
   switch (support) {
     case "ios-needs-install":
-      return "En iPhone y iPad, los avisos llegan solo si agregás Glitter a la pantalla de inicio. En Safari, tocá Compartir y después «Agregar a inicio». Después abrí Glitter desde ese ícono y tocá la campana para activarlos.";
+      return "En iPhone y iPad, las notificaciones llegan solo si agregás Glitter a la pantalla de inicio. En Safari, tocá Compartir y después «Agregar a inicio». Después abrí Glitter desde ese ícono y tocá la campana para activarlas.";
     case "ios-in-app-browser":
-      return "Abrí esta página en Safari para poder agregar Glitter a la pantalla de inicio y recibir avisos.";
+      return "Abrí esta página en Safari para poder agregar Glitter a la pantalla de inicio y recibir notificaciones.";
     case "ios-outdated":
-      return "Para recibir avisos en iPhone o iPad necesitás iOS 16.4 o posterior.";
+      return "Para recibir notificaciones en iPhone o iPad necesitás iOS 16.4 o posterior.";
     case "unsupported":
-      return "Este navegador no puede recibir avisos. Probá con Chrome, Edge, Firefox o Safari actualizados.";
+      return "Este navegador no puede recibir notificaciones. Probá con Chrome, Edge, Firefox o Safari actualizados.";
     case "denied":
       return appleMobile
-        ? "Los avisos están desactivados. Abrí Configuración › Notificaciones › Glitter, activá «Permitir notificaciones» y volvé a abrir Glitter."
-        : "Los avisos de Glitter están bloqueados en este navegador. Para recibirlos, permití las notificaciones de este sitio en la configuración del navegador y recargá la página.";
+        ? "Las notificaciones están desactivadas. Abrí Configuración › Notificaciones › Glitter, activá «Permitir notificaciones» y volvé a abrir Glitter."
+        : "Las notificaciones de Glitter están bloqueadas en este navegador. Para recibirlas, permitilas para este sitio en la configuración del navegador y recargá la página.";
   }
-  if (!publicKey) return "Los avisos no están disponibles por ahora.";
+  if (!publicKey) return "Las notificaciones no están disponibles por ahora.";
   return null;
 }
 
@@ -111,7 +113,7 @@ export function PushControl({
         return;
       }
       toast.success(
-        `Quitamos ${row.label ?? "el dispositivo"}. Ya no va a recibir tus avisos.`,
+        `Quitamos ${row.label ?? "el dispositivo"}. Ya no va a recibir tus notificaciones.`,
       );
       announcePushDeviceChanged();
       router.refresh();
@@ -124,7 +126,7 @@ export function PushControl({
   } else if (reason) {
     status = reason;
   } else if (on) {
-    status = "Este dispositivo recibe tus avisos.";
+    status = "Este dispositivo recibe tus notificaciones.";
   } else {
     status =
       "Te avisamos acá cuando haya novedades de tus reservas, pagos y créditos, aunque no tengas Glitter abierto.";
@@ -177,7 +179,7 @@ export function PushControl({
         className="space-y-2 rounded-lg border px-4 py-3"
       >
         <h2 id="push-control-heading" className="sr-only">
-          Avisos en este dispositivo
+          Notificaciones en este dispositivo
         </h2>
         <div className="flex items-center gap-3">
           <BellRingIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
@@ -187,7 +189,7 @@ export function PushControl({
             size="sm"
             className="h-auto shrink-0 p-0"
             disabled={busy}
-            aria-label="Dejar de recibir avisos en este dispositivo"
+            aria-label="Dejar de recibir notificaciones en este dispositivo"
             onClick={turnOff}
           >
             Desactivar
@@ -210,7 +212,7 @@ export function PushControl({
         />
         <div className="min-w-0 flex-1 space-y-1">
           <h2 id="push-control-heading" className="font-semibold">
-            Avisos en este dispositivo
+            Notificaciones en este dispositivo
           </h2>
           <div className="text-sm text-muted-foreground">{status}</div>
         </div>
@@ -276,7 +278,7 @@ export function PushOffer({
 
   let content: ReactNode = null;
   if (support === "ios-needs-install" || support === "ios-in-app-browser") {
-    content = helpLink("Cómo activar los avisos");
+    content = helpLink("Cómo activar las notificaciones");
   } else if (
     (support === "default" || support === "granted") &&
     (device.phase === "off" || device.phase === "working")
@@ -304,13 +306,14 @@ export function PushOffer({
   } else if (showBlocked && support === "denied") {
     content = (
       <span className="text-muted-foreground">
-        Avisos bloqueados en este navegador · {helpLink("Cómo activarlos")}
+        Notificaciones bloqueadas en este navegador ·{" "}
+        {helpLink("Cómo activarlas")}
       </span>
     );
   } else if (showBlocked && support === "unsupported") {
     content = (
       <span className="text-muted-foreground">
-        Este navegador no puede recibir avisos
+        Este navegador no puede recibir notificaciones
       </span>
     );
   }

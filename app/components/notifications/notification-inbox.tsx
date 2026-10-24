@@ -3,7 +3,10 @@
 import { BellIcon } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
+import {
+  announceNotificationsChanged,
+  onNotificationReceived,
+} from "@/app/components/notifications/notification-events";
 import NotificationFilterChips from "@/app/components/notifications/notification-filter-chips";
 import NotificationItem from "@/app/components/notifications/notification-item";
 import NotificationItemMenu from "@/app/components/notifications/notification-item-menu";
@@ -35,6 +38,21 @@ async function fetchInboxFirstPage(
   } catch {
     return null;
   }
+}
+
+/**
+ * The first page asked for again, merged into the list on screen: its items
+ * replace theirs and go on top, and older ones that "Ver más" loaded stay
+ * below. Ids only grow, so anything below the page's last id is older; an
+ * item gone from the page's range was archived or read away elsewhere.
+ */
+export function mergeFirstPage(
+  current: readonly InboxNotification[],
+  page: InboxPage,
+): { items: InboxNotification[]; keepsCursor: boolean } {
+  const last = page.items.at(-1);
+  const older = last ? current.filter((item) => item.id < last.id) : [];
+  return { items: [...page.items, ...older], keepsCursor: older.length > 0 };
 }
 
 type NotificationInboxProps = {
@@ -85,20 +103,55 @@ export default function NotificationInbox({
     setItems(next);
   }
 
-  // The router can hand back this page's payload from its cache, on "back"
-  // after opening an item for example, so the first page is asked for again
-  // once mounted rather than trusting what the server rendered earlier.
+  // The first page is asked for again whenever it may have changed out of
+  // sight: once mounted (the router can hand back a cached render, on "back"
+  // after opening an item for example), when Glitter comes back to the front
+  // (an installed app resumes as it was left), and when an aviso arrives
+  // while it is open.
   useEffect(() => {
     let current = true;
-    const changesAtRequest = changes.current;
-    void fetchInboxFirstPage(filter).then((page) => {
-      if (!current || !page || changes.current !== changesAtRequest) return;
-      updateItems(() => page.items);
-      setUnreadCount(page.unreadCount);
-      setCursor(page.nextCursor);
-    });
+    let inFlight = false;
+    let again = false;
+
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (inFlight) {
+        // The answer on its way may predate what arrived; ask once more.
+        again = true;
+        return;
+      }
+      inFlight = true;
+      const changesAtRequest = changes.current;
+      void fetchInboxFirstPage(filter)
+        .then((page) => {
+          // A change made here meanwhile wins; the next refresh catches up.
+          if (!current || !page || changes.current !== changesAtRequest) return;
+          const merged = mergeFirstPage(itemsRef.current, page);
+          updateItems(() => merged.items);
+          setUnreadCount(page.unreadCount);
+          if (!merged.keepsCursor) setCursor(page.nextCursor);
+        })
+        .finally(() => {
+          inFlight = false;
+          if (current && again) {
+            again = false;
+            refresh();
+          }
+        });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    const unsubscribe = onNotificationReceived(refresh);
     return () => {
       current = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      unsubscribe();
     };
   }, [filter]);
 

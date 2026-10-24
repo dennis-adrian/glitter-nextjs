@@ -24,13 +24,13 @@ function parse(payload: string) {
 }
 
 describe("buildPushPayload", () => {
-  it("carries the inbox copy and opens the item's own page", () => {
+  it("carries the inbox copy and opens the item as the inbox does", () => {
     expect(parse(buildPushPayload(ITEM))).toEqual({
       v: 1,
       id: 41,
       title: ITEM.title,
       body: ITEM.body,
-      url: "/my_notifications/41",
+      url: "/my_notifications/41/open",
       tag: "notification-41",
     });
   });
@@ -47,7 +47,7 @@ describe("buildPushPayload", () => {
     expect(payload.title).toBe(SENSITIVE_PUSH_TITLE);
     expect(payload.body).toBe(SENSITIVE_PUSH_BODY);
     expect(JSON.stringify(payload)).not.toContain("infracción");
-    expect(payload.url).toBe("/my_notifications/41");
+    expect(payload.url).toBe("/my_notifications/41/open");
   });
 
   it("keeps text someone wrote off the lock screen", () => {

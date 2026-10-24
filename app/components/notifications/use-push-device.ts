@@ -160,9 +160,9 @@ export type PushDeviceResult =
   | { ok: false; message: string | null };
 
 const ENABLE_ERROR =
-  "No pudimos activar los avisos en este dispositivo. Intentá de nuevo.";
+  "No pudimos activar las notificaciones en este dispositivo. Intentá de nuevo.";
 const DISABLE_ERROR =
-  "No pudimos desactivar los avisos en este dispositivo. Intentá de nuevo.";
+  "No pudimos desactivar las notificaciones en este dispositivo. Intentá de nuevo.";
 
 /**
  * This browser's avisos: whether it is subscribed, and turning that on or
