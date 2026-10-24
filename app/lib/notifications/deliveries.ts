@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { after } from "next/server";
 
 import { isSuppressed } from "@/app/lib/emails/suppressions";
@@ -17,6 +17,7 @@ import { db } from "@/db";
 import {
   notificationCampaignRecipients,
   notificationDeliveries,
+  pendingUserDeletions,
 } from "@/db/schema";
 
 const MAX_ATTEMPTS = 5;
@@ -113,13 +114,30 @@ async function giftWasRevoked(notificationId: number | null) {
   return row?.revokedAt != null;
 }
 
+/** Same test as a push's: a deletion still waiting on the local delete. */
+async function userIsBeingDeleted(userId: number | null) {
+  if (userId == null) return false;
+  const [row] = await db
+    .select({ id: pendingUserDeletions.id })
+    .from(pendingUserDeletions)
+    .where(
+      and(
+        eq(pendingUserDeletions.userId, userId),
+        isNull(pendingUserDeletions.localDeletedAt),
+      ),
+    )
+    .limit(1);
+  return row != null;
+}
+
 /**
  * Sends one delivery if it is due and nobody else holds it.
  *
  * An address that bounced or reported us is skipped rather than sent: Resend
  * would accept the request and deliver nothing, and the admin would read
- * "enviado". A snapshot that no longer renders fails for good, since retrying
- * it can only fail the same way.
+ * "enviado". So is a person whose account is being deleted, as their pushes
+ * are. A snapshot that no longer renders fails for good, since retrying it can
+ * only fail the same way.
  *
  * A gift notice is checked against its gift right before sending, by email
  * or push: revoking cancels the queued ones, but one already claimed when the
@@ -176,6 +194,14 @@ async function runDelivery(
         lastError: "no_recipient",
       });
       return { processed: true, status: "failed" };
+    }
+
+    if (await userIsBeingDeleted(delivery.userId)) {
+      await settle(delivery.id, owner, {
+        status: "skipped",
+        lastError: "deleting",
+      });
+      return { processed: true, status: "skipped" };
     }
 
     if (await isSuppressed(delivery.recipientEmail)) {

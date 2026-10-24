@@ -1045,6 +1045,40 @@ describeDatabase("credit gifts", () => {
     expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
+  it("skips a gift email to someone whose profile is being deleted", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const bruno = await createUser();
+    const created = await gifts.createCreditGift(
+      giftInput([ana.id, bruno.id]),
+      { id: admin.id },
+    );
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+    // Asked for after the gift was granted, before its email went out.
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: ana.id,
+      clerkId: `pending-${randomUUID()}`,
+    });
+
+    const [anaDelivery] = await deliveriesFor(ana.id);
+    const [brunoDelivery] = await deliveriesFor(bruno.id);
+    await deliveries.sendNotificationDeliveries(
+      [anaDelivery!.id, brunoDelivery!.id],
+      30_000,
+    );
+
+    const [skipped] = await deliveriesFor(ana.id);
+    expect(skipped).toMatchObject({ status: "skipped", lastError: "deleting" });
+    const [sent] = await deliveriesFor(bruno.id);
+    expect(sent).toMatchObject({ status: "sent" });
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: [bruno.email] }),
+      expect.anything(),
+    );
+  }, 30_000);
+
   it("pages through items that share a timestamp without skipping any", async () => {
     const ana = await createUser();
     // One transaction: every row gets the same now(), to the microsecond.
