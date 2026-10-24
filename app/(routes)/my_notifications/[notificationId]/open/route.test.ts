@@ -7,11 +7,6 @@ const mocks = vi.hoisted(() => ({
   markRead: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-  redirect: (path: string) => {
-    throw new Error(`redirect:${path}`);
-  },
-}));
 vi.mock("@/app/lib/notifications/queries", () => ({
   resolveInboxViewerWithAccess: mocks.viewer,
   fetchNotificationForViewer: mocks.notification,
@@ -20,22 +15,31 @@ vi.mock("@/app/lib/notifications/actions", () => ({
   markNotificationReadAction: mocks.markRead,
 }));
 
+import { OPENED_NOTIFICATION_COOKIE } from "@/app/lib/notifications/push/taps";
+
 import { GET } from "./route";
 
 const VIEWER = { id: 3, role: "user" };
 
-/** Where opening `id` sends the person. */
+/** Where opening `id` sends the person, and the cookie it leaves. */
 async function open(id: string) {
-  try {
-    await GET(new Request(`https://glitter.test/my_notifications/${id}/open`), {
-      params: Promise.resolve({ notificationId: id }),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (message.startsWith("redirect:")) return message.slice(9);
-    throw error;
-  }
-  throw new Error("GET did not redirect");
+  const response = await GET(
+    new Request(`https://glitter.test/my_notifications/${id}/open`),
+    { params: Promise.resolve({ notificationId: id }) },
+  );
+  expect(response.status).toBe(303);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  const location = new URL(response.headers.get("location") ?? "");
+  expect(location.origin).toBe("https://glitter.test");
+  return location.pathname;
+}
+
+async function openedCookie(id: string) {
+  const response = await GET(
+    new Request(`https://glitter.test/my_notifications/${id}/open`),
+    { params: Promise.resolve({ notificationId: id }) },
+  );
+  return response.cookies.get(OPENED_NOTIFICATION_COOKIE);
 }
 
 beforeEach(() => {
@@ -115,6 +119,28 @@ describe("opening a notification from the device", () => {
     mocks.viewer.mockResolvedValue(null);
     expect(await open("41")).toBe("/my_notifications/41");
     expect(mocks.notification).not.toHaveBeenCalled();
+  });
+
+  it("leaves a short-lived cookie naming it, so the page does not open the tap again", async () => {
+    mocks.notification.mockResolvedValue({
+      id: 41,
+      readAt: null,
+      actionPath: "/my_credits",
+      opensDetail: false,
+    });
+    const cookie = await openedCookie("41");
+    expect(cookie).toMatchObject({
+      value: "41",
+      maxAge: 120,
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+    });
+    expect(cookie?.httpOnly).toBeFalsy();
+  });
+
+  it("leaves no cookie for an id that is not one", async () => {
+    expect(await openedCookie("abc")).toBeUndefined();
   });
 
   it.each(["abc", "0", "-3", "99999999999"])(

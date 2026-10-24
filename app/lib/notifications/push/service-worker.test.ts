@@ -11,6 +11,13 @@ import {
   SENSITIVE_PUSH_BODY,
   SENSITIVE_PUSH_TITLE,
 } from "@/app/lib/notifications/push/payload";
+import {
+  ARRIVALS_PATH,
+  LAST_TAP_PATH,
+  NOTIFICATION_STATE_CACHE,
+  SW_NOTIFICATION_RECEIVED,
+  SW_OPEN,
+} from "@/app/lib/notifications/push/taps";
 
 const ORIGIN = "https://glitter.test";
 const INBOX = "/my_notifications";
@@ -21,10 +28,16 @@ const SW_SOURCE = readFileSync(SW_FILE, "utf8");
 
 type Listener = (event: Record<string, unknown>) => void;
 
+/** How a window answers the worker's "will you open this tap?". */
+type Answer = "accept" | "decline" | "silent";
+
 type FakeWindow = {
   url: string;
+  focused: boolean;
+  visibilityState: "visible" | "hidden";
   focus: Mock<() => Promise<FakeWindow | null>>;
   navigate?: Mock<(url: string) => Promise<FakeWindow | null>>;
+  postMessage: Mock<(message: unknown, transfer?: MessagePort[]) => void>;
 };
 
 /**
@@ -40,9 +53,30 @@ function spendWindowInteraction() {
   windowInteraction.used = true;
 }
 
+/** Cache Storage as the worker uses it: JSON kept under a few paths. */
+function fakeCaches() {
+  const stores = new Map<string, Map<string, string>>();
+  return {
+    stores,
+    open: vi.fn(async (name: string) => {
+      const store = stores.get(name) ?? new Map<string, string>();
+      stores.set(name, store);
+      return {
+        put: async (key: string, response: Response) => {
+          store.set(key, await response.text());
+        },
+        match: async (key: string) =>
+          store.has(key) ? new Response(store.get(key)) : undefined,
+        delete: async (key: string) => store.delete(key),
+      };
+    }),
+  };
+}
+
 /** Runs sw.js in a fresh worker global and keeps what it listens for. */
 function installWorker() {
   const listeners: Record<string, Listener> = {};
+  const caches = fakeCaches();
   const self = {
     location: { origin: ORIGIN },
     registration: {
@@ -66,11 +100,29 @@ function installWorker() {
       listeners[type] = listener;
     },
   };
-  runInNewContext(SW_SOURCE, { self, URL }, { filename: SW_FILE });
-  return { self, listeners };
+  runInNewContext(
+    SW_SOURCE,
+    {
+      self,
+      URL,
+      Response,
+      MessageChannel,
+      setTimeout,
+      clearTimeout,
+      caches,
+    },
+    { filename: SW_FILE },
+  );
+  return { self, listeners, caches };
 }
 
 type Worker = ReturnType<typeof installWorker>;
+
+/** What the worker keeps under `key`, parsed. */
+function kept(worker: Worker, key: string): unknown {
+  const value = worker.caches.stores.get(NOTIFICATION_STATE_CACHE)?.get(key);
+  return value == null ? undefined : JSON.parse(value);
+}
 
 /**
  * Fires an event the way a browser does. The worker has to hand its work to
@@ -99,7 +151,12 @@ function pushData(text: string) {
 }
 
 /** Delivers a push and returns the one notification it showed. */
-async function push(worker: Worker, data: ReturnType<typeof pushData> | null) {
+async function push(
+  worker: Worker,
+  data: ReturnType<typeof pushData> | null,
+  windows: FakeWindow[] = [],
+) {
+  worker.self.clients.matchAll.mockResolvedValue(windows);
   const { keptAlive, done } = dispatch(worker, "push", { data });
   await done;
   expect(keptAlive).toBe(1);
@@ -109,38 +166,63 @@ async function push(worker: Worker, data: ReturnType<typeof pushData> | null) {
   return { title, options };
 }
 
-function pushJson(worker: Worker, payload: unknown) {
-  return push(worker, pushData(JSON.stringify(payload)));
+function pushJson(worker: Worker, payload: unknown, windows?: FakeWindow[]) {
+  return push(worker, pushData(JSON.stringify(payload)), windows);
 }
 
-/** A browser tab the worker can see through clients.matchAll. */
-function openTab(url: string, overrides: Partial<FakeWindow> = {}) {
-  const tab: FakeWindow = {
+/**
+ * A Glitter window the worker can see through clients.matchAll: a browser
+ * tab, or the installed app. `url` is the page it first loaded, as browsers
+ * report it however far the app has navigated since.
+ */
+function openWindow(
+  url: string,
+  answer: Answer,
+  overrides: Partial<FakeWindow> = {},
+) {
+  const window: FakeWindow = {
     url,
+    focused: false,
+    visibilityState: "visible",
     focus: vi.fn(async () => {
       spendWindowInteraction();
-      return tab;
+      return window;
     }),
     // Needs no user activation, unlike focusing or opening.
-    navigate: vi.fn(async () => tab),
+    navigate: vi.fn(async () => window),
+    postMessage: vi.fn((_message: unknown, transfer?: MessagePort[]) => {
+      if (answer === "silent") return;
+      transfer?.[0]?.postMessage({ accepted: answer === "accept" });
+    }),
     ...overrides,
   };
-  return tab;
+  return window;
 }
 
-/** Taps a shown notification while `tabs` are open. */
-async function tap(worker: Worker, data: unknown, tabs: FakeWindow[] = []) {
-  worker.self.clients.matchAll.mockResolvedValue(tabs);
+/** Taps a shown notification while `windows` are open. */
+async function tap(worker: Worker, data: unknown, windows: FakeWindow[] = []) {
+  worker.self.clients.matchAll.mockResolvedValue(windows);
   windowInteraction.used = false;
   const notification = { data, close: vi.fn() };
   const { keptAlive, done } = dispatch(worker, "notificationclick", {
     notification,
   });
-  // Closed at once, before the worker waits on any tab.
+  // Closed at once, before the worker waits on any window.
   expect(notification.close).toHaveBeenCalledTimes(1);
   await done;
   expect(keptAlive).toBe(1);
   return notification;
+}
+
+/** The "open this tap" message a window got. */
+function openMessage(window: FakeWindow) {
+  const [message] = window.postMessage.mock.calls.at(-1) ?? [];
+  return message as {
+    type: string;
+    url: string;
+    id: number | null;
+    tapId: string;
+  };
 }
 
 const ICON = "/icons/glitter-192.png";
@@ -151,7 +233,7 @@ const VALID_PAYLOAD = {
   id: 7,
   title: "Tu reserva fue confirmada",
   body: "Te esperamos en el stand B12.",
-  url: "/my_notifications/7",
+  url: "/my_notifications/7/open",
   tag: "notification-7",
 };
 
@@ -162,14 +244,30 @@ const GENERIC_NOTIFICATION = {
     icon: ICON,
     badge: BADGE,
     lang: "es",
-    data: { url: INBOX },
+    data: { url: INBOX, id: null },
   },
 };
+
+const TAP = { url: "/my_notifications/7/open", id: 7 };
 
 let worker: Worker;
 
 beforeEach(() => {
   worker = installWorker();
+});
+
+describe("the worker and the page", () => {
+  it("use the same message and storage names", () => {
+    for (const name of [
+      SW_OPEN,
+      SW_NOTIFICATION_RECEIVED,
+      NOTIFICATION_STATE_CACHE,
+      LAST_TAP_PATH,
+      ARRIVALS_PATH,
+    ]) {
+      expect(SW_SOURCE).toContain(`"${name}"`);
+    }
+  });
 });
 
 describe("installing a new version of the worker", () => {
@@ -205,12 +303,12 @@ describe("showing a push", () => {
         badge: BADGE,
         lang: "es",
         tag: "notification-7",
-        data: { url: "/my_notifications/7" },
+        data: { url: "/my_notifications/7/open", id: 7 },
       },
     });
   });
 
-  it("shows what the server builds, linking to the item's own page", async () => {
+  it("shows what the server builds, opening the item as the inbox does", async () => {
     const payload = buildPushPayload({
       id: 42,
       title: "Recibiste créditos",
@@ -222,7 +320,7 @@ describe("showing a push", () => {
     expect(title).toBe("Recibiste créditos");
     expect(options.body).toBe("Ya podés usarlos en tu próxima reserva.");
     expect(options.tag).toBe("notification-42");
-    expect(options.data).toEqual({ url: "/my_notifications/42/open" });
+    expect(options.data).toEqual({ url: "/my_notifications/42/open", id: 42 });
   });
 
   it("shows a disciplinary notice as the server worded it for a lock screen", async () => {
@@ -236,7 +334,7 @@ describe("showing a push", () => {
     const { title, options } = await push(worker, pushData(payload));
     expect(title).toBe(SENSITIVE_PUSH_TITLE);
     expect(options.body).toBe(SENSITIVE_PUSH_BODY);
-    expect(options.data).toEqual({ url: "/my_notifications/9/open" });
+    expect(options.data).toEqual({ url: "/my_notifications/9/open", id: 9 });
   });
 
   it("names an untitled notification Glitter and keeps its text", async () => {
@@ -256,6 +354,17 @@ describe("showing a push", () => {
     expect(title).toBe("Tu reserva fue confirmada");
     expect(options.tag).toBeUndefined();
   });
+
+  it.each([0, -1, 1.5, "7", null])(
+    "keeps no item id for an id like %j",
+    async (id) => {
+      const { options } = await pushJson(worker, { ...VALID_PAYLOAD, id });
+      expect(options.data).toEqual({
+        url: "/my_notifications/7/open",
+        id: null,
+      });
+    },
+  );
 
   it.each([
     { carrying: "data that is not JSON", data: pushData("{not json") },
@@ -308,7 +417,7 @@ describe("showing a push", () => {
     });
     expect(title).toBe("Tu reserva fue confirmada");
     expect(options.body).toBe("Te esperamos en el stand B12.");
-    expect(options.data).toEqual({ url: INBOX });
+    expect(options.data).toEqual({ url: INBOX, id: 7 });
   });
 
   it("keeps a full link to Glitter as a path, with its query and anchor", async () => {
@@ -318,115 +427,199 @@ describe("showing a push", () => {
     });
     expect(options.data).toEqual({
       url: "/my_notifications/7?from=push#detalle",
+      id: 7,
     });
+  });
+
+  it("tells open Glitter windows, which refresh their inbox and bell", async () => {
+    const app = openWindow(`${ORIGIN}/`, "silent");
+    const elsewhere = openWindow("https://evil.test/", "silent");
+    await pushJson(worker, VALID_PAYLOAD, [app, elsewhere]);
+    expect(app.postMessage).toHaveBeenCalledWith({
+      type: SW_NOTIFICATION_RECEIVED,
+    });
+    expect(elsewhere.postMessage).not.toHaveBeenCalled();
+    expect(worker.self.clients.matchAll).toHaveBeenCalledWith({
+      type: "window",
+      includeUncontrolled: true,
+    });
+  });
+
+  it("keeps the last five arrivals, for a page in the background to offer when it returns", async () => {
+    for (let id = 1; id <= 6; id += 1) {
+      worker.self.registration.showNotification.mockClear();
+      await pushJson(worker, {
+        ...VALID_PAYLOAD,
+        id,
+        title: `Notificación ${id}`,
+        url: `/my_notifications/${id}/open`,
+      });
+    }
+    const arrivals = kept(worker, ARRIVALS_PATH) as Array<{
+      id: number;
+      title: string;
+      body: string;
+      url: string;
+      at: number;
+    }>;
+    expect(arrivals.map((arrival) => arrival.id)).toEqual([2, 3, 4, 5, 6]);
+    expect(arrivals[4]).toMatchObject({
+      title: "Notificación 6",
+      body: "Te esperamos en el stand B12.",
+      url: "/my_notifications/6/open",
+    });
+    expect(typeof arrivals[4]?.at).toBe("number");
+  });
+
+  it("still shows the notification when telling the windows fails", async () => {
+    worker.self.clients.matchAll.mockRejectedValue(new Error("gone"));
+    const { keptAlive, done } = dispatch(worker, "push", {
+      data: pushData(JSON.stringify(VALID_PAYLOAD)),
+    });
+    await done;
+    expect(keptAlive).toBe(1);
+    expect(worker.self.registration.showNotification).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("tapping a notification", () => {
-  it("brings a tab already in the inbox forward, then takes it to the item", async () => {
-    const tab = openTab(`${ORIGIN}/my_notifications?filter=all`);
-    await tap(worker, { url: "/my_notifications/7" }, [tab]);
-    // Only tabs this worker controls can be navigated.
+  it("lets the installed app open it itself, whatever page it first loaded", async () => {
+    // The app opened at "/" and has navigated since; browsers still report "/".
+    const app = openWindow(`${ORIGIN}/`, "accept");
+    await tap(worker, TAP, [app]);
+
+    expect(openMessage(app)).toMatchObject({
+      type: SW_OPEN,
+      url: "/my_notifications/7/open",
+      id: 7,
+    });
+    expect(typeof openMessage(app).tapId).toBe("string");
+    expect(app.focus).toHaveBeenCalledTimes(1);
+    expect(app.navigate).not.toHaveBeenCalled();
+    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
+    // A page loaded before this worker took over can still be asked.
     expect(worker.self.clients.matchAll).toHaveBeenCalledWith({
       type: "window",
+      includeUncontrolled: true,
     });
-    expect(tab.focus).toHaveBeenCalledTimes(1);
-    expect(tab.navigate).toHaveBeenCalledWith("/my_notifications/7");
-    // Focused first, while the tap still allows it.
-    expect(tab.focus.mock.invocationCallOrder[0]).toBeLessThan(
-      tab.navigate!.mock.invocationCallOrder[0],
-    );
+  });
+
+  it("still counts as opened when the app cannot take focus", async () => {
+    const app = openWindow(`${ORIGIN}/`, "accept", {
+      focus: vi.fn(async () => {
+        throw new TypeError("WindowClient focus failed");
+      }),
+    });
+    await tap(worker, TAP, [app]);
+    expect(app.navigate).not.toHaveBeenCalled();
     expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
   });
 
-  it("opens a new window rather than take away a tab on another page", async () => {
-    // It could hold a form half filled.
-    const tab = openTab(`${ORIGIN}/dashboard/festivals/3/edit`);
-    await tap(worker, { url: "/my_notifications/7" }, [tab]);
+  it("opens a new window rather than take away a tab that declines, so a form there is not lost", async () => {
+    const tab = openWindow(`${ORIGIN}/dashboard/festivals/3/edit`, "decline");
+    await tap(worker, TAP, [tab]);
     expect(tab.navigate).not.toHaveBeenCalled();
+    // Focusing first would spend the one window Chromium allows per tap.
     expect(tab.focus).not.toHaveBeenCalled();
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
-      "/my_notifications/7",
+      "/my_notifications/7/open",
     );
   });
 
-  it.each(["/my_notifications_archive", "/my_notificationsx/7"])(
-    "does not take %s for the inbox",
-    async (pathname) => {
-      const tab = openTab(`${ORIGIN}${pathname}`);
-      await tap(worker, { url: "/my_notifications/7" }, [tab]);
-      expect(tab.navigate).not.toHaveBeenCalled();
-      expect(tab.focus).not.toHaveBeenCalled();
-      expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
-        "/my_notifications/7",
-      );
-    },
-  );
+  it("brings forward and loads the link in a window that does not answer in time", async () => {
+    const asleep = openWindow(`${ORIGIN}/`, "silent");
+    await tap(worker, TAP, [asleep]);
+    expect(asleep.focus).toHaveBeenCalledTimes(1);
+    expect(asleep.navigate).toHaveBeenCalledWith("/my_notifications/7/open");
+    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
+  });
 
-  it("still takes the inbox tab to the item when it cannot take focus", async () => {
-    const tab = openTab(`${ORIGIN}/my_notifications`, {
+  it("counts a navigation that redirected (resolved with null) as done", async () => {
+    const asleep = openWindow(`${ORIGIN}/`, "silent", {
       focus: vi.fn(async () => {
         throw new Error("InvalidAccessError");
       }),
+      navigate: vi.fn(async () => null),
     });
-    await tap(worker, { url: "/my_notifications/7" }, [tab]);
-    expect(tab.navigate).toHaveBeenCalledWith("/my_notifications/7");
+    await tap(worker, TAP, [asleep]);
     expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
   });
 
-  it("leaves the inbox tab in front when it cannot be navigated", async () => {
-    const tab = openTab(`${ORIGIN}/my_notifications`, {
+  it("leaves a silent window in front when it cannot be navigated, since Chromium would refuse a new one", async () => {
+    const asleep = openWindow(`${ORIGIN}/`, "silent", {
       navigate: vi.fn(async () => {
-        throw new TypeError(
-          "This service worker is not the client's active one",
-        );
+        throw new TypeError("navigate failed");
       }),
     });
-    await tap(worker, { url: "/my_notifications/7" }, [tab]);
-    expect(tab.focus).toHaveBeenCalledTimes(1);
-    // The tap's one window interaction went to the focus.
+    await tap(worker, TAP, [asleep]);
+    expect(asleep.focus).toHaveBeenCalledTimes(1);
     expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
   });
 
-  it("opens a new window when the inbox tab can neither take focus nor be navigated", async () => {
-    const tab = openTab(`${ORIGIN}/my_notifications`, {
+  it("opens a new window when a silent window can neither take focus nor be navigated", async () => {
+    const asleep = openWindow(`${ORIGIN}/`, "silent", {
       focus: vi.fn(async () => {
         throw new Error("InvalidAccessError");
       }),
       navigate: undefined,
     });
-    await tap(worker, { url: "/my_notifications/7" }, [tab]);
+    await tap(worker, TAP, [asleep]);
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
-      "/my_notifications/7",
+      "/my_notifications/7/open",
     );
   });
 
-  it("opens a new window when no Glitter tab is open", async () => {
-    await tap(worker, { url: "/my_notifications/7" });
-    expect(worker.self.clients.openWindow).toHaveBeenCalledTimes(1);
+  it("treats a window it cannot write to as one that did not answer", async () => {
+    const broken = openWindow(`${ORIGIN}/`, "accept", {
+      postMessage: vi.fn(() => {
+        throw new Error("DataCloneError");
+      }),
+    });
+    await tap(worker, TAP, [broken]);
+    expect(broken.navigate).toHaveBeenCalledWith("/my_notifications/7/open");
+  });
+
+  it("opens a window when no Glitter window is open", async () => {
+    await tap(worker, TAP);
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
-      "/my_notifications/7",
+      "/my_notifications/7/open",
     );
   });
 
-  it("leaves tabs of other sites alone, inbox or not", async () => {
-    const other = openTab("https://evil.test/my_notifications");
-    await tap(worker, { url: "/my_notifications/7" }, [other]);
-    expect(other.focus).not.toHaveBeenCalled();
-    expect(other.navigate).not.toHaveBeenCalled();
+  it("leaves windows of other sites alone", async () => {
+    const other = openWindow("https://evil.test/my_notifications", "accept");
+    await tap(worker, TAP, [other]);
+    expect(other.postMessage).not.toHaveBeenCalled();
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
-      "/my_notifications/7",
+      "/my_notifications/7/open",
     );
   });
 
-  it("finds the Glitter inbox tab among other tabs", async () => {
-    const other = openTab("https://evil.test/inbox");
-    const page = openTab(`${ORIGIN}/supplies`);
-    const inbox = openTab(`${ORIGIN}/my_notifications/3`);
-    await tap(worker, { url: "/my_notifications/7" }, [other, page, inbox]);
-    expect(page.navigate).not.toHaveBeenCalled();
-    expect(inbox.navigate).toHaveBeenCalledWith("/my_notifications/7");
-    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
+  it("asks the focused Glitter window first, then a visible one", async () => {
+    const hidden = openWindow(`${ORIGIN}/a`, "accept", {
+      visibilityState: "hidden",
+    });
+    const visible = openWindow(`${ORIGIN}/b`, "accept");
+    const focused = openWindow(`${ORIGIN}/c`, "accept", { focused: true });
+    await tap(worker, TAP, [hidden, visible, focused]);
+    expect(focused.postMessage).toHaveBeenCalledTimes(1);
+    expect(visible.postMessage).not.toHaveBeenCalled();
+
+    const again = installWorker();
+    await tap(again, TAP, [hidden, visible]);
+    expect(visible.postMessage).toHaveBeenCalledTimes(1);
+    expect(hidden.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps the tap for the page, in case the device opens Glitter without going to it", async () => {
+    await tap(worker, TAP);
+    expect(kept(worker, LAST_TAP_PATH)).toMatchObject({
+      id: 7,
+      url: "/my_notifications/7/open",
+    });
+    const stored = kept(worker, LAST_TAP_PATH) as { tapId: string; at: number };
+    expect(typeof stored.tapId).toBe("string");
+    expect(typeof stored.at).toBe("number");
   });
 
   it.each([
@@ -440,9 +633,9 @@ describe("tapping a notification", () => {
     "/a/..//evil.test/x",
     `${ORIGIN}//evil.test/x`,
   ])("opens the inbox instead of %j", async (url) => {
-    const tab = openTab(`${ORIGIN}/my_notifications`);
-    await tap(worker, { url }, [tab]);
-    expect(tab.navigate).toHaveBeenCalledWith(INBOX);
+    const app = openWindow(`${ORIGIN}/`, "accept");
+    await tap(worker, { url, id: 7 }, [app]);
+    expect(openMessage(app).url).toBe(INBOX);
   });
 
   it.each([
@@ -453,12 +646,13 @@ describe("tapping a notification", () => {
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(INBOX);
   });
 
-  it("opens the page of the notification a push just showed", async () => {
+  it("opens the notification a push just showed", async () => {
     const { options } = await pushJson(worker, VALID_PAYLOAD);
     await tap(worker, options.data);
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
-      "/my_notifications/7",
+      "/my_notifications/7/open",
     );
+    expect(kept(worker, LAST_TAP_PATH)).toMatchObject({ id: 7 });
   });
 });
 
