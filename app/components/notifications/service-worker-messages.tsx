@@ -5,7 +5,6 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
-import { markNotificationReadAction } from "@/app/lib/notifications/actions";
 import {
   SENSITIVE_PUSH_BODY,
   SENSITIVE_PUSH_TITLE,
@@ -121,50 +120,70 @@ async function forgetLastTap() {
 }
 
 /**
- * After a while in the background the session's token has expired, and the
- * proxy would send a request carrying it to sign in. Clerk renews it as
- * Glitter comes back; waiting for that, briefly, keeps the tap in place.
+ * Whether the session can be used as it is. After a while in the background
+ * its token has expired, and the proxy sends a request inside the app that
+ * carries one to sign in (a full page load renews it on the way instead).
+ * Clerk renews it as Glitter comes back; this waits for that, briefly.
  */
-async function freshSession() {
+async function freshSession(): Promise<boolean> {
   const clerk = (
     window as {
       Clerk?: { session?: { getToken: () => Promise<unknown> } | null };
     }
   ).Clerk;
+  // Not loaded yet: the page itself just loaded, with a fresh session.
   const token = clerk?.session?.getToken();
-  if (!token) return;
-  await Promise.race([
-    token.catch(() => undefined),
-    new Promise((resolve) => setTimeout(resolve, SESSION_WAIT_MS)),
+  if (!token) return true;
+  return Promise.race([
+    token.then(
+      () => true,
+      () => false,
+    ),
+    new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(false), SESSION_WAIT_MS),
+    ),
   ]);
 }
 
-async function goInPlace(page: PageState, id: number, href: string) {
-  await freshSession();
-  page.router.push(href);
-  // Its own page reads it; anywhere else it is read here. The router sends
-  // this once the navigation is under way, never ahead of it.
-  if (href !== `/my_notifications/${id}`) {
-    void markNotificationReadAction(id)
-      .then(() => announceNotificationsChanged())
-      .catch(() => undefined);
+/** Goes to `href` inside the app, or with a full load of `fallback`. */
+async function go(page: PageState, href: string, fallback: string) {
+  if (await freshSession()) {
+    page.router.push(href);
+    return true;
   }
+  page.leaving = true;
+  pageLoad.assign(fallback);
+  return false;
 }
 
 /**
  * Goes to a notification. Without reloading when the push said where it
  * lands: the screen changes as soon as the server answers, showing its
- * loading state meanwhile. A push from before that goes through its open
- * route instead, with a full load.
+ * loading state meanwhile. Through its open route with a full load when the
+ * push is from before that, or the session could not be renewed in time.
  */
 function openItem(page: PageState, target: Target) {
+  if (target.id != null) toast.dismiss(`item:${target.id}`);
   if (target.id == null || target.href == null) {
     page.leaving = true;
     pageLoad.assign(target.url);
     return;
   }
   page.arrivals.add(`item:${target.id}`);
-  void goInPlace(page, target.id, target.href);
+  const { url } = target;
+  void go(page, target.href, url).then((inPlace) => {
+    if (!inPlace) return;
+    // Read on the server through its open route, as a full load would be:
+    // its path holds across deploys, and the request outlives a reload. It
+    // also leaves the cookie that stops this tap being opened again.
+    void fetch(url, {
+      credentials: "same-origin",
+      redirect: "manual",
+      keepalive: true,
+    })
+      .then(() => announceNotificationsChanged())
+      .catch(() => undefined);
+  });
 }
 
 function openTap(page: PageState, tapId: string, target: Target) {
@@ -247,6 +266,8 @@ function offerArrivals(
   if (fresh.length === 1 && !mayBeMore) {
     const { title, description } = arrivalCopy(only);
     toast(title, {
+      // Dismissed when the item opens.
+      id: arrivalKey(only),
       description,
       duration: ARRIVAL_TOAST_MS,
       action: { label: "Ver", onClick: () => openItem(page, only) },
@@ -261,7 +282,7 @@ function offerArrivals(
       duration: ARRIVAL_TOAST_MS,
       action: {
         label: "Ver",
-        onClick: () => page.router.push("/my_notifications"),
+        onClick: () => void go(page, "/my_notifications", "/my_notifications"),
       },
     },
   );

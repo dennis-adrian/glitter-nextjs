@@ -57,6 +57,20 @@ describe("the gift banner", () => {
     expect(bannerShown()).toBe(false);
   });
 
+  it("does not come back when the person returns to where it appeared", () => {
+    const { rerender } = showBanner();
+    for (const pathname of ["/my_notifications/42", "/"]) {
+      mocks.pathname = pathname;
+      rerender(
+        <CreditGiftCelebrationBanner
+          notificationIds={[41, 42]}
+          totalCredits={25}
+        />,
+      );
+    }
+    expect(bannerShown()).toBe(false);
+  });
+
   it.each(["/my_credits", "/my_notifications/42"])(
     "stays out of %s, which already says it",
     (pathname) => {

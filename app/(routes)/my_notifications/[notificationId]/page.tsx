@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
 import MarkNotificationRead from "@/app/components/notifications/mark-notification-read";
@@ -26,7 +26,9 @@ export default async function NotificationPage(props: {
     requireFeatureEnabled("notifications", viewer),
     fetchNotificationForViewer(viewer, parsed.data),
   ]);
-  if (!notification) notFound();
+  // Archived or gone since (a tap on an old push lands here): the inbox, as
+  // the open route does.
+  if (!notification) redirect("/my_notifications");
 
   return (
     <div className="container max-w-2xl space-y-3 p-3 md:p-6">

@@ -1,14 +1,12 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const toastMock = vi.hoisted(() => vi.fn());
+const toastMock = vi.hoisted(() =>
+  Object.assign(vi.fn(), { dismiss: vi.fn() }),
+);
 vi.mock("sonner", () => ({ toast: toastMock }));
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
-const markRead = vi.hoisted(() => vi.fn(async () => ({ success: true })));
-vi.mock("@/app/lib/notifications/actions", () => ({
-  markNotificationReadAction: markRead,
-}));
 
 import { onNotificationsChanged } from "@/app/components/notifications/notification-events";
 import ServiceWorkerMessages, {
@@ -42,6 +40,8 @@ let container: FakeContainer;
 /** The display mode an installed app reports, on any platform. */
 let standalone = false;
 let assign: ReturnType<typeof vi.spyOn>;
+/** Where the page asked the server to read an item: its open route. */
+let fetchMock: ReturnType<typeof vi.fn>;
 
 const IPHONE =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1";
@@ -140,8 +140,10 @@ beforeEach(() => {
   document.cookie = `${OPENED_NOTIFICATION_COOKIE}=; max-age=0; path=/`;
   assign = vi.spyOn(pageLoad, "assign").mockImplementation(() => {});
   toastMock.mockReset();
+  toastMock.dismiss.mockReset();
   router.push.mockReset();
-  markRead.mockClear();
+  fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
 });
 
 afterEach(() => {
@@ -302,29 +304,26 @@ describe("messages from the worker", () => {
 });
 
 describe("going to a tapped notification", () => {
-  it("goes there without reloading, and reads an item whose screen does not", async () => {
+  it("goes there without reloading, and reads it through its open route", async () => {
     iPhoneApp();
     render(<ServiceWorkerMessages />);
     await settle();
+    const changed = vi.fn();
+    const unsubscribe = onNotificationsChanged(changed);
 
     expect(
       await send(openMessage("/my_notifications/41/open", RESERVATION)),
     ).toEqual({ accepted: true });
     await settle();
+    unsubscribe();
     expect(router.push).toHaveBeenCalledWith(RESERVATION);
     expect(assign).not.toHaveBeenCalled();
-    expect(markRead).toHaveBeenCalledWith(41);
-  });
-
-  it("leaves reading it to the item's own page", async () => {
-    iPhoneApp();
-    render(<ServiceWorkerMessages />);
-    await settle();
-
-    await send(openMessage());
-    await settle();
-    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
-    expect(markRead).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith("/my_notifications/41/open", {
+      credentials: "same-origin",
+      redirect: "manual",
+      keepalive: true,
+    });
+    expect(changed).toHaveBeenCalled();
   });
 
   it("reloads through its open route for a push from before it said where it lands", async () => {
@@ -357,9 +356,25 @@ describe("going to a tapped notification", () => {
     await send(openMessage());
     await settle();
     expect(router.push).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
     await act(async () => renew());
     await settle();
     expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reloads instead when the session cannot be renewed, as a full load renews it on the way", async () => {
+    vi.stubGlobal("Clerk", {
+      session: { getToken: () => Promise.reject(new Error("offline")) },
+    });
+    iPhoneApp();
+    render(<ServiceWorkerMessages />);
+    await settle();
+
+    await send(openMessage());
+    await settle();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
   });
 
   it("still offers what arrives afterwards, but never the item it opened", async () => {
@@ -382,6 +397,27 @@ describe("going to a tapped notification", () => {
     await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival(42) });
     expect(toastMock).toHaveBeenCalledTimes(1);
     expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 42");
+  });
+
+  it("takes down the toast offering the item it opens", async () => {
+    iPhoneApp();
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await send({
+      type: SW_NOTIFICATION_RECEIVED,
+      arrival: {
+        id: 41,
+        title: "Notificación 41",
+        body: "",
+        url: "/my_notifications/41/open",
+        href: ITEM_PAGE,
+        at: Date.now(),
+      },
+    });
+    expect(toastMock.mock.calls[0]?.[1].id).toBe("item:41");
+
+    await send(openMessage());
+    expect(toastMock.dismiss).toHaveBeenCalledWith("item:41");
   });
 });
 
@@ -540,6 +576,7 @@ describe("notifications that arrived while the iPhone app was in the background"
     const [title, options] = toastMock.mock.calls[0];
     expect(title).toBe("Tenés 2 notificaciones nuevas");
     options.action.onClick();
+    await settle();
     expect(router.push).toHaveBeenCalledWith("/my_notifications");
   });
 

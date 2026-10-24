@@ -30,11 +30,12 @@ export default async function MyNotificationsPage(props: {
   );
   // Asked together, each its own trip to the database; the flag check still
   // turns the page away when it is off.
-  const [, page, pushEnabled, devices] = await Promise.all([
+  const [, page, [pushEnabled, devices]] = await Promise.all([
     requireFeatureEnabled("notifications", viewer),
     fetchInboxPage(viewer, { filter }),
-    isPushEnabledFor(viewer),
-    fetchPushDevices(viewer.id),
+    isPushEnabledFor(viewer).then(
+      async (on) => [on, on ? await fetchPushDevices(viewer.id) : []] as const,
+    ),
   ]);
 
   return (

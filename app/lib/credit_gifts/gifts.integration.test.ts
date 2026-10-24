@@ -67,11 +67,13 @@ type GiftService = typeof import("@/app/lib/credit_gifts/service");
 type CreditService = typeof import("@/app/lib/credits/service");
 type Deliveries = typeof import("@/app/lib/notifications/deliveries");
 type InboxQueries = typeof import("@/app/lib/notifications/queries");
+type ReadModule = typeof import("@/app/lib/notifications/read");
 type Notify = typeof import("@/app/lib/notifications/notify");
 let gifts: GiftService;
 let credits: CreditService;
 let deliveries: Deliveries;
 let inbox: InboxQueries;
+let read: ReadModule;
 let notifyModule: Notify;
 
 const createdUserIds: number[] = [];
@@ -150,6 +152,7 @@ describeDatabase("credit gifts", () => {
     credits = await import("@/app/lib/credits/service");
     deliveries = await import("@/app/lib/notifications/deliveries");
     inbox = await import("@/app/lib/notifications/queries");
+    read = await import("@/app/lib/notifications/read");
     notifyModule = await import("@/app/lib/notifications/notify");
 
     try {
@@ -712,6 +715,33 @@ describeDatabase("credit gifts", () => {
     expect(pending?.totalCredits).toBe(5);
     expect(pending?.notificationIds).toHaveLength(1);
     expect(pending?.notificationIds).not.toContain(twenty!.id);
+  });
+
+  it("counts a gift read as seen, so marking it unread again brings no banner", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const created = await gifts.createCreditGift(giftInput([ana.id]), {
+      id: admin.id,
+    });
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+    const [gift] = (await notificationsFor(ana.id)).filter(
+      (row) => row.kind === "credit_gift_received",
+    );
+
+    await read.markNotificationRead({ id: ana.id, role: "user" }, gift!.id);
+    const [opened] = await integrationDb!
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, gift!.id));
+    expect(opened!.readAt).not.toBeNull();
+    expect(opened!.celebratedAt).not.toBeNull();
+
+    await integrationDb!
+      .update(notifications)
+      .set({ readAt: null })
+      .where(eq(notifications.id, gift!.id));
+    expect(await inbox.fetchPendingGiftCelebration(ana.id)).toBeNull();
   });
 
   it("won't re-send to an address that bounced", async () => {

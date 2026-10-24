@@ -14,7 +14,10 @@ import {
   resolveInboxViewerWithAccess,
   retentionCutoff,
 } from "@/app/lib/notifications/queries";
-import { markNotificationRead } from "@/app/lib/notifications/read";
+import {
+  CELEBRATED_ON_READ,
+  markNotificationRead,
+} from "@/app/lib/notifications/read";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
 
@@ -96,7 +99,7 @@ export async function markAllNotificationsReadAction(
 
   const rows = await db
     .update(notifications)
-    .set({ readAt: new Date() })
+    .set({ readAt: new Date(), celebratedAt: CELEBRATED_ON_READ })
     .where(
       and(
         ownedBy(viewer),

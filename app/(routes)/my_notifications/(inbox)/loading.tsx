@@ -4,7 +4,9 @@ import { Skeleton } from "@/app/components/ui/skeleton";
 /**
  * Shown the moment the bell is tapped, while the server reads the inbox: a
  * navigation inside Glitter waits for the server unless a loading state sits
- * below the layout both pages share, and the root one does not.
+ * below the layout both pages share, and the root one does not. In a group
+ * of its own, so it covers the inbox and not an item's page, which has its
+ * own.
  */
 export default function Loading() {
   return (

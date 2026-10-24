@@ -39,6 +39,9 @@ export default function CreditGiftCelebrationBanner({
     void markGiftsCelebratedAction(notificationIds);
   }, [notificationIds]);
 
+  // Once it leaves the page it appeared on it is gone, as after a reload: the
+  // layout holding it stays mounted, so coming back would show it again.
+  if (visible && pathname !== shownOn) setVisible(false);
   const saidThere =
     pathname === "/my_credits" ||
     notificationIds.some((id) => pathname === `/my_notifications/${id}`);
