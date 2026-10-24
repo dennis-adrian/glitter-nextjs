@@ -18,11 +18,14 @@ export default async function NotificationPage(props: {
 }) {
   const viewer = await resolveInboxViewer();
   if (!viewer) notFound();
-  await requireFeatureEnabled("notifications", viewer);
-
   const parsed = idSchema.safeParse((await props.params).notificationId);
   if (!parsed.success) notFound();
-  const notification = await fetchNotificationForViewer(viewer, parsed.data);
+
+  // Asked together; the flag check still turns the page away when it is off.
+  const [, notification] = await Promise.all([
+    requireFeatureEnabled("notifications", viewer),
+    fetchNotificationForViewer(viewer, parsed.data),
+  ]);
   if (!notification) notFound();
 
   return (

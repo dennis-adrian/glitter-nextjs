@@ -221,6 +221,7 @@ function openMessage(window: FakeWindow) {
   return message as {
     type: string;
     url: string;
+    href: string | null;
     id: number | null;
     tapId: string;
   };
@@ -229,12 +230,15 @@ function openMessage(window: FakeWindow) {
 const ICON = "/icons/glitter-192.png";
 const BADGE = "/icons/glitter-badge-96.png";
 
+const RESERVATION = "/profiles/3/festivals/2/reservations/9";
+
 const VALID_PAYLOAD = {
   v: 1,
   id: 7,
   title: "Tu reserva fue confirmada",
   body: "Te esperamos en el stand B12.",
   url: "/my_notifications/7/open",
+  href: RESERVATION,
   tag: "notification-7",
 };
 
@@ -245,11 +249,11 @@ const GENERIC_NOTIFICATION = {
     icon: ICON,
     badge: BADGE,
     lang: "es",
-    data: { url: INBOX, id: null },
+    data: { url: INBOX, id: null, href: null },
   },
 };
 
-const TAP = { url: "/my_notifications/7/open", id: 7 };
+const TAP = { url: "/my_notifications/7/open", id: 7, href: RESERVATION };
 
 let worker: Worker;
 
@@ -305,7 +309,7 @@ describe("showing a push", () => {
         badge: BADGE,
         lang: "es",
         tag: "notification-7",
-        data: { url: "/my_notifications/7/open", id: 7 },
+        data: { url: "/my_notifications/7/open", id: 7, href: RESERVATION },
       },
     });
   });
@@ -317,12 +321,17 @@ describe("showing a push", () => {
       body: "Ya podés usarlos en tu próxima reserva.\n\nNota del equipo.",
       sensitive: false,
       writtenText: false,
+      href: "/my_credits",
     });
     const { title, options } = await push(worker, pushData(payload));
     expect(title).toBe("Recibiste créditos");
     expect(options.body).toBe("Ya podés usarlos en tu próxima reserva.");
     expect(options.tag).toBe("notification-42");
-    expect(options.data).toEqual({ url: "/my_notifications/42/open", id: 42 });
+    expect(options.data).toEqual({
+      url: "/my_notifications/42/open",
+      id: 42,
+      href: "/my_credits",
+    });
   });
 
   it("shows a disciplinary notice as the server worded it for a lock screen", async () => {
@@ -332,11 +341,16 @@ describe("showing a push", () => {
       body: "Motivo: llegaste tarde al montaje.",
       sensitive: true,
       writtenText: false,
+      href: "/my_notifications/9",
     });
     const { title, options } = await push(worker, pushData(payload));
     expect(title).toBe(SENSITIVE_PUSH_TITLE);
     expect(options.body).toBe(SENSITIVE_PUSH_BODY);
-    expect(options.data).toEqual({ url: "/my_notifications/9/open", id: 9 });
+    expect(options.data).toEqual({
+      url: "/my_notifications/9/open",
+      id: 9,
+      href: "/my_notifications/9",
+    });
   });
 
   it("names an untitled notification Glitter and keeps its text", async () => {
@@ -364,6 +378,7 @@ describe("showing a push", () => {
       expect(options.data).toEqual({
         url: "/my_notifications/7/open",
         id: null,
+        href: RESERVATION,
       });
     },
   );
@@ -419,7 +434,20 @@ describe("showing a push", () => {
     });
     expect(title).toBe("Tu reserva fue confirmada");
     expect(options.body).toBe("Te esperamos en el stand B12.");
-    expect(options.data).toEqual({ url: INBOX, id: 7 });
+    expect(options.data).toEqual({ url: INBOX, id: 7, href: RESERVATION });
+  });
+
+  it.each([
+    { carrying: "a destination off the site", href: "https://evil.test/x" },
+    { carrying: "a destination that is not text", href: 7 },
+    { carrying: "no destination, from a server before it", href: undefined },
+  ])("keeps no destination for a push carrying $carrying", async ({ href }) => {
+    const { options } = await pushJson(worker, { ...VALID_PAYLOAD, href });
+    expect(options.data).toEqual({
+      url: "/my_notifications/7/open",
+      id: 7,
+      href: null,
+    });
   });
 
   it("keeps a full link to Glitter as a path, with its query and anchor", async () => {
@@ -430,6 +458,7 @@ describe("showing a push", () => {
     expect(options.data).toEqual({
       url: "/my_notifications/7?from=push#detalle",
       id: 7,
+      href: RESERVATION,
     });
   });
 
@@ -444,6 +473,7 @@ describe("showing a push", () => {
         title: "Tu reserva fue confirmada",
         body: "Te esperamos en el stand B12.",
         url: "/my_notifications/7/open",
+        href: RESERVATION,
         at: expect.any(Number),
       },
     });
@@ -538,6 +568,7 @@ describe("tapping a notification", () => {
     expect(openMessage(app)).toMatchObject({
       type: SW_OPEN,
       url: "/my_notifications/7/open",
+      href: RESERVATION,
       id: 7,
     });
     expect(typeof openMessage(app).tapId).toBe("string");
@@ -650,6 +681,7 @@ describe("tapping a notification", () => {
     expect(kept(worker, LAST_TAP_PATH)).toMatchObject({
       id: 7,
       url: "/my_notifications/7/open",
+      href: RESERVATION,
     });
     const stored = kept(worker, LAST_TAP_PATH) as { tapId: string; at: number };
     expect(typeof stored.tapId).toBe("string");

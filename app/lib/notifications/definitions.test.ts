@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   notificationDateGroup,
   notificationHref,
+  notificationTapHref,
   parseNotificationFilter,
   safeActionPath,
   visibleNotificationFilters,
@@ -69,6 +70,21 @@ describe("links", () => {
         opensDetail: false,
       }),
     ).toBe("/my_notifications/7");
+  });
+});
+
+describe("notificationTapHref", () => {
+  it("goes where the inbox would, except a disciplinary notice to its own page", () => {
+    const notice = {
+      id: 8,
+      actionPath: "/profiles/3/infractions",
+      opensDetail: false,
+    };
+    expect(notificationTapHref(notice, false)).toBe("/profiles/3/infractions");
+    expect(notificationTapHref(notice, true)).toBe("/my_notifications/8");
+    expect(notificationTapHref({ ...notice, opensDetail: true }, false)).toBe(
+      "/my_notifications/8",
+    );
   });
 });
 

@@ -39,6 +39,10 @@ vi.mock("@/app/components/navbar/navbar", () => ({
   default: () => <WaitsForData>{null}</WaitsForData>,
 }));
 vi.mock("@/app/components/footer-server", () => ({ default: () => null }));
+// A client component with server actions and the router; renders nothing.
+vi.mock("@/app/components/notifications/service-worker-messages", () => ({
+  default: () => null,
+}));
 
 import InstalledAppHead from "@/app/components/installed-app-head";
 import RootLayout from "@/app/layout";

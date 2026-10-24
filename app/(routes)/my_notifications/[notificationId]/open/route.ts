@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import {
   MAX_SERIAL_ID,
-  notificationHref,
+  notificationTapHref,
 } from "@/app/lib/notifications/definitions";
 import { OPENED_NOTIFICATION_COOKIE } from "@/app/lib/notifications/push/taps";
 import {
@@ -35,11 +35,10 @@ function goTo(request: Request, path: string, openedId?: number) {
  * Where tapping a notification on the device leads: the item is marked read
  * and the person lands where tapping it in the inbox would take them (a
  * reservation update to its reservation, or its own page when it carries
- * text someone wrote, as every gift does). A disciplinary notice opens its
- * own page: its push said only that something arrived, while the inbox shows
- * what before the tap. Done here rather than in the page, so it works
- * however the device opens Glitter: a cold start, a resumed app, or a new
- * window.
+ * text someone wrote, as every gift does); a disciplinary notice opens its
+ * own page (`notificationTapHref`). For a device that opens Glitter on this
+ * link: a cold start, or a new window. An app already open goes straight to
+ * the push's `href` instead, without reloading.
  *
  * A signed-out visitor never gets here: the proxy sends them to sign in and
  * back.
@@ -64,8 +63,12 @@ export async function GET(
     // Never holds the person up: the item's page marks it read too.
     await markNotificationRead(viewer, notification.id).catch(() => undefined);
   }
-  const href = isSensitiveNotificationKind(notification.kind)
-    ? `/my_notifications/${id}`
-    : notificationHref(notification);
-  return goTo(request, href, id);
+  return goTo(
+    request,
+    notificationTapHref(
+      notification,
+      isSensitiveNotificationKind(notification.kind),
+    ),
+    id,
+  );
 }

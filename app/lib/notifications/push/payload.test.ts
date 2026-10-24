@@ -17,6 +17,7 @@ const ITEM = {
   body: "Tu espacio B48 en Glitter ¡Feliz Cumple! está confirmado.",
   sensitive: false,
   writtenText: false,
+  href: "/profiles/3/festivals/2/reservations/9",
 };
 
 function parse(payload: string) {
@@ -31,6 +32,7 @@ describe("buildPushPayload", () => {
       title: ITEM.title,
       body: ITEM.body,
       url: "/my_notifications/41/open",
+      href: "/profiles/3/festivals/2/reservations/9",
       tag: "notification-41",
     });
   });
@@ -96,6 +98,7 @@ describe("buildPushPayload", () => {
       // Control characters are escaped to six bytes each in JSON.
       title: "\u0001".repeat(500),
       body: "\u0002".repeat(5000),
+      href: "/profiles/2147483647/festivals/2147483647/reservations/2147483647",
     });
     expect(new TextEncoder().encode(worst).length).toBeLessThan(3000);
   });

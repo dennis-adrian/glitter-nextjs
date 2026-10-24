@@ -25,9 +25,15 @@ export const OPENED_NOTIFICATION_COOKIE = "glitter_opened_notification";
 /** How long a kept tap is still worth finishing. */
 export const TAP_FRESH_MS = 2 * 60 * 1000;
 
+/**
+ * `url` opens Glitter on the item through the open route; `href` is where
+ * that lands, for a Glitter already open to go to without reloading (null
+ * for a push from before it carried one).
+ */
 export type KeptTap = {
   id: number | null;
   url: string;
+  href: string | null;
   tapId: string;
   at: number;
 };
@@ -37,6 +43,7 @@ export type Arrival = {
   title: string;
   body: string;
   url: string;
+  href: string | null;
   at: number;
 };
 
@@ -47,7 +54,8 @@ export function sitePath(value: unknown): string | null {
   return value;
 }
 
-function notificationId(value: unknown): number | null {
+/** An inbox item's id, or null for anything that cannot be one. */
+export function notificationId(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0
     ? value
     : null;
@@ -60,7 +68,13 @@ export function parseKeptTap(value: unknown): KeptTap | null {
   if (!url || typeof tap.tapId !== "string" || typeof tap.at !== "number") {
     return null;
   }
-  return { id: notificationId(tap.id), url, tapId: tap.tapId, at: tap.at };
+  return {
+    id: notificationId(tap.id),
+    url,
+    href: sitePath(tap.href),
+    tapId: tap.tapId,
+    at: tap.at,
+  };
 }
 
 export function parseArrivals(value: unknown): Arrival[] {
@@ -82,6 +96,7 @@ export function parseArrivals(value: unknown): Arrival[] {
         title: arrival.title,
         body: typeof arrival.body === "string" ? arrival.body : "",
         url,
+        href: sitePath(arrival.href),
         at: arrival.at,
       },
     ];

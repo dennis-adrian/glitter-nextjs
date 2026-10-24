@@ -685,6 +685,35 @@ describeDatabase("credit gifts", () => {
     expect(await inbox.fetchPendingGiftCelebration(ana.id)).toBeNull();
   });
 
+  it("leaves a gift already opened out of the banner", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    for (const amount of [20, 5]) {
+      const created = await gifts.createCreditGift(
+        giftInput([ana.id], { amountPerRecipient: amount }),
+        { id: admin.id },
+      );
+      if (!created.ok) throw new Error("gift not created");
+      await gifts.processCreditGift(created.campaignId);
+    }
+    const twenty = (await notificationsFor(ana.id)).find(
+      (row) =>
+        row.kind === "credit_gift_received" &&
+        (row.data as { amount: number }).amount === 20,
+    );
+
+    // Opened from a tap on the device, before any page showed the banner.
+    await integrationDb!
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.id, twenty!.id));
+
+    const pending = await inbox.fetchPendingGiftCelebration(ana.id);
+    expect(pending?.totalCredits).toBe(5);
+    expect(pending?.notificationIds).toHaveLength(1);
+    expect(pending?.notificationIds).not.toContain(twenty!.id);
+  });
+
   it("won't re-send to an address that bounced", async () => {
     const admin = await createUser({ role: "admin" });
     const ana = await createUser();

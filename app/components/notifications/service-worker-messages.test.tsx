@@ -3,6 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const toastMock = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: toastMock }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+const markRead = vi.hoisted(() => vi.fn(async () => ({ success: true })));
+vi.mock("@/app/lib/notifications/actions", () => ({
+  markNotificationReadAction: markRead,
+}));
 
 import { onNotificationsChanged } from "@/app/components/notifications/notification-events";
 import ServiceWorkerMessages, {
@@ -134,6 +140,8 @@ beforeEach(() => {
   document.cookie = `${OPENED_NOTIFICATION_COOKIE}=; max-age=0; path=/`;
   assign = vi.spyOn(pageLoad, "assign").mockImplementation(() => {});
   toastMock.mockReset();
+  router.push.mockReset();
+  markRead.mockClear();
 });
 
 afterEach(() => {
@@ -162,8 +170,20 @@ async function send(data: unknown) {
   return answer;
 }
 
-function openMessage(url: unknown = "/my_notifications/41/open") {
-  return { type: SW_OPEN, url, id: 41, tapId: newTapId() };
+const ITEM_PAGE = "/my_notifications/41";
+const RESERVATION = "/profiles/3/festivals/2/reservations/9";
+
+function openMessage(
+  url: unknown = "/my_notifications/41/open",
+  href: unknown = ITEM_PAGE,
+) {
+  return { type: SW_OPEN, url, href, id: 41, tapId: newTapId() };
+}
+
+/** Neither went anywhere in the app nor reloaded. */
+function expectStayed() {
+  expect(router.push).not.toHaveBeenCalled();
+  expect(assign).not.toHaveBeenCalled();
 }
 
 describe("messages from the worker", () => {
@@ -190,7 +210,8 @@ describe("messages from the worker", () => {
     await settle();
 
     expect(await send(openMessage())).toEqual({ accepted: true });
-    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
   });
 
   it("opens it in a window that is already in the inbox", async () => {
@@ -199,7 +220,8 @@ describe("messages from the worker", () => {
     await settle();
 
     expect(await send(openMessage())).toEqual({ accepted: true });
-    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
   });
 
   it("leaves a browser tab on another page alone, so a form there is not lost", async () => {
@@ -208,7 +230,7 @@ describe("messages from the worker", () => {
     await settle();
 
     expect(await send(openMessage())).toEqual({ accepted: false });
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
   });
 
   it("leaves an app installed on a computer alone too, where a new window opens instead", async () => {
@@ -218,7 +240,7 @@ describe("messages from the worker", () => {
     await settle();
 
     expect(await send(openMessage())).toEqual({ accepted: false });
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
   });
 
   it("opens one tap once, however many times it is asked", async () => {
@@ -229,7 +251,8 @@ describe("messages from the worker", () => {
 
     expect(await send(message)).toEqual({ accepted: true });
     expect(await send(message)).toEqual({ accepted: true });
-    expect(assign).toHaveBeenCalledTimes(1);
+    await settle();
+    expect(router.push).toHaveBeenCalledTimes(1);
   });
 
   it.each(["//evil.test/x", "/\\evil.test", "https://evil.test/", 42, null])(
@@ -240,7 +263,7 @@ describe("messages from the worker", () => {
       await settle();
 
       expect(await send(openMessage(url))).toEqual({ accepted: false });
-      expect(assign).not.toHaveBeenCalled();
+      expectStayed();
     },
   );
 
@@ -251,7 +274,7 @@ describe("messages from the worker", () => {
     expect(
       await send({ type: SW_OPEN, url: "/my_notifications/41/open" }),
     ).toEqual({ accepted: false });
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
   });
 
   it("ignores messages it does not know", async () => {
@@ -259,7 +282,7 @@ describe("messages from the worker", () => {
     render(<ServiceWorkerMessages />);
     await settle();
     expect(await send({ type: "other", url: "/x" })).toBeUndefined();
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
   });
 
   it("does nothing where service workers do not exist", () => {
@@ -278,11 +301,96 @@ describe("messages from the worker", () => {
   });
 });
 
+describe("going to a tapped notification", () => {
+  it("goes there without reloading, and reads an item whose screen does not", async () => {
+    iPhoneApp();
+    render(<ServiceWorkerMessages />);
+    await settle();
+
+    expect(
+      await send(openMessage("/my_notifications/41/open", RESERVATION)),
+    ).toEqual({ accepted: true });
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(RESERVATION);
+    expect(assign).not.toHaveBeenCalled();
+    expect(markRead).toHaveBeenCalledWith(41);
+  });
+
+  it("leaves reading it to the item's own page", async () => {
+    iPhoneApp();
+    render(<ServiceWorkerMessages />);
+    await settle();
+
+    await send(openMessage());
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
+    expect(markRead).not.toHaveBeenCalled();
+  });
+
+  it("reloads through its open route for a push from before it said where it lands", async () => {
+    iPhoneApp();
+    render(<ServiceWorkerMessages />);
+    await settle();
+
+    expect(await send(openMessage("/my_notifications/41/open", null))).toEqual({
+      accepted: true,
+    });
+    await settle();
+    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("waits for the session to be renewed first, which the app does on coming back", async () => {
+    let renew = () => {};
+    vi.stubGlobal("Clerk", {
+      session: {
+        getToken: () =>
+          new Promise<string>((resolve) => {
+            renew = () => resolve("token");
+          }),
+      },
+    });
+    iPhoneApp();
+    render(<ServiceWorkerMessages />);
+    await settle();
+
+    await send(openMessage());
+    await settle();
+    expect(router.push).not.toHaveBeenCalled();
+    await act(async () => renew());
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
+  });
+
+  it("still offers what arrives afterwards, but never the item it opened", async () => {
+    iPhoneApp();
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await send(openMessage());
+    await settle();
+
+    const arrival = (id: number) => ({
+      id,
+      title: `Notificación ${id}`,
+      body: "",
+      url: `/my_notifications/${id}/open`,
+      href: `/my_notifications/${id}`,
+      at: Date.now(),
+    });
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival(41) });
+    expect(toastMock).not.toHaveBeenCalled();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival(42) });
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 42");
+  });
+});
+
 describe("a tap the device did not deliver", () => {
   function keepTap(overrides: Record<string, unknown> = {}) {
     keep(LAST_TAP_PATH, {
       id: 41,
       url: "/my_notifications/41/open",
+      href: ITEM_PAGE,
       tapId: newTapId(),
       at: Date.now(),
       ...overrides,
@@ -294,7 +402,8 @@ describe("a tap the device did not deliver", () => {
     keepTap();
     render(<ServiceWorkerMessages />);
     await settle();
-    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
     expect(store.has(LAST_TAP_PATH)).toBe(false);
   });
 
@@ -306,7 +415,8 @@ describe("a tap the device did not deliver", () => {
     keepTap();
     setVisibility("visible");
     await settle();
-    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
   });
 
   it("is left alone when its link already loaded", async () => {
@@ -315,16 +425,16 @@ describe("a tap the device did not deliver", () => {
     document.cookie = `${OPENED_NOTIFICATION_COOKIE}=41; path=/`;
     render(<ServiceWorkerMessages />);
     await settle();
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
     expect(store.has(LAST_TAP_PATH)).toBe(false);
   });
 
   it("is left alone on its own page, for a notification shown before the open route", async () => {
     window.history.pushState({}, "", "/my_notifications/41");
-    keepTap({ id: null, url: "/my_notifications/41" });
+    keepTap({ id: null, url: "/my_notifications/41", href: null });
     render(<ServiceWorkerMessages />);
     await settle();
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
     expect(store.has(LAST_TAP_PATH)).toBe(false);
   });
 
@@ -333,7 +443,7 @@ describe("a tap the device did not deliver", () => {
     keepTap({ at: Date.now() - 3 * 60 * 1000 });
     render(<ServiceWorkerMessages />);
     await settle();
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
     expect(store.has(LAST_TAP_PATH)).toBe(false);
   });
 
@@ -342,7 +452,7 @@ describe("a tap the device did not deliver", () => {
     keepTap();
     render(<ServiceWorkerMessages />);
     await settle();
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
     expect(store.has(LAST_TAP_PATH)).toBe(true);
   });
 
@@ -356,7 +466,7 @@ describe("a tap the device did not deliver", () => {
     keepTap();
     render(<ServiceWorkerMessages />);
     await settle();
-    expect(assign).not.toHaveBeenCalled();
+    expectStayed();
   });
 
   it("is opened once when the worker's message for it also arrives", async () => {
@@ -373,7 +483,8 @@ describe("a tap the device did not deliver", () => {
         tapId,
       }),
     ).toEqual({ accepted: true });
-    expect(assign).toHaveBeenCalledTimes(1);
+    await settle();
+    expect(router.push).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -387,6 +498,7 @@ describe("notifications that arrived while the iPhone app was in the background"
       title: `Recibiste ${nextId} créditos`,
       body: "Ya están en tu billetera.",
       url: `/my_notifications/${nextId}/open`,
+      href: `/my_notifications/${nextId}`,
       at,
       ...overrides,
     };
@@ -419,7 +531,8 @@ describe("notifications that arrived while the iPhone app was in the background"
     expect(options.duration).toBe(10_000);
     expect(options.action.label).toBe("Ver");
     options.action.onClick();
-    expect(assign).toHaveBeenCalledWith(latest.url);
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(latest.href);
   });
 
   it("counts several, opening the inbox", async () => {
@@ -427,7 +540,7 @@ describe("notifications that arrived while the iPhone app was in the background"
     const [title, options] = toastMock.mock.calls[0];
     expect(title).toBe("Tenés 2 notificaciones nuevas");
     options.action.onClick();
-    expect(assign).toHaveBeenCalledWith("/my_notifications");
+    expect(router.push).toHaveBeenCalledWith("/my_notifications");
   });
 
   it("gives no count when older ones may have dropped off the list", async () => {
@@ -503,12 +616,13 @@ describe("notifications that arrived while the iPhone app was in the background"
     keep(LAST_TAP_PATH, {
       id: 41,
       url: "/my_notifications/41/open",
+      href: ITEM_PAGE,
       tapId: newTapId(),
       at: since + 2,
     });
     setVisibility("visible");
     await settle();
-    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
     expect(toastMock).not.toHaveBeenCalled();
   });
 

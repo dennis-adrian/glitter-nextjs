@@ -36,6 +36,7 @@ describe("parseKeptTap", () => {
   const tap = {
     id: 41,
     url: "/my_notifications/41/open",
+    href: "/my_notifications/41",
     tapId: "abc",
     at: 1_700_000_000_000,
   };
@@ -47,6 +48,13 @@ describe("parseKeptTap", () => {
   it("keeps a tap without an item id, with none", () => {
     expect(parseKeptTap({ ...tap, id: "41" })).toEqual({ ...tap, id: null });
   });
+
+  it.each([undefined, "//evil.test", 7])(
+    "keeps a tap whose destination is %j, with none",
+    (href) => {
+      expect(parseKeptTap({ ...tap, href })).toEqual({ ...tap, href: null });
+    },
+  );
 
   it.each([
     null,
@@ -65,6 +73,7 @@ describe("parseArrivals", () => {
     title: "Recibiste créditos",
     body: "Ya están en tu billetera.",
     url: "/my_notifications/41/open",
+    href: "/my_notifications/41",
     at: 1,
   };
 
@@ -75,9 +84,9 @@ describe("parseArrivals", () => {
         { ...arrival, url: "https://evil.test" },
         { ...arrival, title: 3 },
         null,
-        { ...arrival, body: undefined, id: 0 },
+        { ...arrival, body: undefined, id: 0, href: "https://evil.test" },
       ]),
-    ).toEqual([arrival, { ...arrival, body: "", id: null }]);
+    ).toEqual([arrival, { ...arrival, body: "", id: null, href: null }]);
   });
 
   it("reads anything else as none", () => {

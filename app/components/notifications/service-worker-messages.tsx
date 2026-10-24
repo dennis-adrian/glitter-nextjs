@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
+import { markNotificationReadAction } from "@/app/lib/notifications/actions";
 import {
   SENSITIVE_PUSH_BODY,
   SENSITIVE_PUSH_TITLE,
@@ -19,6 +21,7 @@ import {
   ARRIVALS_PATH,
   LAST_TAP_PATH,
   NOTIFICATION_STATE_CACHE,
+  notificationId,
   openedNotificationId,
   parseArrivals,
   parseKeptTap,
@@ -37,14 +40,26 @@ export const pageLoad = {
 
 /** Long enough to read: on an iPhone it may be the only way to the item. */
 const ARRIVAL_TOAST_MS = 10_000;
+/** How long a tap waits for a fresh session before going anyway. */
+const SESSION_WAIT_MS = 2_000;
+
+type Router = ReturnType<typeof useRouter>;
 
 /**
- * What this page already did. The taps it opened, so the worker's message
- * and the kept copy of one tap never open it twice; opening one loads
- * another page, so any here means this one is on its way out. And the
- * arrivals it offered, by item, a retried push being one.
+ * This page's side of the taps and arrivals. The taps it opened, so the
+ * worker's message and the kept copy of one tap never open it twice; the
+ * items it offered or opened, so none is offered again (a retried push is
+ * one item); and whether it is reloading, after which it offers nothing.
  */
-type Seen = { taps: Set<string>; arrivals: Set<string> };
+type PageState = {
+  router: Router;
+  taps: Set<string>;
+  arrivals: Set<string>;
+  leaving: boolean;
+};
+
+/** A notification to go to: `href` where it lands, `url` its open route. */
+type Target = { id: number | null; url: string; href: string | null };
 
 /**
  * Glitter added to an iPhone's or iPad's home screen: a single window, where
@@ -105,13 +120,58 @@ async function forgetLastTap() {
   }
 }
 
-function openTap(seen: Seen, tapId: string, url: string) {
-  if (seen.taps.has(tapId)) return;
-  seen.taps.add(tapId);
+/**
+ * After a while in the background the session's token has expired, and the
+ * proxy would send a request carrying it to sign in. Clerk renews it as
+ * Glitter comes back; waiting for that, briefly, keeps the tap in place.
+ */
+async function freshSession() {
+  const clerk = (
+    window as {
+      Clerk?: { session?: { getToken: () => Promise<unknown> } | null };
+    }
+  ).Clerk;
+  const token = clerk?.session?.getToken();
+  if (!token) return;
+  await Promise.race([
+    token.catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, SESSION_WAIT_MS)),
+  ]);
+}
+
+async function goInPlace(page: PageState, id: number, href: string) {
+  await freshSession();
+  page.router.push(href);
+  // Its own page reads it; anywhere else it is read here. The router sends
+  // this once the navigation is under way, never ahead of it.
+  if (href !== `/my_notifications/${id}`) {
+    void markNotificationReadAction(id)
+      .then(() => announceNotificationsChanged())
+      .catch(() => undefined);
+  }
+}
+
+/**
+ * Goes to a notification. Without reloading when the push said where it
+ * lands: the screen changes as soon as the server answers, showing its
+ * loading state meanwhile. A push from before that goes through its open
+ * route instead, with a full load.
+ */
+function openItem(page: PageState, target: Target) {
+  if (target.id == null || target.href == null) {
+    page.leaving = true;
+    pageLoad.assign(target.url);
+    return;
+  }
+  page.arrivals.add(`item:${target.id}`);
+  void goInPlace(page, target.id, target.href);
+}
+
+function openTap(page: PageState, tapId: string, target: Target) {
+  if (page.taps.has(tapId)) return;
+  page.taps.add(tapId);
   void forgetLastTap();
-  // A full load, so the open route runs on the server whatever page this
-  // is: it marks the item read and redirects where the inbox would.
-  pageLoad.assign(url);
+  openItem(page, target);
 }
 
 /**
@@ -122,10 +182,10 @@ function openTap(seen: Seen, tapId: string, url: string) {
  * the tap is old, on the sign-in page, or where this page should not
  * navigate. Says whether it opened one.
  */
-async function finishKeptTap(seen: Seen): Promise<boolean> {
+async function finishKeptTap(page: PageState): Promise<boolean> {
   const tap = parseKeptTap(await readState(LAST_TAP_PATH));
   if (!tap) return false;
-  if (seen.taps.has(tap.tapId)) return true;
+  if (page.taps.has(tap.tapId)) return true;
   const { pathname, search, hash } = window.location;
   const loaded =
     pathname + search + hash === tap.url ||
@@ -135,7 +195,7 @@ async function finishKeptTap(seen: Seen): Promise<boolean> {
     return false;
   }
   if (isSignInPage() || !canOpenHere()) return false;
-  openTap(seen, tap.tapId, tap.url);
+  openTap(page, tap.tapId, tap);
   return true;
 }
 
@@ -162,20 +222,24 @@ function arrivalCopy(arrival: Arrival) {
 
 /**
  * Offers notifications the person has not seen here: once per item, never
- * the one a tap just opened, and not in the inbox, which lists them itself.
+ * one a tap opened, and not in the inbox, which lists them itself.
  * `mayBeMore` when older ones may have dropped off the worker's list.
  */
-function offerArrivals(seen: Seen, arrivals: Arrival[], mayBeMore = false) {
-  if (seen.taps.size > 0) return;
+function offerArrivals(
+  page: PageState,
+  arrivals: Arrival[],
+  mayBeMore = false,
+) {
+  if (page.leaving) return;
   if (window.location.pathname === "/my_notifications") return;
   const opened = openedNotificationId(document.cookie);
   const fresh: Arrival[] = [];
   for (const arrival of arrivals) {
     const key = arrivalKey(arrival);
-    if (seen.arrivals.has(key) || (opened != null && arrival.id === opened)) {
+    if (page.arrivals.has(key) || (opened != null && arrival.id === opened)) {
       continue;
     }
-    seen.arrivals.add(key);
+    page.arrivals.add(key);
     fresh.push(arrival);
   }
   const [only] = fresh;
@@ -185,7 +249,7 @@ function offerArrivals(seen: Seen, arrivals: Arrival[], mayBeMore = false) {
     toast(title, {
       description,
       duration: ARRIVAL_TOAST_MS,
-      action: { label: "Ver", onClick: () => pageLoad.assign(only.url) },
+      action: { label: "Ver", onClick: () => openItem(page, only) },
     });
     return;
   }
@@ -197,7 +261,7 @@ function offerArrivals(seen: Seen, arrivals: Arrival[], mayBeMore = false) {
       duration: ARRIVAL_TOAST_MS,
       action: {
         label: "Ver",
-        onClick: () => pageLoad.assign("/my_notifications"),
+        onClick: () => page.router.push("/my_notifications"),
       },
     },
   );
@@ -209,12 +273,12 @@ function offerArrivals(seen: Seen, arrivals: Arrival[], mayBeMore = false) {
  * notification it was. Elsewhere a tap always says, and the device already
  * showed each one.
  */
-async function offerArrivalsSince(seen: Seen, since: number) {
+async function offerArrivalsSince(page: PageState, since: number) {
   if (!isIPhoneApp()) return;
   const kept = parseArrivals(await readState(ARRIVALS_PATH));
   const arrived = kept.filter((arrival) => arrival.at > since);
   offerArrivals(
-    seen,
+    page,
     arrived,
     kept.length >= ARRIVALS_KEPT && arrived.length === kept.length,
   );
@@ -229,14 +293,21 @@ async function offerArrivalsSince(seen: Seen, since: number) {
  * meanwhile is offered.
  */
 export default function ServiceWorkerMessages() {
-  const seenRef = useRef<Seen | null>(null);
+  const router = useRouter();
+  const stateRef = useRef<PageState | null>(null);
 
   useEffect(() => {
     const container = navigator.serviceWorker;
     if (!container) return;
     // Kept across StrictMode's second run of this effect, which must not
     // open a tap again.
-    const seen = (seenRef.current ??= { taps: new Set(), arrivals: new Set() });
+    const page = (stateRef.current ??= {
+      router,
+      taps: new Set(),
+      arrivals: new Set(),
+      leaving: false,
+    });
+    page.router = router;
 
     let hiddenAt =
       document.visibilityState === "hidden"
@@ -247,6 +318,8 @@ export default function ServiceWorkerMessages() {
       const data = event.data as {
         type?: unknown;
         url?: unknown;
+        href?: unknown;
+        id?: unknown;
         tapId?: unknown;
         arrival?: unknown;
       } | null;
@@ -259,7 +332,7 @@ export default function ServiceWorkerMessages() {
           document.visibilityState === "visible" &&
           isIPhoneApp()
         ) {
-          offerArrivals(seen, [arrival]);
+          offerArrivals(page, [arrival]);
         }
         return;
       }
@@ -267,14 +340,20 @@ export default function ServiceWorkerMessages() {
       const url = sitePath(data.url);
       const tapId = typeof data.tapId === "string" ? data.tapId : null;
       const accepted =
-        url != null && tapId != null && (seen.taps.has(tapId) || canOpenHere());
+        url != null && tapId != null && (page.taps.has(tapId) || canOpenHere());
       event.ports[0]?.postMessage({ accepted });
-      if (accepted) openTap(seen, tapId, url);
+      if (accepted) {
+        openTap(page, tapId, {
+          id: notificationId(data.id),
+          url,
+          href: sitePath(data.href),
+        });
+      }
     };
 
     const onReturn = (since: number | null) => {
-      void finishKeptTap(seen).then((opened) => {
-        if (!opened && since != null) void offerArrivalsSince(seen, since);
+      void finishKeptTap(page).then((opened) => {
+        if (!opened && since != null) void offerArrivalsSince(page, since);
       });
     };
     const onVisibility = () => {
@@ -305,7 +384,7 @@ export default function ServiceWorkerMessages() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onPageShow);
     };
-  }, []);
+  }, [router]);
 
   return null;
 }

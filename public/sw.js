@@ -47,19 +47,24 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-/** A same-origin path, or the inbox when the payload names anything else. */
-function sameOriginPath(value) {
-  if (!value) return FALLBACK_PATH;
+/** A same-origin path, or null when the value names anything else. */
+function sitePathOrNull(value) {
+  if (typeof value !== "string" || !value) return null;
   try {
     const url = new URL(value, self.location.origin);
-    if (url.origin !== self.location.origin) return FALLBACK_PATH;
+    if (url.origin !== self.location.origin) return null;
     // "/.//host" passes the origin check but its path reads as "//host",
     // which a browser resolves to another site.
-    if (url.pathname.startsWith("//")) return FALLBACK_PATH;
+    if (url.pathname.startsWith("//")) return null;
     return url.pathname + url.search + url.hash;
   } catch {
-    return FALLBACK_PATH;
+    return null;
   }
+}
+
+/** A same-origin path, or the inbox when the payload names anything else. */
+function sameOriginPath(value) {
+  return sitePathOrNull(value) ?? FALLBACK_PATH;
 }
 
 function readPayload(event) {
@@ -77,6 +82,9 @@ function readPayload(event) {
         title: data.title || FALLBACK_TITLE,
         body: data.body,
         url: sameOriginPath(data.url),
+        // Where an open Glitter goes without reloading; none from a server
+        // older than it.
+        href: sitePathOrNull(data.href),
         tag: typeof data.tag === "string" ? data.tag : undefined,
       };
     }
@@ -88,6 +96,7 @@ function readPayload(event) {
     title: FALLBACK_TITLE,
     body: FALLBACK_BODY,
     url: FALLBACK_PATH,
+    href: null,
   };
 }
 
@@ -163,6 +172,7 @@ async function announceArrival(payload) {
     title: payload.title,
     body: payload.body,
     url: payload.url,
+    href: payload.href,
     at: Date.now(),
   };
   // First, and whatever happens to the copy kept below: the refresh asks the
@@ -190,7 +200,7 @@ self.addEventListener("push", (event) => {
         lang: "es",
         // A retried copy replaces the first instead of stacking.
         tag: payload.tag,
-        data: { url: payload.url, id: payload.id },
+        data: { url: payload.url, id: payload.id, href: payload.href },
       }),
       // Extra, so it never stands in the way of the notification.
       announceArrival(payload).catch(() => undefined),
@@ -204,6 +214,7 @@ self.addEventListener("notificationclick", (event) => {
   const tap = {
     id: Number.isSafeInteger(data.id) && data.id > 0 ? data.id : null,
     url: sameOriginPath(data.url || FALLBACK_PATH),
+    href: sitePathOrNull(data.href),
     tapId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
     at: Date.now(),
   };
@@ -235,7 +246,13 @@ function askToOpen(client, tap) {
     };
     try {
       client.postMessage(
-        { type: MESSAGE_OPEN, url: tap.url, id: tap.id, tapId: tap.tapId },
+        {
+          type: MESSAGE_OPEN,
+          url: tap.url,
+          href: tap.href,
+          id: tap.id,
+          tapId: tap.tapId,
+        },
         [channel.port2],
       );
     } catch {
@@ -267,7 +284,7 @@ async function tryOpenWindow(url) {
  * Takes the person to a tapped notification. A window's address cannot tell
  * where it is (it stays the page it first loaded while the app navigates),
  * so the window is asked: the iPhone app, or a window already in the inbox,
- * loads the tap's link itself. Any other answer, or none, leaves that window
+ * goes to the item itself, without reloading. Any other answer, or none, leaves that window
  * as it is (a page asleep in the background may hold a form half filled)
  * and opens the link in a new one: the one window Chromium lets a tap open
  * or focus, within the second Firefox allows.
