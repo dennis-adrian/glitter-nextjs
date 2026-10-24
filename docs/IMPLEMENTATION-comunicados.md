@@ -100,7 +100,7 @@ ALTER TABLE notifications ADD CONSTRAINT notifications_retracted_is_archived
   - the unread partial index (`db/schema.ts:7231-7233`);
   - the push skip `archived` (`push/send.ts:195`).
 - **Undo is closed.**
-  - The CHECK stops the toast's "Deshacer archivar" (`actions.ts:79-82`) from bringing a retracted row back.
+  - The CHECK stops the archive toast's "Deshacer" (`notification-item-menu.tsx:82`, through `actions.ts:79-82`) from bringing a retracted row back.
   - `updateOne` (`actions.ts:43-59`), `markNotificationRead` (`app/lib/notifications/read.ts:20-31`) and `markNotificationsUnreadAction` (`actions.ts:120-138`, the "Deshacer" after "Marcar todo como leído") gain `isNull(notifications.retractedAt)`. A stale client then updates nothing, instead of raising an error or changing a retracted row's read state.
 - **No `DELETE`.** `notification_deliveries.notification_id` cascades (`db/schema.ts:7298-7300`), so a delete would erase the report.
 - **`edited_at`** marks "Editado" on rows rewritten after someone could have seen them (F1).
@@ -306,33 +306,33 @@ distribution_lists 1─* distribution_list_members (fixed lists only)
 
 ### A9. Constants (`app/lib/comunicados/definitions.ts` unless noted)
 
-| Constant                                                                                 | Value                                                                                                                                   | Why                                                                                     |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `COMUNICADO_TITLE_MAX`                                                                   | 80                                                                                                                                      | It is the email subject and the push title. Push caps at 120 (`push/payload.ts:41-42`). |
-| `COMUNICADO_TEXT_MAX`                                                                    | 5,000 characters of plain text                                                                                                          | About a screen of reading.                                                              |
-| `COMUNICADO_DOC_MAX_BYTES` / `COMUNICADO_MAX_BLOCKS`                                     | 64 KB of JSON / 200 blocks, children counted                                                                                            |                                                                                         |
-| `COMUNICADO_MAX_IMAGES`                                                                  | 6                                                                                                                                       | PR 8 only.                                                                              |
-| `COMUNICADO_EMAIL_HTML_MAX_BYTES`                                                        | 90 KB                                                                                                                                   | Gmail clips at 102 KB.                                                                  |
-| `COMUNICADO_EXCERPT_MAX`                                                                 | 280                                                                                                                                     | The list clamps the body to 2 lines (`notification-item.tsx:57-58`).                    |
-| `COMUNICADO_ACTION_LABEL_MAX`                                                            | 30                                                                                                                                      |                                                                                         |
-| `COMUNICADO_MAX_SOURCES` / `COMUNICADO_MAX_PEOPLE`                                       | 10 (festivals + lists) / 100                                                                                                            |                                                                                         |
-| `COMUNICADO_MAX_RECIPIENTS`                                                              | 3,000 eligible, counted before narrowing                                                                                                | K6                                                                                      |
-| `COMUNICADO_TYPE_TO_CONFIRM_RECIPIENTS`                                                  | 300, and always when essential                                                                                                          | K6                                                                                      |
-| `COMUNICADO_SCHEDULE_MIN_LEAD_MS` / `…_MAX_AHEAD_DAYS`                                   | 5 min / 60 days                                                                                                                         |                                                                                         |
-| `COMUNICADO_SCHEDULE_LATE_LIMIT_MS`                                                      | 60 min                                                                                                                                  | K5                                                                                      |
-| `COMUNICADO_SCHEDULE_OVERDUE_BANNER_MS`                                                  | 3 min                                                                                                                                   | G3, G6                                                                                  |
-| `ESSENTIAL_FESTIVAL_GRACE_DAYS`                                                          | 7                                                                                                                                       | B7, K8                                                                                  |
+| Constant                                                                                 | Value                                                                                                                                   | Why                                                                                                                                     |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMUNICADO_TITLE_MAX`                                                                   | 80                                                                                                                                      | It is the email subject and the push title. Push caps at 120 (`push/payload.ts:41-42`).                                                 |
+| `COMUNICADO_TEXT_MAX`                                                                    | 5,000 characters of plain text                                                                                                          | About a screen of reading.                                                                                                              |
+| `COMUNICADO_DOC_MAX_BYTES` / `COMUNICADO_MAX_BLOCKS`                                     | 64 KB of JSON / 200 blocks, children counted                                                                                            |                                                                                                                                         |
+| `COMUNICADO_MAX_IMAGES`                                                                  | 6                                                                                                                                       | PR 8 only.                                                                                                                              |
+| `COMUNICADO_EMAIL_HTML_MAX_BYTES`                                                        | 90 KB                                                                                                                                   | Gmail clips at 102 KB.                                                                                                                  |
+| `COMUNICADO_EXCERPT_MAX`                                                                 | 280                                                                                                                                     | The list clamps the body to 2 lines (`notification-item.tsx:57-58`).                                                                    |
+| `COMUNICADO_ACTION_LABEL_MAX`                                                            | 30                                                                                                                                      |                                                                                                                                         |
+| `COMUNICADO_MAX_SOURCES` / `COMUNICADO_MAX_PEOPLE`                                       | 10 (festivals + lists) / 100                                                                                                            |                                                                                                                                         |
+| `COMUNICADO_MAX_RECIPIENTS`                                                              | 3,000 eligible, counted before narrowing                                                                                                | K6                                                                                                                                      |
+| `COMUNICADO_TYPE_TO_CONFIRM_RECIPIENTS`                                                  | 300, and always when essential                                                                                                          | K6                                                                                                                                      |
+| `COMUNICADO_SCHEDULE_MIN_LEAD_MS` / `…_MAX_AHEAD_DAYS`                                   | 5 min / 60 days                                                                                                                         |                                                                                                                                         |
+| `COMUNICADO_SCHEDULE_LATE_LIMIT_MS`                                                      | 60 min                                                                                                                                  | K5                                                                                                                                      |
+| `COMUNICADO_SCHEDULE_OVERDUE_BANNER_MS`                                                  | 3 min                                                                                                                                   | G3, G6                                                                                                                                  |
+| `ESSENTIAL_FESTIVAL_GRACE_DAYS`                                                          | 7                                                                                                                                       | B7, K8                                                                                                                                  |
 | `FANOUT_CHUNK` / `FANOUT_MAX_ATTEMPTS`                                                   | 250 / 3                                                                                                                                 | The chunk is new: gifts process one recipient per transaction. The 3 is gifts' `MAX_RECIPIENT_ATTEMPTS` (`credit_gifts/service.ts:51`). |
-| `BULK_BATCH_SIZE`                                                                        | 100                                                                                                                                     | `RESEND_BATCH_MAX_EMAILS` (`app/vendors/resend.ts:19`).                                 |
-| `BULK_BATCH_SPACING_MS`                                                                  | 1,500, slept **under** the lane lock                                                                                                    | D4                                                                                      |
-| `BULK_BATCH_RESERVE_MS`                                                                  | 25,000: no batch starts with less time left                                                                                             | render, one Resend call with its one throttle retry, spacing, margin                    |
-| `BULK_LANE_LOCK_POLL_MS`                                                                 | 500                                                                                                                                     | D3                                                                                      |
-| `BULK_EMAIL_TTL_MS`                                                                      | 20 h from the row's `created_at`                                                                                                        | Resend keeps keys for 24 h (`resend.ts:32-33`).                                         |
-| `BULK_PUSH_CONCURRENCY`                                                                  | 8                                                                                                                                       | D5                                                                                      |
-| `COMUNICADOS_CRON_DEADLINE_MS` / `SEND_AFTER_DEADLINE_MS` / `PROCESS_BUTTON_DEADLINE_MS` | 75,000 / 85,000 / 80,000                                                                                                                | All under `maxDuration: 100` (`vercel.json`).                                           |
-| `RESEND_THROTTLE_RETRY_MAX_MS` (`app/vendors/resend.ts`)                                 | 2,000                                                                                                                                   | D4                                                                                      |
-| `LIST_MAX_FIXED_MEMBERS`                                                                 | 3,000                                                                                                                                   |                                                                                         |
-| Rate limits (`consumeActionRateLimit`, `app/lib/rate-limit.ts:50`)                       | Test send: 5 per 10 min per admin. "Reintentar fallidos": 1 per 5 min per comunicado. "Procesar envíos pendientes": 1 per 30 s overall. |                                                                                         |
+| `BULK_BATCH_SIZE`                                                                        | 100                                                                                                                                     | `RESEND_BATCH_MAX_EMAILS` (`app/vendors/resend.ts:19`).                                                                                 |
+| `BULK_BATCH_SPACING_MS`                                                                  | 1,500, slept **under** the lane lock                                                                                                    | D4                                                                                                                                      |
+| `BULK_BATCH_RESERVE_MS`                                                                  | 25,000: no batch starts with less time left                                                                                             | render, one Resend call with its one throttle retry, spacing, margin                                                                    |
+| `BULK_LANE_LOCK_POLL_MS`                                                                 | 500                                                                                                                                     | D3                                                                                                                                      |
+| `BULK_EMAIL_TTL_MS`                                                                      | 20 h from the row's `created_at`                                                                                                        | Resend keeps keys for 24 h (`resend.ts:32-33`).                                                                                         |
+| `BULK_PUSH_CONCURRENCY`                                                                  | 8                                                                                                                                       | D5                                                                                                                                      |
+| `COMUNICADOS_CRON_DEADLINE_MS` / `SEND_AFTER_DEADLINE_MS` / `PROCESS_BUTTON_DEADLINE_MS` | 75,000 / 85,000 / 80,000                                                                                                                | All under `maxDuration: 100` (`vercel.json`).                                                                                           |
+| `RESEND_THROTTLE_RETRY_MAX_MS` (`app/vendors/resend.ts`)                                 | 2,000                                                                                                                                   | D4                                                                                                                                      |
+| `LIST_MAX_FIXED_MEMBERS`                                                                 | 3,000                                                                                                                                   |                                                                                                                                         |
+| Rate limits (`consumeActionRateLimit`, `app/lib/rate-limit.ts:50`)                       | Test send: 5 per 10 min per admin. "Reintentar fallidos": 1 per 5 min per comunicado. "Procesar envíos pendientes": 1 per 30 s overall. |                                                                                                                                         |
 
 ---
 
@@ -508,7 +508,7 @@ A ban or a deletion request in between leaves the person skipped, not notified.
     - a snapshot bug;
     - a comunicado written on one preview and drained by another, since all previews share one database.
   - The fan-out chunk re-applies row 7 too, by its own `VERCEL_ENV` and the `source` it reads (D2 step 6), so the inbox and push are covered, not only email.
-  - Lane-wide drains (fan-out, bulk email claims, bulk push selection) take only campaigns whose `audience_summary.env` equals the draining process's `VERCEL_ENV` (D9). A dev server sharing a preview's database, or a preview sharing production's, never drains the other's rows.
+  - Lane-wide drains (fan-out, bulk email claims, bulk push selection) take only campaigns whose `audience_summary.env` equals the draining process's `VERCEL_ENV` (D9). Rows a dev server leaves in a shared or production database are never sent by a preview or by the production cron.
 - **The cap** (3,000) and the "nobody eligible" refusal are computed **before** narrowing, so a preview refuses exactly what production would.
 
 ### B7. Email rules: opt-out, suppression, essential
@@ -556,10 +556,10 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
   - For "Enviar ahora", that is the confirm transaction.
   - For a scheduled send, it is the release transaction (E3).
   - Lists are "computed when used" and filters "re-evaluated at send time" (PRD §12, Audiences).
-- **The schedule dialog says so:** "La audiencia se calcula al momento del envío: hoy serían 1.284 personas."
+- **The schedule dialog says so:** "La audiencia se calcula al momento del envío: hoy serían 1.240 personas."
 - **Drift guard:**
   - When typed confirmation applies (≥ 300 eligible, or essential), the server compares the typed number with its own count inside the send transaction.
-  - On a mismatch it rolls back with `AUDIENCE_CHANGED`: "La audiencia cambió: ahora son 1.291 personas. Revisá y confirmá de nuevo."
+  - On a mismatch it rolls back with `AUDIENCE_CHANGED`: "La audiencia cambió: ahora son 1.251 personas. Revisá y confirmá de nuevo."
   - This is the gifts' `CONFIRMATION_MISMATCH` pattern (`credit_gifts/service.ts:210-217`).
   - Below the threshold, a small drift is accepted.
 - **The snapshot is the recipient rows plus `audience_summary`.** So the report can still say "Lista «Ilustración La Paz» (filtro al 24/10, 312 personas)" after the list itself changes.
@@ -574,11 +574,11 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
   - resolves the list (B2, B3);
   - classifies the members with `classifyParticipantRecipients`;
   - returns `CreditGiftRecipientOption[]` through `toOption` (`credit_gifts/queries.ts:33-54`), plus a count of those skipped.
-- **The cap is not raised and nothing is truncated.** If the people already chosen plus the list's new eligible members would pass 100, nothing is added:
-  - «Confirmados · Glitter Navidad 2026» suma 240 personas que pueden recibir créditos y un regalo llega a 100 como máximo. Elegí una lista más chica o agregá personas una por una.
-  - On success: "Agregamos 42 personas de «Ilustradores» (8 ya estaban). 3 no pueden recibir regalos."
-- **The gift server code does not change.** The list expands into explicit ids on the client. `createCreditGift`, `replayCreditGift` (`credit_gifts/service.ts:131-184`), the typed total and `CreateCreditGiftSchema` all see a plain list of ids.
-- **Outside production the button is disabled:** "En staging no se pueden agregar listas a un regalo: agregá a las personas por nombre."
+- **The cap is not raised and nothing is truncated (K16).** If the people already chosen plus the list's new eligible members would pass 100, nothing is added:
+  - "Con «Confirmados · Glitter Navidad 2026» serían 340 personas y un regalo llega a 100 como máximo. Elegí una lista más chica o agregá personas una por una."
+  - On success: "Agregamos 42 personas de «Ilustración Cochabamba» (8 ya estaban). 3 no pueden recibir regalos."
+- **The gift server code does not change.** The list expands into explicit ids on the client. `createCreditGift` (`credit_gifts/service.ts:194`), `replayCreditGift` (`:131-184`), the typed total and `CreateCreditGiftSchema` all see a plain list of ids.
+- **Outside production the button is disabled (K16):** "En el entorno de prueba no se pueden agregar listas a un regalo: agregá a las personas por nombre."
   - Gifts accept participants only, so they cannot be narrowed to admins.
   - Gift email is real on previews.
   - The first real use is therefore checked by hand in production (I2).
@@ -673,7 +673,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 
 **Excerpt:** `excerptOf(text)` collapses whitespace and cuts at 280 characters on a word boundary, adding "…" when it cuts. It becomes `notifications.body`.
 
-**Push:** the title, then "Tocá para ver el detalle.". The kind `opensDetail`, so `buildPushPayload` already does this (`push/payload.ts:89-97`). Text someone wrote never sits on a lock screen.
+**Push:** the title, then "Tocá para ver el detalle.". The kind `opensDetail`, so `buildPushPayload` already does this (`push/payload.ts:89-97`). The text itself never sits on a lock screen.
 
 ### C4. Images (PR 8, separable; K11)
 
@@ -701,7 +701,8 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 
 ### C6. Action button
 
-- **Optional:** a label of 1–30 characters and a **Glitter path**, never an external URL. This matches `notifications_action_path_relative` (`db/schema.ts:7235-7238`) and PRD §7's "Links are always paths inside Glitter". External links go in the text.
+- **Optional:** a label of 1–30 characters and a **Glitter path**, never an external URL, as PRD §7's "Links are always paths inside Glitter" says. External links go in the text.
+  - The rule is stricter than the schema CHECK `notifications_action_path_relative` (`db/schema.ts:7235-7238`), which only checks `LIKE '/%'` and so accepts `//evil.example`. The real guard is `safeActionPath` (below).
 - **The path rule** is `/^\/(?![\/\\])[^\s\x00-\x1f\x7f]*$/`, the same rule as the CHECK in A4.
   - Browsers strip tabs and newlines while parsing a URL, so `"/\t/evil.example"` would become `//evil.example`.
   - Both `<Link href>` (`notification-detail.tsx:49-52`) and `new URL(path, request.url)` (`open/route.ts:19`) would follow it.
@@ -775,7 +776,7 @@ BEGIN
  4. SELECT id, user_id, source FROM notification_campaign_recipients
       WHERE id = ANY($candidateIds) AND status = 'pending' FOR UPDATE SKIP LOCKED     -- a concurrent runner's rows go to `passed`
  5. SELECT user_id FROM pending_user_deletions WHERE user_id = ANY($) AND local_deleted_at IS NULL
- 6. classify with B5 (rows 1–6; the snapshot already applied row 7)
+ 6. classify with B5 rows 1–6, and re-apply row 7 by this process's VERCEL_ENV with the `source` read in step 4 (B6)
  7. notifyMany(tx, { kind: "comunicado", data, userIds: eligible, dedupeKey: `comunicado:${k}`, campaignId: c,
                      email: sendEmail ? "bulk" : null, push: sendPush })
  8. UPDATE notification_campaign_recipients r SET status = 'notified', notification_id = v.nid, attempts = r.attempts + 1,
@@ -857,17 +858,20 @@ The lane is generic over a renderer registry, `BULK_EMAIL_RENDERERS = { comunica
 
 ```sql
 UPDATE notification_deliveries
-SET status = 'failed', last_error = CASE WHEN maybe_sent_at IS NULL THEN 'expired' ELSE 'outcome_unknown' END,
+SET status = 'failed',
+    last_error = CASE WHEN status = 'pending' AND maybe_sent_at IS NULL THEN 'expired' ELSE 'outcome_unknown' END,
+    maybe_sent_at = CASE WHEN status = 'processing' THEN coalesce(maybe_sent_at, now()) ELSE maybe_sent_at END,
     lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
 WHERE lane = 'bulk' AND channel = 'email'
   AND (status = 'pending' OR (status = 'processing' AND lease_expires_at < now()))
   AND created_at <= now() - interval '20 hours';
 ```
 
+- A row found `processing` had an attempt that never settled, so it is marked `maybe_sent_at` here, as the claim would mark it (S1). The claim never re-takes it once it is older than 20 h, so without this a batch that landed and then lost its settle would read "Venció sin enviarse" and could be retried by hand.
 - No bulk email is ever sent more than 20 h after its row was written. Its key is minted after that, so **no key is ever re-submitted after Resend's 24 h window** (`resend.ts:32-33`), whatever happened in between: a quota stall, a missing cron on a preview, an operator hold.
 - An `expired` row can be retried by an admin; an `outcome_unknown` one cannot (G6).
 
-**B1, the claim** (a short transaction, committed before any request leaves):
+**S1, the claim** (a short transaction, committed before any request leaves):
 
 1. **A held batch first:** rows that still carry a `batch_key` and are due, re-claimed as the same group under the same key. Rows found `processing` with an expired lease had an attempt that never settled, so they are marked `maybe_sent_at`:
    ```sql
@@ -897,19 +901,20 @@ WHERE lane = 'bulk' AND channel = 'email'
    FROM picked WHERE d.id = picked.id RETURNING d.*;
    ```
 
-- `<dueNow>` is the predicate at `deliveries.ts:62-69`, which uses the database clock. `<scope>` is the send's own campaign, or nothing for the lane-wide drain.
+- `<dueNow>` is the predicate at `deliveries.ts:62-69`, which uses the database clock. `<scope>` is the send's own campaign. Lane-wide, it is the campaigns whose `comunicados.audience_summary->>'env'` equals this process's `VERCEL_ENV` (D9), and the subquery that picks the oldest comunicado applies it too.
 - `$newKey = 'comunicado-batch:{campaignId}:{uuid}'`. `sendBatchEmails` scopes it by `VERCEL_ENV` and hashes it past 256 characters (`resend.ts:40-46`).
 - **The key is committed with the claim.** A batch that dies mid-request comes back after its lease with the same key and the same rows, now marked `maybe_sent_at`, and Resend deduplicates it if it had landed.
 
-**Before B2** (outside any transaction): if `deadline − now < BULK_BATCH_RESERVE_MS` (25 s), release the claim (below) and stop.
+**Before S2** (outside any transaction): if `deadline − now < BULK_BATCH_RESERVE_MS` (25 s), release the claim (below) and stop.
 
-**B2, the send.** One transaction on `tx` throughout; nothing in it uses `db`.
+**S2, the send.** One transaction on `tx` throughout; nothing in it uses `db`.
 
 ```
 BEGIN
-SET LOCAL lock_timeout = '<min(15 s, deadline − now − 25 s)>'
+SET LOCAL lock_timeout = '<max(1 s, min(15 s, deadline − now − 25 s))>'   -- for the next statement only
 SELECT pg_advisory_xact_lock_shared(COMUNICADO_LOCK_NS, $k)        -- own statement: fixes WHICH revision is rendered; waits behind an edit/retract
-SELECT pg_try_advisory_xact_lock(BULK_LANE_NS, 0)                  -- false → ROLLBACK, sleep 500 ms outside, retry B2 until the reserve
+SET LOCAL lock_timeout = DEFAULT                                   -- the settle after the request never times out
+SELECT pg_try_advisory_xact_lock(BULK_LANE_NS, 0)                  -- false → ROLLBACK, sleep 500 ms outside, retry S2 until the reserve
 SELECT current_revision, retracted_at, essential, <festival name>, title/doc of that revision FROM comunicados …
 pre-check (one query, below) → UPDATE the rows that fail (batch_key stays, as history)
 render each sendable row → { from, to, replyTo, subject, html, text, headers?, tags }
@@ -922,7 +927,9 @@ COMMIT
 - **Lock order.** The comunicado lock comes first, so a batch never holds the lane while waiting behind an edit. The lane lock is a try-lock, so no connection waits on it. An edit or retraction takes only the comunicado lock, so the two cannot cycle.
 - **Spacing under the lane lock** guarantees at least 1.5 s between any two bulk requests, whatever the number of drivers. That is at most `1 / (H + 1.5 s)` requests per second, where H is the lock hold (render plus request, about 0.8–2.8 s): about 0.23–0.43 requests per second.
 - **A batch whose pre-check leaves no sendable row** settles without a request and without the wait.
-- **Releasing a claim.** When the reserve is reached first, or `lock_timeout` fires on the comunicado lock, a short transaction sets the claim's rows back to `pending`: lease cleared, key and `maybe_sent_at` kept, `next_attempt_at = now()`. Rows of a retracted comunicado become `skipped` `retracted` instead. No request left, so nothing is marked.
+- **The lock timeout** covers only the comunicado lock. It is clamped to at least 1 s, because `'0'` turns the timeout off and a negative value makes the `SET` fail.
+- **Releasing a claim.** Only a failure that came **before** the Resend request releases a claim: the reserve reached first, `lock_timeout` on the comunicado lock, or any error before `sendBatchEmails` is called. A short transaction sets the claim's rows back to `pending`: lease cleared, key and `maybe_sent_at` kept, `next_attempt_at = now()`, nothing marked. Rows of a retracted comunicado become `skipped` `retracted` instead.
+- **Any failure after the request** (the settle, the commit, the process dying) leaves the rows `processing`, never released. The re-claim after the lease then marks them `maybe_sent_at` (S1).
 
 **Pre-check** (the first match wins; an allowlist, so missing rows and NULLs fail closed):
 
@@ -995,13 +1002,15 @@ Unsubscribe tokens are deterministic (`unsubscribe-tokens.ts:12-16`), so an unch
 
 - **I6.** A row's key is minted in a committed claim before any request carries it, and is never given to other rows.
   - It is dropped only while no attempt under it may have landed.
-  - Once `maybe_sent_at` is set, the row stays in that batch until it ends `sent` or `failed` `outcome_unknown`.
+  - Once `maybe_sent_at` is set, the row stays in that batch under its key: it is never re-batched under a new key and never picked by "Reintentar fallidos". It may end `sent`, `failed` (`outcome_unknown` or `resend:<code>`, or the pre-check's `address_changed`) or `skipped` by the pre-check, and the report shows "Puede haber llegado" unless it is `sent`.
   - A held batch only ever shrinks.
   - No row is sent more than 20 h after it was written.
-  - So a 409 can only mean "every row in the first request was delivered", and marking the survivors sent is true. A key is never re-submitted after Resend could have forgotten it.
+  - So a 409 means that an earlier request under this key was accepted, and every surviving row was in it. It does not prove each of those rows was delivered: in permissive mode Resend may have refused one of them on its own, and the 409 does not say which. Those rows are recorded `sent` with `idempotent_replay` and reported as not confirmed per person (G6). A key is never re-submitted after Resend could have forgotten it.
 - **I7.** "Reintentar fallidos" never selects a row with `maybe_sent_at` set (G6).
 
-### D4. Never delaying transactional email
+### D4. Keeping transactional email first
+
+Comunicado email never queues ahead of transactional email, and it uses under half a request per second of Resend's limit. A rate-limit collision costs one wrapper retry of at most 2 s (item 2). A batch does not wait for transactional email to go quiet.
 
 1. **Lanes** (`app/lib/notifications/deliveries.ts`):
    - `processPendingNotificationDeliveries` (`:410-424`) and `sendDuePushDeliveries` (`:347-390`, used by the cron's push pass and by `drainDuePushDeliveries`) add `lane = 'transactional'`;
@@ -1020,18 +1029,15 @@ Unsubscribe tokens are deterministic (`unsubscribe-tokens.ts:12-16`), so an unch
    - quota and other codes keep today's handling;
    - the expectation in `gifts.integration.test.ts:651-656` (a 429 spends an attempt) flips.
 4. **Pacing and single flight for bulk:** one bulk request in flight across servers, with 1.5 s of spacing under the lane lock (D3).
-   - Bulk takes at most about 0.43 requests per second of Resend's per-team limit. Resend's docs (checked 2026-10-24) give a default of 10 requests per second per team, across all API keys; older Resend pages said 2 or 5. The account's actual value is on Resend → Settings → Usage. This pacing stays safe even at 2 per second.
+   - Bulk takes at most about 0.43 requests per second of Resend's per-team limit, under 5 % of 10 per second. Resend's docs (checked 2026-10-24) give a default of 10 requests per second per team, across all API keys; older Resend pages said 2 or 5. The account's actual value is on Resend → Settings → Usage. This pacing stays safe even at 2 per second.
    - Festival invitations are a second bulk sender (`invitations.ts:646-655, 768-770`) outside this lock. Their collisions are absorbed by the wrapper retry (item 2).
-
-**No yield.** A batch does not wait for transactional email to go quiet. Bulk takes under 5 % of a 10 requests-per-second limit (and about a fifth of the old 2 per second one), and a collision costs one wrapper retry (item 2 above), which every sender now has.
-
 5. **A separate cron.** Bulk work never runs inside `/api/cron/morning/notifications`. Its 75 s budget, its passes and its pinned test (`app/api/cron/morning/notifications/route.ts:9,31-40`; `route.test.ts:46-84`) stay exactly as they are.
 
 ### D5. Bulk push
 
 - **Function:** `sendBulkPushes({ campaignId?, budgetMs, concurrency: BULK_PUSH_CONCURRENCY })` in `deliveries.ts`.
 - **Without VAPID keys it returns at once,** as `sendDuePushDeliveries` does (`deliveries.ts:362-364`). Otherwise it would claim rows only to hand them back as `unconfigured` for an hour (`push/send.ts:146-147`).
-- **Selection:** `SELECT id FROM notification_deliveries WHERE lane='bulk' AND channel='push' AND <dueNow> <scope> ORDER BY id LIMIT 400`.
+- **Selection:** `SELECT id FROM notification_deliveries WHERE lane='bulk' AND channel='push' AND <dueNow> <scope> ORDER BY id LIMIT 400`. `<scope>` is D3's, so lane-wide it takes only this environment's campaigns.
 - **Sending:** a pool of 8 runs the existing `attemptClaimedDelivery` and `settlePush` (`deliveries.ts:135-145, 241-297`), with no sleeps, and starts nothing new once the budget is spent.
 - **Every P2b rule is unchanged:** TTL, release on key mismatch, a 429 with Retry-After without spending an attempt, `deleting`, `archived`, `read`, and the flags for the recipient's role (`push/send.ts:130-276`).
 - **A new skip reason `retracted`,** checked before `archived` (`push/send.ts:195`), so the report can tell a retracted push from one the person archived.
@@ -1065,18 +1071,19 @@ Unsubscribe tokens are deterministic (`unsubscribe-tokens.ts:12-16`), so an unch
 - **Staging marks** (every environment except production; also on the test send):
   - the subject is prefixed with `getEnvLabel()`, giving "[Prev] Cambio de horario de armado";
   - the From display name becomes "Productora Glitter (prueba)";
-  - a footer note reads: "Este correo salió del entorno de prueba de Glitter. Darte de baja acá no cambia los correos que te enviamos desde Glitter; si no esperabas recibirlo, respondé a este correo."
+  - a footer note reads: "Este correo salió del entorno de prueba de Glitter. Darte de baja acá no cambia nada en los correos del sitio real de Glitter; si no esperabas recibirlo, respondé a este correo."
 - **The override** is the single `essential` argument of `comunicadoEmailExclusion` in the pre-check. `essential` cannot change after the send starts.
 - **`EmailCopy` and the transactional `runDelivery` do not change:** the bulk lane builds its own Resend payload.
 
 ### D8. Send-time checks, in one place
 
-| Where                                            | Checks                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Snapshot (D1)                                    | B5 rows 1–7; the cap; empty; the essential rules, including a current festival; the typed count; the base URL                                                                                                                                                                                                               |
-| Fan-out chunk, under the user lock (D2)          | retracted (stop); B5 rows 1–6                                                                                                                                                                                                                                                                                               |
-| Each email batch, under the comunicado lock (D3) | expiry (20 h); retracted; no recipient row or no source; deleting; not eligible for its `source`; `staging` by the sender's env (allowlist); address changed; suppressed (never bypassed); unsubscribed from `all`, or from `announcements` unless essential; invalid address. **The text is always the current revision.** |
-| Each push (D5)                                   | the existing P2b checks plus `retracted`                                                                                                                                                                                                                                                                                    |
+| Where                                            | Checks                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Snapshot (D1)                                    | B5 rows 1–7; the cap; empty; the essential rules, including a current festival; the typed count; the base URL                                                                                                                                                                                                |
+| Fan-out chunk, under the user lock (D2)          | retracted (stop); B5 rows 1–6; row 7 by the chunk's own env                                                                                                                                                                                                                                                  |
+| Each email step and claim (D3)                   | expiry (20 h): in Step 0 and in the claim filter, not under the comunicado lock; only this environment's campaigns when lane-wide (D9)                                                                                                                                                                       |
+| Each email batch, under the comunicado lock (D3) | retracted; no recipient row or no source; deleting; not eligible for its `source`; `staging` by the sender's env (allowlist); address changed; suppressed (never bypassed); unsubscribed from `all`, or from `announcements` unless essential; invalid address. **The text is always the current revision.** |
+| Each push (D5)                                   | the existing P2b checks plus `retracted`                                                                                                                                                                                                                                                                     |
 
 The gift-only `giftWasRevoked` guard (`deliveries.ts:106-114,153-162`) stays as it is; comunicado rows never take that path.
 
@@ -1092,6 +1099,8 @@ The gift-only `giftWasRevoked` guard (`deliveries.ts:106-114,153-162`) stays as 
    - skipped lane-wide in development;
    - skipped outside development when `publicBaseUrl()` is unusable, with a `console.error`.
 5. **Completion:** every campaign it touched, plus, in lane scope, the sweep of `processing` comunicado campaigns (D2).
+
+**Only its own environment's campaigns.** Lane-wide, steps 2–4 (fan-out, bulk push selection, bulk email claims) take only campaigns whose `comunicados.audience_summary->>'env'` equals this process's `VERCEL_ENV`. A scoped run is its own campaign, written by the same environment.
 
 | Trigger                                                                                                                           | Scope              | Deadline            | Where                                                                                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1176,12 +1185,14 @@ Step 1 of the lane-scoped `runComunicadoWork`, in the per-minute cron and behind
 ```sql
 BEGIN;
 SELECT id, version, scheduled_at FROM comunicados WHERE status = 'scheduled' AND scheduled_at <= now()
+  AND id <> ALL($triedThisTick)
 ORDER BY scheduled_at LIMIT 1 FOR UPDATE SKIP LOCKED;          -- served by comunicados_scheduled_idx
 -- startComunicadoSend(tx, id, { trigger: 'schedule', by: scheduled_by_user_id }) in this same transaction (D1)
 COMMIT;
 ```
 
 - It repeats up to 3 times per tick.
+- **Each iteration skips the ids already tried in this tick.** One comunicado that throws an unexpected error cannot hold back later ones; it stays scheduled until it becomes `late` (E4).
 - **A cancel that committed first wins.** An overlapping run skips the locked row; once committed, the row reads `sent`.
 - **Due-ness uses the database clock,** as the queue does (`deliveries.ts:62-69`).
 
@@ -1189,7 +1200,7 @@ COMMIT;
 
 - **Content:** revision 1 is taken from the working copy, read and rendered under the release's row lock (D1 step 3).
 - **Audience:** resolved at release (B8). Someone added to a list after scheduling receives it.
-- **Typed count:** there is no comparison at release, since nobody is there to type. The audience is whatever the lists hold then, still capped.
+- **Typed count:** there is no comparison at release, since nobody is there to type. The audience is whatever the lists hold then, still capped (K14).
 
 ### E4. Lateness and refusals at release
 
@@ -1211,13 +1222,16 @@ COMMIT;
 - A new transaction records the miss **at the first failure**:
   ```sql
   UPDATE comunicados SET status='draft', scheduled_at=NULL, schedule_missed_at=now(), schedule_missed_reason=$r,
-         schedule_missed_detail=$sentence, version=version+1
+         schedule_missed_detail=$sentence,
+         essential_confirmed_by_user_id=NULL, essential_confirmed_at=NULL,   -- as "Cancelar programación" does
+         version=version+1
   WHERE id=$id AND status='scheduled' AND version=$v      -- $v read under the release's lock; a change of date or a send in between wins
   ```
-- If that updated a row, it notifies with `comunicado_not_sent` (G9):
+  - Clearing the essential confirmation keeps the draft editable: `comunicados_essential_confirmed` has no draft exemption, so unticking "Correo esencial" would otherwise fail every autosave.
+- If that updated a row, the **same transaction** writes the `comunicado_not_sent` item (G9), so a crash cannot record the miss and lose the bell item:
   - to `scheduled_by_user_id` when that person is still a global admin;
   - otherwise to every global admin (`fetchAdminUsers`, `app/lib/users/queries.ts:173-185`).
-- An **unexpected** error (not a typed refusal) leaves the comunicado scheduled, so the next tick retries it until it becomes `late`. 40P01 and 23503 were already retried inside D1.
+- An **unexpected** error (not a typed refusal) leaves the comunicado scheduled, so the next tick retries it until it becomes `late`. The release does not try it again in the same tick (E2), so later schedules still go out. 40P01 and 23503 were already retried inside D1.
 - The draft shows the same sentence as a banner until it is scheduled or sent again. Sending it works (D1 step 7).
 
 **Why there is a limit:** "mañana el armado empieza a las 8:00" sent two days late does harm, and nothing marks which comunicados are time-critical, so the limit applies to all (K5). The blog has no cap (`app/lib/posts/schedule.ts:12-15`), which suits an article but not an anuncio.
@@ -1231,13 +1245,13 @@ COMMIT;
   - the default is the next full hour plus one.
 - **Storage:** the instant, in the repo's naive-UTC `timestamp` convention. Bolivia has no daylight saving time, so no local time is ambiguous.
 - **Validation** (server clock): at least now + 5 minutes, at most now + 60 days.
-- **The time is always shown afterwards** with `formatDateTime`: "Programado para el sábado 1 de noviembre, 09:00 (hora de Bolivia)", on the list row, the badge and the page.
+- **The time is always shown afterwards** with `formatDateTime`: "Programado para el sábado 31 de octubre, 09:00 (hora de Bolivia)", on the list row, the badge and the page.
 - **Dialog copy:** "Horario de Bolivia (La Paz). Se envía dentro del minuto siguiente a la hora elegida. Si por algún problema se atrasa más de una hora, no se envía y queda como borrador."
 
 ### E6. Previews, and overdue schedules everywhere
 
-- **On previews,** scheduling writes the same rows, but nothing fires by itself. The dialog adds: "En staging no corren las tareas programadas: después de la hora elegida tocá «Procesar envíos pendientes»."
-- **In every environment,** a comunicado still `scheduled` 3 minutes after its time shows, on the list row and on its page: "Debería haber salido el sáb 1 nov, 09:00 y todavía no salió." It offers **Enviar ahora**, and on previews also **Procesar envíos pendientes**. A broken cron in production is visible the same way.
+- **On previews,** scheduling writes the same rows, but nothing fires by itself. The dialog adds: "En el entorno de prueba no corren las tareas programadas: después de la hora elegida tocá «Procesar envíos pendientes»."
+- **In every environment,** a comunicado still `scheduled` 3 minutes after its time shows, on the list row and on its page: "Debería haber salido el sáb 31 oct, 09:00 y todavía no salió." It offers **Enviar ahora**, and on previews also **Procesar envíos pendientes**. A broken cron in production is visible the same way.
 - **The 60-minute limit applies on previews too,** so waiting an hour is a way to test the missed path.
 
 ---
@@ -1281,16 +1295,16 @@ The content is normalized and rendered (C2, send stage; C3) before the transacti
 
 ### F2. What an edit reaches
 
-| Surface                             | Effect                                                                                                                      |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Inbox list                          | new title and excerpt, "· Editado", within the next 60 s poll (`use-unread-notification-count.ts:8`); read state kept       |
-| Detail page                         | the current revision's HTML at once, plus "Editado el 25 de octubre, 10:12"                                                 |
-| Rows written after the edit         | revision n+1, no "Editado"                                                                                                  |
-| Email pending or claimed            | renders n+1 when sent                                                                                                       |
-| Email held after an unknown outcome | re-sent with n+1 under the old key: 409 means the old one landed ("Enviado en un intento anterior"); otherwise n+1 goes out |
-| Email sent                          | stays; the report shows "versión 1"                                                                                         |
-| Push pending / delivered            | new title / stays on the device                                                                                             |
-| Report                              | "Historial": "Versión 2 · editada por Ana el 25 oct., 10:12 · «Cambió el horario de armado»"                                |
+| Surface                             | Effect                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inbox list                          | new title and excerpt, "· Editado", the next time the list loads: opening the bell, coming back to the tab, navigating (`notification-inbox.tsx:152-155`; `notification-popover-content.tsx:73-80`). The 60 s poll reads only the unread count (`use-unread-notification-count.ts:8,12,69`), which an edit does not change. Read state kept |
+| Detail page                         | the current revision's HTML at once, plus "Editado el 25 de octubre, 10:12"                                                                                                                                                                                                                                                                 |
+| Rows written after the edit         | revision n+1, no "Editado"                                                                                                                                                                                                                                                                                                                  |
+| Email pending or claimed            | renders n+1 when sent                                                                                                                                                                                                                                                                                                                       |
+| Email held after an unknown outcome | re-sent with n+1 under the old key: 409 means an earlier request was accepted ("Enviado (sin confirmación por persona)"); otherwise n+1 goes out                                                                                                                                                                                            |
+| Email sent                          | stays; the report shows "versión 1"                                                                                                                                                                                                                                                                                                         |
+| Push pending / delivered            | new title / stays on the device                                                                                                                                                                                                                                                                                                             |
+| Report                              | "Historial": "Versión 2 · editada por Ana el 25 oct., 10:12 · «Cambió el horario de armado»"                                                                                                                                                                                                                                                |
 
 ### F3. Retract: `retractComunicado(id, { reason }, by)` in `app/lib/comunicados/retract.ts`
 
@@ -1314,7 +1328,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 
 - A retracted item disappears from the list, the badge, mark-all, the chip and the detail page.
 - A push tap or a bookmark reaches `/open` or the detail page, finds nothing visible, and redirects to the inbox, as any item that is gone does (`[notificationId]/page.tsx:28-31`; `open/route.ts:73-74`).
-- "Deshacer archivar" and "Marcar como leída" update nothing (A2).
+- The archive toast's "Deshacer", "Marcar como leída" and the "Deshacer" after "Marcar todo como leído" update nothing (A2).
 - A retracted comunicado stays readable in the dashboard, with its revisions and report.
   - It can be duplicated, which is the usual fix: retract, duplicate, correct, send.
   - It cannot be edited or retracted again.
@@ -1347,8 +1361,8 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 
 - **I1.** After any committed edit, every non-retracted inbox row of the campaign has `data.revision = current_revision`, and its title and body match that revision.
 - **I2.** No bulk email request carries a revision other than the one current when its batch took the lock, and none starts after a retraction has committed.
-- **I3.** A retracted row is archived and cannot be un-archived (the CHECK). `updateOne` and `markNotificationRead` update 0 rows.
-- **I4.** After a retraction commits, no comunicado email or push carrying it can be requested. No `pending` recipient remains. Every `pending` delivery is skipped. Claimed rows meet `retracted` in their pre-check, or are released as skipped.
+- **I3.** A retracted row is archived and cannot be un-archived (the CHECK). `updateOne`, `markNotificationRead` and `markNotificationsUnreadAction` update 0 rows.
+- **I4.** After a retraction commits, no comunicado email can be requested, and no push whose inbox row was read after the retraction committed (bulk push takes no comunicado lock, so a push that read the row just before may still go out). No `pending` recipient remains. Every `pending` delivery is skipped. Claimed rows meet `retracted` in their pre-check, or are released as skipped.
 - **I5.** At most one campaign per comunicado, and at most one recipient row and one inbox row per (comunicado, person).
 - **I6, I7.** As stated at the end of D3.
 - **I8.** The transactional drains never claim a bulk row, and `claimDelivery` refuses a bulk email.
@@ -1361,7 +1375,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - **After a retraction:**
   - the KPIs freeze;
   - a banner reads "Retirado el 25 oct., 11:02 por Dennis · Motivo: «…»";
-  - cancelled emails read "Cancelado (retirado)", mapped from `last_error = 'retracted'`. This follows the `revoked` → cancelled precedent in `emailStateOf` (`credit_gifts/queries.ts:224-239`).
+  - cancelled emails read "Cancelado (retirado)", mapped from `last_error = 'retracted'`, unless `maybe_sent_at` is set ("Puede haber llegado", G6). This follows the `revoked` → cancelled precedent in `emailStateOf` (`credit_gifts/queries.ts:224-239`).
 
 ---
 
@@ -1385,7 +1399,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - **Navigation:**
   - desktop: a "Comunicaciones" entry in the admin "Dashboard" menu (`app/components/navbar/navigation-menu.tsx:300-417`, next to "Créditos"), with the text "Anuncios a participantes por la app, el correo y el dispositivo";
   - mobile: the admin block (`app/components/organisms/mobile-sidebar.tsx:249-380`);
-  - it is resolved in `navbar.tsx:32-47` as `role === "admin" && await isLayoutFeatureEnabled("comunicados")` (`app/lib/feature_flags/helpers.ts:52`), and passed through `navbar-client.tsx`, following `blogEnabled`.
+  - the flag is resolved in `navbar.tsx:32-47` with `isLayoutFeatureEnabled("comunicados")` (`app/lib/feature_flags/helpers.ts:52`) and passed through `navbar-client.tsx`, following `blogEnabled`. `navbar.tsx` has no profile in scope, so the role check is on the client, inside the existing admin blocks (`navigation-menu.tsx:300`, `mobile-sidebar.tsx:249`), as with `blogEnabled`.
 
 ### G2. Permission and flag checks (all on the server)
 
@@ -1399,7 +1413,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 | "Procesar envíos pendientes"                                                                                                                                                                                                           | all of the above, plus `VERCEL_ENV === "preview"` and its rate limit                                                                                                                                                                                                                              |
 | Cron                                                                                                                                                                                                                                   | `isAuthorizedCronRequest`. **It ignores the flag:** a send someone confirmed finishes even if the flag is hidden halfway. The stops are "Cancelar programación" and "Retirar".                                                                                                                    |
 
-- `admin_only` would also admit festival admins (`app/lib/feature_flags/visibility.ts:182-186`). That is why every check asks for the role as well as the flag (decision 2).
+- `admin_only` would also admit festival admins (`canPreviewUnlaunchedFeatures`, `app/lib/feature_flags/visibility.ts:27-31`, used at `:61-62`). That is why every check asks for the role as well as the flag (decision 2).
 - **Festival admins see nothing of Comunicaciones in phase 3,** viewing included. That departs from gifts, where they see the pages with the button disabled (PRD §4, decision 1), so it is asked as K12. Read-only access later is a small change, because each page and query checks access in one place.
 
 ### G3. Comunicados list (`/dashboard/communications`)
@@ -1408,15 +1422,15 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - **Button "Nuevo comunicado":** it creates a draft and redirects, and stays disabled while pending.
 - **Each row shows:**
   - the title, or _"Sin título"_;
-  - a badge: "Borrador", "Programado · sáb 1 nov, 09:00", "Enviando…", "Enviado", "Retirado", "No se envió", plus the tags "Editado" and "Esencial";
+  - a badge: "Borrador", "Programado · sáb 31 oct, 09:00", "Enviando…", "Enviado", "Retirado", "No se envió", plus the tags "Editado" and "Esencial";
   - "Para: Confirmados · Glitter Navidad 2026 y 3 personas";
   - once sent: "1.240 personas · 1.180 correos · 41 % leído";
-  - "Enviado el jue 24 oct, 10:12 · Dennis".
+  - "Enviado el sáb 24 oct, 10:12 · Dennis".
 - **Overdue schedule:** E6's sentence on the row, with "Enviar ahora".
 - **Empty state:** "Todavía no hay comunicados." / "Escribí el primero para avisar algo a los participantes: llega a sus notificaciones y, si querés, a su correo."
 - **Banners, when they apply:**
-  - preview: "Estás en un entorno de prueba: los comunicados a listas les llegan solo a los administradores. Las personas que elijas por nombre sí lo reciben, con un correo real (marcado como prueba)." Next to it, the button "Procesar envíos pendientes" (single flight, D9).
-  - development: "Estás en desarrollo: los comunicados a listas les llegan solo a los administradores, y las personas que elijas por nombre lo reciben en la app. En desarrollo no se envían correos."
+  - preview: "Estás en un entorno de prueba: los comunicados a listas les llegan solo a los administradores. Las personas que elijas por nombre sí los reciben, con un correo real (marcado como prueba)." Next to it, the button "Procesar envíos pendientes" (single flight, D9).
+  - development: "Estás en desarrollo: los comunicados a listas les llegan solo a los administradores, y las personas que elijas por nombre los reciben en la app. En desarrollo no se envían correos."
 
 ### G4. Composer (one page, no wizard; the gift composer's two-column layout, `credit-gift-composer.tsx:120-228`)
 
@@ -1430,7 +1444,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 
 **Banners:**
 
-- **`notifications` not public for participants:** "Las notificaciones de la app todavía no son públicas: por ahora a los participantes solo les llega el correo. Lo van a ver en la app cuando se abra."
+- **`notifications` not public for participants:** "Las notificaciones de la app todavía no son públicas: por ahora a los participantes solo les llega el correo. Lo van a ver en la app cuando la campana se abra a todos."
 - **A missed schedule:** the E4 sentence, with its detail.
 
 **Card "Mensaje":**
@@ -1515,12 +1529,12 @@ It loads fresh numbers from the server when it opens:
 
 - puts the date and time picker on top ("Horario de Bolivia (La Paz)");
 - adds "La audiencia se calcula al momento del envío: hoy serían 1.240 personas.";
-- labels its button "Programar para sáb 1 nov, 09:00".
+- labels its button "Programar para sáb 31 oct, 09:00".
 
 **Server refusals:**
 
-- `AUDIENCE_CHANGED`: "La audiencia cambió mientras confirmabas: ahora son 1.241 personas. Revisá y confirmá de nuevo." The dialog reloads its numbers.
-- `AUDIENCE_TOO_LARGE`: "Por ahora un comunicado llega a 3.000 personas como máximo. Achicala con una lista más precisa."
+- `AUDIENCE_CHANGED`: "La audiencia cambió: ahora son 1.251 personas. Revisá y confirmá de nuevo." The dialog reloads its numbers.
+- `AUDIENCE_TOO_LARGE`: "Por ahora un comunicado llega a 3.000 personas como máximo. Achicá la audiencia con una lista más precisa."
 - `NO_ELIGIBLE_RECIPIENTS`: "Nadie de esta audiencia puede recibirlo."
 - `ESSENTIAL_NOT_ALLOWED`: "Solo un comunicado a un único «Confirmados · festival» de un festival en curso o próximo, con correo, puede ser esencial."
 
@@ -1530,8 +1544,8 @@ It loads fresh numbers from the server when it opens:
 
 **Header:**
 
-- the title, the badges, and "Enviado el jue 24 oct, 10:12 por Dennis · Editado el vie 25 oct, 09:30 por Ana";
-- the essential block, when essential: "Correo esencial · Confirmados · Glitter Navidad 2026 · lo confirmó Dennis el jue 24 oct, 10:11 · «…» · 30 personas dadas de baja de los anuncios lo recibieron igual · 4 sin correos masivos no.";
+- the title, the badges, and "Enviado el sáb 24 oct, 10:12 por Dennis · Editado el dom 25 oct, 10:12 por Ana";
+- the essential block, when essential: "Correo esencial · Confirmados · Glitter Navidad 2026 · lo confirmó Dennis el sáb 24 oct, 10:11 · «…» · 30 personas dadas de baja de los anuncios lo recibieron igual · 4 sin correos masivos no.";
 - "Destinatarios al enviar", from `audience_summary`: "Confirmados · Glitter Navidad 2026: 312 · Ilustradores: 845 · 3 personas por nombre".
 
 | State     | Actions                                                                                    |
@@ -1563,7 +1577,7 @@ It loads fresh numbers from the server when it opens:
 | En el dispositivo   | 395 de 410 (only when push was ticked)             |
 | En cola             | 8 (only while sending)                             |
 
-"Rebotes y spam" joins `email_suppressions` (`resend_email_id`, `db/schema.ts:5299-5300`) to this campaign's `provider_message_id`, through the unique `email_key` index. It counts a bounce or complaint whose latest event came from one of these emails.
+"Rebotes y spam" joins `email_suppressions` (`resend_email_id`, `db/schema.ts:5299-5300`) to this campaign's `provider_message_id`, through the unique `email_key` index. It counts a bounce or complaint whose latest event came from one of these emails. Its percentage is over the emails sent with a provider id: `idempotent_replay` rows have none and are not confirmed per person, so they are left out of the denominator.
 
 **Cards:**
 
@@ -1578,28 +1592,29 @@ It loads fresh numbers from the server when it opens:
 **Columns:**
 
 - **Persona:** name and email.
-- **Origen:** "Lista" · "Por nombre" · "Entorno de prueba".
+- **Origen:** "Lista" · "Por nombre" · "Admin de prueba" (an admin substituted on a preview). List members on a preview keep "Lista", with the skip "Entorno de prueba: no se envía a listas".
 - **App:** "Leído" · "No leído" · "Omitido: Cuenta suspendida" · "Retirado antes de enviarse" · "Falló".
-- **Correo**, from the latest email delivery (a `LATERAL` join by `notification_id`, served by `notification_deliveries_notification_idx`):
+- **Correo**, from the latest email delivery (a `LATERAL` join by `notification_id`, served by `notification_deliveries_notification_idx`). The first matching row wins:
 
-  | Delivery state                                      | Label                                                            |
-  | --------------------------------------------------- | ---------------------------------------------------------------- |
-  | sent                                                | Enviado 10:14 (· versión 1 when older than the current revision) |
-  | sent, `idempotent_replay`                           | Enviado (en un intento anterior)                                 |
-  | pending, processing                                 | En cola                                                          |
-  | `unsubscribed`                                      | Se dio de baja de los anuncios / de los correos masivos          |
-  | `suppressed`                                        | Correo bloqueado (rebote o spam)                                 |
-  | `invalid_address`                                   | Correo inválido                                                  |
-  | `not_eligible`                                      | Ya no puede recibirlo                                            |
-  | `deleting`                                          | Cuenta en eliminación                                            |
-  | `staging`                                           | Entorno de prueba                                                |
-  | `retracted`                                         | Cancelado (retirado)                                             |
-  | failed with `maybe_sent_at` set (`outcome_unknown`) | Puede haber llegado                                              |
-  | failed, `expired`                                   | Venció sin enviarse                                              |
-  | failed, `address_changed`                           | Cambió su correo                                                 |
-  | failed, `resend:*_quota_exceeded`                   | Límite de Resend                                                 |
-  | failed, other                                       | Con error                                                        |
-  | no row, email unticked                              | Sin correo                                                       |
+  | Delivery state                                  | Label                                                            |
+  | ----------------------------------------------- | ---------------------------------------------------------------- |
+  | sent, `idempotent_replay`                       | Enviado (sin confirmación por persona)                           |
+  | sent                                            | Enviado 10:14 (· versión 1 when older than the current revision) |
+  | pending or processing, `maybe_sent_at` set      | En cola (puede haber llegado)                                    |
+  | ended not sent, `maybe_sent_at` set, any reason | Puede haber llegado                                              |
+  | pending, processing                             | En cola                                                          |
+  | `unsubscribed`                                  | Se dio de baja de los anuncios / de los correos masivos          |
+  | `suppressed`                                    | Correo bloqueado (rebote o spam)                                 |
+  | `invalid_address`                               | Correo inválido                                                  |
+  | `not_eligible`                                  | Ya no puede recibirlo                                            |
+  | `deleting`                                      | Cuenta en eliminación                                            |
+  | `staging`                                       | Entorno de prueba                                                |
+  | `retracted`                                     | Cancelado (retirado)                                             |
+  | failed, `expired`                               | Venció sin enviarse                                              |
+  | failed, `address_changed`                       | Cambió su correo                                                 |
+  | failed, `resend:*_quota_exceeded`               | Límite de Resend                                                 |
+  | failed, other                                   | Con error                                                        |
+  | no row, email unticked                          | Sin correo                                                       |
 
 - **Dispositivo:** "Enviada a 2" · "Sin dispositivos" · "—".
 
@@ -1632,7 +1647,7 @@ It loads fresh numbers from the server when it opens:
 
 > **¿Guardar los cambios?**
 > Se actualiza en las notificaciones de las 1.240 personas y se marca como «Editado».
-> Correos: los 1.180 que ya salieron no cambian; los 8 que todavía no salieron se envían con el texto nuevo.
+> Correos: los 1.180 que ya salieron no cambian; los 8 que todavía no salieron se envían con el texto nuevo, salvo los que pueden haber llegado ya en un intento anterior.
 > Las notificaciones que ya llegaron a los dispositivos no cambian.
 > _Si el cambio es importante para quienes ya lo leyeron, mejor enviá un comunicado nuevo._
 > [Volver] [Guardar cambios]
@@ -1644,10 +1659,11 @@ It loads fresh numbers from the server when it opens:
 
 > **¿Retirar «Cambio de horario de armado»?**
 > Desaparece de las notificaciones de las 1.240 personas, también de quienes ya lo leyeron.
-> Los 8 correos que todavía no salieron no se envían. Los 1.180 correos ya enviados y las notificaciones que ya llegaron a los dispositivos no se pueden borrar. El informe queda guardado.
+> Los 8 correos que todavía no salieron no se envían; 3 pueden haber llegado ya. Los 1.180 correos ya enviados y las notificaciones que ya llegaron a los dispositivos no se pueden borrar. El informe queda guardado.
 > Motivo (solo para el equipo): [ ] (obligatorio, hasta 300 caracteres)
 > [Volver] [Retirar comunicado]
 
+- The counts follow the report's labels (G6): a row with `maybe_sent_at` set that is not `sent` counts under "pueden haber llegado", never under "no se envían".
 - It is a plain confirmation, not typed: retracting removes rather than sends, and its worst outcome is recoverable with "Duplicar".
 - Toast: "Lo retiramos de las notificaciones."
 
@@ -1683,7 +1699,7 @@ It loads fresh numbers from the server when it opens:
 - members paged at 50, with "Quitar" (at most 3,000 members);
 - a member who cannot receive it today shows "No lo recibe ahora: Cuenta suspendida".
 
-**Archivar:** "¿Archivar «Ilustradores»? Deja de aparecer al elegir destinatarios. Los comunicados que ya la usan no cambian."
+**Archivar:** "¿Archivar «Ilustradores»? Deja de aparecer al elegir destinatarios. Los borradores y los programados que la usan la siguen usando; los enviados no cambian."
 
 ### G9. Admin item in the bell: `comunicado_not_sent`
 
@@ -1692,7 +1708,7 @@ It loads fresh numbers from the server when it opens:
 - **Action:** "Ver comunicado" → `/dashboard/communications/{id}`.
 - **Title:** "No se envió «{título}»".
 - **Body, by reason:**
-  - `late`: "Estaba programado para el sáb 1 nov, 09:00 y el envío se atrasó más de una hora. Quedó como borrador para que lo revises."
+  - `late`: "Estaba programado para el sáb 31 oct, 09:00 y el envío se atrasó más de una hora. Quedó como borrador para que lo revises."
   - `too_large`: "Al enviarlo, {detalle}. Quedó como borrador." For example: "la audiencia sumaba 3.120 personas y el máximo es 3.000".
   - `empty`: "Al enviarlo, nadie de la audiencia podía recibirlo. Quedó como borrador."
   - `invalid`: "Al enviarlo, {detalle}. Quedó como borrador." For example: "la lista «Ilustradores» tiene un filtro que ya no se puede leer", or "el festival ya terminó y no puede ser esencial".
@@ -1765,7 +1781,7 @@ It loads fresh numbers from the server when it opens:
 
 **`unsubscribe-card.tsx:100-103`**, for the topic `announcements` only (not `all`, which essential mail never overrides). The page passes `subject.topic` to the card, and the reassurance becomes:
 
-> Seguirás recibiendo los correos que vos pidas, como tus entradas o reservas, y los correos esenciales sobre los festivales donde tenés un espacio confirmado, como un cambio en el horario de armado. Los anuncios van a seguir apareciendo en tus notificaciones de Glitter.
+> Seguirás recibiendo los correos que vos pidas, como tus entradas o reservas, y los correos esenciales sobre los festivales donde tenés un espacio confirmado, como un cambio en el horario de armado. Los anuncios seguirán apareciendo en tus notificaciones de Glitter.
 
 - After "Te diste de baja" the same paragraph stays, so a later essential email is no surprise.
 - An `all` opt-out keeps today's copy, which stays true.
@@ -1781,7 +1797,7 @@ It loads fresh numbers from the server when it opens:
 
 - `label`: "Comunicados";
 - `defaultVisibility`: `"hidden"`;
-- `description`: "Comunicaciones en el panel: escribir, programar y enviar comunicados a participantes, las listas de distribución y «Agregar una lista» en los regalos de créditos. Solo administradores globales: mientras esté oculta, márquenlos por nombre. Ocultarla no frena lo ya confirmado: para frenar un envío, cancelá su programación o retiralo."
+- `description`: "Comunicaciones en el panel: escribir, programar y enviar comunicados a participantes, las listas de distribución y «Agregar una lista» en los regalos de créditos. Solo administradores globales. Mientras esté oculta, se habilita marcando a cada administrador. Ocultarla no frena lo ya confirmado: un envío se frena cancelando su programación o retirándolo."
 
 **Rollout:**
 
@@ -1808,7 +1824,7 @@ It loads fresh numbers from the server when it opens:
 
 1. **Deploy and gifts:**
    - the deploy applies the migrations;
-   - a credit gift to yourself still emails at once (the transactional lane is intact).
+   - a credit gift to a participant test account still emails at once (the transactional lane is intact).
 2. **Lists:**
    - a past festival's Confirmados counts owners and partners once each. Compare with `count(DISTINCT user_id)` by hand, read-only, after stating the database target (AGENTS.md);
    - a filter list's count moves with each attribute, departamento included;
@@ -1826,7 +1842,7 @@ It loads fresh numbers from the server when it opens:
    - the 6th try in 10 minutes is refused.
 6. **Send to "Confirmados · X" plus yourself by name:**
    - the dialog shows the test-environment callout;
-   - the report shows list members as "Entorno de prueba" and the admins substituted;
+   - the report shows list members as "Lista", skipped with "Entorno de prueba: no se envía a listas", and the substituted admins as "Admin de prueba";
    - inbox, email and push (if ticked) arrive.
 7. **Unsubscribe and essential:**
    - one-click from the footer;
@@ -1843,7 +1859,8 @@ It loads fresh numbers from the server when it opens:
    - editing an essential one requires the note.
    - Editing _while_ emails are queued is covered by PR 7's integration tests.
 10. **Retract:**
-    - the item disappears within 60 s, and "Deshacer archivar" does nothing;
+    - the item disappears the next time the list loads (opening the bell, coming back to the tab, navigating), and the badge within 60 s when the unread count changes;
+    - the archive toast's "Deshacer" and the "Deshacer" after "Marcar todo como leído" do nothing;
     - an old push tap lands in the inbox;
     - the report is intact, and the campaign shows "Retirado", not "Enviando…".
 11. **Schedule:**
@@ -1874,7 +1891,7 @@ The large-audience paths (2,000 recipients, held batches, expiry, 429s, quota, c
 -- 1. Backlog by lane
 SELECT lane, channel, status, count(*), min(created_at) FROM notification_deliveries
 WHERE status IN ('pending','processing') GROUP BY 1,2,3 ORDER BY 1,2,3;
--- 2. Transactional email delay, last day (the "never delayed" promise: expect p95 in seconds)
+-- 2. Transactional email delay, last day (comunicado email never queues ahead of it, and a throttle costs at most a 2 s retry: expect p95 in seconds)
 SELECT percentile_cont(ARRAY[0.5,0.95,0.99]) WITHIN GROUP (ORDER BY extract(epoch FROM sent_at - created_at))
 FROM notification_deliveries WHERE lane='transactional' AND channel='email' AND status='sent'
   AND created_at > now() - interval '1 day';
@@ -1924,7 +1941,7 @@ WHERE n.campaign_id=$1 AND d.channel='email' GROUP BY 1;
    ```
    - Re-run it once the fan-out has finished, since later rows are written due.
    - Release it with `next_attempt_at = now()`.
-   - A hold past the 20 h expiry fails the held emails safely: never-batched ones as "Venció sin enviarse", which can be retried; held ones as "Puede haber llegado". No key is ever re-submitted late.
+   - A hold past the 20 h expiry fails the held emails safely (D3, Step 0). Rows that no attempt may have reached (`pending`, no `maybe_sent_at`) read "Venció sin enviarse" and can be retried. Rows with `maybe_sent_at`, or still `processing` from an attempt that never settled, read "Puede haber llegado". No key is ever re-submitted late.
    - To stop one comunicado, retract it instead.
 3. **Hide the flag.** That only removes the admin UI.
 4. **Recall an image posted by mistake** (PR 8): delete the file in UploadThing. Its key is the `…/f/<key>` of the image URL in the revision's `doc`, read with `getUploadThingFileKey`. It stops loading in every email already sent.
@@ -1942,8 +1959,9 @@ WHERE n.campaign_id=$1 AND d.channel='email' GROUP BY 1;
     UPDATE notification_deliveries SET status='skipped', last_error='rollback'
     WHERE lane='bulk' AND status IN ('pending','processing');
     ```
-- **Retracted items stay hidden under old code,** because they are archived. An old "Deshacer archivar" hits the CHECK and errors, instead of bringing one back. This is why retraction uses `archived_at`.
+- **Retracted items stay hidden under old code,** because they are archived. An old archive toast's "Deshacer" hits the CHECK and errors, instead of bringing one back. This is why retraction uses `archived_at`.
 - **Old inbox code** shows a `comunicado` row as a plain item from its stored title and body (an unknown kind gives `opensDetail` false).
+- **A full revert past phase 3** leaves the old registry without `comunicado`, so `notificationOpensDetail` is false (`registry.ts:227-228`). A pending comunicado push would then show the body's first paragraph on the lock screen instead of "Tocá para ver el detalle." (`push/payload.ts:90-92`). The skip statement above covers it, so run it before such a revert.
 - **The wrapper's 429 retry and the migrate lock timeout can be reverted on their own.** Neither writes data.
 - **Never rotate `CLERK_SECRET_KEY` casually:** it breaks every unsubscribe link already sent. This is unchanged.
 - **The P2b rule stands:** never revert code past 0300 (PRD §10, P2b).
@@ -1983,7 +2001,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 - `app/lib/notifications/bulk-email.ts`: expiry, claim with `maybe_sent_at`, try-lock and reserve, spacing under the lock, pre-check and render hooks through the renderer registry, the outcome table with key dropping, settle, release.
 - `sendBulkPushes`, with the VAPID guard.
 - The `announcements` topic and both labels (not the card copy). `comunicadoEmailExclusion` and `announcementOptOutOverridden`. `EmailFooter({ notes })`. `publicBaseUrl()`, with `unsubscribeLinks` on it.
-- `notifications.edited_at`, `retracted_at` and the CHECK; `updateOne` and `markNotificationRead` exclude retracted rows; the push skip `retracted`.
+- `notifications.edited_at`, `retracted_at` and the CHECK; `updateOne`, `markNotificationRead` and `markNotificationsUnreadAction` exclude retracted rows; the push skip `retracted`.
 - `scripts/migrate.ts` `lock_timeout`.
 
 **Migration:** `0301_bulk_lane`.
@@ -2003,7 +2021,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
   - a permissive per-item error fails only that row;
   - two drivers: one request at a time, ≥ spacing apart; the try-lock never blocks; the reserve releases a claim untouched;
   - the pre-check fails closed for a row with no recipient row or a NULL source;
-  - a retracted row cannot be un-archived, `updateOne` and `markNotificationRead` are no-ops; push skips `retracted`.
+  - a retracted row cannot be un-archived, `updateOne`, `markNotificationRead` and `markNotificationsUnreadAction` are no-ops; push skips `retracted`.
 - **Changed:** `gifts.integration.test.ts:651-656` (a 429 no longer spends an attempt).
 
 ### PR 3: Distribution lists and the gift picker
@@ -2032,6 +2050,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 - `normalizeAnnouncementDoc` with stages. `announcementBlocksToText`, `announcementBlocksToEmail` and `app/emails/comunicado.tsx`, with the staging and essential note slots. `excerptOf`.
 - Kinds `comunicado` (`push: "per_send"`) and `comunicado_not_sent`; the `notificationPushes` option and `notify({ push })`.
 - `safeActionPath` with the whitespace rule.
+- The gift report's `status` narrowed to its literal union (`credit_gifts/queries.ts:377`), which 0303's `notified` label requires (A6).
 - The `comunicados` CRUD: create, autosave CAS, discard. The composer with preview tabs and live audience counts (read-only resolver).
 - Test send. The Comunicados list (drafts).
 
@@ -2070,7 +2089,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 - **Unit:** `app/api/cron/morning/comunicados/route.test.ts` (auth, the 75 s deadline, no batch with < 25 s left, the development email step refused); `notifications/definitions.test.ts` (the chip); `notification-detail` rich body and "Editado"; confirm dialog (typed at 300 and on essential, callouts by environment); `unsubscribe-card` copy per topic.
 - **Integration** `app/lib/comunicados/send.integration.test.ts` (serial):
   - union and dedupe (person wins), every skip reason, the 3,000 cap counted before narrowing;
-  - `VERCEL_ENV` mocked to preview and to development → list members "Entorno de prueba", admins substituted, people by name kept, a festival admin by name skipped, and the batch pre-check refuses a list member even if a row slipped through;
+  - `VERCEL_ENV` mocked to preview and to development → list members skipped "Entorno de prueba: no se envía a listas", admins substituted with source `staging_admin` ("Admin de prueba"), people by name kept, a festival admin by name skipped, and the batch pre-check refuses a list member even if a row slipped through;
   - a double "Enviar" → one campaign; `AUDIENCE_CHANGED`;
   - essential only with one current festival source and email; it overrides `announcements` (no `List-Unsubscribe`) but never `all` or a suppression; an archived festival is refused; the confirmer's profile cannot be deleted;
   - a ban between snapshot and chunk → skipped; an address changed under a held batch → `address_changed`;
@@ -2081,7 +2100,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
   - gift lists and the gift resume never see a comunicado.
 - **Integration** `app/lib/comunicados/retract.integration.test.ts` (serial, two connections):
   - the retraction waits for a batch holding the shared lock;
-  - afterwards hidden from list, count, detail and `/open`; unarchive and mark-read are no-ops;
+  - afterwards hidden from list, count, detail and `/open`; unarchive, mark-read and mark-unread are no-ops;
   - pending email and push `skipped retracted`; pending recipients skipped; later chunks stop;
   - a claimed row skips in its pre-check, or is released as skipped;
   - the campaign ends `completed` (in the retraction, or by the sweep);
@@ -2156,20 +2175,26 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 - **Rate limit:** Resend's docs (checked 2026-10-24) give a default of 10 requests per second per team, across all API keys; older Resend pages said 2 or 5. The account's actual value is on Resend → Settings → Usage. Bulk is paced to at most about 0.43 requests per second (D3, D4), which stays safe even at 2 per second.
 - **Residual to accept:** the wrapper retries a throttle once. An inline sender (orders, tickets, profile and program mail) that is throttled twice within about 2 s still loses its email, as it can today, until P4 moves those senders onto the queue.
 
-### K1–K12. Open questions (each his call; the default in brackets)
+### K1–K16. Open questions (each his call; the default in brackets)
 
-1. **`{nombre}` in comunicados.** [No in phase 3. The email greets the person by name automatically. Adding it later costs a name snapshot per recipient and a per-row UPDATE on edit.]
-2. **Essential and the `all` unsubscribe.** [Essential overrides only the Anuncios opt-out. People who asked support to stop all bulk mail keep that, and still see the comunicado in the app. Changing it is one line.]
-3. **Sender and replies.** [From "Productora Glitter <anuncios@productoraglitter.com>", Reply-To `soporte@productoraglitter.com`.] Alternatives: `eventos@`, which participant invitations already use (`invitations.ts:54`), or no replies at all.
-4. **A subdomain for anuncios.** [No: the same domain as K3.] A subdomain such as `anuncios.productoraglitter.com` needs DNS records in Resend, and keeps bulk reputation away from reservation mail.
-5. **Late schedules.** [A scheduled comunicado more than 60 minutes late goes back to draft, with a bell item, instead of sending.]
-6. **Thresholds.** [At most 3,000 recipients per comunicado. Type the count at ≥ 300 recipients and for every essential send.]
-7. **Edits and read state.** [An edit keeps read state and does not re-alert. For a material change, send a new comunicado.]
-8. **Essential only for a current or upcoming festival.** [The festival is not archived and ended at most 7 days ago.] This narrows decision 5 to its own example, a setup-time change.
-9. **Narrowing in development too.** [Yes.] Decision 8 names previews. A local server with an unset `VERCEL_ENV` counts as development and may point at a shared or production database, where list sends would write real inbox rows and could push.
-10. **Filter attributes for saved lists.** [Área, Categorías, Departamento, confirmed or not at given festivals, and "Incluir pausados".] Anything else (tags, gender, participation type, complete profile, sanctions) is one field each.
-11. **Images in comunicados.** [Yes, as PR 8, after the text-only flow ships.] They cost an upload route, a host rule, the size check and an image that cannot be recalled after sending, except by deleting the file.
-12. **Festival admins and Comunicaciones.** [No access in phase 3, viewing included.] Gifts let them view with the button disabled (PRD §4, decision 1). Read-only access later is small.
+Each is a proposed default of PRD §12; its title gives the default's number there.
+
+1. **`{nombre}` in comunicados (PRD §12 default 17).** [No in phase 3. The email greets the person by name automatically. Adding it later costs a name snapshot per recipient and a per-row UPDATE on edit.]
+2. **Essential and the `all` unsubscribe (PRD §12 default 10).** [Essential overrides only the Anuncios opt-out. People who asked support to stop all bulk mail keep that, and still see the comunicado in the app. Changing it is one line.]
+3. **Sender and replies (PRD §12 default 19).** [From "Productora Glitter <anuncios@productoraglitter.com>", Reply-To `soporte@productoraglitter.com`.] Alternatives: `eventos@`, which participant invitations already use (`invitations.ts:54`), or no replies at all.
+4. **A subdomain for anuncios (PRD §12 default 19).** [No: the same domain as K3.] A subdomain such as `anuncios.productoraglitter.com` needs DNS records in Resend, and keeps bulk reputation away from reservation mail.
+5. **Late schedules (PRD §12 default 16).** [A scheduled comunicado more than 60 minutes late goes back to draft, with a bell item, instead of sending.]
+6. **Thresholds (PRD §12 default 15).** [At most 3,000 recipients per comunicado. Type the count at ≥ 300 recipients and for every essential send.]
+7. **Edits and read state (PRD §12 default 18).** [An edit keeps read state and does not re-alert. For a material change, send a new comunicado.]
+8. **Essential only for a current or upcoming festival (PRD §12 default 11).** [The festival is not archived and ended at most 7 days ago.] This narrows decision 5 to its own example, a setup-time change.
+9. **Narrowing in development too (PRD §12 default 13).** [Yes.] Decision 8 names previews. A local server with an unset `VERCEL_ENV` counts as development and may point at a shared or production database, where list sends would write real inbox rows and could push.
+10. **Filter attributes for saved lists (PRD §12 default 20).** [Área, Categorías, Departamento, confirmed or not at given festivals, and "Incluir pausados".] Anything else (tags, gender, participation type, complete profile, sanctions) is one field each.
+11. **Images in comunicados (PRD §12 default 21).** [Yes, as PR 8, after the text-only flow ships.] They cost an upload route, a host rule, the size check and an image that cannot be recalled after sending, except by deleting the file.
+12. **Festival admins and Comunicaciones (PRD §12 default 14).** [No access in phase 3, viewing included.] Gifts let them view with the button disabled (PRD §4, decision 1). Read-only access later is small.
+13. **Admins picked by name (PRD §12 default 12).** [People picked by name may include global admins; lists only ever hold participants.] An admin can then run a real comunicado through the whole production pipeline to themselves, or to "Ana y yo", before a large send. It matches the preview rule, where admins are the substitutes anyway, and lists stay participant-only, so they mean the same in the gift picker (B5).
+14. **Scheduled sends are not re-confirmed (PRD §12 default 22).** [A scheduled send goes to whoever the lists hold at release, up to the 3,000 cap (E3).] Alternative: refuse at release when the audience grew by more than 10 % since it was scheduled, which needs the count stored at scheduling.
+15. **Anuncios is its own opt-out (PRD §12 default 23).** [Someone who opted out of the participant-invitations topic ("Avisos a participantes", `app/lib/emails/topics.ts:30`) still gets comunicado email; `all` covers both.] Alternative: Anuncios also honours that opt-out.
+16. **Lists in the gift picker (PRD §12 default 24).** [Production only, and the 100-recipient gift cap stays, so a festival's Confirmados, usually over 100, is refused (B9).] Alternative: raise the gift cap (PRD §4 decision 2).
 
 ### Facts to check (not calls)
 
@@ -2186,7 +2211,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 | Resend's rate limit is shared with senders we don't pace: the outboxes' parallel `after()`, `queueEmails` at about 10 per second, festival invitations.                               | Bulk at ≤ about 0.43 requests per second, single flight; every sender retries a throttle once in the wrapper; the residual accepted with the Resend plan (K).                                                                                                          |
 | Account-wide quota exhaustion: 50,000 emails a month, shared by every Glitter email (decision 9).                                                                                     | Bulk stops at the first quota error and fails the rest without retrying; the banner and "Reintentar fallidos".                                                                                                                                                         |
 | Permissive batch responses mapped to the wrong rows.                                                                                                                                  | A recorded-response test; the count-mismatch fallback (ids null, rows sent); one preview check with a bad address.                                                                                                                                                     |
-| A held batch that may have landed is never confirmed.                                                                                                                                 | It ends "Puede haber llegado" after 5 unknown outcomes or 20 h, and is never retried automatically or by hand.                                                                                                                                                         |
+| A held batch that may have landed is never confirmed.                                                                                                                                 | It is re-sent only under its own key, until 5 unknown outcomes or 20 h; it is never re-batched under a new key or retried by hand, and reads "Puede haber llegado" unless it ends `sent`.                                                                              |
 | Sent emails and delivered pushes cannot be recalled after an edit or a retraction.                                                                                                    | The dialogs say so; push text is only the title plus "Tocá para ver el detalle."; a tap always lands on the current item or the inbox; the iPhone arrival toast may show an old title once.                                                                            |
 | Previews share one database and send real email; one preview's "Procesar envíos pendientes" drains another branch's rows with its own code.                                           | Narrowing at the snapshot and again at send, by the sender's env, as an allowlist; the button only on previews and single flight; every step idempotent and compare-and-set; staging mail is marked.                                                                   |
 | Deadlocks between a retraction or a chunk and a simultaneous profile deletion.                                                                                                        | Postgres aborts one side; transient errors are retried once and spend no attempt; the deletion cron retries on its next run.                                                                                                                                           |
