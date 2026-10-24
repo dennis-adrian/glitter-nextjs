@@ -8,7 +8,10 @@ import {
   type FeatureFlagViewer,
   isFeatureVisible,
 } from "@/app/lib/feature_flags/visibility";
-import { canSeeAdminNotifications } from "@/app/lib/notifications/definitions";
+import {
+  canSeeAdminNotifications,
+  notificationTapHref,
+} from "@/app/lib/notifications/definitions";
 import { pushVapidConfig } from "@/app/lib/notifications/push/config";
 import {
   isAllowedPushEndpoint,
@@ -152,6 +155,7 @@ export async function attemptPushDelivery(delivery: {
       data: notifications.data,
       title: notifications.title,
       body: notifications.body,
+      actionPath: notifications.actionPath,
       readAt: notifications.readAt,
       archivedAt: notifications.archivedAt,
       role: users.role,
@@ -212,12 +216,18 @@ export async function attemptPushDelivery(delivery: {
     return { kind: "failed", error: "endpoint_rejected" };
   }
 
+  const sensitive = isSensitiveNotificationKind(row.kind);
+  const writtenText = notificationOpensDetail(row.kind, row.data);
   const payload = buildPushPayload({
     id: row.id,
     title: row.title,
     body: row.body,
-    sensitive: isSensitiveNotificationKind(row.kind),
-    writtenText: notificationOpensDetail(row.kind, row.data),
+    sensitive,
+    writtenText,
+    href: notificationTapHref(
+      { id: row.id, actionPath: row.actionPath, opensDetail: writtenText },
+      sensitive,
+    ),
   });
 
   let result: PushAttemptResult;

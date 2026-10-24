@@ -11,7 +11,14 @@ export type PushPayload = {
   id: number;
   title: string;
   body: string;
+  /** Opens Glitter on the item: marks it read, then redirects to `href`. */
   url: string;
+  /**
+   * Where the tap lands, for a Glitter already open: it goes there without
+   * reloading, and reads the item itself. Added after the first workers
+   * shipped, which ignore it.
+   */
+  href: string;
   tag: string;
 };
 
@@ -45,12 +52,13 @@ function truncate(value: string, max: number) {
 }
 
 /**
- * Tapping a push always opens the item's own page: it marks the item read,
- * shows the whole text and the action, and works the same for a disciplinary
- * notice whose push said nothing.
+ * Tapping a push opens the item as tapping it in the inbox does: marked read,
+ * then its screen, or its own page when it carries text someone wrote or is
+ * a disciplinary notice. The route does both, so it works however the
+ * device opens Glitter.
  */
 export function pushNotificationUrl(notificationId: number) {
-  return `/my_notifications/${notificationId}`;
+  return `/my_notifications/${notificationId}/open`;
 }
 
 export function buildPushPayload(item: {
@@ -60,11 +68,14 @@ export function buildPushPayload(item: {
   sensitive: boolean;
   /** The item opens its own page because it carries written text. */
   writtenText: boolean;
+  /** Where a tap lands (`notificationTapHref`). */
+  href: string;
 }): string {
   const base = {
     v: 1 as const,
     id: item.id,
     url: pushNotificationUrl(item.id),
+    href: item.href,
     tag: `notification-${item.id}`,
   };
   if (item.sensitive) {

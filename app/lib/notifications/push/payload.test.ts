@@ -17,6 +17,7 @@ const ITEM = {
   body: "Tu espacio B48 en Glitter ¡Feliz Cumple! está confirmado.",
   sensitive: false,
   writtenText: false,
+  href: "/profiles/3/festivals/2/reservations/9",
 };
 
 function parse(payload: string) {
@@ -24,13 +25,14 @@ function parse(payload: string) {
 }
 
 describe("buildPushPayload", () => {
-  it("carries the inbox copy and opens the item's own page", () => {
+  it("carries the inbox copy and opens the item as the inbox does", () => {
     expect(parse(buildPushPayload(ITEM))).toEqual({
       v: 1,
       id: 41,
       title: ITEM.title,
       body: ITEM.body,
-      url: "/my_notifications/41",
+      url: "/my_notifications/41/open",
+      href: "/profiles/3/festivals/2/reservations/9",
       tag: "notification-41",
     });
   });
@@ -47,7 +49,7 @@ describe("buildPushPayload", () => {
     expect(payload.title).toBe(SENSITIVE_PUSH_TITLE);
     expect(payload.body).toBe(SENSITIVE_PUSH_BODY);
     expect(JSON.stringify(payload)).not.toContain("infracción");
-    expect(payload.url).toBe("/my_notifications/41");
+    expect(payload.url).toBe("/my_notifications/41/open");
   });
 
   it("keeps text someone wrote off the lock screen", () => {
@@ -96,6 +98,7 @@ describe("buildPushPayload", () => {
       // Control characters are escaped to six bytes each in JSON.
       title: "\u0001".repeat(500),
       body: "\u0002".repeat(5000),
+      href: "/profiles/2147483647/festivals/2147483647/reservations/2147483647",
     });
     expect(new TextEncoder().encode(worst).length).toBeLessThan(3000);
   });

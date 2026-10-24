@@ -2,6 +2,7 @@
 
 import { GiftIcon, XIcon } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
@@ -12,8 +13,10 @@ import { markGiftsCelebratedAction } from "@/app/lib/notifications/actions";
 
 /**
  * A calm, one-time banner for credits the team gifted. It counts as shown the
- * moment it appears, so it never follows the person from page to page; the
- * gift itself stays in the wallet and the inbox.
+ * moment it appears, and stays on the page it appeared on: the layout holding
+ * it stays mounted while the person moves around, so it would follow them
+ * otherwise. Never on the wallet or the gift's own page, which already say
+ * it. The gift itself stays in the wallet and the inbox.
  */
 export default function CreditGiftCelebrationBanner({
   notificationIds,
@@ -22,9 +25,11 @@ export default function CreditGiftCelebrationBanner({
 }: {
   notificationIds: number[];
   totalCredits: number;
-  /** Offers avisos for next time; null when they are not open. */
+  /** Offers notifications on the device for next time; null when not open. */
   pushPublicKey?: string | null;
 }) {
+  const pathname = usePathname();
+  const [shownOn] = useState(pathname);
   const [visible, setVisible] = useState(true);
   const marked = useRef(false);
 
@@ -34,7 +39,13 @@ export default function CreditGiftCelebrationBanner({
     void markGiftsCelebratedAction(notificationIds);
   }, [notificationIds]);
 
-  if (!visible) return null;
+  // Once it leaves the page it appeared on it is gone, as after a reload: the
+  // layout holding it stays mounted, so coming back would show it again.
+  if (visible && pathname !== shownOn) setVisible(false);
+  const saidThere =
+    pathname === "/my_credits" ||
+    notificationIds.some((id) => pathname === `/my_notifications/${id}`);
+  if (!visible || pathname !== shownOn || saidThere) return null;
 
   return (
     <div className="border-b border-primary/15 bg-primary/5">

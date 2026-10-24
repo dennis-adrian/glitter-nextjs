@@ -730,7 +730,8 @@ describeDatabase("web push deliveries", () => {
         title: item.title,
         // The gift's message is someone's words: it stays on its page.
         body: "Tocá para ver el detalle.",
-        url: `/my_notifications/${notificationId}`,
+        url: `/my_notifications/${notificationId}/open`,
+        href: `/my_notifications/${notificationId}`,
         tag: `notification-${notificationId}`,
       });
       expect(payload).not.toContain(GIFT_MESSAGE);
@@ -776,7 +777,9 @@ describeDatabase("web push deliveries", () => {
         id: notificationId,
         title: "Glitter",
         body: "Tenés una notificación nueva",
-        url: `/my_notifications/${notificationId}`,
+        url: `/my_notifications/${notificationId}/open`,
+        // Its own page, which says what the lock screen did not.
+        href: `/my_notifications/${notificationId}`,
         tag: `notification-${notificationId}`,
       });
       expect(payload).not.toContain("Llegada tarde");
@@ -814,7 +817,10 @@ describeDatabase("web push deliveries", () => {
       expect(JSON.parse(sendPushMock.mock.calls[0]![1])).toMatchObject({
         title: item.title,
         body: item.body,
+        // A notice lands on what it is about.
+        href: item.actionPath,
       });
+      expect(item.actionPath).toMatch(/^\/profiles\//);
     });
 
     it("keeps a revoked gift's admin-written title and the debt off the lock screen", async () => {

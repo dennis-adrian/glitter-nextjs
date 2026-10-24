@@ -138,6 +138,18 @@ export function notificationHref(
   return safeActionPath(item.actionPath) ?? detail;
 }
 
+/**
+ * Where tapping the item's push goes: where the inbox would, except that a
+ * disciplinary notice opens its own page, since its push said only that
+ * something arrived while the inbox row shows what.
+ */
+export function notificationTapHref(
+  item: Pick<InboxNotification, "id" | "actionPath" | "opensDetail">,
+  sensitive: boolean,
+) {
+  return sensitive ? `/my_notifications/${item.id}` : notificationHref(item);
+}
+
 export type NotificationDateGroup = "today" | "yesterday" | "week" | "earlier";
 
 export const NOTIFICATION_DATE_GROUP_LABELS: Record<

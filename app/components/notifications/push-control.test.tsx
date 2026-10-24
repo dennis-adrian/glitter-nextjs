@@ -64,10 +64,12 @@ const IPHONE_16_3 =
 const IPHONE_INSTAGRAM =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 320.0.0.18.94 (iPhone15,2; iOS 17_4; es_LA; es; scale=3.00; 1179x2556)";
 
-const ENABLED_TOAST = "Listo, vas a recibir avisos en este dispositivo.";
-const DISABLED_TOAST = "Ya no vas a recibir avisos en este dispositivo.";
-const DISABLE_LABEL = "Dejar de recibir avisos en este dispositivo";
-const ON_STATUS = "Este dispositivo recibe tus avisos.";
+const ENABLED_TOAST =
+  "Listo, vas a recibir notificaciones en este dispositivo.";
+const DISABLED_TOAST =
+  "Ya no vas a recibir notificaciones en este dispositivo.";
+const DISABLE_LABEL = "Dejar de recibir notificaciones en este dispositivo";
+const ON_STATUS = "Este dispositivo recibe tus notificaciones.";
 
 const DEVICES: PushDeviceRow[] = [
   { id: 7, label: "Chrome en Windows", lastUsedLabel: "hoy" },
@@ -303,8 +305,8 @@ describe("the avisos control on /my_notifications", () => {
     const html = renderToString(
       <PushControl publicKey={KEY} devices={DEVICES} />,
     );
-    expect(html.includes("Avisos en este dispositivo")).toBe(true);
-    expect(html.includes("Recibir avisos")).toBe(false);
+    expect(html.includes("Notificaciones en este dispositivo")).toBe(true);
+    expect(html.includes("Recibir notificaciones")).toBe(false);
     expect(html.includes("Dejar de recibir")).toBe(false);
   });
 
@@ -446,7 +448,7 @@ describe("the avisos control on /my_notifications", () => {
 
     fireEvent.click(await enabledButton());
 
-    await screen.findByText(/bloqueados en este navegador/);
+    await screen.findByText(/bloqueadas en este navegador/);
     await settle();
     expect(mocks.toastError).not.toHaveBeenCalled();
     expect(mocks.toastSuccess).not.toHaveBeenCalled();
@@ -489,7 +491,7 @@ describe("the avisos control on /my_notifications", () => {
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith(
-        "No pudimos activar los avisos en este dispositivo. Intentá de nuevo.",
+        "No pudimos activar las notificaciones en este dispositivo. Intentá de nuevo.",
       ),
     );
     expect(browser.subscription).toBe(null);
@@ -505,7 +507,7 @@ describe("the avisos control on /my_notifications", () => {
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith(
-        "No pudimos activar los avisos en este dispositivo. Intentá de nuevo.",
+        "No pudimos activar las notificaciones en este dispositivo. Intentá de nuevo.",
       ),
     );
     expect(mocks.savePushDeviceAction).not.toHaveBeenCalled();
@@ -517,7 +519,8 @@ describe("the avisos control on /my_notifications", () => {
       const browser = installBrowser({ permission: "denied" });
       render(<PushControl publicKey={KEY} devices={[]} />);
       expect(
-        screen.getByText(/Los avisos de Glitter están bloqueados/).textContent,
+        screen.getByText(/Las notificaciones de Glitter están bloqueadas/)
+          .textContent,
       ).toBeTruthy();
       expect(enableButton()?.disabled).toBe(true);
       await settle();
@@ -580,7 +583,8 @@ describe("the avisos control on /my_notifications", () => {
       installBrowser({ pushManager: false });
       render(<PushControl publicKey={KEY} devices={[]} />);
       expect(
-        screen.getByText(/Este navegador no puede recibir avisos/).textContent,
+        screen.getByText(/Este navegador no puede recibir notificaciones/)
+          .textContent,
       ).toBeTruthy();
       expect(enableButton()?.disabled).toBe(true);
     });
@@ -589,7 +593,7 @@ describe("the avisos control on /my_notifications", () => {
       const browser = installBrowser();
       render(<PushControl publicKey={null} devices={[]} />);
       expect(
-        screen.getByText("Los avisos no están disponibles por ahora.")
+        screen.getByText("Las notificaciones no están disponibles por ahora.")
           .textContent,
       ).toBeTruthy();
       expect(enableButton()?.disabled).toBe(true);
@@ -638,7 +642,9 @@ describe("the avisos control on /my_notifications", () => {
       expect(container.querySelector("details")?.open).toBe(false);
       // Still named for screen readers.
       expect(
-        screen.getByRole("region", { name: "Avisos en este dispositivo" }),
+        screen.getByRole("region", {
+          name: "Notificaciones en este dispositivo",
+        }),
       ).toBeTruthy();
     });
 
@@ -740,7 +746,7 @@ describe("the avisos control on /my_notifications", () => {
 
       await waitFor(() =>
         expect(mocks.toastError).toHaveBeenCalledWith(
-          "No pudimos desactivar los avisos en este dispositivo. Intentá de nuevo.",
+          "No pudimos desactivar las notificaciones en este dispositivo. Intentá de nuevo.",
         ),
       );
       expect(mocks.removePushDeviceAction).not.toHaveBeenCalled();
@@ -833,7 +839,7 @@ describe("the avisos control on /my_notifications", () => {
 
       await waitFor(() =>
         expect(mocks.toastSuccess).toHaveBeenCalledWith(
-          "Quitamos iPhone. Ya no va a recibir tus avisos.",
+          "Quitamos iPhone. Ya no va a recibir tus notificaciones.",
         ),
       );
       expect(mocks.removePushDeviceAction).toHaveBeenCalledWith(9);
@@ -1078,7 +1084,7 @@ describe("the short avisos offer", () => {
     render(<PushOffer publicKey={KEY} />);
     expect(
       screen
-        .getByRole("link", { name: "Cómo activar los avisos" })
+        .getByRole("link", { name: "Cómo activar las notificaciones" })
         .getAttribute("href"),
     ).toBe("/my_notifications");
     expect(enableButton()).toBe(null);
@@ -1088,7 +1094,7 @@ describe("the short avisos offer", () => {
     installBrowser({ userAgent: IPHONE_INSTAGRAM, pushManager: false });
     render(<PushOffer publicKey={KEY} />);
     expect(
-      screen.getByRole("link", { name: "Cómo activar los avisos" }),
+      screen.getByRole("link", { name: "Cómo activar las notificaciones" }),
     ).toBeTruthy();
   });
 
@@ -1096,11 +1102,12 @@ describe("the short avisos offer", () => {
     installBrowser({ permission: "denied" });
     render(<PushOffer publicKey={KEY} showBlocked />);
     expect(
-      screen.getByText(/Avisos bloqueados en este navegador/).textContent,
+      screen.getByText(/Notificaciones bloqueadas en este navegador/)
+        .textContent,
     ).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: "Cómo activarlos" })
+        .getByRole("link", { name: "Cómo activarlas" })
         .getAttribute("href"),
     ).toBe("/my_notifications");
   });
@@ -1117,7 +1124,8 @@ describe("the short avisos offer", () => {
     expect(container.innerHTML).toBe("");
     rerender(<PushOffer publicKey={KEY} showBlocked />);
     expect(
-      screen.getByText("Este navegador no puede recibir avisos").textContent,
+      screen.getByText("Este navegador no puede recibir notificaciones")
+        .textContent,
     ).toBeTruthy();
   });
 
