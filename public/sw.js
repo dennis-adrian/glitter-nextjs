@@ -131,30 +131,50 @@ async function readState(path, fallback) {
   }
 }
 
+/** Writes of the kept arrivals, one after another (see keepArrival). */
+let arrivalsWritten = Promise.resolve();
+
 /**
- * Keeps the arrival for a page that is in the background now (it offers it
- * when it comes back), and tells open windows, which refresh their inbox and
- * bell.
+ * Keeps the arrival for a page in the background now, which offers it when
+ * it comes back: once per item, so a retried copy counts as one. Two pushes
+ * handled at once would each drop the other's arrival if their writes
+ * overlapped.
+ */
+function keepArrival(arrival) {
+  arrivalsWritten = arrivalsWritten
+    .then(async () => {
+      const kept = await readState(ARRIVALS, []);
+      const others = (Array.isArray(kept) ? kept : []).filter(
+        (entry) => arrival.id == null || !entry || entry.id !== arrival.id,
+      );
+      await writeState(ARRIVALS, [...others, arrival].slice(-ARRIVALS_KEPT));
+    })
+    .catch(() => undefined);
+  return arrivalsWritten;
+}
+
+/**
+ * Tells open windows, which refresh their inbox and bell (and the iPhone app
+ * on screen offers it), then keeps it for the ones that are not looking.
  */
 async function announceArrival(payload) {
-  const arrivals = await readState(ARRIVALS, []);
-  const kept = Array.isArray(arrivals) ? arrivals : [];
-  await writeState(
-    ARRIVALS,
-    [
-      ...kept,
-      {
-        id: payload.id,
-        title: payload.title,
-        body: payload.body,
-        url: payload.url,
-        at: Date.now(),
-      },
-    ].slice(-ARRIVALS_KEPT),
-  );
-  for (const client of await glitterWindows()) {
-    client.postMessage({ type: MESSAGE_RECEIVED });
+  const arrival = {
+    id: payload.id,
+    title: payload.title,
+    body: payload.body,
+    url: payload.url,
+    at: Date.now(),
+  };
+  // First, and whatever happens to the copy kept below: the refresh asks the
+  // server, not the cache.
+  try {
+    for (const client of await glitterWindows()) {
+      client.postMessage({ type: MESSAGE_RECEIVED, arrival });
+    }
+  } catch {
+    // Nothing to tell.
   }
+  await keepArrival(arrival);
 }
 
 // Every push must end in a visible notification: browsers revoke the
@@ -192,8 +212,8 @@ self.addEventListener("notificationclick", (event) => {
 
 /**
  * Asks a window whether it opens the tap itself: "accepted", "declined" (a
- * browser tab on another page, which may hold a form half filled), or null
- * when it does not answer in time (still loading, or asleep).
+ * page that may hold a form half filled), or null when it does not answer
+ * in time (still loading, or asleep or frozen in the background).
  */
 function askToOpen(client, tap) {
   return new Promise((resolve) => {
@@ -234,36 +254,27 @@ async function tryFocus(client) {
   }
 }
 
-/** A full load of the tap's link; `null` back means it redirected, still a success. */
-async function tryNavigate(client, url) {
-  if (typeof client.navigate !== "function") return false;
+async function tryOpenWindow(url) {
   try {
-    await client.navigate(url);
+    await self.clients.openWindow(url);
     return true;
   } catch {
     return false;
   }
 }
 
-async function tryOpenWindow(url) {
-  try {
-    await self.clients.openWindow(url);
-  } catch {
-    // Refused: nothing else can open a window now.
-  }
-}
-
 /**
  * Takes the person to a tapped notification. A window's address cannot tell
  * where it is (it stays the page it first loaded while the app navigates),
- * so the window is asked: the installed app, or a tab already in the inbox,
- * loads the tap's link itself. Only if none answers does the worker focus,
- * navigate or open a window, within what the browser allows after a tap:
- * one of focusing or opening in Chromium, and a second in Firefox.
+ * so the window is asked: the iPhone app, or a window already in the inbox,
+ * loads the tap's link itself. Any other answer, or none, leaves that window
+ * as it is (a page asleep in the background may hold a form half filled)
+ * and opens the link in a new one: the one window Chromium lets a tap open
+ * or focus, within the second Firefox allows.
  *
  * On an iPhone, opening a window only brings a running app forward, and a
  * closed one may open at its start page; the page then finds the tap kept
- * below and finishes it.
+ * below, or the message it did not answer in time, and finishes it.
  */
 async function openTap(tap) {
   const kept = writeState(LAST_TAP, tap).catch(() => undefined);
@@ -280,13 +291,9 @@ async function openTap(tap) {
   const answer = await askToOpen(target, tap);
   if (answer === "accepted") {
     await tryFocus(target);
-  } else if (answer === "declined") {
-    await tryOpenWindow(tap.url);
-  } else {
-    const focused = await tryFocus(target);
-    const navigated = await tryNavigate(target, tap.url);
-    // After a focus, Chromium refuses to open a window for the same tap.
-    if (!navigated && !focused) await tryOpenWindow(tap.url);
+  } else if (!(await tryOpenWindow(tap.url))) {
+    // Refused: at least bring Glitter forward.
+    await tryFocus(target);
   }
   await kept;
 }

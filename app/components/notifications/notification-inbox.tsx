@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import {
   announceNotificationsChanged,
-  onNotificationReceived,
+  onNotificationsChanged,
 } from "@/app/components/notifications/notification-events";
 import NotificationFilterChips from "@/app/components/notifications/notification-filter-chips";
 import NotificationItem from "@/app/components/notifications/notification-item";
@@ -44,12 +44,14 @@ async function fetchInboxFirstPage(
  * The first page asked for again, merged into the list on screen: its items
  * replace theirs and go on top, and older ones that "Ver más" loaded stay
  * below. Ids only grow, so anything below the page's last id is older; an
- * item gone from the page's range was archived or read away elsewhere.
+ * item gone from the page's range was archived or read away elsewhere. A
+ * page with no cursor holds everything there is, so nothing older stays.
  */
 export function mergeFirstPage(
   current: readonly InboxNotification[],
   page: InboxPage,
 ): { items: InboxNotification[]; keepsCursor: boolean } {
+  if (page.nextCursor == null) return { items: page.items, keepsCursor: false };
   const last = page.items.at(-1);
   const older = last ? current.filter((item) => item.id < last.id) : [];
   return { items: [...page.items, ...older], keepsCursor: older.length > 0 };
@@ -87,8 +89,8 @@ export default function NotificationInbox({
   const [cursor, setCursor] = useState(initialPage.nextCursor);
   const [loadFailed, setLoadFailed] = useState(false);
   const [isLoading, startLoading] = useTransition();
-  // Bumped by every local change, so an answer requested before one of them
-  // cannot overwrite it.
+  // Bumped by every change made here to what is read or archived, so an
+  // answer requested before one of them cannot overwrite it.
   const changes = useRef(0);
   // The list as it is now, for handlers that run after an await and must
   // compare with the latest list, not the one their closure saw. Every change
@@ -106,25 +108,29 @@ export default function NotificationInbox({
   // The first page is asked for again whenever it may have changed out of
   // sight: once mounted (the router can hand back a cached render, on "back"
   // after opening an item for example), when Glitter comes back to the front
-  // (an installed app resumes as it was left), and when an aviso arrives
-  // while it is open.
+  // (an installed app resumes as it was left), and when a change is
+  // announced: a notification arriving while it is open, or an action here
+  // saved.
   useEffect(() => {
     let current = true;
     let inFlight = false;
     let again = false;
 
-    const refresh = () => {
+    const refresh = (announced = false) => {
       if (document.visibilityState !== "visible") return;
       if (inFlight) {
-        // The answer on its way may predate what arrived; ask once more.
-        again = true;
+        // A change announced mid-request may postdate the answer on its way,
+        // so ask once more when it lands. Focus and visibility, which fire
+        // together, are already answered by the request in flight.
+        if (announced) again = true;
         return;
       }
       inFlight = true;
       const changesAtRequest = changes.current;
       void fetchInboxFirstPage(filter)
         .then((page) => {
-          // A change made here meanwhile wins; the next refresh catches up.
+          // A change made here meanwhile wins. Its action announces itself
+          // once saved, which asks again.
           if (!current || !page || changes.current !== changesAtRequest) return;
           const merged = mergeFirstPage(itemsRef.current, page);
           updateItems(() => merged.items);
@@ -146,7 +152,7 @@ export default function NotificationInbox({
     refresh();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
-    const unsubscribe = onNotificationReceived(refresh);
+    const unsubscribe = onNotificationsChanged(() => refresh(true));
     return () => {
       current = false;
       document.removeEventListener("visibilitychange", onVisible);
@@ -203,9 +209,10 @@ export default function NotificationInbox({
     );
   }
 
+  // Not a change a refresh could undo: it keeps what loads here below the
+  // first page (mergeFirstPage).
   function loadMore() {
     if (!cursor) return;
-    changes.current += 1;
     startLoading(async () => {
       setLoadFailed(false);
       try {

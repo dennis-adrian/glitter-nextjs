@@ -1,7 +1,9 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  forgetNotificationState,
+  NOTIFICATION_STATE_CACHE,
   OPENED_NOTIFICATION_COOKIE,
   openedNotificationId,
   parseArrivals,
@@ -97,5 +99,29 @@ describe("openedNotificationId", () => {
     `${OPENED_NOTIFICATION_COOKIE}=`,
   ])("is null for %j", (cookies) => {
     expect(openedNotificationId(cookies)).toBeNull();
+  });
+});
+
+describe("forgetNotificationState", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("drops what the worker kept", async () => {
+    const remove = vi.fn(async () => true);
+    vi.stubGlobal("caches", { delete: remove });
+    await forgetNotificationState();
+    expect(remove).toHaveBeenCalledWith(NOTIFICATION_STATE_CACHE);
+  });
+
+  it("does nothing where storage is blocked or missing", async () => {
+    vi.stubGlobal("caches", {
+      delete: vi.fn(async () => {
+        throw new Error("SecurityError");
+      }),
+    });
+    await expect(forgetNotificationState()).resolves.toBeUndefined();
+    vi.stubGlobal("caches", undefined);
+    await expect(forgetNotificationState()).resolves.toBeUndefined();
   });
 });

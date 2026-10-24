@@ -14,6 +14,7 @@ import {
   resolveInboxViewerWithAccess,
   retentionCutoff,
 } from "@/app/lib/notifications/queries";
+import { markNotificationRead } from "@/app/lib/notifications/read";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
 
@@ -60,16 +61,7 @@ export async function markNotificationReadAction(id: unknown) {
   if (!viewer) return UNAVAILABLE;
   const parsed = idSchema.safeParse(id);
   if (!parsed.success) return { success: false, message: "Datos inválidos." };
-  await db
-    .update(notifications)
-    .set({ readAt: new Date() })
-    .where(
-      and(
-        eq(notifications.id, parsed.data),
-        ownedBy(viewer),
-        isNull(notifications.readAt),
-      ),
-    );
+  await markNotificationRead(viewer, parsed.data);
   return { success: true };
 }
 

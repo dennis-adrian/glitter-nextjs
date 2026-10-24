@@ -5,7 +5,7 @@
  * bundled); a test checks they match.
  */
 
-/** Messages from the worker to a page. */
+/** Messages from the worker to a page; the second carries its `Arrival`. */
 export const SW_OPEN = "glitter:open";
 export const SW_NOTIFICATION_RECEIVED = "glitter:notification-received";
 
@@ -13,6 +13,8 @@ export const SW_NOTIFICATION_RECEIVED = "glitter:notification-received";
 export const NOTIFICATION_STATE_CACHE = "glitter-notification-state";
 export const LAST_TAP_PATH = "/__glitter/last-tap";
 export const ARRIVALS_PATH = "/__glitter/arrivals";
+/** How many arrivals it keeps, the latest last; older ones drop off. */
+export const ARRIVALS_KEPT = 5;
 
 /**
  * Set by the open route for a couple of minutes: the page then knows that
@@ -95,4 +97,18 @@ export function openedNotificationId(cookies: string): number | null {
     }
   }
   return null;
+}
+
+/**
+ * Drops what the worker kept for this browser (the last tap, recent
+ * arrivals), so whoever signs in next does not inherit it.
+ */
+export async function forgetNotificationState() {
+  try {
+    if (typeof caches !== "undefined") {
+      await caches.delete(NOTIFICATION_STATE_CACHE);
+    }
+  } catch {
+    // Storage blocked: nothing was kept.
+  }
 }

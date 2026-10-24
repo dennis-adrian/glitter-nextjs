@@ -16,6 +16,7 @@ import {
   subscribedWithKey,
   urlBase64ToUint8Array,
 } from "@/app/lib/notifications/push/support";
+import { forgetNotificationState } from "@/app/lib/notifications/push/taps";
 
 const SERVICE_WORKER_URL = "/sw.js";
 /** How long a freshly registered worker may take to become active. */
@@ -371,6 +372,8 @@ export function usePushDevice({
  */
 export async function forgetThisBrowserForPush(timeoutMs = 1_500) {
   const work = (async () => {
+    // Taps and arrivals the worker kept, whether or not push is still on.
+    await forgetNotificationState();
     const registered = await currentRegistration();
     const subscription = await registered?.pushManager?.getSubscription();
     if (!subscription) return;
@@ -415,6 +418,7 @@ export function useReleaseForeignPushDevice(userId: number | null) {
       });
       if (result.success && result.released) {
         await subscription.unsubscribe();
+        await forgetNotificationState();
         announcePushDeviceChanged();
       }
     })().catch(() => undefined);

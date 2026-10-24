@@ -12,6 +12,7 @@ import {
   SENSITIVE_PUSH_TITLE,
 } from "@/app/lib/notifications/push/payload";
 import {
+  ARRIVALS_KEPT,
   ARRIVALS_PATH,
   LAST_TAP_PATH,
   NOTIFICATION_STATE_CACHE,
@@ -188,7 +189,7 @@ function openWindow(
       spendWindowInteraction();
       return window;
     }),
-    // Needs no user activation, unlike focusing or opening.
+    // The worker never navigates a window: it may hold a form.
     navigate: vi.fn(async () => window),
     postMessage: vi.fn((_message: unknown, transfer?: MessagePort[]) => {
       if (answer === "silent") return;
@@ -267,6 +268,7 @@ describe("the worker and the page", () => {
     ]) {
       expect(SW_SOURCE).toContain(`"${name}"`);
     }
+    expect(SW_SOURCE).toContain(`const ARRIVALS_KEPT = ${ARRIVALS_KEPT};`);
   });
 });
 
@@ -431,12 +433,19 @@ describe("showing a push", () => {
     });
   });
 
-  it("tells open Glitter windows, which refresh their inbox and bell", async () => {
+  it("tells open Glitter windows what arrived, so they refresh their inbox and bell", async () => {
     const app = openWindow(`${ORIGIN}/`, "silent");
     const elsewhere = openWindow("https://evil.test/", "silent");
     await pushJson(worker, VALID_PAYLOAD, [app, elsewhere]);
     expect(app.postMessage).toHaveBeenCalledWith({
       type: SW_NOTIFICATION_RECEIVED,
+      arrival: {
+        id: 7,
+        title: "Tu reserva fue confirmada",
+        body: "Te esperamos en el stand B12.",
+        url: "/my_notifications/7/open",
+        at: expect.any(Number),
+      },
     });
     expect(elsewhere.postMessage).not.toHaveBeenCalled();
     expect(worker.self.clients.matchAll).toHaveBeenCalledWith({
@@ -445,8 +454,15 @@ describe("showing a push", () => {
     });
   });
 
-  it("keeps the last five arrivals, for a page in the background to offer when it returns", async () => {
-    for (let id = 1; id <= 6; id += 1) {
+  it("still tells the windows when it cannot keep the arrival", async () => {
+    worker.caches.open.mockRejectedValue(new Error("QuotaExceededError"));
+    const app = openWindow(`${ORIGIN}/`, "silent");
+    await pushJson(worker, VALID_PAYLOAD, [app]);
+    expect(app.postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it(`keeps the last ${ARRIVALS_KEPT} arrivals, for a page in the background to offer when it returns`, async () => {
+    for (let id = 1; id <= ARRIVALS_KEPT + 1; id += 1) {
       worker.self.registration.showNotification.mockClear();
       await pushJson(worker, {
         ...VALID_PAYLOAD,
@@ -469,6 +485,37 @@ describe("showing a push", () => {
       url: "/my_notifications/6/open",
     });
     expect(typeof arrivals[4]?.at).toBe("number");
+  });
+
+  it("keeps a retried push once, as the latest", async () => {
+    for (const payload of [
+      VALID_PAYLOAD,
+      { ...VALID_PAYLOAD, id: 8, url: "/my_notifications/8/open" },
+      VALID_PAYLOAD,
+    ]) {
+      worker.self.registration.showNotification.mockClear();
+      await pushJson(worker, payload);
+    }
+    const arrivals = kept(worker, ARRIVALS_PATH) as Array<{ id: number }>;
+    expect(arrivals.map((arrival) => arrival.id)).toEqual([8, 7]);
+  });
+
+  it("keeps both of two pushes handled at once", async () => {
+    const first = dispatch(worker, "push", {
+      data: pushData(JSON.stringify(VALID_PAYLOAD)),
+    });
+    const second = dispatch(worker, "push", {
+      data: pushData(
+        JSON.stringify({
+          ...VALID_PAYLOAD,
+          id: 8,
+          url: "/my_notifications/8/open",
+        }),
+      ),
+    });
+    await Promise.all([first.done, second.done]);
+    const arrivals = kept(worker, ARRIVALS_PATH) as Array<{ id: number }>;
+    expect(arrivals.map((arrival) => arrival.id).sort()).toEqual([7, 8]);
   });
 
   it("still shows the notification when telling the windows fails", async () => {
@@ -526,47 +573,31 @@ describe("tapping a notification", () => {
     );
   });
 
-  it("brings forward and loads the link in a window that does not answer in time", async () => {
-    const asleep = openWindow(`${ORIGIN}/`, "silent");
+  it("leaves a window that does not answer in time as it is, and opens the link in a new one", async () => {
+    // Asleep or frozen in the background, it may hold a form half filled.
+    const asleep = openWindow(
+      `${ORIGIN}/dashboard/festivals/3/edit`,
+      "silent",
+      {
+        visibilityState: "hidden",
+      },
+    );
     await tap(worker, TAP, [asleep]);
-    expect(asleep.focus).toHaveBeenCalledTimes(1);
-    expect(asleep.navigate).toHaveBeenCalledWith("/my_notifications/7/open");
-    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
-  });
-
-  it("counts a navigation that redirected (resolved with null) as done", async () => {
-    const asleep = openWindow(`${ORIGIN}/`, "silent", {
-      focus: vi.fn(async () => {
-        throw new Error("InvalidAccessError");
-      }),
-      navigate: vi.fn(async () => null),
-    });
-    await tap(worker, TAP, [asleep]);
-    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
-  });
-
-  it("leaves a silent window in front when it cannot be navigated, since Chromium would refuse a new one", async () => {
-    const asleep = openWindow(`${ORIGIN}/`, "silent", {
-      navigate: vi.fn(async () => {
-        throw new TypeError("navigate failed");
-      }),
-    });
-    await tap(worker, TAP, [asleep]);
-    expect(asleep.focus).toHaveBeenCalledTimes(1);
-    expect(worker.self.clients.openWindow).not.toHaveBeenCalled();
-  });
-
-  it("opens a new window when a silent window can neither take focus nor be navigated", async () => {
-    const asleep = openWindow(`${ORIGIN}/`, "silent", {
-      focus: vi.fn(async () => {
-        throw new Error("InvalidAccessError");
-      }),
-      navigate: undefined,
-    });
-    await tap(worker, TAP, [asleep]);
+    expect(asleep.navigate).not.toHaveBeenCalled();
+    expect(asleep.focus).not.toHaveBeenCalled();
     expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
       "/my_notifications/7/open",
     );
+  });
+
+  it("brings Glitter forward when it may not open a window", async () => {
+    const asleep = openWindow(`${ORIGIN}/`, "silent");
+    worker.self.clients.openWindow.mockRejectedValue(
+      new Error("InvalidAccessError"),
+    );
+    await tap(worker, TAP, [asleep]);
+    expect(asleep.focus).toHaveBeenCalledTimes(1);
+    expect(asleep.navigate).not.toHaveBeenCalled();
   });
 
   it("treats a window it cannot write to as one that did not answer", async () => {
@@ -576,7 +607,10 @@ describe("tapping a notification", () => {
       }),
     });
     await tap(worker, TAP, [broken]);
-    expect(broken.navigate).toHaveBeenCalledWith("/my_notifications/7/open");
+    expect(broken.navigate).not.toHaveBeenCalled();
+    expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
+      "/my_notifications/7/open",
+    );
   });
 
   it("opens a window when no Glitter window is open", async () => {

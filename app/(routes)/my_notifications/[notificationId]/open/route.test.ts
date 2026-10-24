@@ -7,12 +7,13 @@ const mocks = vi.hoisted(() => ({
   markRead: vi.fn(),
 }));
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/notifications/queries", () => ({
   resolveInboxViewerWithAccess: mocks.viewer,
   fetchNotificationForViewer: mocks.notification,
 }));
-vi.mock("@/app/lib/notifications/actions", () => ({
-  markNotificationReadAction: mocks.markRead,
+vi.mock("@/app/lib/notifications/read", () => ({
+  markNotificationRead: mocks.markRead,
 }));
 
 import { OPENED_NOTIFICATION_COOKIE } from "@/app/lib/notifications/push/taps";
@@ -45,33 +46,48 @@ async function openedCookie(id: string) {
 beforeEach(() => {
   mocks.viewer.mockReset().mockResolvedValue(VIEWER);
   mocks.notification.mockReset();
-  mocks.markRead.mockReset().mockResolvedValue({ success: true });
+  mocks.markRead.mockReset().mockResolvedValue(undefined);
 });
 
 describe("opening a notification from the device", () => {
-  it("marks it read and goes where the inbox would: a gift to the wallet", async () => {
+  it("marks it read and goes where the inbox would: a reservation update to its reservation", async () => {
     mocks.notification.mockResolvedValue({
       id: 41,
+      kind: "reservation_confirmed",
       readAt: null,
-      actionPath: "/my_credits",
+      actionPath: "/profiles/3/festivals/2/reservations/9",
       opensDetail: false,
     });
 
-    expect(await open("41")).toBe("/my_credits");
+    expect(await open("41")).toBe("/profiles/3/festivals/2/reservations/9");
     expect(mocks.notification).toHaveBeenCalledWith(VIEWER, 41);
-    expect(mocks.markRead).toHaveBeenCalledWith(41);
+    expect(mocks.markRead).toHaveBeenCalledWith(VIEWER, 41);
   });
 
-  it("opens its own page when it carries a message someone wrote", async () => {
+  it("opens its own page when it carries text someone wrote, as a gift does", async () => {
     mocks.notification.mockResolvedValue({
       id: 41,
+      kind: "credit_gift_received",
       readAt: null,
       actionPath: "/my_credits",
       opensDetail: true,
     });
 
     expect(await open("41")).toBe("/my_notifications/41");
-    expect(mocks.markRead).toHaveBeenCalledWith(41);
+    expect(mocks.markRead).toHaveBeenCalledWith(VIEWER, 41);
+  });
+
+  it("opens a disciplinary notice's own page, as its push said nothing", async () => {
+    mocks.notification.mockResolvedValue({
+      id: 41,
+      kind: "infraction_registered",
+      readAt: null,
+      actionPath: "/profiles/3/infractions",
+      opensDetail: false,
+    });
+
+    expect(await open("41")).toBe("/my_notifications/41");
+    expect(mocks.markRead).toHaveBeenCalledWith(VIEWER, 41);
   });
 
   it("does not mark it again when it was already read", async () => {

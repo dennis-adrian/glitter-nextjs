@@ -19,11 +19,32 @@ vi.mock("@/app/lib/notifications/actions", () => ({
   markNotificationsUnreadAction: vi.fn(async () => ({ success: true })),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// Opening an item navigates; here it only has to run the inbox's handler.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    onClick,
+    children,
+    ...rest
+  }: React.ComponentProps<"a"> & { href: string }) => (
+    <a
+      href={href}
+      {...rest}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+    >
+      {children}
+    </a>
+  ),
+}));
 
-import { announceNotificationReceived } from "@/app/components/notifications/notification-events";
+import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import NotificationInbox, {
   mergeFirstPage,
 } from "@/app/components/notifications/notification-inbox";
+import { markNotificationReadAction } from "@/app/lib/notifications/actions";
 import type {
   InboxNotification,
   InboxPage,
@@ -57,14 +78,30 @@ function page(items: InboxNotification[], nextCursor: string | null = null) {
 /** What the inbox API answers next, first page and "Ver más" alike. */
 let answers: InboxPage[] = [];
 const requests: string[] = [];
+/** While set, answers wait for it: a request still on its way. */
+let held: Promise<void> | null = null;
+
+/** Holds the answers until the returned function is called. */
+function holdAnswers() {
+  let release = () => {};
+  held = new Promise((resolve) => {
+    release = () => {
+      held = null;
+      resolve();
+    };
+  });
+  return release;
+}
 
 beforeEach(() => {
   answers = [];
   requests.length = 0;
+  held = null;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
       requests.push(url);
+      if (held) await held;
       const next = answers.shift();
       return next
         ? Response.json(next)
@@ -102,7 +139,10 @@ async function settle() {
 describe("mergeFirstPage", () => {
   it("puts the fresh first page on top and keeps older pages below it", () => {
     const current = [item(9), item(8), item(5), item(4)];
-    const merged = mergeFirstPage(current, page([item(10), item(9), item(8)]));
+    const merged = mergeFirstPage(
+      current,
+      page([item(10), item(9), item(8)], "8"),
+    );
     expect(merged.items.map((entry) => entry.id)).toEqual([10, 9, 8, 5, 4]);
     expect(merged.keepsCursor).toBe(true);
   });
@@ -124,6 +164,14 @@ describe("mergeFirstPage", () => {
     );
     expect(merged.items.map((entry) => entry.id)).toEqual([11, 10, 9, 8]);
     expect(merged.keepsCursor).toBe(true);
+  });
+
+  it("drops what 'Ver más' loaded when the first page holds everything there is", () => {
+    // Archived elsewhere: the server has nothing older than the page.
+    const current = [item(9), item(8), item(5), item(4)];
+    const merged = mergeFirstPage(current, page([item(10), item(9)]));
+    expect(merged.items.map((entry) => entry.id)).toEqual([10, 9]);
+    expect(merged.keepsCursor).toBe(false);
   });
 
   it("empties the list when the first page comes back empty", () => {
@@ -171,9 +219,70 @@ describe("the inbox on screen", () => {
     await settle();
 
     answers.push(page([item(2, "Recibiste 20 créditos"), item(1, "Primera")]));
-    act(() => announceNotificationReceived());
+    act(() => announceNotificationsChanged());
 
     expect(await screen.findByText("Recibiste 20 créditos")).toBeTruthy();
+  });
+
+  it("asks once when coming back, though visibility and focus both say so", async () => {
+    answers.push(page([item(1)]));
+    render(
+      <NotificationInbox
+        initialPage={page([item(1)])}
+        filter="all"
+        filters={["all"]}
+      />,
+    );
+    await settle();
+    const asked = requests.length;
+
+    setVisibility("hidden");
+    answers.push(page([item(1)]), page([item(1)]));
+    setVisibility("visible");
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await settle();
+    expect(requests.length).toBe(asked + 1);
+  });
+
+  it("keeps a change made while it was asking, and asks again once that change is saved", async () => {
+    answers.push(page([item(1, "Uno")]));
+    render(
+      <NotificationInbox
+        initialPage={page([item(1, "Uno")])}
+        filter="all"
+        filters={["all"]}
+      />,
+    );
+    await settle();
+    const asked = requests.length;
+
+    let save = () => {};
+    vi.mocked(markNotificationReadAction).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          save = () => resolve({ success: true });
+        }),
+    );
+    const release = holdAnswers();
+    // Asked before the change, answered after it: still unread.
+    answers.push(page([item(1, "Uno")]));
+    act(() => announceNotificationsChanged());
+    fireEvent.click(screen.getByText("Uno"));
+    expect(screen.queryByText("No leída")).toBeNull();
+
+    release();
+    await settle();
+    expect(screen.queryByText("No leída")).toBeNull();
+
+    answers.push(
+      page([{ ...item(1, "Uno"), readAt: new Date().toISOString() }]),
+    );
+    await act(async () => save());
+    await settle();
+    expect(requests.length).toBe(asked + 2);
+    expect(screen.queryByText("No leída")).toBeNull();
   });
 
   it("asks nothing while hidden, and asks once more when one arrives mid-request", async () => {
@@ -189,14 +298,14 @@ describe("the inbox on screen", () => {
     const asked = requests.length;
 
     setVisibility("hidden");
-    act(() => announceNotificationReceived());
+    act(() => announceNotificationsChanged());
     await settle();
     expect(requests.length).toBe(asked);
 
     // One arrives while the request for coming back is still on its way.
     answers.push(page([item(1)]), page([item(2, "Nueva"), item(1)]));
     setVisibility("visible");
-    act(() => announceNotificationReceived());
+    act(() => announceNotificationsChanged());
 
     expect(await screen.findByText("Nueva")).toBeTruthy();
     expect(requests.length).toBe(asked + 2);
@@ -218,12 +327,16 @@ describe("the inbox on screen", () => {
     expect(await screen.findByText("Más vieja")).toBeTruthy();
 
     answers.push(page([item(11, "Recién llegada"), item(10)], "10"));
-    act(() => announceNotificationReceived());
+    act(() => announceNotificationsChanged());
 
     expect(await screen.findByText("Recién llegada")).toBeTruthy();
     // 9 no longer fits the first page, but it is still in the inbox.
     expect(screen.getByText("Notificación 9")).toBeTruthy();
     expect(screen.getByText("Más vieja")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Ver más/ })).toBeNull();
+    // Nothing older is left to load, whatever the first page's cursor says.
+    await settle();
+    expect(
+      screen.queryByRole("button", { name: /Ver más|Cargando/ }),
+    ).toBeNull();
   });
 });
