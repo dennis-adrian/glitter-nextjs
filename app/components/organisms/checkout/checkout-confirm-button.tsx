@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import { checkoutCart } from "@/app/lib/cart/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type CheckoutConfirmButtonProps = {
   hasRentalItems?: boolean;
@@ -57,7 +58,7 @@ export default function CheckoutConfirmButton({
         isSubmittingRef.current = false;
       }
     } catch (error) {
-      toast.error("Error al procesar el pedido. Intenta de nuevo.");
+      toastActionError(error, "Error al procesar el pedido. Intenta de nuevo.");
       setLoading(false);
       isSubmittingRef.current = false;
     }

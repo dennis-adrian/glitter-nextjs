@@ -68,6 +68,7 @@ import { hasMeaningfulContent, usesWorkingCopy } from "@/app/lib/posts/helpers";
 import { slugifyName } from "@/app/lib/posts/slug";
 import { postFormSchema } from "@/app/lib/posts/validate";
 import { useUploadThing } from "@/app/vendors/uploadthing";
+import { actionErrorMessage } from "@/app/lib/errors/action-error";
 
 type Surface = "dashboard" | "portal";
 
@@ -317,7 +318,12 @@ export default function PostFormInner({
         if (versionRef.current !== version) return;
         console.error("autosaveDraft", error);
         setSaveStatus("error");
-        setSaveError(error instanceof Error ? error.message : String(error));
+        setSaveError(
+          actionErrorMessage(
+            error,
+            error instanceof Error ? error.message : String(error),
+          ),
+        );
       }
     }, 1500);
 

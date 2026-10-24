@@ -12,6 +12,7 @@ import {
   submitGuestOrderPaymentVoucher,
 } from "@/app/lib/orders/actions";
 import { useUploadThing } from "@/app/vendors/uploadthing";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Phase = "idle" | "selected" | "uploading" | "saving" | "done" | "error";
 
@@ -127,8 +128,11 @@ export default function MobilePaymentBar({
         toast.error(result.message);
         setPhase("error");
       }
-    } catch {
-      toast.error("No se pudo confirmar el pago. Intentá de nuevo.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No se pudo confirmar el pago. Intentá de nuevo.",
+      );
       setPhase("error");
     }
   }

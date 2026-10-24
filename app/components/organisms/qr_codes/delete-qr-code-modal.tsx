@@ -9,6 +9,7 @@ import type { QrCodeBase } from "@/app/lib/qr_codes/definitions";
 import { AlertCircleIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   qrCode: QrCodeBase;
@@ -31,8 +32,8 @@ export default function DeleteQrCodeModal({ qrCode, open, setOpen }: Props) {
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("Error al eliminar el código QR");
+    } catch (error) {
+      toastActionError(error, "Error al eliminar el código QR");
     }
   });
 

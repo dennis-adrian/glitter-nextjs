@@ -24,6 +24,7 @@ import type {
   CollectionOption,
   MerchCollection,
 } from "@/app/lib/merch/definitions";
+import { actionErrorMessage } from "@/app/lib/errors/action-error";
 
 export default function CollectionForm({
   collection,
@@ -130,8 +131,13 @@ export default function CollectionForm({
           }
           router.push("/dashboard/store/collections");
           router.refresh();
-        } catch {
-          setError("No se pudo guardar la colección. Intenta nuevamente.");
+        } catch (caught) {
+          setError(
+            actionErrorMessage(
+              caught,
+              "No se pudo guardar la colección. Intenta nuevamente.",
+            ),
+          );
         } finally {
           setPending(false);
         }

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { requestProfileReview } from "@/app/lib/users/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type RequestReviewFormProps = {
   profileId: number;
@@ -33,7 +34,7 @@ export default function RequestReviewForm({
       res = await requestProfileReview(profileId);
     } catch (error) {
       console.error("Error requesting profile review", error);
-      toast.error(FAILURE_MESSAGE);
+      toastActionError(error, FAILURE_MESSAGE);
       return;
     }
 

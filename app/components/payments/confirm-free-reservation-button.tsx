@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ConfirmFreeReservationButtonProps = {
   invoice: InvoiceWithPaymentsAndStand;
@@ -36,7 +37,8 @@ export default function ConfirmFreeReservationButton({
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? ` ${error.message}` : "";
-        toast.error(
+        toastActionError(
+          error,
           `No se pudo confirmar la reserva. Inténtalo de nuevo.${errorMessage}`,
         );
         console.error("Error confirming free reservation:", error);

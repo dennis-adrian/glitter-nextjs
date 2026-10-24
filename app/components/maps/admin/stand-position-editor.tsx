@@ -94,6 +94,7 @@ import AdminMapCanvas, {
 import MapElementIcon from "../map-element-icon";
 import TemplateExportDialog from "./template-export-dialog";
 import TemplateImportDialog from "./template-import-dialog";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type StandPositionEditorProps = {
   festivalId: number;
@@ -691,7 +692,7 @@ export default function StandPositionEditor({
       // The action reports its own failures, so reaching here means the call
       // itself never completed
       console.error("Error grouping stands", error);
-      toast.error("Error al unir los espacios");
+      toastActionError(error, "Error al unir los espacios");
     } finally {
       setIsGrouping(false);
     }
@@ -717,7 +718,7 @@ export default function StandPositionEditor({
       // The action reports its own failures, so reaching here means the call
       // itself never completed
       console.error("Error ungrouping stands", error);
-      toast.error("Error al separar los espacios");
+      toastActionError(error, "Error al separar los espacios");
     } finally {
       setIsGrouping(false);
     }

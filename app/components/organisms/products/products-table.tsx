@@ -15,6 +15,7 @@ import type { Table } from "@tanstack/react-table";
 import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ProductsTableProps = {
   products: BaseProductWithImages[];
@@ -42,8 +43,8 @@ function BulkActionsToolbar({
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("No se pudo actualizar la visibilidad.");
+    } catch (error) {
+      toastActionError(error, "No se pudo actualizar la visibilidad.");
     } finally {
       setLoading(false);
     }
@@ -59,8 +60,8 @@ function BulkActionsToolbar({
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("No se pudo eliminar los productos.");
+    } catch (error) {
+      toastActionError(error, "No se pudo eliminar los productos.");
     } finally {
       setLoading(false);
     }

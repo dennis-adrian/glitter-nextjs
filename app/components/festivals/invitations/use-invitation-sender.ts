@@ -7,6 +7,7 @@ import type {
   InvitationPageFailure,
 } from "@/app/lib/festivals/invitation-definitions";
 import { sendInvitationBatch } from "@/app/lib/festivals/invitations";
+import { actionErrorMessage } from "@/app/lib/errors/action-error";
 
 export type InvitationSendState = {
   status: "idle" | "sending" | "done" | "error";
@@ -102,10 +103,13 @@ export function useInvitationSender(festivalId: number, kind: InvitationKind) {
             throughId: page.throughId,
             attempt: page.attempt,
           });
-        } catch {
+        } catch (error) {
           result = {
             success: false,
-            message: "Se perdió la conexión con el servidor.",
+            message: actionErrorMessage(
+              error,
+              "Se perdió la conexión con el servidor.",
+            ),
           };
         }
 

@@ -23,6 +23,7 @@ import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type DraftAddition = {
   key: string;
@@ -170,8 +171,8 @@ export default function AdminAdjustOrderForm({
       }
       toast.success(result.message);
       router.push(`/dashboard/store/orders/${order.id}`);
-    } catch {
-      toast.error("No se pudo aplicar el ajuste.");
+    } catch (error) {
+      toastActionError(error, "No se pudo aplicar el ajuste.");
     } finally {
       setPending(false);
     }

@@ -16,6 +16,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { CHECK_IN_OUTCOME_LABELS } from "@/app/lib/programs/checkin";
 import { checkInTicket } from "@/app/lib/programs/checkin-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   occurrenceId: number;
@@ -49,8 +50,11 @@ export default function RosterCheckInButton({
           code: ticketCode,
           method: "manual_code",
         });
-      } catch {
-        toast.error("No pudimos registrar el ingreso. Intenta de nuevo.");
+      } catch (error) {
+        toastActionError(
+          error,
+          "No pudimos registrar el ingreso. Intenta de nuevo.",
+        );
         return;
       }
 

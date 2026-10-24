@@ -18,6 +18,7 @@ import {
 import { upsertFestivalFeatureConfigAction } from "@/app/lib/festivals/feature-config-actions";
 import type { FestivalFeatureScope } from "@/app/lib/festivals/feature-config-service";
 import type { FullTableReadiness } from "@/app/lib/stands/full-table-queries";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const TYPE_LABELS: Record<string, string> = {
   full_table: "Mesa completa",
@@ -123,7 +124,7 @@ export default function FestivalFeatureConfigRow({
         router.refresh();
       } catch (error) {
         console.error("Error saving feature config", error);
-        toast.error("Error al guardar la configuración.");
+        toastActionError(error, "Error al guardar la configuración.");
       }
     });
   }

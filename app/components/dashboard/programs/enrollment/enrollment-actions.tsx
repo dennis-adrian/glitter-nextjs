@@ -24,6 +24,7 @@ import {
   cancelPurchaseAsAdmin,
   resendPurchaseLink,
 } from "@/app/lib/programs/support-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   purchaseId: number;
@@ -85,8 +86,11 @@ export default function EnrollmentActions({
       toast.success(result.message);
       setReason("");
       router.refresh();
-    } catch {
-      toast.error("No pudimos completar la acción. Intenta de nuevo.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No pudimos completar la acción. Intenta de nuevo.",
+      );
     } finally {
       setPending(null);
     }

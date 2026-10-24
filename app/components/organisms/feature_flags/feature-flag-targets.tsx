@@ -15,6 +15,7 @@ import {
   targetDisplayName,
   type FeatureFlagTarget,
 } from "@/app/lib/feature_flags/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   flagKey: string;
@@ -48,8 +49,8 @@ export default function FeatureFlagTargets({ flagKey, targets }: Props) {
         } else {
           toast.error(result.message);
         }
-      } catch {
-        toast.error("No se pudo otorgar el acceso");
+      } catch (error) {
+        toastActionError(error, "No se pudo otorgar el acceso");
       }
     });
   }
@@ -64,8 +65,8 @@ export default function FeatureFlagTargets({ flagKey, targets }: Props) {
         } else {
           toast.error(result.message);
         }
-      } catch {
-        toast.error("No se pudo retirar el acceso");
+      } catch (error) {
+        toastActionError(error, "No se pudo retirar el acceso");
       }
     });
   }

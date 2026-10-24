@@ -30,6 +30,7 @@ import {
 } from "@/app/lib/merch/bundle-pricing";
 import { MAX_CART_BUNDLE_QUANTITY } from "@/app/lib/merch/bundle-schema";
 import { cn } from "@/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 function initialSelections(bundle: PublicBundle) {
   const firstInStock = Object.fromEntries(
@@ -146,8 +147,11 @@ export default function BundleDetail({ bundle }: { bundle: PublicBundle }) {
       toast.success("Combo agregado al carrito", {
         action: { label: "Ver carrito", onClick: openCart },
       });
-    } catch {
-      toast.error("No se pudo agregar el combo. Intenta nuevamente.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No se pudo agregar el combo. Intenta nuevamente.",
+      );
     } finally {
       setSubmitting(false);
     }

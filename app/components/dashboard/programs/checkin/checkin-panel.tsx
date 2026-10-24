@@ -19,6 +19,7 @@ import {
   dismissCheckInVerdict,
   showCheckInVerdict,
 } from "@/app/lib/programs/checkin-verdict-toast";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = { occurrenceId: number };
 
@@ -49,8 +50,11 @@ export default function CheckInPanel({ occurrenceId }: Props) {
         let res;
         try {
           res = await checkInTicket({ occurrenceId, code, method });
-        } catch {
-          toast.error("No pudimos registrar el ingreso. Intenta de nuevo.");
+        } catch (error) {
+          toastActionError(
+            error,
+            "No pudimos registrar el ingreso. Intenta de nuevo.",
+          );
           return;
         }
 

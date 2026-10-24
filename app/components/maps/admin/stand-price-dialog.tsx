@@ -18,6 +18,7 @@ import {
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { updateStandPricesAction } from "@/app/lib/stands/pricing-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export type PricedStand = {
   id: number;
@@ -174,7 +175,7 @@ export default function StandPriceDialog({
         router.refresh();
       } catch (error) {
         console.error("Error updating stand prices", error);
-        toast.error("Error al actualizar los precios.");
+        toastActionError(error, "Error al actualizar los precios.");
       }
     });
   }

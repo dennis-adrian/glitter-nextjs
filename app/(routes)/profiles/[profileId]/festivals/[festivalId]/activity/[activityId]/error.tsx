@@ -3,6 +3,8 @@
 import { AlertCircleIcon } from "lucide-react";
 
 import { Button } from "@/app/components/ui/button";
+import StaleDeploymentNotice from "@/app/components/common/stale-deployment-notice";
+import { isStaleDeploymentError } from "@/app/lib/errors/action-error";
 
 /**
  * This page reads the festival's confirmed participants to build the stands a
@@ -11,11 +13,14 @@ import { Button } from "@/app/components/ui/button";
  * the activity itself was empty. It rethrows now, and lands here.
  */
 export default function FestivalActivityError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  if (isStaleDeploymentError(error)) return <StaleDeploymentNotice />;
+
   return (
     <div className="container mx-auto p-4 md:p-6">
       <div className="mx-auto max-w-xl space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-5 text-center">

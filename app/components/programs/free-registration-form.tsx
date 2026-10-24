@@ -32,6 +32,7 @@ import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { registerForFreeSession } from "@/app/lib/programs/registration-actions";
 import { genderOptions } from "@/app/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   occurrenceId: number;
@@ -223,7 +224,10 @@ export default function FreeRegistrationForm({
         is_guest: guest !== null,
         failure: "exception",
       });
-      toast.error("No pudimos completar tu inscripción. Intentá de nuevo.");
+      toastActionError(
+        error,
+        "No pudimos completar tu inscripción. Intentá de nuevo.",
+      );
     } finally {
       setIsSubmitting(false);
     }

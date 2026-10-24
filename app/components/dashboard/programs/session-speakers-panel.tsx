@@ -22,6 +22,7 @@ import type {
   SessionSpeakerWithSpeaker,
   Speaker,
 } from "@/app/lib/programs/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   sessionId: number;
@@ -56,7 +57,7 @@ export default function SessionSpeakersPanel({
         }
       } catch (error) {
         console.error(error);
-        toast.error("No se pudo actualizar el expositor");
+        toastActionError(error, "No se pudo actualizar el expositor");
       }
     });
   }

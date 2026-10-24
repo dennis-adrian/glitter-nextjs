@@ -28,6 +28,7 @@ import {
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import CategorySelector from "./category-selector";
 import { CATEGORY_CONFIG, type Category } from "./category-config";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function LiveActForm() {
   const [submitted, setSubmitted] = useState(false);
@@ -79,7 +80,8 @@ export default function LiveActForm() {
       }
     } catch (error) {
       console.error("createLiveAct failed", error);
-      toast.error(
+      toastActionError(
+        error,
         "Ocurrió un error inesperado al enviar la postulación. Intentá de nuevo.",
       );
     }
