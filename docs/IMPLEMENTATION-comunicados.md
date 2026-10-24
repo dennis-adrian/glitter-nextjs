@@ -74,6 +74,7 @@ CREATE INDEX notification_deliveries_batch_key_idx ON notification_deliveries (b
   - is never re-batched under a new key;
   - is never picked by "Reintentar fallidos";
   - may end `sent`, `failed` (`outcome_unknown` or `resend:<code>`, or the pre-check's `address_changed`) or `skipped` by the pre-check;
+  - two exceptions: a 200 whose `errors[]` names the row proves it was not delivered, so it becomes `failed` `resend:item_rejected` with `maybe_sent_at` cleared, and can be retried; and a retraction skips `pending` rows as `retracted` directly (F3 step 4), maybe-sent ones included;
   - shows in the report as "Puede haber llegado" unless it is `sent` (G6).
 - **`content_revision`.** The comunicado revision carried by the request Resend accepted (200). It is null after a 409 replay, which records `last_error = 'idempotent_replay'`.
 
@@ -359,7 +360,7 @@ A send to people alone is allowed, so a comunicado can go to exactly one person 
 
 ### B2. Sources
 
-One resolver, `resolveComunicadoAudience(executor, audience, { narrow })` in `app/lib/comunicados/audience.ts`. It is a single SQL statement whose `sources` CTE yields `(user_id, via)`.
+One resolver, `resolveComunicadoAudience(executor, audience, { narrow })` in `app/lib/comunicados/audience.ts`. It is a single SQL statement whose `sources` CTE returns `(user_id, via)`.
 
 | Source                                                                                | SQL inside `sources`                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -460,16 +461,16 @@ One shared module, `app/lib/participants/recipient-eligibility.ts`, which gifts 
 - `classifyParticipantRecipients(ids)` is today's `classifyCreditGiftRecipients` (`credit_gifts/service.ts:105-125`).
 - `comunicadoSkipReasonSql(u, source, narrow)` is the comunicado rule as a SQL `CASE`. The first match wins:
 
-| #   | Condition                                                                        | Label stored in `skipped_reason`        |
-| --- | -------------------------------------------------------------------------------- | --------------------------------------- |
-| 1   | a `pending_user_deletions` row with `local_deleted_at IS NULL`                   | Cuenta en eliminación                   |
-| 2   | `source ∈ (person, staging_admin)` and `role = 'admin'` and `status <> 'banned'` | _(eligible)_                            |
-| 3   | `source = 'staging_admin'` and no longer an admin                                | No es participante                      |
-| 4   | `role <> 'user'`                                                                 | No es participante                      |
-| 5   | `status = 'banned'`                                                              | Cuenta suspendida                       |
-| 6   | `status NOT IN ('verified','paused')`                                            | Perfil no verificado                    |
-| 7   | `narrow AND source = 'list'`                                                     | Entorno de prueba: no se envía a listas |
-| 8   | _(added by a retraction to rows still pending)_                                  | Retirado antes de enviarse              |
+| #   | Condition                                                                                 | Label stored in `skipped_reason`        |
+| --- | ----------------------------------------------------------------------------------------- | --------------------------------------- |
+| 1   | a `pending_user_deletions` row with `local_deleted_at IS NULL`                            | Cuenta en eliminación                   |
+| 2   | `source ∈ (person, staging_admin)` and `role = 'admin'` and `status <> 'banned'`          | _(eligible)_                            |
+| 3   | `source = 'staging_admin'` and no longer an admin                                         | No es participante                      |
+| 4   | `role <> 'user'`                                                                          | No es participante                      |
+| 5   | `status = 'banned'`                                                                       | Cuenta suspendida                       |
+| 6   | `status NOT IN ('verified','paused')`                                                     | Perfil no verificado                    |
+| 7   | `narrow AND source IS DISTINCT FROM 'person' AND source IS DISTINCT FROM 'staging_admin'` | Entorno de prueba: no se envía a listas |
+| 8   | _(added by a retraction to rows still pending)_                                           | Retirado antes de enviarse              |
 
 Real ineligibility (rows 4–6) is checked before row 7, so a preview's counts still exercise the rules.
 
@@ -517,7 +518,7 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
 
 | Address state                                                                           | Normal send                    | Essential send                                      |
 | --------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
-| Active suppression, bounce **or complaint** (`email_suppressions`, `lifted_at IS NULL`) | not emailed: `suppressed`      | **not emailed** (decision 5)                        |
+| Active suppression, bounce **or complaint** (`email_suppressions`, `lifted_at IS NULL`) | not emailed: `suppressed`      | **not emailed** (Resend refuses them anyway)        |
 | Unsubscribed from `announcements`                                                       | not emailed: `unsubscribed`    | **emailed**, with no `List-Unsubscribe` header (D7) |
 | Unsubscribed from `all`                                                                 | not emailed: `unsubscribed`    | **not emailed**: `unsubscribed` (proposed; K2)      |
 | Fails `isDeliverableEmail` (`app/lib/festivals/invitation-helpers.ts:23`)               | not emailed: `invalid_address` | not emailed                                         |
@@ -558,7 +559,7 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
   - Lists are "computed when used" and filters "re-evaluated at send time" (PRD §12, Audiences).
 - **The schedule dialog says so:** "La audiencia se calcula al momento del envío: hoy serían 1.240 personas."
 - **Drift guard:**
-  - When typed confirmation applies (≥ 300 eligible, or essential), the server compares the typed number with its own count inside the send transaction.
+  - When typed confirmation applies (≥ 300 eligible, or essential), the server compares the typed number with its own count inside the send transaction. This is for "Enviar ahora" only: a release has no typed count (E3, K14).
   - On a mismatch it rolls back with `AUDIENCE_CHANGED`: "La audiencia cambió: ahora son 1.251 personas. Revisá y confirmá de nuevo."
   - This is the gifts' `CONFIRMATION_MISMATCH` pattern (`credit_gifts/service.ts:210-217`).
   - Below the threshold, a small drift is accepted.
@@ -776,7 +777,7 @@ BEGIN
  4. SELECT id, user_id, source FROM notification_campaign_recipients
       WHERE id = ANY($candidateIds) AND status = 'pending' FOR UPDATE SKIP LOCKED     -- a concurrent runner's rows go to `passed`
  5. SELECT user_id FROM pending_user_deletions WHERE user_id = ANY($) AND local_deleted_at IS NULL
- 6. classify with B5 rows 1–6, and re-apply row 7 by this process's VERCEL_ENV with the `source` read in step 4 (B6)
+ 6. classify with B5 rows 1–6; skip any `source` outside (list, person, staging_admin) as "No es participante", an allowlist, so a NULL or unknown source never gets an inbox row or a push; and re-apply row 7 by this process's VERCEL_ENV with the `source` read in step 4 (B6)
  7. notifyMany(tx, { kind: "comunicado", data, userIds: eligible, dedupeKey: `comunicado:${k}`, campaignId: c,
                      email: sendEmail ? "bulk" : null, push: sendPush })
  8. UPDATE notification_campaign_recipients r SET status = 'notified', notification_id = v.nid, attempts = r.attempts + 1,
@@ -852,7 +853,7 @@ WHERE id = $c AND status = 'processing';                                     -- 
 
 ### D3. The bulk email lane: `app/lib/notifications/bulk-email.ts`
 
-The lane is generic over a renderer registry, `BULK_EMAIL_RENDERERS = { comunicado: comunicadoBatchRenderer }`. The comunicado renderer lives in `app/lib/comunicados/delivery.ts`, and PR 2's tests register a fixture renderer. One batch is one comunicado, one revision and at most 100 rows.
+The lane is generic over a renderer registry, `BULK_EMAIL_RENDERERS = { comunicado: comunicadoBatchRenderer }`. The comunicado renderer lives in `app/lib/comunicados/delivery.ts`, and PR 2's tests register a fixture renderer. Each renderer also supplies the lane-wide `<scope>` (for comunicados, the environment filter of D9), so `bulk-email.ts` itself never reads `comunicados`. One batch is one comunicado, one revision and at most 100 rows.
 
 **Step 0, expiry** (the start of every email step):
 
@@ -901,7 +902,7 @@ WHERE lane = 'bulk' AND channel = 'email'
    FROM picked WHERE d.id = picked.id RETURNING d.*;
    ```
 
-- `<dueNow>` is the predicate at `deliveries.ts:62-69`, which uses the database clock. `<scope>` is the send's own campaign. Lane-wide, it is the campaigns whose `comunicados.audience_summary->>'env'` equals this process's `VERCEL_ENV` (D9), and the subquery that picks the oldest comunicado applies it too.
+- `<dueNow>` is the predicate at `deliveries.ts:62-69`, which uses the database clock. `<scope>` is the send's own campaign. Lane-wide, it is the renderer's scope: for comunicados, the campaigns whose `comunicados.audience_summary->>'env'` equals this process's `VERCEL_ENV` (D9), and the subquery that picks the oldest comunicado applies it too.
 - `$newKey = 'comunicado-batch:{campaignId}:{uuid}'`. `sendBatchEmails` scopes it by `VERCEL_ENV` and hashes it past 256 characters (`resend.ts:40-46`).
 - **The key is committed with the claim.** A batch that dies mid-request comes back after its lease with the same key and the same rows, now marked `maybe_sent_at`, and Resend deduplicates it if it had landed.
 
@@ -928,7 +929,8 @@ COMMIT
 - **Spacing under the lane lock** guarantees at least 1.5 s between any two bulk requests, whatever the number of drivers. That is at most `1 / (H + 1.5 s)` requests per second, where H is the lock hold (render plus request, about 0.8–2.8 s): about 0.23–0.43 requests per second.
 - **A batch whose pre-check leaves no sendable row** settles without a request and without the wait.
 - **The lock timeout** covers only the comunicado lock. It is clamped to at least 1 s, because `'0'` turns the timeout off and a negative value makes the `SET` fail.
-- **Releasing a claim.** Only a failure that came **before** the Resend request releases a claim: the reserve reached first, `lock_timeout` on the comunicado lock, or any error before `sendBatchEmails` is called. A short transaction sets the claim's rows back to `pending`: lease cleared, key and `maybe_sent_at` kept, `next_attempt_at = now()`, nothing marked. Rows of a retracted comunicado become `skipped` `retracted` instead.
+- **Releasing a claim.** Only an interruption **before** the Resend request releases a claim with nothing marked: the reserve reached first, `lock_timeout` on the comunicado lock, try-lock exhaustion, or a D2 transient SQLSTATE. A short transaction sets the claim's rows back to `pending`: lease cleared, key and `maybe_sent_at` kept, `next_attempt_at = now()`. Rows of a retracted comunicado become `skipped` `retracted` instead.
+- **Any other error before the request** (a render or a pre-check that throws) spends an attempt: the rows go back to `pending` with the unknown-outcome backoff, `min(15 min, 30 s·2^(n−1))`, keeping the key only when `maybe_sent_at` is set, and at 5 attempts end `failed` with `render_failed` (or `outcome_unknown` when `maybe_sent_at` is set). The backoff lets every other due batch go first, so one broken comunicado cannot stall the lane.
 - **Any failure after the request** (the settle, the commit, the process dying) leaves the rows `processing`, never released. The re-claim after the lease then marks them `maybe_sent_at` (S1).
 
 **Pre-check** (the first match wins; an allowlist, so missing rows and NULLs fail closed):
@@ -1000,13 +1002,13 @@ Unsubscribe tokens are deterministic (`unsubscribe-tokens.ts:12-16`), so an unch
 
 **Invariants:**
 
-- **I6.** A row's key is minted in a committed claim before any request carries it, and is never given to other rows.
+- **V6.** A row's key is minted in a committed claim before any request carries it, and is never given to other rows.
   - It is dropped only while no attempt under it may have landed.
-  - Once `maybe_sent_at` is set, the row stays in that batch under its key: it is never re-batched under a new key and never picked by "Reintentar fallidos". It may end `sent`, `failed` (`outcome_unknown` or `resend:<code>`, or the pre-check's `address_changed`) or `skipped` by the pre-check, and the report shows "Puede haber llegado" unless it is `sent`.
+  - Once `maybe_sent_at` is set, the row stays in that batch under its key: it is never re-batched under a new key and never picked by "Reintentar fallidos". It may end `sent`, `failed` (`outcome_unknown` or `resend:<code>`, or the pre-check's `address_changed`) or `skipped` by the pre-check, and the report shows "Puede haber llegado" unless it is `sent`. The exceptions are a per-item refusal in a 200, which clears `maybe_sent_at` (`resend:item_rejected`, retryable), and a retraction, which skips pending rows directly (F3 step 4).
   - A held batch only ever shrinks.
   - No row is sent more than 20 h after it was written.
   - So a 409 means that an earlier request under this key was accepted, and every surviving row was in it. It does not prove each of those rows was delivered: in permissive mode Resend may have refused one of them on its own, and the 409 does not say which. Those rows are recorded `sent` with `idempotent_replay` and reported as not confirmed per person (G6). A key is never re-submitted after Resend could have forgotten it.
-- **I7.** "Reintentar fallidos" never selects a row with `maybe_sent_at` set (G6).
+- **V7.** "Reintentar fallidos" never selects a row with `maybe_sent_at` set (G6).
 
 ### D4. Keeping transactional email first
 
@@ -1175,6 +1177,7 @@ To try the inbox and push for real, the admin picks themselves by name and sends
 | Enviar ahora          | D1 with `trigger: 'now'`, from draft or scheduled                                                                                                                                                                                                                                                                                                                                                                          | idempotent                                                                  |
 | Autosave              | `… WHERE id=$id AND status='draft' AND version=$v`                                                                                                                                                                                                                                                                                                                                                                         | "Este borrador cambió en otra pestaña. Recargá para ver la última versión." |
 
+- **Development cannot schedule.** "Programar" and "Cambiar fecha" are refused when `VERCEL_ENV` is development: "En desarrollo no se puede programar: nada lo enviaría." No cron runs there, and a schedule written to a shared or production database would later be released by that database's own cron, unnarrowed (K9).
 - **A scheduled comunicado is frozen:** no autosave, and no change to the audience or the channels. It opens read-only with a banner: "Está programado. Para cambiar el texto o los destinatarios, cancelá la programación." This removes every race between an edit and the release.
 - **Every transition carries its status** in the WHERE, because here the action sends email. The blog's cancel and reschedule do not (`app/lib/posts/actions.ts:642-649, 673-681`).
 
@@ -1359,15 +1362,15 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 
 ### F5. Invariants the tests pin
 
-- **I1.** After any committed edit, every non-retracted inbox row of the campaign has `data.revision = current_revision`, and its title and body match that revision.
-- **I2.** No bulk email request carries a revision other than the one current when its batch took the lock, and none starts after a retraction has committed.
-- **I3.** A retracted row is archived and cannot be un-archived (the CHECK). `updateOne`, `markNotificationRead` and `markNotificationsUnreadAction` update 0 rows.
-- **I4.** After a retraction commits, no comunicado email can be requested, and no push whose inbox row was read after the retraction committed (bulk push takes no comunicado lock, so a push that read the row just before may still go out). No `pending` recipient remains. Every `pending` delivery is skipped. Claimed rows meet `retracted` in their pre-check, or are released as skipped.
-- **I5.** At most one campaign per comunicado, and at most one recipient row and one inbox row per (comunicado, person).
-- **I6, I7.** As stated at the end of D3.
-- **I8.** The transactional drains never claim a bulk row, and `claimDelivery` refuses a bulk email.
-- **I9.** A list filter that cannot be read fails the send; it never resolves to everyone.
-- **I10.** Every `processing` comunicado campaign with no pending recipient and no pending or processing email is completed by the next lane tick.
+- **V1.** After any committed edit, every non-retracted inbox row of the campaign has `data.revision = current_revision`, and its title and body match that revision.
+- **V2.** No bulk email request carries a revision other than the one current when its batch took the lock, and none starts after a retraction has committed.
+- **V3.** A retracted row is archived and cannot be un-archived (the CHECK). `updateOne`, `markNotificationRead` and `markNotificationsUnreadAction` update 0 rows.
+- **V4.** After a retraction commits, no comunicado email can be requested, and no push whose inbox row was read after the retraction committed (bulk push takes no comunicado lock, so a push that read the row just before may still go out). No `pending` recipient remains. Every `pending` delivery is skipped. Claimed rows meet `retracted` in their pre-check, or are released as skipped.
+- **V5.** At most one campaign per comunicado, and at most one recipient row and one inbox row per (comunicado, person).
+- **V6, V7.** As stated at the end of D3.
+- **V8.** The transactional drains never claim a bulk row, and `claimDelivery` refuses a bulk email.
+- **V9.** A list filter that cannot be read fails the send; it never resolves to everyone.
+- **V10.** Every `processing` comunicado campaign with no pending recipient and no pending or processing email is completed by the next lane tick.
 
 ### F6. The report after an edit or a retraction
 
@@ -1467,7 +1470,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
   - on previews, everyone who is not an admin carries the tag "Recibe un correo real";
   - someone who cannot receive it shows disabled, with the reason, as in the gift picker.
 - **Chips** per source, with "pueden recibirlo hoy" counts (B4).
-- **Live summary:** a debounced `previewComunicadoAudienceAction(audience)`, the B4 SQL with `SELECT`. "**1.240 personas**", with "· 85 están en más de una lista (cuentan una vez)" and "· 14 no lo van a recibir [Ver por qué]". The link opens the counts by reason and the first 50 names.
+- **Live summary:** a debounced `previewComunicadoAudienceAction(audience)`, the B4 SQL with `SELECT`. "**1.240 personas**", with "· 85 están en más de una lista (cuentan una vez)" and "· 14 no lo reciben [Ver por qué]". The link opens the counts by reason and the first 50 names.
 
 **Card "Canales":**
 
@@ -1504,13 +1507,13 @@ It loads fresh numbers from the server when it opens:
 
 > **¿Enviar «Cambio de horario de armado»?**
 >
-> |                   |                                                                                               |
-> | ----------------- | --------------------------------------------------------------------------------------------- |
-> | Destinatarios     | **1.240 personas**                                                                            |
-> | En la app         | 1.240                                                                                         |
-> | Por correo        | 1.194 · 30 dados de baja de los anuncios · 4 sin correos masivos · 12 con el correo bloqueado |
-> | En el dispositivo | 352 personas (410 dispositivos), or "No"                                                      |
-> | No lo reciben     | 14 · 8 perfiles no verificados · 4 cuentas suspendidas · 2 no son participantes               |
+> |                      |                                                                                               |
+> | -------------------- | --------------------------------------------------------------------------------------------- |
+> | Pueden recibirlo hoy | **1.240 personas**                                                                            |
+> | En la app            | 1.240                                                                                         |
+> | Por correo           | 1.194 · 30 dados de baja de los anuncios · 4 sin correos masivos · 12 con el correo bloqueado |
+> | En el dispositivo    | 352 personas (410 dispositivos), or "No"                                                      |
+> | No lo reciben        | 14 · 8 perfiles no verificados · 4 cuentas suspendidas · 2 no son participantes               |
 
 **Callouts, when they apply:**
 
@@ -1615,6 +1618,7 @@ It loads fresh numbers from the server when it opens:
   | failed, `resend:*_quota_exceeded`               | Límite de Resend                                                 |
   | failed, other                                   | Con error                                                        |
   | no row, email unticked                          | Sin correo                                                       |
+  | no row, recipient skipped                       | —                                                                |
 
 - **Dispositivo:** "Enviada a 2" · "Sin dispositivos" · "—".
 
@@ -1906,7 +1910,7 @@ FROM disciplinary_notification_jobs WHERE status='completed' AND created_at > no
 SELECT r.status, r.skipped_reason, count(*) FROM notification_campaign_recipients r WHERE r.campaign_id=$1 GROUP BY 1,2;
 SELECT d.channel, d.status, d.last_error, d.content_revision, (d.maybe_sent_at IS NOT NULL) AS maybe_sent, count(*)
 FROM notification_deliveries d JOIN notifications n ON n.id=d.notification_id WHERE n.campaign_id=$1 GROUP BY 1,2,3,4,5;
--- 4. Held batches and stuck sends (retracted ones are completed by the sweep, I10)
+-- 4. Held batches and stuck sends (retracted ones are completed by the sweep, V10)
 SELECT batch_key, count(*), max(attempts), min(created_at), bool_or(maybe_sent_at IS NOT NULL) FROM notification_deliveries
 WHERE batch_key IS NOT NULL AND status IN ('pending','processing') GROUP BY 1;
 SELECT k.id, k.title, k.sent_at FROM comunicados k JOIN notification_campaigns c ON c.id=k.campaign_id
@@ -1948,7 +1952,7 @@ WHERE n.campaign_id=$1 AND d.channel='email' GROUP BY 1;
 
 ### I5. Rollback rules
 
-- **Flag to hidden:** always safe. Sends already confirmed keep going; use lever 1 or 2 to stop them.
+- **Flag to hidden:** always safe for the data. Sends already confirmed keep going. Use lever 1 before hiding it (or target yourself on the flag again), or lever 2.
 - **Migrations 0301–0303 are never reverted** (fixed forward, PRD §8).
   - Enum labels cannot be removed.
   - Old code tolerates rows carrying them, because every gift query filters `type = 'credit_gift'`.
@@ -2017,10 +2021,10 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
   - unknown → same key, attempt spent; 409 → `sent` `idempotent_replay`; 200 after an unknown → `content_revision` = rendered;
   - a refusal without `maybe_sent_at` drops the key; with it, keeps it;
   - quota fails the campaign's never-batched rows and stops; config stops and spends nothing;
-  - rows older than 20 h are never sent (`expired` / `outcome_unknown`);
+  - rows older than 20 h are never sent (`expired` / `outcome_unknown`); a stale `processing` row past 20 h ends `outcome_unknown` with `maybe_sent_at` set and cannot be retried;
+  - a renderer that throws for one campaign spends attempts with backoff and does not block another campaign's batch;
   - a permissive per-item error fails only that row;
   - two drivers: one request at a time, ≥ spacing apart; the try-lock never blocks; the reserve releases a claim untouched;
-  - the pre-check fails closed for a row with no recipient row or a NULL source;
   - a retracted row cannot be un-archived, `updateOne`, `markNotificationRead` and `markNotificationsUnreadAction` are no-ops; push skips `retracted`.
 - **Changed:** `gifts.integration.test.ts:651-656` (a 429 no longer spends an attempt).
 
@@ -2076,6 +2080,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 - `startComunicadoSend(tx, …)`: CAS, typed count, `AUDIENCE_CHANGED`, the caps, essential with a current festival, the base-URL check, one retry on 40P01/23503.
 - `notifyMany`. Fan-out chunks with transient-error classification, poison isolation, and completion with a row lock and the sweep.
 - The comunicado batch renderer and pre-check (D3): allowlist, `address_changed`, `overridden` without headers, staging marks.
+- The environment filter for lane-wide runs (the comunicado renderer's `<scope>`, D9), and the chunk's source allowlist and row-7 re-check (D2 step 6).
 - `runComunicadoWork`, the cron route `/api/cron/morning/comunicados` with its `vercel.json` entry, the `after()` driver, and "Procesar envíos pendientes" (previews, single flight).
 - The essential record: RESTRICT, and `hasRestrictActorReferences`. The H6 unsubscribe-card copy.
 - Confirm dialog. Comunicado page with KPIs (including bounces), stall banners, the paged table and filters.
@@ -2089,6 +2094,8 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 - **Unit:** `app/api/cron/morning/comunicados/route.test.ts` (auth, the 75 s deadline, no batch with < 25 s left, the development email step refused); `notifications/definitions.test.ts` (the chip); `notification-detail` rich body and "Editado"; confirm dialog (typed at 300 and on essential, callouts by environment); `unsubscribe-card` copy per topic.
 - **Integration** `app/lib/comunicados/send.integration.test.ts` (serial):
   - union and dedupe (person wins), every skip reason, the 3,000 cap counted before narrowing;
+  - the pre-check fails closed for a row with no recipient row or a NULL source, and the chunk skips such a row too;
+  - a lane-wide run leaves another environment's campaign untouched; a chunk under preview skips list members;
   - `VERCEL_ENV` mocked to preview and to development → list members skipped "Entorno de prueba: no se envía a listas", admins substituted with source `staging_admin` ("Admin de prueba"), people by name kept, a festival admin by name skipped, and the batch pre-check refuses a list member even if a row slipped through;
   - a double "Enviar" → one campaign; `AUDIENCE_CHANGED`;
   - essential only with one current festival source and email; it overrides `announcements` (no `List-Unsubscribe`) but never `all` or a suppression; an archived festival is refused; the confirmer's profile cannot be deleted;
@@ -2104,7 +2111,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
   - pending email and push `skipped retracted`; pending recipients skipped; later chunks stop;
   - a claimed row skips in its pre-check, or is released as skipped;
   - the campaign ends `completed` (in the retraction, or by the sweep);
-  - report counts are kept (I3, I4, I10).
+  - report counts are kept (V3, V4, V10).
 
 ### PR 6: Scheduling, retry, duplicate
 
@@ -2126,6 +2133,9 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
   - two lane runs release once;
   - late > 60 min, too large, empty, invalid (unreadable filter, ended essential festival) and sender-not-admin → draft with reason, detail and one bell item, at the first failure;
   - a missed draft sends with "Enviar ahora";
+  - an unexpected error on one due schedule does not stop the next one in the same tick (E2);
+  - a missed essential schedule clears `essential_confirmed_*`, and the draft can then untick essential (E4);
+  - in development, "Programar" and "Cambiar fecha" are refused (E1);
   - the audience is computed at release; a scheduled row refuses an autosave;
   - retry reopens a completed campaign and a later tick completes it; two concurrent retries create one retry row per person; retry creates `:retry:` rows only for `failed` without `maybe_sent_at` and is refused when retracted;
   - duplicate copies title, text, button, email and audience, never push, essential or schedule.
@@ -2139,8 +2149,8 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 **Tests:**
 
 - **Integration** `app/lib/comunicados/edit.integration.test.ts` (serial, two connections):
-  - the edit waits for a batch holding the shared lock, and later batches render _n+1_ (I2);
-  - a chunk that committed before the edit is rewritten with `edited_at`; one after it writes _n+1_ with no `edited_at` (I1);
+  - the edit waits for a batch holding the shared lock, and later batches render _n+1_ (V2);
+  - a chunk that committed before the edit is rewritten with `edited_at`; one after it writes _n+1_ with no `edited_at` (V1);
   - `read_at` untouched;
   - a held batch re-sent after the edit carries _n+1_; a mocked 409 records `idempotent_replay`, a mocked 200 records `content_revision` = _n+1_;
   - a pending push carries the new title;
@@ -2187,7 +2197,7 @@ Each is a proposed default of PRD §12; its title gives the default's number the
 6. **Thresholds (PRD §12 default 15).** [At most 3,000 recipients per comunicado. Type the count at ≥ 300 recipients and for every essential send.]
 7. **Edits and read state (PRD §12 default 18).** [An edit keeps read state and does not re-alert. For a material change, send a new comunicado.]
 8. **Essential only for a current or upcoming festival (PRD §12 default 11).** [The festival is not archived and ended at most 7 days ago.] This narrows decision 5 to its own example, a setup-time change.
-9. **Narrowing in development too (PRD §12 default 13).** [Yes.] Decision 8 names previews. A local server with an unset `VERCEL_ENV` counts as development and may point at a shared or production database, where list sends would write real inbox rows and could push.
+9. **Narrowing in development too (PRD §12 default 13).** [Yes.] Decision 8 names previews. A local server with an unset `VERCEL_ENV` counts as development and may point at a shared or production database, where list sends would write real inbox rows and could push. Scheduling is refused there (E1): no cron runs in development, and that database's own cron would release the schedule unnarrowed.
 10. **Filter attributes for saved lists (PRD §12 default 20).** [Área, Categorías, Departamento, confirmed or not at given festivals, and "Incluir pausados".] Anything else (tags, gender, participation type, complete profile, sanctions) is one field each.
 11. **Images in comunicados (PRD §12 default 21).** [Yes, as PR 8, after the text-only flow ships.] They cost an upload route, a host rule, the size check and an image that cannot be recalled after sending, except by deleting the file.
 12. **Festival admins and Comunicaciones (PRD §12 default 14).** [No access in phase 3, viewing included.] Gifts let them view with the button disabled (PRD §4, decision 1). Read-only access later is small.
