@@ -3,7 +3,7 @@
 **Status:** Proposed, 2026-10-24
 **PRD:** §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md)
 
-This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md): comunicados (admin-written announcements) and distribution lists. §12 holds the decisions, agreed with Dennis on 2026-10-24. They are binding here and are cited as "decision N", by their number there. "PRD §n" is a section of that PRD. Citations are `file:line` in the repo, checked against develop at `bf067e1b`.
+This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md): comunicados (admin-written announcements) and distribution lists. §12 holds the decisions agreed with Dennis on 2026-10-24. Decisions 1–9 are binding here and are cited as "decision N", by their number there. Its defaults 10–24 are proposed, not decided: each is asked here as a K question, with its default number. "PRD §n" is a section of that PRD. Citations are `file:line` in the repo, checked against develop at `bf067e1b`.
 
 ---
 
@@ -21,11 +21,13 @@ This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`]
 
 1. No DDL or DML may reference a label that a phase 3 migration adds with `ADD VALUE`. That covers CHECKs, partial-index predicates, defaults and backfills. Such labels are used only by runtime code.
 2. New state machines get new types, created whole with `CREATE TYPE`. Their labels are usable in the same transaction, as 0300 did with `notification_delivery_channel`.
-3. **Guard test:** `drizzle/enum-labels.test.ts` (PR 2). For files ≥ 0301 it scans `drizzle/*.sql` for `ADD VALUE '<x>'` and fails when `'<x>'` appears in any later statement.
+3. **Guard test:** `drizzle/enum-labels.test.ts` (PR 2). For files ≥ 0301 it scans `drizzle/*.sql` for `ADD VALUE( IF NOT EXISTS)? '([^']+)'` and fails when that label appears in any later statement.
+   - `IF NOT EXISTS` is the form the repo's hand-written migrations use (`drizzle/0255_terminal_reservation_payment_settlement_backfill.sql:69-70`).
+   - A label equal to an existing label of another enum is a false positive: `'announcements'` is also a `notification_category` label (`db/schema.ts:7098-7101`). A line comment `-- enum-labels: existing <type>` on that statement allows it.
 4. **A migration never queues the site behind a long transaction.**
    - Bulk sends hold `ACCESS SHARE` locks across a Resend call (D3).
    - The build runs `pnpm migrate` while the old deployment serves (`package.json:25`), and nothing bounds a migration's lock wait.
-   - So `scripts/migrate.ts` sets `lock_timeout = '5s'` on its own connections, with `pool.on("connect", …)` before `migrate(db, …)`.
+   - So `scripts/migrate.ts` sets `lock_timeout = '5s'` on its own connections, with `pool.on("connect", …)` attached at the top of `main()`, before any use of the pool. pg-pool reuses the idle clients that the earlier helpers (`catalogMigrationPending`, the backfill checks, `ensureFestivalTermsArchivedEnum`) already opened, and their `connect` event has already fired, so a listener added just before `migrate(db, …)` would never run.
    - A migration that cannot get its lock fails the build. The old deployment keeps serving, and redeploying retries. Without the timeout, every reader of that table would wait behind the `ALTER`.
 
 | Migration (PR)                   | New types                                        | Labels added to existing types                                                                   | Tables and columns                                                                                                                                                               |
@@ -67,11 +69,12 @@ CREATE INDEX notification_deliveries_batch_key_idx ON notification_deliveries (b
   - It is minted and committed in the claim, before any request carries it.
   - It is never given to other rows.
   - It is cleared only after a definite refusal, and only while no attempt under it may have landed (D3).
-- **`maybe_sent_at`.** The first moment an attempt under the row's key may have reached Resend: an unknown outcome, or a claim that found the previous attempt unsettled. Once it is set, the row:
+- **`maybe_sent_at`.** The first moment an attempt under the row's key may have reached Resend: an unknown outcome, or a claim or an expiry that found the previous attempt unsettled. Once it is set, the row:
   - keeps its key;
-  - is never re-batched;
+  - is never re-batched under a new key;
   - is never picked by "Reintentar fallidos";
-  - ends `sent` or `failed` with `outcome_unknown`.
+  - may end `sent`, `failed` (`outcome_unknown` or `resend:<code>`, or the pre-check's `address_changed`) or `skipped` by the pre-check;
+  - shows in the report as "Puede haber llegado" unless it is `sent` (G6).
 - **`content_revision`.** The comunicado revision carried by the request Resend accepted (200). It is null after a 409 replay, which records `last_error = 'idempotent_replay'`.
 
 | Row                         | `lane` | `template_key` | `payload`             | `idempotency_key`                                                                                |
@@ -98,7 +101,7 @@ ALTER TABLE notifications ADD CONSTRAINT notifications_retracted_is_archived
   - the push skip `archived` (`push/send.ts:195`).
 - **Undo is closed.**
   - The CHECK stops the toast's "Deshacer archivar" (`actions.ts:79-82`) from bringing a retracted row back.
-  - `updateOne` (`actions.ts:43-59`) and `markNotificationRead` (`app/lib/notifications/read.ts:20-31`) gain `isNull(notifications.retractedAt)`. A stale client then updates nothing, instead of raising an error or changing a retracted row's read state.
+  - `updateOne` (`actions.ts:43-59`), `markNotificationRead` (`app/lib/notifications/read.ts:20-31`) and `markNotificationsUnreadAction` (`actions.ts:120-138`, the "Deshacer" after "Marcar todo como leído") gain `isNull(notifications.retractedAt)`. A stale client then updates nothing, instead of raising an error or changing a retracted row's read state.
 - **No `DELETE`.** `notification_deliveries.notification_id` cascades (`db/schema.ts:7298-7300`), so a delete would erase the report.
 - **`edited_at`** marks "Editado" on rows rewritten after someone could have seen them (F1).
 
@@ -137,7 +140,7 @@ CREATE INDEX stand_reservations_festival_accepted_idx ON stand_reservations (fes
   WHERE status = 'accepted';   -- no index on festival_id exists today
 ```
 
-- "Confirmados · \<festival\>" lists are **not rows**. They are computed from `festivals` every time they are used (decision 4). `festivals.name` is unique (`db/schema.ts:369`), so the label is stable.
+- "Confirmados · \<festival\>" lists are **not rows**. They are computed from `festivals` every time they are used (decision 4). `festivals.name` is unique (`db/schema.ts:370`), so the label is stable.
 - A saved list's name may not start with "Confirmados ·". The action checks it.
 - Lists are archived, never deleted. Archiving frees the name, because of the partial unique index.
 
@@ -196,7 +199,7 @@ comunicados_action_path_safe       CHECK (status = 'draft' OR action_path IS NUL
 ```
 
 - `comunicados_action_path_safe` is `safeActionPath` (`app/lib/notifications/definitions.ts:121-126`) plus the whitespace rule from C6.
-- **The essential record is permanent.** `hasRestrictActorReferences` (`app/api/users/actions.ts:106-131`) gains `comunicados.essential_confirmed_by_user_id`. Deleting that admin's profile is then refused with "No se puede eliminar un perfil con registros administrativos vinculados." (`:95-96`), as it is for infraction authors.
+- **The essential record is permanent.** `hasRestrictActorReferences` (`app/api/users/actions.ts:106-131`) gains `comunicados.essential_confirmed_by_user_id`. Deleting that admin's profile is then refused with "No se puede eliminar un perfil con registros administrativos vinculados." (`:96-97`), as it is for infraction authors.
 
 **Indexes:**
 
@@ -249,7 +252,7 @@ ALTER TABLE notification_campaign_recipients ADD COLUMN source campaign_recipien
 **Gift code never sees these rows.**
 
 - Every gift query and the gift resume filter `type = 'credit_gift'` (`credit_gifts/service.ts:336,691`; `credit_gifts/queries.ts:145,271`).
-- Literal status unions such as `CreditGiftRecipientRow.status` (`credit_gifts/queries.ts:192`) narrow the wider enum type when they read it.
+- Literal status unions such as `CreditGiftRecipientRow.status` (`credit_gifts/queries.ts:192`) do not narrow today: `credit_gifts/queries.ts:377` assigns `status: row.status` directly. Once 0303 adds `notified`, that line no longer typechecks, so PR 4 narrows it. The value never occurs there, since the gift is first read with `type = 'credit_gift'` (`:271`).
 
 **Recipients: one row per person.**
 
@@ -319,7 +322,7 @@ distribution_lists 1─* distribution_list_members (fixed lists only)
 | `COMUNICADO_SCHEDULE_LATE_LIMIT_MS`                                                      | 60 min                                                                                                                                  | K5                                                                                      |
 | `COMUNICADO_SCHEDULE_OVERDUE_BANNER_MS`                                                  | 3 min                                                                                                                                   | G3, G6                                                                                  |
 | `ESSENTIAL_FESTIVAL_GRACE_DAYS`                                                          | 7                                                                                                                                       | B7, K8                                                                                  |
-| `FANOUT_CHUNK` / `FANOUT_MAX_ATTEMPTS`                                                   | 250 / 3                                                                                                                                 | As gifts (`credit_gifts/service.ts:51`).                                                |
+| `FANOUT_CHUNK` / `FANOUT_MAX_ATTEMPTS`                                                   | 250 / 3                                                                                                                                 | The chunk is new: gifts process one recipient per transaction. The 3 is gifts' `MAX_RECIPIENT_ATTEMPTS` (`credit_gifts/service.ts:51`). |
 | `BULK_BATCH_SIZE`                                                                        | 100                                                                                                                                     | `RESEND_BATCH_MAX_EMAILS` (`app/vendors/resend.ts:19`).                                 |
 | `BULK_BATCH_SPACING_MS`                                                                  | 1,500, slept **under** the lane lock                                                                                                    | D4                                                                                      |
 | `BULK_BATCH_RESERVE_MS`                                                                  | 25,000: no batch starts with less time left                                                                                             | render, one Resend call with its one throttle retry, spacing, margin                    |
@@ -470,7 +473,7 @@ One shared module, `app/lib/participants/recipient-eligibility.ts`, which gifts 
 
 Real ineligibility (rows 4–6) is checked before row 7, so a preview's counts still exercise the rules.
 
-**Proposed (PRD §12, default 12): people picked by name may include global admins; lists only ever hold participants.**
+**Proposed (K13): people picked by name may include global admins; lists only ever hold participants.**
 
 - An admin can then run a real comunicado through the whole production pipeline to themselves, or to "Ana y yo", before a large send.
 - It matches the preview rule, where admins are the substitutes anyway.
@@ -500,9 +503,12 @@ A ban or a deletion request in between leaves the person skipped, not notified.
 - **People picked by name** are processed normally.
   - On previews they receive real email (decision 8), marked as staging mail (D7).
   - Development is a Resend no-op (`app/vendors/resend.ts:52,127`), and the copy there says so (G3, G5).
-- **Defence in depth.** The email pre-check (D3) re-applies row 7 using the **sending** process's own `VERCEL_ENV`. It is an allowlist: only `person` and `staging_admin` rows pass outside production, and a row with a missing or null `source` never passes. Two cases it covers:
-  - a snapshot bug;
-  - a comunicado written on one preview and drained by another, since all previews share one database.
+- **Defence in depth.**
+  - The email pre-check (D3) re-applies row 7 using the **sending** process's own `VERCEL_ENV`. It is an allowlist: only `person` and `staging_admin` rows pass outside production, and a row with a missing or null `source` never passes. Two cases it covers:
+    - a snapshot bug;
+    - a comunicado written on one preview and drained by another, since all previews share one database.
+  - The fan-out chunk re-applies row 7 too, by its own `VERCEL_ENV` and the `source` it reads (D2 step 6), so the inbox and push are covered, not only email.
+  - Lane-wide drains (fan-out, bulk email claims, bulk push selection) take only campaigns whose `audience_summary.env` equals the draining process's `VERCEL_ENV` (D9). A dev server sharing a preview's database, or a preview sharing production's, never drains the other's rows.
 - **The cap** (3,000) and the "nobody eligible" refusal are computed **before** narrowing, so a preview refuses exactly what production would.
 
 ### B7. Email rules: opt-out, suppression, essential
@@ -513,7 +519,7 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
 | --------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
 | Active suppression, bounce **or complaint** (`email_suppressions`, `lifted_at IS NULL`) | not emailed: `suppressed`      | **not emailed** (decision 5)                        |
 | Unsubscribed from `announcements`                                                       | not emailed: `unsubscribed`    | **emailed**, with no `List-Unsubscribe` header (D7) |
-| Unsubscribed from `all`                                                                 | not emailed: `unsubscribed`    | **not emailed**: `unsubscribed` (decided; K2)       |
+| Unsubscribed from `all`                                                                 | not emailed: `unsubscribed`    | **not emailed**: `unsubscribed` (proposed; K2)      |
 | Fails `isDeliverableEmail` (`app/lib/festivals/invitation-helpers.ts:23`)               | not emailed: `invalid_address` | not emailed                                         |
 
 **Why essential honours `all`:**
