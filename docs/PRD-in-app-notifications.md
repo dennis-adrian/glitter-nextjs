@@ -2,8 +2,8 @@
 
 **Product:** Glitter
 **Feature area:** Participant inbox, admin communications, credits
-**Status:** Phases 1 and 2 (with push and the installable app) merged to develop, not yet released to production. Launch steps: §11 and P2b in §10.
-**Last updated:** 2026-10-22
+**Status:** Phases 1 and 2 (with push and the installable app) released in v2.87.0; launch steps in §11 and P2b in §10. Phase 3 (comunicados and distribution lists) designed in §12, not started.
+**Last updated:** 2026-10-24
 
 ---
 
@@ -174,7 +174,7 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
 
 ## 10. Later phases
 
-- **P2** Mirror the queued emails (12 reservation kinds, disciplinary notices, top-up rejection, participation decisions) through `notify()`. Admin copies land in Administración. Launch the bell for participants. Merged to develop (#591); see §11, whose launch checklist is still to do.
+- **P2** Mirror the queued emails (12 reservation kinds, disciplinary notices, top-up rejection, participation decisions) through `notify()`. Admin copies land in Administración. Launch the bell for participants. Released in v2.87.0 (#591); see §11 for its launch checklist.
 - **P2b** Push notifications (Dennis, 2026-10-20): alerts in the operating system's notification center, not only in the bell.
   - **Step 0: installable Glitter (PWA)** (Dennis, 2026-10-20). Its own small PR, ahead of push. It can ship any time before the rest of P2b: installing is useful by itself (home-screen icon, full screen, no browser bar), and push on iPhone needs it.
     - **Status (2026-10-22):** merged to develop (#593). The icons and launch screens are drawn from Dennis's SVG isotype (`public/img/logo/glitter-isotype.svg`) by `pnpm app-images` (`scripts/generate-app-images.ts`), on the brand purple `#6523e6` (`primary-600`). The browser bar matches the navbar (`--brand-elevated`), following the theme picked in Glitter once the page loads and the device's light or dark setting before that. In a local Next app that streams its metadata as the home page does, Chromium reports no installability errors with these tags. The real-phone checks below are still to do.
@@ -220,11 +220,7 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
     - **To check on real devices:** subscribe, receive and tap on Android Chrome, desktop Chrome, Edge, Firefox and Safari, and an iPhone with Glitter on the home screen; that the prompt does not close the bell's popover; sign-out stops push notifications; a tap with the app closed, in the background and open lands on the item, marked read (a gift on its own page); with the iPhone app on screen, an arriving notification shows a toast; `curl -I /sw.js` on a preview shows the no-store and CSP headers.
     - **Launch and rollback:** `notifications` goes public before `push_notifications` leaves `admin_only` (a tap opens the inbox item). The admins-first phase includes festival admins, as with the bell. Rolling back is setting `push_notifications` to hidden: the worker checks it at send time and stops, within 30 seconds (it caches the flags that long). Anyone targeted on the flag by name keeps push notifications while it is hidden, since targeting wins, so remove them from it too. Never a code revert once 0300 is applied, since the old worker would send queued push rows down the email path; if one is unavoidable, first `UPDATE notification_deliveries SET status = 'skipped', last_error = 'rollback' WHERE channel = 'push' AND status IN ('pending', 'processing')`.
     - **Keys and operations:** one VAPID pair per database (Preview and Development share theirs), generated with `pnpm exec web-push generate-vapid-keys`, stored in Vercel as Sensitive, never committed and never rotated: rotating orphans every device. Vercel runs crons only in production, so on a preview only the after-commit sends run; retries need the notifications cron called by hand with `CRON_SECRET`. What happened to recent pushes: `SELECT status, last_error, count(*) FROM notification_deliveries WHERE channel = 'push' AND created_at > now() - interval '1 day' GROUP BY 1, 2`.
-- **P3** Comunicados: BlockNote composer, audiences, preview, test send, schedule, report, retry, duplicate, edit or retract in-app. Opt-outs for announcements.
-  - **Distribution lists** (Dennis, 2026-10-20), so admins pick a group instead of re-selecting people every time:
-    - **One list per festival, automatic.** Every festival, past ones included, has a "Confirmados · <festival>" list (participants with a confirmed reservation). Nobody creates it; it is computed when used, so it is always current.
-    - **Lists admins save:** a named filter (re-evaluated at send time) or a fixed, hand-picked group.
-    - Lists are available in the comunicado audience picker and in the credit-gift recipient picker.
+- **P3** Comunicados: BlockNote composer, audiences, preview, test send, schedule, report, retry, duplicate, edit or retract in-app. Opt-outs for announcements. Distribution lists (Dennis, 2026-10-20), shared with credit gifts. Designed on 2026-10-24: see §12.
 - **P4** Inline sends (profiles, activities, orders, programs, reminders) through `notify()`; visitor and guest mail gets delivery rows; per-participant Comunicaciones tab.
 - **P5** Delivery events from the Resend webhook on deliveries; preferences page.
 - **P6** Editable system copy; re-evaluate `@react-email/editor`.
@@ -298,3 +294,142 @@ The bell also waits until the person's profile has loaded (holding its place mea
 - A proof sent back for correction notifies nobody, by email or in the app. A follow-up kind could say "Revisá el pago de tu reserva" with the new deadline, never the admin's internal correction reason.
 - A participant an admin assigns a stand to is not told until the payment reminder: `reservation_created` is only queued for admins. A participant item ("Te asignamos el espacio…") would be new copy, not a mirror.
 - Query logging prints parameters for every statement, including the inbox copy and the outbox payloads; that predates phase 2.
+
+---
+
+## 12. Phase 3: comunicados and distribution lists
+
+An admin writes an announcement once and sends it to a festival's confirmed participants, a saved list, or people picked by name. It lands in their inbox under Anuncios, by email unless the admin unticks it, and on their devices only when the admin ticks it. It can be scheduled, and edited or retracted after it went out, and its page reports what reached whom on each channel. The lists also feed the credit-gift picker.
+
+This section holds what was decided and what people see. The mechanics (tables, SQL, the bulk email protocol, concurrency, invariants and the tests each PR adds) are in [`docs/IMPLEMENTATION-comunicados.md`](IMPLEMENTATION-comunicados.md).
+
+Everything ships behind a new `comunicados` flag, hidden by default, with the global admins targeted by name, so the PRs land one at a time without showing up in a release.
+
+### Decisions
+
+Agreed with Dennis on 2026-10-24.
+
+| #   | Decision            | Phase 3 rule                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Channels            | The inbox, always. Email, on by default; the admin can untick it. A push to the device only when the admin ticks it, for something urgent.                                                                                                                                                                                                                                                  |
+| 2   | Who sends           | Global admins only, for now.                                                                                                                                                                                                                                                                                                                                                                |
+| 3   | Who receives        | Participants, by the gift rule (§5): role `user`, verified or paused, no pending profile deletion. Checked in every count, when the send starts, and again before each inbox item and each email, so someone banned or leaving in between is skipped. Visitors wait for phase 4.                                                                                                            |
+| 4   | Confirmados         | "Confirmados · \<festival\>" holds the owners and the partners of the festival's accepted reservations, each person once, for every festival, past ones included. Nobody creates it; it is computed each time it is used.                                                                                                                                                                   |
+| 5   | Opt-out, essential  | One email topic, Anuncios: every comunicado email has "Darme de baja" and the one-click unsubscribe headers. A comunicado to a single festival's Confirmados can be marked **correo esencial**, with a reason; its email then also reaches people who unsubscribed from Anuncios. It never reaches an address that bounced or reported spam. Who marked it, when and why is kept for good.  |
+| 6   | Size                | Up to about 2,000 recipients per comunicado. Today's queue sends about 1,000 emails an hour, oldest first; comunicado email gets a lane of its own, sent in batches of 100, so 2,000 emails go out in about 2 to 3 minutes and never hold up a gift or reservation email.                                                                                                                   |
+| 7   | Editing, retracting | Editing changes the title, the text and the button. Everyone's inbox item is rewritten and marked "Editado"; emails not sent yet go out with the new text; emails already sent stay as they were. Retracting removes the item from everyone's inbox and cancels what has not been sent. The audience and the channels cannot change once sent.                                              |
+| 8   | Previews, people    | Previews send real email and share one database. There, a send to a festival or a list goes to the global admins instead of its members, who show in the report as "Entorno de prueba". People can also be picked by name, in every environment, so a comunicado can go to exactly one person; on a preview, people picked by name receive it as composed, with the email marked as a test. |
+| 9   | Resend plan         | Pro: 50,000 emails a month, no daily cap. The allowance is shared with every other Glitter email; a 2,000-person comunicado is 4% of it, so about 20 full sends a month fit alongside the rest.                                                                                                                                                                                             |
+
+**Proposed defaults.** The design needed these and they are not decided yet; each is Dennis's to change and is a small change either way.
+
+| #   | Question                         | Default                                                                                                                                                                                                                                                                                           |
+| --- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10  | Essential and "all" opt-outs     | An essential email overrides the Anuncios opt-out only. Someone who asked support to stop all bulk mail (`all`) is never emailed: that page promised "todos nuestros correos masivos". They still see the comunicado in the app.                                                                  |
+| 11  | Which festivals can be essential | One that is current or upcoming: not archived, and its last day at most 7 days ago. The example was a change to setup time.                                                                                                                                                                       |
+| 12  | Admins picked by name            | People picked by name may include global admins, so an admin can send a real comunicado to themselves, or to a colleague, before a large send. Lists only ever hold participants.                                                                                                                 |
+| 13  | Local development                | Treated like a preview: sends to lists go to the admins. A local server may point at a shared database, and push is real there when the keys are set. Development sends no email.                                                                                                                 |
+| 14  | Festival admins                  | No access to Comunicaciones in phase 3, not even to view. Gifts let them view with the button disabled (§4); read-only access later is a small change.                                                                                                                                            |
+| 15  | Limits                           | At most 3,000 recipients per comunicado. At 300 or more, and for every essential send, the admin types the number of recipients to confirm.                                                                                                                                                       |
+| 16  | Late schedules                   | A scheduled comunicado more than an hour late (a cron outage, say) is not sent: it goes back to draft and the admin who scheduled it gets a bell item. "Mañana el armado empieza a las 8:00" sent two days late does harm.                                                                        |
+| 17  | `{nombre}`                       | Not in phase 3. The email opens with "¡Hola Ana!" by itself; the inbox never greets, as gift items don't.                                                                                                                                                                                         |
+| 18  | Edits and read state             | An edit keeps the read state and does not alert again. For a change that matters to people who already read it, send a new comunicado.                                                                                                                                                            |
+| 19  | Sender                           | "Productora Glitter \<anuncios@productoraglitter.com\>", a new address on the verified domain, with replies to `soporte@productoraglitter.com`. A subdomain of its own (`anuncios.productoraglitter.com`) would keep bulk reputation apart from reservation mail, at the cost of new DNS records. |
+| 20  | Saved filters                    | Área, Categorías, Departamento, "Con reserva confirmada en" and "Sin reserva confirmada en" given festivals, and "Incluir pausados". Tags, gender, participation type, complete profile and sanctions would be one field each, later.                                                             |
+| 21  | Images                           | Yes, as the last PR, once the text-only flow works: JPG or PNG only (WebP and SVG break in Outlook and Gmail), at most 6. An image in an email already sent can only be recalled by deleting the file.                                                                                            |
+
+### Audiences
+
+- **Sources.** "Confirmados · \<festival\>" (any festival), saved lists, and people picked by name or email (up to 100). A comunicado holds up to 10 festivals and lists. Each person counts once; someone both on a list and picked by name counts as picked by name.
+- **Confirmados.** Pre-reveal reservations are included: the list is only seen by admins, and each recipient sees only their own copy. Members with another role (an admin who owns a stand, an `artist` partner) stay in the list and are skipped as "No es participante".
+- **Saved lists** are either "Con filtros", re-evaluated every time they are used, or "Elegida a mano", a fixed group of up to 3,000 people. Filter attributes are combined with "and", the values within one with "or"; no filter at all means every eligible participant. A filter that can no longer be read refuses the send; it never turns into "everyone". Lists are archived, never deleted, and names are unique among active lists.
+- **When the audience is fixed.** When the send starts, never when it is scheduled: a list is "computed when used". If the admin typed the count and it changed in between, the send stops with "La audiencia cambió: ahora son 1.291 personas. Revisá y confirmá de nuevo."
+- **One number everywhere.** The lists page, the composer, the confirm dialog and the gift picker all show "pueden recibirlo hoy", with "· N no lo reciben" and the reasons: the gift labels (§5), plus "Entorno de prueba: no se envía a listas" and "Retirado antes de enviarse".
+- **In the gift picker.** "Agregar una lista" adds a list's eligible members as if picked one by one, so the gift itself does not change. The 100-recipient cap stays: a list that would pass it adds nobody and says so ("…suma 240 personas que pueden recibir créditos y un regalo llega a 100 como máximo"). Off on previews, where gifts cannot be narrowed to admins.
+
+### Writing
+
+- **Composer** (`/dashboard/communications`): one page, saved as a draft as the admin types. Title (up to 80 characters: it is the email subject and the push title), text, an optional button, recipients and channels, with a preview beside them: Notificación · Detalle · Correo · Dispositivo.
+- **Text.** BlockNote, limited to what survives an email client: paragraphs, two heading levels, lists (two levels deep), quotes, dividers, links, bold and italic. No colours, underline, strike, tables or code: the sanitizer already drops the first three on the blog, and the rest break in email. Formatting pasted from Word or Google Docs is cleaned on save. Up to 5,000 characters, and an email under 90 KB (Gmail cuts at 102 KB).
+- **Button.** A label and a page of Glitter, never another site; external links go in the text.
+- **Rendering**, always on the server from the blocks, never from browser HTML: sanitized HTML for the item's page, an email with inline styles and absolute links, and plain text for the inbox excerpt and the email's text part. BlockNote's own email exporter is GPL-licensed, so the email renderer is ours.
+- **"Enviarme una prueba"** emails the draft to the admin who presses it, subject "[Prueba] …", and writes nothing else; five per 10 minutes. To try the inbox and the push for real, the admin picks themselves by name and sends.
+- **Confirming** shows recipients, how many get it in the app, by email and on a device, and who doesn't and why; plus callouts when it applies: essential (who it reaches despite opting out, and who it doesn't), a push cannot be recalled, a test environment, the bell not yet public. "Programar" uses the same dialog with a date.
+
+### Sending
+
+- **Starting.** "Enviar" fixes the audience (one row per person) and the content (revision 1) in one transaction. A double click is one send.
+- **Inbox items** are written in chunks of 250 people, one transaction each, so 2,000 take a few seconds; a crash resumes where it stopped without duplicates. Each person is checked again as their item is written.
+- **Email** has a lane of its own: the transactional queue never picks it up, so it never delays a gift or reservation email. It goes 100 per Resend batch request, one request at a time across every server, 1.5 seconds apart: under half a request per second, against a documented default of 10 per second per team (older Resend pages said 2; the account's own value is on Resend → Settings → Usage). Each email renders the comunicado's current version when its batch is sent, and is checked right before: retracted, no longer eligible, profile being deleted, address changed since, unsubscribed, bounced or reported. A batch that may have landed is never sent twice; one whose outcome stays unknown ends as "Puede haber llegado" and is never retried. No comunicado email goes out more than 20 hours after it was queued, because Resend forgets idempotency keys after 24.
+- **Who drives it.** The send's own background work does most of a 2,000-person send; a new per-minute cron (`/api/cron/morning/comunicados`) finishes it and releases schedules. It is separate from the notifications cron, whose budget and order stay as they are. Previews have no crons, so a comunicado's page there offers "Procesar envíos pendientes".
+- **Throttles.** Every Resend call now retries a "too many requests" answer once, after at most two seconds, which also protects the outboxes and the emails sent inline; the notification worker no longer spends an attempt on one.
+- **Push**, only when ticked: the title and "Tocá para ver el detalle.", since text someone wrote never sits on a lock screen. A participant gets it only once `notifications` and `push_notifications` are public for them.
+- **Unsubscribe headers** go on every comunicado email, except an essential one to someone who already unsubscribed from Anuncios, where a one-click press would silently do nothing; their footer explains the exception instead.
+- **Staging mail is marked:** "[Prev]" before the subject, "Productora Glitter (prueba)" as the sender, and a footer line saying it came from the test environment.
+
+### Scheduling
+
+- **States:** Borrador → Programado → Enviado, with "Cambiar fecha", "Cancelar programación" and "Enviar ahora". A scheduled comunicado is read-only; to change its text or recipients, cancel the schedule first.
+- **Time** is picked in Bolivia's time (La Paz), 5 minutes to 60 days ahead, and always shown afterwards: "Programado para el sábado 1 de noviembre, 09:00 (hora de Bolivia)". It goes out within a minute of that time.
+- **Not sent** when more than an hour late (proposed default 16), or when the send is refused at that moment (too many recipients, nobody eligible, a filter or the content no longer valid, its scheduler no longer an admin). It goes back to draft with the reason shown, and the admin who scheduled it gets "No se envió «…»" in the bell.
+- **Overdue.** Three minutes past its time, a comunicado still waiting says "Debería haber salido el sáb 1 nov, 09:00 y todavía no salió." with "Enviar ahora", so a broken cron shows in production too.
+
+### Editing and retracting
+
+- **Editing** (on a page of its own, no autosave) saves a new version and rewrites every inbox item, marked "· Editado" in the list and "Editado el 25 de octubre, 10:12" on its page. An item written after the edit shows the new text, unmarked. Pending pushes carry the new title; delivered ones keep the old. The page keeps the history: "Versión 2 · editada por Ana el 25 oct., 10:12 · «Cambió el horario de armado»". Editing an essential comunicado requires a note saying why.
+- **Retracting** requires a reason (seen only by the team). The items disappear from every inbox, also for people who read them, and cannot be brought back with "Deshacer archivar"; a link or a push tap to one lands in the inbox. Emails and pushes not sent yet are cancelled. The comunicado, its versions and its report stay in the dashboard, and "Duplicar" is the usual fix: retract, duplicate, correct, send.
+- **What neither can undo:** emails already sent, pushes already delivered (only the title and "Tocá para ver el detalle.") and images in sent mail. The dialogs say so.
+
+### The comunicado's page
+
+- **Header:** who sent it and when, edits, the essential record when there is one, and the audience as it was at send ("Confirmados · Glitter Navidad 2026: 312 · Ilustradores: 845 · 3 personas por nombre").
+- **Figures:** recipients, read in the app, emails sent, emails not sent (by reason), bounces and spam reports from this comunicado, devices reached, still queued.
+- **Recipients**, 50 per page, with filters (no leídos, correo no enviado, omitidos, con error) and a search: origin (list, by name, test environment), app state, email state with its reason, devices.
+- **While it sends** the page refreshes itself and says how far along it is. Banners say when it stopped: Resend refused the key or the sender, the monthly allowance ran out, nothing moved in 10 minutes.
+- **"Reintentar fallidos (N)"** queues the failed emails and recipients again with the current text, never an email that may have arrived. **"Duplicar"** makes a new draft with the same text, button, email setting and recipients, never the push, the essential mark or the schedule.
+
+### What participants see
+
+- **Inbox:** the megaphone tile, the title, two lines of the text, "· Editado" when edited. The Anuncios chip appears as soon as a person has an anuncio and never shows empty.
+- **Item page:** the formatted text, "Editado el …" when edited, and the button.
+- **Email:** from "Productora Glitter", "¡Hola Ana!", the title, the text, the button, and a footer with "¿No querés recibir más correos como este? Darme de baja". An essential one adds: "Es un correo esencial sobre tu participación en {festival}: llega también a quienes se dieron de baja de los anuncios."
+- **Unsubscribing** from Anuncios is email only; anuncios keep landing in the app. The page adds, for that topic: "Seguirás recibiendo los correos que vos pidas, como tus entradas o reservas, y los correos esenciales sobre los festivales donde tenés un espacio confirmado, como un cambio en el horario de armado. Los anuncios van a seguir apareciendo en tus notificaciones de Glitter."
+
+### Admin area and access
+
+- **Comunicaciones** (`/dashboard/communications`), in the admin menu next to Créditos: Comunicados · Listas · Regalos de créditos (the gifts pages, as §6 promised).
+- **Every page** checks a global admin and the flag; **every action** checks both before anything else. The dashboard layout lets festival admins in, so each page checks again. The flag hides the admin side only: a send already confirmed finishes even if the flag is hidden halfway, and the ways to stop one are "Cancelar programación" and "Retirar".
+
+### Data
+
+- New tables: `comunicados` (the draft, its schedule, channels, recipients as chosen, the essential record, retraction, and the audience as it was at send), `comunicado_revisions` (each version's title, blocks and rendered text, never changed), `distribution_lists` and `distribution_list_members`.
+- Reused: `notification_campaigns` (a `comunicado` type, one per sent comunicado) and `notification_campaign_recipients` (a `notified` status and the person's origin).
+- `notifications` gains `edited_at` and `retracted_at` (a retracted item is always archived); `notification_deliveries` gains a `lane` and the batch columns. Email topic `announcements`.
+- Migrations `0301` (lane), `0302` (lists) and `0303` (comunicados). A production release applies pending migrations in one transaction, so no phase 3 migration may use an enum value another one adds; a test enforces it.
+
+### Launch and rollback
+
+1. The sending groundwork (PR 2) reaches production alone and goes through at least one real credit gift first, because it changes how transactional email is picked and retried.
+2. `notifications` goes public before the first real comunicado, and `push_notifications` before ticking push means anything.
+3. The other PRs land behind the hidden flag, each checked on a preview.
+4. First real sends, in steps: to an admin's own participant account by name; a fixed list of about 20 trusted participants; a recent festival's Confirmados; then up to 2,000. Stop above 2% bounces or 0.1% spam reports. Check that SPF, DKIM and DMARC align in Resend before the third step.
+5. The first gift from a list goes to a fixed list of two or three trusted participants.
+
+Hiding the flag is always safe. The migrations are fixed forward. The lane filters are never reverted while comunicado emails are queued (old code would send them first in line); if a revert is unavoidable, the implementation doc has the statement that skips them first.
+
+### PRs
+
+1. This design: §12 and the implementation doc.
+2. Sending groundwork: the email lane and its batch protocol, the throttle retry, the Anuncios topic, the retraction columns. Migration `0301`. Nothing uses it yet.
+3. Distribution lists, the gift picker's "Agregar una lista", the `comunicados` flag and the Comunicaciones area. Migration `0302`.
+4. Writing comunicados: the text format, the three renderings, the composer and its previews, the test send. Migration `0303`. Nothing can be sent to recipients yet.
+5. Sending, the report, retracting, essential sends and the cron.
+6. Scheduling, "Reintentar fallidos" and "Duplicar".
+7. Editing after sending.
+8. Images (default 21).
+
+### Still to check
+
+- How many verified and paused participants there are today: an "all participants" list may already pass 3,000.
+- Whether the shared staging database holds real participants' addresses, since people picked by name on a preview get real email.
+- The account's request limit on Resend → Settings → Usage, and Resend's bounce and spam thresholds for the account.
