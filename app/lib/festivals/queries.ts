@@ -20,8 +20,10 @@ import {
 import { and, eq, inArray } from "drizzle-orm";
 import {
   FestivalActivityWithDetailsAndParticipants,
+  FestivalWithDates,
   FullFestival,
 } from "./definitions";
+import { sortFestivalsForAdmin } from "./utils";
 
 /**
  * The profile fields an activity's participant and waitlist rows carry. The
@@ -206,4 +208,18 @@ export async function fetchFestivalParticipants(
     console.error("Error fetching festival participants", error);
     throw error;
   }
+}
+
+/**
+ * The archive: every festival that has finished, newest first by its first
+ * day. Public data — each links to its public page, which archived festivals
+ * keep.
+ */
+export async function fetchPastFestivals(): Promise<FestivalWithDates[]> {
+  const rows = await db.query.festivals.findMany({
+    where: eq(festivals.status, "archived"),
+    with: { festivalDates: true },
+  });
+  // All archived, so the admin order is simply newest first.
+  return sortFestivalsForAdmin(rows);
 }

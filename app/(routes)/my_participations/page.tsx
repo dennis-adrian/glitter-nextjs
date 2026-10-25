@@ -45,7 +45,7 @@ export default async function ParticipationsPage() {
   const hub = await loadParticipationHub();
 
   if (hub.kind === "signed-out") redirect("/sign_in");
-  if (hub.kind === "not-verified") redirect("/next_event");
+  if (hub.kind === "not-verified") redirect("/festivals");
 
   if (hub.kind === "no-festival") {
     return (

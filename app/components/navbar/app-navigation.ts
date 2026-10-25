@@ -89,6 +89,8 @@ export type AppNavigation = {
 };
 
 export const PORTAL_HREF = "/portal";
+/** The festival in progress, or the archive when none is. */
+export const FESTIVALS_HREF = "/festivals";
 export const MORE_MENU_HREF = "/menu";
 
 function isVerified(viewer: NavViewer | null) {
@@ -117,9 +119,9 @@ function festivalLink(viewer: NavViewer | null): NavLink {
   return {
     key: "festivals",
     label: "Festivales",
-    href: "/next_event",
+    href: FESTIVALS_HREF,
     icon: CalendarIcon,
-    activePrefixes: ["/next_event", "/festivals/"],
+    activePrefixes: ["/next_event"],
   };
 }
 

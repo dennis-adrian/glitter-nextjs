@@ -45,7 +45,7 @@ describe("buildAppNavigation tabs", () => {
       });
       expect(tabs[1]).toMatchObject({
         label: "Festivales",
-        href: "/next_event",
+        href: "/festivals",
       });
     }
   });
