@@ -118,10 +118,25 @@ export type InboxPage = {
   nextCursor: string | null;
 };
 
+/** Any origin works: it only tells a path that stays apart from one that leaves. */
+const PATH_CHECK_ORIGIN = "https://glitter.invalid";
+
 /** The one place that turns a stored path into a link the inbox may follow. */
 export function safeActionPath(path: string | null | undefined): string | null {
-  // "//host" and "/\host" both leave the site in a browser.
-  if (!path || !path.startsWith("/") || /^\/[/\\]/.test(path)) return null;
+  if (!path || !path.startsWith("/")) return null;
+  // The URL parser drops tabs and newlines, so "/\t/host" reads as "//host".
+  // No path the app writes has whitespace or a control character in it.
+  if (/[\s\p{Cc}]/u.test(path)) return null;
+  // Resolve it as a browser would: "//host" and "/\host" land on another
+  // site, and "/.//host" stays here but its path reads as "//host".
+  try {
+    const url = new URL(path, PATH_CHECK_ORIGIN);
+    if (url.origin !== PATH_CHECK_ORIGIN || url.pathname.startsWith("//")) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
   return path;
 }
 
