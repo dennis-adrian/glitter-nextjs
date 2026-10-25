@@ -92,6 +92,24 @@ function pageOf(page: number) {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
+/**
+ * The page to show for `total` people: the one asked for, or the last one
+ * when it is past the end (after "Quitar" empties the last page, say).
+ */
+function clampPage(page: number, total: number) {
+  return Math.min(
+    pageOf(page),
+    Math.max(1, Math.ceil(total / DISTRIBUTION_LIST_MEMBERS_PAGE_SIZE)),
+  );
+}
+
+async function countRows(rows: SQL) {
+  const result = await db.execute<{ total: number }>(
+    sql`SELECT count(*)::int AS total FROM (${rows}) AS r`,
+  );
+  return result.rows[0]?.total ?? 0;
+}
+
 function paged<T>(rows: T[], total: number, page: number): Paged<T> {
   return {
     rows,
@@ -178,20 +196,20 @@ export async function fetchConfirmadosMembers(
   festivalId: number,
   page: number,
 ): Promise<Paged<ConfirmadosMember>> {
-  const current = pageOf(page);
-  if (!(await canReadLists())) return paged([], 0, current);
+  if (!(await canReadLists())) return paged([], 0, pageOf(page));
+  const holders = sql`
+    SELECT h.user_id, bool_or(h.is_owner) AS is_owner,
+           bool_or(NOT h.is_owner) AS is_partner
+    FROM (${confirmadosHoldersSql([festivalId])}) AS h
+    JOIN ${users} ON ${users.id} = h.user_id
+    GROUP BY h.user_id`;
+  const total = await countRows(holders);
+  const current = clampPage(page, total);
   const result = await db.execute<
-    MemberRow & { is_owner: boolean; is_partner: boolean; total: number }
+    MemberRow & { is_owner: boolean; is_partner: boolean }
   >(sql`
-    WITH holders AS (
-      SELECT h.user_id, bool_or(h.is_owner) AS is_owner,
-             bool_or(NOT h.is_owner) AS is_partner
-      FROM (${confirmadosHoldersSql([festivalId])}) AS h
-      GROUP BY h.user_id
-    )
-    SELECT ${memberColumns}, holders.is_owner, holders.is_partner,
-           count(*) OVER ()::int AS total
-    FROM holders
+    SELECT ${memberColumns}, holders.is_owner, holders.is_partner
+    FROM (${holders}) AS holders
     JOIN ${users} ON ${users.id} = holders.user_id
     ORDER BY ${memberNameOrder}
     LIMIT ${DISTRIBUTION_LIST_MEMBERS_PAGE_SIZE}
@@ -202,7 +220,7 @@ export async function fetchConfirmadosMembers(
       isOwner: row.is_owner,
       isPartner: row.is_partner,
     })),
-    result.rows[0]?.total ?? 0,
+    total,
     current,
   );
 }
@@ -336,17 +354,21 @@ export async function fetchFixedListMembers(
   listId: number,
   page: number,
 ): Promise<Paged<DistributionListMember>> {
-  const current = pageOf(page);
-  if (!(await canReadLists())) return paged([], 0, current);
-  const result = await db.execute<MemberRow & { total: number }>(sql`
-    SELECT ${memberColumns}, count(*) OVER ()::int AS total
+  if (!(await canReadLists())) return paged([], 0, pageOf(page));
+  const total = await countRows(
+    sql`SELECT 1 FROM ${distributionListMembers}
+        WHERE ${distributionListMembers.listId} = ${listId}`,
+  );
+  const current = clampPage(page, total);
+  const result = await db.execute<MemberRow>(sql`
+    SELECT ${memberColumns}
     FROM ${distributionListMembers}
     JOIN ${users} ON ${users.id} = ${distributionListMembers.userId}
     WHERE ${distributionListMembers.listId} = ${listId}
     ORDER BY ${memberNameOrder}
     LIMIT ${DISTRIBUTION_LIST_MEMBERS_PAGE_SIZE}
     OFFSET ${(current - 1) * DISTRIBUTION_LIST_MEMBERS_PAGE_SIZE}`);
-  return paged(result.rows.map(toMember), result.rows[0]?.total ?? 0, current);
+  return paged(result.rows.map(toMember), total, current);
 }
 
 /**

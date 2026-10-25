@@ -10,6 +10,7 @@ import {
   isEmptyDistributionListFilter,
   parseStoredDistributionListFilter,
   STATE_VALUES,
+  UpdateDistributionListSchema,
 } from "@/app/lib/distribution_lists/definitions";
 import { stateOptions } from "@/app/lib/utils";
 
@@ -126,13 +127,13 @@ describe("DistributionListNameSchema", () => {
 
 describe("CreateDistributionListSchema", () => {
   it("takes a filter for a filter list and members for a fixed one", () => {
-    expect(
-      CreateDistributionListSchema.parse({
-        kind: "filter",
-        name: "Gastronomía",
-        filter: { v: 1, areas: ["gastronomy"] },
-      }),
-    ).toMatchObject({ kind: "filter", description: null });
+    const filter = CreateDistributionListSchema.parse({
+      kind: "filter",
+      name: "Gastronomía",
+      filter: { v: 1, areas: ["gastronomy"] },
+    });
+    expect(filter).toMatchObject({ kind: "filter" });
+    expect(filter.description).toBeUndefined();
     expect(
       CreateDistributionListSchema.parse({
         kind: "fixed",
@@ -141,6 +142,21 @@ describe("CreateDistributionListSchema", () => {
         memberIds: [5, 5, 6],
       }),
     ).toMatchObject({ kind: "fixed", description: null, memberIds: [5, 6] });
+  });
+
+  it("keeps a left-out description, and clears a blank one", () => {
+    const base = { listId: 1, name: "Lista" };
+    expect(
+      UpdateDistributionListSchema.parse(base).description,
+    ).toBeUndefined();
+    expect(
+      UpdateDistributionListSchema.parse({ ...base, description: " " })
+        .description,
+    ).toBeNull();
+    expect(
+      UpdateDistributionListSchema.parse({ ...base, description: null })
+        .description,
+    ).toBeNull();
   });
 
   it("refuses a filter list without a filter", () => {

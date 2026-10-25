@@ -530,6 +530,11 @@ describeDatabase("distribution lists", () => {
       await reserve(a.id, { owner: atBoth });
       await reserve(b.id, { owner: atBoth });
       await reserve(a.id, { status: "pending", owner: pendingAtA });
+      // A legacy owner, with no participations row: on Confirmados · B, so
+      // the filter must count them as confirmed there too.
+      const legacyAtB = await createUser();
+      await tag([legacyAtB], sub);
+      await reserve(b.id, { owner: legacyAtB, ownerParticipates: false });
 
       const base = {
         v: 1 as const,
@@ -549,7 +554,7 @@ describeDatabase("distribution lists", () => {
             }),
           ),
         ),
-      ).toEqual(sorted([atA, atB, atBoth]));
+      ).toEqual(sorted([atA, atB, atBoth, legacyAtB]));
       expect(
         sorted(
           await membersOf(
@@ -571,7 +576,16 @@ describeDatabase("distribution lists", () => {
             }),
           ),
         ),
-      ).toEqual(sorted([atB, pendingAtA, neither]));
+      ).toEqual(sorted([atB, pendingAtA, neither, legacyAtB]));
+      expect(
+        await membersOf(
+          resolve.filterMemberIdsSql({
+            ...base,
+            confirmedAtFestivalIds: [],
+            notConfirmedAtFestivalIds: [b.id],
+          }),
+        ),
+      ).not.toContain(legacyAtB);
     });
 
     it("holds participants only, verified or (when asked) paused", async () => {
@@ -751,6 +765,55 @@ describeDatabase("distribution lists", () => {
         .from(distributionListMembers)
         .where(eq(distributionListMembers.listId, listId));
       expect(remaining.map((row) => row.userId)).toEqual([beto]);
+    });
+
+    it("keeps a description an update leaves out, and pages past the end show the last page", async () => {
+      await signInAs("admin");
+      const name = `Descripta ${randomUUID().slice(0, 8)}`;
+      const result = await actions.createDistributionListAction({
+        kind: "fixed",
+        name,
+        description: "Para el armado",
+      });
+      const listId = (result as { listId: number }).listId;
+      created.lists.push(listId);
+
+      expect(
+        await actions.updateDistributionListAction({ listId, name }),
+      ).toMatchObject({ success: true });
+      expect((await queries.fetchDistributionList(listId))?.description).toBe(
+        "Para el armado",
+      );
+      await actions.updateDistributionListAction({
+        listId,
+        name,
+        description: "  ",
+      });
+      expect(
+        (await queries.fetchDistributionList(listId))?.description,
+      ).toBeNull();
+
+      const { rows } = await pool!.query<{ id: number }>(
+        `INSERT INTO users (clerk_id, email, display_name, role, status)
+         SELECT 'lists-page-' || $1 || '-' || g, 'lists-page-' || $1 || '-' || g || '@example.com',
+                'Página ' || g, 'user', 'verified'
+         FROM generate_series(1, 51) g
+         RETURNING id`,
+        [randomUUID()],
+      );
+      created.users.push(...rows.map((row) => row.id));
+      await pool!.query(
+        `INSERT INTO distribution_list_members (list_id, user_id)
+         SELECT $1, unnest($2::int[])`,
+        [listId, rows.map((row) => row.id)],
+      );
+      const second = await queries.fetchFixedListMembers(listId, 2);
+      expect(second).toMatchObject({ page: 2, pageCount: 2, total: 51 });
+      expect(second.rows).toHaveLength(1);
+      // As after "Quitar" empties the last page: the last real page instead.
+      const beyond = await queries.fetchFixedListMembers(listId, 7);
+      expect(beyond).toMatchObject({ page: 2, pageCount: 2, total: 51 });
+      expect(beyond.rows).toHaveLength(1);
     });
 
     it("refuses members past 3,000", async () => {

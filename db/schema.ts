@@ -1252,10 +1252,6 @@ export const standReservations = pgTable(
     // table can park a row on `released_at`.
     index("stand_reservations_owner_user_id_idx").on(t.ownerUserId),
     index("stand_reservations_stand_id_idx").on(t.standId),
-    // "Confirmados · <festival>" lists read a festival's accepted reservations.
-    index("stand_reservations_festival_accepted_idx")
-      .on(t.festivalId)
-      .where(sql`${t.status} = 'accepted'`),
     uniqueIndex("stand_reservations_idempotency_key_unique")
       .on(t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),

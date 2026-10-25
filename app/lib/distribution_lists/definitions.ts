@@ -177,7 +177,10 @@ const descriptionSchema = z
     `Usá ${DISTRIBUTION_LIST_DESCRIPTION_MAX_LENGTH} caracteres como máximo.`,
   )
   .nullish()
-  .transform((description) => description || null);
+  // Left out keeps what is stored; blank clears it.
+  .transform((description) =>
+    description === undefined ? undefined : description || null,
+  );
 
 export const CreateDistributionListSchema = z.discriminatedUnion("kind", [
   z.object({

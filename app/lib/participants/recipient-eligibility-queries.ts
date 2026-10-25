@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, inArray, isNull, type SQL, sql } from "drizzle-orm";
 
+import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import {
   type ParticipantSkipReason,
   participantSkipReason,
@@ -76,7 +77,7 @@ export function participantSkipReasonSql(user: {
     ) THEN 'deletion_pending'
     WHEN ${user.role} <> 'user' THEN 'not_participant'
     WHEN ${user.status} = 'banned' THEN 'banned'
-    WHEN ${user.status} NOT IN ('verified', 'paused') THEN 'not_verified'
+    WHEN NOT (${user.status}::text = ANY(${sql.param([...PARTICIPANT_READ_ONLY_ROUTE_STATUSES])}::text[])) THEN 'not_verified'
     ELSE NULL
   END`;
 }

@@ -18610,22 +18610,6 @@
           "method": "btree",
           "with": {}
         },
-        "stand_reservations_festival_accepted_idx": {
-          "name": "stand_reservations_festival_accepted_idx",
-          "columns": [
-            {
-              "expression": "festival_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"stand_reservations\".\"status\" = 'accepted'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "stand_reservations_idempotency_key_unique": {
           "name": "stand_reservations_idempotency_key_unique",
           "columns": [

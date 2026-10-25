@@ -95,15 +95,14 @@ export function confirmadosMemberIdsSql(festivalIds: readonly number[]): SQL {
   return sql`SELECT h.user_id FROM (${confirmadosHoldersSql(festivalIds)}) AS h`;
 }
 
-/** Accepted at any of `festivalIds`, for the filter's two festival fields. */
+/**
+ * On "Confirmados · F" for any F in `festivalIds`, legacy owners included, so
+ * the filter's two festival fields agree with the festival lists. The holders
+ * never repeat NULL, which keeps `NOT IN` safe.
+ */
 function confirmedAtAny(festivalIds: readonly number[]) {
-  return sql`EXISTS (
-    SELECT 1 FROM ${reservationParticipants}
-    JOIN ${standReservations}
-      ON ${standReservations.id} = ${reservationParticipants.reservationId}
-    WHERE ${reservationParticipants.userId} = ${users.id}
-      AND ${standReservations.status} = 'accepted'
-      AND ${standReservations.festivalId} = ANY(${intArray(festivalIds)})
+  return sql`${users.id} IN (
+    SELECT h.user_id FROM (${confirmadosHoldersSql(festivalIds)}) AS h
   )`;
 }
 

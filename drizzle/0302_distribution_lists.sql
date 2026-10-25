@@ -29,5 +29,4 @@ ALTER TABLE "distribution_list_members" ADD CONSTRAINT "distribution_list_member
 ALTER TABLE "distribution_lists" ADD CONSTRAINT "distribution_lists_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "distribution_lists" ADD CONSTRAINT "distribution_lists_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "distribution_list_members_user_idx" ON "distribution_list_members" USING btree ("user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "distribution_lists_name_unique" ON "distribution_lists" USING btree (lower(btrim("name"))) WHERE "distribution_lists"."archived_at" IS NULL;--> statement-breakpoint
-CREATE INDEX "stand_reservations_festival_accepted_idx" ON "stand_reservations" USING btree ("festival_id") WHERE "stand_reservations"."status" = 'accepted';
+CREATE UNIQUE INDEX "distribution_lists_name_unique" ON "distribution_lists" USING btree (lower(btrim("name"))) WHERE "distribution_lists"."archived_at" IS NULL;

@@ -18,7 +18,7 @@ import {
   previewFilterAudience,
   searchDistributionListCandidates,
 } from "@/app/lib/distribution_lists/queries";
-import { isUniqueViolationOn } from "@/app/lib/errors/postgres";
+import { hasPgErrorCode, isUniqueViolationOn } from "@/app/lib/errors/postgres";
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -153,6 +153,21 @@ async function lockList(tx: DbTx, listId: number) {
 
 class Refusal extends Error {}
 
+/** A member write that threw: a person deleted meanwhile, or anything else. */
+function memberWriteFailure(error: unknown, log: string): Failure {
+  if (hasPgErrorCode(error, "23503")) {
+    return {
+      success: false,
+      message:
+        "Alguna de las personas ya no existe. Actualizá la página e intentá de nuevo.",
+    };
+  }
+  console.error(log, {
+    errorType: error instanceof Error ? error.name : typeof error,
+  });
+  return { success: false, message: "No se pudo actualizar la lista." };
+}
+
 export async function createDistributionListAction(
   input: unknown,
 ): Promise<ActionResult<{ listId: number }>> {
@@ -224,7 +239,9 @@ export async function updateDistributionListAction(
         .update(distributionLists)
         .set({
           name: data.name,
-          description: data.description,
+          ...(data.description !== undefined
+            ? { description: data.description }
+            : {}),
           ...(locked.list.kind === "filter" ? { filter: data.filter } : {}),
           updatedByUserId: actor.id,
           updatedAt: sql`now()`,
@@ -305,25 +322,30 @@ export async function addDistributionListMembersAction(
   if (!parsed.success) return invalid(parsed.error);
   const { listId, userIds } = parsed.data;
 
-  const result = await db.transaction(async (tx) => {
-    const locked = await lockList(tx, listId);
-    if (!locked.list) return { ok: false, message: locked.message } as const;
-    if (locked.list.kind !== "fixed") {
-      return {
-        ok: false,
-        message:
-          "Una lista con filtros se calcula sola: no se le agregan personas.",
-      } as const;
-    }
-    const added = await addMembersInTx(tx, listId, userIds, actor.id);
-    if (added.ok && added.added > 0) {
-      await tx
-        .update(distributionLists)
-        .set({ updatedByUserId: actor.id, updatedAt: sql`now()` })
-        .where(eq(distributionLists.id, listId));
-    }
-    return added;
-  });
+  let result: Awaited<ReturnType<typeof addMembersInTx>>;
+  try {
+    result = await db.transaction(async (tx) => {
+      const locked = await lockList(tx, listId);
+      if (!locked.list) return { ok: false, message: locked.message } as const;
+      if (locked.list.kind !== "fixed") {
+        return {
+          ok: false,
+          message:
+            "Una lista con filtros se calcula sola: no se le agregan personas.",
+        } as const;
+      }
+      const added = await addMembersInTx(tx, listId, userIds, actor.id);
+      if (added.ok && added.added > 0) {
+        await tx
+          .update(distributionLists)
+          .set({ updatedByUserId: actor.id, updatedAt: sql`now()` })
+          .where(eq(distributionLists.id, listId));
+      }
+      return added;
+    });
+  } catch (error) {
+    return memberWriteFailure(error, "Error adding distribution list members");
+  }
   if (!result.ok) return { success: false, message: result.message };
   revalidatePath(`${LISTS_PATH}/${listId}`);
   revalidatePath(LISTS_PATH);
@@ -343,27 +365,35 @@ export async function removeDistributionListMemberAction(
   if (!parsed.success) return invalid(parsed.error);
   const { listId, userIds } = parsed.data;
 
-  const message = await db.transaction(async (tx) => {
-    const locked = await lockList(tx, listId);
-    if (!locked.list) return locked.message;
-    if (locked.list.kind !== "fixed") return NOT_FOUND;
-    const removed = await tx
-      .delete(distributionListMembers)
-      .where(
-        and(
-          eq(distributionListMembers.listId, listId),
-          inArray(distributionListMembers.userId, userIds),
-        ),
-      )
-      .returning({ userId: distributionListMembers.userId });
-    if (removed.length > 0) {
-      await tx
-        .update(distributionLists)
-        .set({ updatedByUserId: actor.id, updatedAt: sql`now()` })
-        .where(eq(distributionLists.id, listId));
-    }
-    return null;
-  });
+  let message: string | null;
+  try {
+    message = await db.transaction(async (tx) => {
+      const locked = await lockList(tx, listId);
+      if (!locked.list) return locked.message;
+      if (locked.list.kind !== "fixed") return NOT_FOUND;
+      const removed = await tx
+        .delete(distributionListMembers)
+        .where(
+          and(
+            eq(distributionListMembers.listId, listId),
+            inArray(distributionListMembers.userId, userIds),
+          ),
+        )
+        .returning({ userId: distributionListMembers.userId });
+      if (removed.length > 0) {
+        await tx
+          .update(distributionLists)
+          .set({ updatedByUserId: actor.id, updatedAt: sql`now()` })
+          .where(eq(distributionLists.id, listId));
+      }
+      return null;
+    });
+  } catch (error) {
+    return memberWriteFailure(
+      error,
+      "Error removing distribution list members",
+    );
+  }
   if (message) return { success: false, message };
   revalidatePath(`${LISTS_PATH}/${listId}`);
   revalidatePath(LISTS_PATH);
