@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { INSTALLED_APP_START_URL } from "@/app/components/landing/installed-app";
 import { installedAppName } from "@/app/lib/installable-app";
 import { ICON_BACKGROUND } from "@/app/lib/theme-colors";
 
@@ -16,7 +17,10 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: name,
     description: "Creamos festivales para que los artistas brillen",
     lang: "es",
-    start_url: "/",
+    // Opens past the marketing landing: a session goes to its portal,
+    // anyone else to sign in (app/launch/route.ts). `id` stays "/", so
+    // existing installs remain the same app.
+    start_url: INSTALLED_APP_START_URL,
     scope: "/",
     display: "standalone",
     // Android's launch screen: the icon on this purple, under a status bar

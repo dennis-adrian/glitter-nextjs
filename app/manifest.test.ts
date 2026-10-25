@@ -26,12 +26,12 @@ describe("the web app manifest", () => {
     envLabel.value = "";
   });
 
-  it("opens Glitter full screen from its own start page", () => {
+  it("opens Glitter full screen past the marketing landing", () => {
     expect(manifest()).toMatchObject({
       id: "/",
       name: "Glitter",
       short_name: "Glitter",
-      start_url: "/",
+      start_url: "/launch",
       scope: "/",
       display: "standalone",
       lang: "es",

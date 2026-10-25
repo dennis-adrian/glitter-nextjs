@@ -1,7 +1,9 @@
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 
+import InstalledAppLandingGate from "@/app/components/landing/installed-app-landing-gate";
 import Landing from "@/app/components/landing/landing";
 import LandingSkeleton from "@/app/components/landing/skeleton";
 import {
@@ -16,9 +18,7 @@ type HomeProps = {
   searchParams: Promise<{ preview?: string }>;
 };
 
-async function getLandingPreviewState(
-  searchParams: HomeProps["searchParams"],
-) {
+async function getLandingPreviewState(searchParams: HomeProps["searchParams"]) {
   const preview = (await searchParams).preview === "landing-draft";
   const profile = await getCurrentUserProfile();
   const canPreview =
@@ -59,11 +59,16 @@ export default async function Home({ searchParams }: HomeProps) {
     redirect("/portal");
   }
 
-  return (
-    <>
-      <Suspense fallback={<LandingSkeleton />}>
-        <Landing />
-      </Suspense>
-    </>
+  const landing = (
+    <Suspense fallback={<LandingSkeleton />}>
+      <Landing />
+    </Suspense>
   );
+
+  // The installed app is for people with an account: without a session it
+  // shows sign in instead of the marketing landing.
+  const { userId } = await auth();
+  if (userId) return landing;
+
+  return <InstalledAppLandingGate>{landing}</InstalledAppLandingGate>;
 }
