@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import SearchInput from "@/app/components/ui/search-input/input";
 import type { SearchOption } from "@/app/components/ui/search-input/search-content";
@@ -26,7 +27,10 @@ export default function ListMemberSearch({
   heldIds?: ReadonlySet<number>;
   onPick: (member: DistributionListMember) => void;
   disabled?: boolean;
-  /** Why nobody can be added right now, shown on every result. */
+  /**
+   * Why nobody can be added right now, shown on every result. Without one,
+   * a disabled search says to wait for the change in flight.
+   */
   disabledReason?: string;
 }) {
   const [results, setResults] = useState<Candidate[]>([]);
@@ -37,7 +41,7 @@ export default function ListMemberSearch({
       result.alreadyMember || heldIds?.has(result.userId)
         ? "Ya está en la lista"
         : disabled
-          ? disabledReason
+          ? (disabledReason ?? "Esperá a que termine el cambio anterior")
           : undefined;
     return {
       value: result.userId,
@@ -61,12 +65,19 @@ export default function ListMemberSearch({
       minSearchLength={2}
       onSearch={(term) =>
         startSearch(async () => {
-          setResults(
-            await searchDistributionListCandidatesAction({
-              query: term,
-              listId: listId ?? undefined,
-            }),
-          );
+          try {
+            setResults(
+              await searchDistributionListCandidatesAction({
+                query: term,
+                listId: listId ?? undefined,
+              }),
+            );
+          } catch (error) {
+            // A thrown transition would reach the error boundary and take
+            // the people held on a new list with it.
+            console.error("Error searching list candidates", error);
+            toast.error("No se pudo buscar. Intentá de nuevo.");
+          }
         })
       }
       onSelect={(userId) => {

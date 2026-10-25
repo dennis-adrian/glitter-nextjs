@@ -57,10 +57,13 @@ vi.mock("@/app/lib/users/helpers", () => ({
     state.viewer?.role === "admin" ? state.viewer : null,
 }));
 vi.mock("@/app/lib/feature_flags/helpers", () => ({
-  isFeatureEnabled: async () => state.flagOn,
-  isFeatureLaunched: async () => true,
-  featureFlagGuard: async () =>
-    state.flagOn
+  // Only `comunicados` is switchable: a guard on the wrong flag refuses even
+  // with it on, so every admin test below would fail.
+  isFeatureEnabled: async (key: string) =>
+    key === "comunicados" && state.flagOn,
+  isFeatureLaunched: async (key: string) => key === "credits",
+  featureFlagGuard: async (key: string) =>
+    key === "comunicados" && state.flagOn
       ? null
       : { success: false, message: "Esta funcionalidad no está disponible" },
 }));
@@ -816,7 +819,65 @@ describeDatabase("distribution lists", () => {
       expect(beyond.rows).toHaveLength(1);
     });
 
-    it("refuses members past 3,000", async () => {
+    it("saves a filter list's new criteria and removes a fixed list's member", async () => {
+      await signInAs("admin");
+      const first = await createSubcategory();
+      const second = await createSubcategory();
+      const inFirst = await createUser();
+      const inSecond = await createUser();
+      await tag([inFirst], first);
+      await tag([inSecond], second);
+
+      const name = `Cambia ${randomUUID().slice(0, 8)}`;
+      const created_ = await actions.createDistributionListAction({
+        kind: "filter",
+        name,
+        filter: { v: 1, subcategoryIds: [first] },
+      });
+      const filterListId = (created_ as { listId: number }).listId;
+      created.lists.push(filterListId);
+      expect(
+        await queries.resolveListSourceMembers({
+          kind: "list",
+          listId: filterListId,
+        }),
+      ).toMatchObject({ ok: true, members: [{ userId: inFirst }] });
+
+      expect(
+        await actions.updateDistributionListAction({
+          listId: filterListId,
+          name,
+          filter: { v: 1, subcategoryIds: [second] },
+        }),
+      ).toMatchObject({ success: true });
+      expect(
+        await queries.resolveListSourceMembers({
+          kind: "list",
+          listId: filterListId,
+        }),
+      ).toMatchObject({ ok: true, members: [{ userId: inSecond }] });
+
+      const fixed = await actions.createDistributionListAction({
+        kind: "fixed",
+        name: `Quitar ${randomUUID().slice(0, 8)}`,
+        memberIds: [inFirst, inSecond],
+      });
+      const fixedListId = (fixed as { listId: number }).listId;
+      created.lists.push(fixedListId);
+      expect(
+        await actions.removeDistributionListMemberAction({
+          listId: fixedListId,
+          userIds: [inFirst],
+        }),
+      ).toMatchObject({ success: true });
+      expect(
+        (await queries.fetchFixedListMembers(fixedListId, 1)).rows.map(
+          (row) => row.userId,
+        ),
+      ).toEqual([inSecond]);
+    });
+
+    it("takes the 3,000th member and refuses the next", async () => {
       await signInAs("admin");
       const result = await actions.createDistributionListAction({
         kind: "fixed",
@@ -824,12 +885,12 @@ describeDatabase("distribution lists", () => {
       });
       const listId = (result as { listId: number }).listId;
       created.lists.push(listId);
-      // 3,000 members in two statements: the cap counts rows.
+      // 2,999 members in two statements: the cap counts rows.
       const { rows } = await pool!.query<{ id: number }>(
         `INSERT INTO users (clerk_id, email, display_name, role, status)
          SELECT 'lists-bulk-' || $1 || '-' || g, 'lists-bulk-' || $1 || '-' || g || '@example.com',
                 'Lista ' || g, 'user', 'verified'
-         FROM generate_series(1, 3000) g
+         FROM generate_series(1, 2999) g
          RETURNING id`,
         [randomUUID()],
       );
@@ -839,6 +900,12 @@ describeDatabase("distribution lists", () => {
          SELECT $1, unnest($2::int[])`,
         [listId, rows.map((row) => row.id)],
       );
+      expect(
+        await actions.addDistributionListMembersAction({
+          listId,
+          userIds: [await createUser()],
+        }),
+      ).toMatchObject({ success: true, added: 1 });
       const someone = await createUser();
 
       const over = await actions.addDistributionListMembersAction({
@@ -967,6 +1034,11 @@ describeDatabase("distribution lists", () => {
       for (const result of await Promise.all(attempts())) {
         expect(result).toMatchObject({ success: false });
       }
+      expect(
+        await actions.searchDistributionListCandidatesAction({
+          query: "Lista",
+        }),
+      ).toEqual([]);
 
       const [after] = await integrationDb!
         .select({

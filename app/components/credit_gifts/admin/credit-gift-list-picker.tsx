@@ -43,6 +43,11 @@ type CreditGiftListPickerProps = {
   lists: CreditGiftListOptions;
   recipients: CreditGiftRecipientOption[];
   onAddMany: (recipients: CreditGiftRecipientOption[]) => void;
+  /**
+   * Told when a list starts and stops being added, so the rest of the picker
+   * holds still: the server counted `recipients` as they were at the start.
+   */
+  onExpandingChange?: (expanding: boolean) => void;
   disabled?: boolean;
 };
 
@@ -55,6 +60,7 @@ export default function CreditGiftListPicker({
   lists,
   recipients,
   onAddMany,
+  onExpandingChange,
   disabled = false,
 }: CreditGiftListPickerProps) {
   const [open, setOpen] = useState(false);
@@ -78,6 +84,7 @@ export default function CreditGiftListPicker({
 
   function expand(source: DistributionListSource) {
     setOpen(false);
+    onExpandingChange?.(true);
     startExpanding(async () => {
       try {
         const result = await expandListForCreditGiftAction({
@@ -88,8 +95,8 @@ export default function CreditGiftListPicker({
           toast.error(result.message);
           return;
         }
-        // The pickers are disabled meanwhile, so `recipients` is still who
-        // the server counted; this only guards against a double add.
+        // The search and the chips are disabled meanwhile, so `recipients`
+        // is still who the server counted; this only guards a double add.
         const chosen = new Set(recipients.map((recipient) => recipient.id));
         const fresh = result.recipients.filter(
           (recipient) => !chosen.has(recipient.id),
@@ -105,6 +112,8 @@ export default function CreditGiftListPicker({
       } catch (error) {
         console.error("Error adding a list to a credit gift", error);
         toast.error("No se pudo agregar la lista. Intentá de nuevo.");
+      } finally {
+        onExpandingChange?.(false);
       }
     });
   }

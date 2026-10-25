@@ -39,6 +39,10 @@ export default function CreditGiftRecipientPicker({
 }: CreditGiftRecipientPickerProps) {
   const [results, setResults] = useState<CreditGiftRecipientOption[]>([]);
   const [isSearching, startSearch] = useTransition();
+  // While a list is being added, nobody else comes or goes: the server is
+  // counting the people chosen when it started.
+  const [expanding, setExpanding] = useState(false);
+  const locked = disabled || expanding;
   const selectedIds = new Set(recipients.map((recipient) => recipient.id));
   const full = recipients.length >= CREDIT_GIFT_MAX_RECIPIENTS;
 
@@ -47,7 +51,9 @@ export default function CreditGiftRecipientPicker({
       ? "Ya está en la lista"
       : full
         ? `Máximo ${CREDIT_GIFT_MAX_RECIPIENTS} personas por regalo`
-        : result.skipReason;
+        : expanding
+          ? "Esperá a que termine de agregarse la lista"
+          : result.skipReason;
     return {
       value: result.id,
       label: `${result.name} · ${result.email}`,
@@ -74,7 +80,7 @@ export default function CreditGiftRecipientPicker({
               })
             }
             onSelect={(userId) => {
-              if (disabled) return;
+              if (locked) return;
               const match = results.find((result) => result.id === userId);
               if (
                 match &&
@@ -91,6 +97,7 @@ export default function CreditGiftRecipientPicker({
           lists={lists}
           recipients={recipients}
           onAddMany={onAddMany}
+          onExpandingChange={setExpanding}
           disabled={disabled || full}
         />
       </div>
@@ -120,7 +127,7 @@ export default function CreditGiftRecipientPicker({
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 rounded-full"
-                disabled={disabled}
+                disabled={locked}
                 onClick={() => onRemove(recipient.id)}
                 aria-label={`Quitar a ${recipient.name}`}
               >

@@ -169,6 +169,32 @@ describe("CreditGiftListPicker", () => {
     );
   });
 
+  it("tells the picker when a list starts and stops being added", async () => {
+    let finish: (value: unknown) => void = () => {};
+    mocks.expand.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const onExpandingChange = vi.fn();
+    render(
+      <CreditGiftListPicker
+        lists={LISTS}
+        recipients={[]}
+        onAddMany={vi.fn()}
+        onExpandingChange={onExpandingChange}
+      />,
+    );
+    openAndPick("Ilustración Cochabamba");
+    await waitFor(() =>
+      expect(onExpandingChange).toHaveBeenLastCalledWith(true),
+    );
+    finish({ success: false, message: "No" });
+    await waitFor(() =>
+      expect(onExpandingChange).toHaveBeenLastCalledWith(false),
+    );
+  });
+
   it("adds nobody when the server refuses the list", async () => {
     const refusal =
       "Con «Confirmados · Glitter Navidad 2026» serían 340 personas y un regalo llega a 100 como máximo. Elegí una lista más chica o agregá personas una por una.";

@@ -18,6 +18,9 @@ export const DISTRIBUTION_LIST_MEMBERS_PAGE_SIZE = 50;
 export const DISTRIBUTION_LIST_PREVIEW_NAMES = 20;
 /** People one "Agregar" adds to a fixed list at most. */
 export const DISTRIBUTION_LIST_ADD_BATCH_MAX = 100;
+/** How many of each a filter can name. */
+export const DISTRIBUTION_LIST_FILTER_MAX_SUBCATEGORIES = 30;
+export const DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS = 20;
 
 /** Computed lists are named this way, so a saved list may not be. */
 export const CONFIRMADOS_LIST_PREFIX = "Confirmados ·";
@@ -77,10 +80,10 @@ export const STATE_VALUES = stateOptions.map((option) => option.value) as [
 
 const serialId = z.number().int().positive().max(MAX_SERIAL_ID);
 
-function uniqueIds(max: number) {
+function uniqueIds(max: number, tooMany = `Elegí ${max} como máximo.`) {
   return z
     .array(serialId)
-    .max(max)
+    .max(max, tooMany)
     .default([])
     .transform((ids) => [...new Set(ids)]);
 }
@@ -99,16 +102,25 @@ export const DistributionListFilterV1 = z
       .max(DISTRIBUTION_LIST_AREAS.length)
       .default([])
       .transform((areas) => [...new Set(areas)]),
-    subcategoryIds: uniqueIds(30),
+    subcategoryIds: uniqueIds(
+      DISTRIBUTION_LIST_FILTER_MAX_SUBCATEGORIES,
+      `Elegí hasta ${DISTRIBUTION_LIST_FILTER_MAX_SUBCATEGORIES} categorías.`,
+    ),
     states: z
       .array(z.enum(STATE_VALUES))
       .max(STATE_VALUES.length)
       .default([])
       .transform((states) => [...new Set(states)]),
     /** Confirmed at any of these festivals. */
-    confirmedAtFestivalIds: uniqueIds(20),
+    confirmedAtFestivalIds: uniqueIds(
+      DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS,
+      `Elegí hasta ${DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS} festivales en «Con reserva confirmada en».`,
+    ),
     /** And confirmed at none of these. */
-    notConfirmedAtFestivalIds: uniqueIds(20),
+    notConfirmedAtFestivalIds: uniqueIds(
+      DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS,
+      `Elegí hasta ${DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS} festivales en «Sin reserva confirmada en».`,
+    ),
     includePaused: z.boolean().default(true),
   })
   .strict();
@@ -244,12 +256,17 @@ export function formatAudienceCount(count: number) {
   return count.toLocaleString("es-BO");
 }
 
+/** "8 no lo reciben", "1 no lo recibe". */
+export function skippedCountText(skipped: number) {
+  return skipped === 1
+    ? "1 no lo recibe"
+    : `${formatAudienceCount(skipped)} no lo reciben`;
+}
+
 /** "Pueden recibirlo hoy: 312 · 8 no lo reciben". */
 export function audienceCountLine({ eligible, skipped }: AudienceCount) {
   const line = `Pueden recibirlo hoy: ${formatAudienceCount(eligible)}`;
-  return skipped > 0
-    ? `${line} · ${formatAudienceCount(skipped)} no lo reciben`
-    : line;
+  return skipped > 0 ? `${line} · ${skippedCountText(skipped)}` : line;
 }
 
 export function archiveDistributionListPrompt(name: string) {

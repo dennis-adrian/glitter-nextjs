@@ -24,10 +24,13 @@ import {
   type AudienceCount,
   DISTRIBUTION_LIST_AREA_LABELS,
   DISTRIBUTION_LIST_AREAS,
+  DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS,
+  DISTRIBUTION_LIST_FILTER_MAX_SUBCATEGORIES,
   type DistributionListFilter,
   type DistributionListMember,
   formatAudienceCount,
   isEmptyDistributionListFilter,
+  skippedCountText,
   STATE_VALUES,
 } from "@/app/lib/distribution_lists/definitions";
 
@@ -243,6 +246,8 @@ export default function ListFilterEditor({
               options={subcategoryOptions}
               selected={toValues(filter.subcategoryIds)}
               onChange={(values) => update({ subcategoryIds: toIds(values) })}
+              max={DISTRIBUTION_LIST_FILTER_MAX_SUBCATEGORIES}
+              maxReason={`Hasta ${DISTRIBUTION_LIST_FILTER_MAX_SUBCATEGORIES} categorías`}
               disabled={disabled}
             />
 
@@ -266,6 +271,8 @@ export default function ListFilterEditor({
               onChange={(values) =>
                 update({ confirmedAtFestivalIds: toIds(values) })
               }
+              max={DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS}
+              maxReason={`Hasta ${DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS} festivales`}
               disabled={disabled}
             />
 
@@ -279,6 +286,8 @@ export default function ListFilterEditor({
               onChange={(values) =>
                 update({ notConfirmedAtFestivalIds: toIds(values) })
               }
+              max={DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS}
+              maxReason={`Hasta ${DISTRIBUTION_LIST_FILTER_MAX_FESTIVALS} festivales`}
               disabled={disabled}
             />
 
@@ -367,7 +376,7 @@ function FilterPreview({
         </p>
       )}
       <p className="text-sm">
-        Hoy pueden recibirlo{" "}
+        {count.eligible === 1 ? "Hoy puede recibirlo" : "Hoy pueden recibirlo"}{" "}
         <strong className="tabular-nums">
           {formatAudienceCount(count.eligible)}
         </strong>{" "}
@@ -375,7 +384,7 @@ function FilterPreview({
         {count.skipped > 0 && (
           <span className="text-muted-foreground">
             {" "}
-            · {formatAudienceCount(count.skipped)} no lo reciben
+            · {skippedCountText(count.skipped)}
           </span>
         )}
       </p>

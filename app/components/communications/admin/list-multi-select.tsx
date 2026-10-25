@@ -38,6 +38,8 @@ export default function ListMultiSelect({
   options,
   selected,
   onChange,
+  max,
+  maxReason,
   disabled = false,
 }: {
   id: string;
@@ -47,10 +49,15 @@ export default function ListMultiSelect({
   options: ListMultiSelectOption[];
   selected: string[];
   onChange: (selected: string[]) => void;
+  /** At most this many: once reached, only removing is offered. */
+  max?: number;
+  /** Shown once `max` is reached, e.g. "Hasta 20 festivales". */
+  maxReason?: string;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selectedSet = new Set(selected);
+  const full = max !== undefined && selected.length >= max;
   const byValue = new Map(options.map((option) => [option.value, option]));
   const groups: {
     name: string | undefined;
@@ -63,11 +70,11 @@ export default function ListMultiSelect({
   }
 
   function toggle(value: string) {
-    onChange(
-      selectedSet.has(value)
-        ? selected.filter((current) => current !== value)
-        : [...selected, value],
-    );
+    if (selectedSet.has(value)) {
+      onChange(selected.filter((current) => current !== value));
+    } else if (!full) {
+      onChange([...selected, value]);
+    }
   }
 
   return (
@@ -77,6 +84,9 @@ export default function ListMultiSelect({
           {label}
         </p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        {full && maxReason && (
+          <p className="text-xs text-muted-foreground">{maxReason}.</p>
+        )}
       </div>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -107,6 +117,7 @@ export default function ListMultiSelect({
                       // and the id keeps two same-named options apart.
                       value={`${option.label} ${option.group ?? ""} #${option.value}`}
                       onSelect={() => toggle(option.value)}
+                      disabled={full && !selectedSet.has(option.value)}
                     >
                       {option.label}
                       <CheckIcon

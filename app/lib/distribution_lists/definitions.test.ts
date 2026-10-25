@@ -63,6 +63,17 @@ describe("DistributionListFilterV1", () => {
   ])("refuses %s", (_case, value) => {
     expect(DistributionListFilterV1.safeParse(value).success).toBe(false);
   });
+
+  it("says in Spanish which limit was passed", () => {
+    const tooMany = DistributionListFilterV1.safeParse({
+      v: 1,
+      confirmedAtFestivalIds: Array.from({ length: 21 }, (_, i) => i + 1),
+    });
+    expect(tooMany.success).toBe(false);
+    expect(tooMany.error?.issues[0]?.message).toBe(
+      "Elegí hasta 20 festivales en «Con reserva confirmada en».",
+    );
+  });
 });
 
 describe("parseStoredDistributionListFilter", () => {
@@ -174,6 +185,9 @@ describe("audienceCountLine", () => {
     );
     expect(audienceCountLine({ eligible: 0, skipped: 0 })).toBe(
       "Pueden recibirlo hoy: 0",
+    );
+    expect(audienceCountLine({ eligible: 2, skipped: 1 })).toBe(
+      "Pueden recibirlo hoy: 2 · 1 no lo recibe",
     );
   });
 });
