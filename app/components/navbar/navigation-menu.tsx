@@ -34,12 +34,15 @@ const NavbarNavigationMenu = ({
   profile,
   programsHref,
   blogEnabled,
+  communicationsEnabled,
 }: {
   profile?: NavbarProfile | null;
   /** Null when the entry is switched off, gated, or nothing is published. */
   programsHref?: string | null;
   /** False until the `blog` flag is visible to this viewer. */
   blogEnabled?: boolean;
+  /** The `comunicados` flag for this viewer; shown to global admins only. */
+  communicationsEnabled?: boolean;
 }) => {
   const pathname = usePathname();
   const canViewSupplies = profile?.status === "verified";
@@ -331,6 +334,15 @@ const NavbarNavigationMenu = ({
                 >
                   Saldos, movimientos y comprobantes de créditos
                 </NavigationMenuListItem>
+                {communicationsEnabled && (
+                  <NavigationMenuListItem
+                    title="Comunicaciones"
+                    href="/dashboard/communications"
+                  >
+                    Anuncios a participantes por la app, el correo y el
+                    dispositivo
+                  </NavigationMenuListItem>
+                )}
                 <NavigationMenuListItem
                   title="Festivales"
                   href="/dashboard/festivals"
