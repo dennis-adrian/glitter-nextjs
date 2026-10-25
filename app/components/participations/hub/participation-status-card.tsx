@@ -241,8 +241,11 @@ function ConfirmedReservation({ hub }: { hub: ParticipationHub }) {
  */
 export default function ParticipationStatusCard({
   hub,
+  showFestival = false,
 }: {
   hub: ParticipationHub;
+  /** Names the festival too, where no hero above the card already does. */
+  showFestival?: boolean;
 }) {
   const copy = copyFor(hub);
   const badge = badgeFor(hub.status);
@@ -260,6 +263,7 @@ export default function ParticipationStatusCard({
       <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-primary">
           {confirmed ? "Tu reserva" : "Tu participación"}
+          {showFestival ? ` · ${hub.festival.name}` : null}
         </span>
         <Badge className={cn("shrink-0", badge.badgeStyle)}>
           {badge.label}

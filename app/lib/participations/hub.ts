@@ -73,7 +73,7 @@ type UpcomingSession = Awaited<
 
 export type ParticipationHubResult =
   | { kind: "signed-out" }
-  | { kind: "not-verified" }
+  | { kind: "not-verified"; profile: ProfileType }
   | { kind: "no-festival"; profile: ProfileType }
   | ({ kind: "hub" } & ParticipationHub);
 
@@ -111,7 +111,7 @@ export const loadParticipationHub = cache(
     if (!profile) return { kind: "signed-out" };
     // A profile still under review sees the public festival instead; the
     // tab already points there, this covers an old link or a bookmark.
-    if (profile.status !== "verified") return { kind: "not-verified" };
+    if (profile.status !== "verified") return { kind: "not-verified", profile };
 
     const festival = await getActiveFestival();
     if (!festival) return { kind: "no-festival", profile };
