@@ -1,0 +1,273 @@
+import { Fragment, type CSSProperties, type ReactNode } from "react";
+import { Heading, Hr, Link, Section, Text } from "react-email";
+
+import * as styles from "@/app/emails/styles";
+import type {
+  AnnouncementBlock,
+  AnnouncementInline,
+  AnnouncementText,
+} from "@/app/lib/comunicados/content";
+import { isSafeComunicadoActionPath } from "@/app/lib/comunicados/definitions";
+
+/**
+ * A comunicado's blocks as React Email nodes (docs/IMPLEMENTATION-comunicados.md
+ * C3). Synchronous, like `blocksToSeedHtml`, so the bulk lane can render a
+ * batch without BlockNote. Takes the blocks `normalizeAnnouncementDoc`
+ * returned; every style is inline, since mail clients strip stylesheets.
+ */
+
+const paragraph: CSSProperties = {
+  ...styles.text,
+  fontSize: "15px",
+  lineHeight: "24px",
+};
+
+const headings: Record<2 | 3, CSSProperties> = {
+  2: {
+    ...styles.text,
+    fontSize: "20px",
+    lineHeight: 1.3,
+    fontWeight: 700,
+    margin: "20px 0 8px 0",
+  },
+  3: {
+    ...styles.text,
+    fontSize: "17px",
+    lineHeight: 1.3,
+    fontWeight: 700,
+    margin: "16px 0 6px 0",
+  },
+};
+
+const quote: CSSProperties = {
+  borderLeft: "3px solid #dedede",
+  padding: "2px 0 2px 12px",
+  margin: "0 0 10px 0",
+};
+
+const quoteText: CSSProperties = { ...paragraph, margin: 0, color: "#4b5563" };
+
+const list: CSSProperties = {
+  ...styles.text,
+  fontSize: "15px",
+  lineHeight: "24px",
+  margin: "0 0 10px 0",
+  padding: "0 0 0 24px",
+};
+
+const nestedList: CSSProperties = { ...list, margin: "4px 0 0 0" };
+
+const listItem: CSSProperties = { margin: "0 0 4px 0" };
+
+/** Children of a block that is not a list item, indented under it. */
+const nested: CSSProperties = { padding: "0 0 0 16px" };
+
+const divider: CSSProperties = {
+  border: "none",
+  borderTop: "1px solid #dedede",
+  margin: "16px 0",
+};
+
+const link: CSSProperties = { ...styles.email, textDecoration: "underline" };
+
+const ABSOLUTE_HREF = /^(?:https?:|mailto:)/i;
+
+function joinBase(baseUrl: string, path: string) {
+  return `${baseUrl.replace(/\/+$/, "")}${path}`;
+}
+
+/**
+ * A link as it can go out in an email, or null when it cannot.
+ *
+ * A Glitter path is made absolute by plain concatenation, never with
+ * `new URL(href, base)`, which would resolve "//evil.example" to another
+ * host; and only after the button's path rule, so "/\host" and a path with a
+ * tab or a newline (which a browser strips into "//host") stay text. An
+ * address with a scheme keeps its host whatever it holds, so only control
+ * characters are refused there, and a pasted space is encoded.
+ */
+export function comunicadoEmailHref(
+  href: string,
+  baseUrl: string,
+): string | null {
+  const trimmed = href.trim();
+  if (ABSOLUTE_HREF.test(trimmed)) {
+    return /[\x00-\x1f\x7f]/.test(trimmed)
+      ? null
+      : trimmed.replaceAll(" ", "%20");
+  }
+  return isSafeComunicadoActionPath(trimmed)
+    ? joinBase(baseUrl, trimmed)
+    : null;
+}
+
+/** The button's absolute URL: a Glitter path only, never another site (C6). */
+export function comunicadoActionUrl(
+  path: string | null | undefined,
+  baseUrl: string,
+): string | null {
+  const trimmed = path?.trim();
+  if (!trimmed || !isSafeComunicadoActionPath(trimmed)) return null;
+  return joinBase(baseUrl, trimmed);
+}
+
+/** A soft line break (Shift+Enter) as a `<br>`: some clients ignore pre-line. */
+function withBreaks(text: string): ReactNode {
+  const lines = text.split("\n");
+  if (lines.length === 1) return text;
+  return lines.map((line, index) => (
+    <Fragment key={index}>
+      {index > 0 ? <br /> : null}
+      {line}
+    </Fragment>
+  ));
+}
+
+function styledText(node: AnnouncementText, key: number): ReactNode {
+  let content = withBreaks(node.text);
+  if (node.styles.bold) content = <strong>{content}</strong>;
+  if (node.styles.italic) content = <em>{content}</em>;
+  return <Fragment key={key}>{content}</Fragment>;
+}
+
+function inline(
+  nodes: readonly AnnouncementInline[] | undefined,
+  baseUrl: string,
+): ReactNode[] {
+  return (nodes ?? []).map((node, index) => {
+    if (node.type !== "link") return styledText(node, index);
+    const inner = node.content.map(styledText);
+    const href = comunicadoEmailHref(node.href, baseUrl);
+    // A link that cannot go out keeps its words.
+    if (!href) return <Fragment key={index}>{inner}</Fragment>;
+    return (
+      <Link key={index} href={href} style={link}>
+        {inner}
+      </Link>
+    );
+  });
+}
+
+function hasText(block: AnnouncementBlock) {
+  return (block.content ?? []).some((node) =>
+    (node.type === "link" ? node.content : [node]).some(
+      (text) => text.text.trim().length > 0,
+    ),
+  );
+}
+
+function isListItem(block: AnnouncementBlock) {
+  return block.type === "bulletListItem" || block.type === "numberedListItem";
+}
+
+function renderList(
+  items: AnnouncementBlock[],
+  depth: number,
+  baseUrl: string,
+  key: number,
+): ReactNode {
+  const Tag = items[0]!.type === "numberedListItem" ? "ol" : "ul";
+  return (
+    <Tag key={key} style={depth > 1 ? nestedList : list}>
+      {items.map((item, index) => (
+        <li key={index} style={listItem}>
+          {inline(item.content, baseUrl)}
+          {renderLevel(item.children, depth + 1, baseUrl)}
+        </li>
+      ))}
+    </Tag>
+  );
+}
+
+function renderBlock(
+  block: AnnouncementBlock,
+  depth: number,
+  baseUrl: string,
+  key: number,
+): ReactNode {
+  const children =
+    block.children.length > 0 ? (
+      <Section style={nested}>
+        {renderLevel(block.children, depth + 1, baseUrl)}
+      </Section>
+    ) : null;
+
+  switch (block.type) {
+    case "divider":
+      return <Hr key={key} style={divider} />;
+    case "heading": {
+      const level = block.props.level === 3 ? 3 : 2;
+      return (
+        <Fragment key={key}>
+          <Heading as={level === 3 ? "h3" : "h2"} style={headings[level]}>
+            {inline(block.content, baseUrl)}
+          </Heading>
+          {children}
+        </Fragment>
+      );
+    }
+    case "quote":
+      return (
+        <Fragment key={key}>
+          <Section style={quote}>
+            <Text style={quoteText}>{inline(block.content, baseUrl)}</Text>
+          </Section>
+          {children}
+        </Fragment>
+      );
+    case "paragraph":
+      return (
+        <Fragment key={key}>
+          {/* An empty paragraph leaves no gap, as in the text part. */}
+          {hasText(block) ? (
+            <Text style={paragraph}>{inline(block.content, baseUrl)}</Text>
+          ) : null}
+          {children}
+        </Fragment>
+      );
+    default:
+      // Normalized blocks hold nothing else; a new type needs its own email
+      // markup before it can be sent, rather than going out half-rendered.
+      throw new Error(
+        `Comunicado block type with no email rendering: ${block.type}`,
+      );
+  }
+}
+
+function renderLevel(
+  blocks: readonly AnnouncementBlock[],
+  depth: number,
+  baseUrl: string,
+): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let index = 0;
+  while (index < blocks.length) {
+    const block = blocks[index]!;
+    if (isListItem(block)) {
+      // A run of one kind of item is one list; another kind starts a new one.
+      const items: AnnouncementBlock[] = [];
+      while (blocks[index]?.type === block.type) {
+        items.push(blocks[index]!);
+        index += 1;
+      }
+      nodes.push(renderList(items, depth, baseUrl, nodes.length));
+      continue;
+    }
+    nodes.push(renderBlock(block, depth, baseUrl, nodes.length));
+    index += 1;
+  }
+  return nodes;
+}
+
+/**
+ * C3's email walker: headings as `h2`/`h3`, paragraphs as `Text`, quotes as a
+ * `Section` with a left border, dividers as `Hr`, lists as `ul`/`ol` with
+ * inline padding, bold and italic, and links with absolute URLs. It never
+ * emits `details`, `input`, `figure` or `pre`.
+ */
+export function announcementBlocksToEmail(
+  blocks: readonly AnnouncementBlock[],
+  opts: { baseUrl: string },
+): ReactNode[] {
+  return renderLevel(blocks, 1, opts.baseUrl);
+}

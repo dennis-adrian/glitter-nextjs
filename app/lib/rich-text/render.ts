@@ -1,6 +1,7 @@
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
 
 import {
+  assertAnnouncementDocument,
   assertCompactDocument,
   schemaForVariant,
   type EditorVariant,
@@ -19,8 +20,13 @@ export async function blocksToSanitizedHtml(
   if (variant === "compact") {
     assertCompactDocument(blocks, documentLabel);
   }
+  // Comunicados come here normalized (`normalizeAnnouncementDoc`): their
+  // schema has only bold and italic, and BlockNote throws on any other style.
+  if (variant === "announcement") {
+    assertAnnouncementDocument(blocks, documentLabel);
+  }
 
-  // `schemaForVariant` returns a union of three concrete schema types;
+  // `schemaForVariant` returns a union of concrete schema types;
   // ServerBlockNoteEditor wants one. Same cast the client editor uses.
   const editor = ServerBlockNoteEditor.create({
     schema: schemaForVariant(variant) as never,

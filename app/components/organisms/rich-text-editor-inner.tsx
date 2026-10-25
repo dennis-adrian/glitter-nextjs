@@ -2,9 +2,15 @@
 
 import { filterSuggestionItems } from "@blocknote/core";
 import {
+  DragHandleMenu,
   getDefaultReactSlashMenuItems,
+  RemoveBlockItem,
+  SideMenu,
+  SideMenuController,
   SuggestionMenuController,
   useCreateBlockNote,
+  useDictionary,
+  type SideMenuProps,
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { es } from "@blocknote/core/locales";
@@ -13,6 +19,10 @@ import { useTheme } from "next-themes";
 
 import "@blocknote/shadcn/style.css";
 
+import AnnouncementToolbar, {
+  type AnnouncementEditor,
+} from "@/app/components/comunicados/admin/announcement-toolbar";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
   allowedHeadingLevels,
   schemaForVariant,
@@ -60,6 +70,25 @@ function allowSlashItem(
   return true;
 }
 
+/**
+ * The block menu without "Colores": a comunicado resets colours on save, so
+ * offering them would only lose the admin's work.
+ */
+function AnnouncementDragHandleMenu() {
+  const dictionary = useDictionary();
+  return (
+    <DragHandleMenu>
+      <RemoveBlockItem>
+        {dictionary.drag_handle.delete_menuitem}
+      </RemoveBlockItem>
+    </DragHandleMenu>
+  );
+}
+
+function AnnouncementSideMenu(props: SideMenuProps) {
+  return <SideMenu {...props} dragHandleMenu={AnnouncementDragHandleMenu} />;
+}
+
 export default function RichTextEditorInner({
   variant,
   initialContent,
@@ -70,6 +99,11 @@ export default function RichTextEditorInner({
   className,
 }: RichTextEditorInnerProps) {
   const { resolvedTheme } = useTheme();
+  const isAnnouncement = variant === "announcement";
+  // Comunicados offer "/" on desktop only, as the blog does; phones format
+  // with the toolbar.
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const showSlashMenu = !isAnnouncement || isDesktop;
   const editor = useCreateBlockNote({
     schema: schemaForVariant(variant) as never,
     dictionary: {
@@ -86,23 +120,21 @@ export default function RichTextEditorInner({
     uploadFile: variant === "article" ? uploadFile : undefined,
   });
 
-  return (
-    <div
-      className={cn(
-        "min-h-[220px] rounded-md border bg-background px-2 py-1",
-        className,
-      )}
+  const view = (
+    <BlockNoteView
+      editor={editor}
+      editable={editable}
+      theme={resolvedTheme === "dark" ? "dark" : "light"}
+      slashMenu={false}
+      // Comunicados format from `AnnouncementToolbar` alone.
+      formattingToolbar={!isAnnouncement}
+      sideMenu={!isAnnouncement}
+      onChange={async () => {
+        const html = await editor.blocksToHTMLLossy(editor.document);
+        onChange?.(editor.document, html);
+      }}
     >
-      <BlockNoteView
-        editor={editor}
-        editable={editable}
-        theme={resolvedTheme === "dark" ? "dark" : "light"}
-        slashMenu={false}
-        onChange={async () => {
-          const html = await editor.blocksToHTMLLossy(editor.document);
-          onChange?.(editor.document, html);
-        }}
-      >
+      {showSlashMenu && (
         <SuggestionMenuController
           triggerCharacter="/"
           getItems={async (query) =>
@@ -114,7 +146,35 @@ export default function RichTextEditorInner({
             )
           }
         />
-      </BlockNoteView>
+      )}
+      {isAnnouncement && <SideMenuController sideMenu={AnnouncementSideMenu} />}
+    </BlockNoteView>
+  );
+
+  if (!isAnnouncement) {
+    return (
+      <div
+        className={cn(
+          "min-h-[220px] rounded-md border bg-background px-2 py-1",
+          className,
+        )}
+      >
+        {view}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn("min-h-[220px] rounded-md border bg-background", className)}
+    >
+      <AnnouncementToolbar
+        // The editor was made from `announcementEditorSchema`; the variant
+        // switch above types it as any schema.
+        editor={editor as unknown as AnnouncementEditor}
+        readOnly={!editable}
+      />
+      <div className="px-2 py-1">{view}</div>
     </div>
   );
 }

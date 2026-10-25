@@ -50,8 +50,15 @@ const BLOG_TAGS = [
   "td",
 ];
 
+/**
+ * Comunicados: compact plus the divider. `img`, `figure` and `figcaption`
+ * come with images (PR 8).
+ */
+const ANNOUNCEMENT_TAGS = [...COMPACT_TAGS, "hr"];
+
 function tagsForVariant(variant: EditorVariant): string[] {
   if (variant === "blog") return BLOG_TAGS;
+  if (variant === "announcement") return ANNOUNCEMENT_TAGS;
   return variant === "article" ? ARTICLE_TAGS : COMPACT_TAGS;
 }
 
