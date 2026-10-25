@@ -1,137 +1,137 @@
-import { fetchActorReservationsByFestival } from "@/app/lib/reservations/queries";
-import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/app/api/reservations/definitions";
-import { UpcomingFestivalCard } from "@/app/components/organisms/upcoming-festival";
-import { RedirectButton } from "@/app/components/redirect-button";
-import { profileHasReservationMade } from "@/app/helpers/next_event";
-import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/queries";
-import { FestivalActivity } from "@/app/lib/festivals/definitions";
-import { getActiveFestival } from "@/app/lib/festivals/helpers";
-import { withoutParticipantRoster } from "@/app/lib/festivals/utils";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+
+import Heading from "@/app/components/atoms/heading";
+import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
+import HubActivities from "@/app/components/participations/hub/hub-activities";
+import HubHero from "@/app/components/participations/hub/hub-hero";
+import HubPendingList from "@/app/components/participations/hub/hub-pending-list";
+import HubPrograms from "@/app/components/participations/hub/hub-programs";
+import HubQuickAccess from "@/app/components/participations/hub/hub-quick-access";
+import HubSchedule from "@/app/components/participations/hub/hub-schedule";
 import {
-  ArrowRightIcon,
-  CircleAlertIcon,
-  ExternalLinkIcon,
-} from "lucide-react";
-import { notFound } from "next/navigation";
+  HubPanel,
+  HubSection,
+} from "@/app/components/participations/hub/hub-section";
+import {
+  buildHubShortcuts,
+  hubSectionAvailability,
+} from "@/app/components/participations/hub/hub-shortcuts";
+import HubTeam from "@/app/components/participations/hub/hub-team";
+import ParticipationStatusCard from "@/app/components/participations/hub/participation-status-card";
+import { loadParticipationHub } from "@/app/lib/participations/hub";
+import type { HubStatus } from "@/app/lib/participations/hub-status";
 
-export default async function Page() {
-  const [activeFestival, currentProfile] = await Promise.all([
-    getActiveFestival(),
-    getCurrentUserProfile(),
-  ]);
-  let validReservations: ReservationWithParticipantsAndUsersAndStandAndCollaborators[] =
-    [];
+export const dynamic = "force-dynamic";
 
-  if (!currentProfile) {
-    notFound();
-  }
+export const metadata: Metadata = {
+  title: "Participaciones",
+};
 
-  let isProfileInActiveFestival = false;
-  let festivalActivities: FestivalActivity[] = [];
+function eyebrowFor(status: HubStatus) {
+  if (status === "pending_enrollment") return "Inscripciones abiertas";
+  if (status === "approved_enrollment") return "Reservas abiertas";
+  return "En curso";
+}
 
-  if (activeFestival) {
-    isProfileInActiveFestival = profileHasReservationMade(
-      currentProfile,
-      activeFestival.id,
+/**
+ * Everything about the participant's place in the active festival, in one
+ * page: the festival, the participation's state and next step, what is still
+ * pending, and — once the stand is confirmed — the team, the schedule and the
+ * activities. Phones open the long sections on their own screens; desktops
+ * show them here.
+ */
+export default async function ParticipationsPage() {
+  const hub = await loadParticipationHub();
+
+  if (hub.kind === "signed-out") redirect("/sign_in");
+  if (hub.kind === "not-verified") redirect("/next_event");
+
+  if (hub.kind === "no-festival") {
+    return (
+      <div className="container flex max-w-3xl flex-col gap-5 p-4 md:p-6">
+        <Heading>Participaciones</Heading>
+        <HubPanel className="flex flex-col gap-1">
+          <h2 className="font-display text-lg font-bold text-brand-ink">
+            No hay un festival en curso
+          </h2>
+          <p className="text-sm text-brand-neutral">
+            Te avisamos cuando se abran las inscripciones de la próxima edición.
+          </p>
+        </HubPanel>
+        <ParticipationHistoryPreview profile={hub.profile} />
+      </div>
     );
-    [validReservations, festivalActivities] = await Promise.all([
-      fetchActorReservationsByFestival(activeFestival.id),
-      fetchFestivalActivitiesByFestivalId(activeFestival.id),
-    ]);
   }
-  const bestStandActivity = festivalActivities.find(
-    (activity) => activity.type === "best_stand",
-  );
-  const festivalStickerActivity = festivalActivities.find(
-    (activity) => activity.type === "festival_sticker",
-  );
 
-  const confirmedReservationInActiveFestival = validReservations.find(
-    (reservation) =>
-      reservation.participants.some(
-        (participant) => participant.user.id === currentProfile.id,
-      ),
-  );
+  const available = hubSectionAvailability(hub);
+  const pendingCount = hub.pending.filter((item) => !item.done).length;
+  const pendingTitle =
+    pendingCount > 0 ? `Pendientes (${pendingCount})` : "Pendientes";
 
   return (
-    <div className="container p-3 md:p-6">
-      <h1 className="text-xl md:text-3xl font-bold">Participación activa</h1>
-      <div className="my-2 md:my-4 w-full">
-        {isProfileInActiveFestival && activeFestival ? (
-          <div className="flex flex-col gap-2">
-            {currentProfile.shouldSubmitProducts && (
-              <div className=" flex flex-col gap-1 items-center bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm p-3 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
-                <p>
-                  Subí imágenes de lo que ofrecerás en el festival presionando
-                  el botón a continuación
-                </p>
-                <RedirectButton
-                  href="/my_participations/submit_products"
-                  className="text-current hover:text-current"
-                  variant="link"
-                >
-                  Subir imágenes
-                  <ExternalLinkIcon className="w-4 h-4 ml-2" />
-                </RedirectButton>
-              </div>
-            )}
-            {bestStandActivity && (
-              <div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
-                <CircleAlertIcon className="w-6 h-6 text-amber-500 shrink-0" />
-                <div>
-                  <p className="text-sm text-amber-800 flex-1 dark:text-amber-200">
-                    Ya podés votar por tu stand favorito en la actividad de{" "}
-                    <strong>Iconic Stand</strong>
-                  </p>
-                  <RedirectButton
-                    href={`/profiles/${currentProfile.id}/festivals/${activeFestival.id}/activity/${bestStandActivity.id}/voting`}
-                    className="text-current hover:text-current mt-2 mx-auto"
-                    variant="outline"
-                    size="sm"
-                  >
-                    Ir a la votación
-                    <ArrowRightIcon className="w-4 h-4 ml-2" />
-                  </RedirectButton>
-                </div>
-              </div>
-            )}
-            {festivalStickerActivity && (
-              <div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
-                <CircleAlertIcon className="w-6 h-6 text-amber-500 shrink-0" />
-                <div>
-                  <p className="text-sm text-amber-800 flex-1 dark:text-amber-200">
-                    Ya podés votar por tu <strong>Sticker Navideño</strong>{" "}
-                    favorito
-                  </p>
-                  <RedirectButton
-                    href={`/profiles/${currentProfile.id}/festivals/${activeFestival.id}/activity/${festivalStickerActivity.id}/voting`}
-                    className="text-current hover:text-current mt-2 mx-auto"
-                    variant="outline"
-                    size="sm"
-                  >
-                    Ir a la votación
-                    <ArrowRightIcon className="w-4 h-4 ml-2" />
-                  </RedirectButton>
-                </div>
-              </div>
-            )}
-            <UpcomingFestivalCard
-              festival={withoutParticipantRoster(
-                activeFestival,
-                currentProfile.id,
-              )}
-              profile={currentProfile}
-              reservation={confirmedReservationInActiveFestival}
-            />
-          </div>
-        ) : (
-          <div className="md:text-center p-6 bg-muted rounded-lg">
-            <p className="text-muted-foreground text-sm md:text-base">
-              No tienes ninguna participación confirmada en el festival actual.
-            </p>
-          </div>
-        )}
+    <div className="container flex max-w-6xl flex-col gap-5 p-4 md:p-6">
+      <Heading className="lg:sr-only">Participaciones</Heading>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:items-start">
+        <div className="flex flex-col gap-5">
+          <HubHero
+            festival={hub.festival}
+            mapHref={hub.links.map}
+            eyebrow={eyebrowFor(hub.status)}
+          />
+          <ParticipationStatusCard hub={hub} />
+
+          <HubQuickAccess
+            shortcuts={buildHubShortcuts(hub)}
+            className="lg:hidden"
+          />
+
+          {hub.pending.length > 0 ? (
+            <HubSection title={pendingTitle} className="lg:hidden">
+              <HubPendingList items={hub.pending} />
+            </HubSection>
+          ) : null}
+
+          {available.team && hub.reservation ? (
+            <HubSection title="Equipo" className="hidden lg:flex">
+              <HubTeam reservation={hub.reservation} />
+            </HubSection>
+          ) : null}
+
+          {available.activities ? (
+            <HubSection title="Actividades" className="hidden lg:flex">
+              <HubActivities
+                activities={hub.activities}
+                profile={hub.profile}
+                columns={2}
+              />
+            </HubSection>
+          ) : null}
+
+          <ParticipationHistoryPreview
+            profile={hub.profile}
+            activeFestivalId={hub.festival.id}
+          />
+        </div>
+
+        <aside className="hidden flex-col gap-5 lg:flex">
+          {hub.pending.length > 0 ? (
+            <HubSection title={pendingTitle}>
+              <HubPendingList items={hub.pending} />
+            </HubSection>
+          ) : null}
+          {available.schedule ? (
+            <HubSection title="Horarios para participantes">
+              <HubSchedule festivalDates={hub.festival.festivalDates} />
+            </HubSection>
+          ) : null}
+          {available.programs ? (
+            <HubSection title="Charlas y talleres del festival">
+              <HubPrograms sessions={hub.sessions} />
+            </HubSection>
+          ) : null}
+        </aside>
       </div>
     </div>
   );

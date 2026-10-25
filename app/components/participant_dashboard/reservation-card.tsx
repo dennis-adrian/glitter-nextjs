@@ -35,7 +35,7 @@ type Props = {
   reservationCount: number;
 };
 
-type CardConfig = {
+export type CardConfig = {
   icon: LucideIcon;
   label: string;
   badgeStyle: string;
@@ -46,21 +46,21 @@ type CardConfig = {
   };
 };
 
-const STATUS_CONFIG: Record<CardStatus, CardConfig> = {
+export const STATUS_CONFIG: Record<CardStatus, CardConfig> = {
   pending_enrollment: {
     icon: HelpCircleIcon,
-    label: "Sin postulación",
+    label: "Sin inscripción",
     badgeStyle: "bg-gray-500/10 text-foreground border-gray-500/20",
   },
   rejected_enrollment: {
     icon: XCircleIcon,
-    label: "Postulación rechazada",
+    label: "Inscripción rechazada",
     badgeStyle:
       "bg-red-500/10 text-red-700 border-red-500/20 dark:text-red-300",
   },
   enrollment_pending_approval: {
     icon: HourglassIcon,
-    label: "Postulación en revisión",
+    label: "Inscripción en revisión",
     badgeStyle:
       "bg-yellow-500/10 text-yellow-700 border-yellow-500/20 dark:text-yellow-300",
   },
@@ -102,7 +102,7 @@ const STATUS_CONFIG: Record<CardStatus, CardConfig> = {
   },
 };
 
-type CardStatus =
+export type CardStatus =
   | "pending_enrollment"
   | "rejected_enrollment"
   | "enrollment_pending_approval"
@@ -113,7 +113,7 @@ type CardStatus =
   | "confirmed_reservation"
   | "rejected_reservation";
 
-function getCardStatus(
+export function getCardStatus(
   profileEnrollment: UserRequestBase | null,
   activeParticipations: Participation[],
   outstandingInvoiceCount: number,
@@ -159,7 +159,7 @@ function getCardStatus(
   return "pending_enrollment";
 }
 
-const getCardConfig = (
+export const getCardConfig = (
   cardStatus: CardStatus,
   reservationsStartDate: Date,
   activeParticipations: Participation[],
@@ -170,7 +170,7 @@ const getCardConfig = (
     return {
       ...STATUS_CONFIG[cardStatus],
       banner: {
-        title: "El equipo está revisando tu postulación",
+        title: "El equipo está revisando tu inscripción",
         description:
           "Te avisaremos por correo electrónico cuando se tome una decisión.",
         variant: "info",
