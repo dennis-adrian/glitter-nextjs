@@ -34,7 +34,7 @@ This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`]
 | Migration (PR)                   | New types                                        | Labels added to existing types                                                                   | Tables and columns                                                                                                                                                               |
 | -------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `0301_bulk_lane` (PR 2)          | `notification_delivery_lane`                     | `email_topic`: `announcements`                                                                   | On `notification_deliveries`: `lane`, `batch_key`, `maybe_sent_at`, `content_revision`, their CHECKs and 2 indexes. On `notifications`: `edited_at`, `retracted_at` and a CHECK. |
-| `0302_distribution_lists` (PR 3) | `distribution_list_kind`                         | none                                                                                             | `distribution_lists`, `distribution_list_members`, one partial index on `stand_reservations`                                                                                     |
+| `0302_distribution_lists` (PR 3) | `distribution_list_kind`                         | none                                                                                             | `distribution_lists`, `distribution_list_members` (no `stand_reservations` index: A3)                                                                                            |
 | `0303_comunicados` (PR 4)        | `comunicado_status`, `campaign_recipient_source` | `notification_campaign_type`: `comunicado`; `notification_campaign_recipient_status`: `notified` | `comunicados`, `comunicado_revisions`, `notification_campaign_recipients.source`                                                                                                 |
 
 PRs 5–8 need no migration.
@@ -137,10 +137,9 @@ CREATE TABLE distribution_list_members (              -- fixed lists only (enfor
   PRIMARY KEY (list_id, user_id)
 );
 CREATE INDEX distribution_list_members_user_idx ON distribution_list_members (user_id);  -- for the user-delete cascade
-
-CREATE INDEX stand_reservations_festival_accepted_idx ON stand_reservations (festival_id)
-  WHERE status = 'accepted';   -- no index on festival_id exists today
 ```
+
+- **No index on `stand_reservations (festival_id) WHERE status = 'accepted'` in 0302.** The release that carries 0302 also carries 0301 (A0). 0301 holds `notifications` exclusively, so a `CREATE INDEX` on `stand_reservations` after it takes the two tables in the reverse of a reservation change that writes the reservation and then `notify()`s in one transaction: a deadlock window during the deploy. The table is a few thousand rows, so the lists read it without one. If it is ever needed, it ships in a release of its own, or as `CREATE INDEX CONCURRENTLY` outside the migration transaction. The foreign keys to `users` take `SHARE ROW EXCLUSIVE` on `users` after 0301's locks too; that is safe only because no transaction writes `users` and then calls `notify()` (checked for this release), so none may be added before 0301 is in production.
 
 - "Confirmados · \<festival\>" lists are **not rows**. They are computed from `festivals` every time they are used (decision 4). `festivals.name` is unique (`db/schema.ts:370`), so the label is stable.
 - A saved list's name may not start with "Confirmados ·". The action checks it.
@@ -410,11 +409,11 @@ WHERE u.role = 'user'                                                   -- lists
   AND (cardinality($subs) = 0 OR EXISTS (SELECT 1 FROM profile_subcategories ps
          WHERE ps.profile_id = u.id AND ps.subcategory_id = ANY($subs)))
   AND (cardinality($states) = 0 OR u.state = ANY($states))
-  AND (cardinality($fin) = 0 OR EXISTS (SELECT 1 FROM participations p JOIN stand_reservations sr ON sr.id = p.reservation_id
-         WHERE p.user_id = u.id AND sr.status = 'accepted' AND sr.festival_id = ANY($fin)))
-  AND (cardinality($fout) = 0 OR NOT EXISTS (SELECT 1 FROM participations p JOIN stand_reservations sr ON sr.id = p.reservation_id
-         WHERE p.user_id = u.id AND sr.status = 'accepted' AND sr.festival_id = ANY($fout)))
+  AND (cardinality($fin) = 0 OR u.id IN (<Confirmados · F for F in $fin>))       -- the B2 SQL, owner arm included
+  AND (cardinality($fout) = 0 OR u.id NOT IN (<Confirmados · F for F in $fout>))
 ```
+
+- The two festival fields use the Confirmados SQL itself, so a legacy owner without a `participations` row counts as confirmed there exactly as on "Confirmados · F". Neither arm yields NULL, so `NOT IN` is safe.
 
 - Attributes are ANDed; the values within one attribute are ORed.
 - An empty filter means every participant ("Sin filtros: son todos los participantes habilitados").
@@ -1680,7 +1679,7 @@ It loads fresh numbers from the server when it opens:
 - The line "Grupos de participantes para comunicados y regalos de créditos."
 - **"Por festival":** one row per festival, past ones included, newest first, with a search.
   - Each row shows "Confirmados · \<festival\>", "Pueden recibirlo hoy: 312 · 8 no lo reciben", and "Ver".
-  - The counts come from one `GROUP BY festival_id` over accepted reservations joined with the participant rule, on the new partial index.
+  - The counts come from one `GROUP BY festival_id` over accepted reservations joined with the participant rule.
   - The explanation reads: "Quienes tienen una reserva confirmada en el festival, titulares y acompañantes. Se calcula en cada envío."
 - **"Guardadas":** Nombre · Tipo ("Con filtros" / "Elegida a mano") · Pueden recibirlo hoy · ⋯ (Editar / Archivar).
   - The button "Nueva lista" offers "Con filtros (se calcula de nuevo en cada envío)" and "Elegida a mano (siempre las mismas personas)".

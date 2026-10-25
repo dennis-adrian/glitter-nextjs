@@ -16,6 +16,11 @@ type Props = {
   creditsEnabled: boolean;
   /** Hides the blog entry until the blog is public. */
   blogEnabled: boolean;
+  /**
+   * The `comunicados` flag for this viewer. The menus add the Comunicaciones
+   * entry only inside their admin block, so festival admins never see it.
+   */
+  communicationsEnabled?: boolean;
   /** Shows the bell to whoever the `notifications` flag lets in. */
   notificationsEnabled: boolean;
   /** Offers avisos in the bell; null when they are not open to this viewer. */
@@ -26,6 +31,7 @@ export default function NavbarClient({
   programsHref,
   creditsEnabled,
   blogEnabled,
+  communicationsEnabled = false,
   notificationsEnabled,
   pushPublicKey = null,
 }: Props) {
@@ -41,6 +47,7 @@ export default function NavbarClient({
                 profile={profile}
                 programsHref={programsHref}
                 blogEnabled={blogEnabled}
+                communicationsEnabled={communicationsEnabled}
               >
                 <MenuIcon className="h-5 w-5" />
               </MobileSidebar>
@@ -70,6 +77,7 @@ export default function NavbarClient({
               profile={profile}
               programsHref={programsHref}
               blogEnabled={blogEnabled}
+              communicationsEnabled={communicationsEnabled}
             />
           </li>
           <li className="flex shrink-0 items-center gap-2 justify-self-end">
