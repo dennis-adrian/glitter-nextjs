@@ -58,6 +58,13 @@ function loadAudiencePreview(input: AudiencePreviewInput) {
   return previewComunicadoAudienceAction(input);
 }
 
+/** Every refusal of a count is worth asking again: the input is valid. */
+function audiencePreviewFailed(
+  result: Awaited<ReturnType<typeof loadAudiencePreview>>,
+) {
+  return !result.success;
+}
+
 export type ComunicadoComposerProps = {
   draft: ComposerDraft;
   festivals: ComposerFestivalOption[];
@@ -97,6 +104,8 @@ export default function ComunicadoComposer({
     initialVersion: draft.version,
     fields: draftFieldsOf(fields),
     save: saveComunicadoDraftAction,
+    // Back and Forward would bring this draft and the list as they opened.
+    onLeave: () => router.refresh(),
   });
   const { controller } = autosave;
   const blocked = autosave.status.kind === "blocked" ? autosave.status : null;
@@ -125,15 +134,16 @@ export default function ComunicadoComposer({
         },
     load: loadAudiencePreview,
     delayMs: AUDIENCE_PREVIEW_DEBOUNCE_MS,
+    failedWhen: audiencePreviewFailed,
   });
   const preview = audienceAnswer.result?.success
     ? audienceAnswer.result.preview
     : null;
-  const previewError = audienceAnswer.failed
-    ? "No pudimos contar los destinatarios. Probá de nuevo."
-    : !audienceAnswer.stale && audienceAnswer.result?.success === false
+  const previewError = !audienceAnswer.failed
+    ? null
+    : audienceAnswer.result?.success === false
       ? audienceAnswer.result.message
-      : null;
+      : "No pudimos contar los destinatarios. Probá de nuevo.";
 
   const essentialFestival =
     fields.essential && fields.sendEmail && preview?.essentialAllowed.ok
@@ -328,6 +338,7 @@ export default function ComunicadoComposer({
             preview={preview}
             previewStale={audienceAnswer.stale}
             previewError={previewError}
+            onRetryPreview={audienceAnswer.retry}
             env={env}
             onAddFestival={(festivalId) =>
               updateAudience((audience) =>

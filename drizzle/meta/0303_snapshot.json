@@ -1116,6 +1116,12 @@
           "notNull": true,
           "default": 1
         },
+        "autosave_key": {
+          "name": "autosave_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "title": {
           "name": "title",
           "type": "text",

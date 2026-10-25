@@ -7664,6 +7664,11 @@ export const comunicados = pgTable(
     status: comunicadoStatusEnum("status").default("draft").notNull(),
     /** Bumped by every write, for compare-and-set. */
     version: integer("version").default(1).notNull(),
+    /**
+     * The last autosave's key, so a retry of a save whose response was lost
+     * reads as saved rather than as another tab's change.
+     */
+    autosaveKey: text("autosave_key"),
     title: text("title").default("").notNull(),
     /** BlockNote blocks. */
     doc: jsonb("doc")

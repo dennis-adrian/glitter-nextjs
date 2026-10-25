@@ -1,4 +1,7 @@
-import { COMUNICADO_EXCERPT_MAX } from "@/app/lib/comunicados/definitions";
+import {
+  COMUNICADO_EXCERPT_MAX,
+  isSafeComunicadoActionPath,
+} from "@/app/lib/comunicados/definitions";
 
 /**
  * The plain-text rendering of a comunicado (docs/IMPLEMENTATION-comunicados.md
@@ -15,6 +18,46 @@ export type AnnouncementTextOptions = {
    */
   baseUrl?: string;
 };
+
+/**
+ * Browsers drop tabs and newlines inside a URL while parsing it, so
+ * "/\t/sitio.com" would open another site.
+ */
+export const HREF_CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+
+const ABSOLUTE_HREF = /^(?:https?:|mailto:)/i;
+
+/** "/mis cosas" as "/mis%20cosas": `normalizeAnnouncementDoc` stores this. */
+export function encodeHrefWhitespace(href: string) {
+  return href.replace(/\s/g, (space) => encodeURIComponent(space));
+}
+
+/**
+ * A link as it can go out in an email, or null when it cannot. Here rather
+ * than in the email walker so the text part prints the address the HTML part
+ * links to, and drops the same ones.
+ *
+ * A Glitter path is made absolute by plain concatenation, never with
+ * `new URL(href, base)`, which would resolve "//evil.example" to another
+ * host; and only after the button's path rule, so "/\host" and a path with a
+ * tab or a newline (which a browser strips into "//host") stay text. An
+ * address with a scheme keeps its host whatever it holds, so only control
+ * characters are refused there, and a pasted space is encoded.
+ */
+export function comunicadoEmailHref(
+  href: string,
+  baseUrl: string,
+): string | null {
+  const trimmed = href.trim();
+  if (ABSOLUTE_HREF.test(trimmed)) {
+    return HREF_CONTROL_CHARACTER.test(trimmed)
+      ? null
+      : encodeHrefWhitespace(trimmed);
+  }
+  return isSafeComunicadoActionPath(trimmed)
+    ? `${baseUrl.replace(/\/+$/, "")}${trimmed}`
+    : null;
+}
 
 type InlineNode = {
   type?: unknown;
@@ -48,12 +91,16 @@ function stripScheme(value: string) {
     .toLowerCase();
 }
 
+/**
+ * The address the email links to, or null for one it leaves as plain words.
+ * A mail address is shown without its "mailto:".
+ */
 function shownHref(href: string, opts: AnnouncementTextOptions) {
-  if (/^mailto:/i.test(href)) return href.slice("mailto:".length);
-  if (href.startsWith("/") && opts.baseUrl) {
-    return `${opts.baseUrl.replace(/\/+$/, "")}${href}`;
+  const emailHref = comunicadoEmailHref(href, opts.baseUrl ?? "");
+  if (emailHref && /^mailto:/i.test(emailHref)) {
+    return emailHref.slice("mailto:".length);
   }
-  return href;
+  return emailHref;
 }
 
 function inlineText(content: unknown, opts: AnnouncementTextOptions): string {
@@ -65,6 +112,7 @@ function inlineText(content: unknown, opts: AnnouncementTextOptions): string {
         const href = typeof node.href === "string" ? node.href.trim() : "";
         if (!opts.withUrls || !href) return label;
         const shown = shownHref(href, opts);
+        if (!shown) return label;
         if (!label.trim()) return shown;
         // A pasted address is its own label: "x.com (https://x.com)" says it twice.
         if (stripScheme(label.trim()) === stripScheme(shown)) return label;
@@ -152,7 +200,8 @@ function renderLevel(
 /**
  * C3's rules: a blank line between blocks; headings on their own line; "• "
  * and "1. " for list items; links as their text, or "texto (https://…)"
- * with `withUrls`; dividers as "—"; images as their caption, or nothing.
+ * with `withUrls`, the address being the email's (`comunicadoEmailHref`);
+ * dividers as "—"; images as their caption, or nothing.
  * Empty paragraphs leave no gap.
  */
 export function announcementBlocksToText(

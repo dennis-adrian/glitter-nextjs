@@ -2,6 +2,7 @@
 
 import { BlockNoteEditor } from "@blocknote/core";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,7 +11,9 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import AnnouncementToolbar from "@/app/components/comunicados/admin/announcement-toolbar";
+import AnnouncementToolbar, {
+  clampHeadingLevels,
+} from "@/app/components/comunicados/admin/announcement-toolbar";
 import RichTextEditorInner from "@/app/components/organisms/rich-text-editor-inner";
 import { announcementEditorSchema } from "@/app/lib/rich-text/schemas";
 
@@ -80,6 +83,45 @@ describe("AnnouncementToolbar", () => {
 
     press("Subtítulo");
     expect(editor.document[0].type).toBe("paragraph");
+  });
+
+  it("shows a pasted h1 as Título and an h4 as Subtítulo, as they are saved", async () => {
+    const editor = makeEditor([
+      { type: "heading", props: { level: 1 }, content: "Grande" },
+      { type: "heading", props: { level: 4 }, content: "Chico" },
+    ]);
+    const pressed = (label: string) =>
+      screen.getByRole("button", { name: label }).getAttribute("aria-pressed");
+    editor.setTextCursorPosition(editor.document[0], "end");
+    render(<AnnouncementToolbar editor={editor} />);
+    expect(pressed("Título")).toBe("true");
+    expect(pressed("Subtítulo")).toBe("false");
+
+    // Repaired from the toolbar: Título on the h4 makes it a level-2 heading.
+    act(() => editor.setTextCursorPosition(editor.document[1], "end"));
+    await waitFor(() => expect(pressed("Subtítulo")).toBe("true"));
+    press("Título");
+    expect(editor.document[1]).toMatchObject({
+      type: "heading",
+      props: { level: 2 },
+    });
+  });
+
+  it("gives every heading its saved level at once", () => {
+    const editor = makeEditor([
+      { type: "heading", props: { level: 1 }, content: "Uno" },
+      {
+        type: "paragraph",
+        content: "Dos",
+        children: [{ type: "heading", props: { level: 6 }, content: "Seis" }],
+      },
+      { type: "heading", props: { level: 3 }, content: "Tres" },
+    ]);
+
+    clampHeadingLevels(editor);
+    expect(editor.document[0].props).toMatchObject({ level: 2 });
+    expect(editor.document[1].children[0].props).toMatchObject({ level: 3 });
+    expect(editor.document[2].props).toMatchObject({ level: 3 });
   });
 
   it("makes lists and quotes from the current line", () => {
@@ -207,6 +249,73 @@ describe("RichTextEditorInner, announcement variant", () => {
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     const [doc] = onChange.mock.calls.at(-1) as [Array<{ type: string }>];
     expect(doc.map((block) => block.type)).toContain("divider");
+  });
+
+  /** A paste, as a browser hands it to the editor: data by MIME type. */
+  function paste(data: Record<string, string>) {
+    const target = document.querySelector('[contenteditable="true"]');
+    if (!target) throw new Error("no editor");
+    // jsdom has none; ProseMirror makes one for the paste it replays.
+    vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        types: Object.keys(data),
+        getData: (type: string) => data[type] ?? "",
+      },
+    });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+  }
+
+  async function mountEditor(variant: "announcement" | "article") {
+    stubBrowser();
+    const onChange = vi.fn();
+    render(<RichTextEditorInner variant={variant} onChange={onChange} />);
+    await waitFor(() =>
+      expect(document.querySelector('[contenteditable="true"]')).toBeTruthy(),
+    );
+    return onChange;
+  }
+
+  type Doc = Array<{ type: string; props: { level?: number } }>;
+
+  it.each([
+    [
+      "HTML",
+      {
+        "text/html": "<h1>Grande</h1><h4>Chico</h4><h6>Mínimo</h6>",
+        "text/plain": "Grande Chico Mínimo",
+      },
+    ],
+    [
+      "Markdown",
+      { "text/plain": "# Grande\n\n#### Chico\n\n###### Mínimo\n\nTexto" },
+    ],
+  ])(
+    "saves a heading pasted from %s as Título or Subtítulo in the editor too",
+    async (_format, clipboard) => {
+      const onChange = await mountEditor("announcement");
+
+      paste(clipboard);
+      await waitFor(() => expect(onChange).toHaveBeenCalled());
+      const [doc] = onChange.mock.calls.at(-1) as [Doc];
+      expect(
+        doc
+          .filter((block) => block.type === "heading")
+          .map((block) => block.props.level),
+      ).toEqual([2, 3, 3]);
+    },
+  );
+
+  it("keeps a pasted h1 in the other variants", async () => {
+    const onChange = await mountEditor("article");
+
+    paste({ "text/html": "<h1>Grande</h1>" });
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const [doc] = onChange.mock.calls.at(-1) as [Doc];
+    expect(doc[0]).toMatchObject({ type: "heading", props: { level: 1 } });
   });
 
   it("leaves the other variants without it", () => {

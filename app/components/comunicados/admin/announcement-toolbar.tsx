@@ -51,10 +51,41 @@ const BLOCK_TARGETS = {
   quote: { type: "quote" },
 } as const;
 
+/**
+ * Título (2) or Subtítulo (3). BlockNote parses a pasted h1 or h4–h6, and
+ * Markdown's "#", whatever the schema's levels; `normalizeAnnouncementDoc`
+ * saves them as the nearer of the two, and the editor shows them so.
+ */
+function savedHeadingLevel(level: number): 2 | 3 {
+  return level >= 3 ? 3 : 2;
+}
+
+/** Gives every heading the level it will be saved with, in one step. */
+export function clampHeadingLevels(editor: AnnouncementEditor) {
+  const updates: { id: string; level: 2 | 3 }[] = [];
+  const walk = (blocks: AnnouncementEditor["document"]) => {
+    for (const block of blocks) {
+      if (block.type === "heading") {
+        const level: number = block.props.level;
+        const saved = savedHeadingLevel(level);
+        if (saved !== level) updates.push({ id: block.id, level: saved });
+      }
+      walk(block.children);
+    }
+  };
+  walk(editor.document);
+  if (updates.length === 0) return;
+  editor.transact(() => {
+    for (const { id, level } of updates) {
+      editor.updateBlock(id, { props: { level } });
+    }
+  });
+}
+
 function readBlockKind(editor: AnnouncementEditor): BlockKind {
   const block = editor.getTextCursorPosition().block;
   if (block.type === "heading") {
-    return block.props.level === 3 ? "h3" : "h2";
+    return savedHeadingLevel(block.props.level) === 3 ? "h3" : "h2";
   }
   if (block.type === "bulletListItem") return "bullet";
   if (block.type === "numberedListItem") return "numbered";

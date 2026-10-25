@@ -8,6 +8,9 @@ import type {
   AnnouncementText,
 } from "@/app/lib/comunicados/content";
 import { isSafeComunicadoActionPath } from "@/app/lib/comunicados/definitions";
+import { comunicadoEmailHref } from "@/app/lib/comunicados/text";
+
+export { comunicadoEmailHref };
 
 /**
  * A comunicado's blocks as React Email nodes (docs/IMPLEMENTATION-comunicados.md
@@ -70,37 +73,6 @@ const divider: CSSProperties = {
 
 const link: CSSProperties = { ...styles.email, textDecoration: "underline" };
 
-const ABSOLUTE_HREF = /^(?:https?:|mailto:)/i;
-
-function joinBase(baseUrl: string, path: string) {
-  return `${baseUrl.replace(/\/+$/, "")}${path}`;
-}
-
-/**
- * A link as it can go out in an email, or null when it cannot.
- *
- * A Glitter path is made absolute by plain concatenation, never with
- * `new URL(href, base)`, which would resolve "//evil.example" to another
- * host; and only after the button's path rule, so "/\host" and a path with a
- * tab or a newline (which a browser strips into "//host") stay text. An
- * address with a scheme keeps its host whatever it holds, so only control
- * characters are refused there, and a pasted space is encoded.
- */
-export function comunicadoEmailHref(
-  href: string,
-  baseUrl: string,
-): string | null {
-  const trimmed = href.trim();
-  if (ABSOLUTE_HREF.test(trimmed)) {
-    return /[\x00-\x1f\x7f]/.test(trimmed)
-      ? null
-      : trimmed.replaceAll(" ", "%20");
-  }
-  return isSafeComunicadoActionPath(trimmed)
-    ? joinBase(baseUrl, trimmed)
-    : null;
-}
-
 /** The button's absolute URL: a Glitter path only, never another site (C6). */
 export function comunicadoActionUrl(
   path: string | null | undefined,
@@ -108,7 +80,7 @@ export function comunicadoActionUrl(
 ): string | null {
   const trimmed = path?.trim();
   if (!trimmed || !isSafeComunicadoActionPath(trimmed)) return null;
-  return joinBase(baseUrl, trimmed);
+  return comunicadoEmailHref(trimmed, baseUrl);
 }
 
 /** A soft line break (Shift+Enter) as a `<br>`: some clients ignore pre-line. */
@@ -194,7 +166,13 @@ function renderBlock(
 
   switch (block.type) {
     case "divider":
-      return <Hr key={key} style={divider} />;
+      // A line holds no text, but what was indented under it does.
+      return (
+        <Fragment key={key}>
+          <Hr style={divider} />
+          {children}
+        </Fragment>
+      );
     case "heading": {
       const level = block.props.level === 3 ? 3 : 2;
       return (

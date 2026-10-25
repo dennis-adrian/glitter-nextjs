@@ -3,6 +3,11 @@
 import Image from "next/image";
 import { useState } from "react";
 
+import RetryButton from "@/app/components/comunicados/admin/composer/retry-button";
+import {
+  DOC_TOO_LONG_MESSAGE,
+  isDocFarTooLong,
+} from "@/app/components/comunicados/admin/composer/use-autosave";
 import { useLiveResult } from "@/app/components/comunicados/admin/composer/use-live-result";
 import RichTextHtml from "@/app/components/molecules/rich-text-html";
 import NotificationIcon from "@/app/components/notifications/notification-icon";
@@ -73,8 +78,13 @@ export default function PreviewPanel({
   const [tab, setTab] = useState<PreviewTab>("notification");
   // The device tab goes away with the tick; its place falls back to the first.
   const activeTab = tab === "device" && !sendPush ? "notification" : tab;
-  const { result, stale, failed } = useLiveResult<PreviewInput, PreviewResult>({
-    input,
+  // The autosave keeps such a text back too: it is not worth a request.
+  const tooLong = isDocFarTooLong(input.doc);
+  const { result, stale, failed, retry } = useLiveResult<
+    PreviewInput,
+    PreviewResult
+  >({
+    input: tooLong ? null : input,
     load: loadPreview,
     delayMs: PREVIEW_DEBOUNCE_MS,
   });
@@ -104,11 +114,20 @@ export default function PreviewPanel({
             {sendPush && <TabsTrigger value="device">Dispositivo</TabsTrigger>}
           </TabsList>
 
-          {failed || (result && !result.success) ? (
+          {tooLong ? (
             <p className="mt-3 rounded-lg border p-3 text-sm text-muted-foreground">
-              {result && !result.success
-                ? result.message
-                : "No se pudo generar la vista previa."}
+              {DOC_TOO_LONG_MESSAGE}
+            </p>
+          ) : failed ? (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border p-3">
+              <p className="text-sm text-muted-foreground" role="status">
+                No se pudo generar la vista previa.
+              </p>
+              <RetryButton onRetry={retry} />
+            </div>
+          ) : result && !result.success ? (
+            <p className="mt-3 rounded-lg border p-3 text-sm text-muted-foreground">
+              {result.message}
             </p>
           ) : !ready ? (
             <div

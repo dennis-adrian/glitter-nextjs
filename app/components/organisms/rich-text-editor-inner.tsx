@@ -20,6 +20,7 @@ import { useTheme } from "next-themes";
 import "@blocknote/shadcn/style.css";
 
 import AnnouncementToolbar, {
+  clampHeadingLevels,
   type AnnouncementEditor,
 } from "@/app/components/comunicados/admin/announcement-toolbar";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
@@ -118,6 +119,15 @@ export default function RichTextEditorInner({
         ? (initialContent as Block[])
         : undefined,
     uploadFile: variant === "article" ? uploadFile : undefined,
+    // A pasted h1 or h4–h6 lands with its own level: comunicados show it
+    // as the Título or Subtítulo it will be saved as.
+    pasteHandler: isAnnouncement
+      ? ({ editor: pastedInto, defaultPasteHandler }) => {
+          const handled = defaultPasteHandler();
+          clampHeadingLevels(pastedInto as unknown as AnnouncementEditor);
+          return handled;
+        }
+      : undefined,
   });
 
   const view = (

@@ -49,21 +49,25 @@ export async function createComunicadoDraft(actorId: number) {
 }
 
 /**
- * Why a write that matched no row did not apply, read once afterwards: the
- * row is gone, it left the draft state, or another tab saved first.
+ * Why a write that matched no row did not apply, from the row read once
+ * afterwards: it is gone, it left the draft state, or another tab saved first.
  */
-async function draftRefusal(comunicadoId: number): Promise<DraftRefusal> {
-  const [row] = await db
-    .select({ status: comunicados.status })
-    .from(comunicados)
-    .where(eq(comunicados.id, comunicadoId))
-    .limit(1);
+function refusalFor(row: { status: string } | undefined): DraftRefusal {
   const code: DraftRefusalCode = !row
     ? "NOT_FOUND"
     : row.status !== "draft"
       ? "NOT_DRAFT"
       : "STALE";
   return { ok: false, code, message: DRAFT_REFUSAL_MESSAGES[code] };
+}
+
+async function draftRefusal(comunicadoId: number): Promise<DraftRefusal> {
+  const [row] = await db
+    .select({ status: comunicados.status })
+    .from(comunicados)
+    .where(eq(comunicados.id, comunicadoId))
+    .limit(1);
+  return refusalFor(row);
 }
 
 /** Postgres refuses NUL in text, so one pasted into a field would fail every save. */
@@ -76,21 +80,30 @@ function withoutNul<T extends string | null>(value: T): T {
  * a tab that saw an older version cannot overwrite a newer one, and a
  * scheduled or sent comunicado is never touched. Half-written fields save:
  * the content CHECKs skip drafts (A4), and the send rules are checked when it
- * is test-sent, scheduled or sent. A text `normalizeAnnouncementDoc` refuses
- * keeps the stored one while every other field saves, so a bad paste never
- * loses the title or the audience.
+ * is test-sent, scheduled or sent. A text `normalizeAnnouncementDoc` refuses,
+ * or one left out of the request, keeps the stored one while every other
+ * field saves, so a bad paste never loses the title or the audience.
+ *
+ * The save also stores its `saveKey`. A retry of a save that committed but
+ * whose answer was lost finds its own key and the version it wrote, and gets
+ * that answer again instead of reading as another tab's change.
  */
 export async function saveComunicadoDraft(
   draft: ComunicadoDraft,
   actorId: number,
 ): Promise<SaveComunicadoDraftResult> {
-  const content = normalizeAnnouncementDoc(draft.doc, { stage: "draft" });
+  const content =
+    draft.doc === undefined
+      ? null
+      : normalizeAnnouncementDoc(draft.doc, { stage: "draft" });
+  const contentError = content && !content.ok ? content.message : null;
 
   const [row] = await db
     .update(comunicados)
     .set({
+      autosaveKey: draft.saveKey,
       title: withoutNul(draft.title),
-      ...(content.ok ? { doc: content.blocks } : {}),
+      ...(content?.ok ? { doc: content.blocks } : {}),
       actionLabel: withoutNul(draft.actionLabel),
       actionPath: withoutNul(draft.actionPath),
       sendEmail: draft.sendEmail,
@@ -114,13 +127,40 @@ export async function saveComunicadoDraft(
       savedAt: comunicados.updatedAt,
     });
 
-  if (!row) return draftRefusal(draft.comunicadoId);
-  return {
-    ok: true,
-    version: row.version,
-    savedAt: row.savedAt,
-    contentError: content.ok ? null : content.message,
-  };
+  if (row) {
+    return {
+      ok: true,
+      version: row.version,
+      savedAt: row.savedAt,
+      contentError,
+    };
+  }
+
+  const [stored] = await db
+    .select({
+      status: comunicados.status,
+      version: comunicados.version,
+      autosaveKey: comunicados.autosaveKey,
+      savedAt: comunicados.updatedAt,
+    })
+    .from(comunicados)
+    .where(eq(comunicados.id, draft.comunicadoId))
+    .limit(1);
+  // The same request, so the same text and the same verdict on it. Any later
+  // write bumped the version, and another tab's save also replaced the key.
+  if (
+    stored?.status === "draft" &&
+    stored.autosaveKey === draft.saveKey &&
+    stored.version === draft.expectedVersion + 1
+  ) {
+    return {
+      ok: true,
+      version: stored.version,
+      savedAt: stored.savedAt,
+      contentError,
+    };
+  }
+  return refusalFor(stored);
 }
 
 /**

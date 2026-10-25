@@ -148,8 +148,17 @@ export const ComunicadoDraftSchema = z.object({
   comunicadoId: serialId,
   /** The version the composer last saw; a newer one refuses the save. */
   expectedVersion: z.number().int().min(1),
+  /**
+   * New for each save and the same on its retries, so retrying a save that
+   * committed but whose answer was lost reads as saved, not as stale.
+   */
+  saveKey: z.uuid(),
   title: z.string().max(DRAFT_TITLE_MAX),
-  doc: z.array(z.unknown()),
+  /**
+   * Left out when it is far over `COMUNICADO_DOC_MAX_BYTES`, so the request
+   * stays small: the stored text stays and the other fields still save.
+   */
+  doc: z.array(z.unknown()).optional(),
   actionLabel: z.string().max(DRAFT_ACTION_LABEL_MAX).nullable(),
   actionPath: z.string().max(DRAFT_ACTION_PATH_MAX).nullable(),
   sendEmail: z.boolean(),

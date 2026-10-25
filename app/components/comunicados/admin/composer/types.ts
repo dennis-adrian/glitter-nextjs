@@ -1,7 +1,5 @@
-import type {
-  ComunicadoAudience,
-  ComunicadoDraftInput,
-} from "@/app/lib/comunicados/definitions";
+import type { DraftFields } from "@/app/components/comunicados/admin/composer/use-autosave";
+import type { ComunicadoAudience } from "@/app/lib/comunicados/definitions";
 import type {
   AudienceCount,
   DistributionListKind,
@@ -83,9 +81,7 @@ export type ComposerFields = {
 };
 
 /** What an autosave stores, from the composer's state. */
-export function draftFieldsOf(
-  fields: ComposerFields,
-): Omit<ComunicadoDraftInput, "comunicadoId" | "expectedVersion"> {
+export function draftFieldsOf(fields: ComposerFields): DraftFields {
   return {
     title: fields.title,
     doc: fields.doc,

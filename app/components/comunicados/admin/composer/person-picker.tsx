@@ -32,11 +32,11 @@ type PersonPickerProps = {
   disabled?: boolean;
 };
 
+/** The last answer, and the term it answers. */
 type SearchState =
   | { status: "idle" }
-  | { status: "loading" }
   | { status: "done"; term: string; results: ComunicadoPersonOption[] }
-  | { status: "error" };
+  | { status: "error"; term: string };
 
 /**
  * "Agregar por nombre o correo" (docs/IMPLEMENTATION-comunicados.md G4, K13):
@@ -62,7 +62,6 @@ export default function PersonPicker({
     const timer = setTimeout(() => {
       latestRef.current += 1;
       const request = latestRef.current;
-      setSearch({ status: "loading" });
       searchComunicadoPeopleAction(trimmed).then(
         (results) => {
           // A slower answer for an earlier term never replaces this one.
@@ -72,17 +71,25 @@ export default function PersonPicker({
         (error: unknown) => {
           if (request !== latestRef.current) return;
           console.error("Error searching people for a comunicado", error);
-          setSearch({ status: "error" });
+          setSearch({ status: "error", term: trimmed });
         },
       );
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [trimmed]);
 
-  const results =
-    search.status === "done" && trimmed.length >= MIN_TERM
-      ? search.results
-      : [];
+  // Only the answer for what is typed now: one for an earlier term would let
+  // Enter add someone who does not match it. Until it arrives, "Buscando…".
+  const answer =
+    search.status !== "idle" && search.term === trimmed ? search : null;
+  const results = answer?.status === "done" ? answer.results : [];
+
+  /** Closed, the search starts over: no earlier answer shows on reopening. */
+  function reset() {
+    latestRef.current += 1;
+    setTerm("");
+    setSearch({ status: "idle" });
+  }
 
   function pick(person: ComunicadoPersonOption) {
     onPick({
@@ -93,8 +100,7 @@ export default function PersonPicker({
       isAdmin: person.isAdmin,
       skipReason: person.skipReason,
     });
-    setTerm("");
-    setSearch({ status: "idle" });
+    reset();
     setOpen(false);
   }
 
@@ -103,7 +109,7 @@ export default function PersonPicker({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setTerm("");
+        if (!next) reset();
       }}
     >
       <PopoverTrigger asChild>
@@ -138,18 +144,18 @@ export default function PersonPicker({
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                 Escribí al menos {MIN_TERM} letras para buscar.
               </p>
-            ) : search.status === "loading" ? (
+            ) : !answer ? (
               <p className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
                 <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden />
                 Buscando…
               </p>
-            ) : search.status === "error" ? (
+            ) : answer.status === "error" ? (
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                 No se pudo buscar. Intentá de nuevo.
               </p>
-            ) : search.status === "done" && results.length === 0 ? (
+            ) : results.length === 0 ? (
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                Nadie coincide con «{search.term}».
+                Nadie coincide con «{answer.term}».
               </p>
             ) : (
               <CommandGroup>

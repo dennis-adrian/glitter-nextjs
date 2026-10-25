@@ -287,6 +287,8 @@ function draftInput(
   return {
     comunicadoId,
     expectedVersion,
+    // A new save each call; a retry passes the key it repeats.
+    saveKey: randomUUID(),
     title: "Cambio de horario de armado",
     doc: [paragraph("El armado empieza a las 8:00.")],
     actionLabel: null,
@@ -590,6 +592,83 @@ describeDatabase("comunicado drafts", () => {
       });
     });
 
+    it("answers a retry of a save that committed as that save did", async () => {
+      const id = await insertDraft(await createUser({ role: "admin" }));
+      await signInAs("admin");
+
+      // Its answer never reached the composer, which sends it again.
+      const lost = draftInput(id, 1, { title: "Pestaña A" });
+      const first = await saved(lost);
+      expect(await save(lost)).toEqual(first);
+      expect(await rowOf(id)).toMatchObject({ version: 2, title: "Pestaña A" });
+
+      // A refused text is refused again: the retry never reports it stored.
+      const refused = draftInput(id, 2, {
+        doc: [{ type: "table", content: {} }],
+      });
+      const second = await saved(refused);
+      expect(second.contentError).toEqual(expect.any(String));
+      expect(await save(refused)).toEqual(second);
+      expect(await rowOf(id)).toMatchObject({
+        version: 3,
+        doc: [storedParagraph("El armado empieza a las 8:00.")],
+      });
+    });
+
+    it("refuses another save's key, or a retry after a later write, as stale", async () => {
+      const id = await insertDraft(await createUser({ role: "admin" }));
+      await signInAs("admin");
+      const stale = { success: false, code: "STALE", message: STALE };
+
+      const tabA = draftInput(id, 1, { title: "Pestaña A" });
+      await saved(tabA);
+      // Another tab, still at version 1, sends its own key.
+      expect(await save(draftInput(id, 1, { title: "Pestaña B" }))).toEqual(
+        stale,
+      );
+
+      // A newer save replaced the key: tab A's retry is not its answer now.
+      const tabC = draftInput(id, 2, { title: "Pestaña C" });
+      await saved(tabC);
+      expect(await save(tabA)).toEqual(stale);
+
+      // A write past the autosave keeps the key but bumps the version.
+      await pool!.query(
+        "UPDATE comunicados SET version = version + 1 WHERE id = $1",
+        [id],
+      );
+      expect(await save(tabC)).toEqual(stale);
+      expect(await rowOf(id)).toMatchObject({
+        version: 4,
+        autosaveKey: tabC.saveKey,
+        title: "Pestaña C",
+      });
+    });
+
+    it("keeps the stored text when a save leaves it out, and saves the rest", async () => {
+      const id = await insertDraft(await createUser({ role: "admin" }), {
+        doc: [storedParagraph("Antes")],
+      });
+      await signInAs("admin");
+      // Far too long to send, so the composer kept it back.
+      const input = draftInput(id, 1, {
+        title: "Título nuevo",
+        sendPush: true,
+      });
+      delete input.doc;
+
+      expect(await saved(input)).toMatchObject({
+        version: 2,
+        contentError: null,
+      });
+      expect(await rowOf(id)).toMatchObject({
+        version: 2,
+        title: "Título nuevo",
+        sendPush: true,
+        doc: [storedParagraph("Antes")],
+      });
+    });
+
     it("refuses a comunicado that is not a draft, or is gone, changing nothing", async () => {
       const author = await createUser({ role: "admin" });
       const scheduled = await insertScheduled(author);
@@ -619,6 +698,9 @@ describeDatabase("comunicado drafts", () => {
 
       expect(
         await save({ comunicadoId: id, expectedVersion: 1 }),
+      ).toMatchObject({ success: false, code: "INVALID" });
+      expect(
+        await save(draftInput(id, 1, { saveKey: "otra-pestaña" })),
       ).toMatchObject({ success: false, code: "INVALID" });
       expect(
         await save(

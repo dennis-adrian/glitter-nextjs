@@ -1,8 +1,13 @@
--- Locks the campaign tables before anything else, in the order the credit-gift
--- paths take them (campaign, then its recipients, then notify()). A release
--- applies every pending migration in one transaction, so taking them only when
--- a later statement needs them would come after another migration's lock on
--- notifications, the reverse of a gift being processed during the deploy.
+-- The foreign keys need users and notification_campaigns, and the new column
+-- needs notification_campaign_recipients. All three are locked first, since
+-- the statements below would take recipients first: users before the campaign
+-- tables, as a profile deletion deletes the user row and then cascades onto
+-- both, and campaigns before recipients, as the credit-gift paths do.
+-- A release that also applies 0301 still has a narrow window against a gift
+-- being processed, since 0301 locks notifications first: a retried gift
+-- attempt, or a failed build that a redeploy retries. Release 0301 and 0302
+-- before 0303 when possible.
+LOCK TABLE "users" IN SHARE ROW EXCLUSIVE MODE;--> statement-breakpoint
 LOCK TABLE "notification_campaigns" IN SHARE ROW EXCLUSIVE MODE;--> statement-breakpoint
 LOCK TABLE "notification_campaign_recipients" IN ACCESS EXCLUSIVE MODE;--> statement-breakpoint
 CREATE TYPE "public"."campaign_recipient_source" AS ENUM('list', 'person', 'staging_admin');--> statement-breakpoint
@@ -33,6 +38,7 @@ CREATE TABLE "comunicados" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"status" "comunicado_status" DEFAULT 'draft' NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
+	"autosave_key" text,
 	"title" text DEFAULT '' NOT NULL,
 	"doc" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"action_label" text,

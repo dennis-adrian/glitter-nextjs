@@ -45,6 +45,7 @@ import {
   renderComunicadoEmail,
 } from "@/app/lib/comunicados/email";
 import { renderComunicadoPreviewAction } from "@/app/lib/comunicados/preview-actions";
+import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 
 const BASE = "https://glitter.example";
 const UNSUBSCRIBE = `${BASE}/email/unsubscribe?token=abc.def`;
@@ -269,6 +270,61 @@ describe("announcementBlocksToEmail", () => {
         new RegExp(`<${tag}(?![^>]*\\sstyle=)[\\s>]`),
       );
     }
+  });
+
+  it("renders the text nested under a divider after the line", () => {
+    const blocks = normalized([
+      {
+        type: "divider",
+        children: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Debajo", styles: {} }],
+          },
+        ],
+      },
+    ]);
+    expect(blocks[0]?.children).toHaveLength(1);
+
+    expect(walk(blocks)).toMatch(
+      /^<hr style="[^"]+"\/><table[^>]*><tbody><tr><td style="padding:0 0 0 16px"><p style="[^"]+">Debajo<\/p>/,
+    );
+  });
+
+  it("links the address the inbox and the text part show, a pasted space included", async () => {
+    const blocks = normalized([
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "link",
+            href: "/mis cosas",
+            content: [{ type: "text", text: "tus cosas", styles: {} }],
+          },
+          { type: "text", text: " y ", styles: {} },
+          {
+            type: "link",
+            href: "https://drive.example/mi archivo.pdf",
+            content: [{ type: "text", text: "el archivo", styles: {} }],
+          },
+        ],
+      },
+    ]);
+    const inbox = await blocksToSanitizedHtml(blocks, "announcement");
+    const email = await renderInput({ blocks });
+
+    expect(hrefs(inbox)).toEqual([
+      "/mis%20cosas",
+      "https://drive.example/mi%20archivo.pdf",
+    ]);
+    const linked = [
+      `${BASE}/mis%20cosas`,
+      "https://drive.example/mi%20archivo.pdf",
+    ];
+    expect(hrefs(walk(blocks))).toEqual(linked);
+    expect(email.text).toContain(
+      `tus cosas (${linked[0]}) y el archivo (${linked[1]})`,
+    );
   });
 
   it("turns a soft line break into <br> and drops empty paragraphs", () => {

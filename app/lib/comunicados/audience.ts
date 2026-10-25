@@ -32,6 +32,7 @@ import {
   distributionLists,
   festivalDates,
   festivals,
+  pendingUserDeletions,
   pushSubscriptions,
   users,
 } from "@/db/schema";
@@ -88,9 +89,17 @@ function keyedSourcesSql(input: ComunicadoAudienceSourcesInput): SQL {
       FROM unnest(${intArray(input.people)}) AS p(user_id)`);
   }
   // A send to people alone reaches exactly them, on a preview too (decision 8).
+  // An admin being deleted is not added at all, so "no lo reciben" never
+  // names them (B6).
   if (input.narrow && input.hasListSource) {
     arms.push(sql`SELECT 'staging'::text AS source_key, ${users.id} AS user_id, 'staging_admin'::text AS via
-      FROM ${users} WHERE ${users.role} = 'admin'`);
+      FROM ${users}
+      WHERE ${users.role} = 'admin'
+        AND NOT EXISTS (
+          SELECT 1 FROM ${pendingUserDeletions}
+          WHERE ${pendingUserDeletions.userId} = ${users.id}
+            AND ${pendingUserDeletions.localDeletedAt} IS NULL
+        )`);
   }
   if (arms.length === 0) {
     return sql`SELECT NULL::text AS source_key, NULL::int AS user_id, NULL::text AS via WHERE FALSE`;
@@ -100,8 +109,9 @@ function keyedSourcesSql(input: ComunicadoAudienceSourcesInput): SQL {
 
 /**
  * The body of B2's `sources`: `user_id, via`, `via` one of 'list', 'person'
- * and 'staging_admin'. Staging admins come in only when `narrow` and the
- * audience has a festival or list source.
+ * and 'staging_admin'. Staging admins, the global admins without a pending
+ * deletion, come in only when `narrow` and the audience has a festival or
+ * list source.
  */
 export function comunicadoAudienceSourcesSql(
   input: ComunicadoAudienceSourcesInput,

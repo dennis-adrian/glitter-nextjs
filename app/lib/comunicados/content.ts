@@ -3,12 +3,15 @@ import {
   COMUNICADO_MAX_BLOCKS,
   COMUNICADO_TEXT_MAX,
 } from "@/app/lib/comunicados/definitions";
-import { announcementBlocksToText } from "@/app/lib/comunicados/text";
+import {
+  announcementBlocksToText,
+  encodeHrefWhitespace,
+  HREF_CONTROL_CHARACTER,
+} from "@/app/lib/comunicados/text";
 import { richTextBodyHasVisibleContent } from "@/app/lib/festival-terms/html";
 import { isAllowedRichTextUri } from "@/app/lib/rich-text/sanitize";
 import {
   ANNOUNCEMENT_BLOCK_TYPES,
-  allowedHeadingLevels,
   disallowedBlockTypes,
 } from "@/app/lib/rich-text/schemas";
 
@@ -56,7 +59,10 @@ export type NormalizeAnnouncementResult =
     }
   | { ok: false; message: string };
 
-/** Top-level blocks and their children: a list inside a list, no deeper. */
+/**
+ * Top-level blocks and their children: a list inside a list. A deeper block
+ * follows its depth-2 ancestor instead (`normalizeBlocks`).
+ */
 const MAX_DEPTH = 2;
 const MAX_SHOWN_HREF = 60;
 const MAX_BLOCK_ID = 64;
@@ -159,7 +165,7 @@ function linkNode(raw: Record<string, unknown>): AnnouncementLink | null {
   const href = typeof raw.href === "string" ? raw.href.trim() : "";
   // Browsers drop tabs and newlines inside a URL while parsing it, so
   // "/\t/sitio.com" would open another site.
-  if (!isAllowedRichTextUri(href) || /[\u0000-\u001f\u007f]/.test(href)) {
+  if (!isAllowedRichTextUri(href) || HREF_CONTROL_CHARACTER.test(href)) {
     throw new Refusal(
       linkProblem(
         typeof raw.href === "string" ? raw.href : "",
@@ -167,7 +173,10 @@ function linkNode(raw: Record<string, unknown>): AnnouncementLink | null {
       ),
     );
   }
-  return { type: "link", href, content };
+  // A pasted space is encoded once, here, so the inbox, the email and its
+  // text part all carry the same address: the email's path rule would
+  // otherwise turn "/mis cosas" into plain words.
+  return { type: "link", href: encodeHrefWhitespace(href), content };
 }
 
 function inlineContent(raw: unknown): AnnouncementInline[] {
@@ -194,32 +203,39 @@ function inlineContent(raw: unknown): AnnouncementInline[] {
   return nodes;
 }
 
+/**
+ * Título (2) or Subtítulo (3). BlockNote parses a pasted h1 or h4–h6, and
+ * Markdown's "#", whatever the schema's levels, so a level is clamped to the
+ * nearer one rather than refused; the toolbar reads it the same way.
+ */
+function headingLevel(raw: unknown): 2 | 3 {
+  // A heading made without a level is a Título, as the schema's default.
+  if (raw === undefined) return 2;
+  if (typeof raw !== "number" || !Number.isInteger(raw)) {
+    throw new Refusal(MALFORMED);
+  }
+  return raw >= 3 ? 3 : 2;
+}
+
 /** Colours and alignment go back to their defaults; nothing else is kept. */
 function blockProps(type: AnnouncementBlockType, raw: Record<string, unknown>) {
   if (type === "divider") return {};
   if (type === "quote") return { ...DEFAULT_COLORS };
   if (type === "heading") {
-    const level = raw.level;
-    if (
-      typeof level !== "number" ||
-      !allowedHeadingLevels("announcement").includes(level)
-    ) {
-      throw new Refusal(
-        "En un comunicado los títulos pueden ser Título o Subtítulo.",
-      );
-    }
-    return { ...DEFAULT_PROPS, level };
+    return { ...DEFAULT_PROPS, level: headingLevel(raw.level) };
   }
   // A numbered list's `start` is dropped too: the inbox HTML cannot keep it,
   // and every rendering should count the same way.
   return { ...DEFAULT_PROPS };
 }
 
+/**
+ * At `MAX_DEPTH` a block's children become its following siblings, in
+ * order, so a pasted third level of a list stays readable one level up.
+ */
 function normalizeBlocks(raw: unknown[], depth: number): AnnouncementBlock[] {
-  if (depth > MAX_DEPTH) {
-    throw new Refusal(`Las listas pueden tener hasta ${MAX_DEPTH} niveles.`);
-  }
-  return raw.map((item) => {
+  const blocks: AnnouncementBlock[] = [];
+  for (const item of raw) {
     if (!isRecord(item) || typeof item.type !== "string") {
       throw new Refusal(MALFORMED);
     }
@@ -230,9 +246,16 @@ function normalizeBlocks(raw: unknown[], depth: number): AnnouncementBlock[] {
     const rawChildren = item.children ?? [];
     if (!Array.isArray(rawChildren)) throw new Refusal(MALFORMED);
     const children =
-      rawChildren.length > 0 ? normalizeBlocks(rawChildren, depth + 1) : [];
+      rawChildren.length > 0
+        ? normalizeBlocks(rawChildren, Math.min(depth + 1, MAX_DEPTH))
+        : [];
+    const lifted = depth >= MAX_DEPTH;
 
-    const block: AnnouncementBlock = { type, props, children };
+    const block: AnnouncementBlock = {
+      type,
+      props,
+      children: lifted ? [] : children,
+    };
     if (
       typeof item.id === "string" &&
       item.id.length > 0 &&
@@ -241,8 +264,10 @@ function normalizeBlocks(raw: unknown[], depth: number): AnnouncementBlock[] {
       block.id = cleanText(item.id);
     }
     if (type !== "divider") block.content = inlineContent(item.content);
-    return block;
-  });
+    blocks.push(block);
+    if (lifted) blocks.push(...children);
+  }
+  return blocks;
 }
 
 /** Blocks, children counted; stops counting once past the limit. */
@@ -286,15 +311,6 @@ function byteLength(value: unknown): number | null {
   }
 }
 
-/**
- * Checks and normalizes a comunicado's BlockNote document.
- *
- * Both stages refuse what would break a rendering (a block, heading level,
- * nesting or link the variant does not have) and silently drop what a paste
- * from Word or Google Docs brings along (styles, colours, alignment, empty
- * paragraphs at the end), so an autosave never fails on formatting. Only the
- * "send" stage asks for text and bounds its length: drafts may be incomplete.
- */
 /** Whether any block, at any depth, holds text that is not just spaces. */
 function hasWrittenText(blocks: readonly AnnouncementBlock[]): boolean {
   return blocks.some(
@@ -307,6 +323,16 @@ function hasWrittenText(blocks: readonly AnnouncementBlock[]): boolean {
   );
 }
 
+/**
+ * Checks and normalizes a comunicado's BlockNote document.
+ *
+ * Both stages refuse what would break a rendering (a block or a link the
+ * variant does not have) and silently fix what a paste from Word, Google Docs
+ * or Markdown brings along (styles, colours, alignment, heading levels,
+ * nesting past two levels, spaces in an address, empty paragraphs at the
+ * end), so an autosave never fails on formatting. Only the "send" stage asks
+ * for text and bounds its length: drafts may be incomplete.
+ */
 export function normalizeAnnouncementDoc(
   input: unknown,
   opts: { stage: AnnouncementStage },

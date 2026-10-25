@@ -37,7 +37,8 @@ import {
  * (docs/IMPLEMENTATION-comunicados.md B2, B4–B7, G3, G4). Every assertion is
  * about this file's own fixtures, never a total over the shared database:
  * where staging admins bring in every admin there is, only relations between
- * the numbers are pinned.
+ * the numbers are pinned. Each test removes its rows when it ends, so its
+ * admins never stand in for the next test's lists.
  */
 
 vi.mock("server-only", () => ({}));
@@ -368,57 +369,61 @@ describeDatabase("comunicado audience", () => {
     }
   }, 60_000);
 
-  afterEach(() => {
+  /** Deletes what the test just made, so no later test counts it. */
+  async function cleanUp() {
+    const db = integrationDb!;
+    if (created.comunicados.length > 0) {
+      await db
+        .delete(comunicados)
+        .where(inArray(comunicados.id, created.comunicados));
+    }
+    if (created.lists.length > 0) {
+      await db
+        .delete(distributionLists)
+        .where(inArray(distributionLists.id, created.lists));
+    }
+    if (created.deletions.length > 0) {
+      await db
+        .delete(pendingUserDeletions)
+        .where(inArray(pendingUserDeletions.id, created.deletions));
+    }
+    if (created.unsubscribes.length > 0) {
+      await db
+        .delete(emailUnsubscribes)
+        .where(inArray(emailUnsubscribes.id, created.unsubscribes));
+    }
+    if (created.suppressions.length > 0) {
+      await db
+        .delete(emailSuppressions)
+        .where(inArray(emailSuppressions.id, created.suppressions));
+    }
+    if (created.reservations.length > 0) {
+      await db
+        .delete(standReservations)
+        .where(inArray(standReservations.id, created.reservations));
+    }
+    if (created.stands.length > 0) {
+      await db.delete(stands).where(inArray(stands.id, created.stands));
+    }
+    if (created.users.length > 0) {
+      await db.delete(users).where(inArray(users.id, created.users));
+    }
+    if (created.festivals.length > 0) {
+      await db
+        .delete(festivals)
+        .where(inArray(festivals.id, created.festivals));
+    }
+    for (const ids of Object.values(created)) ids.length = 0;
+  }
+
+  afterEach(async () => {
     state.viewer = null;
     state.vercelEnv = "production";
     state.maxRecipients = 3_000;
+    await cleanUp();
   });
 
   afterAll(async () => {
-    const db = integrationDb;
-    if (db) {
-      if (created.comunicados.length > 0) {
-        await db
-          .delete(comunicados)
-          .where(inArray(comunicados.id, created.comunicados));
-      }
-      if (created.lists.length > 0) {
-        await db
-          .delete(distributionLists)
-          .where(inArray(distributionLists.id, created.lists));
-      }
-      if (created.deletions.length > 0) {
-        await db
-          .delete(pendingUserDeletions)
-          .where(inArray(pendingUserDeletions.id, created.deletions));
-      }
-      if (created.unsubscribes.length > 0) {
-        await db
-          .delete(emailUnsubscribes)
-          .where(inArray(emailUnsubscribes.id, created.unsubscribes));
-      }
-      if (created.suppressions.length > 0) {
-        await db
-          .delete(emailSuppressions)
-          .where(inArray(emailSuppressions.id, created.suppressions));
-      }
-      if (created.reservations.length > 0) {
-        await db
-          .delete(standReservations)
-          .where(inArray(standReservations.id, created.reservations));
-      }
-      if (created.stands.length > 0) {
-        await db.delete(stands).where(inArray(stands.id, created.stands));
-      }
-      if (created.users.length > 0) {
-        await db.delete(users).where(inArray(users.id, created.users));
-      }
-      if (created.festivals.length > 0) {
-        await db
-          .delete(festivals)
-          .where(inArray(festivals.id, created.festivals));
-      }
-    }
     await pool?.end();
   });
 
@@ -525,7 +530,7 @@ describeDatabase("comunicado audience", () => {
       expect(rows.has(MISSING_ID)).toBe(false);
     });
 
-    it("on a preview, skips eligible list members and brings in every admin instead", async () => {
+    it("on a preview, skips eligible list members and brings in the admins instead", async () => {
       const { people, resolvable } = await b5Fixture();
       const rows = await snapshotOf(
         { ...resolvable, narrow: true },
@@ -563,10 +568,9 @@ describeDatabase("comunicado audience", () => {
         source: "staging_admin",
         reason: "No es participante",
       });
-      expect(rows.get(people.deletingAdminBystander)).toEqual({
-        source: "staging_admin",
-        reason: "Cuenta en eliminación",
-      });
+      // Only the admins without a pending deletion stand in (B6): one being
+      // deleted is not added, so "no lo reciben" does not name them.
+      expect(rows.has(people.deletingAdminBystander)).toBe(false);
     });
 
     it("brings in no admin when the audience is only people picked by name", async () => {
@@ -708,7 +712,7 @@ describeDatabase("comunicado audience", () => {
     });
 
     it("narrows a preview to the admins, counting the cap before narrowing (B6)", async () => {
-      const { people, festival, list, picked } = await b5Fixture();
+      const { people, festival, list, picked, resolvable } = await b5Fixture();
       await signInAsAdmin();
       const spec = audience({
         festivals: [festival.id],
@@ -727,26 +731,53 @@ describeDatabase("comunicado audience", () => {
       expect(preview.matched).toBe(11);
       // paused and listOnly go to the admins instead.
       expect(preview.skipped).toContainEqual({ reason: STAGING, count: 2 });
+      // deleting and deletingAdminPicked; no admin being deleted is added.
+      expect(preview.skipped).toContainEqual({
+        reason: "Cuenta en eliminación",
+        count: 2,
+      });
       // adminOwner, adminBystander and the viewer, at least.
       expect(preview.stagingAdmins).toBeGreaterThanOrEqual(3);
       // ok and adminPicked by name, plus the admins standing in.
       expect(preview.willReceive).toBe(preview.stagingAdmins + 2);
 
+      // Who the narrowing skips, from the rows the send would write: "Ver por
+      // qué" stops at 50, and the database's other admins may fill it.
+      const rows = await snapshotOf(
+        { ...resolvable, narrow: true },
+        Object.values(people),
+      );
+      expect(
+        [...rows]
+          .filter(([, row]) => row.reason === STAGING)
+          .map(([id]) => id)
+          .sort((a, b) => a - b),
+      ).toEqual([people.paused, people.listOnly].sort((a, b) => a - b));
+
       const skipped = (await audienceModule.previewSkippedPeople(spec, {
         narrow: true,
       }))!;
-      const firstStaging = skipped.findIndex((row) => row.reason === STAGING);
-      expect(firstStaging).toBeGreaterThan(0);
+      const ours = skipped.filter((row) => rows.has(row.userId));
+      // Each with the reason the send would write.
+      for (const row of ours) {
+        expect(row.reason).toBe(rows.get(row.userId)!.reason);
+      }
       // Real reasons first, then the narrowing.
-      expect(
-        skipped.slice(firstStaging).every((row) => row.reason === STAGING),
-      ).toBe(true);
-      expect(
-        skipped
-          .filter((row) => row.reason === STAGING)
-          .map((row) => row.userId)
-          .sort((a, b) => a - b),
-      ).toEqual([people.paused, people.listOnly].sort((a, b) => a - b));
+      const firstStaging = ours.findIndex((row) => row.reason === STAGING);
+      if (firstStaging >= 0) {
+        expect(
+          ours.slice(firstStaging).every((row) => row.reason === STAGING),
+        ).toBe(true);
+      }
+      // Under the cap nothing was cut off, so all of them are there.
+      if (skipped.length < audienceModule.COMUNICADO_SKIPPED_PREVIEW_LIMIT) {
+        expect(ours.map((row) => row.userId).sort((a, b) => a - b)).toEqual(
+          [...rows]
+            .filter(([, row]) => row.reason !== null)
+            .map(([id]) => id)
+            .sort((a, b) => a - b),
+        );
+      }
 
       // People alone are not narrowed.
       const alone = (await audienceModule.previewComunicadoAudience(
@@ -1072,6 +1103,23 @@ describeDatabase("comunicado audience", () => {
       return row!.id;
     }
 
+    type Tab = Parameters<Queries["fetchComunicadoList"]>[0]["tab"];
+
+    /** Every row of a tab, page after page, in list order. */
+    async function listed(tab: Tab) {
+      const rows: Awaited<ReturnType<Queries["fetchComunicadoList"]>>["rows"] =
+        [];
+      for (let page = 1; ; page++) {
+        const result = await queries.fetchComunicadoList({ tab, page });
+        expect(result.page).toBe(page);
+        rows.push(...result.rows);
+        if (page >= result.pageCount) {
+          expect(rows).toHaveLength(result.total);
+          return rows;
+        }
+      }
+    }
+
     it("answers anyone but a global admin with nothing", async () => {
       const id = await insertComunicado({ title: "Oculto" });
       state.viewer = {
@@ -1099,47 +1147,45 @@ describeDatabase("comunicado audience", () => {
       await signInAsAdmin();
       const before = await queries.fetchComunicadoTabs();
 
-      // In the future, so they sort above anything else in the database.
-      const at = (days: number) => new Date(Date.now() + days * DAY);
+      // An hour apart, in the past: whatever else the database holds may sit
+      // between or above them, so only their own order is pinned.
+      const ago = (hours: number) => new Date(Date.now() - hours * 3600_000);
       const festivalAndPeople = await insertComunicado({
         title: "Cambio de horario",
         audience: { festivals: [festival.id], lists: [], people: [1, 2, 3] },
         createdByUserId: author,
         updatedByUserId: editor,
-        updatedAt: at(30),
+        updatedAt: ago(1),
       });
       const twoLists = await insertComunicado({
         audience: { festivals: [], lists: [listA.id, listB.id], people: [4] },
         createdByUserId: author,
-        updatedAt: at(29),
+        updatedAt: ago(2),
       });
-      const empty = await insertComunicado({ updatedAt: at(28) });
+      const empty = await insertComunicado({ updatedAt: ago(3) });
       const unreadable = await insertComunicado({
         audience: { nope: true } as never,
-        updatedAt: at(27),
+        updatedAt: ago(4),
       });
       const scheduled = await insertComunicado({
         status: "scheduled",
-        scheduledAt: at(2),
-        updatedAt: at(31),
+        scheduledAt: new Date(Date.now() + 2 * DAY),
+        updatedAt: ago(1),
       });
+      const ourDrafts = [festivalAndPeople, twoLists, empty, unreadable];
 
       const after = await queries.fetchComunicadoTabs();
       expect(after.drafts - before.drafts).toBe(4);
       expect(after.scheduled - before.scheduled).toBe(1);
       expect(after.sent - before.sent).toBe(0);
 
-      const drafts = await queries.fetchComunicadoList({
-        tab: "drafts",
-        page: 1,
-      });
-      expect(drafts.rows.slice(0, 4).map((row) => row.id)).toEqual([
-        festivalAndPeople,
-        twoLists,
-        empty,
-        unreadable,
-      ]);
-      expect(drafts.rows[0]).toMatchObject({
+      const allDrafts = await listed("drafts");
+      // Newest activity first, across every page.
+      const times = allDrafts.map((row) => row.updatedAt.getTime());
+      expect(times).toEqual([...times].sort((a, b) => b - a));
+      const drafts = allDrafts.filter((row) => ourDrafts.includes(row.id));
+      expect(drafts.map((row) => row.id)).toEqual(ourDrafts);
+      expect(drafts[0]).toMatchObject({
         title: "Cambio de horario",
         status: "draft",
         audienceLabel: `Para: Confirmados · ${festival.name} y 3 personas`,
@@ -1149,23 +1195,22 @@ describeDatabase("comunicado audience", () => {
         sending: false,
         editedAt: null,
       });
-      expect(drafts.rows[1]).toMatchObject({
+      expect(drafts[1]).toMatchObject({
         title: "",
         audienceLabel: `Para: ${listA.name}, ${listB.name} y 1 persona`,
         updatedByName: null,
       });
-      expect(drafts.rows[2]!.audienceLabel).toBeNull();
-      expect(drafts.rows[3]!.audienceLabel).toBeNull();
-      expect(drafts.rows.some((row) => row.id === scheduled)).toBe(false);
+      expect(drafts[2]!.audienceLabel).toBeNull();
+      expect(drafts[3]!.audienceLabel).toBeNull();
+      expect(allDrafts.some((row) => row.id === scheduled)).toBe(false);
 
-      const scheduledTab = await queries.fetchComunicadoList({
-        tab: "scheduled",
-        page: 1,
-      });
-      expect(scheduledTab.rows[0]).toMatchObject({
-        id: scheduled,
+      const scheduledTab = await listed("scheduled");
+      expect(scheduledTab.find((row) => row.id === scheduled)).toMatchObject({
         status: "scheduled",
       });
+      expect(scheduledTab.some((row) => ourDrafts.includes(row.id))).toBe(
+        false,
+      );
 
       // A page past the end shows the last one.
       const past = await queries.fetchComunicadoList({

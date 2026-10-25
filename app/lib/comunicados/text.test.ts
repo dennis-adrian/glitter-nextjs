@@ -119,6 +119,35 @@ describe("announcementBlocksToText", () => {
     ).toBe("tu reserva (https://productoraglitter.com/my_participations)");
   });
 
+  it("prints the address the email links to, and none for a link the email leaves as words", () => {
+    const base = { withUrls: true, baseUrl: "https://productoraglitter.com" };
+    const shown = (href: string, opts = base) =>
+      announcementBlocksToText(
+        [block("paragraph", [link(href, "mirá")])],
+        opts,
+      );
+
+    // Encoded as in the email, never with a raw space that cuts the address.
+    expect(shown("https://drive.example/mi archivo.pdf")).toBe(
+      "mirá (https://drive.example/mi%20archivo.pdf)",
+    );
+    expect(shown("/mis%20cosas")).toBe(
+      "mirá (https://productoraglitter.com/mis%20cosas)",
+    );
+    for (const href of [
+      "/ espacio",
+      "//evil.example/x",
+      "/\\evil.example",
+      "/\t/evil.example",
+      "javascript:alert(1)",
+      "relative/path",
+      "https://evil.example/\tx",
+    ]) {
+      expect(shown(href), href).toBe("mirá");
+      expect(shown(href, withUrls), href).toBe("mirá");
+    }
+  });
+
   it("renders dividers as a dash, images as their caption, and skips empty paragraphs", () => {
     const doc = [
       block("paragraph", [text("Antes")]),

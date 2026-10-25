@@ -14,6 +14,7 @@ import {
 import ListKindIcon from "@/app/components/comunicados/admin/composer/list-kind-icon";
 import ListSourcePicker from "@/app/components/comunicados/admin/composer/list-source-picker";
 import PersonPicker from "@/app/components/comunicados/admin/composer/person-picker";
+import RetryButton from "@/app/components/comunicados/admin/composer/retry-button";
 import SkippedDialog from "@/app/components/comunicados/admin/composer/skipped-dialog";
 import type {
   ComposerFestivalOption,
@@ -60,6 +61,8 @@ type RecipientsCardProps = {
   previewStale: boolean;
   /** Why the live count could not be read, shown in its place. */
   previewError: string | null;
+  /** Asks for the count again now, instead of after the next pause. */
+  onRetryPreview: () => void;
   env: ComposerEnv;
   onAddFestival: (festivalId: number) => void;
   onAddList: (listId: number) => void;
@@ -94,6 +97,7 @@ export default function RecipientsCard({
   preview,
   previewStale,
   previewError,
+  onRetryPreview,
   env,
   onAddFestival,
   onAddList,
@@ -121,6 +125,8 @@ export default function RecipientsCard({
         source.kind === kind && (kind === "people" || source.id === id),
     );
   const peopleSource = sourcePreview("people", null);
+  // No count is coming while the error shows: no row waits for one.
+  const loading = !preview && !previewError;
 
   return (
     <Card>
@@ -164,7 +170,7 @@ export default function RecipientsCard({
                   label={label}
                   detail={sourceCountLine(source)}
                   problem={source?.problem ?? null}
-                  loading={!preview}
+                  loading={loading}
                   onRemove={() => onRemove("festival", festivalId)}
                   disabled={disabled}
                 />
@@ -181,7 +187,7 @@ export default function RecipientsCard({
                   tag={list?.archived ? "Archivada" : undefined}
                   detail={sourceCountLine(source)}
                   problem={source?.problem ?? null}
-                  loading={!preview}
+                  loading={loading}
                   onRemove={() => onRemove("list", listId)}
                   disabled={disabled}
                 />
@@ -199,7 +205,7 @@ export default function RecipientsCard({
                   </span>
                   <SourceDetail
                     detail={sourceCountLine(peopleSource)}
-                    loading={!preview}
+                    loading={loading}
                   />
                 </div>
                 <ul
@@ -255,6 +261,7 @@ export default function RecipientsCard({
             preview={preview}
             stale={previewStale}
             error={previewError}
+            onRetry={onRetryPreview}
             env={env}
             hasPeople={audience.people.length > 0}
             onShowSkipped={() => setSkippedOpen(true)}
@@ -350,6 +357,7 @@ function AudienceSummary({
   preview,
   stale,
   error,
+  onRetry,
   env,
   hasPeople,
   onShowSkipped,
@@ -357,15 +365,19 @@ function AudienceSummary({
   preview: ComunicadoAudiencePreview | null;
   stale: boolean;
   error: string | null;
+  onRetry: () => void;
   env: ComposerEnv;
   hasPeople: boolean;
   onShowSkipped: () => void;
 }) {
   if (error) {
     return (
-      <p className="text-sm text-red-600 dark:text-red-400" role="status">
-        {error}
-      </p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p className="text-sm text-red-600 dark:text-red-400" role="status">
+          {error}
+        </p>
+        <RetryButton onRetry={onRetry} />
+      </div>
     );
   }
   if (!preview) {

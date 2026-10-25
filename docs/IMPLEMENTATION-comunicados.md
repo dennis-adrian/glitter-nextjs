@@ -24,7 +24,7 @@ This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`]
 3. **Guard test:** `drizzle/enum-labels.test.ts` (PR 2). For files ≥ 0301 it scans `drizzle/*.sql` for `ADD VALUE( IF NOT EXISTS)? '([^']+)'` and fails when that label appears, as a whole word, inside any string literal of a later statement (so `'{x,y}'` array literals count). A trailing `-- comment` after a semicolon still ends a statement.
    - `IF NOT EXISTS` is the form the repo's hand-written migrations use (`drizzle/0255_terminal_reservation_payment_settlement_backfill.sql:69-70`).
    - A label equal to an existing label of another enum is a false positive: `'announcements'` is also a `notification_category` label (`db/schema.ts:7098-7101`). A line comment `-- enum-labels: existing <type> '<label>'` on that statement allows that one label; any other new label the statement uses is still caught.
-4. **Tables are altered in the order the app locks them.** `notify()` and the gift paths take `notifications` before `notification_deliveries`, so a migration that alters both alters `notifications` first; otherwise a live `notify()` and the migration's transaction can deadlock during a deploy. `0301` puts its `notifications` columns right after the type statements. The gift paths take `notification_campaigns` and `notification_campaign_recipients` before `notify()`, and 0303 needs both (a foreign key and a column), so 0301 and 0303 each begin with `LOCK TABLE notification_campaigns IN SHARE ROW EXCLUSIVE MODE` and `LOCK TABLE notification_campaign_recipients IN ACCESS EXCLUSIVE MODE`. A release that applies 0301–0303 together then takes them before `notifications`; 0301 had never run in production when the lines were added, and databases that already applied it never run it again. A release applying all three was tested on a database at 0300.
+4. **Tables are altered in the order the app locks them.** `notify()` and the gift paths take `notifications` before `notification_deliveries`, so a migration that alters both alters `notifications` first; otherwise a live `notify()` and the migration's transaction can deadlock during a deploy. `0301` puts its `notifications` columns right after the type statements. 0303 needs `users` and `notification_campaigns` (foreign keys) and `notification_campaign_recipients` (a column), so it begins with `LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE`, then `notification_campaigns` in the same mode, then `notification_campaign_recipients IN ACCESS EXCLUSIVE MODE`: a profile deletion takes `users` before its cascades reach the campaign tables, and the gift paths take the campaign before its recipients. Applied on its own, 0303 then has one remaining window, which no order closes: a profile or status change holding a `users` row, a gift created for that person, and the migration (any of the three is aborted with `40P01`; a build fails and a redeploy retries, the others report an error and can be repeated). **A release that applies 0301 together with 0303 has a second window**: 0301 locks `notifications` first, while the gift worker takes recipients before `notify()`, and a profile deletion takes `notifications` before its cascades, so the code serving during the deploy holds these tables in both orders and no statement order avoids both. Ship 0301 and 0302 to production before 0303 when possible. (Locking the campaign tables at the top of 0301 was tried and reverted: it traded the gift window for a deletion window.) A release applying 0301–0303 together was tested on a database at 0300.
 5. **A migration never queues the site behind a long transaction.**
    - Bulk sends hold `ACCESS SHARE` locks across a Resend call (D3).
    - The build runs `pnpm migrate` while the old deployment serves (`package.json:25`), and nothing bounds a migration's lock wait.
@@ -35,7 +35,7 @@ This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`]
 | -------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `0301_bulk_lane` (PR 2)          | `notification_delivery_lane`                     | `email_topic`: `announcements`                                                                   | On `notification_deliveries`: `lane`, `batch_key`, `maybe_sent_at`, `content_revision`, their CHECKs and 2 indexes. On `notifications`: `edited_at`, `retracted_at` and a CHECK. |
 | `0302_distribution_lists` (PR 3) | `distribution_list_kind`                         | none                                                                                             | `distribution_lists`, `distribution_list_members` (no `stand_reservations` index: A3)                                                                                            |
-| `0303_comunicados` (PR 4)        | `comunicado_status`, `campaign_recipient_source` | `notification_campaign_type`: `comunicado`; `notification_campaign_recipient_status`: `notified` | `comunicados`, `comunicado_revisions`, `notification_campaign_recipients.source`                                                                                                 |
+| `0303_comunicados` (PR 4)        | `comunicado_status`, `campaign_recipient_source` | `notification_campaign_type`: `comunicado`; `notification_campaign_recipient_status`: `notified` | `comunicados` (with `autosave_key`), `comunicado_revisions`, `notification_campaign_recipients.source`                                                                           |
 
 PRs 5–8 need no migration.
 
@@ -156,6 +156,7 @@ CREATE TYPE comunicado_status AS ENUM ('draft', 'scheduled', 'sent');  -- 'sent'
 | `id`                                                                     | serial PK                                                          |                                                                                                                                                                                 |
 | `status`                                                                 | `comunicado_status` NOT NULL DEFAULT `'draft'`                     |                                                                                                                                                                                 |
 | `version`                                                                | int NOT NULL DEFAULT 1                                             | Bumped by every write: autosave, schedule, change of date, send, edit. Used for optimistic concurrency.                                                                         |
+| `autosave_key`                                                           | text NULL                                                          | The last autosave's `saveKey`, written by the compare-and-set: a retry of a save that committed but lost its answer is recognised and answered with the stored version.         |
 | `title`                                                                  | text NOT NULL DEFAULT `''`                                         | The working copy. After the send it is kept equal to the current revision's title, for the list pages.                                                                          |
 | `doc`                                                                    | jsonb NOT NULL DEFAULT `'[]'`                                      | BlockNote blocks: the working copy.                                                                                                                                             |
 | `action_label`, `action_path`                                            | text NULL                                                          | The optional button.                                                                                                                                                            |
@@ -612,7 +613,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 ```
 
 - `EditorVariant` (`schemas.ts:48`) gains `"announcement"`.
-- **Inline content:** text and links. **Styles:** bold and italic only. Lists nest at most 2 levels.
+- **Inline content:** text and links. **Styles:** bold and italic only. Lists nest at most 2 levels; a deeper level is lifted on save (C2).
 - **Not offered:** underline, strike, code, colours, alignment, tables, toggles, checklists.
   - The sanitizer already drops colours, underline, strike and alignment.
   - The rest break in email clients.
@@ -629,13 +630,15 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 1. **Shape** (both stages): an array, ≤ 64 KB as JSON, ≤ 200 blocks counting children.
 2. **Refused, with a message** (both stages):
    - a block type outside the list, through `disallowedBlockTypes(blocks, "announcement")` (`schemas.ts:132-140`). An unknown type makes the renderer throw. Message: "Este bloque no se puede usar en un comunicado: tabla."
-   - a heading level other than 2 or 3;
-   - nesting deeper than 2.
-3. **Normalized silently** (both stages), so a paste from Word or Google Docs never fails a save:
+   - a link that fails step 4;
+   - a shape it cannot read (a heading level that is not a number, for example).
+3. **Normalized silently** (both stages), so a paste from Word, Google Docs or Markdown never fails a save:
    - styles other than bold and italic are dropped;
    - `textColor`, `backgroundColor` and `textAlignment` are reset;
+   - heading levels are clamped to the nearer of Título and Subtítulo (1 → 2, 4–6 → 3); BlockNote's paste rules ignore the editor's levels, and the editor also clamps on paste;
+   - nesting deeper than 2 is lifted: the children of a depth-2 block follow it as siblings, in order;
    - empty trailing paragraphs are trimmed.
-4. **Links** must pass `isAllowedRichTextUri` (`sanitize.ts:60`): `https:`, `http:`, `mailto:` or a root-relative `/path`. Anything else is refused: "Revisá el enlace «…»".
+4. **Links** must pass `isAllowedRichTextUri` (`sanitize.ts:60`): `https:`, `http:`, `mailto:` or a root-relative `/path`, with no control characters. Anything else is refused: "Revisá el enlace «…»". Whitespace inside an address is percent-encoded on save, so the inbox, the email and the text part carry the same address.
 5. **Images (PR 8)** must be `https:` and pass `getUploadThingFileKey` (`app/lib/uploadthing/storage.ts:42-57`), at most 6.
    - On autosave a foreign image is kept but flagged.
    - At `send` stage it is refused: "Esta imagen no está subida a Glitter: subila de nuevo."
@@ -654,11 +657,11 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 | Email             | `announcementBlocksToEmail(blocks, { baseUrl })` in `app/emails/comunicado-blocks.tsx`: a **synchronous** walker modelled on `blocksToSeedHtml` (`festival-terms/html.ts:23-122`), returning React Email nodes with inline styles from `app/emails/styles.ts` | not stored; rendered per recipient by the bulk lane (D3)              | `app/emails/comunicado.tsx`                                                                                                                              |
 | Plain text        | `announcementBlocksToText(blocks, { withUrls })` in `app/lib/comunicados/text.ts`                                                                                                                                                                             | `comunicado_revisions.text` (without URLs)                            | the excerpt; `notification_campaigns.message`; the email's `text` part (with URLs, rendered at send)                                                     |
 
-**Plain-text rules:** a blank line between blocks; headings on their own line; "• " and "1. " for list items; links as "texto", or with `withUrls` as "texto (https://…)"; dividers as "—"; images as their caption, or nothing.
+**Plain-text rules:** a blank line between blocks; headings on their own line; "• " and "1. " for list items; links as "texto", or with `withUrls` as "texto (https://…)", printing exactly the address the email links to (`comunicadoEmailHref`), or none when the email leaves the link as words; dividers as "—"; images as their caption, or nothing.
 
 **Email walker rules:**
 
-- headings become `Heading as="h2|h3"`, paragraphs `Text`, quotes a `Section` with a left border, dividers `Hr`;
+- headings become `Heading as="h2|h3"`, paragraphs `Text`, quotes a `Section` with a left border, dividers `Hr` followed by any blocks nested under them;
 - lists become `ul`/`ol` with inline padding;
 - images (PR 8) become `Img` at width 100%, `max-width: 552px`, `height: auto`, with the caption or "" as alt;
 - it never emits `details`, `input`, `figure` or `pre`;
@@ -1445,6 +1448,12 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - "Descartar borrador", which asks "¿Descartar este borrador? No se puede deshacer."
 
 **Autosave:** a 1.5 s debounce, with the `version` compare-and-set (E1) and the blog's guard pattern (`app/components/blog/post-form-inner.tsx:216-335`). Draft CHECKs never refuse a partial field (A4).
+
+- One save at a time. Each carries a `saveKey`, reused on the retries of that same payload, so a save that committed but lost its answer is recognised (A4 `autosave_key`) instead of reading as STALE. A later STALE first resends the unanswered saves, oldest first, before blocking.
+- A text far over the size limit is left out of the payload, so the other fields still save, and "El comunicado es demasiado largo. Acortá el texto." shows under Texto.
+- After a release replaces the actions the page calls, autosave stops with "Se publicó una nueva versión de Glitter. Recargá la página para seguir editando."
+- Leaving the composer after a stored save refreshes the router, so Back reopens the draft as stored and the list shows current titles.
+- The live audience count and the preview retry a failure on their own and show "Reintentar".
 
 **Banners:**
 

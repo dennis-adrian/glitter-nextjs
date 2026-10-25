@@ -68,28 +68,14 @@ describe("normalizeAnnouncementDoc: refusals", () => {
     );
   });
 
-  it("refuses headings other than Título (2) and Subtítulo (3)", () => {
-    for (const level of [1, 4, undefined, "2"]) {
+  it("refuses a heading level no editor writes", () => {
+    for (const level of ["2", 2.5, null]) {
       expect(
         refusal(
           draft([{ type: "heading", props: { level }, content: [text("T")] }]),
         ),
-      ).toBe("En un comunicado los títulos pueden ser Título o Subtítulo.");
+      ).toMatch(/No pudimos leer el texto/);
     }
-    ok(draft([{ type: "heading", props: { level: 3 }, content: [text("T")] }]));
-  });
-
-  it("allows a list inside a list and refuses a third level", () => {
-    const item = (label: string, children: unknown[] = []) => ({
-      type: "bulletListItem",
-      content: [text(label)],
-      children,
-    });
-
-    ok(draft([item("Uno", [item("Dos")])]));
-    expect(refusal(draft([item("Uno", [item("Dos", [item("Tres")])])]))).toBe(
-      "Las listas pueden tener hasta 2 niveles.",
-    );
   });
 
   it("refuses links that are not https, http, mailto or a Glitter path", () => {
@@ -104,6 +90,8 @@ describe("normalizeAnnouncementDoc: refusals", () => {
       "",
       // Browsers strip the tab while parsing and land on //evil.example.
       "/\t/evil.example",
+      "/\n/evil.example",
+      "https://x.com/\r\na",
     ]) {
       const message = refusal(
         draft([
@@ -113,7 +101,7 @@ describe("normalizeAnnouncementDoc: refusals", () => {
           ]),
         ]),
       );
-      expect(message).toMatch(/^Revisá el enlace «.+»/);
+      expect(message).toMatch(/^Revisá el enlace «.+»/s);
     }
   });
 
@@ -289,6 +277,88 @@ describe("normalizeAnnouncementDoc: silent normalization", () => {
     ]);
   });
 
+  it("saves a pasted heading as the nearer of Título (2) and Subtítulo (3)", () => {
+    // BlockNote parses <h1> and <h4>–<h6>, and Markdown's "#", whatever the
+    // schema's levels.
+    const levels = [1, 2, 3, 4, 5, 6, undefined];
+    const doc = levels.map((level) => ({
+      type: "heading",
+      props: { level },
+      content: [text(`h${level}`)],
+    }));
+
+    for (const stage of ["draft", "send"] as const) {
+      const { blocks } = ok(normalizeAnnouncementDoc(doc, { stage }));
+      expect(blocks.map((block) => block.props.level)).toEqual([
+        2, 2, 3, 3, 3, 3, 2,
+      ]);
+    }
+  });
+
+  it("lifts a third level of nesting to follow its parent, in order", () => {
+    const item = (label: string, children: unknown[] = []) => ({
+      type: "bulletListItem",
+      content: [text(label)],
+      children,
+    });
+    const doc = [
+      item("Uno", [
+        item("Dos", [item("Tres", [item("Cuatro")]), item("Tres bis")]),
+        item("Dos bis"),
+      ]),
+      item("Otro"),
+    ];
+
+    for (const stage of ["draft", "send"] as const) {
+      const result = ok(normalizeAnnouncementDoc(doc, { stage }));
+      const [uno, otro] = result.blocks;
+      expect(uno.children.map((child) => child.content)).toEqual(
+        ["Dos", "Tres", "Cuatro", "Tres bis", "Dos bis"].map((label) => [
+          text(label),
+        ]),
+      );
+      for (const child of uno.children) expect(child.children).toEqual([]);
+      expect(otro.content).toEqual([text("Otro")]);
+      expect(result.text).toBe(
+        "• Uno\n  • Dos\n  • Tres\n  • Cuatro\n  • Tres bis\n  • Dos bis\n• Otro",
+      );
+    }
+    // A list inside a list is kept as it is.
+    expect(ok(draft([item("Uno", [item("Dos")])])).blocks[0].children).toEqual([
+      expect.objectContaining({ content: [text("Dos")], children: [] }),
+    ]);
+  });
+
+  it("encodes whitespace inside an address, so every rendering carries the same one", () => {
+    const { blocks } = ok(
+      draft([
+        paragraph([
+          { type: "link", href: " /mis cosas ", content: [text("a")] },
+          {
+            type: "link",
+            href: "https://drive.example/mi archivo final.pdf",
+            content: [text("b")],
+          },
+          {
+            type: "link",
+            href: "mailto:hola@x.com?subject=Hola che",
+            content: [text("c")],
+          },
+        ]),
+      ]),
+    );
+
+    expect(
+      (blocks[0].content ?? []).map((node) =>
+        node.type === "link" ? node.href : null,
+      ),
+    ).toEqual([
+      "/mis%20cosas",
+      "https://drive.example/mi%20archivo%C2%A0final.pdf",
+      "mailto:hola@x.com?subject=Hola%20che",
+    ]);
+  });
+
   it("strips characters Postgres jsonb refuses", () => {
     const { blocks } = ok(draft([paragraph([text("a\u0000b\r\nc\ud800d")])]));
     expect(blocks[0].content).toEqual([text("ab\nc�d")]);
@@ -396,11 +466,17 @@ describe("normalizeAnnouncementDoc: stages", () => {
   });
 
   it("refuses the same content problems at both stages", () => {
-    const doc = [
-      { type: "heading", props: { level: 1 }, content: [text("T")] },
-    ];
-    expect(draft(doc).ok).toBe(false);
-    expect(normalizeAnnouncementDoc(doc, { stage: "send" }).ok).toBe(false);
+    for (const doc of [
+      [paragraph([text("T")]), { type: "table", content: {} }],
+      [
+        paragraph([
+          { type: "link", href: "javascript:alert(1)", content: [text("T")] },
+        ]),
+      ],
+    ]) {
+      expect(draft(doc).ok).toBe(false);
+      expect(normalizeAnnouncementDoc(doc, { stage: "send" }).ok).toBe(false);
+    }
   });
 });
 
@@ -440,5 +516,38 @@ describe("normalizeAnnouncementDoc: what the renderers get", () => {
     expect(html).toContain('href="/my_participations"');
     expect(html).toContain("<hr />");
     expect(html).not.toMatch(/style=|data-|<details|<u>|<s>|<code/);
+  });
+
+  it("hands it pasted h1/h4 headings and a third list level it can draw", async () => {
+    const pasted = [
+      { type: "heading", props: { level: 1 }, content: [text("Grande")] },
+      { type: "heading", props: { level: 4 }, content: [text("Chico")] },
+      {
+        type: "bulletListItem",
+        content: [text("Uno")],
+        children: [
+          {
+            type: "bulletListItem",
+            content: [text("Dos")],
+            children: [{ type: "bulletListItem", content: [text("Tres")] }],
+          },
+        ],
+      },
+    ];
+    // Raw, the renderer's backstop refuses the levels.
+    await expect(
+      blocksToSanitizedHtml(pasted, "announcement"),
+    ).rejects.toThrow();
+
+    const html = await blocksToSanitizedHtml(
+      ok(draft(pasted)).blocks,
+      "announcement",
+    );
+    expect(html).toContain("<h2>Grande</h2>");
+    expect(html).toContain("<h3>Chico</h3>");
+    // "Tres" sits next to "Dos", not under it.
+    expect(html).toContain(
+      "<ul><li><p>Uno</p><ul><li><p>Dos</p></li><li><p>Tres</p></li></ul></li></ul>",
+    );
   });
 });
