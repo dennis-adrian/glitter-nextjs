@@ -70,7 +70,14 @@ function rejectWith(statusCode: number, name: string) {
     async () =>
       new Response(
         JSON.stringify({ statusCode, name, message: "Invalid `to` field." }),
-        { status: statusCode, headers: { "content-type": "application/json" } },
+        {
+          status: statusCode,
+          headers: {
+            "content-type": "application/json",
+            // The wrapper retries a 429 once after Retry-After; no real wait.
+            ...(statusCode === 429 ? { "retry-after": "0" } : {}),
+          },
+        },
       ),
   );
 }
@@ -188,6 +195,7 @@ describe("ticket emails", () => {
     fetchMock.mockClear();
     rejectWith(429, "rate_limit_exceeded");
     await sendTicketHistoryLinkEmail(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(consoleError).toHaveBeenCalledWith(
       "Ticket history link email failed",
       { visitorId: 1, errorType: "resend:rate_limit_exceeded" },

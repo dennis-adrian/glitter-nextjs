@@ -1,7 +1,8 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, type SQL, sql } from "drizzle-orm";
+import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { after } from "next/server";
 
 import { isSuppressed } from "@/app/lib/emails/suppressions";
@@ -12,11 +13,16 @@ import {
 } from "@/app/lib/notifications/push/send";
 import { buildEmailCopy } from "@/app/lib/notifications/registry";
 import { sendEmail } from "@/app/vendors/resend";
-import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
+import {
+  assertSent,
+  EmailSendError,
+  sendFailureType,
+} from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   notificationCampaignRecipients,
   notificationDeliveries,
+  notifications,
 } from "@/db/schema";
 
 const MAX_ATTEMPTS = 5;
@@ -31,6 +37,8 @@ const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 const SEND_SPACING_MS = 600;
 /** What a drain may spend sending, inside the 100-second function limit. */
 const DEFAULT_DRAIN_BUDGET_MS = 60_000;
+/** Pushes a bulk send keeps in flight at once (D5 of the comunicados design). */
+export const BULK_PUSH_CONCURRENCY = 8;
 
 export type DeliveryOutcome =
   | { processed: false }
@@ -68,6 +76,12 @@ const dueNow = sql`(
   )
 ) AND ${notificationDeliveries.nextAttemptAt} <= now()`;
 
+/**
+ * What the transactional drains take: a comunicado's backlog in the bulk lane
+ * must never sit ahead of a gift email in their oldest-first queue.
+ */
+const transactionalLane = eq(notificationDeliveries.lane, "transactional");
+
 async function claimDelivery(deliveryId: number, owner: string) {
   const [claimed] = await db
     .update(notificationDeliveries)
@@ -77,17 +91,28 @@ async function claimDelivery(deliveryId: number, owner: string) {
       leaseExpiresAt: sql`now() + make_interval(secs => ${LEASE_DURATION_MS / 1000})`,
       updatedAt: sql`now()`,
     })
-    .where(and(eq(notificationDeliveries.id, deliveryId), dueNow))
+    .where(
+      and(
+        eq(notificationDeliveries.id, deliveryId),
+        dueNow,
+        // A bulk email is sent only in its batch, under the batch's key and
+        // the lane's pacing: no id handed to this worker can send one alone.
+        // A bulk push is claimed here like any other.
+        sql`NOT (${notificationDeliveries.lane} = 'bulk' AND ${notificationDeliveries.channel} = 'email')`,
+      ),
+    )
     .returning();
   return claimed ?? null;
 }
 
+/** False when nothing was settled: the lease was lost, or `onlyIf` failed. */
 async function settle(
   deliveryId: number,
   owner: string,
-  values: Partial<typeof notificationDeliveries.$inferInsert>,
+  values: PgUpdateSetSource<typeof notificationDeliveries>,
+  onlyIf?: SQL,
 ) {
-  await db
+  const settled = await db
     .update(notificationDeliveries)
     .set({
       ...values,
@@ -99,8 +124,11 @@ async function settle(
       and(
         eq(notificationDeliveries.id, deliveryId),
         eq(notificationDeliveries.leaseOwner, owner),
+        onlyIf,
       ),
-    );
+    )
+    .returning({ id: notificationDeliveries.id });
+  return settled.length > 0;
 }
 
 async function giftWasRevoked(notificationId: number | null) {
@@ -217,6 +245,30 @@ async function runDelivery(
     });
     return { processed: true, status: "sent" };
   } catch (error) {
+    // Resend asking us to slow down is not this email failing: no attempt is
+    // spent, and the row waits what Retry-After asks (2 s at least, a day at
+    // most) on the database clock `dueNow` reads. Only while the row is under
+    // 20 hours old, so its key still reaches Resend inside the 24 hours
+    // Resend remembers it; an older row spends an attempt as before.
+    if (
+      error instanceof EmailSendError &&
+      error.code === "rate_limit_exceeded" &&
+      (await settle(
+        delivery.id,
+        owner,
+        {
+          status: "pending",
+          lastError: "resend:rate_limit_exceeded",
+          nextAttemptAt: sql`now() + make_interval(secs => least(
+            ${MAX_BACKOFF_MS / 1000},
+            greatest(2, ceil(${error.retryAfterMs}::double precision / 1000))
+          ))`,
+        },
+        sql`${notificationDeliveries.createdAt} > now() - interval '20 hours'`,
+      ))
+    ) {
+      return { processed: true, status: "retry" };
+    }
     const attempts = delivery.attempts + 1;
     const failed = attempts >= MAX_ATTEMPTS;
     await settle(delivery.id, owner, {
@@ -338,9 +390,10 @@ export function scheduleNotificationDeliveries(deliveryIds: readonly number[]) {
 }
 
 /**
- * Pushes due now, oldest first. Run right after a commit that may have queued
- * some, by callers that never see the delivery ids (the reservation and
- * disciplinary mirrors write them inside a savepoint), and by the cron.
+ * Transactional pushes due now, oldest first. Run right after a commit that
+ * may have queued some, by callers that never see the delivery ids (the
+ * reservation and disciplinary mirrors write them inside a savepoint), and by
+ * the cron.
  *
  * Safe to run alongside another drain: each row is claimed before it is sent.
  */
@@ -367,6 +420,7 @@ export async function sendDuePushDeliveries({
     .from(notificationDeliveries)
     .where(
       and(
+        transactionalLane,
         eq(notificationDeliveries.channel, "push"),
         dueNow,
         fresh
@@ -404,8 +458,91 @@ export async function drainDuePushDeliveries() {
 }
 
 /**
- * The cron's email half: every email due, oldest first, within a time budget.
- * Pushes have their own pass, `sendDuePushDeliveries`.
+ * A bulk send's pushes, oldest first, several in flight at once: a comunicado
+ * to 500 devices one at a time would take minutes, and pushes go to many push
+ * services rather than one rate limit. Each row is claimed, sent and settled
+ * as the worker does any push, so every rule of that path holds.
+ *
+ * `scope` is ANDed into the selection. The inbox item is joined as
+ * `notifications`, under its own name, so a scope is written with the
+ * schema's `notifications` columns; a row whose item is gone matches neither
+ * a scope nor a campaign.
+ *
+ * Once `budgetMs` (counted from the call) is spent, nothing new starts.
+ */
+export async function sendBulkPushes({
+  campaignId,
+  scope,
+  budgetMs,
+  concurrency = BULK_PUSH_CONCURRENCY,
+  limit = 400,
+}: {
+  campaignId?: number;
+  scope?: SQL;
+  budgetMs: number;
+  concurrency?: number;
+  limit?: number;
+}) {
+  const startedAt = Date.now();
+  const counts = { sent: 0, skipped: 0, failed: 0, retry: 0 };
+  // As in `sendDuePushDeliveries`: claiming rows here would only hand them
+  // back as `unconfigured` for an hour.
+  if (!pushVapidConfig()) return { scanned: 0, ...counts };
+  const rows = await db
+    .select({ id: notificationDeliveries.id })
+    .from(notificationDeliveries)
+    .leftJoin(
+      notifications,
+      eq(notifications.id, notificationDeliveries.notificationId),
+    )
+    .where(
+      and(
+        eq(notificationDeliveries.lane, "bulk"),
+        eq(notificationDeliveries.channel, "push"),
+        dueNow,
+        campaignId === undefined
+          ? undefined
+          : eq(notifications.campaignId, campaignId),
+        scope,
+      ),
+    )
+    .orderBy(notificationDeliveries.id)
+    .limit(limit);
+  const ids = rows.map((row) => row.id);
+
+  // Each worker takes the next id until the list or the budget runs out. A
+  // throw stops new starts and is rethrown once the others have settled, so
+  // no push is still out when this returns.
+  let next = 0;
+  const errors: unknown[] = [];
+  async function work() {
+    while (
+      errors.length === 0 &&
+      next < ids.length &&
+      Date.now() - startedAt < budgetMs
+    ) {
+      const id = ids[next++]!;
+      try {
+        const { outcome } = await attemptClaimedDelivery(id);
+        if (outcome.processed) counts[outcome.status] += 1;
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+  }
+  await Promise.all(
+    Array.from(
+      { length: Math.min(Math.max(1, concurrency), ids.length) },
+      work,
+    ),
+  );
+  if (errors.length > 0) throw errors[0];
+  return { scanned: ids.length, ...counts };
+}
+
+/**
+ * The cron's email half: every transactional email due, oldest first, within
+ * a time budget. Pushes have their own pass, `sendDuePushDeliveries`.
  */
 export async function processPendingNotificationDeliveries({
   limit = 80,
@@ -414,7 +551,13 @@ export async function processPendingNotificationDeliveries({
   const rows = await db
     .select({ id: notificationDeliveries.id })
     .from(notificationDeliveries)
-    .where(and(eq(notificationDeliveries.channel, "email"), dueNow))
+    .where(
+      and(
+        transactionalLane,
+        eq(notificationDeliveries.channel, "email"),
+        dueNow,
+      ),
+    )
     .orderBy(notificationDeliveries.createdAt, notificationDeliveries.id)
     .limit(limit);
 

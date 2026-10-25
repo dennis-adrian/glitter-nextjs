@@ -17,6 +17,37 @@ describe("unsubscribe link in the footer", () => {
     expect(html).toContain(`href="${URL}"`);
   });
 
+  it("prints note lines above the unsubscribe line, and none when there are none", () => {
+    const notes = [
+      "Es un correo esencial sobre tu participación en Glitter 2026.",
+      "Este correo salió del entorno de prueba de Glitter.",
+    ];
+    const html = renderToStaticMarkup(
+      EmailFooter({ unsubscribeUrl: URL, notes }),
+    );
+    const first = html.indexOf(notes[0]!);
+    const second = html.indexOf(notes[1]!);
+    expect(first).toBeGreaterThan(html.indexOf("Productora Glitter, Santa"));
+    expect(second).toBeGreaterThan(first);
+    expect(html.indexOf("¿No querés recibir más correos")).toBeGreaterThan(
+      second,
+    );
+
+    // Notes do not need an unsubscribe link, e.g. on a test send.
+    expect(renderToStaticMarkup(EmailFooter({ notes }))).toContain(notes[1]);
+
+    const paragraphs = (markup: string) => markup.match(/<p\b/g)?.length ?? 0;
+    const without = paragraphs(
+      renderToStaticMarkup(EmailFooter({ unsubscribeUrl: URL })),
+    );
+    expect(
+      paragraphs(
+        renderToStaticMarkup(EmailFooter({ unsubscribeUrl: URL, notes: [] })),
+      ),
+    ).toBe(without);
+    expect(paragraphs(html)).toBe(without + notes.length);
+  });
+
   it("reaches both invitation emails", () => {
     const visitor = renderToStaticMarkup(
       RegistrationInvitationEmailTemplate({

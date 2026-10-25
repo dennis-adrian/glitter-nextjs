@@ -141,7 +141,11 @@ const fetchMock = vi.fn();
 function resendReply(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      // The wrapper retries a 429 once after Retry-After; no real wait here.
+      ...(status === 429 ? { "retry-after": "0" } : {}),
+    },
   });
 }
 
@@ -190,6 +194,8 @@ describe("program emails read Resend's reply", () => {
       fetchMock.mockImplementation(resendError("rate_limit_exceeded", 429));
 
       await expect(send()).resolves.toBe(false);
+      // Throttled twice: the wrapper's one retry, then the reply stands.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     },
   );
 

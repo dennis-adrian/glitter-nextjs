@@ -50,11 +50,18 @@ async function updateOne(
   if (!parsed.success) return { success: false, message: "Datos inválidos." };
 
   // Scoped to the owner in the statement itself: an id from someone else's
-  // inbox updates nothing.
+  // inbox updates nothing. Nor does a retracted item, from a stale client:
+  // un-archiving it would hit the CHECK, and its read time is the report's.
   await db
     .update(notifications)
     .set(values)
-    .where(and(eq(notifications.id, parsed.data), ownedBy(viewer)));
+    .where(
+      and(
+        eq(notifications.id, parsed.data),
+        ownedBy(viewer),
+        isNull(notifications.retractedAt),
+      ),
+    );
   return { success: true };
 }
 
@@ -132,6 +139,8 @@ export async function markNotificationsUnreadAction(
         ownedBy(viewer),
         inArray(notifications.id, parsed.data),
         isNotNull(notifications.readAt),
+        // Retracted since "Marcar todo" read it: the read time is the report's.
+        isNull(notifications.retractedAt),
       ),
     );
   return { success: true };
