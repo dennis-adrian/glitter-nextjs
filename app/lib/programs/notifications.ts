@@ -14,6 +14,7 @@ import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import type { SessionType } from "@/app/lib/programs/definitions";
 import { formatMoney } from "@/app/lib/programs/pricing";
+import { publicBaseUrl } from "@/app/lib/urls";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
@@ -34,38 +35,12 @@ export type FreeRegistrationEmailInput = {
   accessToken: string;
 };
 
-/**
- * The origin every outbound link is built on.
- *
- * An unset *or empty* `NEXT_PUBLIC_BASE_URL` both count as missing: `??` only
- * catches `undefined`, so an empty value used to survive and produce relative
- * links that are dead in an email client. `VERCEL_URL` is set on every
- * deployment, which is what keeps the localhost fallback — useful in local
- * development, useless in an inbox — out of anything deployed.
- *
- * Deliberately does not throw: `buildSecureLinkUrl` is also called while
- * rendering the buyer's own purchase page, and a misconfigured environment
- * should degrade to a wrong link there, not a 500.
- */
-function baseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_BASE_URL?.trim().replace(
-    /\/+$/,
-    "",
-  );
-  if (configured) return configured;
-
-  const vercel = process.env.VERCEL_URL?.trim().replace(/\/+$/, "");
-  if (vercel) return `https://${vercel}`;
-
-  return "http://localhost:3000";
-}
-
 /** `/programs/purchases/12?token=…` — the buyer's recovery link. */
 export function buildSecureLinkUrl(
   purchaseId: number,
   accessToken: string,
 ): string {
-  return `${baseUrl()}/programs/purchases/${purchaseId}?token=${accessToken}`;
+  return `${publicBaseUrl()}/programs/purchases/${purchaseId}?token=${accessToken}`;
 }
 
 /**
@@ -86,7 +61,7 @@ export function buildBuyerLandingUrl(options: {
     return buildSecureLinkUrl(options.purchaseId, options.accessToken);
   }
 
-  return options.isSignedInBuyer ? `${baseUrl()}/my_programs` : null;
+  return options.isSignedInBuyer ? `${publicBaseUrl()}/my_programs` : null;
 }
 
 function buildScheduleLabel(startsAt: Date, endsAt: Date): string {
@@ -280,7 +255,7 @@ export async function sendAdminNewSignupEmail(
           promoLabel: input.promo
             ? `Código ${input.promo.code} · ${input.promo.partnerName} · ${input.promo.discountPercent}% (ahorro ${formatMoney(input.promo.discountAmount)})`
             : null,
-          reviewUrl: `${baseUrl()}/dashboard/programs/purchases`,
+          reviewUrl: `${publicBaseUrl()}/dashboard/programs/purchases`,
         }) as React.ReactElement,
       },
       {
@@ -469,7 +444,7 @@ export function buildWaitlistInvitationUrl(
   occurrenceId: number,
   token: string,
 ): string {
-  return `${baseUrl()}/programs/waitlist/${occurrenceId}?token=${token}`;
+  return `${publicBaseUrl()}/programs/waitlist/${occurrenceId}?token=${token}`;
 }
 
 export type WaitlistInvitationEmailInput = {
@@ -588,7 +563,9 @@ export async function sendSessionDayReminderEmail(
           // A guest has no account to sign into, and the reminder carries no
           // token — only the buyer's original email does — so they get the
           // pointer back to it instead of a dead button.
-          ticketsUrl: input.hasAccount ? `${baseUrl()}/my_programs` : null,
+          ticketsUrl: input.hasAccount
+            ? `${publicBaseUrl()}/my_programs`
+            : null,
         }) as React.ReactElement,
       },
       { idempotencyKey: input.idempotencyKey },

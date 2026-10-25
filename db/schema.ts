@@ -5282,6 +5282,8 @@ export const emailTopicEnum = pgEnum("email_topic", [
    * asked to stop all of it, set by an admin.
    */
   "all",
+  /** Comunicados: announcements admins write to participants (phase 3). */
+  "announcements",
 ]);
 
 /**
@@ -7111,6 +7113,14 @@ export const notificationDeliveryChannelEnum = pgEnum(
   "notification_delivery_channel",
   ["email", "push"],
 );
+/**
+ * Which drain sends a delivery. Bulk mail (comunicados) has its own, batched
+ * and paced, so a large send never queues ahead of a transactional email.
+ */
+export const notificationDeliveryLaneEnum = pgEnum(
+  "notification_delivery_lane",
+  ["transactional", "bulk"],
+);
 export const notificationCampaignTypeEnum = pgEnum(
   "notification_campaign_type",
   ["credit_gift"],
@@ -7219,6 +7229,13 @@ export const notifications = pgTable(
     archivedAt: timestamp("archived_at"),
     /** When the one-time celebration banner was shown, or cancelled. */
     celebratedAt: timestamp("celebrated_at"),
+    /** When the text was rewritten after someone could have seen it. */
+    editedAt: timestamp("edited_at"),
+    /**
+     * When the sender withdrew it. A retracted item is also archived, so every
+     * read hides it, and it can never be brought back.
+     */
+    retractedAt: timestamp("retracted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -7235,6 +7252,10 @@ export const notifications = pgTable(
     check(
       "notifications_action_path_relative",
       sql`${t.actionPath} IS NULL OR ${t.actionPath} LIKE '/%'`,
+    ),
+    check(
+      "notifications_retracted_is_archived",
+      sql`${t.retractedAt} IS NULL OR ${t.archivedAt} IS NOT NULL`,
     ),
   ],
 );
@@ -7306,6 +7327,9 @@ export const notificationDeliveries = pgTable(
     channel: notificationDeliveryChannelEnum("channel")
       .default("email")
       .notNull(),
+    lane: notificationDeliveryLaneEnum("lane")
+      .default("transactional")
+      .notNull(),
     /** Set for email, null for push. */
     recipientEmail: text("recipient_email"),
     /**
@@ -7337,6 +7361,19 @@ export const notificationDeliveries = pgTable(
       { onDelete: "set null" },
     ),
     sentAt: timestamp("sent_at"),
+    /**
+     * Bulk email only: the Resend idempotency key of the batch the row is in.
+     * Committed before any request carries it, never shared with other rows.
+     */
+    batchKey: text("batch_key"),
+    /**
+     * Bulk email only: when an attempt under the row's key may first have
+     * reached Resend. From then on the row keeps its key, is never re-batched
+     * and is never retried by hand.
+     */
+    maybeSentAt: timestamp("maybe_sent_at"),
+    /** Bulk email only: the content revision the accepted request carried. */
+    contentRevision: integer("content_revision"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -7358,6 +7395,27 @@ export const notificationDeliveries = pgTable(
     check(
       "notification_deliveries_recipient_per_channel",
       sql`(${t.channel} = 'email') = (${t.recipientEmail} IS NOT NULL)`,
+    ),
+    // The bulk lane's claim reads due rows of its lane only.
+    index("notification_deliveries_bulk_due_idx")
+      .on(t.nextAttemptAt, t.id)
+      .where(
+        sql`${t.lane} = 'bulk' AND ${t.status} IN ('pending', 'processing')`,
+      ),
+    index("notification_deliveries_batch_key_idx")
+      .on(t.batchKey)
+      .where(sql`${t.batchKey} IS NOT NULL`),
+    check(
+      "notification_deliveries_batch_is_bulk_email",
+      sql`${t.batchKey} IS NULL OR (${t.lane} = 'bulk' AND ${t.channel} = 'email')`,
+    ),
+    check(
+      "notification_deliveries_maybe_sent_has_batch",
+      sql`${t.maybeSentAt} IS NULL OR ${t.batchKey} IS NOT NULL`,
+    ),
+    check(
+      "notification_deliveries_revision_is_bulk",
+      sql`${t.contentRevision} IS NULL OR ${t.lane} = 'bulk'`,
     ),
     foreignKey({
       name: "notification_deliveries_resend_of_delivery_id_fk",

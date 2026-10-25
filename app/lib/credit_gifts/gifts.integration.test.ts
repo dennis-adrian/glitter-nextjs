@@ -648,10 +648,12 @@ describeDatabase("credit gifts", () => {
       expect.anything(),
     );
 
+    // A throttle is not the email failing: it waits, without spending an
+    // attempt (2 s here, since the refusal carried no Retry-After).
     const [retry] = await deliveriesFor(rejected.id);
     expect(retry).toMatchObject({
       status: "pending",
-      attempts: 1,
+      attempts: 0,
       lastError: "resend:rate_limit_exceeded",
     });
     expect(retry!.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
