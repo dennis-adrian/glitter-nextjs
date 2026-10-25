@@ -1,3 +1,10 @@
+-- A release that applies this may also apply 0303, which adds a foreign key to
+-- notification_campaigns and a column to notification_campaign_recipients. Both
+-- are locked here, first, so the whole release takes them before notifications,
+-- as the credit-gift paths do (docs/IMPLEMENTATION-comunicados.md A0). Already
+-- applied databases never run this again.
+LOCK TABLE "notification_campaigns" IN SHARE ROW EXCLUSIVE MODE;--> statement-breakpoint
+LOCK TABLE "notification_campaign_recipients" IN ACCESS EXCLUSIVE MODE;--> statement-breakpoint
 CREATE TYPE "public"."notification_delivery_lane" AS ENUM('transactional', 'bulk');--> statement-breakpoint
 ALTER TYPE "public"."email_topic" ADD VALUE 'announcements';--> statement-breakpoint
 ALTER TABLE "notifications" ADD COLUMN "edited_at" timestamp;--> statement-breakpoint

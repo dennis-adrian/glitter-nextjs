@@ -120,4 +120,18 @@ describe("safeActionPath", () => {
   it("refuses a backslash path a browser would read as another host", () => {
     expect(safeActionPath("/\\evil.example")).toBeNull();
   });
+
+  it.each(["/\t/evil.example", "/\n/evil.example", "/ x", "/a\u0000b"])(
+    "refuses %j: a browser drops tabs and newlines and could leave the site",
+    (path) => {
+      expect(safeActionPath(path)).toBeNull();
+    },
+  );
+
+  it("keeps a path with a query or an encoded space", () => {
+    expect(safeActionPath("/dashboard/users?limit=10&offset=0")).toBe(
+      "/dashboard/users?limit=10&offset=0",
+    );
+    expect(safeActionPath("/blog/a%20b")).toBe("/blog/a%20b");
+  });
 });

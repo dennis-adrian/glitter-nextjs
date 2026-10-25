@@ -51,6 +51,11 @@ export async function notify<K extends NotificationKind>(
     campaignId?: number | null;
     /** Where the email goes. Omit for an in-app-only notification. */
     email?: string | null;
+    /**
+     * Whether its sender asked for a push. Read only by per-send kinds (a
+     * comunicado); every other kind pushes by its registry entry alone.
+     */
+    push?: boolean;
   },
 ): Promise<NotifyResult> {
   // A snapshot the registry cannot read back would store an item that renders
@@ -114,7 +119,7 @@ export async function notify<K extends NotificationKind>(
     if (delivery) deliveryIds.push(delivery.id);
   }
 
-  if (notificationPushes(input.kind, data)) {
+  if (notificationPushes(input.kind, data, { push: input.push })) {
     // One statement whether or not the person has devices: no read first,
     // since the reservation mirrors run while holding the festival's lock.
     // The push renders from the inbox item when sent, so no payload is kept.

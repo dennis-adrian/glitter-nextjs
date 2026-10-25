@@ -196,6 +196,16 @@ export async function listCreditGifts(): Promise<CreditGiftListRow[] | null> {
   }));
 }
 
+/**
+ * A gift recipient's status. `notified` belongs to comunicados and never
+ * appears on a gift, which is read by its `credit_gift` type first.
+ */
+function giftRecipientStatus(
+  status: (typeof notificationCampaignRecipients.$inferSelect)["status"],
+): CreditGiftRecipientRow["status"] {
+  return status === "notified" ? "pending" : status;
+}
+
 export type CreditGiftEmailState =
   | "none"
   | "pending"
@@ -395,7 +405,7 @@ export async function fetchCreditGift(
     userId: row.userId,
     name: getUserName(row) || row.email,
     email: row.email,
-    status: row.status,
+    status: giftRecipientStatus(row.status),
     skippedReason: row.skippedReason,
     readAt: row.readAt,
     emailState:

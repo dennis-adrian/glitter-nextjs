@@ -230,6 +230,22 @@ const FIXTURES = {
     festivalId: 3,
     reservationEligibleAt: "2026-11-01T14:00:00.000Z",
   },
+  comunicado: {
+    comunicadoId: 7,
+    revision: 1,
+    title: "Cambio de horario de armado",
+    excerpt: "El armado del sábado empieza a las 8:00 en lugar de las 9:00.",
+    actionPath: "/my_participations",
+    actionLabel: "Ver mi reserva",
+  },
+  comunicado_not_sent: {
+    comunicadoId: 7,
+    title: "Cambio de horario de armado",
+    reason: "late",
+    detail: null,
+    scheduledAt: "2026-10-31T13:00:00.000Z",
+    audienceCount: 312,
+  },
 } satisfies Record<NotificationKind, unknown>;
 
 describe("every kind", () => {
@@ -285,12 +301,13 @@ describe("every kind", () => {
           notificationCategory(kind) !== "admin" &&
           !notificationPushes(kind, FIXTURES[kind] as never),
       ),
-      "every participant kind pushes unless its fixture starts read",
+      "every participant kind pushes unless it starts read or pushes per send",
     ).toEqual(
       NOTIFICATION_KINDS.filter(
         (kind) =>
           notificationCategory(kind) !== "admin" &&
-          notificationStartsRead(kind, FIXTURES[kind] as never),
+          (notificationStartsRead(kind, FIXTURES[kind] as never) ||
+            kind === "comunicado"),
       ),
     );
     // Every sensitive kind pushes, with the generic text.
@@ -309,6 +326,38 @@ describe("every kind", () => {
         FIXTURES.credit_gift_revoked,
       ),
     ).toBe(true);
+  });
+
+  it("pushes a comunicado only when its sender asked", () => {
+    const data = FIXTURES.comunicado as never;
+    expect(notificationPushes("comunicado", data)).toBe(false);
+    expect(notificationPushes("comunicado", data, { push: false })).toBe(false);
+    expect(notificationPushes("comunicado", data, { push: true })).toBe(true);
+    // The option is the sender's tick: it never makes another kind push.
+    expect(
+      notificationPushes(
+        "credit_gift_completed",
+        FIXTURES.credit_gift_completed as never,
+        { push: true },
+      ),
+    ).toBe(false);
+  });
+
+  it("opens a comunicado on its own page and words a missed schedule", () => {
+    expect(notificationOpensDetail("comunicado", FIXTURES.comunicado)).toBe(
+      true,
+    );
+    expect(
+      buildInAppCopy(
+        "comunicado_not_sent",
+        FIXTURES.comunicado_not_sent as never,
+      ),
+    ).toEqual({
+      title: "No se envió «Cambio de horario de armado»",
+      body: "Estaba programado para el sáb, 31 oct, 9:00 AM y el envío se atrasó más de una hora. Quedó como borrador para que lo revises.",
+      actionPath: "/dashboard/communications/7",
+      actionLabel: "Ver comunicado",
+    });
   });
 
   it("never pushes a receipt for something the person just did", () => {

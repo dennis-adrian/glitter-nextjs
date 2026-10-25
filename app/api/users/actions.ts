@@ -6,6 +6,7 @@ import { z } from "zod";
 import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import {
+  comunicados,
   creditLedgerEntries,
   infractionEvidence,
   infractionNotes,
@@ -126,8 +127,16 @@ async function hasRestrictActorReferences(
     .from(rentalReturnLogs)
     .where(eq(rentalReturnLogs.processedByUserId, profileId))
     .limit(1);
+  if (returnLog) return true;
 
-  return Boolean(returnLog);
+  // Who confirmed an essential comunicado stays on record for good.
+  const [essential] = await tx
+    .select({ id: comunicados.id })
+    .from(comunicados)
+    .where(eq(comunicados.essentialConfirmedByUserId, profileId))
+    .limit(1);
+
+  return Boolean(essential);
 }
 
 async function hasCreditLedgerEntries(

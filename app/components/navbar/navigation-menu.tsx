@@ -339,8 +339,7 @@ const NavbarNavigationMenu = ({
                     title="Comunicaciones"
                     href="/dashboard/communications"
                   >
-                    Anuncios a participantes por la app, el correo y el
-                    dispositivo
+                    Borradores de comunicados y listas de participantes
                   </NavigationMenuListItem>
                 )}
                 <NavigationMenuListItem

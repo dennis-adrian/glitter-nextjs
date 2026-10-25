@@ -69,7 +69,7 @@ export const FEATURE_FLAGS = {
   comunicados: {
     label: "Comunicados",
     description:
-      "Comunicaciones en el panel: escribir, programar y enviar comunicados a participantes, las listas de distribución y «Agregar una lista» en los regalos de créditos. Solo administradores globales. Mientras esté oculta, se habilita marcando a cada administrador. Ocultarla no frena lo ya confirmado: un envío se frena cancelando su programación o retirándolo.",
+      "Comunicaciones en el panel: escribir borradores de comunicados (con vista previa y un correo de prueba para quien escribe), las listas de distribución y «Agregar una lista» en los regalos de créditos. Enviar comunicados a participantes llega en una próxima versión. Solo administradores globales. Mientras esté oculta, se habilita marcando a cada administrador.",
     defaultVisibility: "hidden",
   },
 } as const satisfies Record<string, FeatureFlagDefinition>;

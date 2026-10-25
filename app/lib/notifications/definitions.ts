@@ -120,8 +120,10 @@ export type InboxPage = {
 
 /** The one place that turns a stored path into a link the inbox may follow. */
 export function safeActionPath(path: string | null | undefined): string | null {
-  // "//host" and "/\host" both leave the site in a browser.
-  if (!path || !path.startsWith("/") || /^\/[/\\]/.test(path)) return null;
+  // "//host" and "/\host" both leave the site in a browser, and so does
+  // "/\t/host": a browser drops tabs and newlines while parsing a URL. No
+  // whitespace or control character, then, anywhere in the path.
+  if (!path || !/^\/(?![/\\])[^\s\x00-\x1f\x7f]*$/.test(path)) return null;
   return path;
 }
 
