@@ -647,6 +647,34 @@ describeDatabase("the bulk email lane", () => {
       );
     });
 
+    it("re-claims a held batch whole when its rows' backoffs differ, so it never goes out in parts under one key", async () => {
+      // An unknown outcome on a claim that mixed attempt counts leaves rows of
+      // one key due at different times. Sending only the due part first would
+      // let the rest come back as a 409 and be recorded sent unsent.
+      const campaign = await createCampaign();
+      const key = `${TEMPLATE}-batch:${campaign}:${randomUUID()}`;
+      const later = await queueEmails(campaign, 2, {
+        batchKey: key,
+        attempts: 2,
+        maybeSentAt: sql`now() - interval '2 minutes'`,
+        nextAttemptAt: sql`now() + interval '1 minute'`,
+      });
+      const due = await queueEmails(campaign, 2, {
+        batchKey: key,
+        attempts: 1,
+        maybeSentAt: sql`now() - interval '2 minutes'`,
+        nextAttemptAt: sql`now() - interval '1 second'`,
+      });
+
+      const run = await runLane();
+
+      expect(run).toMatchObject({ batches: 1, requests: 1, sent: 4 });
+      expect(batchCalls.map((call) => call.key)).toEqual([key]);
+      expect([...batchCalls[0]!.to].sort()).toEqual(
+        [...later, ...due].map((row) => row.recipientEmail).sort(),
+      );
+    });
+
     it("marks a crashed attempt maybe_sent_at when its lease brings it back, and leaves a live lease alone", async () => {
       const campaign = await createCampaign();
       const key = `${TEMPLATE}-batch:${campaign}:${randomUUID()}`;

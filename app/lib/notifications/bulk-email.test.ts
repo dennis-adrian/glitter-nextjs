@@ -100,6 +100,25 @@ describe("bulkBatchOutcome", () => {
     }
   });
 
+  it("reads an answer that does not say what it refused as unknown, so its key is kept", () => {
+    // The SDK passes any JSON error body through, with no name or status.
+    expect(
+      bulkBatchOutcome(
+        { data: null, error: { message: "Endpoint request timed out" } },
+        3,
+      ),
+    ).toEqual({ kind: "unknown", error: "resend:unknown", statusCode: null });
+    expect(bulkBatchOutcome(refusal("some_new_error", 503), 3)).toEqual({
+      kind: "unknown",
+      error: "resend:some_new_error",
+      statusCode: 503,
+    });
+    // A named refusal below 500 still proves nothing went out.
+    expect(bulkBatchOutcome(refusal("some_new_error", 400), 3)).toMatchObject({
+      kind: "refused",
+    });
+  });
+
   it("reads a throttle's Retry-After, and none when it has none", () => {
     expect(
       bulkBatchOutcome(

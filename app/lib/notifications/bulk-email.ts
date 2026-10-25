@@ -310,7 +310,16 @@ export function bulkBatchOutcome(
     const statusCode = error.statusCode ?? null;
     const code = `resend:${name}`.slice(0, MAX_ERROR_LENGTH);
     if (name === "invalid_idempotent_request") return { kind: "replay" };
-    if (UNKNOWN_CODES.has(name))
+    // Only a named refusal proves nothing went out. An answer without a name
+    // (the SDK passes any JSON error body through, with no status) or a
+    // server error it does not list may have come after Resend accepted it.
+    const unidentified = !error.name;
+    const serverSide =
+      statusCode != null &&
+      statusCode >= 500 &&
+      !QUOTA_CODES.has(name) &&
+      !CONFIG_CODES.has(name);
+    if (UNKNOWN_CODES.has(name) || unidentified || serverSide)
       return { kind: "unknown", error: code, statusCode };
     if (name === "rate_limit_exceeded") {
       return {
@@ -603,6 +612,22 @@ const dueNow = sql`(
 
 const notExpired = sql`${nd.createdAt} > now() - ${EXPIRY}`;
 
+/**
+ * Not settled, and nobody holds it. A held batch is re-claimed whole on this,
+ * not on each row being due: rows of one key can carry different backoffs
+ * (their attempt counts differ), and taking only the due ones would send a
+ * part of the batch under the key, after which the rest would come back as a
+ * 409 and be recorded sent without any request carrying them.
+ */
+const unsettled = sql`(
+  ${nd.status} = 'pending'
+  OR (
+    ${nd.status} = 'processing'
+    AND ${nd.leaseExpiresAt} IS NOT NULL
+    AND ${nd.leaseExpiresAt} < now()
+  )
+)`;
+
 /** Rows no attempt may have reached, free to take a new key. */
 const freshPool = and(bulkEmail, isNull(nd.batchKey), dueNow, notExpired);
 
@@ -696,7 +721,9 @@ async function claimHeldBatch(
   const locked = await tx
     .select({ id: nd.id })
     .from(nd)
-    .where(and(eq(nd.batchKey, first.batchKey), bulkEmail, dueNow, notExpired))
+    .where(
+      and(eq(nd.batchKey, first.batchKey), bulkEmail, unsettled, notExpired),
+    )
     .orderBy(nd.id)
     .for("update");
   // Another server took it between the two statements.

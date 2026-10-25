@@ -385,10 +385,19 @@ describeDatabase("delivery lanes", () => {
         ["push", "sent"],
       ]);
       expect(await Promise.all(bulkIds.map(deliveryById))).toEqual(bulkBefore);
-      expect(sendEmailMock).toHaveBeenCalledTimes(1);
-      expect(sendEmailMock).toHaveBeenCalledWith(expect.anything(), {
-        idempotencyKey: `notification-delivery-${transactional[0]!.id}`,
-      });
+      // The drains read the whole database: count this test's own sends, so a
+      // row an interrupted run left due cannot fail it.
+      const emailKeys = sendEmailMock.mock.calls.map(
+        ([, options]) =>
+          (options as { idempotencyKey?: string })?.idempotencyKey,
+      );
+      expect(
+        emailKeys.filter(
+          (key) => key === `notification-delivery-${transactional[0]!.id}`,
+        ),
+      ).toHaveLength(1);
+      expect(emailKeys).not.toContain(`notification-delivery-${bulk.emailId!}`);
+      // Pushes from another run carry another VAPID key and never reach the mock.
       expect(sendPushMock).toHaveBeenCalledTimes(1);
     });
 

@@ -18,15 +18,29 @@ import { describe, expect, it } from "vitest";
  */
 const FIRST_UNRELEASED = 301;
 
-/** `-- enum-labels: existing <type>` on a statement that uses another enum's same-named label. */
-const ALLOW = /--\s*enum-labels:\s*existing\s+\S+/;
+/**
+ * `-- enum-labels: existing <type> '<label>'` on a statement that uses another
+ * enum's same-named label. It exempts that label only.
+ */
+const ALLOW = /--\s*enum-labels:\s*existing\s+\S+\s+'([^']+)'/g;
 const ADD_VALUE = /ADD VALUE(?: IF NOT EXISTS)? '([^']+)'/g;
+
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The label inside any string literal: `'x'`, and also `'{x,y}'` arrays. */
+function usesLabel(statement: string, label: string) {
+  const word = escapeRegExp(label);
+  return new RegExp(`'[^']*(?<![\\w])${word}(?![\\w])[^']*'`).test(statement);
+}
 
 type Migration = { name: string; sql: string };
 
 function statementsOf(sql: string) {
   return sql
-    .split(/--> statement-breakpoint|;\s*\n/)
+    // A trailing `-- comment` after the semicolon still ends the statement.
+    .split(/--> statement-breakpoint|;[ \t]*(?:--[^\n]*)?\n/)
     .map((statement) => statement.trim())
     .filter(Boolean);
 }
@@ -38,9 +52,13 @@ export function enumLabelReuse(migrations: Migration[]) {
     statementsOf(sql).forEach((statement, index) => {
       const where = `${name} #${index + 1}`;
       const adds = [...statement.matchAll(ADD_VALUE)].map((m) => m[1]!);
-      if (adds.length === 0 && !ALLOW.test(statement)) {
+      const allowed = new Set(
+        [...statement.matchAll(ALLOW)].map((m) => m[1]!),
+      );
+      if (adds.length === 0) {
         for (const prior of added) {
-          if (statement.includes(`'${prior.label}'`)) {
+          if (allowed.has(prior.label)) continue;
+          if (usesLabel(statement, prior.label)) {
             problems.push(
               `${where} uses '${prior.label}', which ${prior.where} adds in the same release`,
             );
@@ -95,8 +113,40 @@ UPDATE tbl SET kind = 'y' WHERE kind = 'z';`,
         },
         {
           name: "0902_b.sql",
-          sql: `-- enum-labels: existing notification_category
+          sql: `-- enum-labels: existing notification_category 'announcements'
 CREATE INDEX i ON notifications (id) WHERE category = 'announcements';`,
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("catches a label after a commented ADD VALUE, inside an array literal, or beside an exempted one", () => {
+    expect(
+      enumLabelReuse([
+        {
+          name: "0901_a.sql",
+          sql: `ALTER TYPE t ADD VALUE IF NOT EXISTS 'x'; -- for the backfill
+UPDATE tbl SET k = 'x';
+ALTER TYPE t ADD VALUE 'y';
+ALTER TABLE tbl ADD CONSTRAINT c CHECK (k = ANY ('{y,z}'::t[]));
+-- enum-labels: existing notification_category 'announcements'
+UPDATE tbl SET k = 'x' WHERE category = 'announcements';`,
+        },
+      ]),
+    ).toEqual([
+      "0901_a.sql #2 uses 'x', which 0901_a.sql #1 adds in the same release",
+      "0901_a.sql #4 uses 'y', which 0901_a.sql #3 adds in the same release",
+      "0901_a.sql #5 uses 'x', which 0901_a.sql #1 adds in the same release",
+    ]);
+  });
+
+  it("does not read a longer label as a use of a shorter one", () => {
+    expect(
+      enumLabelReuse([
+        { name: "0901_a.sql", sql: `ALTER TYPE t ADD VALUE 'sent';` },
+        {
+          name: "0902_b.sql",
+          sql: `UPDATE d SET status = 'unsent' WHERE note = 'resent_by_admin';`,
         },
       ]),
     ).toEqual([]);
