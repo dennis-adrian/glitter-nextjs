@@ -6,7 +6,6 @@ import { z } from "zod";
 import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import {
-  creditLedgerEntries,
   infractionEvidence,
   infractionNotes,
   infractions,
@@ -25,6 +24,7 @@ import {
   getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
+import { hasCreditLedgerEntries } from "@/app/lib/credits/retention";
 import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
@@ -128,19 +128,6 @@ async function hasRestrictActorReferences(
     .limit(1);
 
   return Boolean(returnLog);
-}
-
-async function hasCreditLedgerEntries(
-  tx: DeletionTx,
-  profileId: number,
-): Promise<boolean> {
-  const [entry] = await tx
-    .select({ id: creditLedgerEntries.id })
-    .from(creditLedgerEntries)
-    .where(eq(creditLedgerEntries.userId, profileId))
-    .limit(1);
-
-  return Boolean(entry);
 }
 
 function isPermanentDeletionBlocker(error: unknown): boolean {

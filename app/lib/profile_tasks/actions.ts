@@ -10,12 +10,19 @@ import {
   ScheduledTaskWithProfile,
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
+import { hasCreditLedgerEntries } from "@/app/lib/credits/retention";
+import { loggableError } from "@/app/lib/errors/loggable-error";
 import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { db } from "@/db";
-import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
+import {
+  creditLedgerEntries,
+  pendingUserDeletions,
+  scheduledTasks,
+  users,
+} from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import {
   and,
@@ -60,8 +67,8 @@ const MAX_PERSISTED_ERROR_LENGTH = 120;
 
 /**
  * Postgres driver messages quote the offending row ("Key (email)=(...)"), so
- * only schema-level identifiers are persisted to lastError. The full error
- * still reaches console.error for debugging.
+ * only schema-level identifiers are persisted to lastError. The logs get the
+ * same treatment through loggableError.
  */
 function toLocalDeleteError(error: unknown): string {
   const parts = ["local_delete_failed"];
@@ -223,6 +230,13 @@ export async function handleDeletionEmails(): Promise<
             eq(scheduledTasks.ranAfterDueDate, false),
             lte(scheduledTasks.dueDate, sql`now()`),
             eq(scheduledTasks.taskType, "profile_creation"),
+            // A profile holding credit history can never be deleted, so its
+            // task stays open but out of the batch, or a backlog of them
+            // would starve everyone behind it. Rechecked under the lock below.
+            sql`not exists (
+              select 1 from ${creditLedgerEntries}
+              where ${creditLedgerEntries.userId} = ${scheduledTasks.profileId}
+            )`,
             or(
               isNull(pendingUserDeletions.id),
               and(
@@ -270,6 +284,13 @@ export async function handleDeletionEmails(): Promise<
 
         // The profile went away while we waited for the lock.
         if (!lockedUser) continue;
+
+        // A credit write may have landed between the scan and the lock. The
+        // local delete would then fail on the ledger's RESTRICT after Clerk
+        // was already gone, so nothing is touched: no outbox row is added or
+        // resumed, Clerk is not called, and the profile keeps its devices.
+        if (await hasCreditLedgerEntries(tx, lockedUser.id)) continue;
+
         await forgetPushDevices(tx, lockedUser.id);
 
         // A row left over from an earlier run is resumed rather than
@@ -397,7 +418,7 @@ export async function handleDeletionEmails(): Promise<
 
         completedTasks.push(task);
       } catch (error) {
-        console.error("Error deleting profile locally", error);
+        console.error("Error deleting profile locally", loggableError(error));
         await recordDeletionFailure(
           pendingId,
           currentAttempts,
