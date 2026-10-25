@@ -3,9 +3,13 @@
  *
  * An unset *or empty* `NEXT_PUBLIC_BASE_URL` both count as missing: `??` only
  * catches `undefined`, so an empty value used to survive and produce relative
- * links that are dead in an email client. `VERCEL_URL` is set on every
- * deployment, which is what keeps the localhost fallback — useful in local
- * development, useless in an inbox — out of anything deployed.
+ * links that are dead in an email client. Production then uses its own domain
+ * (`VERCEL_PROJECT_PRODUCTION_URL`), since `VERCEL_URL` there is the
+ * deployment's generated host: it changes with every deploy and Vercel's
+ * deployment protection can put it behind a login. Elsewhere, or when that is
+ * missing, `VERCEL_URL`: it is set on every deployment, which is what keeps
+ * the localhost fallback — useful in local development, useless in an inbox —
+ * out of anything deployed.
  *
  * Deliberately does not throw: it is also called while rendering pages (the
  * buyer's purchase page builds its recovery link with it), and a
@@ -19,7 +23,12 @@ export function publicBaseUrl(): string {
   );
   if (configured) return configured;
 
-  const vercel = process.env.VERCEL_URL?.trim().replace(/\/+$/, "");
+  const host = (value: string | undefined) =>
+    value?.trim().replace(/\/+$/, "") || undefined;
+  const vercel =
+    (process.env.VERCEL_ENV === "production"
+      ? host(process.env.VERCEL_PROJECT_PRODUCTION_URL)
+      : undefined) ?? host(process.env.VERCEL_URL);
   if (vercel) return `https://${vercel}`;
 
   return "http://localhost:3000";
