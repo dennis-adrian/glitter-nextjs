@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import CreditGiftAmountField from "@/app/components/credit_gifts/admin/credit-gift-amount-field";
 import CreditGiftConfirmDialog from "@/app/components/credit_gifts/admin/credit-gift-confirm-dialog";
+import type { CreditGiftListOptions } from "@/app/components/credit_gifts/admin/credit-gift-list-picker";
 import CreditGiftMessageFields from "@/app/components/credit_gifts/admin/credit-gift-message-fields";
 import CreditGiftPreview from "@/app/components/credit_gifts/admin/credit-gift-preview";
 import CreditGiftRecipientPicker from "@/app/components/credit_gifts/admin/credit-gift-recipient-picker";
@@ -36,7 +37,11 @@ const DEFAULT_OCCASION: CreditGiftOccasion = "thanks";
  * (people × credits) stays in view the whole time, and nothing moves until
  * the confirm dialog restates it.
  */
-export default function CreditGiftComposer() {
+export default function CreditGiftComposer({
+  lists,
+}: {
+  lists: CreditGiftListOptions;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [recipients, setRecipients] = useState<CreditGiftRecipientOption[]>([]);
@@ -130,6 +135,16 @@ export default function CreditGiftComposer() {
               onAdd={(recipient) =>
                 setRecipients((current) => [...current, recipient])
               }
+              onAddMany={(added) =>
+                setRecipients((current) => {
+                  const chosen = new Set(current.map(({ id }) => id));
+                  return [
+                    ...current,
+                    ...added.filter(({ id }) => !chosen.has(id)),
+                  ];
+                })
+              }
+              lists={lists}
               onRemove={(userId) =>
                 setRecipients((current) =>
                   current.filter((recipient) => recipient.id !== userId),

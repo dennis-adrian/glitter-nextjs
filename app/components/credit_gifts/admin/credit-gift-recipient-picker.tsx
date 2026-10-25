@@ -3,6 +3,9 @@
 import { XIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 
+import CreditGiftListPicker, {
+  type CreditGiftListOptions,
+} from "@/app/components/credit_gifts/admin/credit-gift-list-picker";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import SearchInput from "@/app/components/ui/search-input/input";
@@ -16,7 +19,9 @@ import {
 type CreditGiftRecipientPickerProps = {
   recipients: CreditGiftRecipientOption[];
   onAdd: (recipient: CreditGiftRecipientOption) => void;
+  onAddMany: (recipients: CreditGiftRecipientOption[]) => void;
   onRemove: (userId: number) => void;
+  lists: CreditGiftListOptions;
   disabled?: boolean;
 };
 
@@ -27,7 +32,9 @@ type CreditGiftRecipientPickerProps = {
 export default function CreditGiftRecipientPicker({
   recipients,
   onAdd,
+  onAddMany,
   onRemove,
+  lists,
   disabled = false,
 }: CreditGiftRecipientPickerProps) {
   const [results, setResults] = useState<CreditGiftRecipientOption[]>([]);
@@ -52,31 +59,41 @@ export default function CreditGiftRecipientPicker({
 
   return (
     <div className="space-y-3">
-      <SearchInput
-        id="credit-gift-recipient-search"
-        label="Buscar participantes"
-        labelStyles="sr-only"
-        placeholder="Buscá por nombre o correo…"
-        options={options}
-        isLoading={isSearching}
-        onSearch={(term) =>
-          startSearch(async () => {
-            setResults(await searchCreditGiftRecipientsAction(term));
-          })
-        }
-        onSelect={(userId) => {
-          if (disabled) return;
-          const match = results.find((result) => result.id === userId);
-          if (
-            match &&
-            !match.skipReason &&
-            !selectedIds.has(match.id) &&
-            !full
-          ) {
-            onAdd(match);
-          }
-        }}
-      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          <SearchInput
+            id="credit-gift-recipient-search"
+            label="Buscar participantes"
+            labelStyles="sr-only"
+            placeholder="Buscá por nombre o correo…"
+            options={options}
+            isLoading={isSearching}
+            onSearch={(term) =>
+              startSearch(async () => {
+                setResults(await searchCreditGiftRecipientsAction(term));
+              })
+            }
+            onSelect={(userId) => {
+              if (disabled) return;
+              const match = results.find((result) => result.id === userId);
+              if (
+                match &&
+                !match.skipReason &&
+                !selectedIds.has(match.id) &&
+                !full
+              ) {
+                onAdd(match);
+              }
+            }}
+          />
+        </div>
+        <CreditGiftListPicker
+          lists={lists}
+          recipients={recipients}
+          onAddMany={onAddMany}
+          disabled={disabled || full}
+        />
+      </div>
 
       {recipients.length === 0 ? (
         <p className="text-sm text-muted-foreground">
