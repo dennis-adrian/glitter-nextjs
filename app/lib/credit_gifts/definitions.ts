@@ -219,6 +219,58 @@ export const CREDIT_GIFT_RECIPIENT_STATUS_LABELS = {
   failed: "Falló",
 } as const;
 
+/**
+ * "Agregar una lista" in the picker (docs/IMPLEMENTATION-comunicados.md B9):
+ * production only, global admins only, behind the `comunicados` flag.
+ */
+export type CreditGiftListsAvailability = "enabled" | "staging" | "hidden";
+
+export const CREDIT_GIFT_LISTS_STAGING_REASON =
+  "En el entorno de prueba no se pueden agregar listas a un regalo: agregá a las personas por nombre.";
+
+function people(count: number) {
+  return count === 1
+    ? "1 persona"
+    : `${count.toLocaleString("es-BO")} personas`;
+}
+
+/** Nothing is added when the list would take the gift past the cap. */
+export function creditGiftListTooManyMessage(label: string, total: number) {
+  return `Con «${label}» serían ${people(total)} y un regalo llega a ${CREDIT_GIFT_MAX_RECIPIENTS} como máximo. Elegí una lista más chica o agregá personas una por una.`;
+}
+
+/** "Agregamos 42 personas de «…» (8 ya estaban). 3 no pueden recibir regalos." */
+export function creditGiftListAddedMessage({
+  label,
+  added,
+  alreadyChosen,
+  skipped,
+}: {
+  label: string;
+  added: number;
+  alreadyChosen: number;
+  skipped: number;
+}) {
+  let text =
+    added === 0
+      ? alreadyChosen > 0
+        ? `Las personas de «${label}» ya estaban en el regalo.`
+        : `Nadie de «${label}» puede recibir regalos hoy.`
+      : `Agregamos ${people(added)} de «${label}»${
+          alreadyChosen > 0
+            ? ` (${alreadyChosen === 1 ? "1 ya estaba" : `${alreadyChosen} ya estaban`})`
+            : ""
+        }.`;
+  if (skipped > 0) {
+    text += ` ${
+      skipped === 1
+        ? "1 no puede recibir regalos."
+        : `${skipped.toLocaleString("es-BO")} no pueden recibir regalos.`
+    }`;
+  }
+  return text;
+}
+
 export const NOT_GLOBAL_ADMIN_GIFT_REASON =
   "Solo un administrador general puede regalar créditos.";
 export const CREDITS_NOT_LAUNCHED_GIFT_REASON =
