@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { NavbarProfile } from "@/app/api/users/definitions";
-import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
+import { buildAppNavigation } from "@/app/components/navbar/app-navigation";
+import AppSidebar from "@/app/components/navbar/app-sidebar";
 import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 
 // Server actions: the sign-out path and the bell reach them.
@@ -35,6 +36,20 @@ function profile(role: NavbarProfile["role"]) {
   } as unknown as NavbarProfile;
 }
 
+/** The desktop sidebar, with the "Gestión" section opened. */
+function renderSidebar(role: NavbarProfile["role"]) {
+  const viewer = { role, status: "verified" as const };
+  render(
+    <AppSidebar
+      groups={buildAppNavigation({ viewer }).groups}
+      profile={profile(role)}
+      viewer={viewer}
+    />,
+  );
+  const gestion = screen.queryByRole("button", { name: /Gestión/ });
+  if (gestion) fireEvent.click(gestion);
+}
+
 function festivalsLinks() {
   return screen
     .queryAllByRole("link", { name: /Festivales/ })
@@ -42,8 +57,8 @@ function festivalsLinks() {
 }
 
 describe("Festivales link for festival admins", () => {
-  it("is in the desktop menu", () => {
-    render(<NavbarNavigationMenu profile={profile("festival_admin")} />);
+  it("is in the desktop sidebar", () => {
+    renderSidebar("festival_admin");
     expect(festivalsLinks()).toHaveLength(1);
   });
 
@@ -53,12 +68,14 @@ describe("Festivales link for festival admins", () => {
         <span>Menú</span>
       </MobileSidebar>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Abrir menú de navegación" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Abrir menú de navegación" }),
+    );
     expect(festivalsLinks()).toHaveLength(1);
   });
 
   it("is not offered to participants", () => {
-    render(<NavbarNavigationMenu profile={profile("user")} />);
+    renderSidebar("user");
     expect(festivalsLinks()).toHaveLength(0);
   });
 });

@@ -44,6 +44,10 @@ export const metadata: Metadata = {
  * Glitter once the page loads.
  */
 export const viewport: Viewport = {
+  // Lets the installed app's tab bar sit above the home indicator by
+  // padding itself with `env(safe-area-inset-bottom)`, which reads zero
+  // without it.
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
     { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },

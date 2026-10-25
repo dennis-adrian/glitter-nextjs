@@ -13,6 +13,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme as ToasterProps["theme"]}
       // Sonner's default region label is English; it appends the hotkey.
       containerAriaLabel="Notificaciones"
+      // Clear of the installed app's tab bar; the variable is unset (and the
+      // offset Sonner's default) everywhere else.
+      mobileOffset={{ bottom: "calc(var(--app-bottom-chrome, 0px) + 16px)" }}
       className="toaster group"
       toastOptions={{
         classNames: {

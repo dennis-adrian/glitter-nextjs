@@ -9,6 +9,11 @@
  * media query, so the in-app toggle can override the system setting. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The installed app. Navigation that only makes sense outside a browser tab
+ * (the bottom tab bar) keys off this rather than off JavaScript, so it is
+ * never painted and then removed. */
+@custom-variant standalone (@media (display-mode: standalone));
+
 @theme inline {
   --font-sans: var(--font-figtree), sans-serif;
   --font-display: var(--font-gabarito), sans-serif;
@@ -831,4 +836,37 @@
 }
 .bn-container .bn-default-styles :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-gabarito), sans-serif;
+}
+
+/* App shell -------------------------------------------------------------
+ * The signed-in sidebar and the installed app's tab bar are fixed to the
+ * viewport. The page makes room for whichever is on screen by asking whether
+ * it is in the document, so the layout never needs to know who is signed in. */
+:root {
+  --app-sidebar-width: 16.5rem;
+}
+
+@media (width >= 64rem) {
+  body:has([data-app-sidebar][data-collapsed]) {
+    --app-sidebar-width: 4.5rem;
+  }
+
+  body:has([data-app-sidebar]) > :is([data-site-navbar], main, footer) {
+    margin-left: var(--app-sidebar-width);
+  }
+}
+
+@media (display-mode: standalone) and (width < 64rem) {
+  body:has([data-app-tabbar]) {
+    /* Read by pages sized to the viewport, like the dashboard. */
+    --app-bottom-chrome: calc(4rem + env(safe-area-inset-bottom));
+    padding-bottom: var(--app-bottom-chrome);
+  }
+}
+
+/* With `viewport-fit=cover` the page reaches under a landscape notch; keep
+ * the content itself clear of it. */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }

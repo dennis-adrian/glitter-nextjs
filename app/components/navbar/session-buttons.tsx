@@ -21,7 +21,7 @@ import NotificationBell, {
 } from "@/app/components/notifications/notification-bell";
 import { useReleaseForeignPushDevice } from "@/app/components/notifications/use-push-device";
 import UserDropdown from "@/app/components/ui/user-dropdown";
-import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
+import { cn, isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 
 export default function SessionButtons({
@@ -30,6 +30,7 @@ export default function SessionButtons({
   notificationsEnabled = false,
   pushPublicKey = null,
   isProfileLoading,
+  accountMenuClassName,
 }: {
   profile?: NavbarProfile | null;
   creditsEnabled: boolean;
@@ -39,6 +40,11 @@ export default function SessionButtons({
   pushPublicKey?: string | null;
   /** Forwarded to the dropdown so a `null` profile is not read as loading. */
   isProfileLoading: boolean;
+  /**
+   * Classes for the account menu's wrapper. The desktop sidebar carries the
+   * account card, so the header hides its own menu where the sidebar shows.
+   */
+  accountMenuClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -116,12 +122,19 @@ export default function SessionButtons({
     );
   }
 
-  const dropdown = (
+  const userDropdown = (
     <UserDropdown
       profile={profile}
       creditsEnabled={creditsEnabled}
       isProfileLoading={isProfileLoading}
     />
+  );
+  const dropdown = accountMenuClassName ? (
+    <div className={cn("flex items-center", accountMenuClassName)}>
+      {userDropdown}
+    </div>
+  ) : (
+    userDropdown
   );
 
   // A Clerk session without a profile row (sign-up still finishing) has no
