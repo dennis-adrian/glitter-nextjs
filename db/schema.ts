@@ -10,6 +10,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   real,
   serial,
   smallint,
@@ -1251,6 +1252,10 @@ export const standReservations = pgTable(
     // table can park a row on `released_at`.
     index("stand_reservations_owner_user_id_idx").on(t.ownerUserId),
     index("stand_reservations_stand_id_idx").on(t.standId),
+    // "Confirmados · <festival>" lists read a festival's accepted reservations.
+    index("stand_reservations_festival_accepted_idx")
+      .on(t.festivalId)
+      .where(sql`${t.status} = 'accepted'`),
     uniqueIndex("stand_reservations_idempotency_key_unique")
       .on(t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
@@ -7546,4 +7551,81 @@ export const notificationCampaignRecipientsRelations = relations(
       references: [notifications.id],
     }),
   }),
+);
+
+/**
+ * How a saved list chooses its people: a filter re-evaluated every time the
+ * list is used, or a fixed, hand-picked group.
+ */
+export const distributionListKindEnum = pgEnum("distribution_list_kind", [
+  "filter",
+  "fixed",
+]);
+
+/**
+ * Groups of participants admins save, for comunicados and credit gifts.
+ * "Confirmados · <festival>" lists are not rows: they are computed from the
+ * festival's accepted reservations each time they are used. Lists are
+ * archived, never deleted, and archiving frees the name.
+ */
+export const distributionLists = pgTable(
+  "distribution_lists",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    /** For admins only. */
+    description: text("description"),
+    /** Never changes after creation. */
+    kind: distributionListKindEnum("kind").notNull(),
+    /** A filter list's criteria (`DistributionListFilterV1`); null when fixed. */
+    filter: jsonb("filter").$type<Record<string, unknown>>(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    archivedAt: timestamp("archived_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("distribution_lists_name_unique")
+      .on(sql`lower(btrim(${t.name}))`)
+      .where(sql`${t.archivedAt} IS NULL`),
+    check(
+      "distribution_lists_filter_per_kind",
+      sql`(${t.kind} = 'filter') = (${t.filter} IS NOT NULL)`,
+    ),
+    check(
+      "distribution_lists_name_length",
+      sql`char_length(btrim(${t.name})) BETWEEN 1 AND 60`,
+    ),
+    check(
+      "distribution_lists_description_length",
+      sql`${t.description} IS NULL OR char_length(${t.description}) <= 200`,
+    ),
+  ],
+);
+
+/** The people of a fixed list. A filter list never has members. */
+export const distributionListMembers = pgTable(
+  "distribution_list_members",
+  {
+    listId: integer("list_id")
+      .notNull()
+      .references(() => distributionLists.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    addedByUserId: integer("added_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.listId, t.userId] }),
+    // Deleting a user cascades here; without it that scans the table.
+    index("distribution_list_members_user_idx").on(t.userId),
+  ],
 );

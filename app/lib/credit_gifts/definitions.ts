@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { roundCredits } from "@/app/lib/credits/balances";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
+import {
+  PARTICIPANT_SKIP_REASONS,
+  participantSkipReason,
+} from "@/app/lib/participants/recipient-eligibility";
 import type { creditGiftOccasionEnum } from "@/db/schema";
 
 /**
@@ -177,29 +181,19 @@ export type CreateCreditGiftInput = z.infer<typeof CreateCreditGiftSchema>;
 
 /** Why someone the admin picked will not receive the gift. */
 export const CREDIT_GIFT_SKIP_REASONS = {
-  not_participant: "No es participante",
-  not_verified: "Perfil no verificado",
-  banned: "Cuenta suspendida",
-  deletion_pending: "Cuenta en eliminación",
+  ...PARTICIPANT_SKIP_REASONS,
   cancelled: "Regalo retirado antes de acreditarse",
 } as const;
 export type CreditGiftSkipReason = keyof typeof CREDIT_GIFT_SKIP_REASONS;
 
 /**
- * Who can open a wallet, and so can hold a gift: the statuses `/my_credits`
- * lets in. Deletion is checked separately, under the account lock.
+ * Who can open a wallet, and so can hold a gift: the participant rule every
+ * admin send shares. Deletion is checked separately, under the account lock.
  */
-export function creditGiftSkipReason(recipient: {
+export const creditGiftSkipReason: (recipient: {
   role: string;
   status: string;
-}): CreditGiftSkipReason | null {
-  if (recipient.role !== "user") return "not_participant";
-  if (recipient.status === "banned") return "banned";
-  if (recipient.status !== "verified" && recipient.status !== "paused") {
-    return "not_verified";
-  }
-  return null;
-}
+}) => CreditGiftSkipReason | null = participantSkipReason;
 
 /** A participant as the composer lists them. */
 export type CreditGiftRecipientOption = {

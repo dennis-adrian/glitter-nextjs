@@ -2108,6 +2108,13 @@
       "when": 1792900415612,
       "tag": "0301_bulk_lane",
       "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1792936152163,
+      "tag": "0302_distribution_lists",
+      "breakpoints": true
     }
   ]
 }
