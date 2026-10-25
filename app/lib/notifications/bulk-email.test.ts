@@ -243,17 +243,24 @@ describe("requestSettlement", () => {
     });
   });
 
-  it("still sends every row that is not an error when ids cannot be matched", () => {
+  it("records no row sent or refused when ids and errors do not add up: each may have arrived", () => {
+    // One id and one error for three emails: which went, and which was
+    // refused, cannot be told.
     const answer = bulkBatchOutcome(accepted(["re_1"], [{ index: 2 }]), 3);
-    expect(requestSettlement(answer, row(), 4, 0)).toMatchObject({
-      status: "sent",
-      providerMessageId: null,
-      contentRevision: 4,
-    });
-    expect(requestSettlement(answer, row(), 4, 2)).toMatchObject({
-      status: "failed",
-      lastError: "resend:item_rejected",
-    });
+    for (const index of [0, 1, 2]) {
+      expect(requestSettlement(answer, row(), 4, index)).toEqual({
+        id: 7,
+        status: "failed",
+        lastError: "outcome_unknown",
+        attempts: 0,
+        providerMessageId: null,
+        contentRevision: null,
+        delaySeconds: null,
+        maybeSent: "mark",
+        batchKey: "keep",
+        sentAt: false,
+      });
+    }
   });
 
   it("records a simulated send as sent, with its revision and no id", () => {

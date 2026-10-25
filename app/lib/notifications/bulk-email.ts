@@ -439,6 +439,17 @@ export function requestSettlement(
 ): RowSettlement {
   switch (outcome.kind) {
     case "accepted":
+      // An answer whose ids and errors do not line up with the payload says
+      // neither which rows went nor which were refused: every row may have
+      // arrived, none is proven sent. It keeps its key and is never retried
+      // by hand, as an unknown outcome that ran out of attempts.
+      if (outcome.mismatch && !outcome.simulated) {
+        return unchanged(row, {
+          status: "failed",
+          lastError: "outcome_unknown",
+          maybeSent: "mark",
+        });
+      }
       // A 200 under this key that refuses an item proves that item was not
       // delivered, whatever an earlier attempt did.
       if (outcome.rejected[index]) {
@@ -451,10 +462,9 @@ export function requestSettlement(
       return unchanged(row, {
         status: "sent",
         lastError: outcome.simulated ? "simulated" : null,
-        providerMessageId:
-          outcome.simulated || outcome.mismatch
-            ? null
-            : (outcome.providerIds[index] ?? null),
+        providerMessageId: outcome.simulated
+          ? null
+          : (outcome.providerIds[index] ?? null),
         contentRevision: revision,
         sentAt: true,
       });

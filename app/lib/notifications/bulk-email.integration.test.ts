@@ -1046,7 +1046,7 @@ describeDatabase("the bulk email lane", () => {
       });
     });
 
-    it("sends every row that is not an error with no id when the answer does not add up", async () => {
+    it("records every row as one that may have arrived, never sent, when the answer does not add up", async () => {
       const campaign = await createCampaign();
       const queued = await queueEmails(campaign, 3);
       answerWith(() => ({
@@ -1055,13 +1055,19 @@ describeDatabase("the bulk email lane", () => {
         headers: {},
       }));
 
-      expect(await runLane()).toMatchObject({ sent: 3 });
+      expect(await runLane()).toMatchObject({ sent: 0, failed: 3 });
       for (const row of await rowsOf(queued)) {
         expect(row).toMatchObject({
-          status: "sent",
+          status: "failed",
+          lastError: "outcome_unknown",
           providerMessageId: null,
-          contentRevision: 1,
+          contentRevision: null,
+          sentAt: null,
+          attempts: 0,
         });
+        // Kept under its key, and out of reach of "Reintentar fallidos".
+        expect(row.maybeSentAt).not.toBeNull();
+        expect(row.batchKey).toMatch(keyPattern(campaign));
       }
       expect(takeErrors()).toEqual([
         expect.stringContaining("[comunicados] batch id mismatch"),
