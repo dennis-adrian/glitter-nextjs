@@ -105,6 +105,7 @@ export default function ComunicadoComposer({
     fields: draftFieldsOf(fields),
     save: saveComunicadoDraftAction,
     // Back and Forward would bring this draft and the list as they opened.
+    // Not after a discard: the autosave skips it then.
     onLeave: () => router.refresh(),
   });
   const { controller } = autosave;
@@ -245,6 +246,8 @@ export default function ComunicadoComposer({
     try {
       const result = await discardComunicadoDraftAction(draft.id);
       if (result.success) {
+        // Gone: nothing to save on leaving, and the list is fresh already.
+        controller.markDiscarded();
         toast.success(result.message);
         router.replace("/dashboard/communications");
         return true;

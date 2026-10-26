@@ -1450,10 +1450,10 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 
 **Autosave:** a 1.5 s debounce, with the `version` compare-and-set (E1) and the blog's guard pattern (`app/components/blog/post-form-inner.tsx:216-335`). Draft CHECKs never refuse a partial field (A4).
 
-- One save at a time. Each carries a `saveKey`, reused on the retries of that same payload, so a save that committed but lost its answer is recognised (A4 `autosave_key`) instead of reading as STALE. A later STALE first resends the unanswered saves, oldest first, before blocking.
+- One save at a time, always of what is on screen. Each carries a `saveKey`. When a request's outcome is unknown (it failed or lost its answer), the next request reuses its key, so the server recognises a save that did commit (A4 `autosave_key`) and answers `replayed`. The client then sends what is on screen again with a new key, and counts nothing as saved until a request's own fields are stored. A STALE is always a real conflict.
 - A text far over the size limit is left out of the payload, so the other fields still save, and "El comunicado es demasiado largo. Acortá el texto." shows under Texto.
-- After a release replaces the actions the page calls, autosave stops with "Se publicó una nueva versión de Glitter. Recargá la página para seguir editando."
-- Leaving the composer after a stored save refreshes the router, so Back reopens the draft as stored and the list shows current titles.
+- After a release replaces the actions the page calls, autosave stops with "Se publicó una nueva versión de Glitter. Tus últimos cambios no se guardaron: copialos y recargá la página.", and leaving still warns.
+- Leaving the composer flushes once (no retries after) and, when any save may have been stored, refreshes the router, so Back reopens the draft as stored and the list shows current titles. A discard skips it.
 - The live audience count and the preview retry a failure on their own and show "Reintentar".
 
 **Banners:**

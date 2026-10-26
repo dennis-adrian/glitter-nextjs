@@ -34,6 +34,11 @@ export type SaveComunicadoDraftResult =
       savedAt: Date;
       /** The text was refused and the stored one kept; the rest saved. */
       contentError: string | null;
+      /**
+       * An earlier request with this `saveKey` was stored, and this one wrote
+       * nothing: the stored fields are that request's, not these.
+       */
+      replayed: boolean;
     }
   | DraftRefusal;
 
@@ -84,9 +89,11 @@ function withoutNul<T extends string | null>(value: T): T {
  * or one left out of the request, keeps the stored one while every other
  * field saves, so a bad paste never loses the title or the audience.
  *
- * The save also stores its `saveKey`. A retry of a save that committed but
- * whose answer was lost finds its own key and the version it wrote, and gets
- * that answer again instead of reading as another tab's change.
+ * The save also stores its `saveKey`. A request whose version is one behind
+ * and whose key is the stored one follows a save with that key that committed
+ * but whose answer was lost: it is answered `replayed`, with the version that
+ * save wrote, instead of reading as another tab's change. It writes nothing,
+ * so the stored fields are the earlier request's, whatever this one carries.
  */
 export async function saveComunicadoDraft(
   draft: ComunicadoDraft,
@@ -133,6 +140,7 @@ export async function saveComunicadoDraft(
       version: row.version,
       savedAt: row.savedAt,
       contentError,
+      replayed: false,
     };
   }
 
@@ -146,8 +154,9 @@ export async function saveComunicadoDraft(
     .from(comunicados)
     .where(eq(comunicados.id, draft.comunicadoId))
     .limit(1);
-  // The same request, so the same text and the same verdict on it. Any later
-  // write bumped the version, and another tab's save also replaced the key.
+  // An earlier request with this key wrote the version after the expected
+  // one. Any later write bumped the version, and another tab's save also
+  // replaced the key.
   if (
     stored?.status === "draft" &&
     stored.autosaveKey === draft.saveKey &&
@@ -158,6 +167,7 @@ export async function saveComunicadoDraft(
       version: stored.version,
       savedAt: stored.savedAt,
       contentError,
+      replayed: true,
     };
   }
   return refusalFor(stored);

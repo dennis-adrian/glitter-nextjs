@@ -15,9 +15,14 @@ import {
 
 /**
  * The composer's autosave (docs/IMPLEMENTATION-comunicados.md G4, E1): a
- * debounce after the last change, one save in flight at a time with the
- * latest fields queued behind it, and the `version` compare-and-set: each
- * save sends the version it last saw and adopts the one the server returns.
+ * debounce after the last change, then one request at a time, always with
+ * the fields on screen and the `version` the server last confirmed, which it
+ * compares and sets.
+ *
+ * A request whose outcome is unknown (it threw, or the server failed) may be
+ * stored all the same. Every request after it carries its key until one is
+ * answered, so the server can tell: "replayed" means a request with that key
+ * was stored and this one was not, so what is on screen goes again.
  *
  * A refusal that waiting cannot fix (another tab saved, the comunicado left
  * the draft state or is gone, a new release replaced the actions) stops it
@@ -34,7 +39,7 @@ export type SaveDraft = (
 ) => Promise<SaveComunicadoDraftActionResult>;
 
 type BlockingCode =
-  | Exclude<SaveComunicadoDraftFailureCode, "FAILED">
+  | Exclude<SaveComunicadoDraftFailureCode, "FAILED" | "INVALID">
   /** A new release: the actions this page calls are gone from the server. */
   | "OUTDATED";
 
@@ -66,7 +71,7 @@ const FAILED_MESSAGE =
   "No se pudo guardar el borrador. Probá de nuevo en unos segundos.";
 
 export const OUTDATED_MESSAGE =
-  "Se publicó una nueva versión de Glitter. Recargá la página para seguir editando.";
+  "Se publicó una nueva versión de Glitter. Tus últimos cambios no se guardaron: copialos y recargá la página.";
 
 /** What the server says of a text over `COMUNICADO_DOC_MAX_BYTES`. */
 export const DOC_TOO_LONG_MESSAGE =
@@ -86,6 +91,28 @@ export function retryDelayMs(attempt: number) {
   return Math.min(30_000, 1_000 * 2 ** Math.max(1, attempt));
 }
 
+/**
+ * A new `saveKey`. `crypto.randomUUID` exists only in secure contexts, so a
+ * page opened over plain http (a phone testing on the LAN) builds the same
+ * version 4 UUID from `getRandomValues`.
+ */
+export function newSaveKey(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join("-");
+}
+
 type ControllerOptions = {
   comunicadoId: number;
   version: number;
@@ -95,56 +122,62 @@ type ControllerOptions = {
   debounceMs: number;
 };
 
-/** One save: the fields it sent, serialized, and its key. */
-type Attempt = { sent: string; key: string };
+/** One request: the fields it carried, serialized, and its key. */
+type Sent = { fields: string; key: string; docLeftOut: boolean };
 
-/**
- * Unanswered saves kept to ask about. The first is the likely one: an answer
- * is lost as the connection drops, and what follows fails before reaching
- * the server. Bounded, so a long time offline costs few requests.
- */
-const MAX_UNANSWERED = 5;
-
-type AttemptResult =
+type Answer =
   | SaveComunicadoDraftActionResult
   | { success: false; code: "OUTDATED"; message: string };
+
+function answerToThrown(error: unknown): Answer {
+  // A release replaced the actions: no retry reaches them again.
+  if (unstable_isUnrecognizedActionError(error)) {
+    return { success: false, code: "OUTDATED", message: OUTDATED_MESSAGE };
+  }
+  console.error("Error autosaving a comunicado draft", error);
+  return { success: false, code: "FAILED", message: FAILED_MESSAGE };
+}
 
 /**
  * The autosave's state machine, outside React so its timers and the one
  * request in flight survive re-renders.
  */
 export class DraftAutosave {
+  /** The fields on screen, serialized. */
   private latest: string;
-  private saved: string;
+  /** The fields stored at `version`, serialized; null when not known. */
+  private saved: string | null;
+  /** The last version the server confirmed. */
   private version: number;
   private inFlight: Promise<void> | null = null;
+  /** A request that may be stored: its key goes with every request after. */
+  private uncertain: { key: string } | null = null;
+  private blocked: Blocking | null = null;
+  /** The server refused the fields on screen. */
+  private invalid: string | null = null;
+  private contentError: string | null = null;
+  /** The last answer was a failure, and a retry is owed. */
+  private failed = false;
+  /** Failures in a row, for the retry's pause. */
+  private attempt = 0;
+  /** Every failure so far, so a flush notices one. */
+  private failures = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
-  private attempt = 0;
-  private failed = false;
-  private invalid: string | null = null;
-  private blocked: Blocking | null = null;
-  private contentError: string | null = null;
   private paused = 0;
-  private listener: ((snapshot: AutosaveSnapshot) => void) | null = null;
-  /**
-   * Saves sent at this version whose answer never came. One of them may be
-   * stored all the same; sent again with its key, the server says so.
-   */
-  private unanswered: Attempt[] = [];
-  /** One of them, asked about after another save read as stale. */
-  private asking: { attempt: Attempt; stale: Blocking } | null = null;
   private storedOnce = false;
+  /** Unmounted: the flush that follows retries nothing. */
+  private leaving = false;
+  private disposed = false;
+  private discarded = false;
+  /** One per mount, so a remount stops the previous unmount's disposal. */
+  private session = 0;
+  private listener: ((snapshot: AutosaveSnapshot) => void) | null = null;
 
   constructor(private readonly options: ControllerOptions) {
     this.latest = options.baseline;
     this.saved = options.baseline;
     this.version = options.version;
-  }
-
-  /** At least one save was stored since the composer opened. */
-  get hasSaved() {
-    return this.storedOnce;
   }
 
   listen(listener: (snapshot: AutosaveSnapshot) => void) {
@@ -159,20 +192,43 @@ export class DraftAutosave {
     return {
       status: this.status(),
       contentError: this.contentError,
-      unsaved:
-        this.blocked === null &&
-        (this.latest !== this.saved ||
-          this.inFlight !== null ||
-          this.contentError !== null),
+      unsaved: this.unsaved(),
     };
+  }
+
+  /** What is on screen is stored, as far as the server has said. */
+  private settled() {
+    return (
+      this.uncertain === null &&
+      this.saved !== null &&
+      this.latest === this.saved
+    );
+  }
+
+  private idle() {
+    return (
+      this.settled() &&
+      this.inFlight === null &&
+      this.timer === null &&
+      this.invalid === null &&
+      this.blocked === null
+    );
+  }
+
+  private unsaved() {
+    // Reloading is the way out of a refusal. A new release is no refusal of
+    // the fields: what the server never got stays there to be copied.
+    if (this.blocked)
+      return this.blocked.code === "OUTDATED" && !this.settled();
+    return !this.idle() || this.contentError !== null;
   }
 
   private status(): AutosaveStatus {
     if (this.blocked) return { kind: "blocked", ...this.blocked };
-    if (this.invalid) return { kind: "invalid", message: this.invalid };
+    if (this.invalid !== null)
+      return { kind: "invalid", message: this.invalid };
     if (this.failed) return { kind: "retrying" };
-    if (this.inFlight || this.latest !== this.saved) return { kind: "saving" };
-    return { kind: "saved" };
+    return this.idle() ? { kind: "saved" } : { kind: "saving" };
   }
 
   private emit() {
@@ -189,215 +245,213 @@ export class DraftAutosave {
     this.retryTimer = null;
   }
 
-  /** Back to what is stored, with nothing in flight: no retry is owed. */
-  private settleIdle() {
-    if (this.inFlight || this.asking || this.latest !== this.saved) return;
-    this.failed = false;
-    this.attempt = 0;
-    this.clearRetry();
+  /**
+   * Something is owed to the server: fields it may not have, or a request it
+   * may have stored, which only another request can settle.
+   */
+  private wantsSend() {
+    return (
+      !this.disposed &&
+      this.blocked === null &&
+      this.invalid === null &&
+      !this.settled()
+    );
   }
 
   /** The fields on screen changed: save them a moment after the last change. */
   update(serialized: string) {
-    if (serialized === this.latest) return;
+    if (serialized === this.latest || this.disposed) return;
     this.latest = serialized;
-    this.clearTimer();
-    if (this.blocked) return;
     // A change is a new attempt: what the server refused may be fixed now.
     this.invalid = null;
-    if (this.latest !== this.saved && this.paused === 0) {
-      this.timer = setTimeout(() => this.run(), this.options.debounceMs);
+    this.clearTimer();
+    if (this.paused === 0 && this.wantsSend()) {
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        this.pump();
+        this.emit();
+      }, this.options.debounceMs);
     }
-    this.settleIdle();
     this.emit();
   }
 
-  private run() {
+  /** Sends what is owed, unless a request is out or saving is paused. */
+  private pump() {
+    if (this.inFlight !== null || this.paused > 0 || !this.wantsSend()) return;
     this.clearTimer();
-    if (this.paused > 0 || this.blocked) return;
-    // The latest fields go when the save in flight is answered.
-    if (this.inFlight) return;
-    const asking = this.asking?.attempt ?? null;
-    if (!asking) {
-      if (this.invalid) return;
-      if (this.latest === this.saved) {
-        this.settleIdle();
-        this.emit();
-        return;
-      }
-    }
     this.clearRetry();
-    const sent = asking?.sent ?? this.latest;
-    // The same fields at the same version are the same save, retried.
-    const key =
-      asking?.key ??
-      this.unanswered.find((attempt) => attempt.sent === sent)?.key ??
-      crypto.randomUUID();
-    const { doc, ...fields } = JSON.parse(sent) as DraftFields;
+    const sent: Sent = {
+      fields: this.latest,
+      // The server stored that request or not: either way it tells by the key.
+      key: this.uncertain?.key ?? newSaveKey(),
+      docLeftOut: false,
+    };
+    const { doc, ...fields } = JSON.parse(sent.fields) as DraftFields;
     // Left out, the stored text stays and every other field still saves.
-    const docLeftOut = isDocFarTooLong(doc);
-    const request = this.options
-      .save({
+    sent.docLeftOut = isDocFarTooLong(doc);
+    let request: Promise<SaveComunicadoDraftActionResult>;
+    try {
+      request = this.options.save({
         ...fields,
-        ...(docLeftOut ? {} : { doc }),
-        saveKey: key,
+        ...(sent.docLeftOut ? {} : { doc }),
+        saveKey: sent.key,
         comunicadoId: this.options.comunicadoId,
         expectedVersion: this.version,
-      })
-      .catch((error: unknown): AttemptResult => {
-        // A release replaced the actions: no retry reaches them again.
-        if (unstable_isUnrecognizedActionError(error)) {
-          return {
-            success: false,
-            code: "OUTDATED",
-            message: OUTDATED_MESSAGE,
-          };
-        }
-        console.error("Error autosaving a comunicado draft", error);
-        return { success: false, code: "FAILED", message: FAILED_MESSAGE };
-      })
-      .then((result) => this.settle({ sent, key }, result, docLeftOut));
-    this.inFlight = request;
-    void request.finally(() => {
-      this.inFlight = null;
-      // Changes made meanwhile whose debounce already ran wait for nothing.
-      if (
-        this.asking ||
-        (this.latest !== this.saved &&
-          this.timer === null &&
-          this.retryTimer === null)
-      ) {
-        this.run();
-      }
-      this.settleIdle();
-      this.emit();
-    });
+      });
+    } catch (error) {
+      request = Promise.reject(error);
+    }
+    this.inFlight = request.then(
+      (result) => {
+        this.answer(sent, result);
+        this.emit();
+      },
+      (error: unknown) => {
+        this.answer(sent, answerToThrown(error));
+        this.emit();
+      },
+    );
     this.emit();
   }
 
-  private settle(attempt: Attempt, result: AttemptResult, docLeftOut: boolean) {
-    const asked = this.asking;
-    this.asking = null;
+  private answer(sent: Sent, result: Answer) {
+    this.inFlight = null;
     if (result.success) {
-      this.version = result.version;
-      this.saved = attempt.sent;
-      // The server never saw the text, so it is the one to say it.
-      this.contentError = docLeftOut
-        ? DOC_TOO_LONG_MESSAGE
-        : result.contentError;
       this.failed = false;
       this.attempt = 0;
-      // The version moved: no save sent at the old one can be stored now.
-      this.unanswered = [];
+      this.version = result.version;
+      this.uncertain = null;
       this.storedOnce = true;
-      return;
-    }
-    if (result.code === "FAILED") {
-      // Lost on the way back, it may be stored: its retry has its key.
-      if (
-        this.unanswered.length < MAX_UNANSWERED &&
-        !this.unanswered.some((sent) => sent.key === attempt.key)
-      ) {
-        this.unanswered.push(attempt);
+      if (result.replayed) {
+        // An earlier request with this key was stored, not this one: which
+        // fields it carried is not known here, so what is on screen goes now.
+        this.saved = null;
+        this.clearTimer();
+      } else {
+        this.saved = sent.fields;
+        // The server never saw the text, so it is the one to say it.
+        this.contentError = sent.docLeftOut
+          ? DOC_TOO_LONG_MESSAGE
+          : result.contentError;
       }
-      this.failed = true;
-      this.attempt += 1;
-      this.clearRetry();
-      this.retryTimer = setTimeout(() => {
-        this.retryTimer = null;
-        this.run();
-      }, retryDelayMs(this.attempt));
+    } else if (result.code === "FAILED") {
+      this.failure(sent);
       return;
-    }
-    // An answer: this save was not stored.
-    this.unanswered = this.unanswered.filter(
-      (sent) => sent.key !== attempt.key,
-    );
-    this.failed = false;
-    this.attempt = 0;
-    if (asked && (result.code === "STALE" || result.code === "INVALID")) {
-      // Not the save that moved the version either.
-      this.stale(asked.stale);
-      return;
-    }
-    switch (result.code) {
-      case "INVALID":
-        // About fields already replaced: the newer ones go next.
-        if (attempt.sent === this.latest) this.invalid = result.message;
-        return;
-      case "STALE":
-        this.stale({ code: result.code, message: result.message });
-        return;
-      default:
+    } else {
+      this.failed = false;
+      this.attempt = 0;
+      if (result.code !== "INVALID") {
         this.block({ code: result.code, message: result.message });
+      } else if (sent.fields === this.latest) {
+        // About fields already replaced, it says nothing of the newer ones.
+        this.invalid = result.message;
+      }
     }
+    // Changes made meanwhile, whose pause already ran, wait for nothing.
+    if (!this.wantsSend()) this.clearTimer();
+    else if (this.timer === null) this.pump();
   }
 
-  /**
-   * Another version is stored. It may be one of this tab's saves whose
-   * answer was lost: those are asked about first, one at a time, by key.
-   */
-  private stale(stale: Blocking) {
-    const next = this.unanswered[0];
-    if (next) {
-      this.asking = { attempt: next, stale };
-      return;
-    }
-    this.block(stale);
+  /** Lost on the way back, it may be stored: its key goes on. */
+  private failure(sent: Sent) {
+    this.uncertain ??= { key: sent.key };
+    this.failed = true;
+    this.attempt += 1;
+    this.failures += 1;
+    if (this.leaving || this.paused > 0) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.pump();
+      this.emit();
+    }, retryDelayMs(this.attempt));
   }
 
   private block(blocking: Blocking) {
-    this.failed = false;
     this.blocked = blocking;
+    this.clearTimer();
+    this.clearRetry();
+  }
+
+  private dispose() {
+    this.disposed = true;
     this.clearTimer();
     this.clearRetry();
   }
 
   /**
    * Saves what is on screen now, without waiting for the debounce: before a
-   * test send, on blur and when the tab is hidden. Resolves once it is stored
-   * or cannot be.
+   * test send, on blur and when the tab is hidden. Resolves once it is stored,
+   * or on the first refusal or failure; a failure leaves its retry scheduled.
    */
   async flush(): Promise<FlushResult> {
-    this.clearTimer();
-    // The one in flight, the unanswered saves a stale answer asks about,
-    // then the latest fields.
-    for (let round = 0; round < MAX_UNANSWERED + 3; round += 1) {
-      if (this.inFlight) await this.inFlight;
+    const failures = this.failures;
+    for (;;) {
+      if (this.inFlight !== null) {
+        await this.inFlight;
+        continue;
+      }
+      if (this.failures !== failures) {
+        return { ok: false, message: FAILED_MESSAGE };
+      }
       if (this.blocked) return { ok: false, message: this.blocked.message };
-      if (this.invalid) return { ok: false, message: this.invalid };
-      if (this.latest === this.saved && !this.asking) break;
-      if (this.paused > 0) return { ok: false, message: FAILED_MESSAGE };
-      this.clearRetry();
-      this.run();
-      if (this.inFlight) await this.inFlight;
-      if (this.failed) return { ok: false, message: FAILED_MESSAGE };
+      if (this.invalid !== null) return { ok: false, message: this.invalid };
+      if (this.settled()) {
+        return this.contentError === null
+          ? { ok: true }
+          : { ok: false, message: this.contentError };
+      }
+      this.pump();
+      // Paused, or stopped for good.
+      if (this.inFlight === null) return { ok: false, message: FAILED_MESSAGE };
     }
-    if (this.latest !== this.saved) {
-      return { ok: false, message: FAILED_MESSAGE };
-    }
-    if (this.contentError) return { ok: false, message: this.contentError };
-    return { ok: true };
   }
 
   /**
-   * Stops saving and waits for the save in flight, as discarding needs: no
-   * save may reach a draft being deleted. Resolves with a resume function.
+   * Stops saving and waits for the request in flight, as discarding needs:
+   * no save may reach a draft being deleted. Resolves with a resume function.
    */
   async pause(): Promise<() => void> {
     this.paused += 1;
     this.clearTimer();
     this.clearRetry();
-    if (this.inFlight) await this.inFlight;
+    while (this.inFlight !== null) await this.inFlight;
+    this.emit();
     let resumed = false;
     return () => {
       if (resumed) return;
       resumed = true;
       this.paused -= 1;
-      if (this.paused === 0 && (this.asking || this.latest !== this.saved)) {
-        this.run();
-      }
+      if (this.paused > 0) return;
+      this.pump();
+      this.emit();
     };
+  }
+
+  /** The draft is deleted: nothing saves again, and leaving refreshes nothing. */
+  markDiscarded() {
+    this.discarded = true;
+    this.dispose();
+  }
+
+  /** The component mounted (again, under Strict Mode's check). */
+  attach() {
+    this.session += 1;
+    this.leaving = false;
+  }
+
+  /**
+   * The component unmounted: saves what is on screen once, retries nothing
+   * after it, and stops. Resolves whether a request of this mount may have
+   * stored something, so what the router keeps can be refreshed.
+   */
+  async leave(): Promise<boolean> {
+    const session = this.session;
+    this.leaving = true;
+    await this.flush();
+    // Mounted again meanwhile: it goes on saving.
+    if (session !== this.session) return false;
+    this.dispose();
+    return !this.discarded && (this.storedOnce || this.uncertain !== null);
   }
 }
 
@@ -405,10 +459,11 @@ export class DraftAutosave {
  * `DraftAutosave` for a component: hand it the fields on screen on every
  * render; it saves them when they change.
  *
- * `onLeave` runs when the component unmounts after a save was stored, once
- * what was on screen is saved too. The router keeps the pages it rendered
- * for Back and Forward: the composer with the fields and the version it
- * opened with, the list with the titles it had. Refreshing there drops them.
+ * `onLeave` runs when the component unmounts after a request may have stored
+ * something, once what was on screen is saved too, unless the draft was
+ * discarded. The router keeps the pages it rendered for Back and Forward: the
+ * composer with the fields and the version it opened with, the list with the
+ * titles it had. Refreshing there drops them.
  */
 export function useDraftAutosave({
   comunicadoId,
@@ -452,14 +507,14 @@ export function useDraftAutosave({
     controller.update(serialized);
   }, [controller, serialized]);
 
-  useEffect(
-    () => () => {
-      void controller.flush().then(() => {
-        if (controller.hasSaved) leaveRef.current?.();
+  useEffect(() => {
+    controller.attach();
+    return () => {
+      void controller.leave().then((mayHaveStored) => {
+        if (mayHaveStored) leaveRef.current?.();
       });
-    },
-    [controller],
-  );
+    };
+  }, [controller]);
 
   return { ...snapshot, controller };
 }

@@ -442,7 +442,11 @@ describeDatabase("comunicado drafts", () => {
           essentialReason: null,
         }),
       );
-      expect(first).toMatchObject({ version: 2, contentError: null });
+      expect(first).toMatchObject({
+        version: 2,
+        contentError: null,
+        replayed: false,
+      });
 
       const row = await rowOf(id);
       expect(row).toMatchObject({
@@ -599,7 +603,8 @@ describeDatabase("comunicado drafts", () => {
       // Its answer never reached the composer, which sends it again.
       const lost = draftInput(id, 1, { title: "Pestaña A" });
       const first = await saved(lost);
-      expect(await save(lost)).toEqual(first);
+      expect(first.replayed).toBe(false);
+      expect(await save(lost)).toEqual({ ...first, replayed: true });
       expect(await rowOf(id)).toMatchObject({ version: 2, title: "Pestaña A" });
 
       // A refused text is refused again: the retry never reports it stored.
@@ -608,10 +613,66 @@ describeDatabase("comunicado drafts", () => {
       });
       const second = await saved(refused);
       expect(second.contentError).toEqual(expect.any(String));
-      expect(await save(refused)).toEqual(second);
+      expect(await save(refused)).toEqual({ ...second, replayed: true });
       expect(await rowOf(id)).toMatchObject({
         version: 3,
         doc: [storedParagraph("El armado empieza a las 8:00.")],
+      });
+    });
+
+    it("answers a request with a stored save's key as replayed, writing none of its fields", async () => {
+      const id = await insertDraft(await createUser({ role: "admin" }), {
+        doc: [storedParagraph("Antes")],
+      });
+      await signInAs("admin");
+
+      // Stored, but its answer was lost; the composer's next request carries
+      // what is on screen by then, with the same key at the same version.
+      const lost = draftInput(id, 1, {
+        title: "Lo que se guardó",
+        doc: [paragraph("Guardado")],
+        sendPush: true,
+      });
+      const first = await saved(lost);
+      expect(first).toMatchObject({ version: 2, replayed: false });
+      const before = await rowOf(id);
+
+      const replay = await saved({
+        ...lost,
+        title: "Lo que hay en pantalla",
+        doc: [paragraph("En pantalla")],
+        sendPush: false,
+      });
+      expect(replay).toEqual({
+        success: true,
+        version: 2,
+        savedAt: first.savedAt,
+        contentError: null,
+        replayed: true,
+      });
+      // The stored fields are the earlier request's, untouched.
+      expect(await rowOf(id)).toEqual(before);
+      expect(before).toMatchObject({
+        version: 2,
+        autosaveKey: lost.saveKey,
+        title: "Lo que se guardó",
+        doc: [storedParagraph("Guardado")],
+        sendPush: true,
+      });
+
+      // The fields on screen go next with a new key, and are written.
+      const next = await saved(
+        draftInput(id, 2, {
+          title: "Lo que hay en pantalla",
+          doc: [paragraph("En pantalla")],
+        }),
+      );
+      expect(next).toMatchObject({ version: 3, replayed: false });
+      expect(await rowOf(id)).toMatchObject({
+        version: 3,
+        title: "Lo que hay en pantalla",
+        doc: [storedParagraph("En pantalla")],
+        sendPush: false,
       });
     });
 

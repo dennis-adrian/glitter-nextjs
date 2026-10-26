@@ -2,10 +2,15 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { UnrecognizedActionError } from "next/dist/client/components/unrecognized-action-error";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  type DraftAutosave,
   type DraftFields,
+  type FlushResult,
+  newSaveKey,
+  OUTDATED_MESSAGE,
   retryDelayMs,
   type SaveDraft,
   useDraftAutosave,
@@ -14,9 +19,32 @@ import type { SaveComunicadoDraftActionResult } from "@/app/lib/comunicados/acti
 import {
   COMUNICADO_DOC_MAX_BYTES,
   type ComunicadoDraftInput,
+  ComunicadoDraftSchema,
 } from "@/app/lib/comunicados/definitions";
 
 const DEBOUNCE = 1_500;
+const COMUNICADO_ID = 7;
+/** The version the composer opens with. */
+const OPENED = 3;
+const UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const REFUSALS = {
+  NOT_FOUND: "Este borrador ya no existe.",
+  NOT_DRAFT: "Este comunicado ya no es un borrador.",
+  STALE:
+    "Este borrador cambió en otra pestaña. Recargá para ver la última versión.",
+} as const;
+const REFUSED_TEXT = "Este bloque no se puede usar en un comunicado: tabla.";
+const FAILED: SaveComunicadoDraftActionResult = {
+  success: false,
+  code: "FAILED",
+  message: "No se pudo guardar el borrador.",
+};
+const FLUSH_FAILED: FlushResult = {
+  ok: false,
+  message: "No se pudo guardar el borrador. Probá de nuevo en unos segundos.",
+};
 
 function fields(overrides: Partial<DraftFields> = {}): DraftFields {
   return {
@@ -33,52 +61,174 @@ function fields(overrides: Partial<DraftFields> = {}): DraftFields {
   };
 }
 
-/** A save the test answers by hand, one request at a time. */
-function manualSave() {
-  const calls: {
-    input: ComunicadoDraftInput;
-    resolve: (result: SaveComunicadoDraftActionResult) => void;
-  }[] = [];
-  const save = vi.fn<SaveDraft>(
-    (input) =>
-      new Promise((resolve) => {
-        calls.push({ input, resolve });
-      }),
-  );
-  return { save, calls };
-}
-
-function saved(version: number, contentError: string | null = null) {
+function paragraph(text: string) {
   return {
-    success: true as const,
-    version,
-    savedAt: new Date().toISOString(),
-    contentError,
+    type: "paragraph",
+    content: [{ type: "text", text }],
   };
 }
 
-const FAILED = {
-  success: false as const,
-  code: "FAILED" as const,
-  message: "No se pudo guardar el borrador.",
+async function settle() {
+  for (let index = 0; index < 20; index += 1) await Promise.resolve();
+}
+
+type Request = {
+  input: ComunicadoDraftInput;
+  /** What the server did with it, when it reached the server. */
+  result: SaveComunicadoDraftActionResult | null;
+  settled: boolean;
+  /** It reaches the server, and the answer comes back. */
+  answer(): Promise<void>;
+  /** It reaches the server, and the answer is lost on the way back. */
+  lose(): Promise<void>;
+  /** The server fails before the database: nothing is stored. */
+  fail(): Promise<void>;
+  /** The connection drops, before the server or after it stored. */
+  drop(options?: { stored: boolean }): Promise<void>;
 };
 
-const STALE_MESSAGE =
-  "Este borrador cambió en otra pestaña. Recargá para ver la última versión.";
-const STALE = {
-  success: false as const,
-  code: "STALE" as const,
-  message: STALE_MESSAGE,
-};
+/**
+ * The server as `saveComunicadoDraft` has it, behind the action's parse: a
+ * compare-and-set on `version` that stores the key, and the replay of a
+ * request whose key is stored at the version after the one it expected. A
+ * table in the text is refused, and the stored text kept. Each request waits
+ * for the test to say how it goes.
+ */
+function fakeServer(stored: DraftFields) {
+  const row = {
+    status: "draft" as "draft" | "sent" | "gone",
+    version: OPENED,
+    autosaveKey: null as string | null,
+    fields: stored,
+  };
+  const requests: Request[] = [];
 
-function setup(save: SaveDraft, initial = fields(), onLeave?: () => void) {
+  function apply(input: ComunicadoDraftInput): SaveComunicadoDraftActionResult {
+    const parsed = ComunicadoDraftSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        code: "INVALID",
+        message: parsed.error.issues[0]?.message ?? "Revisá los datos.",
+      };
+    }
+    const { comunicadoId, expectedVersion, saveKey, doc, ...rest } =
+      parsed.data;
+    expect(comunicadoId).toBe(COMUNICADO_ID);
+    const refused =
+      doc?.some((block) => (block as { type?: string }).type === "table") ??
+      false;
+    const ok = (replayed: boolean): SaveComunicadoDraftActionResult => ({
+      success: true,
+      version: row.version,
+      savedAt: "2026-10-26T12:00:00.000Z",
+      contentError: refused ? REFUSED_TEXT : null,
+      replayed,
+    });
+    if (row.status === "draft" && row.version === expectedVersion) {
+      row.fields = {
+        ...row.fields,
+        ...rest,
+        ...(doc !== undefined && !refused ? { doc } : {}),
+      };
+      row.autosaveKey = saveKey;
+      row.version += 1;
+      return ok(false);
+    }
+    if (
+      row.status === "draft" &&
+      row.autosaveKey === saveKey &&
+      row.version === expectedVersion + 1
+    ) {
+      return ok(true);
+    }
+    const code =
+      row.status === "gone"
+        ? "NOT_FOUND"
+        : row.status === "draft"
+          ? "STALE"
+          : "NOT_DRAFT";
+    return { success: false, code, message: REFUSALS[code] };
+  }
+
+  const save = vi.fn<SaveDraft>(
+    (input) =>
+      new Promise((resolve, reject) => {
+        const respond = async (go: () => void) => {
+          expect(request.settled).toBe(false);
+          request.settled = true;
+          await act(async () => {
+            go();
+            await settle();
+          });
+        };
+        const request: Request = {
+          input,
+          result: null,
+          settled: false,
+          answer: () =>
+            respond(() => {
+              request.result = apply(input);
+              resolve(request.result);
+            }),
+          lose: () =>
+            respond(() => {
+              request.result = apply(input);
+              resolve(FAILED);
+            }),
+          fail: () => respond(() => resolve(FAILED)),
+          drop: ({ stored } = { stored: false }) =>
+            respond(() => {
+              if (stored) request.result = apply(input);
+              reject(new TypeError("Failed to fetch"));
+            }),
+        };
+        requests.push(request);
+      }),
+  );
+
+  return {
+    row,
+    requests,
+    save,
+    /** Another tab saves: a new version, under its own key. */
+    otherTab(patch: Partial<DraftFields>) {
+      row.fields = { ...row.fields, ...patch };
+      row.version += 1;
+      row.autosaveKey = "00000000-0000-4000-8000-000000000000";
+    },
+    /** Answers every request, those its answers send included. */
+    async answerAll() {
+      for (let round = 0; round < 50; round += 1) {
+        const next = requests.find((request) => !request.settled);
+        if (!next) return;
+        await next.answer();
+      }
+      throw new Error("the autosave never stopped sending");
+    },
+  };
+}
+
+type Server = ReturnType<typeof fakeServer>;
+
+function setup({
+  server,
+  save = server?.save,
+  initial = server?.row.fields ?? fields(),
+  onLeave,
+}: {
+  server?: Server;
+  save?: SaveDraft;
+  initial?: DraftFields;
+  onLeave?: () => void;
+}) {
   return renderHook(
     ({ value }: { value: DraftFields }) =>
       useDraftAutosave({
-        comunicadoId: 7,
-        initialVersion: 3,
+        comunicadoId: COMUNICADO_ID,
+        initialVersion: OPENED,
         fields: value,
-        save,
+        save: save!,
         debounceMs: DEBOUNCE,
         onLeave,
       }),
@@ -92,14 +242,27 @@ async function advance(ms: number) {
   });
 }
 
-async function answer(
-  call: { resolve: (result: SaveComunicadoDraftActionResult) => void },
-  result: SaveComunicadoDraftActionResult,
-) {
-  await act(async () => {
-    call.resolve(result);
-    await Promise.resolve();
+/** A flush the test does not wait for, to watch it while requests go. */
+function startFlush(controller: DraftAutosave) {
+  const flush: { done: boolean; result: FlushResult | null } = {
+    done: false,
+    result: null,
+  };
+  act(() => {
+    void controller.flush().then((result) => {
+      flush.done = true;
+      flush.result = result;
+    });
   });
+  return flush;
+}
+
+async function flushNow(controller: DraftAutosave) {
+  let result: FlushResult | null = null;
+  await act(async () => {
+    result = await controller.flush();
+  });
+  return result;
 }
 
 describe("useDraftAutosave", () => {
@@ -111,12 +274,14 @@ describe("useDraftAutosave", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("saves nothing on open, and waits for the debounce after a change", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
     expect(result.current.status.kind).toBe("saved");
+    expect(result.current.unsaved).toBe(false);
 
     rerender({ value: fields({ title: "Ho" }) });
     rerender({ value: fields({ title: "Hola" }) });
@@ -124,215 +289,255 @@ describe("useDraftAutosave", () => {
     expect(result.current.unsaved).toBe(true);
 
     await advance(DEBOUNCE - 1);
-    expect(save).not.toHaveBeenCalled();
+    expect(server.save).not.toHaveBeenCalled();
     await advance(1);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(1);
     // Only the last fields go, with the version the composer opened with.
-    expect(calls[0]!.input).toMatchObject({
-      comunicadoId: 7,
-      expectedVersion: 3,
+    expect(server.requests[0]!.input).toMatchObject({
+      comunicadoId: COMUNICADO_ID,
+      expectedVersion: OPENED,
       title: "Hola",
     });
+    expect(server.requests[0]!.input.saveKey).toMatch(UUID_V4);
 
-    await answer(calls[0]!, saved(4));
+    await server.requests[0]!.answer();
     expect(result.current.status.kind).toBe("saved");
     expect(result.current.unsaved).toBe(false);
+    expect(server.row).toMatchObject({
+      version: OPENED + 1,
+      fields: fields({ title: "Hola" }),
+    });
   });
 
-  it("keeps one save in flight, queues the latest fields and sends the adopted version", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+  it("keeps one request in flight, then sends the latest fields at the version the server returned", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
 
     rerender({ value: fields({ title: "Uno" }) });
     await advance(DEBOUNCE);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(1);
 
-    // Two more changes while the first save is unanswered.
+    // Two more changes while the first request is unanswered.
     rerender({ value: fields({ title: "Dos" }) });
     await advance(DEBOUNCE);
     rerender({ value: fields({ title: "Tres" }) });
     await advance(DEBOUNCE);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    expect(result.current.status.kind).toBe("saving");
 
-    await answer(calls[0]!, saved(10));
-    // The queued fields go at once, carrying the version just returned.
-    expect(save).toHaveBeenCalledTimes(2);
-    expect(calls[1]!.input).toMatchObject({
-      expectedVersion: 10,
+    await server.requests[0]!.answer();
+    // The latest fields go at once, at the version just returned.
+    expect(server.save).toHaveBeenCalledTimes(2);
+    expect(server.requests[1]!.input).toMatchObject({
+      expectedVersion: 4,
       title: "Tres",
     });
+    expect(server.requests[1]!.input.saveKey).not.toBe(
+      server.requests[0]!.input.saveKey,
+    );
 
-    await answer(calls[1]!, saved(11));
+    await server.requests[1]!.answer();
     expect(result.current.status.kind).toBe("saved");
+    expect(server.row).toMatchObject({ version: 5, fields: { title: "Tres" } });
 
     rerender({ value: fields({ title: "Cuatro" }) });
     await advance(DEBOUNCE);
-    expect(calls[2]!.input.expectedVersion).toBe(11);
+    expect(server.requests[2]!.input.expectedVersion).toBe(5);
   });
 
   it("stops for good when another tab saved first", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+    const server = fakeServer(fields({ title: "Antes" }));
+    const { result, rerender } = setup({ server });
+    server.otherTab({ title: "Otra pestaña" });
 
     rerender({ value: fields({ title: "Mío" }) });
     await advance(DEBOUNCE);
-    await answer(calls[0]!, {
-      success: false,
-      code: "STALE",
-      message:
-        "Este borrador cambió en otra pestaña. Recargá para ver la última versión.",
-    });
+    await server.requests[0]!.answer();
 
     expect(result.current.status).toEqual({
       kind: "blocked",
       code: "STALE",
-      message:
-        "Este borrador cambió en otra pestaña. Recargá para ver la última versión.",
+      message: REFUSALS.STALE,
     });
     // Nothing to warn about on leaving: reloading is the way out.
     expect(result.current.unsaved).toBe(false);
 
     rerender({ value: fields({ title: "Mío otra vez" }) });
     await advance(DEBOUNCE * 10);
-    expect(save).toHaveBeenCalledTimes(1);
-
-    let flushed: Awaited<
-      ReturnType<typeof result.current.controller.flush>
-    > | null = null;
-    await act(async () => {
-      flushed = await result.current.controller.flush();
-    });
-    expect(flushed).toEqual({
+    expect(server.save).toHaveBeenCalledTimes(1);
+    expect(await flushNow(result.current.controller)).toEqual({
       ok: false,
-      message:
-        "Este borrador cambió en otra pestaña. Recargá para ver la última versión.",
+      message: REFUSALS.STALE,
     });
+    expect(server.row.fields.title).toBe("Otra pestaña");
   });
 
-  it.each(["NOT_DRAFT", "NOT_FOUND"] as const)(
-    "stops when the server answers %s",
-    async (code) => {
-      const { save, calls } = manualSave();
-      const { result, rerender } = setup(save);
-      rerender({ value: fields({ title: "x" }) });
-      await advance(DEBOUNCE);
-      await answer(calls[0]!, { success: false, code, message: "No." });
-      expect(result.current.status.kind).toBe("blocked");
-      rerender({ value: fields({ title: "y" }) });
-      await advance(DEBOUNCE * 2);
-      expect(save).toHaveBeenCalledTimes(1);
-    },
-  );
+  it.each([
+    ["NOT_DRAFT", "sent"],
+    ["NOT_FOUND", "gone"],
+  ] as const)("stops when the server answers %s", async (code, status) => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
+    server.row.status = status;
+
+    rerender({ value: fields({ title: "x" }) });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.answer();
+    expect(result.current.status).toEqual({
+      kind: "blocked",
+      code,
+      message: REFUSALS[code],
+    });
+    rerender({ value: fields({ title: "y" }) });
+    await advance(DEBOUNCE * 2);
+    expect(server.save).toHaveBeenCalledTimes(1);
+  });
 
   it("surfaces a refused text while the other fields count as saved", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+    const server = fakeServer(fields({ doc: [paragraph("Antes")] }));
+    const { result, rerender } = setup({ server });
 
     rerender({ value: fields({ title: "Título", doc: [{ type: "table" }] }) });
     await advance(DEBOUNCE);
-    await answer(
-      calls[0]!,
-      saved(4, "El texto tiene un bloque que no se puede enviar."),
-    );
+    await server.requests[0]!.answer();
 
     expect(result.current.status.kind).toBe("saved");
-    expect(result.current.contentError).toBe(
-      "El texto tiene un bloque que no se puede enviar.",
-    );
-    // The text itself is not stored: leaving still warns.
+    expect(result.current.contentError).toBe(REFUSED_TEXT);
+    expect(server.row.fields).toMatchObject({
+      title: "Título",
+      doc: [paragraph("Antes")],
+    });
+    // The text itself is not stored: leaving warns, and a test send waits.
     expect(result.current.unsaved).toBe(true);
+    expect(await flushNow(result.current.controller)).toEqual({
+      ok: false,
+      message: REFUSED_TEXT,
+    });
+    expect(server.save).toHaveBeenCalledTimes(1);
 
-    rerender({ value: fields({ title: "Título", doc: [] }) });
+    rerender({ value: fields({ title: "Título", doc: [paragraph("Bien")] }) });
     await advance(DEBOUNCE);
-    await answer(calls[1]!, saved(5));
+    await server.requests[1]!.answer();
+    expect(result.current.contentError).toBeNull();
+    expect(result.current.unsaved).toBe(false);
+    expect(server.row.fields.doc).toEqual([paragraph("Bien")]);
+  });
+
+  it("keeps a text far over the limit out of the request, and saves the rest", async () => {
+    const server = fakeServer(fields({ doc: [paragraph("Antes")] }));
+    const { result, rerender } = setup({ server });
+    const huge = [paragraph("a".repeat(COMUNICADO_DOC_MAX_BYTES * 2))];
+
+    rerender({ value: fields({ title: "Largo", doc: huge }) });
+    await advance(DEBOUNCE);
+    const input = server.requests[0]!.input;
+    expect(input).toMatchObject({ title: "Largo", expectedVersion: OPENED });
+    expect("doc" in input).toBe(false);
+    await server.requests[0]!.answer();
+
+    expect(server.row.fields).toMatchObject({
+      title: "Largo",
+      doc: [paragraph("Antes")],
+    });
+    expect(result.current.status.kind).toBe("saved");
+    expect(result.current.contentError).toBe(
+      "El comunicado es demasiado largo. Acortá el texto.",
+    );
+    // The stored text is the old one: leaving warns, a test send waits.
+    expect(result.current.unsaved).toBe(true);
+    expect(await flushNow(result.current.controller)).toEqual({
+      ok: false,
+      message: "El comunicado es demasiado largo. Acortá el texto.",
+    });
+
+    // Short enough again, it goes, and the server has the last word.
+    rerender({ value: fields({ title: "Largo", doc: [] }) });
+    await advance(DEBOUNCE);
+    expect(server.requests[1]!.input).toMatchObject({ doc: [] });
+    await server.requests[1]!.answer();
     expect(result.current.contentError).toBeNull();
     expect(result.current.unsaved).toBe(false);
   });
 
-  it("retries a failed save with a growing pause", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+  it("retries a failed request with a growing pause, with the same key and the fields on screen", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
 
     rerender({ value: fields({ title: "x" }) });
     await advance(DEBOUNCE);
-    await answer(calls[0]!, {
-      success: false,
-      code: "FAILED",
-      message: "No se pudo guardar el borrador.",
-    });
+    await server.requests[0]!.fail();
     expect(result.current.status.kind).toBe("retrying");
+    expect(result.current.unsaved).toBe(true);
 
     await advance(retryDelayMs(1) - 1);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(1);
     await advance(1);
-    expect(save).toHaveBeenCalledTimes(2);
-    expect(calls[1]!.input.expectedVersion).toBe(3);
-
-    await answer(calls[1]!, {
-      success: false,
-      code: "FAILED",
-      message: "No se pudo guardar el borrador.",
+    expect(server.save).toHaveBeenCalledTimes(2);
+    expect(server.requests[1]!.input).toMatchObject({
+      saveKey: server.requests[0]!.input.saveKey,
+      expectedVersion: OPENED,
+      title: "x",
     });
-    await advance(retryDelayMs(2) - 1);
-    expect(save).toHaveBeenCalledTimes(2);
-    await advance(1);
-    expect(save).toHaveBeenCalledTimes(3);
 
-    await answer(calls[2]!, saved(4));
+    await server.requests[1]!.fail();
+    await advance(retryDelayMs(2) - 1);
+    expect(server.save).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(server.save).toHaveBeenCalledTimes(3);
+
+    await server.requests[2]!.answer();
     expect(result.current.status.kind).toBe("saved");
+    expect(server.row).toMatchObject({ version: 4, fields: { title: "x" } });
   });
 
   it("treats a thrown request as a failure to retry", async () => {
-    const save = vi
-      .fn<SaveDraft>()
-      .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValueOnce(saved(4));
-    const { result, rerender } = setup(save);
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
     rerender({ value: fields({ title: "x" }) });
     await advance(DEBOUNCE);
+    await server.requests[0]!.drop();
     expect(result.current.status.kind).toBe("retrying");
+
     await advance(retryDelayMs(1));
-    expect(save).toHaveBeenCalledTimes(2);
+    expect(server.save).toHaveBeenCalledTimes(2);
+    await server.requests[1]!.answer();
     expect(result.current.status.kind).toBe("saved");
   });
 
   it("flushes without waiting for the debounce", async () => {
-    const save = vi.fn<SaveDraft>().mockResolvedValue(saved(4));
-    const { result, rerender } = setup(save);
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
     rerender({ value: fields({ title: "Ya" }) });
 
-    let flushed: unknown = null;
-    await act(async () => {
-      flushed = await result.current.controller.flush();
-    });
-    expect(flushed).toEqual({ ok: true });
-    expect(save).toHaveBeenCalledTimes(1);
-    expect(save.mock.calls[0]![0]).toMatchObject({ title: "Ya" });
+    const flush = startFlush(result.current.controller);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    expect(server.requests[0]!.input).toMatchObject({ title: "Ya" });
+    await server.requests[0]!.answer();
+    expect(flush.result).toEqual({ ok: true });
 
     // The debounce that was pending does not save the same fields again.
     await advance(DEBOUNCE * 2);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses a flush while the text is refused", async () => {
-    const save = vi
-      .fn<SaveDraft>()
-      .mockResolvedValue(saved(4, "El texto es demasiado largo."));
-    const { result, rerender } = setup(save);
-    rerender({ value: fields({ title: "x" }) });
-    let flushed: unknown = null;
-    await act(async () => {
-      flushed = await result.current.controller.flush();
-    });
-    expect(flushed).toEqual({
-      ok: false,
-      message: "El texto es demasiado largo.",
-    });
+  it("gives up a flush on the first failure, leaving the retry scheduled", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
+    rerender({ value: fields({ title: "Ya" }) });
+
+    const flush = startFlush(result.current.controller);
+    await server.requests[0]!.fail();
+    expect(flush.result).toEqual(FLUSH_FAILED);
+
+    await advance(retryDelayMs(1));
+    expect(server.save).toHaveBeenCalledTimes(2);
+    await server.requests[1]!.answer();
+    expect(result.current.status.kind).toBe("saved");
   });
 
-  it("pauses after the save in flight, so a discard races no save", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+  it("pauses after the request in flight, so a discard races no save", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
     rerender({ value: fields({ title: "Uno" }) });
     await advance(DEBOUNCE);
     rerender({ value: fields({ title: "Dos" }) });
@@ -346,337 +551,423 @@ describe("useDraftAutosave", () => {
       });
     });
     expect(paused).toBe(false);
-    await answer(calls[0]!, saved(4));
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await server.requests[0]!.answer();
     expect(paused).toBe(true);
 
     // "Dos" waits while paused…
     await advance(DEBOUNCE * 2);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(1);
 
     // …and goes once resumed (the discard failed).
     act(() => resume());
-    expect(save).toHaveBeenCalledTimes(2);
-    expect(calls[1]!.input).toMatchObject({
+    expect(server.save).toHaveBeenCalledTimes(2);
+    expect(server.requests[1]!.input).toMatchObject({
       expectedVersion: 4,
       title: "Dos",
     });
-  });
-
-  it("sends a key per save, and the same key when it retries the same save", async () => {
-    const { save, calls } = manualSave();
-    const { rerender } = setup(save);
-
-    rerender({ value: fields({ title: "Uno" }) });
-    await advance(DEBOUNCE);
-    const first = calls[0]!.input.saveKey;
-    expect(first).toMatch(/^[0-9a-f-]{36}$/);
-    await answer(calls[0]!, FAILED);
-    await advance(retryDelayMs(1));
-    // The answer was lost: the retry is the same request.
-    expect(calls[1]!.input).toMatchObject({
-      saveKey: first,
-      expectedVersion: 3,
-      title: "Uno",
-    });
-
-    await answer(calls[1]!, saved(4));
-    rerender({ value: fields({ title: "Dos" }) });
-    await advance(DEBOUNCE);
-    expect(calls[2]!.input.saveKey).not.toBe(first);
-  });
-
-  it("asks about a save whose answer was lost before taking a stale answer for another tab's", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
-
-    rerender({ value: fields({ title: "Uno" }) });
-    await advance(DEBOUNCE);
-    // Stored, but its answer never came back…
-    await answer(calls[0]!, FAILED);
-    // …and the admin kept typing before the retry.
-    rerender({ value: fields({ title: "Uno dos" }) });
-    await advance(DEBOUNCE);
-    expect(calls[1]!.input).toMatchObject({
-      title: "Uno dos",
-      expectedVersion: 3,
-    });
-    expect(calls[1]!.input.saveKey).not.toBe(calls[0]!.input.saveKey);
-
-    // Version 4 is that lost save: asked again by its key, the server says so.
-    await answer(calls[1]!, STALE);
-    expect(result.current.status.kind).toBe("saving");
-    expect(calls[2]!.input).toMatchObject({
-      saveKey: calls[0]!.input.saveKey,
-      expectedVersion: 3,
-      title: "Uno",
-    });
-    await answer(calls[2]!, saved(4));
-
-    // Then the latest fields go at the version it wrote.
-    expect(calls[3]!.input).toMatchObject({
-      expectedVersion: 4,
-      title: "Uno dos",
-    });
-    await answer(calls[3]!, saved(5));
-    expect(result.current.status.kind).toBe("saved");
-    expect(save).toHaveBeenCalledTimes(4);
-  });
-
-  it("stops when the save it asks about was not stored either", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
-
-    rerender({ value: fields({ title: "Uno" }) });
-    await advance(DEBOUNCE);
-    await answer(calls[0]!, FAILED);
-    rerender({ value: fields({ title: "Uno dos" }) });
-    await advance(DEBOUNCE);
-    await answer(calls[1]!, STALE);
-    await answer(calls[2]!, STALE);
-
-    expect(result.current.status).toEqual({
-      kind: "blocked",
-      code: "STALE",
-      message: STALE_MESSAGE,
-    });
-    await advance(retryDelayMs(5) * 2);
-    expect(save).toHaveBeenCalledTimes(3);
-  });
-
-  it("asks about each unanswered save, the oldest first, until one is the stored one", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
-
-    rerender({ value: fields({ title: "Uno" }) });
-    await advance(DEBOUNCE);
-    await answer(calls[0]!, FAILED);
-    rerender({ value: fields({ title: "Dos" }) });
-    await advance(DEBOUNCE);
-    await answer(calls[1]!, FAILED);
-    rerender({ value: fields({ title: "Tres" }) });
-
-    // A test send flushes: the stale answer is not the end of it.
-    let flushed: unknown = null;
-    let done = false;
-    act(() => {
-      void result.current.controller.flush().then((value) => {
-        flushed = value;
-        done = true;
-      });
-    });
-    expect(calls[2]!.input).toMatchObject({ title: "Tres" });
-    await answer(calls[2]!, STALE);
-    expect(calls[3]!.input).toMatchObject({
-      title: "Uno",
-      saveKey: calls[0]!.input.saveKey,
-    });
-    await answer(calls[3]!, STALE);
-    expect(calls[4]!.input).toMatchObject({
-      title: "Dos",
-      saveKey: calls[1]!.input.saveKey,
-      expectedVersion: 3,
-    });
-    await answer(calls[4]!, saved(4));
-    expect(calls[5]!.input).toMatchObject({
-      title: "Tres",
-      expectedVersion: 4,
-    });
-    expect(done).toBe(false);
-    await answer(calls[5]!, saved(5));
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(done).toBe(true);
-    expect(flushed).toEqual({ ok: true });
-    expect(result.current.status.kind).toBe("saved");
-  });
-
-  it("keeps a bounded number of unanswered saves to ask about", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
-
-    // Offline while typing: every pause sends, and every send fails.
-    for (let index = 0; index < 8; index += 1) {
-      rerender({ value: fields({ title: `Versión ${index}` }) });
-      await advance(DEBOUNCE);
-      await answer(calls[index]!, FAILED);
-    }
-    rerender({ value: fields({ title: "Al volver" }) });
-    await advance(DEBOUNCE);
-    await answer(calls[8]!, STALE);
-    // Another tab did save: five questions, the oldest first, then it stops.
-    for (let index = 9; index < 14; index += 1) {
-      expect(calls[index]!.input.title).toBe(`Versión ${index - 9}`);
-      await answer(calls[index]!, STALE);
-    }
-    expect(save).toHaveBeenCalledTimes(14);
-    expect(result.current.status.kind).toBe("blocked");
   });
 
   it("ignores a refusal of fields already replaced, and saves the newer ones", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
 
-    rerender({ value: fields({ title: "Uno" }) });
+    rerender({ value: fields({ title: "x".repeat(301) }) });
     await advance(DEBOUNCE);
     rerender({ value: fields({ title: "Uno dos" }) });
     await advance(DEBOUNCE);
-    await answer(calls[0]!, {
-      success: false,
-      code: "INVALID",
-      message: "El título es demasiado largo.",
-    });
+    await server.requests[0]!.answer();
+    expect(server.requests[0]!.result).toMatchObject({ code: "INVALID" });
 
     // Not about what is on screen: no error stays, and the newer fields go.
     expect(result.current.status.kind).toBe("saving");
-    expect(save).toHaveBeenCalledTimes(2);
-    expect(calls[1]!.input).toMatchObject({
+    expect(server.save).toHaveBeenCalledTimes(2);
+    expect(server.requests[1]!.input).toMatchObject({
       title: "Uno dos",
-      expectedVersion: 3,
+      expectedVersion: OPENED,
     });
-    await answer(calls[1]!, saved(4));
+    await server.requests[1]!.answer();
     expect(result.current.status.kind).toBe("saved");
   });
 
   it("keeps a refusal of what is still on screen until the next change", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save);
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
 
-    rerender({ value: fields({ title: "Uno" }) });
+    rerender({ value: fields({ title: "x".repeat(301) }) });
     await advance(DEBOUNCE);
-    await answer(calls[0]!, {
-      success: false,
-      code: "INVALID",
-      message: "El título es demasiado largo.",
-    });
+    await server.requests[0]!.answer();
+    const refusal = server.requests[0]!.result;
+    if (refusal?.success !== false) throw new Error("expected a refusal");
     expect(result.current.status).toEqual({
       kind: "invalid",
-      message: "El título es demasiado largo.",
+      message: refusal.message,
     });
+    expect(result.current.unsaved).toBe(true);
     await advance(DEBOUNCE * 4);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    expect(await flushNow(result.current.controller)).toEqual({
+      ok: false,
+      message: refusal.message,
+    });
+
+    rerender({ value: fields({ title: "Corto" }) });
+    await advance(DEBOUNCE);
+    await server.requests[1]!.answer();
+    expect(result.current.status.kind).toBe("saved");
   });
 
-  it("drops the retry when the fields go back to what is stored", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save, fields({ title: "Guardado" }));
+  it("settles a stored save whose answer was lost, after the admin undid it", async () => {
+    const opened = fields({ title: "Antes" });
+    const server = fakeServer(opened);
+    const { result, rerender } = setup({ server });
 
-    rerender({ value: fields({ title: "Otro" }) });
+    rerender({ value: fields({ title: "Después" }) });
     await advance(DEBOUNCE);
-    await answer(calls[0]!, FAILED);
-    expect(result.current.status.kind).toBe("retrying");
+    // Stored, but the answer never came back.
+    await server.requests[0]!.lose();
+    expect(server.row).toMatchObject({
+      version: 4,
+      fields: { title: "Después" },
+    });
 
-    rerender({ value: fields({ title: "Guardado" }) });
+    // Undone before the retry: the screen is what the composer last knew
+    // stored, but the server holds "Después".
+    rerender({ value: opened });
+    expect(result.current.status.kind).not.toBe("saved");
+    expect(result.current.unsaved).toBe(true);
+
+    const flush = startFlush(result.current.controller);
+    // The screen goes with the lost request's key, which the server knows.
+    expect(server.requests[1]!.input).toMatchObject({
+      title: "Antes",
+      expectedVersion: OPENED,
+      saveKey: server.requests[0]!.input.saveKey,
+    });
+    await server.requests[1]!.answer();
+    expect(server.requests[1]!.result).toMatchObject({
+      success: true,
+      version: 4,
+      replayed: true,
+    });
+    expect(flush.done).toBe(false);
+    expect(result.current.status.kind).toBe("saving");
+
+    // What that request carried is not known here: the screen goes again.
+    expect(server.requests[2]!.input).toMatchObject({
+      title: "Antes",
+      expectedVersion: 4,
+    });
+    expect(server.requests[2]!.input.saveKey).not.toBe(
+      server.requests[0]!.input.saveKey,
+    );
+    await server.requests[2]!.answer();
+
+    expect(server.row).toMatchObject({ version: 5, fields: opened });
+    expect(flush.result).toEqual({ ok: true });
     expect(result.current.status.kind).toBe("saved");
     expect(result.current.unsaved).toBe(false);
     await advance(retryDelayMs(5) * 2);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.save).toHaveBeenCalledTimes(3);
   });
 
-  it("drops the retry when the fields went back while the failed save was out", async () => {
-    const { save, calls } = manualSave();
-    const { result, rerender } = setup(save, fields({ title: "Guardado" }));
+  it("carries a lost save's key with the next edit, and takes the replay for no other tab's", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
+
+    rerender({ value: fields({ title: "Uno" }) });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.lose();
+
+    // The admin keeps typing before the retry.
+    rerender({ value: fields({ title: "Uno dos" }) });
+    await advance(DEBOUNCE);
+    expect(server.requests[1]!.input).toMatchObject({
+      title: "Uno dos",
+      expectedVersion: OPENED,
+      saveKey: server.requests[0]!.input.saveKey,
+    });
+    await server.requests[1]!.answer();
+    expect(server.requests[1]!.result).toMatchObject({ replayed: true });
+
+    expect(server.requests[2]!.input).toMatchObject({
+      title: "Uno dos",
+      expectedVersion: 4,
+    });
+    await server.requests[2]!.answer();
+    expect(result.current.status.kind).toBe("saved");
+    expect(server.row).toMatchObject({
+      version: 5,
+      fields: fields({ title: "Uno dos" }),
+    });
+    expect(server.save).toHaveBeenCalledTimes(3);
+  });
+
+  it("writes the fields on screen when the failed request was never stored", async () => {
+    const opened = fields({ title: "Antes" });
+    const server = fakeServer(opened);
+    const { result, rerender } = setup({ server });
+
+    rerender({ value: fields({ title: "Uno" }) });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.fail();
+    expect(server.row.version).toBe(OPENED);
+
+    rerender({ value: fields({ title: "Dos" }) });
+    await advance(DEBOUNCE);
+    expect(server.requests[1]!.input).toMatchObject({
+      title: "Dos",
+      expectedVersion: OPENED,
+      saveKey: server.requests[0]!.input.saveKey,
+    });
+    await server.requests[1]!.answer();
+    expect(server.requests[1]!.result).toMatchObject({ replayed: false });
+    expect(result.current.status.kind).toBe("saved");
+    expect(server.row).toMatchObject({ version: 4, fields: { title: "Dos" } });
+    expect(server.save).toHaveBeenCalledTimes(2);
+
+    // Answered: the key is done with.
+    rerender({ value: fields({ title: "Tres" }) });
+    await advance(DEBOUNCE);
+    expect(server.requests[2]!.input.saveKey).not.toBe(
+      server.requests[0]!.input.saveKey,
+    );
+  });
+
+  it("settles a failed request even when the fields went back to what is stored", async () => {
+    const opened = fields({ title: "Antes" });
+    const server = fakeServer(opened);
+    const { result, rerender } = setup({ server });
 
     rerender({ value: fields({ title: "Otro" }) });
     await advance(DEBOUNCE);
-    rerender({ value: fields({ title: "Guardado" }) });
-    await answer(calls[0]!, FAILED);
+    rerender({ value: opened });
+    await server.requests[0]!.fail();
+    expect(result.current.status.kind).toBe("retrying");
 
+    // Not stored, so the server writes what is on screen.
+    await advance(retryDelayMs(1));
+    expect(server.requests[1]!.input).toMatchObject({
+      title: "Antes",
+      saveKey: server.requests[0]!.input.saveKey,
+    });
+    await server.requests[1]!.answer();
+    expect(server.requests[1]!.result).toMatchObject({ replayed: false });
     expect(result.current.status.kind).toBe("saved");
-    await advance(retryDelayMs(5) * 2);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(server.row).toMatchObject({ version: 4, fields: opened });
   });
 
-  it("stops, asking for a reload, when a new release replaced the action", async () => {
+  it("stops when another tab saved after the lost save", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
+
+    rerender({ value: fields({ title: "Uno" }) });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.lose();
+    server.otherTab({ title: "Otra pestaña" });
+
+    await advance(retryDelayMs(1));
+    expect(server.requests[1]!.input.saveKey).toBe(
+      server.requests[0]!.input.saveKey,
+    );
+    await server.requests[1]!.answer();
+    expect(result.current.status).toEqual({
+      kind: "blocked",
+      code: "STALE",
+      message: REFUSALS.STALE,
+    });
+    await advance(retryDelayMs(5) * 2);
+    expect(server.save).toHaveBeenCalledTimes(2);
+    expect(server.row.fields.title).toBe("Otra pestaña");
+  });
+
+  it("takes no failure in a row for another tab's save, however many edits went out", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
+
+    // Offline while typing: every pause sends, and only one gets through,
+    // late in the outage, with its answer lost.
+    for (let index = 0; index < 8; index += 1) {
+      rerender({ value: fields({ title: `Versión ${index}` }) });
+      await advance(DEBOUNCE);
+      const request = server.requests[index]!;
+      if (index === 6) await request.lose();
+      else await request.fail();
+    }
+    expect(server.row).toMatchObject({
+      version: 4,
+      fields: { title: "Versión 6" },
+    });
+
+    rerender({ value: fields({ title: "Al volver" }) });
+    await advance(DEBOUNCE);
+    await server.answerAll();
+
+    expect(result.current.status.kind).toBe("saved");
+    expect(server.row).toMatchObject({
+      version: 5,
+      fields: { title: "Al volver" },
+    });
+    // One key until an answer, then a new one.
+    const keys = server.requests.map((request) => request.input.saveKey);
+    expect(new Set(keys.slice(0, 9)).size).toBe(1);
+    expect(keys).toHaveLength(10);
+    expect(keys[9]).not.toBe(keys[0]);
+  });
+
+  it("stops when a new release replaced the action, warning that the latest changes are not saved", async () => {
     const save = vi
       .fn<SaveDraft>()
       .mockRejectedValue(
         new UnrecognizedActionError('Server Action "abc" was not found'),
       );
-    const { result, rerender } = setup(save);
+    const { result, rerender } = setup({ save });
     rerender({ value: fields({ title: "x" }) });
     await advance(DEBOUNCE);
 
+    // Closing the tab still warns: the changes exist only on screen.
+    expect(result.current.unsaved).toBe(true);
     expect(result.current.status).toEqual({
       kind: "blocked",
       code: "OUTDATED",
       message:
-        "Se publicó una nueva versión de Glitter. Recargá la página para seguir editando.",
+        "Se publicó una nueva versión de Glitter. Tus últimos cambios no se guardaron: copialos y recargá la página.",
     });
+    expect(OUTDATED_MESSAGE).toBe(
+      "Se publicó una nueva versión de Glitter. Tus últimos cambios no se guardaron: copialos y recargá la página.",
+    );
+
     rerender({ value: fields({ title: "y" }) });
     await advance(retryDelayMs(5) * 2);
     expect(save).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps a text far over the limit out of the request, and saves the rest", async () => {
-    const save = vi.fn<SaveDraft>().mockResolvedValue(saved(4));
-    const { result, rerender } = setup(save);
-    const huge = [
-      {
-        type: "paragraph",
-        content: [
-          { type: "text", text: "a".repeat(COMUNICADO_DOC_MAX_BYTES * 2) },
-        ],
-      },
-    ];
-    rerender({ value: fields({ title: "Largo", doc: huge }) });
-    await advance(DEBOUNCE);
-
-    expect(save).toHaveBeenCalledTimes(1);
-    const input = save.mock.calls[0]![0];
-    expect(input).toMatchObject({ title: "Largo", expectedVersion: 3 });
-    expect("doc" in input).toBe(false);
-    expect(result.current.status.kind).toBe("saved");
-    expect(result.current.contentError).toBe(
-      "El comunicado es demasiado largo. Acortá el texto.",
-    );
-    // The stored text is the old one: leaving warns, a test send waits.
     expect(result.current.unsaved).toBe(true);
-    let flushed: unknown = null;
-    await act(async () => {
-      flushed = await result.current.controller.flush();
-    });
-    expect(flushed).toEqual({
+    expect(await flushNow(result.current.controller)).toEqual({
       ok: false,
-      message: "El comunicado es demasiado largo. Acortá el texto.",
+      message: OUTDATED_MESSAGE,
     });
-
-    // Short enough again, it goes, and the server has the last word.
-    rerender({ value: fields({ title: "Largo", doc: [] }) });
-    await advance(DEBOUNCE);
-    expect(save.mock.calls[1]![0]).toMatchObject({ doc: [] });
-    expect(result.current.contentError).toBeNull();
   });
 
-  it("calls onLeave on unmount once a save was stored, after saving what is on screen", async () => {
-    const { save, calls } = manualSave();
+  it("saves what is on screen once on leaving, and refreshes after it", async () => {
+    const server = fakeServer(fields());
     const onLeave = vi.fn();
-    const { rerender, unmount } = setup(save, fields(), onLeave);
+    const { rerender, unmount } = setup({ server, onLeave });
 
     rerender({ value: fields({ title: "Uno" }) });
     await advance(DEBOUNCE);
-    await answer(calls[0]!, saved(4));
+    await server.requests[0]!.answer();
     rerender({ value: fields({ title: "Uno dos" }) });
 
     unmount();
     // What was typed last goes at once, and only then is the page left.
     await advance(0);
-    expect(calls[1]!.input).toMatchObject({ title: "Uno dos" });
+    expect(server.requests[1]!.input).toMatchObject({ title: "Uno dos" });
     expect(onLeave).not.toHaveBeenCalled();
-    await answer(calls[1]!, saved(5));
+    await server.requests[1]!.answer();
+    expect(onLeave).toHaveBeenCalledTimes(1);
+    await advance(DEBOUNCE * 4);
+    expect(server.save).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries nothing after leaving, and refreshes when the failed request may be stored", async () => {
+    const server = fakeServer(fields());
+    const onLeave = vi.fn();
+    const { rerender, unmount } = setup({ server, onLeave });
+
+    rerender({ value: fields({ title: "Uno" }) });
+    unmount();
+    await advance(0);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    await server.requests[0]!.drop({ stored: true });
+
+    await advance(retryDelayMs(5) * 4);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    // No answer said so, but the server holds it: the router must read it.
+    expect(server.row.fields.title).toBe("Uno");
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it("does not call onLeave when nothing was stored", async () => {
-    const save = vi.fn<SaveDraft>();
+  it("neither saves nor refreshes on leaving when nothing was sent", async () => {
+    const server = fakeServer(fields());
     const onLeave = vi.fn();
-    const { unmount } = setup(save, fields(), onLeave);
+    const { unmount } = setup({ server, onLeave });
     unmount();
     await advance(DEBOUNCE * 2);
-    expect(save).not.toHaveBeenCalled();
+    expect(server.save).not.toHaveBeenCalled();
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
+  it("neither saves nor refreshes on leaving a discarded draft", async () => {
+    const server = fakeServer(fields());
+    const onLeave = vi.fn();
+    const { result, rerender, unmount } = setup({ server, onLeave });
+
+    rerender({ value: fields({ title: "Uno" }) });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.answer();
+    rerender({ value: fields({ title: "Uno dos" }) });
+
+    await act(async () => {
+      await result.current.controller.pause();
+    });
+    server.row.status = "gone";
+    act(() => result.current.controller.markDiscarded());
+    unmount();
+
+    await advance(retryDelayMs(5) * 2);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
+  describe("where crypto.randomUUID is missing, as over plain http", () => {
+    beforeEach(() => {
+      const real = globalThis.crypto;
+      vi.stubGlobal("crypto", {
+        getRandomValues: <T extends ArrayBufferView>(array: T) =>
+          real.getRandomValues(array),
+      });
+    });
+
+    it("saves with a key the action takes", async () => {
+      const server = fakeServer(fields());
+      const { result, rerender } = setup({ server });
+      rerender({ value: fields({ title: "Desde el celular" }) });
+      await advance(DEBOUNCE);
+      expect(server.save).toHaveBeenCalledTimes(1);
+      expect(server.requests[0]!.input.saveKey).toMatch(UUID_V4);
+      await server.requests[0]!.answer();
+      expect(server.requests[0]!.result).toMatchObject({ success: true });
+      expect(result.current.status.kind).toBe("saved");
+      expect(server.row.fields.title).toBe("Desde el celular");
+    });
+
+    it("builds distinct version 4 keys", () => {
+      const keys = Array.from({ length: 50 }, () => newSaveKey());
+      for (const key of keys) expect(key).toMatch(UUID_V4);
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+  });
+
+  it("keeps saving after Strict Mode's unmount and mount again", async () => {
+    const server = fakeServer(fields());
+    const onLeave = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ value }: { value: DraftFields }) =>
+        useDraftAutosave({
+          comunicadoId: COMUNICADO_ID,
+          initialVersion: OPENED,
+          fields: value,
+          save: server.save,
+          debounceMs: DEBOUNCE,
+          onLeave,
+        }),
+      { initialProps: { value: fields() }, wrapper: StrictMode },
+    );
+    await advance(0);
+
+    rerender({ value: fields({ title: "Uno" }) });
+    await advance(DEBOUNCE);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    await server.requests[0]!.answer();
+    expect(result.current.status.kind).toBe("saved");
     expect(onLeave).not.toHaveBeenCalled();
   });
 });

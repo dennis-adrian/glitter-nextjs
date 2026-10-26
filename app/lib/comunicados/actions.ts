@@ -49,6 +49,11 @@ export type SaveComunicadoDraftActionResult =
       savedAt: string;
       /** Shown inline under the text: it was not saved, the rest was. */
       contentError: string | null;
+      /**
+       * An earlier request with this `saveKey` was stored and this one wrote
+       * nothing, so which fields the version holds is that request's.
+       */
+      replayed: boolean;
     }
   | { success: false; code: SaveComunicadoDraftFailureCode; message: string };
 
@@ -137,6 +142,7 @@ export async function saveComunicadoDraftAction(
       version: saved.version,
       savedAt: saved.savedAt.toISOString(),
       contentError: saved.contentError,
+      replayed: saved.replayed,
     };
   } catch (error) {
     logFailure("Error saving a comunicado draft", error);
