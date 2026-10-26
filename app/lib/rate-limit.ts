@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { lt, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { actionRateLimits } from "@/db/schema";
@@ -47,6 +47,11 @@ async function cleanupStaleRateLimits(now: Date) {
   }
 }
 
+/** The fixed window `now` falls in. */
+function windowStart(now: Date, windowMs: number) {
+  return new Date(Math.floor(now.getTime() / windowMs) * windowMs);
+}
+
 export async function consumeActionRateLimit(input: {
   key: string;
   limit: number;
@@ -54,9 +59,7 @@ export async function consumeActionRateLimit(input: {
   now?: Date;
 }): Promise<boolean> {
   const now = input.now ?? new Date();
-  const windowStartedAt = new Date(
-    Math.floor(now.getTime() / input.windowMs) * input.windowMs,
-  );
+  const windowStartedAt = windowStart(now, input.windowMs);
 
   const [bucket] = await db
     .insert(actionRateLimits)
@@ -83,4 +86,33 @@ export async function consumeActionRateLimit(input: {
   await cleanupStaleRateLimits(now);
 
   return (bucket?.requestCount ?? input.limit + 1) <= input.limit;
+}
+
+/**
+ * Gives back a request `consumeActionRateLimit` allowed, when what it guarded
+ * never happened, so the next try is not refused for it. Pass what the
+ * consume took, `now` included: only that window is touched, and the
+ * requests it refused, counted past `limit`, stop counting.
+ */
+export async function releaseActionRateLimit(input: {
+  key: string;
+  limit: number;
+  windowMs: number;
+  now: Date;
+}): Promise<void> {
+  const inWindow = and(
+    eq(actionRateLimits.key, input.key),
+    eq(
+      actionRateLimits.windowStartedAt,
+      windowStart(input.now, input.windowMs),
+    ),
+  );
+  const allowed = sql`least(${actionRateLimits.requestCount}, ${input.limit}::int)`;
+  // The count stays positive (its CHECK), so the last one goes with its row.
+  // The delete runs first: the update can then never take a second one off.
+  await db.delete(actionRateLimits).where(and(inWindow, sql`${allowed} <= 1`));
+  await db
+    .update(actionRateLimits)
+    .set({ requestCount: sql`${allowed} - 1` })
+    .where(and(inWindow, sql`${allowed} > 1`));
 }

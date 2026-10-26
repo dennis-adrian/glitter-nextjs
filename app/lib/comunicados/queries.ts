@@ -1,6 +1,6 @@
 import "server-only";
 
-import { count, desc, eq, inArray, max, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import {
@@ -170,6 +170,8 @@ export type ComunicadoListStats = {
 
 export type ComunicadoListRow = {
   id: number;
+  /** What "Enviar ahora" on an overdue row expects (E6). */
+  version: number;
   /** As written; empty shows "Sin título". */
   title: string;
   status: ComunicadoStatus;
@@ -195,6 +197,7 @@ export type ComunicadoListRow = {
 const createdBy = alias(users, "created_by");
 const updatedBy = alias(users, "updated_by");
 const sentBy = alias(users, "sent_by");
+const scheduledBy = alias(users, "scheduled_by");
 
 function pageOf(page: number) {
   return Number.isInteger(page) && page > 0 ? page : 1;
@@ -279,6 +282,7 @@ export async function fetchComunicadoList(input: {
   const rows = await db
     .select({
       id: comunicados.id,
+      version: comunicados.version,
       title: comunicados.title,
       status: comunicados.status,
       essential: comunicados.essential,
@@ -296,17 +300,23 @@ export async function fetchComunicadoList(input: {
         WHERE ${comunicadoRevisions.comunicadoId} = ${comunicados.id}
           AND ${comunicadoRevisions.revision} > 1
       )`.mapWith(comunicadoRevisions.createdAt),
+      // Each person's id first: drizzle reads a left-joined object as
+      // missing when its first column is null, so someone without a display
+      // name would lose their first and last names with it.
       createdBy: {
+        id: createdBy.id,
         displayName: createdBy.displayName,
         firstName: createdBy.firstName,
         lastName: createdBy.lastName,
       },
       updatedBy: {
+        id: updatedBy.id,
         displayName: updatedBy.displayName,
         firstName: updatedBy.firstName,
         lastName: updatedBy.lastName,
       },
       sentBy: {
+        id: sentBy.id,
         displayName: sentBy.displayName,
         firstName: sentBy.firstName,
         lastName: sentBy.lastName,
@@ -341,6 +351,7 @@ export async function fetchComunicadoList(input: {
   return {
     rows: rows.map((row, index) => ({
       id: row.id,
+      version: row.version,
       title: row.title,
       status: row.status,
       essential: row.essential,
@@ -389,6 +400,8 @@ export type ComposerComunicado = {
   essential: boolean;
   essentialReason: string | null;
   scheduledAt: Date | null;
+  /** Who scheduled it: "lo programó Dennis" on its page. */
+  scheduledByName: string | null;
   scheduleMissedAt: Date | null;
   scheduleMissedReason: ComunicadoMissedReason | null;
   scheduleMissedDetail: string | null;
@@ -455,20 +468,31 @@ function toComposerPerson(row: PersonRow): ComposerPerson {
 }
 
 /**
- * The full working copy for the composer, any status (a scheduled one opens
- * read-only), with the names behind its stored audience. Null when it does
- * not exist.
+ * The full working copy, any status: a draft for the composer, a scheduled
+ * one for its read-only page (D4). With the names behind its stored audience,
+ * and who scheduled it. Null when it does not exist.
  */
 export async function fetchComunicadoForComposer(
   id: number,
 ): Promise<ComposerComunicado | null> {
   if (!(await canRead())) return null;
-  const [row] = await db
-    .select()
+  const [found] = await db
+    .select({
+      row: comunicados,
+      // The id first, as in the list: a null first column reads as nobody.
+      scheduledBy: {
+        id: scheduledBy.id,
+        displayName: scheduledBy.displayName,
+        firstName: scheduledBy.firstName,
+        lastName: scheduledBy.lastName,
+      },
+    })
     .from(comunicados)
+    .leftJoin(scheduledBy, eq(scheduledBy.id, comunicados.scheduledByUserId))
     .where(eq(comunicados.id, id))
     .limit(1);
-  if (!row) return null;
+  if (!found) return null;
+  const { row } = found;
 
   const parsed = parseStoredComunicadoAudience(row.audience);
   const audience = parsed ?? EMPTY_COMUNICADO_AUDIENCE;
@@ -518,6 +542,7 @@ export async function fetchComunicadoForComposer(
     essential: row.essential,
     essentialReason: row.essentialReason,
     scheduledAt: row.scheduledAt,
+    scheduledByName: personName(found.scheduledBy),
     scheduleMissedAt: row.scheduleMissedAt,
     scheduleMissedReason:
       row.scheduleMissedReason as ComunicadoMissedReason | null,
@@ -555,6 +580,32 @@ export async function fetchComunicadoForComposer(
       },
     },
   };
+}
+
+/**
+ * What "Copia de «…»" names (G6, D5): the title "Duplicar" copied, so a sent
+ * comunicado's current revision's and any other's working title, trimmed.
+ * Null for anyone but a global admin, and for an id that does not exist.
+ */
+export async function fetchComunicadoCopySourceTitle(
+  id: number,
+): Promise<string | null> {
+  if (!(await canRead())) return null;
+  const [row] = await db
+    .select({
+      title: sql<string>`coalesce(${comunicadoRevisions.title}, ${comunicados.title})`,
+    })
+    .from(comunicados)
+    .leftJoin(
+      comunicadoRevisions,
+      and(
+        eq(comunicadoRevisions.comunicadoId, comunicados.id),
+        eq(comunicadoRevisions.revision, comunicados.currentRevision),
+      ),
+    )
+    .where(eq(comunicados.id, id))
+    .limit(1);
+  return row ? row.title.trim() : null;
 }
 
 export type ComunicadoPersonOption = {

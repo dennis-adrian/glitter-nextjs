@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ComunicadosList, {
@@ -9,20 +16,42 @@ import ComunicadosList, {
   ComunicadosEmptyState,
   comunicadoStatsLine,
 } from "@/app/components/comunicados/admin/comunicados-list";
+import { VERSION_CHANGED_TEXT } from "@/app/components/comunicados/admin/send-confirm-copy";
+import type { ComunicadoAudiencePreview } from "@/app/lib/comunicados/audience";
+import type { ComunicadoSendConfirmation } from "@/app/lib/comunicados/contracts";
 import type { ComunicadoListRow } from "@/app/lib/comunicados/queries";
 import type { Paged } from "@/app/lib/distribution_lists/definitions";
 
+const mocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  refresh: vi.fn(),
+  load: vi.fn(),
+  send: vi.fn(),
+}));
 vi.mock("@/app/lib/comunicados/actions", () => ({
   createComunicadoDraftAction: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@/app/lib/comunicados/send-actions", () => ({
+  loadComunicadoSendConfirmationAction: mocks.load,
+  sendComunicadoNowAction: mocks.send,
+}));
+vi.mock("@/app/lib/comunicados/schedule-actions", () => ({
+  scheduleComunicadoAction: vi.fn(),
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
+}));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const NOW = new Date("2026-10-25T20:00:00Z");
+const OVERDUE_MS = 3 * 60_000;
+const OVERDUE_TEXT =
+  "Debería haber salido el dom, 25 oct, 3:57 PM y todavía no salió.";
 
 function row(overrides: Partial<ComunicadoListRow> = {}): ComunicadoListRow {
   return {
     id: 7,
+    version: 3,
     title: "Cambio de horario de armado",
     status: "draft",
     essential: false,
@@ -248,6 +277,177 @@ describe("ComunicadosList", () => {
   it("shows no pagination on a single page", () => {
     render(<ComunicadosList tab="drafts" now={NOW} list={paged([row()])} />);
     expect(screen.queryByRole("navigation", { name: "Paginación" })).toBeNull();
+  });
+});
+
+/** A schedule `late` ms past its time, as the list reads it at NOW. */
+function scheduledRow(
+  late: number,
+  overrides: Partial<ComunicadoListRow> = {},
+) {
+  return row({
+    status: "scheduled",
+    scheduledAt: new Date(NOW.getTime() - late),
+    ...overrides,
+  });
+}
+
+/** What the confirm dialog counts for an overdue row, at `version`. */
+function confirmation(version: number): ComunicadoSendConfirmation {
+  const preview: ComunicadoAudiencePreview = {
+    sources: [],
+    matched: 12,
+    eligible: 12,
+    overlap: 0,
+    skipped: [],
+    skippedTotal: 0,
+    willReceive: 12,
+    email: {
+      sendTo: 12,
+      unsubscribedAnnouncements: 0,
+      unsubscribedAll: 0,
+      suppressed: 0,
+      invalid: 0,
+      essentialOverride: 0,
+    },
+    pushDevices: 0,
+    pushSubscriptions: 0,
+    tooLarge: false,
+    narrowed: false,
+    stagingAdmins: 0,
+    essentialAllowed: { ok: false, reason: null, festival: null },
+  };
+  return {
+    comunicadoId: 7,
+    version,
+    title: "Cambio de horario de armado",
+    sendEmail: true,
+    sendPush: false,
+    essential: false,
+    essentialReason: null,
+    essentialFestivalName: null,
+    preview,
+    pickedReceiving: { count: 0, names: [] },
+    typedRequired: false,
+    env: "production",
+    notificationsLaunched: true,
+    problem: null,
+  };
+}
+
+describe("ComunicadosList: an overdue schedule (E6)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("says so under the row, with Enviar ahora outside its link", () => {
+    render(
+      <ComunicadosList
+        tab="scheduled"
+        now={NOW}
+        list={paged([scheduledRow(OVERDUE_MS)])}
+      />,
+    );
+    const item = screen.getByRole("listitem");
+    const link = within(item).getByRole("link");
+    const button = within(item).getByRole("button", { name: "Enviar ahora" });
+
+    expect(within(item).getByText(OVERDUE_TEXT)).toBeTruthy();
+    expect(link.textContent).not.toContain("Debería haber salido");
+    expect(link.contains(button)).toBe(false);
+    expect(link.getAttribute("href")).toBe("/dashboard/communications/7");
+  });
+
+  it("shows neither until 3 minutes have passed, nor for any other state", () => {
+    render(
+      <ComunicadosList
+        tab="scheduled"
+        now={NOW}
+        list={paged([
+          scheduledRow(OVERDUE_MS - 1),
+          scheduledRow(-60 * 60_000, { id: 8 }),
+          row({
+            id: 9,
+            scheduledAt: new Date(NOW.getTime() - OVERDUE_MS),
+            scheduleMissedAt: NOW,
+          }),
+          row({
+            id: 10,
+            status: "sent",
+            scheduledAt: new Date(NOW.getTime() - OVERDUE_MS),
+            sentAt: NOW,
+          }),
+        ])}
+      />,
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+    expect(screen.queryByText(/Debería haber salido/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Enviar ahora" })).toBeNull();
+  });
+
+  it("sends it at the version the list read, then opens its page", async () => {
+    mocks.load.mockResolvedValue({
+      success: true,
+      confirmation: confirmation(4),
+    });
+    mocks.send.mockResolvedValue({
+      success: true,
+      alreadySent: false,
+      message: "Lo estamos enviando.",
+    });
+    render(
+      <ComunicadosList
+        tab="scheduled"
+        now={NOW}
+        list={paged([scheduledRow(OVERDUE_MS, { version: 4 })])}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Enviar ahora" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(mocks.load).toHaveBeenCalledWith(7);
+    const send = within(dialog).getByRole("button", {
+      name: "Enviar ahora",
+    }) as HTMLButtonElement;
+    await waitFor(() => expect(send.disabled).toBe(false));
+    fireEvent.click(send);
+
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith("/dashboard/communications/7"),
+    );
+    expect(mocks.send).toHaveBeenCalledWith({
+      comunicadoId: 7,
+      expectedVersion: 4,
+      typedCount: null,
+    });
+  });
+
+  it("does not send numbers for a version the list did not read", async () => {
+    // A change of date since the list was read.
+    mocks.load.mockResolvedValue({
+      success: true,
+      confirmation: confirmation(5),
+    });
+    render(
+      <ComunicadosList
+        tab="scheduled"
+        now={NOW}
+        list={paged([scheduledRow(OVERDUE_MS, { version: 4 })])}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Enviar ahora" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await within(dialog).findByText(VERSION_CHANGED_TEXT);
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Enviar ahora",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(mocks.send).not.toHaveBeenCalled();
   });
 });
 

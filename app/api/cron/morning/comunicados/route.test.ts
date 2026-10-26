@@ -28,6 +28,7 @@ const { state, mocks } = vi.hoisted(() => ({
     baseUrl: "https://glitter.test",
   },
   mocks: {
+    releaseDueComunicados: vi.fn(),
     fanOutComunicado: vi.fn(),
     fanOutPendingComunicados: vi.fn(),
     completeComunicadoCampaign: vi.fn(),
@@ -52,6 +53,9 @@ vi.mock("@/db", () => ({ db: {} }));
 vi.mock("@/app/vendors/resend", () => ({ sendBatchEmails: vi.fn() }));
 vi.mock("@/app/lib/comunicados/delivery", () => ({
   comunicadoBatchRenderer: {},
+}));
+vi.mock("@/app/lib/comunicados/release", () => ({
+  releaseDueComunicados: mocks.releaseDueComunicados,
 }));
 vi.mock("@/app/lib/comunicados/fanout", () => ({
   fanOutComunicado: mocks.fanOutComunicado,
@@ -122,6 +126,17 @@ function emailRun(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function releaseRun(overrides: Record<string, unknown> = {}) {
+  return {
+    released: 0,
+    missed: 0,
+    failed: 0,
+    campaignIds: [],
+    triedIds: [],
+    ...overrides,
+  };
+}
+
 const PUSHES = { scanned: 7, sent: 6, skipped: 1, failed: 0, retry: 0 };
 
 /** The env a scope SQL filters on, as the statement's parameters. */
@@ -148,6 +163,7 @@ describe("the comunicados cron", () => {
     state.envThrows = false;
     state.baseUrl = "https://glitter.test";
     for (const mock of Object.values(mocks)) mock.mockReset();
+    mocks.releaseDueComunicados.mockResolvedValue(releaseRun());
     mocks.fanOutPendingComunicados.mockResolvedValue(fanoutRun());
     mocks.completeComunicadoCampaign.mockResolvedValue(true);
     mocks.sweepComunicadoCompletions.mockResolvedValue({
@@ -190,6 +206,7 @@ describe("the comunicados cron", () => {
     vi.stubEnv("CRON_SECRET", "");
     expect((await GET(cronRequest("Bearer "))).status).toBe(401);
 
+    expect(mocks.releaseDueComunicados).not.toHaveBeenCalled();
     expect(mocks.fanOutPendingComunicados).not.toHaveBeenCalled();
     expect(mocks.sendBulkPushes).not.toHaveBeenCalled();
     expect(mocks.sendBulkEmails).not.toHaveBeenCalled();
@@ -203,6 +220,14 @@ describe("the comunicados cron", () => {
 
     expect(response.status).toBe(200);
     const deadline = T0 + 75_000;
+    // Due schedules first, against the same deadline (E2).
+    expect(mocks.releaseDueComunicados).toHaveBeenCalledWith({
+      deadline,
+      now: expect.any(Function),
+    });
+    expect(
+      mocks.releaseDueComunicados.mock.invocationCallOrder[0]!,
+    ).toBeLessThan(mocks.fanOutPendingComunicados.mock.invocationCallOrder[0]!);
     expect(mocks.fanOutPendingComunicados).toHaveBeenCalledWith({
       env: "production",
       deadline,
@@ -257,6 +282,32 @@ describe("the comunicados cron", () => {
     });
   });
 
+  it("counts what the release sent and missed, and closes the campaigns it started", async () => {
+    mocks.releaseDueComunicados.mockResolvedValue(
+      releaseRun({
+        released: 2,
+        missed: 1,
+        failed: 1,
+        campaignIds: [21, 11],
+        triedIds: [5, 6, 7, 8],
+      }),
+    );
+
+    const { data } = await bodyOf(await GET(authorized()));
+
+    expect(data).toMatchObject({ released: 2, missed: 1, failedSteps: [] });
+    // Each campaign once: the release's, then the fan-out's.
+    expect(mocks.completeComunicadoCampaign.mock.calls).toEqual([
+      [21],
+      [11],
+      [12],
+    ]);
+    expect(consoleLog).toHaveBeenCalledWith(
+      "[comunicados] tick",
+      expect.objectContaining({ released: 2, missed: 1 }),
+    );
+  });
+
   it("starts no batch with less than 25 s left: it only expires, and completion still runs", async () => {
     mocks.fanOutPendingComunicados.mockImplementation(async () => {
       vi.advanceTimersByTime(55_000);
@@ -309,6 +360,8 @@ describe("the comunicados cron", () => {
 
     expect(mocks.sendBulkEmails).not.toHaveBeenCalled();
     expect(mocks.expireBulkEmails).not.toHaveBeenCalled();
+    // Nothing releases a shared database's schedules from a dev server (K9).
+    expect(mocks.releaseDueComunicados).not.toHaveBeenCalled();
     expect(mocks.fanOutPendingComunicados).toHaveBeenCalledWith(
       expect.objectContaining({ env: "development" }),
     );
@@ -345,6 +398,11 @@ describe("the comunicados cron", () => {
   });
 
   it("reports a failing step and goes on, so completion still runs", async () => {
+    mocks.releaseDueComunicados.mockRejectedValue(
+      Object.assign(new Error("claim failed ana@example.test"), {
+        code: "40001",
+      }),
+    );
     mocks.fanOutPendingComunicados.mockRejectedValue(
       Object.assign(new Error("lost ana@example.test"), { code: "57P01" }),
     );
@@ -354,12 +412,16 @@ describe("the comunicados cron", () => {
 
     expect(response.status).toBe(200);
     const { data } = await bodyOf(response);
-    expect(data?.failedSteps).toEqual(["fanout", "email"]);
+    expect(data?.failedSteps).toEqual(["release", "fanout", "email"]);
     expect(mocks.sendBulkPushes).toHaveBeenCalledOnce();
     expect(mocks.completeComunicadoCampaign).not.toHaveBeenCalled();
     expect(mocks.sweepComunicadoCompletions).toHaveBeenCalledOnce();
-    expect(data).toMatchObject({ chunks: 0, completed: 1 });
+    expect(data).toMatchObject({ released: 0, chunks: 0, completed: 1 });
     expect(consoleError.mock.calls).toEqual([
+      [
+        "[comunicados] work step failed",
+        { trigger: "cron", step: "release", errorType: "Error", code: "40001" },
+      ],
       [
         "[comunicados] work step failed",
         { trigger: "cron", step: "fanout", errorType: "Error", code: "57P01" },

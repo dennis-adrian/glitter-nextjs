@@ -31,9 +31,20 @@ export const LOAD_FAILED_TEXT =
   "No pudimos contar los destinatarios. Probá de nuevo.";
 export const SEND_FAILED_TEXT =
   "No pudimos enviarlo. Intentá de nuevo en unos minutos.";
+export const SCHEDULE_FAILED_TEXT =
+  "No pudimos programarlo. Intentá de nuevo en unos minutos.";
 /** The stored draft is not the one this tab confirmed (D-19). */
 export const VERSION_CHANGED_TEXT =
   "Este borrador cambió en otra pestaña. Recargá para ver la última versión.";
+
+/** "Enviar…" or "Programar…" (G5): which the dialog confirms. */
+export type ConfirmMode = "send" | "schedule";
+
+/** "¿Enviar «…»?" / "¿Programar «…»?"; before the numbers, without a title. */
+export function confirmTitle(mode: ConfirmMode, title: string | null) {
+  const verb = mode === "schedule" ? "Programar" : "Enviar";
+  return title === null ? `¿${verb} este comunicado?` : `¿${verb} «${title}»?`;
+}
 
 /** "1 dado de baja", "30 dados de baja". */
 function counted(count: number, one: string, many: string) {

@@ -308,3 +308,35 @@ export function parseComunicadoAudienceSummary(
   const parsed = ComunicadoAudienceSummarySchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
+
+/** "Programar": at least this far ahead (E5). */
+export const COMUNICADO_SCHEDULE_MIN_LEAD_MS = 5 * 60_000;
+/** "Programar": at most this many days ahead (E5). */
+export const COMUNICADO_SCHEDULE_MAX_AHEAD_DAYS = 60;
+/** A release later than this does not send: back to draft (E4, K5). */
+export const COMUNICADO_SCHEDULE_LATE_LIMIT_MS = 60 * 60_000;
+/** Still scheduled this long past its time: "Debería haber salido…" (E6). */
+export const COMUNICADO_SCHEDULE_OVERDUE_BANNER_MS = 3 * 60_000;
+/** Due schedules one lane run releases at most (E2). */
+export const COMUNICADO_RELEASES_PER_TICK = 3;
+/** "Reintentar fallidos": once per 5 minutes per comunicado (A9, G6). */
+export const COMUNICADO_RETRY_LIMIT = 1;
+export const COMUNICADO_RETRY_WINDOW_MS = 5 * 60_000;
+export function comunicadoRetryRateLimit(comunicadoId: number) {
+  return {
+    key: `comunicado-retry:${comunicadoId}`,
+    limit: COMUNICADO_RETRY_LIMIT,
+    windowMs: COMUNICADO_RETRY_WINDOW_MS,
+  };
+}
+/** An edit's note, for the team only (A5, F1); the CHECK holds the same. */
+export const COMUNICADO_EDIT_NOTE_MAX = 300;
+/** Images (C4, PR 8). */
+export const COMUNICADO_MAX_IMAGES = 6;
+export const COMUNICADO_IMAGE_TYPES = ["image/jpeg", "image/png"] as const;
+export type ComunicadoImageType = (typeof COMUNICADO_IMAGE_TYPES)[number];
+export const COMUNICADO_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+export const COMUNICADO_IMAGE_HELP =
+  "JPG o PNG, hasta 4 MB. Se ve mejor a 1200 px de ancho.";
+export const COMUNICADO_FOREIGN_IMAGE_MESSAGE =
+  "Esta imagen no está subida a Glitter: subila de nuevo.";

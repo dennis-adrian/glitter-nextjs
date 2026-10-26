@@ -31,6 +31,7 @@ import {
 } from "@/app/components/comunicados/admin/composer/types";
 import { useDraftAutosave } from "@/app/components/comunicados/admin/composer/use-autosave";
 import { useLiveResult } from "@/app/components/comunicados/admin/composer/use-live-result";
+import type { ConfirmMode } from "@/app/components/comunicados/admin/send-confirm-copy";
 import SendConfirmDialog from "@/app/components/comunicados/admin/send-confirm-dialog";
 import { Banner } from "@/app/components/ui/banner";
 import { Button } from "@/app/components/ui/button";
@@ -43,6 +44,10 @@ import {
   type ComunicadoAudience,
   isEmptyComunicadoAudience,
 } from "@/app/lib/comunicados/definitions";
+import {
+  copyBannerText,
+  SCHEDULE_DEVELOPMENT_REFUSAL,
+} from "@/app/lib/comunicados/schedule-copy";
 import { sendComunicadoTestAction } from "@/app/lib/comunicados/test-send";
 import { announcementBlocksToText } from "@/app/lib/comunicados/text";
 
@@ -75,13 +80,16 @@ export type ComunicadoComposerProps = {
   notificationsLaunched: boolean;
   pushLaunched: boolean;
   env: ComposerEnv;
+  /** "Duplicar" opened this copy of the comunicado with this title (G6). */
+  copiedFromTitle?: string | null;
 };
 
 /**
  * One page, no wizard (docs/IMPLEMENTATION-comunicados.md G4): the message,
- * who gets it and how on the left; what they will see, the test send and
- * "Enviar…" on the right. Every change is saved a moment later; only the
- * confirm dialog (G5) sends it to anyone but the admin.
+ * who gets it and how on the left; what they will see, the test send,
+ * "Programar…" and "Enviar…" on the right. Every change is saved a moment
+ * later; only the confirm dialog (G5) sends it, or schedules it, to anyone
+ * but the admin.
  */
 export default function ComunicadoComposer({
   draft,
@@ -91,6 +99,7 @@ export default function ComunicadoComposer({
   notificationsLaunched,
   pushLaunched,
   env,
+  copiedFromTitle = null,
 }: ComunicadoComposerProps) {
   const router = useRouter();
   const [fields, setFields] = useState<ComposerFields>(() =>
@@ -99,11 +108,17 @@ export default function ComunicadoComposer({
   const [names, setNames] = useState(initialNames);
   const [discarding, setDiscarding] = useState(false);
   const [testPending, startTest] = useTransition();
-  const [sendOpening, startSendOpening] = useTransition();
-  const [sendOpen, setSendOpen] = useState(false);
+  const [confirmOpening, startConfirmOpening] = useTransition();
+  /** "Enviar…" or "Programar…": one confirm dialog at a time. */
+  const [confirmMode, setConfirmMode] = useState<ConfirmMode>("send");
+  const [confirmOpen, setConfirmOpen] = useState(false);
   /** The version the dialog's numbers must be for: what this tab stored. */
-  const [sendVersion, setSendVersion] = useState<number | null>(null);
-  /** Sent: the page turns into its report; nothing here changes meanwhile. */
+  const [confirmVersion, setConfirmVersion] = useState<number | null>(null);
+  const confirmBusy = confirmOpening || confirmOpen;
+  /**
+   * Sent or scheduled: the page turns into its report, or its scheduled
+   * view; nothing here changes meanwhile.
+   */
   const [sent, setSent] = useState(false);
 
   const autosave = useDraftAutosave({
@@ -246,23 +261,26 @@ export default function ComunicadoComposer({
     });
   }
 
-  function openSend() {
-    startSendOpening(async () => {
-      // The dialog counts and sends the stored draft: what is on screen goes
-      // first, and the version it is stored at is the one the send expects.
+  /** "Enviar…" or "Programar…". */
+  function openConfirm(mode: ConfirmMode) {
+    setConfirmMode(mode);
+    startConfirmOpening(async () => {
+      // The dialog counts and sends, or schedules, the stored draft: what is
+      // on screen goes first, and the version it is stored at is the one the
+      // send or the schedule expects.
       const flushed = await controller.flush();
       if (!flushed.ok) {
         toast.error(flushed.message);
         return;
       }
-      setSendVersion(controller.storedVersion());
-      setSendOpen(true);
+      setConfirmVersion(controller.storedVersion());
+      setConfirmOpen(true);
     });
   }
 
   function markSent() {
     // No longer a draft: nothing saves again, and the refresh renders the
-    // report in this same page.
+    // report, or the scheduled view, in this same page.
     controller.markSent();
     setSent(true);
     router.refresh();
@@ -315,6 +333,9 @@ export default function ComunicadoComposer({
             </Button>
           </div>
         </Banner>
+      )}
+      {copiedFromTitle !== null && (
+        <Banner variant="info">{copyBannerText(copiedFromTitle)}</Banner>
       )}
       {draft.scheduleMissed && (
         <Banner variant="warning" title="No se envió a la hora programada">
@@ -420,8 +441,14 @@ export default function ComunicadoComposer({
             missing={missing}
             onTestSend={testSend}
             testPending={testPending}
-            onSend={openSend}
-            sendPending={sendOpening || sendOpen}
+            onSend={() => openConfirm("send")}
+            sendPending={confirmBusy && confirmMode === "send"}
+            onSchedule={() => openConfirm("schedule")}
+            schedulePending={confirmBusy && confirmMode === "schedule"}
+            scheduleDisabledReason={
+              // Nothing would release it there (E1).
+              env === "development" ? SCHEDULE_DEVELOPMENT_REFUSAL : null
+            }
             disabled={locked}
           />
         </div>
@@ -429,9 +456,10 @@ export default function ComunicadoComposer({
 
       <SendConfirmDialog
         comunicadoId={draft.id}
-        open={sendOpen}
-        onOpenChange={setSendOpen}
-        knownVersion={sendVersion}
+        mode={confirmMode}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        knownVersion={confirmVersion}
         onBeforeSend={() => controller.pause()}
         onSent={markSent}
       />

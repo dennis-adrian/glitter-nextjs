@@ -3,7 +3,10 @@ import "server-only";
 import { and, eq, type SQL, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import type { ComunicadoRetractCounts } from "@/app/lib/comunicados/contracts";
+import type {
+  ComunicadoRetractCounts,
+  ComunicadoRetryCounts,
+} from "@/app/lib/comunicados/contracts";
 import {
   type ComunicadoAudienceSummary,
   parseComunicadoAudienceSummary,
@@ -157,6 +160,8 @@ export type ComunicadoReport = {
     stalledSince: Date | null;
   };
   retractCounts: ComunicadoRetractCounts;
+  /** What "Reintentar fallidos" would reach (G6, V7). */
+  retryCounts: ComunicadoRetryCounts;
 };
 
 const sentBy = alias(users, "sent_by");
@@ -179,6 +184,9 @@ type RecipientCountsRow = {
   email_untried: number;
   email_maybe_sent: number;
   email_quota: number;
+  recipients_failed: number;
+  email_retryable: number;
+  email_failed_maybe_sent: number;
   stalled_since: string | Date | null;
 };
 
@@ -225,6 +233,15 @@ async function recipientCounts(campaignId: number) {
         count(*) FILTER (
           WHERE d.status = 'failed' AND d.last_error = ANY(${quota}::text[])
         )::int AS email_quota,
+        -- "Reintentar fallidos": the same rows the retry picks (G6, V7).
+        count(*) FILTER (WHERE r.status = 'failed')::int AS recipients_failed,
+        count(*) FILTER (
+          WHERE r.status = 'notified' AND n.retracted_at IS NULL
+            AND d.status = 'failed' AND d.maybe_sent_at IS NULL
+        )::int AS email_retryable,
+        count(*) FILTER (
+          WHERE d.status = 'failed' AND d.maybe_sent_at IS NOT NULL
+        )::int AS email_failed_maybe_sent,
         max(d.updated_at) FILTER (
           WHERE d.status IN ('sent', 'failed', 'skipped')
         ) AS last_settled_at
@@ -316,17 +333,23 @@ export async function fetchComunicadoReport(
       audienceSummary: comunicados.audienceSummary,
       revisionTitle: comunicadoRevisions.title,
       html: comunicadoRevisions.html,
+      // Each person's id first: drizzle reads a left-joined object as
+      // missing when its first column is null, so someone without a display
+      // name would lose their first and last names with it.
       sentBy: {
+        id: sentBy.id,
         displayName: sentBy.displayName,
         firstName: sentBy.firstName,
         lastName: sentBy.lastName,
       },
       confirmedBy: {
+        id: confirmedBy.id,
         displayName: confirmedBy.displayName,
         firstName: confirmedBy.firstName,
         lastName: confirmedBy.lastName,
       },
       retractedBy: {
+        id: retractedBy.id,
         displayName: retractedBy.displayName,
         firstName: retractedBy.firstName,
         lastName: retractedBy.lastName,
@@ -426,6 +449,11 @@ export async function fetchComunicadoReport(
       queuedEmails: counts?.email_untried ?? 0,
       maybeSentEmails: kpis.maybeSent,
       sentEmails: kpis.emailSent,
+    },
+    retryCounts: {
+      emails: counts?.email_retryable ?? 0,
+      people: counts?.recipients_failed ?? 0,
+      maybeSentEmails: counts?.email_failed_maybe_sent ?? 0,
     },
   };
 }

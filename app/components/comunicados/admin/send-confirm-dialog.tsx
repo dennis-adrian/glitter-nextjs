@@ -15,14 +15,18 @@ import RetryButton from "@/app/components/comunicados/admin/composer/retry-butto
 import {
   type ConfirmCallout,
   confirmCallouts,
+  type ConfirmMode,
   confirmRows,
+  confirmTitle,
   LOAD_FAILED_TEXT,
+  SCHEDULE_FAILED_TEXT,
   SEND_FAILED_TEXT,
   typedCount,
   typedMatches,
   typedPrompt,
   VERSION_CHANGED_TEXT,
 } from "@/app/components/comunicados/admin/send-confirm-copy";
+import { SchedulePicker } from "@/app/components/molecules/schedule-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,18 +40,45 @@ import { Input } from "@/app/components/ui/input";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import type {
   ComunicadoSendConfirmation,
+  ScheduleActionResult,
   SendComunicadoNowResult,
 } from "@/app/lib/comunicados/contracts";
+import { scheduleComunicadoAction } from "@/app/lib/comunicados/schedule-actions";
+import {
+  audienceAtReleaseText,
+  SCHEDULE_DEVELOPMENT_REFUSAL,
+  SCHEDULE_DIALOG_HINT,
+  SCHEDULE_PREVIEW_NOTE,
+  scheduleButtonLabel,
+} from "@/app/lib/comunicados/schedule-copy";
+import {
+  SCHEDULE_DATE_MESSAGES,
+  scheduleAtProblem,
+} from "@/app/lib/comunicados/schedule-rules";
 import {
   loadComunicadoSendConfirmationAction,
   sendComunicadoNowAction,
 } from "@/app/lib/comunicados/send-actions";
+import {
+  defaultScheduleValue,
+  parseStoreDateTimeLocal,
+} from "@/app/lib/schedule-time";
 import { cn } from "@/app/lib/utils";
 
 type LoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; confirmation: ComunicadoSendConfirmation };
+
+/** What either action answers, as the dialog handles it. */
+type SubmitResult =
+  | SendComunicadoNowResult
+  | Exclude<ScheduleActionResult, { success: true }>;
+
+/** A schedule never finds a send under way: its success is a new schedule. */
+function asSubmitResult(result: ScheduleActionResult): SubmitResult {
+  return result.success ? { ...result, alreadySent: false } : result;
+}
 
 const CALLOUT_TONES: Record<ConfirmCallout["tone"], string> = {
   amber:
@@ -97,7 +128,10 @@ type SendConfirmDialogProps = {
   knownVersion: number | null;
   /** Pauses the autosave; resolves with the function that resumes it. */
   onBeforeSend: () => Promise<() => void>;
+  /** Called on a successful schedule too, with `alreadySent: false`. */
   onSent: (result: { alreadySent: boolean }) => void;
+  /** "Enviar…" (default) or "Programar…", which picks a time on top. */
+  mode?: ConfirmMode;
 };
 
 /**
@@ -105,6 +139,10 @@ type SendConfirmDialogProps = {
  * draft and how, counted by the server when it opens, then "Enviar ahora".
  * A large audience or an essential send asks for the count to be typed; the
  * server checks it again, and a changed audience reloads the numbers here.
+ *
+ * "Programar…" is the same dialog with a time picked on top (E5): today's
+ * numbers, as the audience is counted again at the release, and "Programar
+ * para …" instead of "Enviar ahora". Development cannot schedule (E1).
  */
 export default function SendConfirmDialog({
   comunicadoId,
@@ -113,25 +151,36 @@ export default function SendConfirmDialog({
   knownVersion,
   onBeforeSend,
   onSent,
+  mode = "send",
 }: SendConfirmDialogProps) {
   const router = useRouter();
   const typedId = useId();
+  const pickerId = useId();
+  const schedule = mode === "schedule";
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   /** Bumped to read the numbers again. */
   const [reads, setReads] = useState(0);
   const [typed, setTyped] = useState("");
-  /** Why the last "Enviar ahora" did not send. */
+  /** Why the last "Enviar ahora", or "Programar para …", did not go through. */
   const [refusal, setRefusal] = useState<string | null>(null);
+  /** "Programar…": the picker's value, a La Paz date and time. */
+  const [when, setWhen] = useState(() => defaultScheduleValue());
+  /** Why that time will not do, by the clock when it was checked. */
+  const [dateProblem, setDateProblem] = useState<string | null>(null);
   const [shownOpen, setShownOpen] = useState(open);
 
-  // Each opening starts over: fresh numbers, nothing typed, no old refusal.
+  // Each opening starts over: fresh numbers, nothing typed, no old refusal,
+  // and the default time from now rather than from the last opening.
   if (open !== shownOpen) {
     setShownOpen(open);
     if (open) {
       setState({ status: "loading" });
       setTyped("");
       setRefusal(null);
+      // An hour ahead at least, so there is nothing to check yet.
+      setWhen(defaultScheduleValue());
+      setDateProblem(null);
     }
   }
 
@@ -163,33 +212,65 @@ export default function SendConfirmDialog({
   }
 
   const confirmation = state.status === "ready" ? state.confirmation : null;
-  // Another tab saved after this one flushed: these numbers are not for
-  // what is on screen here.
   const blocker = !confirmation
     ? null
-    : knownVersion !== null && confirmation.version !== knownVersion
-      ? VERSION_CHANGED_TEXT
-      : confirmation.problem;
+    : schedule && confirmation.env === "development"
+      ? SCHEDULE_DEVELOPMENT_REFUSAL
+      : // Another tab saved after this one flushed: these numbers are not
+        // for what is on screen here.
+        knownVersion !== null && confirmation.version !== knownVersion
+        ? VERSION_CHANGED_TEXT
+        : confirmation.problem;
   const typedOk =
     !confirmation?.typedRequired ||
     typedMatches(typed, confirmation.preview.eligible);
-  const canSend = confirmation !== null && !blocker && typedOk && !isPending;
+  const scheduledAt = schedule ? parseStoreDateTimeLocal(when) : null;
+  const canSend =
+    confirmation !== null && !blocker && !dateProblem && typedOk && !isPending;
 
-  function send(shown: ComunicadoSendConfirmation) {
+  /** By the browser's clock; the server checks again with its own. */
+  function timeProblem(picked: string) {
+    const at = parseStoreDateTimeLocal(picked);
+    return at
+      ? scheduleAtProblem(at, Date.now())
+      : SCHEDULE_DATE_MESSAGES.invalid;
+  }
+
+  function pickTime(picked: string) {
+    setWhen(picked);
+    setDateProblem(timeProblem(picked));
+  }
+
+  /** Sends the numbers shown now, or, given a time, schedules them for it. */
+  function submit(shown: ComunicadoSendConfirmation, at: Date | null) {
     setRefusal(null);
     startTransition(async () => {
-      // No save may reach the draft while it becomes a sent comunicado.
+      // No save may reach the draft while it becomes a sent comunicado, or a
+      // scheduled one.
       const resume = await onBeforeSend();
-      let result: SendComunicadoNowResult;
+      const typedValue = shown.typedRequired ? typedCount(typed) : null;
+      let result: SubmitResult;
       try {
-        result = await sendComunicadoNowAction({
-          comunicadoId,
-          expectedVersion: shown.version,
-          typedCount: shown.typedRequired ? typedCount(typed) : null,
-        });
+        result = at
+          ? asSubmitResult(
+              await scheduleComunicadoAction({
+                comunicadoId,
+                expectedVersion: shown.version,
+                scheduledAt: at.toISOString(),
+                typedCount: typedValue,
+              }),
+            )
+          : await sendComunicadoNowAction({
+              comunicadoId,
+              expectedVersion: shown.version,
+              typedCount: typedValue,
+            });
       } catch (error) {
-        console.error("Error sending a comunicado", error);
-        setRefusal(SEND_FAILED_TEXT);
+        console.error(
+          at ? "Error scheduling a comunicado" : "Error sending a comunicado",
+          error,
+        );
+        setRefusal(at ? SCHEDULE_FAILED_TEXT : SEND_FAILED_TEXT);
         resume();
         return;
       }
@@ -209,11 +290,26 @@ export default function SendConfirmDialog({
         toast.error(result.message);
         onOpenChange(false);
         router.refresh();
+      } else if (result.code === "INVALID_DATE") {
+        // The server's clock on the time: under the picker, until the next
+        // pick, as the browser's own check.
+        setDateProblem(result.message);
       } else {
+        // A schedule's DEVELOPMENT too.
         setRefusal(result.message);
       }
     });
   }
+
+  const actionLabel = schedule
+    ? isPending
+      ? "Programando…"
+      : scheduledAt
+        ? scheduleButtonLabel(scheduledAt)
+        : "Programar"
+    : isPending
+      ? "Enviando…"
+      : "Enviar ahora";
 
   return (
     <AlertDialog
@@ -227,11 +323,27 @@ export default function SendConfirmDialog({
       >
         <AlertDialogHeader>
           <AlertDialogTitle className="break-words">
-            {confirmation
-              ? `¿Enviar «${confirmation.title}»?`
-              : "¿Enviar este comunicado?"}
+            {confirmTitle(mode, confirmation?.title ?? null)}
           </AlertDialogTitle>
         </AlertDialogHeader>
+
+        {schedule && (
+          <SchedulePicker
+            id={pickerId}
+            value={when}
+            onChange={pickTime}
+            problem={dateProblem}
+            disabled={isPending}
+            hint={
+              <div className="space-y-1">
+                <p>{SCHEDULE_DIALOG_HINT}</p>
+                {confirmation?.env === "preview" && (
+                  <p>{SCHEDULE_PREVIEW_NOTE}</p>
+                )}
+              </div>
+            }
+          />
+        )}
 
         {state.status === "loading" && (
           <div className="space-y-2" aria-busy="true">
@@ -274,6 +386,12 @@ export default function SendConfirmDialog({
               ))}
             </dl>
 
+            {schedule && (
+              <p className="text-sm text-muted-foreground">
+                {audienceAtReleaseText(confirmation.preview.eligible)}
+              </p>
+            )}
+
             {confirmCallouts(confirmation).map((callout) => (
               <Callout key={callout.kind} callout={callout} />
             ))}
@@ -310,10 +428,18 @@ export default function SendConfirmDialog({
               // Stays open, and busy, until the server answers: a refusal is
               // read here, next to the numbers it is about.
               event.preventDefault();
-              if (confirmation && canSend) send(confirmation);
+              if (!confirmation || !canSend) return;
+              if (!schedule) {
+                submit(confirmation, null);
+                return;
+              }
+              // The clock has moved on since the time was picked.
+              const problem = timeProblem(when);
+              setDateProblem(problem);
+              if (!problem && scheduledAt) submit(confirmation, scheduledAt);
             }}
           >
-            {isPending ? "Enviando…" : "Enviar ahora"}
+            {actionLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

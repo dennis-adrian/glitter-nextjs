@@ -88,8 +88,10 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 
 type Report = typeof import("@/app/lib/comunicados/report");
 type Queries = typeof import("@/app/lib/comunicados/queries");
+type Retry = typeof import("@/app/lib/comunicados/retry");
 let report: Report;
 let queries: Queries;
+let retry: Retry;
 
 const STAGING = "Entorno de prueba: no se envía a listas";
 const RETRACTED = "Retirado antes de enviarse";
@@ -529,6 +531,7 @@ describeDatabase("comunicado report", () => {
     process.env.NEXT_PUBLIC_BASE_URL = "https://glitter.test";
     report = await import("@/app/lib/comunicados/report");
     queries = await import("@/app/lib/comunicados/queries");
+    retry = await import("@/app/lib/comunicados/retry");
 
     try {
       await pool!.query(
@@ -639,6 +642,53 @@ describeDatabase("comunicado report", () => {
       });
     });
 
+    it("counts what a retry would reach, as the retry then picks it", async () => {
+      const admin = await signInAsAdmin();
+      const { sent } = await mixedReport(admin);
+      // p failed after an attempt that may have landed: never retried (V7).
+      const p = await createUser();
+      const pItem = await addRecipient(sent, p, { status: "notified" });
+      await addEmail(pItem!, {
+        status: "failed",
+        lastError: "outcome_unknown",
+        maybeSent: true,
+      });
+      // q failed and was retried already: its latest email is the new one.
+      const q = await createUser();
+      const qItem = await addRecipient(sent, q, { status: "notified" });
+      await addEmail(qItem!, {
+        status: "failed",
+        lastError: "resend:validation_error",
+      });
+      await addEmail(qItem!, { status: "pending" });
+      // r failed outright, with no attempt that may have landed.
+      const r = await createUser();
+      const rItem = await addRecipient(sent, r, { status: "notified" });
+      await addEmail(rItem!, { status: "failed", lastError: "expired" });
+
+      const before = await report.fetchComunicadoReport(sent.id);
+
+      // g's quota failure and r; n, whom the fan-out gave up on; p apart.
+      // i may have landed too, but is still queued, not failed.
+      expect(before!.retryCounts).toEqual({
+        emails: 2,
+        people: 1,
+        maybeSentEmails: 1,
+      });
+      expect(await retry.retryFailedComunicado(sent.id, admin)).toEqual({
+        ok: true,
+        campaignId: sent.campaignId,
+        emails: before!.retryCounts.emails,
+        people: before!.retryCounts.people,
+      });
+      const after = await report.fetchComunicadoReport(sent.id);
+      expect(after!.retryCounts).toEqual({
+        emails: 0,
+        people: 0,
+        maybeSentEmails: 1,
+      });
+    });
+
     it("reads every send of the campaign for bounces, not only the latest", async () => {
       const admin = await signInAsAdmin();
       const sent = await insertSent(admin);
@@ -696,6 +746,31 @@ describeDatabase("comunicado report", () => {
       });
       expect(result!.essentialConfirmedAt).toBeInstanceOf(Date);
       expect(result!.retractedAt).toBeInstanceOf(Date);
+    });
+
+    it("names who sent, confirmed and retracted it without a display name", async () => {
+      await signInAsAdmin();
+      const author = await createUser();
+      await pool!.query(
+        `UPDATE users SET display_name = NULL, first_name = 'Ana', last_name = 'Rojas'
+         WHERE id = $1`,
+        [author],
+      );
+      const sent = await insertSent(author, {
+        essential: {
+          reason: "Cambió el horario de armado",
+          confirmedBy: author,
+        },
+        retracted: { reason: "Salió con la fecha equivocada", by: author },
+      });
+
+      const result = await report.fetchComunicadoReport(sent.id);
+
+      expect(result).toMatchObject({
+        sentByName: "Ana Rojas",
+        essentialConfirmedByName: "Ana Rojas",
+        retractedByName: "Ana Rojas",
+      });
     });
 
     it("reads an unparseable summary as none, and keeps the rest", async () => {

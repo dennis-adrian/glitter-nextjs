@@ -1487,9 +1487,10 @@ describeDatabase("starting a comunicado send", () => {
       );
     }
 
+    // A release names no sender: it sends as whoever scheduled it.
     function release(id: number) {
       return appDb.transaction((tx) =>
-        send.startComunicadoSend(tx, id, { by: sender, trigger: "schedule" }),
+        send.startComunicadoSend(tx, id, { trigger: "schedule" }),
       );
     }
 
@@ -1552,6 +1553,69 @@ describeDatabase("starting a comunicado send", () => {
         essentialConfirmedByUserId: sender,
         essentialConfirmedAt: confirmedAt,
       });
+    });
+
+    it("sends as whoever scheduled it, not as its author", async () => {
+      const scheduler = await createUser({ role: "admin" });
+      const id = await scheduledDraft(scheduler, new Date(Date.now() - 60_000));
+
+      const result = await release(id);
+      if (result.kind !== "started") throw new Error("not started");
+      expect(await rowOf(id)).toMatchObject({
+        status: "sent",
+        createdByUserId: sender,
+        sentByUserId: scheduler,
+        updatedByUserId: scheduler,
+      });
+      const [campaign] = await campaignsOf(id);
+      expect(campaign).toMatchObject({
+        id: result.campaignId,
+        createdByUserId: scheduler,
+      });
+      const [revision] = await integrationDb!
+        .select()
+        .from(comunicadoRevisions)
+        .where(eq(comunicadoRevisions.comunicadoId, id));
+      expect(revision).toMatchObject({
+        revision: 1,
+        createdByUserId: scheduler,
+      });
+    });
+
+    it("refuses one more than an hour late before asking who scheduled it (E4)", async () => {
+      const former = await createUser({ role: "admin" });
+      const late = await scheduledDraft(
+        former,
+        new Date(Date.now() - 61 * 60_000),
+      );
+      const orphaned = await scheduledDraft(
+        null,
+        new Date(Date.now() - 61 * 60_000),
+      );
+      await integrationDb!
+        .update(users)
+        .set({ role: "user" })
+        .where(eq(users.id, former));
+
+      for (const id of [late, orphaned]) {
+        expect(await refusalOf(release(id))).toMatchObject({
+          code: "LATE",
+          message: "Se atrasó más de una hora, así que no se envió.",
+          eligible: null,
+        });
+        expect(await rowOf(id)).toMatchObject({
+          status: "scheduled",
+          version: 1,
+          campaignId: null,
+        });
+      }
+
+      // Within the hour it still goes out.
+      const onTime = await scheduledDraft(
+        sender,
+        new Date(Date.now() - 59 * 60_000),
+      );
+      expect(await release(onTime)).toMatchObject({ kind: "started" });
     });
 
     it("lets «Enviar ahora» send a scheduled one at the version it saw", async () => {

@@ -360,6 +360,50 @@ describe("every kind", () => {
     });
   });
 
+  it.each([
+    [
+      "late",
+      "Estaba programado para el sáb, 31 oct, 9:00 AM y el envío se atrasó más de una hora. Quedó como borrador para que lo revises.",
+      null,
+    ],
+    [
+      "too_large",
+      "Al enviarlo, la audiencia sumaba 3.120 personas y el máximo es 3.000. Quedó como borrador.",
+      "Al enviarlo, algo de la audiencia no se pudo usar. Quedó como borrador.",
+    ],
+    [
+      "empty",
+      "Al enviarlo, nadie de la audiencia podía recibirlo. Quedó como borrador.",
+      null,
+    ],
+    [
+      "invalid",
+      "Al enviarlo, la audiencia sumaba 3.120 personas y el máximo es 3.000. Quedó como borrador.",
+      "Al enviarlo, algo de la audiencia no se pudo usar. Quedó como borrador.",
+    ],
+    [
+      "sender_not_admin",
+      "La persona que lo programó ya no es administradora, así que no se envió. Quedó como borrador.",
+      null,
+    ],
+  ] as const)(
+    "words the %s body, with its detail and without",
+    (reason, withDetail, withoutDetail) => {
+      const body = (detail: string | null) =>
+        buildInAppCopy("comunicado_not_sent", {
+          ...(FIXTURES.comunicado_not_sent as object),
+          reason,
+          detail,
+        } as never).body;
+      // Only the reasons that splice a detail read it.
+      expect(
+        body("la audiencia sumaba 3.120 personas y el máximo es 3.000"),
+      ).toBe(withDetail);
+      expect(body(null)).toBe(withoutDetail ?? withDetail);
+      expect(body("   ")).toBe(withoutDetail ?? withDetail);
+    },
+  );
+
   it("never pushes a receipt for something the person just did", () => {
     expect(
       notificationPushes("reservation_proof_submitted", {

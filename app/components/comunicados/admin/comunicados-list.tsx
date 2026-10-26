@@ -1,4 +1,4 @@
-import { ChevronRightIcon, MegaphoneIcon } from "lucide-react";
+import { AlertCircleIcon, ChevronRightIcon, MegaphoneIcon } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -6,6 +6,7 @@ import {
   comunicadosHref,
 } from "@/app/components/comunicados/admin/comunicados-tabs";
 import NewComunicadoButton from "@/app/components/comunicados/admin/new-comunicado-button";
+import OverdueSendButton from "@/app/components/comunicados/admin/overdue-send-button";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { COMUNICADO_UNTITLED } from "@/app/lib/comunicados/definitions";
@@ -14,6 +15,11 @@ import type {
   ComunicadoListStats,
   ComunicadoTab,
 } from "@/app/lib/comunicados/queries";
+import {
+  overdueText,
+  scheduleMomentLabel,
+} from "@/app/lib/comunicados/schedule-copy";
+import { isScheduleOverdue } from "@/app/lib/comunicados/schedule-rules";
 import {
   formatAudienceCount,
   type Paged,
@@ -66,8 +72,9 @@ export function comunicadoBadge(
         : { label: "Borrador", variant: "outline" };
     case "scheduled":
       return {
+        // As its own page's badge says it.
         label: row.scheduledAt
-          ? `Programado · ${momentLabel(row.scheduledAt)}`
+          ? `Programado · ${scheduleMomentLabel(row.scheduledAt)}`
           : "Programado",
         variant: "secondary",
       };
@@ -124,9 +131,47 @@ export function comunicadoStatsLine(stats: ComunicadoListStats) {
   return parts.join(" · ");
 }
 
+/**
+ * A schedule still waiting 3 minutes past its time (E6): the sentence and
+ * "Enviar ahora", under the row's link rather than inside it, so the button
+ * is not a link's content.
+ */
+function OverdueStrip({
+  comunicadoId,
+  version,
+  scheduledAt,
+}: {
+  comunicadoId: number;
+  version: number;
+  scheduledAt: Date;
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-t border-dashed border-amber-300 bg-amber-50 px-4 py-2.5 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <p className="flex min-w-0 items-start gap-2 text-sm">
+        <AlertCircleIcon
+          className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+          aria-hidden
+        />
+        <span>{overdueText(scheduledAt)}</span>
+      </p>
+      <OverdueSendButton
+        comunicadoId={comunicadoId}
+        version={version}
+        size="sm"
+      />
+    </div>
+  );
+}
+
 function ComunicadoRow({ row, now }: { row: ComunicadoListRow; now: Date }) {
   const badge = comunicadoBadge(row);
   const title = row.title.trim();
+  const overdueAt =
+    row.status === "scheduled" &&
+    row.scheduledAt &&
+    isScheduleOverdue(row.scheduledAt, now)
+      ? row.scheduledAt
+      : null;
 
   return (
     <li>
@@ -166,6 +211,13 @@ function ComunicadoRow({ row, now }: { row: ComunicadoListRow; now: Date }) {
           aria-hidden
         />
       </Link>
+      {overdueAt && (
+        <OverdueStrip
+          comunicadoId={row.id}
+          version={row.version}
+          scheduledAt={overdueAt}
+        />
+      )}
     </li>
   );
 }

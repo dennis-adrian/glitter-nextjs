@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   confirmCallouts,
   confirmRows,
+  confirmTitle,
   PUSH_CALLOUT_TEXT,
   typedCount,
   typedMatches,
@@ -553,5 +554,21 @@ describe("typed confirmation", () => {
     }
     expect(typedCount("")).toBeNull();
     expect(typedCount("1,240")).toBeNull();
+  });
+});
+
+describe("confirmTitle", () => {
+  it("asks to send, or to schedule, the comunicado by its title", () => {
+    expect(confirmTitle("send", "Cambio de horario de armado")).toBe(
+      "¿Enviar «Cambio de horario de armado»?",
+    );
+    expect(confirmTitle("schedule", "Cambio de horario de armado")).toBe(
+      "¿Programar «Cambio de horario de armado»?",
+    );
+  });
+
+  it("says this comunicado before the numbers bring its title", () => {
+    expect(confirmTitle("send", null)).toBe("¿Enviar este comunicado?");
+    expect(confirmTitle("schedule", null)).toBe("¿Programar este comunicado?");
   });
 });

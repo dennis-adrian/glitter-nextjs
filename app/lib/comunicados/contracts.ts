@@ -19,6 +19,7 @@ export const SEND_REFUSAL_CODES = [
   "NO_ELIGIBLE_RECIPIENTS",
   "AUDIENCE_CHANGED",
   "SENDER_NOT_ADMIN",
+  "LATE",
 ] as const;
 export type SendRefusalCode = (typeof SEND_REFUSAL_CODES)[number];
 
@@ -72,3 +73,84 @@ export type ComunicadoRetractCounts = {
 };
 export type RetractComunicadoInput = { comunicadoId: number; reason: string };
 export type ComunicadoActionResult = { success: boolean; message: string };
+
+export type ScheduleRefusalCode =
+  | SendRefusalCode
+  | "DEVELOPMENT"
+  | "INVALID_DATE"
+  | "NOT_SCHEDULED";
+export type ScheduleFailureCode =
+  | ScheduleRefusalCode
+  | "INVALID"
+  | "FORBIDDEN"
+  | "FAILED";
+export type ScheduleComunicadoInput = {
+  comunicadoId: number;
+  expectedVersion: number;
+  /** ISO instant, `Date#toISOString()`. */
+  scheduledAt: string;
+  typedCount: number | null;
+};
+export type RescheduleComunicadoInput = {
+  comunicadoId: number;
+  expectedVersion: number;
+  scheduledAt: string;
+};
+export type CancelComunicadoScheduleInput = { comunicadoId: number };
+export type ScheduleActionResult =
+  | { success: true; message: string }
+  | { success: false; code: ScheduleFailureCode; message: string };
+
+export type ComunicadoRetryCounts = {
+  /** Latest email failed and maybe_sent_at null: what a retry re-sends. */
+  emails: number;
+  /** Recipients failed at fan-out: put back to pending. */
+  people: number;
+  /** Latest email failed with maybe_sent_at set: never retried (V7). */
+  maybeSentEmails: number;
+};
+export type DuplicateComunicadoResult =
+  | { success: true; comunicadoId: number }
+  | { success: false; message: string };
+
+export type EditComunicadoInput = {
+  comunicadoId: number;
+  expectedRevision: number;
+  title: string;
+  doc: unknown[];
+  actionLabel: string | null;
+  actionPath: string | null;
+  editNote: string | null;
+};
+export type EditRefusalCode =
+  | "NOT_FOUND"
+  | "NOT_SENT"
+  | "RETRACTED"
+  | "STALE"
+  | "NOTE_REQUIRED"
+  | "NO_CHANGES"
+  | "INVALID_CONTENT"
+  | "LOCKED"
+  | "BUSY";
+export type EditComunicadoResult =
+  | { success: true; revision: number; message: string }
+  | {
+      success: false;
+      code: EditRefusalCode | "INVALID" | "FORBIDDEN" | "FAILED";
+      message: string;
+    };
+
+export type ComunicadoRevisionView = {
+  revision: number;
+  title: string;
+  html: string;
+  actionLabel: string | null;
+  actionPath: string | null;
+  editNote: string | null;
+  /** ISO. */
+  createdAt: string;
+  createdByName: string | null;
+};
+export type LoadComunicadoRevisionResult =
+  | { success: true; revision: ComunicadoRevisionView }
+  | { success: false; message: string };

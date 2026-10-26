@@ -19,6 +19,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/app/lib/comunicados/actions", () => ({
   createComunicadoDraftAction: vi.fn(),
 }));
+vi.mock("@/app/lib/comunicados/duplicate-actions", () => ({
+  duplicateComunicadoAction: vi.fn(),
+}));
+vi.mock("@/app/lib/comunicados/retry-actions", () => ({
+  retryFailedComunicadoAction: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
 }));
@@ -33,6 +39,11 @@ vi.mock("@/app/components/comunicados/admin/retract-dialog", () => ({
 }));
 vi.mock("@/app/components/comunicados/admin/process-pending-button", () => ({
   default: () => <button type="button">Procesar envíos pendientes</button>,
+}));
+// The list's overdue "Enviar ahora", which a sent comunicado never shows: its
+// dialog's server actions stay out of this file.
+vi.mock("@/app/components/comunicados/admin/overdue-send-button", () => ({
+  default: () => null,
 }));
 
 const SUMMARY: ComunicadoAudienceSummary = {
@@ -123,6 +134,7 @@ function reportOf(
       maybeSentEmails: 0,
       sentEmails: 1_180,
     },
+    retryCounts: { emails: 0, people: 0, maybeSentEmails: 0 },
     ...overrides,
   };
 }
@@ -197,6 +209,75 @@ describe("ComunicadoReport", () => {
         "Destinatarios al enviar: Confirmados · Glitter Navidad 2026: 312 · 3 personas por nombre",
       ),
     ).toBeTruthy();
+  });
+
+  it("offers Duplicar, Reintentar fallidos when something failed, and the retraction", () => {
+    const { unmount } = renderReport(
+      reportOf({
+        retryCounts: { emails: 6, people: 2, maybeSentEmails: 3 },
+      }),
+    );
+
+    expect(
+      screen
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+        .slice(0, 3),
+    ).toEqual([
+      "Duplicar",
+      "Reintentar fallidos (8)",
+      "Retirar «Cambio de horario de armado»",
+    ]);
+    unmount();
+
+    // Only what may have arrived: nothing a retry would reach.
+    renderReport(
+      reportOf({
+        retryCounts: { emails: 0, people: 0, maybeSentEmails: 3 },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Duplicar" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /^Reintentar fallidos/ }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: /^Retirar/ })).toBeTruthy();
+  });
+
+  it("offers Reintentar fallidos only where the comunicado was sent from", () => {
+    const failed = { emails: 6, people: 2, maybeSentEmails: 3 };
+    // Sent from production, seen from a dev server on the same database.
+    const { unmount } = renderReport(reportOf({ retryCounts: failed }), {
+      env: "development",
+    });
+    expect(screen.getByRole("button", { name: "Duplicar" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /^Reintentar fallidos/ }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: /^Retirar/ })).toBeTruthy();
+    unmount();
+
+    // A summary that no longer parses says nothing about where.
+    renderReport(reportOf({ retryCounts: failed, summary: null }));
+    expect(
+      screen.queryByRole("button", { name: /^Reintentar fallidos/ }),
+    ).toBeNull();
+  });
+
+  it("offers only Duplicar once retracted", () => {
+    renderReport(
+      reportOf({
+        retractedAt: new Date("2026-10-25T15:02:00Z"),
+        retractedByName: "Dennis",
+        retractReason: "Salió con la fecha equivocada",
+        retryCounts: { emails: 6, people: 2, maybeSentEmails: 3 },
+      }),
+    );
+
+    expect(screen.getByRole("button", { name: "Duplicar" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /^Reintentar fallidos/ }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Retirar/ })).toBeNull();
   });
 
   it("shows every KPI G6 lists while it sends, with their subs", () => {

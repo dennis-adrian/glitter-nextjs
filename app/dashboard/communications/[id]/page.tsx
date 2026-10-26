@@ -1,6 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
 import { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -10,16 +8,14 @@ import type {
   ComposerSourceNames,
 } from "@/app/components/comunicados/admin/composer/types";
 import ComunicadoReport from "@/app/components/comunicados/admin/report/comunicado-report";
-import { Badge } from "@/app/components/ui/badge";
-import { Banner } from "@/app/components/ui/banner";
-import { buttonVariants } from "@/app/components/ui/button";
+import ScheduledComunicado, {
+  type ScheduledComunicadoData,
+} from "@/app/components/comunicados/admin/scheduled/scheduled-comunicado";
 import { requireCommunicationsAdmin } from "@/app/lib/communications/access";
 import {
-  COMUNICADO_STATUS_LABELS,
-  COMUNICADO_UNTITLED,
-} from "@/app/lib/comunicados/definitions";
-import {
+  comunicadoAudienceLabel,
   type ComposerComunicado,
+  fetchComunicadoCopySourceTitle,
   fetchComunicadoForComposer,
 } from "@/app/lib/comunicados/queries";
 import {
@@ -27,13 +23,13 @@ import {
   fetchComunicadoReport,
 } from "@/app/lib/comunicados/report";
 import { parseRecipientFilter } from "@/app/lib/comunicados/report-labels";
+import { isScheduleOverdue } from "@/app/lib/comunicados/schedule-rules";
 import {
   fetchFestivalLists,
   fetchSavedLists,
 } from "@/app/lib/distribution_lists/queries";
 import { isFeatureLaunched } from "@/app/lib/feature_flags/helpers";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
-import { cn } from "@/app/lib/utils";
 import { serverEnv } from "@/env";
 
 export const metadata: Metadata = {
@@ -66,9 +62,51 @@ function draftOf(comunicado: ComposerComunicado): ComposerDraft {
 }
 
 /**
+ * A scheduled one as its page shows it (D4). Dates travel as ISO strings to
+ * the client. The festival an essential email names is the audience's one
+ * festival: B7 allows nothing else, and scheduling checked it.
+ */
+function scheduledOf(comunicado: ComposerComunicado): ScheduledComunicadoData {
+  return {
+    id: comunicado.id,
+    version: comunicado.version,
+    title: comunicado.title,
+    doc: comunicado.doc,
+    actionLabel: comunicado.actionLabel,
+    actionPath: comunicado.actionPath,
+    sendEmail: comunicado.sendEmail,
+    sendPush: comunicado.sendPush,
+    essential: comunicado.essential,
+    essentialReason: comunicado.essentialReason,
+    essentialFestivalName:
+      comunicado.essential && comunicado.sendEmail
+        ? (comunicado.sources.festivals[0]?.name ?? null)
+        : null,
+    scheduledAt: comunicado.scheduledAt!.toISOString(),
+    scheduledByName: comunicado.scheduledByName,
+  };
+}
+
+/** "Para: Confirmados · Glitter Navidad 2026 y 3 personas", as the list says it. */
+function audienceLabelOf(comunicado: ComposerComunicado) {
+  return comunicadoAudienceLabel(comunicado.audience, {
+    festivals: new Map(
+      comunicado.sources.festivals.map((festival) => [
+        festival.id,
+        festival.name,
+      ]),
+    ),
+    lists: new Map(
+      comunicado.sources.lists.map((list) => [list.id, list.name]),
+    ),
+  });
+}
+
+/**
  * One comunicado (docs/IMPLEMENTATION-comunicados.md G1, G4, G6). A draft
- * opens the composer and a sent one its report; a scheduled one gets its
- * own page in the next release, so for now it only says what it is.
+ * opens the composer, a scheduled one its read-only page (E1, E6) and a sent
+ * one its report. "Duplicar" opens its copy with `?copia={sourceId}`, which
+ * the composer names in a banner (D5).
  */
 export default async function ComunicadoPage(props: {
   params: Promise<{ id: string }>;
@@ -76,6 +114,7 @@ export default async function ComunicadoPage(props: {
     filter?: string | string[];
     q?: string | string[];
     page?: string | string[];
+    copia?: string | string[];
   }>;
 }) {
   await requireCommunicationsAdmin();
@@ -113,41 +152,27 @@ export default async function ComunicadoPage(props: {
   // Sent between the two reads: this same page now shows its report.
   if (comunicado.status === "sent") redirect(`${COMUNICADOS_PATH}/${id}`);
 
-  if (comunicado.status !== "draft") {
+  if (comunicado.status === "scheduled") {
     return (
-      <div className="space-y-4 overflow-y-auto pb-6">
-        <Link
-          href={COMUNICADOS_PATH}
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "-ml-3",
-          )}
-        >
-          <ArrowLeftIcon className="mr-1 h-4 w-4" aria-hidden />
-          Comunicados
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">
-            {comunicado.title.trim() || COMUNICADO_UNTITLED}
-          </h2>
-          <Badge variant="outline">
-            {COMUNICADO_STATUS_LABELS[comunicado.status]}
-          </Badge>
-        </div>
-        <Banner variant="info">
-          Este comunicado está programado, así que ya no se puede editar desde
-          acá. Su página llega en la próxima versión.
-        </Banner>
-      </div>
+      <ScheduledComunicado
+        // A change of date brings a new version: the dialogs start over.
+        key={`${comunicado.id}:${comunicado.version}`}
+        comunicado={scheduledOf(comunicado)}
+        audienceLabel={audienceLabelOf(comunicado)}
+        overdue={isScheduleOverdue(comunicado.scheduledAt!, new Date())}
+        env={serverEnv.VERCEL_ENV}
+      />
     );
   }
 
-  const [festivals, lists, notificationsLaunched, pushLaunched] =
+  const copia = idSchema.safeParse((await props.searchParams).copia);
+  const [festivals, lists, notificationsLaunched, pushLaunched, copiedFrom] =
     await Promise.all([
       fetchFestivalLists(),
       fetchSavedLists(),
       isFeatureLaunched("notifications"),
       isFeatureLaunched("push_notifications"),
+      copia.success ? fetchComunicadoCopySourceTitle(copia.data) : null,
     ]);
 
   // Names for the chips: every festival and saved list on offer, plus what
@@ -207,6 +232,7 @@ export default async function ComunicadoPage(props: {
         notificationsLaunched={notificationsLaunched}
         pushLaunched={pushLaunched}
         env={serverEnv.VERCEL_ENV}
+        copiedFromTitle={copiedFrom}
       />
     </div>
   );

@@ -30,12 +30,16 @@ const comunicadoNotSentSchema = z.object({
   comunicadoId: serialId,
   title: z.string(),
   reason: z.enum(COMUNICADO_MISSED_REASONS),
-  /** The refusal's own sentence, for `too_large` and `invalid`. */
+  /**
+   * The refusal as a clause, lower-case and with no final period, spliced
+   * into the body; for `too_large` and `invalid`, else null.
+   */
   detail: z.string().max(300).nullable(),
   /** ISO instant the send was programmed for. */
   scheduledAt: z.string(),
   audienceCount: z.number().int().nullable(),
 });
+export type ComunicadoNotSentData = z.infer<typeof comunicadoNotSentSchema>;
 
 /** "sáb 31 oct, 9:00 AM", in Bolivia time. */
 function scheduledLabel(iso: string) {
@@ -48,7 +52,11 @@ function scheduledLabel(iso: string) {
   });
 }
 
-function notSentBody(data: z.infer<typeof comunicadoNotSentSchema>) {
+/**
+ * G9's body, by reason. A missed draft's banner shows the same sentence
+ * (E4): the miss stores it in `schedule_missed_detail`.
+ */
+export function comunicadoNotSentBody(data: ComunicadoNotSentData) {
   const detail = data.detail?.trim();
   switch (data.reason) {
     case "late":
@@ -87,9 +95,9 @@ export const comunicadoKinds = {
     schema: comunicadoNotSentSchema,
     inApp: (data) => ({
       title: `No se envió «${data.title}»`,
-      body: notSentBody(data),
+      body: comunicadoNotSentBody(data),
       actionPath: `/dashboard/communications/${data.comunicadoId}`,
       actionLabel: "Ver comunicado",
     }),
-  } satisfies KindDefinition<z.infer<typeof comunicadoNotSentSchema>>,
+  } satisfies KindDefinition<ComunicadoNotSentData>,
 } as const;

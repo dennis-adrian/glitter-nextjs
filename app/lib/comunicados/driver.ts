@@ -12,6 +12,7 @@ import {
   type FanoutRun,
   sweepComunicadoCompletions,
 } from "@/app/lib/comunicados/fanout";
+import { releaseDueComunicados } from "@/app/lib/comunicados/release";
 import {
   BULK_BATCH_RESERVE_MS,
   type BulkEmailRun,
@@ -52,8 +53,9 @@ export type ComunicadoWorkStep =
 export type ComunicadoWorkResult = {
   trigger: ComunicadoWorkTrigger;
   env: VercelEnvironment;
-  /** 0 until PR 6 adds the release step. */
+  /** Due schedules this run sent (E2); lane-wide only. */
   released: number;
+  /** Due schedules it turned back into drafts instead (E4). */
   missed: number;
   chunks: number;
   notified: number;
@@ -142,8 +144,19 @@ export async function runComunicadoWork({
     }
   }
 
-  // 1. PR 6 releases due schedules here, lane-wide, and fills
-  // `released` and `missed`.
+  // 1. Release: due schedules lane-wide, whichever environment wrote them
+  // (E2), so a preview's button sends the shared database's due ones with
+  // its own narrowing. Never from a dev server: nothing should send a shared
+  // database's schedules from there (K9). What it starts is this
+  // environment's, so the steps below move it like any other send.
+  if (campaignId == null && env !== "development") {
+    await step("release", async () => {
+      const run = await releaseDueComunicados({ deadline, now });
+      result.released = run.released;
+      result.missed = run.missed;
+      for (const id of run.campaignIds) touched.add(id);
+    });
+  }
 
   // 2. Fan-out: each chunk checks the deadline itself.
   await step("fanout", async () => {

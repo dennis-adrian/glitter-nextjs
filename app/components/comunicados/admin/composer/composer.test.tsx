@@ -10,9 +10,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import ComunicadoComposer from "@/app/components/comunicados/admin/composer/composer";
+import ComunicadoComposer, {
+  type ComunicadoComposerProps,
+} from "@/app/components/comunicados/admin/composer/composer";
 import type { ComposerDraft } from "@/app/components/comunicados/admin/composer/types";
 import type { ComunicadoSendConfirmation } from "@/app/lib/comunicados/contracts";
+import { SCHEDULE_DEVELOPMENT_REFUSAL } from "@/app/lib/comunicados/schedule-copy";
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -22,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   renderPreview: vi.fn(),
   loadConfirmation: vi.fn(),
   sendNow: vi.fn(),
+  schedule: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -58,6 +62,9 @@ vi.mock("@/app/lib/comunicados/test-send", () => ({
 vi.mock("@/app/lib/comunicados/send-actions", () => ({
   loadComunicadoSendConfirmationAction: mocks.loadConfirmation,
   sendComunicadoNowAction: mocks.sendNow,
+}));
+vi.mock("@/app/lib/comunicados/schedule-actions", () => ({
+  scheduleComunicadoAction: mocks.schedule,
 }));
 
 const DRAFT: ComposerDraft = {
@@ -130,7 +137,16 @@ function sendButton() {
   return screen.getByRole("button", { name: "Enviar…" }) as HTMLButtonElement;
 }
 
-function renderComposer(draft: ComposerDraft = DRAFT) {
+function scheduleButton() {
+  return screen.getByRole("button", {
+    name: /^Programar…/,
+  }) as HTMLButtonElement;
+}
+
+function renderComposer(
+  draft: ComposerDraft = DRAFT,
+  props: Partial<ComunicadoComposerProps> = {},
+) {
   return render(
     <ComunicadoComposer
       draft={draft}
@@ -144,6 +160,7 @@ function renderComposer(draft: ComposerDraft = DRAFT) {
       notificationsLaunched
       pushLaunched
       env="production"
+      {...props}
     />,
   );
 }
@@ -156,6 +173,7 @@ describe("ComunicadoComposer", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.restoreAllMocks();
     for (const mock of Object.values(mocks)) mock.mockReset();
   });
@@ -215,7 +233,7 @@ describe("ComunicadoComposer", () => {
     });
   });
 
-  it("keeps «Enviar…» off while something a send needs is missing", () => {
+  it("keeps «Enviar…» and «Programar…» off while something a send needs is missing", () => {
     renderComposer();
     expect(
       screen.getByText(
@@ -223,7 +241,9 @@ describe("ComunicadoComposer", () => {
       ),
     ).toBeTruthy();
     expect(sendButton().disabled).toBe(true);
+    expect(scheduleButton().disabled).toBe(true);
     fireEvent.click(sendButton());
+    fireEvent.click(scheduleButton());
     expect(mocks.loadConfirmation).not.toHaveBeenCalled();
   });
 
@@ -314,5 +334,112 @@ describe("ComunicadoComposer", () => {
     );
     expect(mocks.loadConfirmation).not.toHaveBeenCalled();
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("saves what is on screen, then «Programar…» schedules the version stored", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // Monday 26 October, 10:12 in La Paz.
+    vi.setSystemTime(new Date("2026-10-26T14:12:00.000Z"));
+    mocks.previewAudience.mockReturnValue(new Promise(() => {}));
+    mocks.save.mockResolvedValue({
+      success: true,
+      version: 4,
+      savedAt: new Date().toISOString(),
+      contentError: null,
+      replayed: false,
+    });
+    mocks.loadConfirmation.mockResolvedValue({
+      success: true,
+      confirmation: confirmation(4),
+    });
+    mocks.schedule.mockResolvedValue({
+      success: true,
+      message: "Quedó programado para el sáb, 31 oct, 9:00 AM.",
+    });
+    renderComposer(READY);
+
+    fireEvent.change(screen.getByLabelText("Título"), {
+      target: { value: "Cambio de horario de armado" },
+    });
+    expect(scheduleButton().disabled).toBe(false);
+    fireEvent.click(scheduleButton());
+    // The dialog counts the stored draft: the edit goes first.
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+    expect(mocks.save.mock.calls[0]![0]).toMatchObject({
+      expectedVersion: 3,
+      title: "Cambio de horario de armado",
+    });
+    await screen.findByText("¿Programar «Cambio de horario de armado»?");
+    expect(mocks.loadConfirmation).toHaveBeenCalledWith(7);
+    // One dialog at a time (behind it, so hidden while it is open).
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Enviar…",
+          hidden: true,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("Fecha y hora") as HTMLInputElement).value,
+    ).toBe("2026-10-26T12:00");
+
+    fireEvent.change(screen.getByLabelText("Fecha y hora"), {
+      target: { value: "2026-10-31T09:00" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Programar para sáb, 31 oct, 9:00 AM",
+      }),
+    );
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+    expect(mocks.schedule).toHaveBeenCalledWith({
+      comunicadoId: 7,
+      expectedVersion: 4,
+      scheduledAt: "2026-10-31T13:00:00.000Z",
+      typedCount: null,
+    });
+    expect(mocks.sendNow).not.toHaveBeenCalled();
+    expect(mocks.toastSuccess).toHaveBeenCalledWith(
+      "Quedó programado para el sáb, 31 oct, 9:00 AM.",
+    );
+    // Scheduled: nothing changes while the page turns into its scheduled view.
+    expect((screen.getByLabelText("Título") as HTMLInputElement).disabled).toBe(
+      true,
+    );
+    expect(scheduleButton().disabled).toBe(true);
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps «Programar…» off in development, and says why", () => {
+    mocks.previewAudience.mockReturnValue(new Promise(() => {}));
+    renderComposer(READY, { env: "development" });
+    expect(scheduleButton().disabled).toBe(true);
+    expect(screen.getByText(SCHEDULE_DEVELOPMENT_REFUSAL)).toBeTruthy();
+    expect(scheduleButton().getAttribute("aria-describedby")).toBe(
+      screen.getByText(SCHEDULE_DEVELOPMENT_REFUSAL).id,
+    );
+    fireEvent.click(scheduleButton());
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.loadConfirmation).not.toHaveBeenCalled();
+    // A send still goes, in the app only.
+    expect(sendButton().disabled).toBe(false);
+  });
+
+  it("says a duplicated draft is a copy, and of what", () => {
+    const { unmount } = renderComposer(DRAFT, {
+      copiedFromTitle: "Cambio de horario de armado",
+    });
+    expect(
+      screen.getByText(
+        "Copia de «Cambio de horario de armado». Revisá los destinatarios antes de enviar.",
+      ),
+    ).toBeTruthy();
+    unmount();
+
+    renderComposer();
+    expect(screen.queryByText(/^Copia de/)).toBeNull();
+    expect(screen.queryByText(SCHEDULE_DEVELOPMENT_REFUSAL)).toBeNull();
   });
 });

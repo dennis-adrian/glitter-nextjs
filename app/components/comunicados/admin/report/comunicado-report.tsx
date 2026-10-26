@@ -5,12 +5,14 @@ import {
   comunicadoBadge,
   momentLabel,
 } from "@/app/components/comunicados/admin/comunicados-list";
+import DuplicateComunicadoButton from "@/app/components/comunicados/admin/duplicate-button";
 import RecipientsFilters from "@/app/components/comunicados/admin/report/recipients-filters";
 import RecipientsPagination from "@/app/components/comunicados/admin/report/recipients-pagination";
 import RecipientsSearch from "@/app/components/comunicados/admin/report/recipients-search";
 import RecipientsTable from "@/app/components/comunicados/admin/report/recipients-table";
 import ComunicadoReportBanners from "@/app/components/comunicados/admin/report/report-banners";
 import ReportKpi from "@/app/components/comunicados/admin/report/report-kpi";
+import RetryFailedButton from "@/app/components/comunicados/admin/report/retry-failed-dialog";
 import RetractComunicadoMenu from "@/app/components/comunicados/admin/retract-dialog";
 import RichTextHtml from "@/app/components/molecules/rich-text-html";
 import { Badge } from "@/app/components/ui/badge";
@@ -109,7 +111,10 @@ function ReportKpis({ report }: { report: ComunicadoReportData }) {
 /**
  * A sent comunicado's page (docs/IMPLEMENTATION-comunicados.md G6, F6): who
  * sent it and to whom, how it is going, what it said, and each person's row.
- * "Editar", "Duplicar" and "Reintentar fallidos" come in later releases.
+ * Its actions are "Duplicar", "Reintentar fallidos" when something failed
+ * and this environment sent it, and "⋯ Retirar…"; once retracted, only
+ * "Duplicar". "Editar" comes in the
+ * next release.
  */
 export default function ComunicadoReport({
   report,
@@ -147,7 +152,7 @@ export default function ComunicadoReport({
         Comunicados
       </Link>
 
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="min-w-0 break-words text-lg font-semibold">
@@ -177,13 +182,26 @@ export default function ComunicadoReport({
             </p>
           )}
         </div>
-        {report.retractedAt === null && (
-          <RetractComunicadoMenu
-            comunicadoId={report.id}
-            title={title}
-            counts={report.retractCounts}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
+          <DuplicateComunicadoButton comunicadoId={report.id} />
+          {report.retractedAt === null && (
+            <>
+              {/* Shows itself only when something can be retried; from
+                  another environment the retry would only be refused (D9). */}
+              {report.summary?.env === env && (
+                <RetryFailedButton
+                  comunicadoId={report.id}
+                  counts={report.retryCounts}
+                />
+              )}
+              <RetractComunicadoMenu
+                comunicadoId={report.id}
+                title={title}
+                counts={report.retractCounts}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       <ComunicadoReportBanners report={report} env={env} />

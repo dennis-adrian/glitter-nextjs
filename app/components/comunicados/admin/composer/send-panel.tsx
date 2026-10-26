@@ -1,6 +1,7 @@
 "use client";
 
-import { FlaskConicalIcon, SendIcon } from "lucide-react";
+import { CalendarClockIcon, FlaskConicalIcon, SendIcon } from "lucide-react";
+import { useId } from "react";
 
 import { realSkippedCount } from "@/app/components/comunicados/admin/composer/composer-copy";
 import { Button } from "@/app/components/ui/button";
@@ -27,13 +28,18 @@ type SendPanelProps = {
   onSend: () => void;
   /** Saving before the dialog, or the dialog is open. */
   sendPending: boolean;
+  /** "Programar…": the same, with the dialog picking a time. */
+  onSchedule: () => void;
+  schedulePending: boolean;
+  /** Why nothing can be scheduled here at all, shown under the button. */
+  scheduleDisabledReason: string | null;
   disabled?: boolean;
 };
 
 /**
- * "Enviar" (docs/IMPLEMENTATION-comunicados.md G4, G5, D11): today's numbers,
- * a test of the saved draft to the admin, and "Enviar…", which confirms the
- * send in a dialog. Scheduling arrives in the next release.
+ * "Enviar" (docs/IMPLEMENTATION-comunicados.md G4, G5, D11, E5): today's
+ * numbers, a test of the saved draft to the admin, and "Programar…" and
+ * "Enviar…", which confirm the schedule or the send in a dialog.
  */
 export default function SendPanel({
   preview,
@@ -45,21 +51,28 @@ export default function SendPanel({
   testPending,
   onSend,
   sendPending,
+  onSchedule,
+  schedulePending,
+  scheduleDisabledReason,
   disabled = false,
 }: SendPanelProps) {
+  const scheduleReasonId = useId();
   const count = (value: number | undefined) =>
     audienceEmpty
       ? "0"
       : value === undefined
         ? "—"
         : formatAudienceCount(value);
-  // Nothing the dialog could send: it would only refuse.
+  // Nothing the dialog could send or schedule: it would only refuse. One
+  // dialog at a time.
   const sendDisabled =
     disabled ||
     sendPending ||
+    schedulePending ||
     missing.length > 0 ||
     audienceEmpty ||
     preview?.tooLarge === true;
+  const scheduleDisabled = sendDisabled || scheduleDisabledReason !== null;
 
   return (
     <Card>
@@ -106,6 +119,26 @@ export default function SendPanel({
           <FlaskConicalIcon className="mr-2 h-4 w-4" aria-hidden />
           {testPending ? "Enviando la prueba…" : "Enviarme una prueba"}
         </Button>
+        <div className="space-y-1">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={scheduleDisabled}
+            onClick={onSchedule}
+            aria-describedby={
+              scheduleDisabledReason ? scheduleReasonId : undefined
+            }
+          >
+            <CalendarClockIcon className="mr-2 h-4 w-4" aria-hidden />
+            Programar…
+          </Button>
+          {scheduleDisabledReason && (
+            <p id={scheduleReasonId} className="text-xs text-muted-foreground">
+              {scheduleDisabledReason}
+            </p>
+          )}
+        </div>
         <Button
           type="button"
           className="w-full"

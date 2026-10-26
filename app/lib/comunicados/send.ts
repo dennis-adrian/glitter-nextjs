@@ -18,6 +18,7 @@ import type {
 } from "@/app/lib/comunicados/contracts";
 import {
   COMUNICADO_MAX_RECIPIENTS,
+  COMUNICADO_SCHEDULE_LATE_LIMIT_MS,
   COMUNICADO_TYPE_TO_CONFIRM_RECIPIENTS,
   type ComunicadoAudience,
   type ComunicadoAudienceSummary,
@@ -56,6 +57,8 @@ export const SEND_MESSAGES = {
     "El borrador cambió desde que abriste la confirmación. Revisalo y confirmá de nuevo.",
   senderNotAdmin:
     "La persona que lo programó ya no es administradora, así que no se envió.",
+  /** A release's only: the miss records it as `late`, in its own words. */
+  late: "Se atrasó más de una hora, así que no se envió.",
   unreadableAudience:
     "No pudimos leer los destinatarios guardados. Elegilos de nuevo.",
   emptyAudience: "Elegí al menos una lista o una persona.",
@@ -284,8 +287,10 @@ export async function checkComunicadoSendable(
 }
 
 /**
- * "Enviar ahora" carries the version the dialog showed and the count typed in
- * it; a release (PR 6) carries neither: the schedule recorded its confirmation.
+ * "Enviar ahora" carries who sends it, the version the dialog showed and the
+ * count typed in it. A release carries none of them: it sends as whoever
+ * scheduled it, read under the row lock, and the schedule recorded the
+ * confirmation (E3).
  */
 export type StartComunicadoSendOptions =
   | {
@@ -294,7 +299,7 @@ export type StartComunicadoSendOptions =
       expectedVersion: number;
       typedCount: number | null;
     }
-  | { by: number; trigger: "schedule" };
+  | { trigger: "schedule" };
 
 export type StartComunicadoSendResult =
   | {
@@ -316,8 +321,8 @@ export type SendNowResult = Exclude<
   { kind: "not_due" }
 >;
 
-async function isAdmin(tx: ComunicadosTx, userId: number | null) {
-  if (userId === null) return false;
+/** A global admin: the role, whatever the status, as the actions check it. */
+async function isAdmin(tx: ComunicadosTx, userId: number) {
   const [user] = await tx
     .select({ role: users.role })
     .from(users)
@@ -369,6 +374,7 @@ export async function startComunicadoSend(
       campaignId: comunicados.campaignId,
       // The database's clock, as the release's own claim reads it.
       due: sql<boolean>`coalesce(${comunicados.scheduledAt} <= now(), false)`,
+      late: sql<boolean>`coalesce(${comunicados.scheduledAt} < now() - make_interval(secs => ${COMUNICADO_SCHEDULE_LATE_LIMIT_MS / 1000}::double precision), false)`,
     })
     .from(comunicados)
     .where(eq(comunicados.id, comunicadoId))
@@ -376,6 +382,7 @@ export async function startComunicadoSend(
     .for("update");
   if (!row) throw new SendRefusal("NOT_FOUND", SEND_MESSAGES.notFound);
 
+  let by: number;
   if (opts.trigger === "now") {
     // Before the version: a double click is one send, and the second click
     // hears that it is on its way.
@@ -389,11 +396,17 @@ export async function startComunicadoSend(
     if (row.version !== opts.expectedVersion) {
       throw new SendRefusal("STALE", SEND_MESSAGES.stale);
     }
+    by = opts.by;
   } else {
     if (row.status !== "scheduled" || !row.due) return { kind: "not_due" };
-    if (!(await isAdmin(tx, row.scheduledByUserId))) {
+    // Lateness first (E4): an outage of hours is a late miss, whoever
+    // scheduled it.
+    if (row.late) throw new SendRefusal("LATE", SEND_MESSAGES.late);
+    const scheduler = row.scheduledByUserId;
+    if (scheduler === null || !(await isAdmin(tx, scheduler))) {
       throw new SendRefusal("SENDER_NOT_ADMIN", SEND_MESSAGES.senderNotAdmin);
     }
+    by = scheduler;
   }
 
   const env = serverEnv.VERCEL_ENV;
@@ -413,7 +426,7 @@ export async function startComunicadoSend(
       status: "processing",
       title: content.title,
       message: content.text,
-      createdByUserId: opts.by,
+      createdByUserId: by,
       idempotencyKey: `comunicado:${row.id}`,
     })
     .returning({ id: notificationCampaigns.id });
@@ -452,7 +465,7 @@ export async function startComunicadoSend(
     text: content.text,
     actionLabel: content.actionLabel,
     actionPath: content.actionPath,
-    createdByUserId: opts.by,
+    createdByUserId: by,
   });
 
   // "Enviar ahora" records who confirmed an essential send; a schedule
@@ -462,7 +475,7 @@ export async function startComunicadoSend(
       ? {}
       : row.essential
         ? {
-            essentialConfirmedByUserId: opts.by,
+            essentialConfirmedByUserId: by,
             essentialConfirmedAt: sql`now()`,
           }
         : { essentialConfirmedByUserId: null, essentialConfirmedAt: null };
@@ -473,7 +486,7 @@ export async function startComunicadoSend(
       campaignId,
       currentRevision: 1,
       sentAt: sql`now()`,
-      sentByUserId: opts.by,
+      sentByUserId: by,
       audienceSummary: buildAudienceSummary({
         env,
         narrowed: preview.narrowed,
@@ -496,7 +509,7 @@ export async function startComunicadoSend(
       scheduleMissedDetail: null,
       version: sql`${comunicados.version} + 1`,
       updatedAt: sql`now()`,
-      updatedByUserId: opts.by,
+      updatedByUserId: by,
     })
     .where(eq(comunicados.id, row.id));
 
