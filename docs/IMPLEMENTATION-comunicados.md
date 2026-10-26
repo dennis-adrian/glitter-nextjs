@@ -1,6 +1,6 @@
 # Implementation: comunicados and distribution lists (phase 3)
 
-**Status:** Proposed, 2026-10-24
+**Status:** Built behind the hidden `comunicados` flag, 2026-10-26; not yet released. PRs 2 and 3 merged on their own (#603, #604); PRs 4–8 shipped together in one pull request (#605). Where the code settled a detail this design left open or got wrong, the implementation notes at the end of §J say what it does.
 **PRD:** §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md)
 
 This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md): comunicados (admin-written announcements) and distribution lists. §12 holds the decisions agreed with Dennis on 2026-10-24. Decisions 1–9 are binding here and are cited as "decision N", by their number there. Its defaults 10–24 are proposed, not decided: each is asked here as a K question, with its default number. "PRD §n" is a section of that PRD. Citations are `file:line` in the repo, checked against develop at `bf067e1b`.
@@ -640,8 +640,10 @@ export const announcementEditorSchema = BlockNoteSchema.create({
    - nesting deeper than 2 is lifted: the children of a depth-2 block follow it as siblings, in order;
    - empty trailing paragraphs are trimmed.
 4. **Links** must pass `isAllowedRichTextUri` (`sanitize.ts:60`): `https:`, `http:`, `mailto:` or a root-relative `/path`, with no control characters. Anything else is refused: "Revisá el enlace «…»". Whitespace inside an address is percent-encoded on save, so the inbox, the email and the text part carry the same address.
-5. **Images (PR 8)** must be `https:` and pass `getUploadThingFileKey` (`app/lib/uploadthing/storage.ts:42-57`), at most 6.
-   - On autosave a foreign image is kept but flagged.
+5. **Images (PR 8)** must pass `isUploadThingFileUrl` (`app/lib/uploadthing/file-key.ts`, pure, so the client and the sanitizer use it too): `https:`, a `utfs.io`, `ufs.sh` or `*.ufs.sh` host with no port or credentials, a bare `/f/<key>` path, no query or fragment, and written exactly as a URL parser writes it back (nothing it would trim, lower-case, encode or resolve). `getUploadThingFileKey` moved to the same file; `storage.ts` re-exports it.
+   - At most 6, at both stages: "Un comunicado puede tener hasta 6 imágenes."
+   - An image with no address (an upload that never finished) is dropped at both stages, and what was nested under it takes its place.
+   - On autosave a foreign image is kept; the composer flags it (`foreignComunicadoImageUrls`, `app/lib/comunicados/images.ts`).
    - At `send` stage it is refused: "Esta imagen no está subida a Glitter: subila de nuevo."
 6. **Text** (send stage only): plain text ≤ 5,000 characters, and visible content (`richTextBodyHasVisibleContent`, `app/lib/festival-terms/html.ts:144-161`). Drafts may be incomplete.
 7. **Rendered email** (send stage only): ≤ 90 KB. Message: "El correo quedaría demasiado largo y Gmail lo cortaría. Acortá el texto o sacá alguna imagen."
@@ -664,7 +666,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 
 - headings become `Heading as="h2|h3"`, paragraphs `Text`, quotes a `Section` with a left border, dividers `Hr` followed by any blocks nested under them;
 - lists become `ul`/`ol` with inline padding;
-- images (PR 8) become `Img` at width 100%, `max-width: 552px`, `height: auto`, with the caption or "" as alt;
+- images (PR 8) become `Img` with a `width="430"` attribute (Outlook ignores CSS widths) and width 100%, `max-width: 430px`, `height: auto`, with the caption or "" as alt: the body is 430 px wide, a 480 px container less its padding and border (`app/emails/styles.ts`). An image that fails C2 step 5's host rule renders nothing, though the send stage has already refused it;
 - it never emits `details`, `input`, `figure` or `pre`;
 - **root-relative links are made absolute by plain concatenation** with `publicBaseUrl()`, after C6's checks, never with `new URL(href, base)`.
 
@@ -1194,12 +1196,14 @@ Step 1 of the lane-scoped `runComunicadoWork`, in the per-minute cron and behind
 BEGIN;
 SELECT id, version, scheduled_at FROM comunicados WHERE status = 'scheduled' AND scheduled_at <= now()
   AND id <> ALL($triedThisTick)
-ORDER BY scheduled_at LIMIT 1 FOR UPDATE SKIP LOCKED;          -- served by comunicados_scheduled_idx
--- startComunicadoSend(tx, id, { trigger: 'schedule', by: scheduled_by_user_id }) in this same transaction (D1)
+ORDER BY scheduled_at, id LIMIT 1 FOR UPDATE SKIP LOCKED;      -- served by comunicados_scheduled_idx
+-- startComunicadoSend(tx, id, { trigger: 'schedule' }) in this same transaction (D1): it sends as
+-- scheduled_by_user_id, read under this lock, and refuses when that person is no longer a global admin (E4)
 COMMIT;
 ```
 
-- It repeats up to 3 times per tick.
+- It repeats up to 3 times per tick, and starts no release with less than 10 s left before the run's deadline.
+- **Never in development** (K9): a dev server's run skips this step, so nothing releases a shared database's schedules from there. Previews do release, with their own narrowing.
 - **Each iteration skips the ids already tried in this tick.** One comunicado that throws an unexpected error cannot hold back later ones; it stays scheduled until it becomes `late` (E4).
 - **A cancel that committed first wins.** An overlapping run skips the locked row; once committed, the row reads `sent`.
 - **Due-ness uses the database clock,** as the queue does (`deliveries.ts:62-69`).
@@ -1238,7 +1242,8 @@ COMMIT;
   - Clearing the essential confirmation keeps the draft editable: `comunicados_essential_confirmed` has no draft exemption, so unticking "Correo esencial" would otherwise fail every autosave.
 - If that updated a row, the **same transaction** writes the `comunicado_not_sent` item (G9), so a crash cannot record the miss and lose the bell item:
   - to `scheduled_by_user_id` when that person is still a global admin;
-  - otherwise to every global admin (`fetchAdminUsers`, `app/lib/users/queries.ts:173-185`).
+  - otherwise to every global admin.
+  - A global admin is any user with the role `admin`, whatever their status, as `startComunicadoSend` and the actions check it. Both lookups run in the miss's transaction; `fetchAdminUsers` (`app/lib/users/queries.ts:173-185`) is not used, since it reads outside it and answers an error with nobody.
 - An **unexpected** error (not a typed refusal) leaves the comunicado scheduled, so the next tick retries it until it becomes `late`. The release does not try it again in the same tick (E2), so later schedules still go out. 40P01 and 23503 were already retried inside D1.
 - The draft shows the same sentence as a banner until it is scheduled or sent again. Sending it works (D1 step 7).
 
@@ -1391,14 +1396,14 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 
 ### G1. Where it lives
 
-| Route                                                                       | Page                                                                                                                    |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `/dashboard/communications`                                                 | Comunicados list                                                                                                        |
-| `/dashboard/communications/[id]`                                            | A draft opens the composer. A scheduled one opens it read-only, with its actions. A sent one opens its page and report. |
-| `/dashboard/communications/[id]/edit`                                       | Edit after sending (no autosave)                                                                                        |
-| `/dashboard/communications/lists`                                           | Lists                                                                                                                   |
-| `/dashboard/communications/lists/new?kind=filter\|fixed`, `/lists/[listId]` | List editors                                                                                                            |
-| `/dashboard/communications/lists/festival/[festivalId]`                     | "Confirmados · \<festival\>", read-only (G8)                                                                            |
+| Route                                                                       | Page                                                                                                                                        |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/dashboard/communications`                                                 | Comunicados list                                                                                                                            |
+| `/dashboard/communications/[id]`                                            | A draft opens the composer. A scheduled one opens a read-only page of its own, with its actions (E1). A sent one opens its page and report. |
+| `/dashboard/communications/[id]/edit`                                       | Edit after sending (no autosave)                                                                                                            |
+| `/dashboard/communications/lists`                                           | Lists                                                                                                                                       |
+| `/dashboard/communications/lists/new?kind=filter\|fixed`, `/lists/[listId]` | List editors                                                                                                                                |
+| `/dashboard/communications/lists/festival/[festivalId]`                     | "Confirmados · \<festival\>", read-only (G8)                                                                                                |
 
 - **Layout:** `app/dashboard/communications/layout.tsx` mirrors `credits/layout.tsx`.
   - h1 "Comunicaciones";
@@ -1869,23 +1874,36 @@ It loads fresh numbers from the server when it opens:
 8. **One-click on a protected preview:**
    - `curl -X POST "<preview>/api/email/unsubscribe?token=…"` without Vercel credentials. If it answers 401 (Vercel's login), that is expected on staging only, and the footer note covers it;
    - with the `x-vercel-protection-bypass` header it answers 200.
-9. **Edit after sending:**
-   - the item shows "Editado" and the new text, the detail page shows "Editado el …", and the history lists two versions;
-   - editing an essential one requires the note.
+9. **Edit after sending** ("Editar" on a sent comunicado):
+   - the dialog's lines match the report's numbers;
+   - the item shows "· Editado" and the new text, and the detail page shows "Editado el …";
+   - the comunicado's header reads "Enviado el … por … · Editado el … por …";
+   - "Historial" lists two versions, version 2 with its note and "Actual"; "Historial · Ver" on version 1 opens the text as it was sent;
+   - saving without changing anything is refused: "No cambiaste nada: el comunicado sigue igual.";
+   - editing an essential one requires the note;
+   - a retracted comunicado offers no "Editar", and its `/edit` address opens its page.
    - Editing _while_ emails are queued is covered by PR 7's integration tests.
 10. **Retract:**
     - the item disappears the next time the list loads (opening the bell, coming back to the tab, navigating), and the badge within 60 s when the unread count changes;
     - the archive toast's "Deshacer" and the "Deshacer" after "Marcar todo como leído" do nothing;
     - an old push tap lands in the inbox;
     - the report is intact, and the campaign shows "Retirado", not "Enviando…".
-11. **Schedule:**
-    - schedule 6 minutes ahead; after the time the overdue banner appears, and "Procesar envíos pendientes" sends it;
+11. **Schedule, retry, duplicate:**
+    - schedule 6 minutes ahead; the list and the page show the time in La Paz; 3 minutes after it the overdue banner appears on both, and "Procesar envíos pendientes" sends it;
     - schedule, wait more than an hour, press the button: back to draft, with the bell item;
     - then "Enviar ahora" on that draft works;
-    - cancel a schedule, and change another's date.
+    - cancel a schedule, and change another's date;
+    - "Reintentar fallidos (N)" on a preview, on a comunicado with a failed email row (for example after a "Con error"): the dialog says what it retries and what may have arrived, and the rows go back to "En cola" and are sent;
+    - "Duplicar" from a retracted comunicado opens a new draft with "Copia de «…». Revisá los destinatarios antes de enviar.", the same title, text, button, email setting and recipients, push and essential unticked.
 12. **Cron and topics:**
     - `curl -H "Authorization: Bearer $CRON_SECRET" -H "x-vercel-protection-bypass: $BYPASS" https://<preview>/api/cron/morning/comunicados` returns the step counts;
     - `/dashboard/emails` lists "Anuncios".
+13. **Images:**
+    - "Imagen" opens a panel with the "Subir" tab only and "JPG o PNG, hasta 4 MB. Se ve mejor a 1200 px de ancho."; a JPG and a PNG upload, and show in the editor, the "Detalle" and "Correo" previews, the detail page and "Historial · Ver";
+    - a WebP is refused: "Subí una imagen JPG o PNG.";
+    - text pasted from another site with its image saves as a draft, and the composer flags the image: "Esta imagen no está subida a Glitter: subila de nuevo."; sending refuses it with the same sentence;
+    - with 6 images "Imagen" is disabled, and a 7th pasted in is refused when the draft saves: "Un comunicado puede tener hasta 6 imágenes.";
+    - the email shows the image at the text's width in Gmail (web and phone) and in Outlook (desktop and web).
 
 The large-audience paths (2,000 recipients, held batches, expiry, 429s, quota, config stalls) are covered by integration tests: staging narrowing keeps preview audiences small.
 
@@ -1893,7 +1911,12 @@ The large-audience paths (2,000 recipients, held batches, expiry, 429s, quota, c
 
 **Log lines** carry ids and counts only, never addresses or provider messages (`deliveries.ts:225-226`):
 
-- `[comunicados] send {comunicadoId, eligible, skipped, narrowed}`
+- `[comunicados] send {comunicadoId, eligible, skipped, narrowed}`, with `trigger: "schedule"` when a release started it
+- `[comunicados] schedule {comunicadoId, eligible}`, `[comunicados] reschedule {comunicadoId}`, `[comunicados] schedule cancelled {comunicadoId}`
+- `[comunicados] release missed {comunicadoId, reason}`: back to draft, with the bell item (E4)
+- `[comunicados] release failed {comunicadoId, errorType, code}`: still scheduled, tried again next tick until it is late (E4)
+- `[comunicados] retry {comunicadoId, campaignId, emails, people}`
+- `[comunicados] edit {comunicadoId, revision, items}`
 - `[comunicados] chunk {campaignId, notified, skipped, ms}`
 - `[comunicados] batch {campaignId, size, outcome, attempt, ms}`
 - `[comunicados] tick {trigger, released, missed, chunks, pushes, batches, expired, throttles, ms}`
@@ -1959,7 +1982,11 @@ WHERE n.campaign_id=$1 AND d.channel='email' GROUP BY 1;
    - A hold past the 20 h expiry fails the held emails safely (D3, Step 0). Rows that no attempt may have reached (`pending`, no `maybe_sent_at`) read "Venció sin enviarse" and can be retried. Rows with `maybe_sent_at`, or still `processing` from an attempt that never settled, read "Puede haber llegado". No key is ever re-submitted late.
    - To stop one comunicado, retract it instead.
 3. **Hide the flag.** That only removes the admin UI.
-4. **Recall an image posted by mistake** (PR 8): delete the file in UploadThing. Its key is the `…/f/<key>` of the image URL in the revision's `doc`, read with `getUploadThingFileKey`. It stops loading in every email already sent.
+4. **Recall an image posted by mistake** (PR 8). This is the best there is, not a full recall:
+   - First edit the comunicado without it (F1). That takes it out of the inbox, and out of the emails not sent yet, which render the current revision. Retracting it (lever 1) takes the whole item out instead.
+   - Then delete the file in UploadThing. Its key is the `…/f/<key>` of the image URL in the revision's `doc`, read with `getUploadThingFileKey`.
+   - From then on, a sent email that loads it again shows a broken image. A copy already fetched is out of reach: Apple Mail Privacy Protection downloads images when the mail arrives, Gmail's image proxy caches them, desktop clients keep the images they showed, and a forward may carry one.
+   - Earlier revisions show it broken in "Historial · Ver". "Duplicar" after a retraction copies the dead address, and the send check reads only its shape (`isUploadThingFileUrl`), so take the image out of the copy before sending it.
 
 ### I5. Rollback rules
 
@@ -1986,6 +2013,8 @@ WHERE n.campaign_id=$1 AND d.channel='email' GROUP BY 1;
 ## J. PR plan
 
 Eight PRs. Groundwork ships first and alone, because it changes the transactional hot path and should soak (I2).
+
+**How they shipped:** PRs 2 and 3 merged on their own (#603, #604). PRs 4–8 shipped together in one pull request (#605), each PR's commits in order on one branch; the cuts below still describe what each one adds. None of PRs 5–8 needed a migration. What the code settled differently from this design is in the implementation notes at the end of this section.
 
 **Why the cuts fall where they do:**
 
@@ -2138,7 +2167,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 **Tests:**
 
 - **Unit:** La Paz parsing; schedule validation (5 min to 60 days); retry dialog counts; overdue banner predicate.
-- **Integration** `app/lib/comunicados/schedule.integration.test.ts` (serial):
+- **Integration** (serial), in five files under `app/lib/comunicados/`, so each covers one service: `schedule.integration.test.ts` (Programar, Cambiar fecha, Cancelar), `release.integration.test.ts` (the release, its misses and its races), `retry.integration.test.ts`, `duplicate.integration.test.ts`, and `queries.integration.test.ts` (the list row's version, who scheduled it, the copy's source title). Together they cover:
   - cancel ∥ release and "Enviar ahora" ∥ release each give exactly one outcome;
   - change of date refused once sent; a change of date committed after a failed release keeps the new date (miss CAS);
   - two lane runs release once;
@@ -2153,20 +2182,25 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 
 ### PR 7: Editing after send
 
-`editSentComunicado`, the edit page and dialog (the note required on essential), "Editado" end to end, the revision history and per-email version in the report. Launch docs: PRD status, flag doc, the I3 checklist.
+`editSentComunicado`, the edit page and dialog (the note required on essential), "Editado" end to end, the revision history with "Ver" on each version, and the per-email version in the report. Launch docs: PRD status and launch checklist, flag doc, the I3 checklist.
 
 **Migration:** none.
 
 **Tests:**
 
+- **Unit:** the edit action (actor first, the note stripped, trimmed and capped, codes passed through); the revision action; the dialog's lines (`edit-copy.test.ts`); the editor (the banner, saving disabled until a change, the essential note, "Recargar" on a stale edit); the edit page's redirects; "Historial" and "Ver"; the report's "Editar" and edited line.
 - **Integration** `app/lib/comunicados/edit.integration.test.ts` (serial, two connections):
   - the edit waits for a batch holding the shared lock, and later batches render _n+1_ (V2);
   - a chunk that committed before the edit is rewritten with `edited_at`; one after it writes _n+1_ with no `edited_at` (V1);
-  - `read_at` untouched;
+  - `read_at` untouched; the detail page shows _n+1_'s HTML at once;
   - a held batch re-sent after the edit carries _n+1_; a mocked 409 records `idempotent_replay`, a mocked 200 records `content_revision` = _n+1_;
+  - an email sent before the edit stays, and the report reads it as "versión 1";
   - a pending push carries the new title;
-  - the `expectedRevision` CAS; the lock-timeout message;
-  - an edit after a retraction is refused; an essential edit without a note is refused.
+  - the `expectedRevision` CAS; the lock-timeout message; a second deadlock answers "probá de nuevo";
+  - an edit after a retraction is refused, also one retracted while it waited for the lock; an essential edit without a note is refused; an edit that changes nothing anyone sees is refused;
+  - a comunicado with an uploaded image edits like any other: the image reaches revision _n+1_, the detail page and the email, and an untouched document with an image is "no change"; a foreign image or a seventh one is refused, as at send;
+  - the history lists both versions, with the note; the action refuses a festival admin, and anyone while the flag is off.
+- **Integration** `app/lib/comunicados/revisions.integration.test.ts` (serial): the history's queries, in order and per comunicado, answer only global admins; "Ver"'s action reads one version as it was written.
 
 ### PR 8: Images (optional, K11)
 
@@ -2175,7 +2209,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 - The `comunicadoImage` route (JPEG/PNG, admin, flag).
 - `image` in the variant, with the Upload-only file panel.
 - The walker's and the sanitizer's image branch.
-- `getUploadThingFileKey` host rule, flagged on autosave and refused at the send stage; the 6-image cap.
+- The `isUploadThingFileUrl` host rule (`app/lib/uploadthing/file-key.ts`), flagged by the composer on a draft and refused at the send stage; the 6-image cap at both stages.
 - The I4 lever documented.
 
 **Migration:** none.
@@ -2183,6 +2217,55 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 **Tests:**
 
 - **Unit:** content refuses foreign hosts at the send stage and keeps them on a draft, and refuses 7 images; the email `Img` attributes; the upload middleware (role, flag, type).
+- Also: the host rule (`file-key.test.ts`); counting and flagging images at any depth (`images.test.ts`); the sanitizer keeps an uploaded image and its caption and drops any other (`rich-text.test.ts`); the inbox styles (`rich-text-html.test.tsx`); "Imagen" in the toolbar, off at six images; the upload panel and the file checks; the flag in "Mensaje".
+
+### Implementation notes (PRs 6–8)
+
+What the code does where this design left a detail open or said something else. Where a section above would mislead, it was corrected in place too (E2, E4, G1, C2, C3); the rest still reads as designed and is amended here.
+
+**Times (E5, E6, F2, G6, G9, H2).** Every time is written in La Paz, the way the rest of the dashboard writes it (`formatDisplayDate`), not as "sáb 31 oct, 09:00":
+
+- "sáb, 31 oct, 9:00 AM" on the badge, the overdue banner, the bell item, the header's "Enviado el …" and "Editado el …", and "Historial": "Versión 2 · editada por Ana el dom, 25 oct, 10:12 AM · «Cambió el horario de armado»";
+- "Programado para el sábado, 31 de octubre, 9:00 AM (hora de Bolivia)" on a scheduled comunicado's page;
+- "Editado el 25 de octubre, 10:12 AM" on the participant's detail page.
+
+**Scheduling (E1–E6):**
+
+- **The picker** opens at the next full hour plus one, in La Paz: at 10:12 or at 10:00 it offers 12:00.
+- **Bounds and clocks.** A schedule may be from now + 5 minutes to now + 60 days, both included, on the server's clock. At release, "late" is strictly more than 60 minutes after `scheduled_at` on the database's clock, and it is checked before whether the scheduler is still an admin. "Overdue" is 3 minutes or more past `scheduled_at`, on the clock of the server rendering the page.
+- **A scheduled comunicado** opens a read-only page of its own (G1), not the composer: the frozen banner, "Programado para el … (hora de Bolivia) · lo programó Ana", the overdue banner when it applies, "Enviar ahora" · "Cambiar fecha" · "Cancelar programación" · "Duplicar", "Destinatarios" and "Canales" as cards, and the message's preview. Nothing can autosave there, so nothing races the release.
+- **Development.** "Programar…" is disabled, with E1's sentence under it, and the dialog and the server refuse as well. "Cancelar programación" works, since it is a stop.
+- **Losing races, in words.** "Cancelar programación" on a row that is already a draft (cancelled in another tab, or missed) succeeds with "Ya no estaba programado: es un borrador." "Cambiar fecha" on a draft answers "Ya no está programado: volvió a ser un borrador." A change of date keeps whoever scheduled it as the sender.
+- **The release** sends as `scheduled_by_user_id` (E2). It never runs in development. A refusal that is not a miss (`NOT_FOUND`, `STALE`, `AUDIENCE_CHANGED`) is handled as an unexpected error: the comunicado stays scheduled until it is late.
+- **The miss** stores the bell's whole sentence in `schedule_missed_detail`, so the draft's banner and the bell say the same; the bell item's `data.detail` keeps only the clause G9 splices in.
+- **Overdue actions.** The list row offers "Enviar ahora" only: on previews the list page already has "Procesar envíos pendientes" at the top. The comunicado's page offers both on previews (E6).
+
+**Retry and duplicate (G6):**
+
+- **N** in "Reintentar fallidos (N)" is the emails a retry sends again (the latest email delivery `failed`, with no `maybe_sent_at`) plus the recipients the fan-out failed for. With nothing to retry the action refuses, "No hay nada para reintentar.", and the campaign stays as it is.
+- **Only the environment that sent it retries it.** The work after the retry drains the campaign with this server's narrowing, and development only simulates, so another environment's comunicado is refused ("Este comunicado se envió desde otro entorno: reintentalo desde allí.") and its page offers no button.
+- **Locks and limits.** The retry waits at most 20 s for its locks, then answers "No pudimos reintentarlo ahora. Probá de nuevo en unos segundos." Its limit is once per 5 minutes per comunicado, across admins; an attempt that rolled back (a lock timeout, an error) gives its turn back. Its `after()` work runs as the `send` trigger.
+- **"Duplicar"** works from any status. A sent comunicado is copied from its current revision, since an edit leaves the working copy's text and button behind; any other from its working copy. The title is kept as it is, with no "Copia de" prefix. The copy opens at `/dashboard/communications/{newId}?copia={sourceId}`, and the page reads the source's title for the banner: no column marks a copy.
+
+**Editing (F1, G6, G7):**
+
+- **An edit that changes nothing anyone sees** (the rendered HTML, the title and the button all equal the current revision's) is refused, "No cambiaste nada: el comunicado sigue igual.", so no item is marked "Editado" for nothing.
+- **`edited_at`** is the new revision's `created_at`, which is `clock_timestamp()` after the wait for the lock, not `now()` (F1 step 5): the inbox, the detail page and "Historial" show the same time.
+- **The working copy** gets only the new title, `current_revision`, `version` and `updated_*` (F1 step 4); its `doc` and button stay as sent. Everything that shows a sent comunicado, "Duplicar" included, reads its revision.
+- **Two deadlocks** in a row answer "No pudimos guardar los cambios. Probá de nuevo."; the note may be up to 300 characters ("La nota puede tener hasta 300 caracteres.").
+- **The note's label** on an essential comunicado is "Nota del cambio (obligatoria en un correo esencial, solo para el equipo)"; otherwise G7's.
+- **"Ver"** in "Historial" reads that version through a server action when it is opened, and shows its stored HTML and button in a dialog.
+
+**Images (C1–C4, PR 8):**
+
+- **Email width.** An image is 430 px wide, not 552: the comunicado's container is 480 px with 24 px of padding (`app/emails/styles.ts`). It carries `width="430"` for Outlook, and `max-width: 430px; width: 100%; height: auto` for the rest.
+- **Captions.** An image's `name` is its caption, so the inbox's `alt` equals the email's. There is no caption field: a caption survives only from a paste.
+- **Rules at both stages.** More than 6 images is refused: "Un comunicado puede tener hasta 6 imágenes." An image with no URL is dropped silently, with what was nested under it lifted into its place. The send stage alone refuses a foreign image (C2 step 5).
+- **The text rule is unchanged.** A comunicado of images only is refused at send: "Escribí el texto del comunicado."
+- **Foreign images** are flagged on the draft by the editor, with the same host rule the server uses: autosave carries no flag. The sanitizer and the email walker also drop any image that fails the rule.
+- **No lazy loading** in the inbox or the email.
+
+**Tests.** PR 6's integration tests are five files, not one (PR 6 above).
 
 ---
 
