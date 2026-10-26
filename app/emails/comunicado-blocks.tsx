@@ -1,5 +1,5 @@
 import { Fragment, type CSSProperties, type ReactNode } from "react";
-import { Heading, Hr, Link, Section, Text } from "react-email";
+import { Heading, Hr, Img, Link, Section, Text } from "react-email";
 
 import * as styles from "@/app/emails/styles";
 import type {
@@ -9,6 +9,7 @@ import type {
 } from "@/app/lib/comunicados/content";
 import { isSafeComunicadoActionPath } from "@/app/lib/comunicados/definitions";
 import { comunicadoEmailHref } from "@/app/lib/comunicados/text";
+import { isUploadThingFileUrl } from "@/app/lib/uploadthing/file-key";
 
 export { comunicadoEmailHref };
 
@@ -72,6 +73,20 @@ const divider: CSSProperties = {
 };
 
 const link: CSSProperties = { ...styles.email, textDecoration: "underline" };
+
+/**
+ * The body's width: a 480 px container less the section's 24 px padding and
+ * 1 px border on each side (`styles.container`, `styles.sectionWithBanner`).
+ */
+const COMUNICADO_EMAIL_IMAGE_WIDTH = 430;
+
+const image: CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxWidth: `${COMUNICADO_EMAIL_IMAGE_WIDTH}px`,
+  height: "auto",
+  margin: "16px 0",
+};
 
 /** The button's absolute URL: a Glitter path only, never another site (C6). */
 export function comunicadoActionUrl(
@@ -173,6 +188,27 @@ function renderBlock(
           {children}
         </Fragment>
       );
+    case "image": {
+      // Only a file uploaded to Glitter stays up as long as the mail does
+      // (C4). Sending refuses any other; a draft's preview leaves it out,
+      // as the inbox's sanitizer does.
+      const url = String(block.props.url ?? "");
+      const caption = String(block.props.caption ?? "");
+      return (
+        <Fragment key={key}>
+          {isUploadThingFileUrl(url) ? (
+            // Outlook ignores CSS widths on images; it needs pixels.
+            <Img
+              src={url}
+              alt={caption}
+              width={COMUNICADO_EMAIL_IMAGE_WIDTH}
+              style={image}
+            />
+          ) : null}
+          {children}
+        </Fragment>
+      );
+    }
     case "heading": {
       const level = block.props.level === 3 ? 3 : 2;
       return (
@@ -239,9 +275,10 @@ function renderLevel(
 
 /**
  * C3's email walker: headings as `h2`/`h3`, paragraphs as `Text`, quotes as a
- * `Section` with a left border, dividers as `Hr`, lists as `ul`/`ol` with
- * inline padding, bold and italic, and links with absolute URLs. It never
- * emits `details`, `input`, `figure` or `pre`.
+ * `Section` with a left border, dividers as `Hr`, images as `Img` with their
+ * caption as the alt text, lists as `ul`/`ol` with inline padding, bold and
+ * italic, and links with absolute URLs. It never emits `details`, `input`,
+ * `figure` or `pre`.
  */
 export function announcementBlocksToEmail(
   blocks: readonly AnnouncementBlock[],

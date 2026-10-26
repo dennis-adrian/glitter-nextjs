@@ -46,6 +46,10 @@ vi.mock("sonner", () => ({
 vi.mock("@/app/components/organisms/rich-text-editor", () => ({
   default: () => <div data-testid="editor" />,
 }));
+// The message card uploads images (PR 8); nothing here uploads.
+vi.mock("@/app/vendors/uploadthing", () => ({
+  useUploadThing: () => ({ startUpload: vi.fn(), isUploading: false }),
+}));
 vi.mock("@/app/lib/comunicados/actions", () => ({
   saveComunicadoDraftAction: mocks.save,
   previewComunicadoAudienceAction: mocks.previewAudience,

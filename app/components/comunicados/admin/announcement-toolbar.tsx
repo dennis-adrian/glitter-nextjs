@@ -4,11 +4,13 @@ import {
   insertOrUpdateBlockForSlashMenu,
   type BlockNoteEditor,
 } from "@blocknote/core";
+import { FilePanelExtension } from "@blocknote/core/extensions";
 import { useEditorChange, useEditorSelectionChange } from "@blocknote/react";
 import {
   Bold,
   Heading2,
   Heading3,
+  ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
@@ -22,12 +24,18 @@ import { useCallback, useState } from "react";
 import { Button } from "@/app/components/ui/button";
 import type { announcementEditorSchema } from "@/app/lib/rich-text/schemas";
 import { cn } from "@/app/lib/utils";
-import { ANNOUNCEMENT_MAX_DEPTH } from "@/app/lib/comunicados/definitions";
+import {
+  ANNOUNCEMENT_MAX_DEPTH,
+  COMUNICADO_MAX_IMAGES,
+} from "@/app/lib/comunicados/definitions";
+import { countComunicadoImages } from "@/app/lib/comunicados/images";
 
 /**
  * The comunicado editor's only formatting controls (C1): the pieces of the
  * blog's `EditorTopToolbar` that survive an email, so no strike, code,
  * colours or undo row. BlockNote's floating toolbar is off for this variant.
+ * "Imagen" opens the upload panel (C4) and stops at the six images a
+ * comunicado may have.
  */
 
 export type AnnouncementEditor = BlockNoteEditor<
@@ -41,7 +49,14 @@ type Props = {
   readOnly?: boolean;
 };
 
-type BlockKind = "paragraph" | "h2" | "h3" | "bullet" | "numbered" | "quote";
+type BlockKind =
+  | "paragraph"
+  | "h2"
+  | "h3"
+  | "bullet"
+  | "numbered"
+  | "quote"
+  | "image";
 
 /** Blocks a button turns the current one into, and back to a paragraph. */
 const BLOCK_TARGETS = {
@@ -123,6 +138,7 @@ function readBlockKind(editor: AnnouncementEditor): BlockKind {
   if (block.type === "bulletListItem") return "bullet";
   if (block.type === "numberedListItem") return "numbered";
   if (block.type === "quote") return "quote";
+  if (block.type === "image") return "image";
   return "paragraph";
 }
 
@@ -172,10 +188,14 @@ export default function AnnouncementToolbar({
   const [blockKind, setBlockKind] = useState<BlockKind>(() =>
     readBlockKind(editor),
   );
+  const [imageCount, setImageCount] = useState(() =>
+    countComunicadoImages(editor.document),
+  );
 
   const refresh = useCallback(() => {
     setActiveStyles(editor.getActiveStyles());
     setBlockKind(readBlockKind(editor));
+    setImageCount(countComunicadoImages(editor.document));
   }, [editor]);
   useEditorSelectionChange(refresh, editor);
   useEditorChange(refresh, editor);
@@ -191,12 +211,13 @@ export default function AnnouncementToolbar({
   /** A second press on the active kind turns the block back into a paragraph. */
   const toggleBlock = useCallback(
     (kind: keyof typeof BLOCK_TARGETS) => {
+      const current = readBlockKind(editor);
+      // Turning an image into text would lose it.
+      if (current === "image") return;
       const block = editor.getTextCursorPosition().block;
       editor.updateBlock(
         block,
-        readBlockKind(editor) === kind
-          ? { type: "paragraph" }
-          : BLOCK_TARGETS[kind],
+        current === kind ? { type: "paragraph" } : BLOCK_TARGETS[kind],
       );
       editor.focus();
     },
@@ -204,12 +225,16 @@ export default function AnnouncementToolbar({
   );
 
   const insertLink = useCallback(() => {
+    const collapsed = editor.transact((tr) => tr.selection.empty);
+    // A selected image or divider, or a selection with no text in it, would
+    // be replaced by the link's text: there is nothing to link.
+    if (!collapsed && !editor.getSelectedText()) return;
     const existing = editor.getSelectedLinkUrl();
     const typed = window.prompt("Dirección del enlace", existing ?? "https://");
     const url = typed?.trim();
     if (!url || url === "https://") return;
     // With nothing selected, the address itself becomes the link's text.
-    editor.createLink(url, editor.getSelectedText() ? undefined : url);
+    editor.createLink(url, collapsed ? url : undefined);
     editor.focus();
   }, [editor]);
 
@@ -224,6 +249,19 @@ export default function AnnouncementToolbar({
       insertOrUpdateBlockForSlashMenu(editor, { type: "divider" });
     }
     editor.focus();
+  }, [editor]);
+
+  /** An empty image block, with the upload panel open on it, as "/" does. */
+  const insertImage = useCallback(() => {
+    const block = editor.getTextCursorPosition().block;
+    const inserted =
+      block.content === undefined
+        ? // The cursor sits on a divider or an image: add it after.
+          editor.insertBlocks([{ type: "image" }], block, "after")[0]
+        : insertOrUpdateBlockForSlashMenu(editor, { type: "image" });
+    editor.focus();
+    // After the insert: any change to the document closes the panel.
+    editor.getExtension(FilePanelExtension)?.showMenu(inserted.id);
   }, [editor]);
 
   return (
@@ -294,6 +332,14 @@ export default function AnnouncementToolbar({
         icon={Minus}
         disabled={readOnly}
         onClick={insertDivider}
+      />
+      <ToolbarButton
+        label="Imagen"
+        icon={ImageIcon}
+        disabled={
+          readOnly || !editor.uploadFile || imageCount >= COMUNICADO_MAX_IMAGES
+        }
+        onClick={insertImage}
       />
     </div>
   );

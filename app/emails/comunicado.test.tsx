@@ -139,12 +139,50 @@ function emailProps(
 function walk(blocks: AnnouncementBlock[], baseUrl = BASE) {
   return renderToStaticMarkup(
     <>{announcementBlocksToEmail(blocks, { baseUrl })}</>,
+  ).replace(
+    // React adds a preload hint per image to a fragment rendered on its
+    // own; a whole email carries none (checked below).
+    /<link rel="preload" as="image" href="[^"]*"\/>/g,
+    "",
   );
 }
 
 function hrefs(html: string) {
   return [...html.matchAll(/href="([^"]*)"/g)].map((match) =>
     match[1]!.replaceAll("&amp;", "&"),
+  );
+}
+
+const IMAGE = "https://abc123.ufs.sh/f/PLANO";
+const OTHER_IMAGE = "https://utfs.io/f/CREDENCIAL";
+
+function image(
+  url: string,
+  caption = "",
+  children: AnnouncementBlock[] = [],
+): AnnouncementBlock {
+  return {
+    type: "image",
+    props: {
+      url,
+      caption,
+      name: caption,
+      textAlignment: "left",
+      backgroundColor: "default",
+    },
+    children,
+  };
+}
+
+/** Each `<img>`'s attributes, by name. */
+function images(html: string) {
+  return [...html.matchAll(/<img\b([^>]*?)\/?>/g)].map((match) =>
+    Object.fromEntries(
+      [...match[1]!.matchAll(/([\w-]+)="([^"]*)"/g)].map((attribute) => [
+        attribute[1]!,
+        attribute[2]!.replaceAll("&amp;", "&"),
+      ]),
+    ),
   );
 }
 
@@ -259,13 +297,35 @@ describe("announcementBlocksToEmail", () => {
   });
 
   it("never emits details, input, figure or pre, nor a class or a stylesheet", async () => {
-    const html = await render(ComunicadoEmail(emailProps({ staging: true })));
+    // A captioned image too: the inbox draws it as a figure.
+    const html = await render(
+      ComunicadoEmail(
+        emailProps({
+          staging: true,
+          blocks: [...EVERY_BLOCK, image(IMAGE, "El plano"), image(IMAGE)],
+        }),
+      ),
+    );
+    expect(html).toContain(`src="${IMAGE}"`);
     for (const tag of ["details", "input", "figure", "pre", "style"]) {
       expect(html, tag).not.toMatch(new RegExp(`<${tag}\\b`, "i"));
     }
+    expect(html).not.toContain("<figcaption");
+    expect(html).not.toMatch(/<link\b/);
     expect(html).not.toMatch(/\sclass(Name)?=/);
     // Every element the walker writes carries its own style.
-    for (const tag of ["h1", "h2", "h3", "p", "ul", "ol", "li", "hr", "a"]) {
+    for (const tag of [
+      "h1",
+      "h2",
+      "h3",
+      "p",
+      "ul",
+      "ol",
+      "li",
+      "hr",
+      "a",
+      "img",
+    ]) {
       expect(html, tag).not.toMatch(
         new RegExp(`<${tag}(?![^>]*\\sstyle=)[\\s>]`),
       );
@@ -342,12 +402,95 @@ describe("announcementBlocksToEmail", () => {
     expect(() =>
       walk([
         {
-          type: "image",
+          type: "table",
           props: {},
           children: [],
         } as unknown as AnnouncementBlock,
       ]),
-    ).toThrow(/image/);
+    ).toThrow(/table/);
+  });
+
+  it("draws an uploaded image at the body's width, with its caption as the alt", () => {
+    const blocks = normalized([
+      { type: "paragraph", content: "Así queda el armado:" },
+      { type: "image", props: { url: IMAGE, caption: "El plano" } },
+      { type: "image", props: { url: OTHER_IMAGE } },
+    ]);
+    const html = walk(blocks);
+
+    expect(images(html)).toEqual([
+      expect.objectContaining({ src: IMAGE, alt: "El plano", width: "430" }),
+      expect.objectContaining({ src: OTHER_IMAGE, alt: "", width: "430" }),
+    ]);
+    for (const { style } of images(html)) {
+      // The pixel width is for Outlook; the rest scale it down on a phone.
+      expect(style).toContain("display:block");
+      expect(style).toContain("width:100%");
+      expect(style).toContain("max-width:430px");
+      expect(style).toContain("height:auto");
+    }
+    // Only the address, the alt, the width and the style: no lazy loading.
+    expect(Object.keys(images(html)[0]!).sort()).toEqual([
+      "alt",
+      "src",
+      "style",
+      "width",
+    ]);
+    expect(html).toMatch(/Así queda el armado:<\/p><img /);
+  });
+
+  it("leaves out an image not uploaded to Glitter, but not what is nested under it", () => {
+    for (const url of [
+      "https://evil.example/plano.png",
+      "http://abc123.ufs.sh/f/PLANO",
+      "https://abc123.ufs.sh/f/PLANO?w=1",
+      "https://abc123.ufs.sh/f/PLANO#x",
+      "https://abc123.ufs.sh:8443/f/PLANO",
+      "https://abc123.ufs.sh/a/PLANO",
+      "https://ufs.sh.evil.example/f/PLANO",
+      "//abc123.ufs.sh/f/PLANO",
+      "data:image/png;base64,iVBORw0KGgo=",
+      "javascript:alert(1)",
+      "",
+    ]) {
+      const html = walk([
+        image(url, "Ajena", [paragraph(text("Debajo de la imagen"))]),
+      ]);
+      expect(html, url).not.toContain("<img");
+      expect(html, url).not.toContain("Ajena");
+      expect(html, url).toContain("Debajo de la imagen");
+    }
+  });
+
+  it("renders what is nested under an image after it, and an image nested in a list inside its item", () => {
+    expect(walk([image(IMAGE, "", [paragraph(text("Debajo"))])])).toMatch(
+      /^<img [^>]*\/><table[^>]*><tbody><tr><td style="padding:0 0 0 16px"><p style="[^"]+">Debajo<\/p>/,
+    );
+
+    const list = walk(
+      normalized([
+        {
+          type: "bulletListItem",
+          content: "Tu puesto",
+          children: [{ type: "image", props: { url: IMAGE } }],
+        },
+      ]),
+    );
+    expect(list).toMatch(/<li style="[^"]+">Tu puesto<img [^>]*\/><\/li>/);
+  });
+
+  it("gives an image the alt text the inbox gives it", async () => {
+    const blocks = normalized([
+      { type: "paragraph", content: "Mirá el plano" },
+      { type: "image", props: { url: IMAGE, caption: "El plano" } },
+      { type: "image", props: { url: OTHER_IMAGE } },
+    ]);
+    const inbox = images(await blocksToSanitizedHtml(blocks, "announcement"));
+    const email = images(walk(blocks));
+
+    expect(inbox.map(({ src, alt }) => ({ src, alt }))).toEqual(
+      email.map(({ src, alt }) => ({ src, alt })),
+    );
   });
 });
 
@@ -507,6 +650,31 @@ describe("renderComunicadoEmail", () => {
         "—",
         "• Credencial\n  1. Impresa\n1. Primero",
         `Ver mi reserva: ${BASE}/my_participations`,
+        `Darme de baja: ${UNSUBSCRIBE}`,
+      ].join("\n\n"),
+    );
+
+    const withImages = await renderInput({
+      blocks: [
+        paragraph(text("Así queda el armado:")),
+        image(IMAGE, "El plano"),
+        image(OTHER_IMAGE),
+      ],
+      actionLabel: null,
+    });
+    expect(
+      images(withImages.html)
+        .map(({ src }) => src)
+        // The header's and the footer's logos aside.
+        .filter((src) => src === IMAGE || src === OTHER_IMAGE),
+    ).toEqual([IMAGE, OTHER_IMAGE]);
+    // An image is its caption in the text part, or nothing.
+    expect(withImages.text).toBe(
+      [
+        "¡Hola Ana!",
+        "Cambio de horario de armado",
+        "Así queda el armado:",
+        "El plano",
         `Darme de baja: ${UNSUBSCRIBE}`,
       ].join("\n\n"),
     );

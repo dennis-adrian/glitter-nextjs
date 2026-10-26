@@ -48,11 +48,12 @@ export const BLOG_BLOCK_TYPES = [
 
 /**
  * Comunicados: what survives an email client. No tables, toggles, check lists
- * or code; images come later (PR 8).
+ * or code. Images are uploaded to Glitter (`normalizeAnnouncementDoc`).
  */
 export const ANNOUNCEMENT_BLOCK_TYPES = [
   ...COMPACT_BLOCK_TYPES,
   "divider",
+  "image",
 ] as const;
 
 export type EditorVariant = "compact" | "article" | "blog" | "announcement";
@@ -101,7 +102,8 @@ export const blogEditorSchema = BlockNoteSchema.create({
  * Bold and italic are the only styles, so the editor never shows underline,
  * strike, code or a colour that the email would drop. Toggle headings are off
  * for the same reason (they export as `<details>`), and a heading made
- * without a level is a "Título".
+ * without a level is a "Título". The image is the spec article and blog use;
+ * the server keeps only its address and caption.
  */
 export const announcementEditorSchema = BlockNoteSchema.create({
   blockSpecs: {
@@ -115,6 +117,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
     numberedListItem,
     quote,
     divider,
+    image,
   },
   styleSpecs: {
     bold: defaultStyleSpecs.bold,

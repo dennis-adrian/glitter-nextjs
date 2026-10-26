@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { BlockNoteEditor } from "@blocknote/core";
+import { FilePanelExtension } from "@blocknote/core/extensions";
 import {
   act,
   cleanup,
@@ -18,11 +19,15 @@ import AnnouncementToolbar, {
 import RichTextEditorInner from "@/app/components/organisms/rich-text-editor-inner";
 import { announcementEditorSchema } from "@/app/lib/rich-text/schemas";
 
-function makeEditor(initialContent: unknown[] = []) {
+function makeEditor(
+  initialContent: unknown[] = [],
+  uploadFile?: (file: File) => Promise<string>,
+) {
   const editor = BlockNoteEditor.create({
     schema: announcementEditorSchema,
     initialContent:
       initialContent.length > 0 ? (initialContent as never) : undefined,
+    uploadFile,
   });
   // Mounted, so selection and focus behave as in the composer.
   editor.mount(document.body.appendChild(document.createElement("div")));
@@ -33,6 +38,34 @@ function press(label: string) {
   fireEvent.click(screen.getByRole("button", { name: label }));
 }
 
+const uploadFile = async () => "https://abc.ufs.sh/f/KEY";
+
+function image(key: string) {
+  return {
+    type: "image" as const,
+    props: { url: `https://abc.ufs.sh/f/${key}` },
+  };
+}
+
+/** Selects from the end of one text to the start of another. */
+function selectBetween(
+  editor: ReturnType<typeof makeEditor>,
+  from: string,
+  to: string,
+) {
+  let start = 0;
+  let end = 0;
+  editor.prosemirrorState.doc.descendants((node, pos) => {
+    if (node.text === from) start = pos + node.nodeSize;
+    if (node.text === to) end = pos;
+  });
+  editor._tiptapEditor.commands.setTextSelection({ from: start, to: end });
+}
+
+function imageButton() {
+  return screen.getByRole("button", { name: "Imagen" }) as HTMLButtonElement;
+}
+
 describe("AnnouncementToolbar", () => {
   afterEach(() => {
     cleanup();
@@ -40,7 +73,7 @@ describe("AnnouncementToolbar", () => {
     vi.restoreAllMocks();
   });
 
-  it("offers exactly C1's nine controls, in order, and no strike", () => {
+  it("offers exactly C1's ten controls, in order, and no strike", () => {
     render(<AnnouncementToolbar editor={makeEditor()} />);
 
     expect(
@@ -57,6 +90,7 @@ describe("AnnouncementToolbar", () => {
       "Lista numerada",
       "Cita",
       "Separador",
+      "Imagen",
     ]);
   });
 
@@ -147,6 +181,149 @@ describe("AnnouncementToolbar", () => {
     const types = editor.document.map((block) => block.type);
     expect(types.slice(0, 2)).toEqual(["paragraph", "divider"]);
     expect(types.at(-1)).toBe("paragraph");
+  });
+
+  it("inserts an image below the line and opens the upload panel on it", () => {
+    const editor = makeEditor(
+      [{ type: "paragraph", content: "Antes" }],
+      uploadFile,
+    );
+    editor.setTextCursorPosition(editor.document[0], "end");
+    render(<AnnouncementToolbar editor={editor} />);
+
+    press("Imagen");
+    const types = editor.document.map((block) => block.type);
+    expect(types.slice(0, 2)).toEqual(["paragraph", "image"]);
+    // A line to keep writing on, as after a divider.
+    expect(types.at(-1)).toBe("paragraph");
+    expect(editor.getExtension(FilePanelExtension)?.store.state).toBe(
+      editor.document[1].id,
+    );
+  });
+
+  it("puts the image on an empty line instead of below it", () => {
+    const editor = makeEditor([{ type: "paragraph", content: "" }], uploadFile);
+    editor.setTextCursorPosition(editor.document[0], "end");
+    render(<AnnouncementToolbar editor={editor} />);
+
+    press("Imagen");
+    expect(editor.document[0]).toMatchObject({
+      type: "image",
+      props: { url: "" },
+    });
+  });
+
+  it("adds an image after the image the cursor is on", () => {
+    const editor = makeEditor([image("UNO")], uploadFile);
+    editor.setTextCursorPosition(editor.document[0]);
+    render(<AnnouncementToolbar editor={editor} />);
+
+    press("Imagen");
+    expect(editor.document[0].props).toMatchObject({
+      url: "https://abc.ufs.sh/f/UNO",
+    });
+    expect(editor.document[1]).toMatchObject({
+      type: "image",
+      props: { url: "" },
+    });
+  });
+
+  it("offers no image once the comunicado has six", async () => {
+    const editor = makeEditor(
+      ["UNO", "DOS", "TRES", "CUATRO", "CINCO"].map(image),
+      uploadFile,
+    );
+    render(<AnnouncementToolbar editor={editor} />);
+    expect(imageButton().disabled).toBe(false);
+
+    act(() => {
+      editor.insertBlocks([image("SEIS")], editor.document[4], "after");
+    });
+    await waitFor(() => expect(imageButton().disabled).toBe(true));
+
+    // One with no address yet (an upload under way) is not an image.
+    act(() => {
+      editor.removeBlocks([editor.document[5]]);
+      editor.insertBlocks([{ type: "image" }], editor.document[4], "after");
+    });
+    await waitFor(() => expect(imageButton().disabled).toBe(false));
+  });
+
+  it("offers no image without an upload", () => {
+    render(<AnnouncementToolbar editor={makeEditor()} />);
+    expect(imageButton().disabled).toBe(true);
+  });
+
+  it("leaves an image as it is under Título, Lista or Cita", () => {
+    const editor = makeEditor(
+      [image("PLANO"), { type: "paragraph", content: "Después" }],
+      uploadFile,
+    );
+    editor.setTextCursorPosition(editor.document[0]);
+    render(<AnnouncementToolbar editor={editor} />);
+    const before = JSON.stringify(editor.document);
+
+    for (const label of ["Título", "Subtítulo", "Lista", "Cita"]) {
+      press(label);
+    }
+    expect(JSON.stringify(editor.document)).toBe(before);
+  });
+
+  it.each([
+    [
+      "selected, as a click on it does",
+      (editor: ReturnType<typeof makeEditor>) =>
+        editor.setTextCursorPosition(editor.document[1]),
+    ],
+    [
+      "inside a selection with no text",
+      (editor: ReturnType<typeof makeEditor>) =>
+        selectBetween(editor, "Antes", "Después"),
+    ],
+  ])("leaves an image %s as it is under Enlace", (_how, select) => {
+    const editor = makeEditor(
+      [
+        { type: "paragraph", content: "Antes" },
+        image("PLANO"),
+        { type: "paragraph", content: "Después" },
+      ],
+      uploadFile,
+    );
+    const prompt = vi
+      .spyOn(window, "prompt")
+      .mockReturnValue("https://glitter.example/x");
+    render(<AnnouncementToolbar editor={editor} />);
+    const before = JSON.stringify(editor.document);
+
+    act(() => select(editor));
+    press("Enlace");
+    // The link's text would replace the image: nothing is asked.
+    expect(prompt).not.toHaveBeenCalled();
+    expect(JSON.stringify(editor.document)).toBe(before);
+  });
+
+  it("styles everything selected even when it starts at an image", () => {
+    const editor = makeEditor(
+      [image("PLANO"), { type: "paragraph", content: "Después" }],
+      uploadFile,
+    );
+    render(<AnnouncementToolbar editor={editor} />);
+    // Select all, as Ctrl+A does: the image is the block "under the cursor".
+    act(() => {
+      editor._tiptapEditor.commands.selectAll();
+    });
+    expect(editor.prosemirrorState.selection.toJSON()).toEqual({
+      type: "all",
+    });
+    expect(editor.getTextCursorPosition().block.type).toBe("image");
+
+    press("Negrita");
+    expect(editor.document[0].props).toMatchObject({
+      url: "https://abc.ufs.sh/f/PLANO",
+    });
+    expect(editor.document[1].content).toEqual([
+      { type: "text", text: "Después", styles: { bold: true } },
+    ]);
   });
 
   it("links the typed address, as its own text when nothing is selected", () => {
@@ -284,8 +461,11 @@ describe("RichTextEditorInner, announcement variant", () => {
     expect(doc.map((block) => block.type)).toContain("divider");
   });
 
-  /** A paste, as a browser hands it to the editor: data by MIME type. */
-  function paste(data: Record<string, string>) {
+  /**
+   * A paste, as a browser hands it to the editor: data by MIME type, and
+   * any files, such as a screenshot.
+   */
+  function paste(data: Record<string, string>, files: File[] = []) {
     const target = document.querySelector('[contenteditable="true"]');
     if (!target) throw new Error("no editor");
     // jsdom has none; ProseMirror makes one for the paste it replays.
@@ -293,8 +473,13 @@ describe("RichTextEditorInner, announcement variant", () => {
     const event = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(event, "clipboardData", {
       value: {
-        types: Object.keys(data),
+        types: [...Object.keys(data), ...(files.length > 0 ? ["Files"] : [])],
         getData: (type: string) => data[type] ?? "",
+        items: files.map((file) => ({
+          kind: "file",
+          type: file.type,
+          getAsFile: () => file,
+        })),
       },
     });
     act(() => {
@@ -302,17 +487,26 @@ describe("RichTextEditorInner, announcement variant", () => {
     });
   }
 
-  async function mountEditor(variant: "announcement" | "article") {
+  async function mountEditor(
+    variant: "announcement" | "article",
+    uploadFile?: (file: File) => Promise<string>,
+  ) {
     stubBrowser();
     const onChange = vi.fn();
-    render(<RichTextEditorInner variant={variant} onChange={onChange} />);
+    render(
+      <RichTextEditorInner
+        variant={variant}
+        onChange={onChange}
+        uploadFile={uploadFile}
+      />,
+    );
     await waitFor(() =>
       expect(document.querySelector('[contenteditable="true"]')).toBeTruthy(),
     );
     return onChange;
   }
 
-  type Doc = Array<{ type: string; props: { level?: number } }>;
+  type Doc = Array<{ type: string; props: { level?: number; url?: string } }>;
 
   it.each([
     [
@@ -341,6 +535,36 @@ describe("RichTextEditorInner, announcement variant", () => {
       ).toEqual([2, 3, 3]);
     },
   );
+
+  it("puts a pasted image's address in it", async () => {
+    const uploadFile = vi.fn(async () => "https://abc.ufs.sh/f/FOTO");
+    const onChange = await mountEditor("announcement", uploadFile);
+
+    paste({}, [new File(["png"], "foto.png", { type: "image/png" })]);
+    await waitFor(() => {
+      const [doc] = onChange.mock.calls.at(-1) as [Doc];
+      expect(doc.find((block) => block.type === "image")?.props.url).toBe(
+        "https://abc.ufs.sh/f/FOTO",
+      );
+    });
+  });
+
+  it("turns a pasted image the upload refused back into an empty line", async () => {
+    // The hook has toasted the refusal by the time it throws.
+    const uploadFile = vi.fn(async (): Promise<string> => {
+      throw new Error("Subí una imagen JPG o PNG.");
+    });
+    const onChange = await mountEditor("announcement", uploadFile);
+
+    paste({}, [new File(["webp"], "foto.webp", { type: "image/webp" })]);
+    await waitFor(() => expect(uploadFile).toHaveBeenCalled());
+    await waitFor(() => {
+      const [doc] = onChange.mock.calls.at(-1) as [Doc];
+      expect(doc.map((block) => block.type)).not.toContain("image");
+    });
+    // BlockNote's "Loading..." would otherwise stay, with no button left.
+    expect(document.querySelector(".bn-file-loading-preview")).toBeNull();
+  });
 
   it("stops Tab only inside the text, never on the toolbar", async () => {
     stubBrowser();

@@ -94,17 +94,32 @@ describe("editor schemas", () => {
     expect(Object.keys(announcementEditorSchema.blockSchema).sort()).toEqual(
       [...ANNOUNCEMENT_BLOCK_TYPES].sort(),
     );
+    expect([...ANNOUNCEMENT_BLOCK_TYPES]).toEqual([
+      "paragraph",
+      "heading",
+      "bulletListItem",
+      "numberedListItem",
+      "quote",
+      "divider",
+      "image",
+    ]);
     expect(allowedBlockTypes("announcement")).toEqual(ANNOUNCEMENT_BLOCK_TYPES);
     expect(schemaForVariant("announcement")).toBe(announcementEditorSchema);
     for (const type of [
-      "image",
       "table",
       "toggleListItem",
       "checkListItem",
       "codeBlock",
+      "video",
+      "audio",
+      "file",
     ]) {
       expect(allowedBlockTypes("announcement")).not.toContain(type);
     }
+    // The same image the article and the blog use.
+    expect(announcementEditorSchema.blockSchema.image).toEqual(
+      articleEditorSchema.blockSchema.image,
+    );
 
     const heading = announcementEditorSchema.blockSchema.heading.propSchema;
     expect(heading.level.values).toEqual([2, 3]);
@@ -140,9 +155,10 @@ describe("editor schemas", () => {
         [{ type: "divider" }, { type: "image" }, { type: "table" }],
         "announcement",
       ),
-    ).toEqual(["image", "table"]);
-    expect(() => assertAnnouncementDocument([{ type: "image" }])).toThrow(
-      /no permitidos en un comunicado: image/i,
+    ).toEqual(["table"]);
+    expect(() => assertAnnouncementDocument([{ type: "image" }])).not.toThrow();
+    expect(() => assertAnnouncementDocument([{ type: "video" }])).toThrow(
+      /no permitidos en un comunicado: video/i,
     );
     expect(() =>
       assertAnnouncementDocument([{ type: "heading", props: { level: 4 } }]),
@@ -297,16 +313,74 @@ describe("HTML sanitizer: announcement variant", () => {
     expect(clean).toContain("a");
   });
 
-  it("drops images, media, frames and forms until images ship", () => {
+  it("keeps an image uploaded to Glitter, with its figure and caption", () => {
     const dirty =
-      '<img src="https://x.com/a.png" onerror="alert(1)"><figure><figcaption>pie</figcaption></figure>' +
+      '<figure data-url="https://x7a9.ufs.sh/f/plano" data-caption="El plano" style="width:512px">' +
+      '<img src="https://x7a9.ufs.sh/f/plano" alt="El plano" width="512" loading="lazy" data-url="x" onerror="alert(1)" onload="alert(2)" class="x">' +
+      "<figcaption>El plano</figcaption></figure>" +
+      '<img src="https://utfs.io/f/afiche" alt="">';
+    const clean = sanitizeRichTextHtml(dirty, "announcement");
+    expect(clean).toBe(
+      '<figure><img src="https://x7a9.ufs.sh/f/plano" alt="El plano" /><figcaption>El plano</figcaption></figure>' +
+        '<img src="https://utfs.io/f/afiche" alt="" />',
+    );
+  });
+
+  it("drops an image not uploaded to Glitter, with its figure and caption", () => {
+    for (const src of [
+      "https://x.com/a.png",
+      "http://x7a9.ufs.sh/f/plano",
+      "https://x7a9.ufs.sh/f/plano?w=1",
+      "https://ufs.sh.evil.example/f/plano",
+      "data:image/png;base64,iVBORw0KGgo=",
+      "//x7a9.ufs.sh/f/plano",
+      "/img/plano.png",
+      "javascript:alert(1)",
+      "",
+    ]) {
+      const dirty =
+        `<p>Antes</p><figure><img src="${src}" alt="Ajena"><figcaption>Pie</figcaption></figure>` +
+        `<img src="${src}" alt="Sola" onerror="alert(1)"><p>Después</p>`;
+      expect(sanitizeRichTextHtml(dirty, "announcement")).toBe(
+        "<p>Antes</p><p>Después</p>",
+      );
+    }
+    expect(
+      sanitizeRichTextHtml('<img alt="Sin fuente"><p>a</p>', "announcement"),
+    ).toBe("<p>a</p>");
+    // A figure with no image left in it goes too.
+    expect(
+      sanitizeRichTextHtml(
+        "<figure><figcaption>Pie</figcaption></figure><p>a</p>",
+        "announcement",
+      ),
+    ).toBe("<p>a</p>");
+  });
+
+  it("leaves the other variants' images to their own rules", () => {
+    const dirty =
+      '<figure><img src="https://x.com/a.png" alt="a"><figcaption>pie</figcaption></figure>' +
+      '<img alt="sin fuente">';
+    expect(sanitizeRichTextHtml(dirty, "blog")).toBe(
+      '<figure><img src="https://x.com/a.png" alt="a" /><figcaption>pie</figcaption></figure>' +
+        '<img alt="sin fuente" />',
+    );
+    expect(sanitizeRichTextHtml(dirty, "article")).toContain(
+      '<img src="https://x.com/a.png" alt="a" />',
+    );
+    expect(sanitizeRichTextHtml(dirty, "compact")).not.toContain("<img");
+  });
+
+  it("drops media, frames and forms", () => {
+    const dirty =
       '<iframe src="https://evil.example"></iframe><svg><script>alert(2)</script></svg>' +
       '<video src="https://x.com/v.mp4"></video><form action="https://evil.example"><input type="text" name="clave"></form>' +
       "<details open><summary>s</summary></details><table><tr><td>t</td></tr></table>" +
-      '<object data="https://evil.example"></object><embed src="https://evil.example">';
+      '<object data="https://evil.example"></object><embed src="https://evil.example">' +
+      '<picture><source srcset="https://x7a9.ufs.sh/f/plano"></picture>';
     const clean = sanitizeRichTextHtml(dirty, "announcement");
     expect(clean).not.toMatch(
-      /<img|<figure|<iframe|<svg|<script|<video|<form|<input|<details|<table|<object|<embed|onerror|alert/i,
+      /<iframe|<svg|<script|<video|<form|<input|<details|<table|<object|<embed|<picture|<source|srcset|alert/i,
     );
     expect(clean).not.toContain("evil.example");
   });
@@ -372,12 +446,59 @@ describe("blocksToSanitizedHtml: announcement variant", () => {
     expect(html).not.toMatch(/style=|data-/);
   });
 
+  it("renders an image, and leaves out one not uploaded to Glitter", async () => {
+    const html = await blocksToSanitizedHtml(
+      [
+        {
+          type: "image",
+          props: { url: "https://x7a9.ufs.sh/f/plano", caption: "El plano" },
+        },
+        { type: "image", props: { url: "https://x.com/a.png" } },
+      ],
+      "announcement",
+    );
+    expect(html).toContain('<img src="https://x7a9.ufs.sh/f/plano"');
+    expect(html).toContain("<figcaption>El plano</figcaption>");
+    expect(html).not.toContain("x.com");
+  });
+
   it("refuses a block the variant does not have instead of rendering it", async () => {
     await expect(
       blocksToSanitizedHtml(
-        [{ type: "image", props: { url: "https://x.com/a.png" } }],
+        [{ type: "table", content: { type: "tableContent", rows: [] } }],
         "announcement",
       ),
-    ).rejects.toThrow(/no permitidos en un comunicado: image/);
+    ).rejects.toThrow(/no permitidos en un comunicado: table/);
+  });
+
+  it("leaves the blocks it renders as they were: a revision stores them next to its HTML", async () => {
+    const blocks = [
+      {
+        type: "paragraph",
+        props: {
+          textColor: "default",
+          backgroundColor: "default",
+          textAlignment: "left",
+        },
+        content: [{ type: "text", text: "Llegá temprano", styles: {} }],
+        children: [],
+      },
+      {
+        type: "image",
+        props: {
+          url: "https://x7a9.ufs.sh/f/plano",
+          caption: "El plano",
+          name: "El plano",
+          textAlignment: "left",
+          backgroundColor: "default",
+        },
+        children: [],
+      },
+    ];
+    const before = structuredClone(blocks);
+
+    await blocksToSanitizedHtml(blocks, "announcement");
+
+    expect(blocks).toEqual(before);
   });
 });

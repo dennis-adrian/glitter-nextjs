@@ -6,9 +6,15 @@ import {
 } from "@/app/lib/comunicados/content";
 import {
   COMUNICADO_DOC_MAX_BYTES,
+  COMUNICADO_FOREIGN_IMAGE_MESSAGE,
   COMUNICADO_MAX_BLOCKS,
+  COMUNICADO_MAX_IMAGES,
   COMUNICADO_TEXT_MAX,
 } from "@/app/lib/comunicados/definitions";
+import {
+  COMUNICADO_IMAGE_CAP_MESSAGE,
+  foreignComunicadoImageUrls,
+} from "@/app/lib/comunicados/images";
 import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 
 const DEFAULTS = {
@@ -25,8 +31,22 @@ function paragraph(content: unknown[] = [], extra = {}) {
   return { type: "paragraph", props: {}, content, children: [], ...extra };
 }
 
+function image(props: Record<string, unknown> = {}, extra = {}) {
+  return { type: "image", props, children: [], ...extra };
+}
+
+/** Uploaded through the `comunicadoImage` route. */
+const PLANO = "https://x7a9.ufs.sh/f/plano-armado";
+const AFICHE = "https://utfs.io/f/afiche";
+/** Pasted from another page. */
+const PASTED = "https://www.instagram.com/p/afiche.jpg";
+
 function draft(input: unknown) {
   return normalizeAnnouncementDoc(input, { stage: "draft" });
+}
+
+function send(input: unknown) {
+  return normalizeAnnouncementDoc(input, { stage: "send" });
 }
 
 function ok(result: NormalizeAnnouncementResult) {
@@ -46,12 +66,8 @@ describe("normalizeAnnouncementDoc: refusals", () => {
         draft([paragraph([text("Hola")]), { type: "table", content: {} }]),
       ),
     ).toBe("Este bloque no se puede usar en un comunicado: tabla.");
-    // Images are PR 8: until then they are refused like any other type.
-    expect(
-      refusal(
-        draft([{ type: "image", props: { url: "https://x.com/a.png" } }]),
-      ),
-    ).toBe("Este bloque no se puede usar en un comunicado: imagen.");
+    // An image is a block of the variant now (PR 8).
+    ok(draft([image({ url: PLANO })]));
   });
 
   it("names every refused type at once, nested ones included, and falls back to the raw type", () => {
@@ -101,7 +117,7 @@ describe("normalizeAnnouncementDoc: refusals", () => {
           ]),
         ]),
       );
-      expect(message).toMatch(/^Revisá el enlace «.+»/s);
+      expect(message).toMatch(/^Revisá el enlace «[\s\S]+»/);
     }
   });
 
@@ -496,6 +512,212 @@ describe("normalizeAnnouncementDoc: stages", () => {
   });
 });
 
+describe("normalizeAnnouncementDoc: images", () => {
+  it("keeps an uploaded image's address and caption, and nothing else", () => {
+    const pasted = image(
+      {
+        url: `  ${PLANO}  `,
+        caption: "  El plano\u0000 del armado ",
+        name: "IMG_1234.jpg",
+        showPreview: false,
+        previewWidth: 512,
+        textAlignment: "center",
+        backgroundColor: "red",
+        textColor: "blue",
+        onerror: "alert(1)",
+      },
+      { id: "img1", content: [text("x")] },
+    );
+
+    for (const stage of ["draft", "send"] as const) {
+      const { blocks } = ok(
+        normalizeAnnouncementDoc([paragraph([text("Hola")]), pasted], {
+          stage,
+        }),
+      );
+      expect(blocks[1]).toEqual({
+        id: "img1",
+        type: "image",
+        props: {
+          url: PLANO,
+          caption: "El plano del armado",
+          // The inbox `alt` is the caption, as in the email, not a file name.
+          name: "El plano del armado",
+          textAlignment: "left",
+          backgroundColor: "default",
+        },
+        children: [],
+      });
+    }
+  });
+
+  it("keeps a pasted image on a draft and refuses it at send", () => {
+    const doc = [paragraph([text("Hola")]), image({ url: PASTED })];
+
+    const { blocks } = ok(draft(doc));
+    expect(blocks[1].props.url).toBe(PASTED);
+    // What the composer flags, from the same blocks.
+    expect(foreignComunicadoImageUrls(blocks)).toEqual([PASTED]);
+
+    expect(refusal(send(doc))).toBe(COMUNICADO_FOREIGN_IMAGE_MESSAGE);
+    expect(COMUNICADO_FOREIGN_IMAGE_MESSAGE).toBe(
+      "Esta imagen no está subida a Glitter: subila de nuevo.",
+    );
+  });
+
+  it("flags on the client exactly what it refuses at send, from the document as the editor holds it", () => {
+    for (const url of [
+      PLANO,
+      `\u0001${PLANO}\u007f`,
+      ` ${AFICHE}\u0008 `,
+      `${PLANO}\tx`,
+      `${PLANO}\nx`,
+      PASTED,
+    ]) {
+      const doc = [paragraph([text("Hola")]), image({ url })];
+      expect(foreignComunicadoImageUrls(doc).length > 0).toBe(!send(doc).ok);
+    }
+  });
+
+  it("refuses at send an image that is not a bare https UploadThing file, nested ones included", () => {
+    for (const url of [
+      "http://x7a9.ufs.sh/f/plano-armado",
+      `${PLANO}?w=1200`,
+      "data:image/png;base64,iVBORw0KGgo=",
+      "/img/plano.png",
+    ]) {
+      const doc = [
+        paragraph([text("Hola")]),
+        {
+          type: "bulletListItem",
+          content: [text("Mirá")],
+          children: [image({ url })],
+        },
+      ];
+      ok(draft(doc));
+      expect(refusal(send(doc))).toBe(COMUNICADO_FOREIGN_IMAGE_MESSAGE);
+    }
+    ok(send([paragraph([text("Hola")]), image({ url: AFICHE })]));
+  });
+
+  it(`refuses more than ${COMUNICADO_MAX_IMAGES} images at both stages, nested ones counted`, () => {
+    const six = [
+      paragraph([text("Hola")]),
+      ...Array.from({ length: COMUNICADO_MAX_IMAGES - 1 }, () =>
+        image({ url: PLANO }),
+      ),
+      paragraph([text("Uno más:")], { children: [image({ url: AFICHE })] }),
+    ];
+    ok(draft(six));
+    ok(send(six));
+
+    const seven = [...six, image({ url: PLANO })];
+    expect(refusal(draft(seven))).toBe(COMUNICADO_IMAGE_CAP_MESSAGE);
+    expect(refusal(send(seven))).toBe(
+      "Un comunicado puede tener hasta 6 imágenes.",
+    );
+    // Pasted ones count too: the draft would hold them.
+    expect(refusal(draft([...six, image({ url: PASTED })]))).toBe(
+      COMUNICADO_IMAGE_CAP_MESSAGE,
+    );
+  });
+
+  it("drops an image with no address, its children taking its place", () => {
+    const { blocks } = ok(
+      draft([
+        paragraph([text("Antes")]),
+        image(
+          { url: "" },
+          {
+            children: [
+              paragraph([text("Hijo")], {
+                children: [paragraph([text("Nieto")])],
+              }),
+            ],
+          },
+        ),
+        image({ url: "   " }),
+        { type: "image" },
+        paragraph([text("Después")], {
+          children: [image({ url: "", caption: "Sin subir" })],
+        }),
+      ]),
+    );
+
+    expect(blocks.map((block) => block.content)).toEqual([
+      [text("Antes")],
+      [text("Hijo")],
+      [text("Después")],
+    ]);
+    // The child keeps its own child: it moved up one level, no deeper.
+    expect(blocks[1].children.map((child) => child.content)).toEqual([
+      [text("Nieto")],
+    ]);
+    expect(blocks[2].children).toEqual([]);
+    expect(blocks.some((block) => block.type === "image")).toBe(false);
+  });
+
+  it("does not count an image with no address against the cap", () => {
+    const doc = [
+      paragraph([text("Hola")]),
+      ...Array.from({ length: COMUNICADO_MAX_IMAGES }, () =>
+        image({ url: PLANO }),
+      ),
+      image({ url: "" }),
+      image({ url: "" }),
+    ];
+    expect(ok(send(doc)).blocks).toHaveLength(1 + COMUNICADO_MAX_IMAGES);
+  });
+
+  it("refuses an image address or caption it cannot read", () => {
+    for (const props of [
+      { url: 3 },
+      { url: { href: PLANO } },
+      { url: PLANO, caption: 3 },
+      { url: PLANO, caption: ["El plano"] },
+    ]) {
+      expect(refusal(draft([image(props)]))).toMatch(
+        /No pudimos leer el texto/,
+      );
+    }
+  });
+
+  it("still asks for text before sending an image alone", () => {
+    const doc = [image({ url: PLANO, caption: "El plano del armado" })];
+    ok(draft(doc));
+    expect(refusal(send(doc))).toBe("Escribí el texto del comunicado.");
+  });
+
+  it("prints an image as its caption in the plain text", () => {
+    const { text: plain } = ok(
+      send([
+        paragraph([text("Mirá el plano:")]),
+        image({ url: PLANO, caption: "El plano del armado" }),
+        image({ url: AFICHE }),
+        paragraph([text("Chau")]),
+      ]),
+    );
+    expect(plain).toBe("Mirá el plano:\n\nEl plano del armado\n\nChau");
+  });
+
+  it("gives back the same blocks when it normalizes its own output", () => {
+    // Every batch of a send normalizes the stored revision again.
+    const { blocks } = ok(
+      send([
+        paragraph([text("Hola")]),
+        image(
+          { url: PLANO, caption: "El plano", name: "IMG_1.jpg" },
+          {
+            children: [paragraph([text("Debajo")])],
+          },
+        ),
+        image({ url: AFICHE, showPreview: false }),
+      ]),
+    );
+    expect(ok(send(blocks)).blocks).toEqual(blocks);
+  });
+});
+
 describe("normalizeAnnouncementDoc: what the renderers get", () => {
   it("hands the announcement renderer blocks it can draw from a messy paste", async () => {
     // Raw, this throws inside BlockNote: the schema has no underline style.
@@ -565,5 +787,50 @@ describe("normalizeAnnouncementDoc: what the renderers get", () => {
     expect(html).toContain(
       "<ul><li><p>Uno</p><ul><li><p>Dos</p></li><li><p>Tres</p></li></ul></li></ul>",
     );
+  });
+
+  it("hands it an uploaded image, with its caption as the figure and the alt", async () => {
+    const pasted = [
+      paragraph([text("Mirá el plano:")]),
+      image({
+        url: PLANO,
+        caption: "El plano",
+        name: "IMG_1234.jpg",
+        showPreview: false,
+        previewWidth: 512,
+      }),
+      image({ url: AFICHE, name: "afiche-final.png" }),
+    ];
+    // Raw, "show as a link" turns the image into a link to the file, and
+    // the alt is the file name.
+    const raw = await blocksToSanitizedHtml(pasted, "announcement");
+    expect(raw).toContain(`<a href="${PLANO}">IMG_1234.jpg</a>`);
+    expect(raw).toContain('alt="afiche-final.png"');
+
+    const html = await blocksToSanitizedHtml(
+      ok(send(pasted)).blocks,
+      "announcement",
+    );
+    expect(html).toContain(
+      `<figure><img src="${PLANO}" alt="El plano" /><figcaption>El plano</figcaption></figure>`,
+    );
+    // Without a caption there is no figure, and the alt says nothing rather
+    // than a file name.
+    expect(html).toContain(`<img src="${AFICHE}" alt="" />`);
+    expect(html).not.toMatch(/IMG_1234|afiche-final|width=|data-|<a /);
+  });
+
+  it("leaves a draft's pasted image out of the inbox HTML", async () => {
+    const { blocks } = ok(
+      draft([
+        paragraph([text("Hola")]),
+        image({ url: PASTED, caption: "Afiche" }),
+        image({ url: "http://x7a9.ufs.sh/f/plano-armado" }),
+      ]),
+    );
+    expect(blocks).toHaveLength(3);
+
+    const html = await blocksToSanitizedHtml(blocks, "announcement");
+    expect(html).toBe("<p>Hola</p>");
   });
 });

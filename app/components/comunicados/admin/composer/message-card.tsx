@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import CreditGiftLengthCounter from "@/app/components/credit_gifts/admin/credit-gift-length-counter";
 import RichTextEditor from "@/app/components/organisms/rich-text-editor";
@@ -14,12 +14,15 @@ import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
 import { textCounterText } from "@/app/components/comunicados/admin/composer/composer-copy";
+import { useComunicadoImageUpload } from "@/app/components/comunicados/admin/use-comunicado-image-upload";
 import {
   COMUNICADO_ACTION_LABEL_MAX,
+  COMUNICADO_FOREIGN_IMAGE_MESSAGE,
   COMUNICADO_TEXT_MAX,
   COMUNICADO_TITLE_MAX,
   comunicadoActionPathProblem,
 } from "@/app/lib/comunicados/definitions";
+import { foreignComunicadoImageUrls } from "@/app/lib/comunicados/images";
 import { cn } from "@/app/lib/utils";
 
 export type ActionFields = { enabled: boolean; label: string; path: string };
@@ -38,6 +41,16 @@ type MessageCardProps = {
   onActionChange: (action: ActionFields) => void;
   disabled?: boolean;
 };
+
+/**
+ * What the editor says about images from another site (C2.5): a draft keeps
+ * them, sending refuses them.
+ */
+export function foreignImagesText(count: number) {
+  return count === 1
+    ? COMUNICADO_FOREIGN_IMAGE_MESSAGE
+    : `${count} imágenes no están subidas a Glitter: subilas de nuevo.`;
+}
 
 /**
  * "Mensaje" (docs/IMPLEMENTATION-comunicados.md G4, C6): the title that is the
@@ -62,6 +75,14 @@ export default function MessageCard({
   const markTouched = () => {
     touchedRef.current = true;
   };
+  const uploadFile = useComunicadoImageUpload();
+  // What the editor shows, for the images flag: the server keeps a foreign
+  // image on a draft and says nothing (C2.5), so the editor tells.
+  const [doc, setDoc] = useState(initialDoc);
+  const foreignImages = useMemo(
+    () => foreignComunicadoImageUrls(doc).length,
+    [doc],
+  );
   const pathProblem = action.path
     ? comunicadoActionPathProblem(action.path)
     : null;
@@ -118,11 +139,13 @@ export default function MessageCard({
           <div
             role="group"
             aria-labelledby="comunicado-text-label"
-            aria-describedby={
-              contentError
-                ? "comunicado-text-counter comunicado-text-error"
-                : "comunicado-text-counter"
-            }
+            aria-describedby={[
+              "comunicado-text-counter",
+              foreignImages > 0 && "comunicado-text-images",
+              contentError && "comunicado-text-error",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             onKeyDownCapture={markTouched}
             onPasteCapture={markTouched}
             onDropCapture={markTouched}
@@ -135,12 +158,23 @@ export default function MessageCard({
               initialContent={initialDoc}
               placeholder="Escribí el anuncio. Podés usar títulos, listas y enlaces."
               editable={!disabled}
+              uploadFile={disabled ? undefined : uploadFile}
               onChange={(json) => {
-                if (!touchedRef.current || !Array.isArray(json)) return;
+                if (!Array.isArray(json)) return;
+                setDoc(json as unknown[]);
+                if (!touchedRef.current) return;
                 onDocChange(json as unknown[]);
               }}
             />
           </div>
+          {foreignImages > 0 && (
+            <p
+              id="comunicado-text-images"
+              className="text-xs text-amber-700 dark:text-amber-400"
+            >
+              {foreignImagesText(foreignImages)}
+            </p>
+          )}
           {overText && !contentError && (
             <p className="text-xs text-red-600 dark:text-red-400">
               El texto puede tener hasta{" "}

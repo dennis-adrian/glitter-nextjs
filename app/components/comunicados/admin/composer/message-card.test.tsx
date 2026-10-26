@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -10,43 +16,71 @@ import MessageCard, {
 
 const editor = vi.hoisted(() => ({
   emit: null as null | ((doc: unknown) => void),
+  uploadFile: undefined as undefined | ((file: File) => Promise<string>),
+}));
+const uploads = vi.hoisted(() => ({
+  endpoint: null as string | null,
+  startUpload: vi.fn(),
 }));
 
 // BlockNote does not run in jsdom: a stand-in that can report a change, as
 // the real editor does on mount and on input.
 vi.mock("@/app/components/organisms/rich-text-editor", () => ({
-  default: (props: { onChange?: (json: unknown, html: string) => void }) => {
+  default: (props: {
+    onChange?: (json: unknown, html: string) => void;
+    uploadFile?: (file: File) => Promise<string>;
+  }) => {
     editor.emit = (doc) => props.onChange?.(doc, "");
+    editor.uploadFile = props.uploadFile;
     return <div contentEditable data-testid="editor" />;
+  },
+}));
+vi.mock("@/app/vendors/uploadthing", () => ({
+  useUploadThing: (endpoint: string) => {
+    uploads.endpoint = endpoint;
+    return { startUpload: uploads.startUpload, isUploading: false };
   },
 }));
 
 function Harness({
   initialAction = { enabled: false, label: "", path: "" },
+  initialDoc = [],
   onDocChange = () => {},
+  disabled,
 }: {
   initialAction?: ActionFields;
+  initialDoc?: unknown[];
   onDocChange?: (doc: unknown[]) => void;
+  disabled?: boolean;
 }) {
   const [action, setAction] = useState(initialAction);
   return (
     <MessageCard
       title=""
       onTitleChange={() => {}}
-      initialDoc={[]}
+      initialDoc={initialDoc}
       onDocChange={onDocChange}
       textLength={1204}
       contentError={null}
       action={action}
       onActionChange={setAction}
+      disabled={disabled}
     />
   );
 }
+
+function image(url: string) {
+  return { type: "image", props: { url }, children: [] };
+}
+
+const FOREIGN_ONE = "Esta imagen no está subida a Glitter: subila de nuevo.";
 
 describe("MessageCard", () => {
   afterEach(() => {
     cleanup();
     editor.emit = null;
+    editor.uploadFile = undefined;
+    uploads.startUpload.mockReset();
   });
 
   it("counts the text in the server's measure, es-BO grouped", () => {
@@ -118,5 +152,70 @@ describe("MessageCard", () => {
     expect(onDocChange).toHaveBeenCalledWith([
       { type: "paragraph", content: "a" },
     ]);
+  });
+
+  it("flags images from another site, as the send would refuse them", () => {
+    render(
+      <Harness
+        initialDoc={[
+          image("https://otro.sitio/plano.png"),
+          image("https://abc.ufs.sh/f/KEY"),
+        ]}
+      />,
+    );
+    const group = screen.getByRole("group", { name: "Texto" });
+    expect(screen.getByText(FOREIGN_ONE)).toBeTruthy();
+    expect(group.getAttribute("aria-describedby")).toContain(
+      "comunicado-text-images",
+    );
+
+    // What the editor shows, before the admin types too: a paste lands.
+    act(() =>
+      editor.emit?.([
+        image("https://otro.sitio/plano.png"),
+        {
+          type: "paragraph",
+          content: [],
+          children: [image("http://utfs.io/f/K")],
+        },
+      ]),
+    );
+    expect(
+      screen.getByText(
+        "2 imágenes no están subidas a Glitter: subilas de nuevo.",
+      ),
+    ).toBeTruthy();
+
+    act(() => editor.emit?.([image("https://abc.ufs.sh/f/KEY")]));
+    expect(screen.queryByText(/subida.? a Glitter/)).toBeNull();
+    expect(group.getAttribute("aria-describedby")).toBe(
+      "comunicado-text-counter",
+    );
+  });
+
+  it("says nothing for images uploaded to Glitter, or one still uploading", () => {
+    render(
+      <Harness initialDoc={[image("https://abc.ufs.sh/f/KEY"), image("")]} />,
+    );
+    expect(screen.queryByText(/subida.? a Glitter/)).toBeNull();
+  });
+
+  it("hands the editor the comunicado image upload", async () => {
+    uploads.startUpload.mockResolvedValue([
+      { serverData: { imageUrl: "https://abc.ufs.sh/f/PLANO" } },
+    ]);
+    render(<Harness />);
+    const png = new File(["png"], "plano.png", { type: "image/png" });
+
+    expect(uploads.endpoint).toBe("comunicadoImage");
+    await expect(editor.uploadFile?.(png)).resolves.toBe(
+      "https://abc.ufs.sh/f/PLANO",
+    );
+    expect(uploads.startUpload).toHaveBeenCalledWith([png]);
+  });
+
+  it("offers no upload while the card is disabled", () => {
+    render(<Harness disabled />);
+    expect(editor.uploadFile).toBeUndefined();
   });
 });

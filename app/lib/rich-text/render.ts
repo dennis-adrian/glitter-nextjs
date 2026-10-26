@@ -32,6 +32,9 @@ export async function blocksToSanitizedHtml(
     schema: schemaForVariant(variant) as never,
   });
 
-  const html = await editor.blocksToHTMLLossy(blocks as never);
+  // BlockNote fills its prop defaults into the blocks it is given (an image
+  // gains `showPreview`): render a copy, so a caller that stores the same
+  // blocks, as a comunicado's revision does, stores them as normalized.
+  const html = await editor.blocksToHTMLLossy(structuredClone(blocks) as never);
   return sanitizeRichTextHtml(html, variant);
 }

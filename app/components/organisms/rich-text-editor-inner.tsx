@@ -3,6 +3,7 @@
 import { filterSuggestionItems } from "@blocknote/core";
 import {
   DragHandleMenu,
+  FilePanelController,
   getDefaultReactSlashMenuItems,
   RemoveBlockItem,
   SideMenu,
@@ -19,6 +20,7 @@ import { useTheme } from "next-themes";
 
 import "@blocknote/shadcn/style.css";
 
+import AnnouncementFilePanel from "@/app/components/comunicados/admin/announcement-file-panel";
 import AnnouncementToolbar, {
   clampHeadingLevels,
   tabWouldNestTooDeep,
@@ -38,9 +40,29 @@ type RichTextEditorInnerProps = {
   onChange?: (json: unknown, html: string) => void;
   placeholder?: string;
   editable?: boolean;
-  uploadFile?: (file: File) => Promise<string>;
+  uploadFile?: (file: File, blockId?: string) => Promise<string>;
   className?: string;
 };
+
+/**
+ * A comunicado's upload as BlockNote calls it. A paste or a drop (C4) first
+ * inserts an image and passes its id, and BlockNote 0.54 shows "Loading..."
+ * in it from then on (`createFileBlockWrapper`). After a refusal, which the
+ * upload has already toasted, the image turns back into an empty line
+ * instead. The upload panel passes no id and shows the refusal itself.
+ */
+function announcementUploadFile(
+  uploadFile: (file: File, blockId?: string) => Promise<string>,
+) {
+  return async (file: File, blockId?: string) => {
+    try {
+      return await uploadFile(file, blockId);
+    } catch (failure) {
+      if (!blockId) throw failure;
+      return { type: "paragraph" };
+    }
+  };
+}
 
 function allowSlashItem(
   item: { title: string; aliases?: string[] },
@@ -119,7 +141,14 @@ export default function RichTextEditorInner({
       Array.isArray(initialContent) && initialContent.length > 0
         ? (initialContent as Block[])
         : undefined,
-    uploadFile: variant === "article" ? uploadFile : undefined,
+    // Comunicados upload JPEG and PNG images from their own panel, or a
+    // paste or a drop (C4).
+    uploadFile:
+      variant === "article"
+        ? uploadFile
+        : isAnnouncement && uploadFile
+          ? announcementUploadFile(uploadFile)
+          : undefined,
     // A pasted h1 or h4–h6 lands with its own level: comunicados show it
     // as the Título or Subtítulo it will be saved as.
     pasteHandler: isAnnouncement
@@ -140,6 +169,8 @@ export default function RichTextEditorInner({
       // Comunicados format from `AnnouncementToolbar` alone.
       formattingToolbar={!isAnnouncement}
       sideMenu={!isAnnouncement}
+      // Its default has an "Embed" tab, which would take any site's image.
+      filePanel={!isAnnouncement}
       onChange={async () => {
         const html = await editor.blocksToHTMLLossy(editor.document);
         onChange?.(editor.document, html);
@@ -159,6 +190,9 @@ export default function RichTextEditorInner({
         />
       )}
       {isAnnouncement && <SideMenuController sideMenu={AnnouncementSideMenu} />}
+      {isAnnouncement && (
+        <FilePanelController filePanel={AnnouncementFilePanel} />
+      )}
     </BlockNoteView>
   );
 

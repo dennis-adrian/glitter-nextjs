@@ -1,9 +1,16 @@
 import {
   ANNOUNCEMENT_MAX_DEPTH,
   COMUNICADO_DOC_MAX_BYTES,
+  COMUNICADO_FOREIGN_IMAGE_MESSAGE,
   COMUNICADO_MAX_BLOCKS,
+  COMUNICADO_MAX_IMAGES,
   COMUNICADO_TEXT_MAX,
 } from "@/app/lib/comunicados/definitions";
+import {
+  COMUNICADO_IMAGE_CAP_MESSAGE,
+  countComunicadoImages,
+  foreignComunicadoImageUrls,
+} from "@/app/lib/comunicados/images";
 import {
   announcementBlocksToText,
   encodeHrefWhitespace,
@@ -18,7 +25,7 @@ import {
 
 /**
  * The server's check of a comunicado's text (docs/IMPLEMENTATION-comunicados.md
- * C2, steps 1–4 and 6). Every rendering is made from the blocks this returns,
+ * C2, steps 1–6). Every rendering is made from the blocks this returns,
  * never from HTML or blocks as the client sent them.
  */
 
@@ -46,7 +53,7 @@ export type AnnouncementBlock = {
   id?: string;
   type: AnnouncementBlockType;
   props: Record<string, string | number>;
-  /** Absent on a divider, which holds no text. */
+  /** Absent on a divider or an image, which hold no text. */
   content?: AnnouncementInline[];
   children: AnnouncementBlock[];
 };
@@ -74,7 +81,6 @@ const MALFORMED =
 /** Spanish names for the blocks the other editors offer. */
 const BLOCK_NAMES: Record<string, string> = {
   table: "tabla",
-  image: "imagen",
   video: "video",
   audio: "audio",
   file: "archivo",
@@ -225,9 +231,36 @@ function headingLevel(raw: unknown): 2 | 3 {
   return raw >= 3 ? 3 : 2;
 }
 
+/**
+ * An image keeps its address and caption. The caption is also its `name`,
+ * which BlockNote prints as the inbox `alt`, so the inbox and the email
+ * describe it the same way rather than by a file name. Its size and the
+ * "show as a link" switch go: neither rendering can keep them.
+ */
+function imageProps(raw: Record<string, unknown>) {
+  // An image made without an address has the schema's default: none yet.
+  const url = raw.url ?? "";
+  const caption = raw.caption ?? "";
+  if (typeof url !== "string" || typeof caption !== "string") {
+    throw new Refusal(MALFORMED);
+  }
+  const cleanCaption = cleanText(caption).trim();
+  return {
+    url: cleanText(url).trim(),
+    caption: cleanCaption,
+    name: cleanCaption,
+    textAlignment: "left",
+    backgroundColor: "default",
+  };
+}
+
 /** Colours and alignment go back to their defaults; nothing else is kept. */
-function blockProps(type: AnnouncementBlockType, raw: Record<string, unknown>) {
+function blockProps(
+  type: AnnouncementBlockType,
+  raw: Record<string, unknown>,
+): AnnouncementBlock["props"] {
   if (type === "divider") return {};
+  if (type === "image") return imageProps(raw);
   if (type === "quote") return { ...DEFAULT_COLORS };
   if (type === "heading") {
     return { ...DEFAULT_PROPS, level: headingLevel(raw.level) };
@@ -240,6 +273,8 @@ function blockProps(type: AnnouncementBlockType, raw: Record<string, unknown>) {
 /**
  * At `MAX_DEPTH` a block's children become its following siblings, in
  * order, so a pasted third level of a list stays readable one level up.
+ * An image with no address is dropped, its children taking its place at its
+ * depth: an upload that never finished leaves one behind.
  */
 function normalizeBlocks(raw: unknown[], depth: number): AnnouncementBlock[] {
   const blocks: AnnouncementBlock[] = [];
@@ -253,6 +288,10 @@ function normalizeBlocks(raw: unknown[], depth: number): AnnouncementBlock[] {
 
     const rawChildren = item.children ?? [];
     if (!Array.isArray(rawChildren)) throw new Refusal(MALFORMED);
+    if (type === "image" && props.url === "") {
+      blocks.push(...normalizeBlocks(rawChildren, depth));
+      continue;
+    }
     const children =
       rawChildren.length > 0
         ? normalizeBlocks(rawChildren, Math.min(depth + 1, MAX_DEPTH))
@@ -271,7 +310,9 @@ function normalizeBlocks(raw: unknown[], depth: number): AnnouncementBlock[] {
     ) {
       block.id = cleanText(item.id);
     }
-    if (type !== "divider") block.content = inlineContent(item.content);
+    if (type !== "divider" && type !== "image") {
+      block.content = inlineContent(item.content);
+    }
     blocks.push(block);
     if (lifted) blocks.push(...children);
   }
@@ -335,11 +376,17 @@ function hasWrittenText(blocks: readonly AnnouncementBlock[]): boolean {
  * Checks and normalizes a comunicado's BlockNote document.
  *
  * Both stages refuse what would break a rendering (a block or a link the
- * variant does not have) and silently fix what a paste from Word, Google Docs
- * or Markdown brings along (styles, colours, alignment, heading levels,
- * nesting past two levels, spaces in an address, empty paragraphs at the
+ * variant does not have, more than `COMUNICADO_MAX_IMAGES` images) and
+ * silently fix what a paste from Word, Google Docs or Markdown brings along
+ * (styles, colours, alignment, heading levels, nesting past two levels,
+ * spaces in an address, images with no address, empty paragraphs at the
  * end), so an autosave never fails on formatting. Only the "send" stage asks
- * for text and bounds its length: drafts may be incomplete.
+ * for text, bounds its length and refuses an image not uploaded to Glitter:
+ * drafts may be incomplete, and the composer flags such an image
+ * (`foreignComunicadoImageUrls`).
+ *
+ * Every rule depends on the document alone: each batch of a send normalizes
+ * its revision again, and a rule that changed its mind would fail it.
  */
 export function normalizeAnnouncementDoc(
   input: unknown,
@@ -377,6 +424,15 @@ export function normalizeAnnouncementDoc(
   }
   while (blocks.length > 0 && isEmptyParagraph(blocks[blocks.length - 1])) {
     blocks.pop();
+  }
+
+  if (countComunicadoImages(blocks) > COMUNICADO_MAX_IMAGES) {
+    return { ok: false, message: COMUNICADO_IMAGE_CAP_MESSAGE };
+  }
+  // Only an UploadThing file is sure to stay up as long as the mail does
+  // (C4). A draft keeps a pasted one so the admin can replace it.
+  if (opts.stage === "send" && foreignComunicadoImageUrls(blocks).length > 0) {
+    return { ok: false, message: COMUNICADO_FOREIGN_IMAGE_MESSAGE };
   }
 
   const text = announcementBlocksToText(blocks, { withUrls: false });
