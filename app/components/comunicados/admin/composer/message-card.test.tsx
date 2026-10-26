@@ -46,11 +46,13 @@ function Harness({
   initialAction = { enabled: false, label: "", path: "" },
   initialDoc = [],
   onDocChange = () => {},
+  onUploadingChange,
   disabled,
 }: {
   initialAction?: ActionFields;
   initialDoc?: unknown[];
   onDocChange?: (doc: unknown[]) => void;
+  onUploadingChange?: (uploading: boolean) => void;
   disabled?: boolean;
 }) {
   const [action, setAction] = useState(initialAction);
@@ -64,6 +66,7 @@ function Harness({
       contentError={null}
       action={action}
       onActionChange={setAction}
+      onUploadingChange={onUploadingChange}
       disabled={disabled}
     />
   );
@@ -212,6 +215,38 @@ describe("MessageCard", () => {
       "https://abc.ufs.sh/f/PLANO",
     );
     expect(uploads.startUpload).toHaveBeenCalledWith([png]);
+  });
+
+  it("says while an image is uploading, two at once included, until each answers", async () => {
+    const answers: ((value: unknown) => void)[] = [];
+    uploads.startUpload.mockImplementation(
+      () => new Promise((resolve) => answers.push(resolve)),
+    );
+    const onUploadingChange = vi.fn();
+    render(<Harness onUploadingChange={onUploadingChange} />);
+    expect(onUploadingChange).toHaveBeenLastCalledWith(false);
+    const png = () => new File(["png"], "plano.png", { type: "image/png" });
+
+    let first!: Promise<string>;
+    let second!: Promise<string>;
+    act(() => {
+      first = editor.uploadFile!(png());
+      second = editor.uploadFile!(png());
+    });
+    expect(onUploadingChange).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      answers[0]!([{ serverData: { imageUrl: "https://abc.ufs.sh/f/UNO" } }]);
+      await first;
+    });
+    expect(onUploadingChange).toHaveBeenLastCalledWith(true);
+
+    // A refused one is done too.
+    await act(async () => {
+      answers[1]!(undefined);
+      await second.catch(() => {});
+    });
+    expect(onUploadingChange).toHaveBeenLastCalledWith(false);
   });
 
   it("offers no upload while the card is disabled", () => {

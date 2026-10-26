@@ -170,6 +170,8 @@ export default function ComunicadoReport({
               {title}
             </h2>
             <Badge variant={badge.variant}>{badge.label}</Badge>
+            {/* As its row in the list tags it (G3). */}
+            {edited && <Badge variant="outline">Editado</Badge>}
             {report.essential && <Badge variant="orange">Esencial</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">
@@ -219,6 +221,7 @@ export default function ComunicadoReport({
                 comunicadoId={report.id}
                 title={title}
                 counts={report.retractCounts}
+                sendPush={report.sendPush}
               />
             </>
           )}

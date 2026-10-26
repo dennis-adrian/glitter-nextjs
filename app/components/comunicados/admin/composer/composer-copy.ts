@@ -166,6 +166,12 @@ export type ReadinessInput = {
   essential: { on: boolean; reason: string };
 };
 
+/**
+ * Under "Enviar…" and "Guardar cambios…" while an image uploads: until it
+ * answers, the text holds it with no address.
+ */
+export const IMAGE_UPLOADING_TEXT = "Esperá a que termine de subir la imagen.";
+
 /** "Falta un título, el texto, al menos un destinatario." as parts. */
 export function missingForSend(input: ReadinessInput): string[] {
   const missing: string[] = [];

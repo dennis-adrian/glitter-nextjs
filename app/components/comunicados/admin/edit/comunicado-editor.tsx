@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
-import { missingForSend } from "@/app/components/comunicados/admin/composer/composer-copy";
+import {
+  IMAGE_UPLOADING_TEXT,
+  missingForSend,
+} from "@/app/components/comunicados/admin/composer/composer-copy";
 import MessageCard, {
   type ActionFields,
 } from "@/app/components/comunicados/admin/composer/message-card";
@@ -123,6 +126,11 @@ export default function ComunicadoEditor({
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   /** Saved: the page is on its way back to the comunicado. */
   const [saved, setSaved] = useState(false);
+  /**
+   * An image is still uploading: the text holds it with no address, and a
+   * save now would go without it.
+   */
+  const [uploading, setUploading] = useState(false);
 
   const button = sentAction(action);
   const changed =
@@ -143,8 +151,13 @@ export default function ComunicadoEditor({
   });
   const outOfDate = refusal !== null && FINAL_REFUSALS.has(refusal.code);
   const canSave =
-    changed && !noteMissing && missing.length === 0 && !outOfDate && !saved;
-  const unsaved = (changed || note.trim() !== "") && !saved;
+    changed &&
+    !uploading &&
+    !noteMissing &&
+    missing.length === 0 &&
+    !outOfDate &&
+    !saved;
+  const unsaved = (changed || uploading || note.trim() !== "") && !saved;
 
   const input: EditComunicadoInput = {
     comunicadoId,
@@ -223,6 +236,7 @@ export default function ComunicadoEditor({
             contentError={null}
             action={action}
             onActionChange={setAction}
+            onUploadingChange={setUploading}
             disabled={saved}
           />
 
@@ -289,6 +303,11 @@ export default function ComunicadoEditor({
                 {missing.length > 0 && (
                   <p className="text-xs text-muted-foreground">
                     Falta {missing.join(", ")}.
+                  </p>
+                )}
+                {uploading && (
+                  <p className="text-xs text-muted-foreground">
+                    {IMAGE_UPLOADING_TEXT}
                   </p>
                 )}
               </div>

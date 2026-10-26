@@ -60,9 +60,9 @@ async function refusal(overrides: Partial<ComunicadoSendCheckInput>) {
 }
 
 /**
- * Within every limit of the document (64 KB of JSON, 200 blocks, 5,000
- * characters), yet over 90 KB once each one-letter link is an absolute
- * URL with its inline style.
+ * Within every limit of the document (64 KB of JSON, as it comes in and as
+ * it is stored, 200 blocks, 5,000 characters), yet over 90 KB once each
+ * one-letter link is an absolute URL with its inline style.
  */
 function heavyDoc() {
   const blocks: unknown[] = [];
@@ -77,7 +77,17 @@ function heavyDoc() {
         content: [{ type: "text", text: "x", styles: {} }],
       };
     });
-    blocks.push(paragraph(links));
+    // With the props and children it is stored with, so it measures the same
+    // normalized (C2 step 1).
+    blocks.push({
+      ...paragraph(links),
+      props: {
+        backgroundColor: "default",
+        textColor: "default",
+        textAlignment: "left",
+      },
+      children: [],
+    });
   }
   return blocks;
 }

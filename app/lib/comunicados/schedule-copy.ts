@@ -1,4 +1,7 @@
-import { COMUNICADO_UNTITLED } from "@/app/lib/comunicados/definitions";
+import {
+  COMUNICADO_UNTITLED,
+  ESSENTIAL_FESTIVAL_GRACE_DAYS,
+} from "@/app/lib/comunicados/definitions";
 import { formatAudienceCount } from "@/app/lib/distribution_lists/definitions";
 import { formatDisplayDate } from "@/app/lib/formatters";
 
@@ -43,6 +46,11 @@ export const SCHEDULED_FROZEN_TEXT =
   "Está programado. Para cambiar el texto o los destinatarios, cancelá la programación.";
 export const SCHEDULE_STALE_MESSAGE =
   "Este comunicado cambió mientras lo mirabas. Recargá la página.";
+/**
+ * An essential comunicado whose festival will be past B7's window at the
+ * time chosen: the release would refuse it, so the schedule does now.
+ */
+export const SCHEDULE_ESSENTIAL_TOO_LATE_MESSAGE = `Para esa fecha el festival habrá terminado hace más de ${ESSENTIAL_FESTIVAL_GRACE_DAYS} días: un comunicado esencial tiene que salir antes. Elegí una fecha anterior.`;
 export const RESCHEDULE_SENT_MESSAGE = "Ya se empezó a enviar.";
 export const RESCHEDULE_NOT_SCHEDULED_MESSAGE =
   "Ya no está programado: volvió a ser un borrador.";

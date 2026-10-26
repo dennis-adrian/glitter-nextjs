@@ -10,12 +10,14 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import AnnouncementToolbar, {
   clampHeadingLevels,
   tabWouldNestTooDeep,
 } from "@/app/components/comunicados/admin/announcement-toolbar";
+import { COMUNICADO_IMAGE_TYPE_MESSAGE } from "@/app/components/comunicados/admin/use-comunicado-image-upload";
 import RichTextEditorInner from "@/app/components/organisms/rich-text-editor-inner";
 import { announcementEditorSchema } from "@/app/lib/rich-text/schemas";
 
@@ -416,6 +418,7 @@ describe("RichTextEditorInner, announcement variant", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   function stubBrowser() {
@@ -485,6 +488,67 @@ describe("RichTextEditorInner, announcement variant", () => {
     act(() => {
       target.dispatchEvent(event);
     });
+  }
+
+  /** The clipboard or drag data a browser hands over, as BlockNote reads it. */
+  function transfer(data: Record<string, string>, files: File[] = []) {
+    return {
+      types: [...Object.keys(data), ...(files.length > 0 ? ["Files"] : [])],
+      getData: (type: string) => data[type] ?? "",
+      items: files.map((file) => ({
+        kind: "file",
+        type: file.type,
+        getAsFile: () => file,
+      })),
+    };
+  }
+
+  /**
+   * A drop on the first block, from another window: jsdom has no layout, so
+   * the editor is told where it landed.
+   */
+  function drop(data: Record<string, string>, files: File[] = []) {
+    const target = document.querySelector('[contenteditable="true"]');
+    if (!target) throw new Error("no editor");
+    const view = (
+      target as unknown as {
+        editor: { view: { posAtCoords: () => unknown } };
+      }
+    ).editor.view;
+    view.posAtCoords = () => ({ pos: 1, inside: -1 });
+    vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", {
+      value: transfer(data, files),
+    });
+    Object.assign(event, { clientX: 1, clientY: 1 });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+    return event;
+  }
+
+  function pdf() {
+    return new File(["%PDF"], "plano.pdf", { type: "application/pdf" });
+  }
+
+  function png() {
+    return new File(["png"], "plano.png", { type: "image/png" });
+  }
+
+  type Block = {
+    type: string;
+    props: { level?: number };
+    content?: { text?: string }[];
+  };
+
+  /** Each block's type and text, from the last document reported. */
+  function blocksOf(onChange: ReturnType<typeof vi.fn>) {
+    const [doc] = onChange.mock.calls.at(-1) as [Block[]];
+    return doc.map((block) => [
+      block.type,
+      (block.content ?? []).map((part) => part.text ?? "").join(""),
+    ]);
   }
 
   async function mountEditor(
@@ -564,6 +628,123 @@ describe("RichTextEditorInner, announcement variant", () => {
     });
     // BlockNote's "Loading..." would otherwise stay, with no button left.
     expect(document.querySelector(".bn-file-loading-preview")).toBeNull();
+  });
+
+  it.each([
+    ["a PDF", [pdf()]],
+    ["a PDF before an image", [pdf(), png()]],
+    ["an image before a PDF", [png(), pdf()]],
+  ])(
+    "refuses a pasted file that is not an image, saying why: %s",
+    async (_label, files) => {
+      const error = vi.spyOn(toast, "error");
+      const uploadFile = vi.fn(async () => "https://abc.ufs.sh/f/FOTO");
+      const onChange = await mountEditor("announcement", uploadFile);
+
+      paste({}, files);
+      // BlockNote would make a "file" block, which a comunicado does not
+      // have, and fail after taking the paste.
+      await act(async () => {});
+      expect(error).toHaveBeenCalledWith(COMUNICADO_IMAGE_TYPE_MESSAGE);
+      expect(uploadFile).not.toHaveBeenCalled();
+      expect(onChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a dropped file that is not an image, saying why", async () => {
+    const error = vi.spyOn(toast, "error");
+    const uploadFile = vi.fn(async () => "https://abc.ufs.sh/f/FOTO");
+    const onChange = await mountEditor("announcement", uploadFile);
+
+    const event = drop({}, [pdf(), png()]);
+    await act(async () => {});
+    expect(event.defaultPrevented).toBe(true);
+    expect(error).toHaveBeenCalledWith(COMUNICADO_IMAGE_TYPE_MESSAGE);
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("still pastes the text of a copy that also carries a file", async () => {
+    // Word and some sites add a picture of the selection: BlockNote pastes
+    // the HTML.
+    const error = vi.spyOn(toast, "error");
+    const onChange = await mountEditor("announcement", uploadFile);
+
+    paste({ "text/html": "<p>Llegá temprano</p>" }, [pdf()]);
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(blocksOf(onChange)[0]).toEqual(["paragraph", "Llegá temprano"]);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("gives dropped headings their saved level too, and one undo takes the drop back", async () => {
+    const onChange = await mountEditor("announcement");
+
+    drop({ "text/html": "<h1>Grande</h1><h5>Chico</h5>" });
+    await waitFor(() => {
+      const [doc] = onChange.mock.calls.at(-1) as [Block[]];
+      expect(
+        doc
+          .filter((block) => block.type === "heading")
+          .map((block) => block.props.level),
+      ).toEqual([2, 3]);
+    });
+
+    const text = document.querySelector('[contenteditable="true"]')!;
+    act(() => {
+      fireEvent.keyDown(text, { key: "z", ctrlKey: true });
+    });
+    await waitFor(() =>
+      expect(blocksOf(onChange).map(([type]) => type)).not.toContain("heading"),
+    );
+  });
+
+  it("pastes a spreadsheet's rows as lines, its cells apart", async () => {
+    const onChange = await mountEditor("announcement");
+
+    paste({
+      "text/html":
+        "<google-sheets-html-origin><table><tbody><tr><td>Mesa 1</td><td>10:00</td></tr><tr><td>Mesa 2</td><td> </td><td>11:00</td></tr></tbody></table></google-sheets-html-origin>",
+      "text/plain": "Mesa 1\t10:00\nMesa 2\t\t11:00",
+    });
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(blocksOf(onChange)).toEqual([
+      ["paragraph", "Mesa 1 · 10:00"],
+      ["paragraph", "Mesa 2 · 11:00"],
+    ]);
+  });
+
+  it("pastes a Markdown table's rows as lines, and leaves what is around a table as it was", async () => {
+    const onChange = await mountEditor("announcement");
+
+    paste({ "text/plain": "| Mesa | Hora |\n|---|---|\n| 1 | 10:00 |" });
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(blocksOf(onChange).slice(0, 2)).toEqual([
+      ["paragraph", "Mesa · Hora"],
+      ["paragraph", "1 · 10:00"],
+    ]);
+    cleanup();
+
+    const again = await mountEditor("announcement");
+    paste({
+      "text/html":
+        "<h2>Horarios</h2><table><tr><th>Mesa</th><th>Hora</th></tr><tr><td>1</td><td>10:00</td></tr></table><p>Llegá <strong>temprano</strong>.</p>",
+      "text/plain": "Horarios\nMesa\tHora\n1\t10:00\nLlegá temprano.",
+    });
+    await waitFor(() => expect(again).toHaveBeenCalled());
+    expect(blocksOf(again)).toEqual([
+      ["heading", "Horarios"],
+      ["paragraph", "Mesa · Hora"],
+      ["paragraph", "1 · 10:00"],
+      ["paragraph", "Llegá temprano."],
+    ]);
+  });
+
+  it("offers no resize handle on an image: a comunicado keeps no size", async () => {
+    await mountEditor("announcement");
+    const wrapper = screen.getByRole("toolbar", {
+      name: "Formato del texto",
+    }).parentElement!;
+    expect(wrapper.className).toContain("[&_.bn-resize-handle]:!hidden");
   });
 
   it("stops Tab only inside the text, never on the toolbar", async () => {

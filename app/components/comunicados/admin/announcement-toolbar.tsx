@@ -108,7 +108,12 @@ export function tabWouldNestTooDeep(editor: AnnouncementEditor) {
   });
 }
 
-/** Gives every heading the level it will be saved with, in one step. */
+/**
+ * Gives every heading the level it will be saved with, in one step. The step
+ * stays out of the undo history: undo takes back the paste or the drop that
+ * brought the heading, rather than the level, which would only be clamped
+ * again.
+ */
 export function clampHeadingLevels(editor: AnnouncementEditor) {
   const updates: { id: string; level: 2 | 3 }[] = [];
   const walk = (blocks: AnnouncementEditor["document"]) => {
@@ -123,7 +128,8 @@ export function clampHeadingLevels(editor: AnnouncementEditor) {
   };
   walk(editor.document);
   if (updates.length === 0) return;
-  editor.transact(() => {
+  editor.transact((tr) => {
+    tr.setMeta("addToHistory", false);
     for (const { id, level } of updates) {
       editor.updateBlock(id, { props: { level } });
     }

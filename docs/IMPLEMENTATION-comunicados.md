@@ -544,6 +544,7 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
   - The audience is exactly one festival source: no lists, nobody picked by name.
   - Email is ticked.
   - The festival is **current or upcoming**: `status <> 'archived'`, and its last `festival_dates.end_date` (`db/schema.ts:598-615`) is no more than 7 days ago. A festival without dates is judged by its status alone. This narrows decision 5 to its own example, a setup-time change, so it is asked as K8.
+  - "Programar" and "Cambiar fecha" judge this window at the time chosen, since the release judges it then: a festival that will have ended more than 7 days before that time is refused with "Para esa fecha el festival habrá terminado hace más de 7 días: un comunicado esencial tiene que salir antes. Elegí una fecha anterior." (`INVALID_DATE`, shown under the picker).
 - **What it overrides.** Only the `announcements` unsubscribe; never `all`, never a suppression.
 - **What is recorded:**
   - `essential_reason`, `essential_confirmed_by_user_id` (RESTRICT, A4) and `essential_confirmed_at`, from the "Enviar" or "Programar" confirmation;
@@ -628,7 +629,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 
 `stage` is `"draft"` for autosave, and `"send"` for test send, schedule, send and edit. HTML from the client is never used (`app/lib/posts/render.ts:5-15`).
 
-1. **Shape** (both stages): an array, ≤ 64 KB as JSON, ≤ 200 blocks counting children.
+1. **Shape** (both stages): an array, ≤ 64 KB as JSON, ≤ 200 blocks counting children. The 64 KB holds for the normalized document too: normalizing can grow it (spaces in an address become `%20`, a caption is copied into `name`), and each batch of a send normalizes its revision again.
 2. **Refused, with a message** (both stages):
    - a block type outside the list, through `disallowedBlockTypes(blocks, "announcement")` (`schemas.ts:132-140`). An unknown type makes the renderer throw. Message: "Este bloque no se puede usar en un comunicado: tabla."
    - a link that fails step 4;
@@ -636,7 +637,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 3. **Normalized silently** (both stages), so a paste from Word, Google Docs or Markdown never fails a save:
    - styles other than bold and italic are dropped;
    - `textColor`, `backgroundColor` and `textAlignment` are reset;
-   - heading levels are clamped to the nearer of Título and Subtítulo (1 → 2, 4–6 → 3); BlockNote's paste rules ignore the editor's levels, and the editor also clamps on paste;
+   - heading levels are clamped to the nearer of Título and Subtítulo (1 → 2, 4–6 → 3); BlockNote's paste rules ignore the editor's levels, and the editor also clamps whatever a paste or a drop brings, outside the undo history, so one undo takes back the paste or the drop;
    - nesting deeper than 2 is lifted: the children of a depth-2 block follow it as siblings, in order;
    - empty trailing paragraphs are trimmed.
 4. **Links** must pass `isAllowedRichTextUri` (`sanitize.ts:60`): `https:`, `http:`, `mailto:` or a root-relative `/path`, with no control characters. Anything else is refused: "Revisá el enlace «…»". Whitespace inside an address is percent-encoded on save, so the inbox, the email and the text part carry the same address.
@@ -659,6 +660,8 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 | Inbox detail HTML | `blocksToSanitizedHtml(doc, "announcement")` (`app/lib/rich-text/render.ts:10-31`)                                                                                                                                                                            | `comunicado_revisions.html` (for the draft preview, rendered on save) | the detail page, through `RichTextHtml` (`app/components/molecules/rich-text-html.tsx`, with `hr` (and `img`) styles added); the report's "Mensaje" card |
 | Email             | `announcementBlocksToEmail(blocks, { baseUrl })` in `app/emails/comunicado-blocks.tsx`: a **synchronous** walker modelled on `blocksToSeedHtml` (`festival-terms/html.ts:23-122`), returning React Email nodes with inline styles from `app/emails/styles.ts` | not stored; rendered per recipient by the bulk lane (D3)              | `app/emails/comunicado.tsx`                                                                                                                              |
 | Plain text        | `announcementBlocksToText(blocks, { withUrls })` in `app/lib/comunicados/text.ts`                                                                                                                                                                             | `comunicado_revisions.text` (without URLs)                            | the excerpt; `notification_campaigns.message`; the email's `text` part (with URLs, rendered at send)                                                     |
+
+**Inbox HTML rule:** BlockNote fills an empty paragraph, heading or list item with U+FFFC when it exports HTML, which a browser draws as an "OBJ" box; `blocksToSanitizedHtml` strips it, for every variant, as BlockNote's own Markdown export does.
 
 **Plain-text rules:** a blank line between blocks; headings on their own line; "• " and "1. " for list items; links as "texto", or with `withUrls` as "texto (https://…)", printing exactly the address the email links to (`comunicadoEmailHref`), or none when the email leaves the link as words; dividers as "—"; images as their caption, or nothing.
 
@@ -691,6 +694,11 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 - **Not `blogImage`:** it admits contributors and any format (`core.ts:632-650`).
 - **Upload tab only.** The announcement editor renders BlockNote's `FilePanel` with the Upload tab alone. By default the panel always adds an "Embed" URL tab (`node_modules/@blocknote/react/src/components/FilePanel/FilePanel.tsx:43-57`). Pasted images are handled by C2.5.
 - **Help text:** "JPG o PNG, hasta 4 MB. Se ve mejor a 1200 px de ancho."
+- **In the editor:**
+  - a pasted or dropped file that is not an image (a PDF, a .docx) is refused before BlockNote sees it, with the toast "Subí una imagen JPG o PNG.": BlockNote would make a "file" block, which a comunicado does not have, and fail. A copy that also carries text, as Word's does, is pasted as text;
+  - while an image uploads, the text holds it with no address, and a save drops it (C2.5): "Enviarme una prueba", "Programar…", "Enviar…" and "Guardar cambios…" stay off, with "Esperá a que termine de subir la imagen.", and closing the tab asks first;
+  - images show no resize handle: their size is not kept.
+- **Pasted tables:** a comunicado has none, and BlockNote runs a table's cells together. A pasted table (a spreadsheet's HTML, or a Markdown table) becomes one line per row, its cells joined by " · "; what is around it pastes as usual.
 - **Lifetime.** URLs live only in the block JSON, and nothing enqueues `storage_cleanup_jobs` for them, so images in mail already sent keep working.
   - That is a review invariant.
   - Recalling an image posted by mistake is a manual lever (I4).
@@ -1538,6 +1546,7 @@ It loads fresh numbers from the server when it opens:
 - **Test environment (blue):**
   - preview: "Estás en un entorno de prueba: en lugar de las 1.240 personas de las listas, lo reciben los 4 administradores. Las 2 personas elegidas por nombre sí lo reciben, con un correo real marcado como prueba: Ana Pérez, Luis Rojas."
   - development: "… Las 2 personas elegidas por nombre lo reciben en la app (en desarrollo no se envían correos)."
+  - "las 1.240 personas de las listas" counts who the lists reach and nobody picked by name: the preview's "pueden recibirlo hoy" less the people picked by name who can, so someone on a list and picked by name is counted once, among the latter. When the lists reach nobody else, it reads "en lugar de las listas, …".
 - **`notifications` not public:** "Los participantes todavía no ven la campana: les llega solo el correo."
 
 **Typed confirmation:** at ≥ 300 recipients, or for any essential send, "Para confirmar, escribí la cantidad de personas: 1240". The server re-checks it (B8). Below that, a normal dialog.
@@ -1684,6 +1693,7 @@ It loads fresh numbers from the server when it opens:
 > [Volver] [Retirar comunicado]
 
 - The counts follow the report's labels (G6): a row with `maybe_sent_at` set that is not `sent` counts under "pueden haber llegado", never under "no se envían".
+- The devices are named only when "Notificación en el dispositivo" was ticked; without it the sentence is "Los 1.180 correos ya enviados no se pueden borrar." ("El correo ya enviado no se puede borrar." for one), and with no email sent either only "El informe queda guardado." follows.
 - It is a plain confirmation, not typed: retracting removes rather than sends, and its worst outcome is recoverable with "Duplicar".
 - Toast: "Lo retiramos de las notificaciones."
 
@@ -2232,7 +2242,7 @@ What the code does where this design left a detail open or said something else. 
 **Scheduling (E1–E6):**
 
 - **The picker** opens at the next full hour plus one, in La Paz: at 10:12 or at 10:00 it offers 12:00.
-- **Bounds and clocks.** A schedule may be from now + 5 minutes to now + 60 days, both included, on the server's clock. At release, "late" is strictly more than 60 minutes after `scheduled_at` on the database's clock, and it is checked before whether the scheduler is still an admin. "Overdue" is 3 minutes or more past `scheduled_at`, on the clock of the server rendering the page.
+- **Bounds and clocks.** A schedule may be from now + 5 minutes to now + 60 days, both included, on the server's clock. At release, "late" is strictly more than 60 minutes after `scheduled_at` on the database's clock, and it is checked before whether the scheduler is still an admin. "Overdue" is 3 minutes or more past `scheduled_at`, on the clock of the server rendering the page. A scheduled comunicado's page refreshes itself from its time on (on the browser's clock), as it does once overdue, so a page left open turns into the report when the release comes, or shows the overdue banner when it does not.
 - **A scheduled comunicado** opens a read-only page of its own (G1), not the composer: the frozen banner, "Programado para el … (hora de Bolivia) · lo programó Ana", the overdue banner when it applies, "Enviar ahora" · "Cambiar fecha" · "Cancelar programación" · "Duplicar", "Destinatarios" and "Canales" as cards, and the message's preview. Nothing can autosave there, so nothing races the release.
 - **Development.** "Programar…" is disabled, with E1's sentence under it, and the dialog and the server refuse as well. "Cancelar programación" works, since it is a stop.
 - **Losing races, in words.** "Cancelar programación" on a row that is already a draft (cancelled in another tab, or missed) succeeds with "Ya no estaba programado: es un borrador." "Cambiar fecha" on a draft answers "Ya no está programado: volvió a ser un borrador." A change of date keeps whoever scheduled it as the sender.
@@ -2249,7 +2259,7 @@ What the code does where this design left a detail open or said something else. 
 
 **Editing (F1, G6, G7):**
 
-- **An edit that changes nothing anyone sees** (the rendered HTML, the title and the button all equal the current revision's) is refused, "No cambiaste nada: el comunicado sigue igual.", so no item is marked "Editado" for nothing.
+- **An edit that changes nothing anyone sees** (the rendered HTML, the plain text, the title and the button all equal the current revision's) is refused, "No cambiaste nada: el comunicado sigue igual.", so no item is marked "Editado" for nothing. The text is compared because the inbox HTML lays a nested block flat while the email and its text part indent it: an edit that only nests or un-nests a block is accepted, and marks the items "Editado" though their detail page looks the same.
 - **`edited_at`** is the new revision's `created_at`, which is `clock_timestamp()` after the wait for the lock, not `now()` (F1 step 5): the inbox, the detail page and "Historial" show the same time.
 - **The working copy** gets only the new title, `current_revision`, `version` and `updated_*` (F1 step 4); its `doc` and button stay as sent. Everything that shows a sent comunicado, "Duplicar" included, reads its revision.
 - **Two deadlocks** in a row answer "No pudimos guardar los cambios. Probá de nuevo."; the note may be up to 300 characters ("La nota puede tener hasta 300 caracteres.").

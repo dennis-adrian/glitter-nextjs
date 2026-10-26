@@ -2,7 +2,7 @@
 
 import { RotateCwIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import ChannelsCard from "@/app/components/comunicados/admin/composer/channels-card";
@@ -120,6 +120,17 @@ export default function ComunicadoComposer({
    * view; nothing here changes meanwhile.
    */
   const [sent, setSent] = useState(false);
+  /**
+   * An image is still uploading: the text holds it with no address, and a
+   * send, a schedule or a test now would go without it.
+   */
+  const [uploading, setUploading] = useState(false);
+  /** The same, for a save awaited before a dialog opens. */
+  const uploadingRef = useRef(false);
+  const onUploadingChange = useCallback((value: boolean) => {
+    uploadingRef.current = value;
+    setUploading(value);
+  }, []);
 
   const autosave = useDraftAutosave({
     comunicadoId: draft.id,
@@ -202,14 +213,15 @@ export default function ComunicadoComposer({
   }, [controller]);
 
   useEffect(() => {
-    if (!autosave.unsaved || discarding) return;
+    // An image still uploading is not stored yet either.
+    if ((!autosave.unsaved && !uploading) || discarding) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [autosave.unsaved, discarding]);
+  }, [autosave.unsaved, uploading, discarding]);
 
   function addPerson(person: ComposerPerson) {
     setNames((current) => ({
@@ -248,6 +260,8 @@ export default function ComunicadoComposer({
         toast.error(flushed.message);
         return;
       }
+      // An image pasted while it saved is not in what was stored.
+      if (uploadingRef.current) return;
       try {
         const result = await sendComunicadoTestAction(draft.id);
         if (result.success) toast.success(result.message);
@@ -273,6 +287,8 @@ export default function ComunicadoComposer({
         toast.error(flushed.message);
         return;
       }
+      // An image pasted while it saved is not in what was stored.
+      if (uploadingRef.current) return;
       setConfirmVersion(controller.storedVersion());
       setConfirmOpen(true);
     });
@@ -381,6 +397,7 @@ export default function ComunicadoComposer({
                 actionPath: action.path,
               })
             }
+            onUploadingChange={onUploadingChange}
             disabled={locked}
           />
           <RecipientsCard
@@ -449,6 +466,7 @@ export default function ComunicadoComposer({
               // Nothing would release it there (E1).
               env === "development" ? SCHEDULE_DEVELOPMENT_REFUSAL : null
             }
+            uploading={uploading}
             disabled={locked}
           />
         </div>

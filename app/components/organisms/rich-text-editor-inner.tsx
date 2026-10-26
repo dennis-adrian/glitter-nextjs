@@ -1,6 +1,6 @@
 "use client";
 
-import { filterSuggestionItems } from "@blocknote/core";
+import { filterSuggestionItems, markdownToHTML } from "@blocknote/core";
 import {
   DragHandleMenu,
   FilePanelController,
@@ -17,6 +17,7 @@ import { BlockNoteView } from "@blocknote/shadcn";
 import { es } from "@blocknote/core/locales";
 import type { Block } from "@blocknote/core";
 import { useTheme } from "next-themes";
+import { toast } from "sonner";
 
 import "@blocknote/shadcn/style.css";
 
@@ -26,6 +27,7 @@ import AnnouncementToolbar, {
   tabWouldNestTooDeep,
   type AnnouncementEditor,
 } from "@/app/components/comunicados/admin/announcement-toolbar";
+import { COMUNICADO_IMAGE_TYPE_MESSAGE } from "@/app/components/comunicados/admin/use-comunicado-image-upload";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
   allowedHeadingLevels,
@@ -62,6 +64,89 @@ function announcementUploadFile(
       return { type: "paragraph" };
     }
   };
+}
+
+/** What BlockNote 0.54 reads a paste or a drop as, first found first. */
+const PASTE_FORMATS = [
+  "vscode-editor-data",
+  "blocknote/html",
+  "text/markdown",
+  "text/html",
+  "text/plain",
+  "Files",
+] as const;
+
+/** A Markdown table row; BlockNote reads plain text with one as Markdown. */
+const MARKDOWN_TABLE_ROW = /^\s*\|(.+\|)+\s*$/m;
+
+type PasteData = Pick<DataTransfer, "types" | "getData" | "items">;
+
+function pasteFormat(data: PasteData) {
+  return PASTE_FORMATS.find((format) => data.types.includes(format));
+}
+
+/**
+ * Whether BlockNote would take a paste or a drop as files, and one is not an
+ * image. It inserts what its image block does not accept as a "file" block,
+ * which a comunicado does not have: the insert throws after the event was
+ * taken, and the admin is told nothing. A copy that also carries text (Word
+ * adds a picture of the selection) is pasted as text, and passes.
+ */
+function carriesNonImageFile(data: PasteData | null) {
+  if (!data || pasteFormat(data) !== "Files") return false;
+  return Array.from(data.items ?? []).some((item) => {
+    const file = item.getAsFile();
+    return file !== null && !(file.type && item.type.startsWith("image/"));
+  });
+}
+
+/**
+ * A comunicado has no tables, and BlockNote runs a pasted one's cells
+ * together ("Mesa 110:00Mesa 211:00"): each row becomes a line, its cells
+ * apart.
+ */
+function tablesAsLines(html: string) {
+  const page = new DOMParser().parseFromString(html, "text/html");
+  // Outermost first: a nested table's text goes with its cell.
+  let table = page.querySelector("table");
+  while (table) {
+    const lines = page.createDocumentFragment();
+    for (const row of Array.from(table.rows)) {
+      const line = Array.from(row.cells)
+        .map((cell) => (cell.textContent ?? "").replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+        .join(" · ");
+      if (!line) continue;
+      const paragraph = page.createElement("p");
+      paragraph.textContent = line;
+      lines.appendChild(paragraph);
+    }
+    table.replaceWith(lines);
+    table = page.querySelector("table");
+  }
+  return page.body.innerHTML;
+}
+
+/**
+ * The HTML BlockNote would paste, with its tables as lines; null when it
+ * holds no table, or BlockNote pastes no HTML (files, its own blocks, VS
+ * Code). It reads the clipboard as BlockNote does: plain text, and plain
+ * text with a Markdown table next to HTML, as Markdown.
+ */
+function pasteWithTablesAsLines(data: PasteData) {
+  const format = pasteFormat(data);
+  const plain = data.getData("text/plain");
+  const html =
+    format === "text/markdown"
+      ? markdownToHTML(data.getData("text/markdown"))
+      : format === "text/html"
+        ? MARKDOWN_TABLE_ROW.test(plain)
+          ? markdownToHTML(plain)
+          : data.getData("text/html")
+        : format === "text/plain" && plain.includes("|")
+          ? markdownToHTML(plain)
+          : null;
+  return html && /<table[\s>]/i.test(html) ? tablesAsLines(html) : null;
 }
 
 function allowSlashItem(
@@ -149,13 +234,20 @@ export default function RichTextEditorInner({
         : isAnnouncement && uploadFile
           ? announcementUploadFile(uploadFile)
           : undefined,
-    // A pasted h1 or h4–h6 lands with its own level: comunicados show it
-    // as the Título or Subtítulo it will be saved as.
     pasteHandler: isAnnouncement
-      ? ({ editor: pastedInto, defaultPasteHandler }) => {
-          const handled = defaultPasteHandler();
-          clampHeadingLevels(pastedInto as unknown as AnnouncementEditor);
-          return handled;
+      ? ({ event, editor: pastedInto, defaultPasteHandler }) => {
+          if (uploadFile && carriesNonImageFile(event.clipboardData)) {
+            toast.error(COMUNICADO_IMAGE_TYPE_MESSAGE);
+            return true;
+          }
+          const lines = event.clipboardData
+            ? pasteWithTablesAsLines(event.clipboardData)
+            : null;
+          if (lines !== null) {
+            pastedInto.pasteHTML(lines);
+            return true;
+          }
+          return defaultPasteHandler();
         }
       : undefined,
   });
@@ -172,6 +264,11 @@ export default function RichTextEditorInner({
       // Its default has an "Embed" tab, which would take any site's image.
       filePanel={!isAnnouncement}
       onChange={async () => {
+        // A pasted or dropped h1 or h4–h6 lands with its own level:
+        // comunicados show it as the Título or Subtítulo it will be saved as.
+        if (isAnnouncement && editable) {
+          clampHeadingLevels(editor as unknown as AnnouncementEditor);
+        }
         const html = await editor.blocksToHTMLLossy(editor.document);
         onChange?.(editor.document, html);
       }}
@@ -211,7 +308,22 @@ export default function RichTextEditorInner({
 
   return (
     <div
-      className={cn("min-h-[220px] rounded-md border bg-background", className)}
+      className={cn(
+        "min-h-[220px] rounded-md border bg-background",
+        // A comunicado keeps no image size (C2.5): a resize handle would
+        // only lose the admin's work, as "Colores" would.
+        "[&_.bn-resize-handle]:!hidden",
+        className,
+      )}
+      // Ahead of BlockNote, which would fail on a file that is not an image.
+      onDropCapture={(event) => {
+        if (!editable || !uploadFile) return;
+        if (!editor.domElement?.contains(event.target as Node)) return;
+        if (!carriesNonImageFile(event.dataTransfer)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        toast.error(COMUNICADO_IMAGE_TYPE_MESSAGE);
+      }}
       // Tab nests the block under the one above. A comunicado's lists stop at
       // two levels, so past that Tab does nothing instead of nesting a level
       // every rendering would lift.

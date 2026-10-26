@@ -111,15 +111,18 @@ async function editInTransaction(
   if (current !== expectedRevision) return refusal("STALE");
   const campaignId = Number(row.campaign_id);
 
-  // What every surface shows is the revision's title, HTML and button:
-  // the same again would only mark everyone's item "Editado" (§J's notes).
+  // What every surface shows is the revision's title, HTML, text and
+  // button: the same again would only mark everyone's item "Editado" (§J's
+  // notes). The text counts too: the email and its text part are drawn from
+  // the blocks and indent a nested one, which the inbox HTML lays flat.
   const { rows: previous } = await tx.execute<{
     title: string;
     html: string;
+    text: string;
     action_label: string | null;
     action_path: string | null;
   }>(sql`
-    SELECT title, html, action_label, action_path
+    SELECT title, html, text, action_label, action_path
     FROM comunicado_revisions
     WHERE comunicado_id = ${comunicadoId}::int AND revision = ${current}::int
   `);
@@ -128,6 +131,7 @@ async function editInTransaction(
   if (
     before.title === content.title &&
     before.html === content.html &&
+    before.text === content.text &&
     before.action_label === content.actionLabel &&
     before.action_path === content.actionPath
   ) {

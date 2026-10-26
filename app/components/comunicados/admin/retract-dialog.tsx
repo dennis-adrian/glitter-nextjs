@@ -34,6 +34,8 @@ type RetractComunicadoMenuProps = {
   title: string;
   /** The report's, so the dialog says what the report will show (G6). */
   counts: ComunicadoRetractCounts;
+  /** Whether it went to devices too: only then can one be on a phone. */
+  sendPush: boolean;
 };
 
 /**
@@ -46,6 +48,7 @@ export default function RetractComunicadoMenu({
   comunicadoId,
   title,
   counts,
+  sendPush,
 }: RetractComunicadoMenuProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -55,7 +58,7 @@ export default function RetractComunicadoMenu({
   const trimmed = reason.trim();
   const valid =
     trimmed.length >= 1 && trimmed.length <= COMUNICADO_RETRACT_REASON_MAX;
-  const lines = retractDialogLines(counts);
+  const lines = retractDialogLines(counts, { sendPush });
 
   function retract() {
     if (!valid) return;

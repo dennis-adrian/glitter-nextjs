@@ -408,8 +408,9 @@ describe("SendConfirmDialog", () => {
     mocks.load.mockResolvedValue(
       loaded({
         env: "preview",
+        // The two picked by name count among who can receive it.
         preview: preview({
-          eligible: 1_240,
+          eligible: 1_242,
           narrowed: true,
           stagingAdmins: 4,
           willReceive: 6,
@@ -436,7 +437,7 @@ describe("SendConfirmDialog", () => {
       loaded({
         env: "development",
         sendPush: true,
-        preview: preview({ eligible: 1_240, narrowed: true, stagingAdmins: 4 }),
+        preview: preview({ eligible: 1_242, narrowed: true, stagingAdmins: 4 }),
         pickedReceiving: { count: 2, names: ["Ana Pérez", "Luis Rojas"] },
       }),
     );

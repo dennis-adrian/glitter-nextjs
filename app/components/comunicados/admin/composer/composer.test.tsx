@@ -42,13 +42,21 @@ vi.mock("next/link", () => ({
 vi.mock("sonner", () => ({
   toast: { success: mocks.toastSuccess, error: mocks.toastError },
 }));
-// BlockNote does not run in jsdom.
-vi.mock("@/app/components/organisms/rich-text-editor", () => ({
-  default: () => <div data-testid="editor" />,
+// BlockNote does not run in jsdom: a stand-in that hands over its upload,
+// as the real editor calls it for a pasted, dropped or picked image.
+const editor = vi.hoisted(() => ({
+  uploadFile: undefined as undefined | ((file: File) => Promise<string>),
 }));
-// The message card uploads images (PR 8); nothing here uploads.
+vi.mock("@/app/components/organisms/rich-text-editor", () => ({
+  default: (props: { uploadFile?: (file: File) => Promise<string> }) => {
+    editor.uploadFile = props.uploadFile;
+    return <div data-testid="editor" />;
+  },
+}));
+// The message card uploads images (PR 8) through UploadThing.
+const startUpload = vi.hoisted(() => vi.fn());
 vi.mock("@/app/vendors/uploadthing", () => ({
-  useUploadThing: () => ({ startUpload: vi.fn(), isUploading: false }),
+  useUploadThing: () => ({ startUpload, isUploading: false }),
 }));
 vi.mock("@/app/lib/comunicados/actions", () => ({
   saveComunicadoDraftAction: mocks.save,
@@ -249,6 +257,47 @@ describe("ComunicadoComposer", () => {
     fireEvent.click(sendButton());
     fireEvent.click(scheduleButton());
     expect(mocks.loadConfirmation).not.toHaveBeenCalled();
+  });
+
+  it("keeps sending, scheduling and the test off while an image uploads, and asks before the tab closes", async () => {
+    mocks.previewAudience.mockReturnValue(new Promise(() => {}));
+    let finish!: (value: unknown) => void;
+    startUpload.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderComposer(READY);
+    const testButton = () =>
+      screen.getByRole("button", {
+        name: "Enviarme una prueba",
+      }) as HTMLButtonElement;
+    expect(sendButton().disabled).toBe(false);
+
+    // The image is in the text with no address until the upload answers:
+    // anything sent now would go without it.
+    let uploaded!: Promise<string>;
+    act(() => {
+      uploaded = editor.uploadFile!(
+        new File(["png"], "plano.png", { type: "image/png" }),
+      );
+    });
+    expect(sendButton().disabled).toBe(true);
+    expect(scheduleButton().disabled).toBe(true);
+    expect(testButton().disabled).toBe(true);
+    expect(
+      screen.getByText("Esperá a que termine de subir la imagen."),
+    ).toBeTruthy();
+    const leaving = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(true);
+
+    await act(async () => {
+      finish([{ serverData: { imageUrl: "https://abc.ufs.sh/f/PLANO" } }]);
+      await uploaded;
+    });
+    expect(sendButton().disabled).toBe(false);
+    expect(scheduleButton().disabled).toBe(false);
+    expect(testButton().disabled).toBe(false);
+    expect(
+      screen.queryByText("Esperá a que termine de subir la imagen."),
+    ).toBeNull();
   });
 
   it("keeps «Enviar…» off until the title is there too", () => {

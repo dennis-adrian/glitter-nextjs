@@ -35,8 +35,16 @@ vi.mock("next/navigation", () => ({
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // The menu and the button are tested on their own; here they only show up.
 vi.mock("@/app/components/comunicados/admin/retract-dialog", () => ({
-  default: (props: { comunicadoId: number; title: string }) => (
-    <button type="button" data-comunicado={props.comunicadoId}>
+  default: (props: {
+    comunicadoId: number;
+    title: string;
+    sendPush: boolean;
+  }) => (
+    <button
+      type="button"
+      data-comunicado={props.comunicadoId}
+      data-send-push={String(props.sendPush)}
+    >
       Retirar «{props.title}»
     </button>
   ),
@@ -270,6 +278,35 @@ describe("ComunicadoReport", () => {
       screen.getByText("Enviado el sáb, 24 oct, 10:12 AM por Dennis"),
     ).toBeTruthy();
     expect(screen.queryByText(/Editado el/)).toBeNull();
+    expect(screen.queryByText("Editado")).toBeNull();
+  });
+
+  it("tags an edited one Editado next to its status, as its row in the list does", () => {
+    renderReport(reportOf({ essential: true, currentRevision: 2 }), {
+      revisions: [SENT_REVISION, EDITED_REVISION],
+    });
+
+    const tags = screen.getByRole("heading", {
+      name: "Cambio de horario de armado",
+    }).parentElement!;
+    expect(
+      Array.from(tags.children)
+        .slice(1)
+        .map((tag) => tag.textContent),
+    ).toEqual(["Enviado", "Editado", "Esencial"]);
+  });
+
+  it("tells the retraction whether it went to devices", () => {
+    const { unmount } = renderReport();
+    expect(
+      screen.getByRole("button", { name: /^Retirar/ }).dataset.sendPush,
+    ).toBe("true");
+    unmount();
+
+    renderReport(reportOf({ sendPush: false }));
+    expect(
+      screen.getByRole("button", { name: /^Retirar/ }).dataset.sendPush,
+    ).toBe("false");
   });
 
   it("offers Editar first, on its own page, while it is not retracted", () => {

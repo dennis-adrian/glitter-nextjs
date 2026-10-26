@@ -456,6 +456,44 @@ describe("normalizeAnnouncementDoc: size limits", () => {
     );
   });
 
+  it("measures the normalized document too: each batch of a send measures it again", () => {
+    // Under the limit as the editor hands it over; over it once each space in
+    // the address is encoded as %20, or each caption is copied into `name`.
+    const spaced = `https://glitter.bo/${" ".repeat(25_000)}x`;
+    const link = [
+      paragraph([
+        { type: "link", href: spaced, content: [text("el formulario")] },
+      ]),
+    ];
+    expect(JSON.stringify(link).length).toBeLessThan(COMUNICADO_DOC_MAX_BYTES);
+    const captioned = Array.from({ length: COMUNICADO_MAX_IMAGES }, (_, i) =>
+      image({ url: PLANO, name: `IMG_${i}.jpg`, caption: "a".repeat(5_800) }),
+    );
+    expect(JSON.stringify(captioned).length).toBeLessThan(
+      COMUNICADO_DOC_MAX_BYTES,
+    );
+
+    for (const doc of [link, captioned]) {
+      expect(refusal(draft(doc))).toBe(
+        "El comunicado es demasiado largo. Acortá el texto.",
+      );
+      expect(refusal(send(doc))).toMatch(/demasiado largo/);
+    }
+
+    // Whatever is accepted is accepted again as it was stored.
+    const fits = [
+      paragraph([
+        {
+          type: "link",
+          href: `https://glitter.bo/${" ".repeat(10_000)}x`,
+          content: [text("el formulario")],
+        },
+      ]),
+    ];
+    const once = ok(send(fits));
+    expect(ok(send(once.blocks)).blocks).toEqual(once.blocks);
+  });
+
   it("measures the size in bytes, not characters", () => {
     // Each "ñ" is two bytes of UTF-8: under the limit in characters, over in bytes.
     const doc = [

@@ -25,6 +25,7 @@ import {
   RESCHEDULE_SENT_MESSAGE,
   rescheduledToast,
   SCHEDULE_DEVELOPMENT_REFUSAL,
+  SCHEDULE_ESSENTIAL_TOO_LATE_MESSAGE,
   SCHEDULE_STALE_MESSAGE,
   scheduledToast,
 } from "@/app/lib/comunicados/schedule-copy";
@@ -585,6 +586,52 @@ describeDatabase("scheduling a comunicado", () => {
         essentialConfirmedByUserId: scheduler,
       });
       expect(row.essentialConfirmedAt).toBeInstanceOf(Date);
+    });
+
+    it("judges an essential one's festival at the time chosen, so the release would not refuse it (B7)", async () => {
+      // The festival ends in 11 days; essential mail may go out until 7 days
+      // after that.
+      const id = await essentialDraft();
+
+      expect(await schedule(id, { at: inDays(20), typedCount: 1 })).toEqual({
+        ok: false,
+        code: "INVALID_DATE",
+        message: SCHEDULE_ESSENTIAL_TOO_LATE_MESSAGE,
+      });
+      await expectUntouchedDraft(id);
+
+      const inTime = inDays(17);
+      expect(await schedule(id, { at: inTime, typedCount: 1 })).toEqual({
+        ok: true,
+        version: 2,
+        scheduledAt: inTime,
+      });
+
+      // "Cambiar fecha" holds it to the same window; moving it earlier, or a
+      // comunicado that is not essential, only checks the time.
+      expect(await reschedule(id, 2, inDays(20))).toEqual({
+        ok: false,
+        code: "INVALID_DATE",
+        message: SCHEDULE_ESSENTIAL_TOO_LATE_MESSAGE,
+      });
+      expect(await rowOf(id)).toMatchObject({
+        scheduledAt: inTime,
+        version: 2,
+      });
+      const earlier = inDays(3);
+      expect(await reschedule(id, 2, earlier)).toEqual({
+        ok: true,
+        version: 3,
+        scheduledAt: earlier,
+      });
+
+      const plain = await insertDraft({
+        festivals: [await festivalWith([await createUser()])],
+      });
+      await scheduled(plain, { at: inDays(20) });
+      expect(await reschedule(plain, 2, inDays(40))).toMatchObject({
+        ok: true,
+      });
     });
 
     it("schedules a draft back from a missed schedule afresh, as the admin scheduling it now", async () => {

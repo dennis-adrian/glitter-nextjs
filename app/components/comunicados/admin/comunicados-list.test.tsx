@@ -20,6 +20,7 @@ import { VERSION_CHANGED_TEXT } from "@/app/components/comunicados/admin/send-co
 import type { ComunicadoAudiencePreview } from "@/app/lib/comunicados/audience";
 import type { ComunicadoSendConfirmation } from "@/app/lib/comunicados/contracts";
 import type { ComunicadoListRow } from "@/app/lib/comunicados/queries";
+import { SCHEDULE_STALE_MESSAGE } from "@/app/lib/comunicados/schedule-copy";
 import type { Paged } from "@/app/lib/distribution_lists/definitions";
 
 const mocks = vi.hoisted(() => ({
@@ -439,7 +440,9 @@ describe("ComunicadosList: an overdue schedule (E6)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Enviar ahora" }));
     const dialog = await screen.findByRole("alertdialog");
-    await within(dialog).findByText(VERSION_CHANGED_TEXT);
+    // Scheduled, and changed by whoever: not "este borrador … otra pestaña".
+    await within(dialog).findByText(SCHEDULE_STALE_MESSAGE);
+    expect(within(dialog).queryByText(VERSION_CHANGED_TEXT)).toBeNull();
     expect(
       (
         within(dialog).getByRole("button", {

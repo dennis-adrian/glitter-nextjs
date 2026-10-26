@@ -425,6 +425,17 @@ export function normalizeAnnouncementDoc(
   while (blocks.length > 0 && isEmptyParagraph(blocks[blocks.length - 1])) {
     blocks.pop();
   }
+  // Normalizing can grow a document (an address's spaces become %20, a
+  // caption is copied into `name`), and each batch of a send measures the
+  // stored one again: the limit holds for what is kept, not only for what
+  // came in, which bounded the walk above.
+  const keptBytes = byteLength(blocks);
+  if (keptBytes === null || keptBytes > COMUNICADO_DOC_MAX_BYTES) {
+    return {
+      ok: false,
+      message: "El comunicado es demasiado largo. Acortá el texto.",
+    };
+  }
 
   if (countComunicadoImages(blocks) > COMUNICADO_MAX_IMAGES) {
     return { ok: false, message: COMUNICADO_IMAGE_CAP_MESSAGE };

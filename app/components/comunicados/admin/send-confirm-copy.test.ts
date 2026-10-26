@@ -97,6 +97,18 @@ const NARROWED = preview({
 });
 const TWO_PICKED = { count: 2, names: ["Ana Pérez", "Luis Rojas"] };
 
+/**
+ * NARROWED with `picked` people picked by name, who count among who can
+ * receive it as the server counts them: the lists still reach 1.240.
+ */
+function narrowedWith(picked: number) {
+  return preview({
+    ...NARROWED,
+    matched: NARROWED.matched + picked,
+    eligible: NARROWED.eligible + picked,
+  });
+}
+
 describe("confirmRows", () => {
   it("reads as G5 lays it out, every clause in", () => {
     const rows = confirmRows(
@@ -385,12 +397,52 @@ describe("confirmCallouts", () => {
         environment(
           confirmation({
             env: "preview",
-            preview: NARROWED,
+            preview: narrowedWith(2),
             pickedReceiving: TWO_PICKED,
           }),
         ),
       ).toBe(
         "Estás en un entorno de prueba: en lugar de las 1.240 personas de las listas, lo reciben los 4 administradores. Las 2 personas elegidas por nombre sí lo reciben, con un correo real marcado como prueba: Ana Pérez, Luis Rojas.",
+      );
+    });
+
+    it("counts as the lists' only who the lists reach, not those picked by name", () => {
+      // Confirmados with 92 who can receive it, and 2 more picked by name.
+      const audience = preview({
+        matched: 94,
+        eligible: 94,
+        narrowed: true,
+        stagingAdmins: 2,
+        willReceive: 4,
+      });
+      expect(
+        environment(
+          confirmation({
+            env: "development",
+            preview: audience,
+            pickedReceiving: { count: 2, names: ["Ilustración Demo", "Admin"] },
+          }),
+        ),
+      ).toBe(
+        "Estás en un entorno de prueba: en lugar de las 92 personas de las listas, lo reciben los 2 administradores. Las 2 personas elegidas por nombre lo reciben en la app (en desarrollo no se envían correos).",
+      );
+
+      // Everyone on the lists was also picked by name.
+      expect(
+        environment(
+          confirmation({
+            env: "preview",
+            preview: preview({
+              matched: 2,
+              eligible: 2,
+              narrowed: true,
+              stagingAdmins: 4,
+            }),
+            pickedReceiving: TWO_PICKED,
+          }),
+        ),
+      ).toBe(
+        "Estás en un entorno de prueba: en lugar de las listas, lo reciben los 4 administradores. Las 2 personas elegidas por nombre sí lo reciben, con un correo real marcado como prueba: Ana Pérez, Luis Rojas.",
       );
     });
 
@@ -408,7 +460,7 @@ describe("confirmCallouts", () => {
         environment(
           confirmation({
             env: "preview",
-            preview: NARROWED,
+            preview: narrowedWith(13),
             pickedReceiving: { count: 13, names },
           }),
         ),
@@ -423,7 +475,7 @@ describe("confirmCallouts", () => {
           confirmation({
             env: "preview",
             preview: preview({
-              eligible: 1,
+              eligible: 2,
               narrowed: true,
               stagingAdmins: 1,
             }),
@@ -441,7 +493,7 @@ describe("confirmCallouts", () => {
           confirmation({
             env: "preview",
             sendEmail: false,
-            preview: NARROWED,
+            preview: narrowedWith(2),
             pickedReceiving: TWO_PICKED,
           }),
         ),
@@ -479,7 +531,7 @@ describe("confirmCallouts", () => {
         environment(
           confirmation({
             env: "development",
-            preview: NARROWED,
+            preview: narrowedWith(2),
             pickedReceiving: TWO_PICKED,
           }),
         ),

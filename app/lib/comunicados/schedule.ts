@@ -2,12 +2,21 @@ import "server-only";
 
 import { and, eq, sql } from "drizzle-orm";
 
+import {
+  comunicadoEssentialAllowed,
+  type Executor,
+} from "@/app/lib/comunicados/audience";
 import type { ScheduleRefusalCode } from "@/app/lib/comunicados/contracts";
+import {
+  type ComunicadoAudience,
+  parseStoredComunicadoAudience,
+} from "@/app/lib/comunicados/definitions";
 import {
   CANCEL_SENT_MESSAGE,
   RESCHEDULE_NOT_SCHEDULED_MESSAGE,
   RESCHEDULE_SENT_MESSAGE,
   SCHEDULE_DEVELOPMENT_REFUSAL,
+  SCHEDULE_ESSENTIAL_TOO_LATE_MESSAGE,
   SCHEDULE_STALE_MESSAGE,
 } from "@/app/lib/comunicados/schedule-copy";
 import { scheduleAtProblem } from "@/app/lib/comunicados/schedule-rules";
@@ -52,6 +61,26 @@ function timeRefusal(at: Date, nowMs: number | undefined) {
   }
   const problem = scheduleAtProblem(at, nowMs ?? Date.now());
   return problem ? refused("INVALID_DATE", problem) : null;
+}
+
+/**
+ * B7's festival window judged at the time chosen, since the release judges it
+ * then: an essential comunicado whose festival will be past it by that time
+ * is sure to be refused at release (E4's "invalid"). B7's other rules do not
+ * depend on the time.
+ */
+async function essentialTooLate(
+  executor: Executor,
+  audience: ComunicadoAudience,
+  { sendEmail, at }: { sendEmail: boolean; at: Date },
+) {
+  const allowed = await comunicadoEssentialAllowed(executor, audience, {
+    sendEmail,
+    at,
+  });
+  return allowed.ok
+    ? null
+    : refused("INVALID_DATE", SCHEDULE_ESSENTIAL_TOO_LATE_MESSAGE);
 }
 
 /**
@@ -104,6 +133,13 @@ export async function scheduleComunicado(i: {
       narrow: env !== "production",
     });
     if (!check.ok) return refused(check.refusal.code, check.refusal.message);
+    if (row.essential) {
+      const tooLate = await essentialTooLate(tx, check.audience, {
+        sendEmail: row.sendEmail,
+        at: i.scheduledAt,
+      });
+      if (tooLate) return tooLate;
+    }
     // The counts before narrowing, as the send judges them; the snapshot
     // that would refuse these does not run until the release.
     const { content, preview } = check;
@@ -175,7 +211,9 @@ export async function scheduleComunicado(i: {
 /**
  * "Cambiar fecha" (E1): only the time moves, and the admin who scheduled it
  * still sends it (E1's SQL). Only the new time is checked, so a schedule
- * about to fall due can still be moved.
+ * about to fall due can still be moved; an essential one's, against its
+ * festival too. A scheduled comunicado is frozen, so what is read at the
+ * version shown is what the compare-and-set moves.
  */
 export async function rescheduleComunicado(i: {
   comunicadoId: number;
@@ -186,6 +224,31 @@ export async function rescheduleComunicado(i: {
 }): Promise<ScheduleOutcome> {
   const refusal = timeRefusal(i.scheduledAt, i.nowMs);
   if (refusal) return refusal;
+
+  const [current] = await db
+    .select({
+      status: comunicados.status,
+      version: comunicados.version,
+      essential: comunicados.essential,
+      audience: comunicados.audience,
+      sendEmail: comunicados.sendEmail,
+    })
+    .from(comunicados)
+    .where(eq(comunicados.id, i.comunicadoId))
+    .limit(1);
+  const audience =
+    current?.essential &&
+    current.status === "scheduled" &&
+    current.version === i.expectedVersion
+      ? parseStoredComunicadoAudience(current.audience)
+      : null;
+  if (audience) {
+    const tooLate = await essentialTooLate(db, audience, {
+      sendEmail: current!.sendEmail,
+      at: i.scheduledAt,
+    });
+    if (tooLate) return tooLate;
+  }
 
   const [moved] = await db
     .update(comunicados)

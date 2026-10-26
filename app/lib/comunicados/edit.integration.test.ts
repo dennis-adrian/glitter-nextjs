@@ -1556,6 +1556,31 @@ describeDatabase("editing a sent comunicado", () => {
       ).toMatchObject({ ok: true, revision: 2 });
     });
 
+    it("takes nesting alone as a change: the inbox HTML drops it, the email and its text part do not", async () => {
+      const [person] = await createPeople(1);
+      const [parent, child] = [doc("padre")[0]!, doc("hijo")[0]!];
+      const sent = await insertSent({
+        people: [person!],
+        firstDoc: [{ ...parent, children: [child] }],
+      });
+      await fanOut(sent);
+      const flat = await sentContent("", [parent, child]);
+      expect(flat.html).toBe((await revisionsOf(sent.comunicadoId))[0]!.html);
+
+      expect(
+        await edit(sent, {
+          title: TITLE,
+          doc: [parent, child],
+          actionLabel: null,
+          actionPath: null,
+        }),
+      ).toMatchObject({ ok: true, revision: 2 });
+      expect((await revisionsOf(sent.comunicadoId))[1]).toMatchObject({
+        text: "padre\n\nhijo",
+        doc: flat.blocks,
+      });
+    });
+
     it("refuses content a send would refuse, writing nothing", async () => {
       const [person] = await createPeople(1);
       const sent = await insertSent({ people: [person!] });
@@ -1754,6 +1779,35 @@ describeDatabase("editing a sent comunicado", () => {
         [`/dashboard/communications/${sent.comunicadoId}`],
         [`/dashboard/communications/${sent.comunicadoId}/edit`],
       ]);
+    });
+
+    it("saves a pasted NUL in the title or the button without it, rather than failing every try", async () => {
+      const [person] = await createPeople(1);
+      const sent = await insertSent({ people: [person!] });
+      await fanOut(sent);
+      state.viewer = { id: await createUser("admin"), role: "admin" };
+
+      expect(
+        await editActions.editComunicadoAction({
+          comunicadoId: sent.comunicadoId,
+          expectedRevision: 1,
+          title: `${NEW_TITLE}\u0000`,
+          doc: doc(NEW_TEXT),
+          actionLabel: `Ver\u0000 mis participaciones`,
+          actionPath: `${NEW_PATH}\u0000`,
+          editNote: null,
+        }),
+      ).toEqual({
+        success: true,
+        revision: 2,
+        message: "Guardamos los cambios.",
+      });
+      expect((await revisionsOf(sent.comunicadoId))[1]).toMatchObject({
+        title: NEW_TITLE,
+        action_label: NEW_LABEL,
+        action_path: NEW_PATH,
+      });
+      expect((await itemOf(sent.campaignId, person!)).title).toBe(NEW_TITLE);
     });
 
     it("refuses a festival admin, and anyone while the flag is off", async () => {

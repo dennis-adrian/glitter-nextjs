@@ -34,12 +34,13 @@ const COUNTS = {
   sentEmails: 1180,
 };
 
-function openDialog() {
+function openDialog({ sendPush = true } = {}) {
   render(
     <RetractComunicadoMenu
       comunicadoId={42}
       title="Cambio de horario de armado"
       counts={COUNTS}
+      sendPush={sendPush}
     />,
   );
   fireEvent.keyDown(
@@ -88,6 +89,19 @@ describe("RetractComunicadoMenu", () => {
     expect(screen.getByText("Obligatorio, hasta 300 caracteres.")).toBeTruthy();
     expect(screen.getByText("0/300")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Volver" })).toBeTruthy();
+  });
+
+  it("speaks of the devices only when the device notification was ticked", () => {
+    expect(openDialog().textContent).toContain(
+      "Los 1.180 correos ya enviados y las notificaciones que ya llegaron a los dispositivos no se pueden borrar.",
+    );
+    cleanup();
+
+    const dialog = openDialog({ sendPush: false });
+    expect(dialog.textContent).toContain(
+      "Los 1.180 correos ya enviados no se pueden borrar.",
+    );
+    expect(dialog.textContent).not.toContain("dispositivos");
   });
 
   it("asks for a reason first: blank or only spaces is not one", () => {

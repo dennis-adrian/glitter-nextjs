@@ -25,7 +25,9 @@ const mocks = vi.hoisted(() => ({
 }));
 const editor = vi.hoisted(() => ({
   emit: null as null | ((doc: unknown) => void),
+  uploadFile: undefined as undefined | ((file: File) => Promise<string>),
 }));
+const startUpload = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
@@ -41,14 +43,18 @@ vi.mock("sonner", () => ({
 // BlockNote does not run in jsdom: a stand-in that can report a change, as
 // the real editor does on mount and on input.
 vi.mock("@/app/components/organisms/rich-text-editor", () => ({
-  default: (props: { onChange?: (json: unknown, html: string) => void }) => {
+  default: (props: {
+    onChange?: (json: unknown, html: string) => void;
+    uploadFile?: (file: File) => Promise<string>;
+  }) => {
     editor.emit = (doc) => props.onChange?.(doc, "");
+    editor.uploadFile = props.uploadFile;
     return <div contentEditable data-testid="editor" />;
   },
 }));
-// The message card uploads images (PR 8); nothing here uploads.
+// The message card uploads images (PR 8) through UploadThing.
 vi.mock("@/app/vendors/uploadthing", () => ({
-  useUploadThing: () => ({ startUpload: vi.fn(), isUploading: false }),
+  useUploadThing: () => ({ startUpload, isUploading: false }),
 }));
 vi.mock("@/app/lib/comunicados/edit-actions", () => ({
   editComunicadoAction: mocks.edit,
@@ -438,6 +444,35 @@ describe("ComunicadoEditor", () => {
       "No pudimos guardar los cambios. Probá de nuevo.",
     );
     expect(saveButton().disabled).toBe(false);
+  });
+
+  it("keeps saving off while an image uploads, and asks before the tab closes", async () => {
+    let finish!: (value: unknown) => void;
+    startUpload.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderEditor();
+    typeTitle("Nuevo horario de armado");
+    expect(saveButton().disabled).toBe(false);
+
+    let uploaded!: Promise<string>;
+    act(() => {
+      uploaded = editor.uploadFile!(
+        new File(["png"], "plano.png", { type: "image/png" }),
+      );
+    });
+    expect(saveButton().disabled).toBe(true);
+    expect(
+      screen.getByText("Esperá a que termine de subir la imagen."),
+    ).toBeTruthy();
+    expect(leavingAsks()).toBe(true);
+
+    await act(async () => {
+      finish([{ serverData: { imageUrl: "https://abc.ufs.sh/f/PLANO" } }]);
+      await uploaded;
+    });
+    expect(saveButton().disabled).toBe(false);
+    expect(
+      screen.queryByText("Esperá a que termine de subir la imagen."),
+    ).toBeNull();
   });
 
   it("asks before the tab closes only while a change is on screen", () => {

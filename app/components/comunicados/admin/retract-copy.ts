@@ -5,9 +5,14 @@ import { formatAudienceCount } from "@/app/lib/distribution_lists/definitions";
  * What "Retirar…" says it does (docs/IMPLEMENTATION-comunicados.md F3, G7),
  * from the report's counts. An email that may have arrived in an earlier
  * attempt counts under "pueden haber llegado", never under "no se envían":
- * skipping it now cannot take it back.
+ * skipping it now cannot take it back. A clause with nothing in it is left
+ * out: the devices only when the device notification was ticked, and the
+ * emails count none when email was not.
  */
-export function retractDialogLines(counts: ComunicadoRetractCounts): {
+export function retractDialogLines(
+  counts: ComunicadoRetractCounts,
+  { sendPush }: { sendPush: boolean },
+): {
   disappears: string;
   emails: string;
 } {
@@ -15,7 +20,7 @@ export function retractDialogLines(counts: ComunicadoRetractCounts): {
     disappears: disappearsLine(counts.people),
     emails: [
       notSentSentence(counts.queuedEmails, counts.maybeSentEmails),
-      cannotDeleteSentence(counts.sentEmails),
+      cannotDeleteSentence(counts.sentEmails, sendPush),
       "El informe queda guardado.",
     ]
       .filter(Boolean)
@@ -51,13 +56,18 @@ function notSentSentence(queued: number, maybeSent: number) {
   return `${notSent}; ${mayHaveArrived}.`;
 }
 
-function cannotDeleteSentence(sent: number) {
+function cannotDeleteSentence(sent: number, sendPush: boolean) {
   if (sent === 0) {
-    return "Las notificaciones que ya llegaron a los dispositivos no se pueden borrar.";
+    return sendPush
+      ? "Las notificaciones que ya llegaron a los dispositivos no se pueden borrar."
+      : null;
   }
   const emails =
     sent === 1
       ? "El correo ya enviado"
       : `Los ${formatAudienceCount(sent)} correos ya enviados`;
-  return `${emails} y las notificaciones que ya llegaron a los dispositivos no se pueden borrar.`;
+  if (sendPush) {
+    return `${emails} y las notificaciones que ya llegaron a los dispositivos no se pueden borrar.`;
+  }
+  return `${emails} no se ${sent === 1 ? "puede" : "pueden"} borrar.`;
 }

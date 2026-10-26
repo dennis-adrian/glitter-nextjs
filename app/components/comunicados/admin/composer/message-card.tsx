@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import CreditGiftLengthCounter from "@/app/components/credit_gifts/admin/credit-gift-length-counter";
 import RichTextEditor from "@/app/components/organisms/rich-text-editor";
@@ -39,6 +39,11 @@ type MessageCardProps = {
   contentError: string | null;
   action: ActionFields;
   onActionChange: (action: ActionFields) => void;
+  /**
+   * Whether an image is still uploading: until it answers, the text holds it
+   * with no address, and anything sent or saved would go without it.
+   */
+  onUploadingChange?: (uploading: boolean) => void;
   disabled?: boolean;
 };
 
@@ -66,6 +71,7 @@ export default function MessageCard({
   contentError,
   action,
   onActionChange,
+  onUploadingChange,
   disabled = false,
 }: MessageCardProps) {
   // BlockNote can report a change while it mounts (it settles the stored
@@ -75,7 +81,23 @@ export default function MessageCard({
   const markTouched = () => {
     touchedRef.current = true;
   };
-  const uploadFile = useComunicadoImageUpload();
+  const upload = useComunicadoImageUpload();
+  // A paste, a drop and the "Imagen" panel all upload through here.
+  const [uploads, setUploads] = useState(0);
+  const uploadFile = useCallback(
+    async (file: File) => {
+      setUploads((count) => count + 1);
+      try {
+        return await upload(file);
+      } finally {
+        setUploads((count) => count - 1);
+      }
+    },
+    [upload],
+  );
+  useEffect(() => {
+    onUploadingChange?.(uploads > 0);
+  }, [uploads, onUploadingChange]);
   // What the editor shows, for the images flag: the server keeps a foreign
   // image on a draft and says nothing (C2.5), so the editor tells.
   const [doc, setDoc] = useState(initialDoc);

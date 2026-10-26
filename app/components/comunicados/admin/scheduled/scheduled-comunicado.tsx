@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import PreviewPanel from "@/app/components/comunicados/admin/composer/preview-panel";
@@ -40,6 +40,7 @@ import {
   SCHEDULE_DEVELOPMENT_REFUSAL,
   SCHEDULE_DIALOG_HINT,
   SCHEDULE_PREVIEW_NOTE,
+  SCHEDULE_STALE_MESSAGE,
   SCHEDULED_FROZEN_TEXT,
   scheduledForText,
   scheduleMomentLabel,
@@ -49,6 +50,33 @@ import { confirmadosListName } from "@/app/lib/distribution_lists/definitions";
 import { cn } from "@/app/lib/utils";
 
 const COMUNICADOS_PATH = "/dashboard/communications";
+
+/** `setTimeout`'s longest delay; a longer one fires at once. */
+const MAX_TIMER_MS = 2_147_483_647;
+
+/**
+ * Whether its time has come, on this browser's clock, so the page can follow
+ * the release from then on: one rendered before its time never would.
+ * Whether it is overdue stays the server's to judge (E6).
+ */
+function useDue(scheduledAt: string) {
+  const [due, setDue] = useState(false);
+  useEffect(() => {
+    const dueAtMs = Date.parse(scheduledAt);
+    let timer: number | undefined;
+    const check = () => {
+      const left = dueAtMs - Date.now();
+      if (left <= 0) {
+        setDue(true);
+        return;
+      }
+      timer = window.setTimeout(check, Math.min(left, MAX_TIMER_MS));
+    };
+    check();
+    return () => window.clearTimeout(timer);
+  }, [scheduledAt]);
+  return due;
+}
 
 /**
  * A change of date refused because the page no longer shows the comunicado
@@ -140,6 +168,7 @@ export default function ScheduledComunicado({
   const [sendOpen, setSendOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const at = comunicado.scheduledAt;
+  const due = useDue(at);
   const title = comunicado.title.trim() || COMUNICADO_UNTITLED;
   // Nothing would release it there (E1); cancelling still works.
   const development = env === "development";
@@ -237,8 +266,9 @@ export default function ScheduledComunicado({
           env={env}
         />
       )}
-      {/* Overdue, the release may come any moment: the page follows it. */}
-      <CreditGiftAutoRefresh active={overdue} />
+      {/* From its time on the release may come any moment: the page
+          follows it, into the report or the overdue banner. */}
+      <CreditGiftAutoRefresh active={overdue || due} />
 
       <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="min-w-0 space-y-4">
@@ -295,6 +325,8 @@ export default function ScheduledComunicado({
         open={sendOpen}
         onOpenChange={setSendOpen}
         knownVersion={comunicado.version}
+        // Scheduled, and changed by whoever: not a draft in another tab.
+        versionChangedText={SCHEDULE_STALE_MESSAGE}
         // Frozen: there is no autosave to pause (E1).
         onBeforeSend={async () => () => {}}
         onSent={() => router.refresh()}

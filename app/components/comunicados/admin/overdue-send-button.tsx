@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import SendConfirmDialog from "@/app/components/comunicados/admin/send-confirm-dialog";
 import { Button } from "@/app/components/ui/button";
+import { SCHEDULE_STALE_MESSAGE } from "@/app/lib/comunicados/schedule-copy";
 
 /**
  * "Enviar ahora" on a schedule still waiting past its time
@@ -42,6 +43,8 @@ export default function OverdueSendButton({
         open={open}
         onOpenChange={setOpen}
         knownVersion={version}
+        // Scheduled, and changed by whoever: not a draft in another tab.
+        versionChangedText={SCHEDULE_STALE_MESSAGE}
         // Frozen: there is no autosave to pause (E1).
         onBeforeSend={async () => () => {}}
         onSent={() => router.push(`/dashboard/communications/${comunicadoId}`)}

@@ -124,8 +124,16 @@ type SendConfirmDialogProps = {
   comunicadoId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The autosave's confirmed version; null skips the check. */
+  /**
+   * The version the caller shows (the autosave's confirmed one in the
+   * composer); null skips the check.
+   */
   knownVersion: number | null;
+  /**
+   * What a newer version than `knownVersion` says: the composer's default
+   * speaks of a draft changed in another tab.
+   */
+  versionChangedText?: string;
   /** Pauses the autosave; resolves with the function that resumes it. */
   onBeforeSend: () => Promise<() => void>;
   /** Called on a successful schedule too, with `alreadySent: false`. */
@@ -149,6 +157,7 @@ export default function SendConfirmDialog({
   open,
   onOpenChange,
   knownVersion,
+  versionChangedText = VERSION_CHANGED_TEXT,
   onBeforeSend,
   onSent,
   mode = "send",
@@ -219,7 +228,7 @@ export default function SendConfirmDialog({
       : // Another tab saved after this one flushed: these numbers are not
         // for what is on screen here.
         knownVersion !== null && confirmation.version !== knownVersion
-        ? VERSION_CHANGED_TEXT
+        ? versionChangedText
         : confirmation.problem;
   const typedOk =
     !confirmation?.typedRequired ||

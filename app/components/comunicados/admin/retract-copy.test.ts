@@ -3,14 +3,20 @@ import { describe, expect, it } from "vitest";
 import { retractDialogLines } from "@/app/components/comunicados/admin/retract-copy";
 import type { ComunicadoRetractCounts } from "@/app/lib/comunicados/contracts";
 
-function lines(counts: Partial<ComunicadoRetractCounts> = {}) {
-  return retractDialogLines({
-    people: 1240,
-    queuedEmails: 8,
-    maybeSentEmails: 3,
-    sentEmails: 1180,
-    ...counts,
-  });
+function lines(
+  counts: Partial<ComunicadoRetractCounts> = {},
+  { sendPush = true } = {},
+) {
+  return retractDialogLines(
+    {
+      people: 1240,
+      queuedEmails: 8,
+      maybeSentEmails: 3,
+      sentEmails: 1180,
+      ...counts,
+    },
+    { sendPush },
+  );
 }
 
 describe("retractDialogLines", () => {
@@ -70,5 +76,23 @@ describe("retractDialogLines", () => {
     expect(lines({ sentEmails: 0 }).emails).toBe(
       "Los 8 correos que todavía no salieron no se envían; 3 pueden haber llegado ya. Las notificaciones que ya llegaron a los dispositivos no se pueden borrar. El informe queda guardado.",
     );
+  });
+
+  it("leaves the devices out when the device notification was not ticked", () => {
+    const noPush = { sendPush: false };
+    expect(lines({}, noPush).emails).toBe(
+      "Los 8 correos que todavía no salieron no se envían; 3 pueden haber llegado ya. Los 1.180 correos ya enviados no se pueden borrar. El informe queda guardado.",
+    );
+    expect(lines({ sentEmails: 1 }, noPush).emails).toMatch(
+      / El correo ya enviado no se puede borrar\. El informe queda guardado\.$/,
+    );
+    expect(lines({ sentEmails: 0 }, noPush).emails).toBe(
+      "Los 8 correos que todavía no salieron no se envían; 3 pueden haber llegado ya. El informe queda guardado.",
+    );
+    // Neither email nor device: only the report is left to mention.
+    expect(
+      lines({ queuedEmails: 0, maybeSentEmails: 0, sentEmails: 0 }, noPush)
+        .emails,
+    ).toBe("El informe queda guardado.");
   });
 });

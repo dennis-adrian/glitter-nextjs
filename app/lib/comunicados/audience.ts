@@ -461,18 +461,19 @@ function judgeEssential(
 
 /**
  * Whether this audience may be essential (B7), for the save, the schedule and
- * the send to check on the server. Reads festivals only.
+ * the send to check on the server. Reads festivals only. `at` is when it goes
+ * out: now, or a schedule's time, which the release will judge it at.
  */
 export async function comunicadoEssentialAllowed(
   executor: Executor,
   audience: ComunicadoAudience,
-  { sendEmail }: { sendEmail: boolean },
+  { sendEmail, at = new Date() }: { sendEmail: boolean; at?: Date },
 ): Promise<ComunicadoEssentialAllowed> {
   const festivalRows =
     audience.festivals.length === 1
       ? await loadFestivals(executor, audience.festivals)
       : new Map<number, LoadedFestival>();
-  return judgeEssential(audience, sendEmail, festivalRows, new Date());
+  return judgeEssential(audience, sendEmail, festivalRows, at);
 }
 
 type SummaryRow = {

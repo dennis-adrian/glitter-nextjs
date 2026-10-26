@@ -27,19 +27,26 @@ const COMUNICADOS_PATH = "/dashboard/communications";
 
 const NOTE_TOO_LONG = `La nota puede tener hasta ${COMUNICADO_EDIT_NOTE_MAX} caracteres.`;
 
+/**
+ * Postgres refuses NUL in text, so a pasted one would fail every try of the
+ * edit; an autosave strips it from the same fields (`drafts.ts`).
+ */
+function withoutNul<T extends string | null>(value: T): T {
+  return (value === null ? null : value.replace(/\u0000/g, "")) as T;
+}
+
 const EditSchema = z.object({
   comunicadoId: ComunicadoDraftSchema.shape.comunicadoId,
   /** The revision the page was opened on; a newer one refuses the edit. */
   expectedRevision: z.number().int().min(1),
-  title: ComunicadoDraftSchema.shape.title,
+  title: ComunicadoDraftSchema.shape.title.transform(withoutNul),
   doc: z.array(z.unknown()),
-  actionLabel: ComunicadoDraftSchema.shape.actionLabel,
-  actionPath: ComunicadoDraftSchema.shape.actionPath,
-  // For the team only. Postgres refuses NUL in text, so a pasted one would
-  // fail the edit; an empty note is no note.
+  actionLabel: ComunicadoDraftSchema.shape.actionLabel.transform(withoutNul),
+  actionPath: ComunicadoDraftSchema.shape.actionPath.transform(withoutNul),
+  // For the team only; an empty note is no note.
   editNote: z
     .string()
-    .transform((value) => value.replace(/\u0000/g, "").trim())
+    .transform((value) => withoutNul(value).trim())
     .pipe(z.string().max(COMUNICADO_EDIT_NOTE_MAX, NOTE_TOO_LONG))
     .transform((value) => value || null)
     .nullable(),

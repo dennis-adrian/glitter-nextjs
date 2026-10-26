@@ -36,5 +36,8 @@ export async function blocksToSanitizedHtml(
   // gains `showPreview`): render a copy, so a caller that stores the same
   // blocks, as a comunicado's revision does, stores them as normalized.
   const html = await editor.blocksToHTMLLossy(structuredClone(blocks) as never);
-  return sanitizeRichTextHtml(html, variant);
+  // BlockNote fills an empty block (a blank line, an empty heading or list
+  // item) with U+FFFC when it exports HTML, and a browser draws that as an
+  // "OBJ" box. Its Markdown export strips it; the HTML one does not.
+  return sanitizeRichTextHtml(html.replaceAll("￼", ""), variant);
 }

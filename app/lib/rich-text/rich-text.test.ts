@@ -462,6 +462,24 @@ describe("blocksToSanitizedHtml: announcement variant", () => {
     expect(html).not.toContain("x.com");
   });
 
+  it("leaves no placeholder in an empty line, heading or list item", async () => {
+    // BlockNote fills an empty block with U+FFFC when it exports HTML, and a
+    // browser draws that character as an "OBJ" box.
+    const blocks = [
+      { type: "paragraph", content: "a" },
+      { type: "paragraph", content: [] },
+      { type: "heading", props: { level: 2 }, content: [] },
+      { type: "bulletListItem", content: [] },
+      { type: "paragraph", content: "b" },
+    ];
+
+    for (const variant of ["announcement", "compact"] as const) {
+      const html = await blocksToSanitizedHtml(blocks, variant);
+      expect(html).not.toContain("￼");
+      expect(html).toContain("<p>a</p><p></p><h2></h2>");
+    }
+  });
+
   it("refuses a block the variant does not have instead of rendering it", async () => {
     await expect(
       blocksToSanitizedHtml(

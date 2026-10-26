@@ -238,10 +238,15 @@ function environmentText(c: ComunicadoSendConfirmation) {
     return `Estás en un entorno de prueba: ${who}${how}${names ? `: ${names}` : ""}.`;
   }
 
+  // `eligible` counts the people picked by name too, once each; the lists
+  // reach the rest, who are who the admins stand in for.
+  const listed = Math.max(0, preview.eligible - picked);
   const lists =
-    preview.eligible === 1
-      ? "1 persona de las listas"
-      : `las ${fmt(preview.eligible)} personas de las listas`;
+    listed === 0
+      ? "las listas"
+      : listed === 1
+        ? "1 persona de las listas"
+        : `las ${fmt(listed)} personas de las listas`;
   const admins =
     preview.stagingAdmins === 0
       ? "lo reciben los administradores, pero hoy ninguno puede recibirlo"

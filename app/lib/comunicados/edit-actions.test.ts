@@ -145,6 +145,20 @@ describe("editComunicadoAction", () => {
     });
   });
 
+  it("strips NUL from the title and the button, as an autosave does: Postgres refuses it in text", async () => {
+    await editComunicadoAction({
+      ...INPUT,
+      title: "  Cambio\u0000 de horario ",
+      actionLabel: "Ver\u0000 participaciones",
+      actionPath: "/my_participations\u0000",
+    });
+    expect(mocks.edit.mock.calls[0]![1]).toMatchObject({
+      title: "  Cambio de horario ",
+      actionLabel: "Ver participaciones",
+      actionPath: "/my_participations",
+    });
+  });
+
   it("strips NUL from the note and trims it", async () => {
     await editComunicadoAction({
       ...INPUT,

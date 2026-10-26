@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -88,6 +89,8 @@ vi.mock("@/app/components/credit_gifts/admin/credit-gift-auto-refresh", () => ({
     <div data-testid="auto-refresh" data-active={String(active)} />
   ),
 }));
+
+const DAY_MS = 24 * 60 * 60_000;
 
 const DOC = [
   {
@@ -347,13 +350,62 @@ describe("ScheduledComunicado", () => {
   describe("overdue (E6)", () => {
     const OVERDUE =
       "Debería haber salido el sáb, 31 oct, 9:00 AM y todavía no salió.";
+    const AT = Date.parse("2026-10-31T13:00:00.000Z");
+
+    /** The page's own clock, for the timer that waits for its time. */
+    function clockAt(ms: number) {
+      vi.useFakeTimers({
+        now: ms,
+        toFake: ["Date", "setTimeout", "clearTimeout"],
+      });
+    }
+
+    function refreshing() {
+      return screen.getByTestId("auto-refresh").getAttribute("data-active");
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
     it("says nothing, and does not refresh itself, until it is overdue", () => {
+      clockAt(AT - 60 * 60_000);
       setup();
       expect(screen.queryByText(OVERDUE)).toBeNull();
       expect(
         screen.getByTestId("auto-refresh").getAttribute("data-active"),
       ).toBe("false");
+    });
+
+    it("follows the release from its time on, rendered before it", () => {
+      clockAt(AT - 60_000);
+      setup();
+      expect(refreshing()).toBe("false");
+
+      act(() => vi.advanceTimersByTime(59_000));
+      expect(refreshing()).toBe("false");
+      act(() => vi.advanceTimersByTime(1_000));
+      expect(refreshing()).toBe("true");
+      // The banner is the server's to judge, on the refresh that follows.
+      expect(screen.queryByText(OVERDUE)).toBeNull();
+    });
+
+    it("follows it at once when its time has passed but it is not overdue yet", () => {
+      clockAt(AT + 30_000);
+      setup();
+      expect(refreshing()).toBe("true");
+    });
+
+    it("waits for a time weeks away without a timer firing early", () => {
+      // Past setTimeout's longest delay (about 24.8 days), which would fire
+      // at once.
+      clockAt(AT - 40 * DAY_MS);
+      setup();
+
+      act(() => vi.advanceTimersByTime(30 * DAY_MS));
+      expect(refreshing()).toBe("false");
+      act(() => vi.advanceTimersByTime(10 * DAY_MS));
+      expect(refreshing()).toBe("true");
     });
 
     it("says it should have gone out, offers Enviar ahora, and follows the release", () => {
@@ -427,7 +479,9 @@ describe("ScheduledComunicado", () => {
 
       fireEvent.click(headerButton("Enviar ahora"));
       const dialog = await screen.findByRole("alertdialog");
-      await within(dialog).findByText(VERSION_CHANGED_TEXT);
+      // Scheduled, and changed by whoever: not "este borrador … otra pestaña".
+      await within(dialog).findByText(SCHEDULE_STALE_MESSAGE);
+      expect(within(dialog).queryByText(VERSION_CHANGED_TEXT)).toBeNull();
       expect(
         (
           within(dialog).getByRole("button", {

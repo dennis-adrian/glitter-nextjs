@@ -3,7 +3,10 @@
 import { CalendarClockIcon, FlaskConicalIcon, SendIcon } from "lucide-react";
 import { useId } from "react";
 
-import { realSkippedCount } from "@/app/components/comunicados/admin/composer/composer-copy";
+import {
+  IMAGE_UPLOADING_TEXT,
+  realSkippedCount,
+} from "@/app/components/comunicados/admin/composer/composer-copy";
 import { Button } from "@/app/components/ui/button";
 import {
   Card,
@@ -33,6 +36,8 @@ type SendPanelProps = {
   schedulePending: boolean;
   /** Why nothing can be scheduled here at all, shown under the button. */
   scheduleDisabledReason: string | null;
+  /** An image is still uploading: what is sent now would go without it. */
+  uploading?: boolean;
   disabled?: boolean;
 };
 
@@ -54,6 +59,7 @@ export default function SendPanel({
   onSchedule,
   schedulePending,
   scheduleDisabledReason,
+  uploading = false,
   disabled = false,
 }: SendPanelProps) {
   const scheduleReasonId = useId();
@@ -67,6 +73,7 @@ export default function SendPanel({
   // dialog at a time.
   const sendDisabled =
     disabled ||
+    uploading ||
     sendPending ||
     schedulePending ||
     missing.length > 0 ||
@@ -113,7 +120,7 @@ export default function SendPanel({
           type="button"
           variant="secondary"
           className="w-full"
-          disabled={disabled || testPending}
+          disabled={disabled || uploading || testPending}
           onClick={onTestSend}
         >
           <FlaskConicalIcon className="mr-2 h-4 w-4" aria-hidden />
@@ -151,6 +158,11 @@ export default function SendPanel({
         {missing.length > 0 && (
           <p className="text-xs text-muted-foreground">
             Falta {missing.join(", ")}.
+          </p>
+        )}
+        {uploading && (
+          <p className="text-xs text-muted-foreground">
+            {IMAGE_UPLOADING_TEXT}
           </p>
         )}
       </CardContent>
