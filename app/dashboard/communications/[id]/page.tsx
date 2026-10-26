@@ -149,6 +149,9 @@ export default async function ComunicadoPage(props: {
   return (
     <div className="overflow-y-auto pb-6">
       <ComunicadoComposer
+        // A refresh that brings a newer stored version (a save that settled
+        // after the composer was left) starts it over from what is stored.
+        key={`${comunicado.id}:${comunicado.version}`}
         draft={draftOf(comunicado)}
         festivals={festivals.map((festival) => ({
           festivalId: festival.festivalId,

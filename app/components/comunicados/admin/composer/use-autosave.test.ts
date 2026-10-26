@@ -857,12 +857,14 @@ describe("useDraftAutosave", () => {
     rerender({ value: fields({ title: "Uno dos" }) });
 
     unmount();
-    // What was typed last goes at once, and only then is the page left.
+    // What was typed last goes at once. The router is refreshed right away,
+    // so a quick Back cannot bring the composer back as it opened, and again
+    // once that save settles.
     await advance(0);
     expect(server.requests[1]!.input).toMatchObject({ title: "Uno dos" });
-    expect(onLeave).not.toHaveBeenCalled();
-    await server.requests[1]!.answer();
     expect(onLeave).toHaveBeenCalledTimes(1);
+    await server.requests[1]!.answer();
+    expect(onLeave).toHaveBeenCalledTimes(2);
     await advance(DEBOUNCE * 4);
     expect(server.save).toHaveBeenCalledTimes(2);
   });
@@ -880,9 +882,52 @@ describe("useDraftAutosave", () => {
 
     await advance(retryDelayMs(5) * 4);
     expect(server.save).toHaveBeenCalledTimes(1);
-    // No answer said so, but the server holds it: the router must read it.
+    // No answer said so, but the server holds it: the router must read it,
+    // once on leaving and once the request's outcome is past.
     expect(server.row.fields.title).toBe("Uno");
-    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(onLeave).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps warning when a lost permission stops saving: nothing on screen was refused", async () => {
+    const save = vi.fn<SaveDraft>().mockResolvedValue({
+      success: false,
+      code: "FORBIDDEN",
+      message: "No autorizado.",
+    });
+    const { result, rerender } = setup({ save });
+    rerender({ value: fields({ title: "x" }) });
+    await advance(DEBOUNCE);
+
+    expect(result.current.status).toMatchObject({
+      kind: "blocked",
+      code: "FORBIDDEN",
+    });
+    expect(result.current.unsaved).toBe(true);
+  });
+
+  it("keeps warning about a refused text when a new release stops saving", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
+    const refused = fields({ title: "Título", doc: [{ type: "table" }] });
+    rerender({ value: refused });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.answer();
+    expect(result.current.contentError).toBe(REFUSED_TEXT);
+
+    // An edit's request meets a new release, and the screen comes back to
+    // what was stored.
+    const outdated = new UnrecognizedActionError(
+      'Server Action "abc" was not found',
+    );
+    server.save.mockRejectedValueOnce(outdated);
+    rerender({ value: fields({ title: "Título!", doc: [{ type: "table" }] }) });
+    await advance(DEBOUNCE);
+    rerender({ value: refused });
+    await advance(0);
+
+    expect(result.current.status).toMatchObject({ code: "OUTDATED" });
+    // The text never reached the server: leaving must still warn.
+    expect(result.current.unsaved).toBe(true);
   });
 
   it("neither saves nor refreshes on leaving when nothing was sent", async () => {

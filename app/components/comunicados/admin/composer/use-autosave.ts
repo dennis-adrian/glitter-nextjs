@@ -216,10 +216,17 @@ export class DraftAutosave {
   }
 
   private unsaved() {
-    // Reloading is the way out of a refusal. A new release is no refusal of
-    // the fields: what the server never got stays there to be copied.
-    if (this.blocked)
-      return this.blocked.code === "OUTDATED" && !this.settled();
+    if (this.blocked) {
+      // Reloading is the way out when the stored draft won (another tab, a
+      // send, a discard). A new release or a lost permission refuses nothing
+      // on screen: what the server never got, a refused text included, stays
+      // there to be copied, and leaving still warns.
+      const storedWon =
+        this.blocked.code === "STALE" ||
+        this.blocked.code === "NOT_DRAFT" ||
+        this.blocked.code === "NOT_FOUND";
+      return !storedWon && (!this.settled() || this.contentError !== null);
+    }
     return !this.idle() || this.contentError !== null;
   }
 
@@ -444,6 +451,20 @@ export class DraftAutosave {
    * after it, and stops. Resolves whether a request of this mount may have
    * stored something, so what the router keeps can be refreshed.
    */
+  /**
+   * Whether leaving now may leave something stored behind the router's back:
+   * a stored save, or one in flight, pending or of unknown outcome.
+   */
+  mayStoreOnLeave() {
+    return (
+      !this.discarded &&
+      (this.storedOnce ||
+        this.uncertain !== null ||
+        this.inFlight !== null ||
+        this.timer !== null)
+    );
+  }
+
   async leave(): Promise<boolean> {
     const session = this.session;
     this.leaving = true;
@@ -510,6 +531,10 @@ export function useDraftAutosave({
   useEffect(() => {
     controller.attach();
     return () => {
+      // At once, so a Back pressed while the last save is still on its way
+      // does not bring back the composer as it first opened; and again once
+      // that save settles, since the refresh may have read the draft before it.
+      if (controller.mayStoreOnLeave()) leaveRef.current?.();
       void controller.leave().then((mayHaveStored) => {
         if (mayHaveStored) leaveRef.current?.();
       });

@@ -120,7 +120,9 @@ function inlineText(content: unknown, opts: AnnouncementTextOptions): string {
         if (
           stripScheme(encodeHrefWhitespace(label.trim())) === stripScheme(shown)
         ) {
-          return label;
+          // Typed with a space, the label is no address a plain-text reader
+          // can open: the working, encoded one stands in for it.
+          return /\s/.test(label.trim()) ? shown : label;
         }
         return `${label} (${shown})`;
       }

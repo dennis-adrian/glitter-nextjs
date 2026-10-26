@@ -61,18 +61,36 @@ function savedHeadingLevel(level: number): 2 | 3 {
   return level >= 3 ? 3 : 2;
 }
 
+type AnnouncementBlockNode = ReturnType<
+  AnnouncementEditor["getTextCursorPosition"]
+>["block"];
+
+/** Levels below a block: 0 without children. */
+function subtreeHeight(block: AnnouncementBlockNode): number {
+  return block.children.reduce(
+    (height, child) => Math.max(height, 1 + subtreeHeight(child)),
+    0,
+  );
+}
+
 /**
- * Whether Tab would nest the current block past the levels a comunicado
- * keeps: Tab makes it a child of the block above, one level deeper.
+ * Whether Tab would nest the selected blocks past the levels a comunicado
+ * keeps. Tab moves each selected block, children included, under the block
+ * above: one level deeper for all of them.
  */
 export function tabWouldNestTooDeep(editor: AnnouncementEditor) {
-  let depth = 1;
-  let parent = editor.getParentBlock(editor.getTextCursorPosition().block);
-  while (parent) {
-    depth += 1;
-    parent = editor.getParentBlock(parent);
-  }
-  return depth >= ANNOUNCEMENT_MAX_DEPTH;
+  const blocks = editor.getSelection()?.blocks ?? [
+    editor.getTextCursorPosition().block,
+  ];
+  return blocks.some((block) => {
+    let depth = 1;
+    let parent = editor.getParentBlock(block);
+    while (parent) {
+      depth += 1;
+      parent = editor.getParentBlock(parent);
+    }
+    return depth + subtreeHeight(block) >= ANNOUNCEMENT_MAX_DEPTH;
+  });
 }
 
 /** Gives every heading the level it will be saved with, in one step. */

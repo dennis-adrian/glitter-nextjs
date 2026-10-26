@@ -183,6 +183,8 @@ export default function RichTextEditorInner({
       // every rendering would lift.
       onKeyDownCapture={(event) => {
         if (event.key !== "Tab" || event.shiftKey) return;
+        // Only inside the text: Tab on the toolbar moves focus as usual.
+        if (!editor.domElement?.contains(event.target as Node)) return;
         if (tabWouldNestTooDeep(editor as unknown as AnnouncementEditor)) {
           event.preventDefault();
           event.stopPropagation();

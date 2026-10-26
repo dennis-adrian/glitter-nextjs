@@ -103,7 +103,7 @@ describe("announcementBlocksToText", () => {
     );
   });
 
-  it("does not repeat a typed address with a space, stored encoded", () => {
+  it("prints a typed address with a space once, in its working encoded form", () => {
     const doc = [
       block("paragraph", [
         link(
@@ -114,7 +114,7 @@ describe("announcementBlocksToText", () => {
     ];
 
     expect(announcementBlocksToText(doc, withUrls)).toBe(
-      "https://drive.example/mi archivo.pdf",
+      "https://drive.example/mi%20archivo.pdf",
     );
   });
 

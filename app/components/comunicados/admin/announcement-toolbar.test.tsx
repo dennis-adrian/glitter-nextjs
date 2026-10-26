@@ -204,12 +204,27 @@ describe("AnnouncementToolbar", () => {
       },
       { type: "paragraph", content: "Tres" },
     ]);
+    // "Uno" would take "Dos" a level down with it.
     editor.setTextCursorPosition(editor.document[0], "end");
-    expect(tabWouldNestTooDeep(editor)).toBe(false);
+    expect(tabWouldNestTooDeep(editor)).toBe(true);
     editor.setTextCursorPosition(editor.document[0].children[0], "end");
     expect(tabWouldNestTooDeep(editor)).toBe(true);
     editor.setTextCursorPosition(editor.document[1], "end");
     expect(tabWouldNestTooDeep(editor)).toBe(false);
+  });
+
+  it("stops Tab on a top-level block whose children would sink to a third level", () => {
+    const editor = makeEditor([
+      { type: "bulletListItem", content: "Arriba" },
+      {
+        type: "bulletListItem",
+        content: "Uno",
+        children: [{ type: "bulletListItem", content: "Dos" }],
+      },
+    ]);
+    // "Uno" has no parent, but Tab would take "Dos" with it, one level down.
+    editor.setTextCursorPosition(editor.document[1], "end");
+    expect(tabWouldNestTooDeep(editor)).toBe(true);
   });
 
   it("disables every control when the editor is read-only", () => {
@@ -326,6 +341,33 @@ describe("RichTextEditorInner, announcement variant", () => {
       ).toEqual([2, 3, 3]);
     },
   );
+
+  it("stops Tab only inside the text, never on the toolbar", async () => {
+    stubBrowser();
+    render(
+      <RichTextEditorInner
+        variant="announcement"
+        // The cursor opens in "Uno": Tab there would sink "Dos" a level.
+        initialContent={[
+          {
+            type: "bulletListItem",
+            content: "Uno",
+            children: [{ type: "bulletListItem", content: "Dos" }],
+          },
+        ]}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Dos")).toBeTruthy());
+    const text = document.querySelector('[contenteditable="true"]')!;
+
+    // fireEvent answers false when the event's default was prevented.
+    expect(fireEvent.keyDown(text, { key: "Tab" })).toBe(false);
+    expect(
+      fireEvent.keyDown(screen.getByRole("button", { name: "Negrita" }), {
+        key: "Tab",
+      }),
+    ).toBe(true);
+  });
 
   it("keeps a pasted h1 in the other variants", async () => {
     const onChange = await mountEditor("article");
