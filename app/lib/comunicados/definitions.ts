@@ -15,6 +15,8 @@ export const COMUNICADO_TEXT_MAX = 5_000;
 export const COMUNICADO_DOC_MAX_BYTES = 64 * 1024;
 /** Blocks, children counted. */
 export const COMUNICADO_MAX_BLOCKS = 200;
+/** Lists nest this deep at most; a deeper level is lifted on save. */
+export const ANNOUNCEMENT_MAX_DEPTH = 2;
 /** Gmail clips a message at 102 KB. */
 export const COMUNICADO_EMAIL_HTML_MAX_BYTES = 90 * 1024;
 /** The inbox list clamps the body to two lines. */

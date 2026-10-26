@@ -21,6 +21,7 @@ import "@blocknote/shadcn/style.css";
 
 import AnnouncementToolbar, {
   clampHeadingLevels,
+  tabWouldNestTooDeep,
   type AnnouncementEditor,
 } from "@/app/components/comunicados/admin/announcement-toolbar";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
@@ -177,6 +178,16 @@ export default function RichTextEditorInner({
   return (
     <div
       className={cn("min-h-[220px] rounded-md border bg-background", className)}
+      // Tab nests the block under the one above. A comunicado's lists stop at
+      // two levels, so past that Tab does nothing instead of nesting a level
+      // every rendering would lift.
+      onKeyDownCapture={(event) => {
+        if (event.key !== "Tab" || event.shiftKey) return;
+        if (tabWouldNestTooDeep(editor as unknown as AnnouncementEditor)) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
     >
       <AnnouncementToolbar
         // The editor was made from `announcementEditorSchema`; the variant

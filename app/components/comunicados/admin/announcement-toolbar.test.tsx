@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import AnnouncementToolbar, {
   clampHeadingLevels,
+  tabWouldNestTooDeep,
 } from "@/app/components/comunicados/admin/announcement-toolbar";
 import RichTextEditorInner from "@/app/components/organisms/rich-text-editor-inner";
 import { announcementEditorSchema } from "@/app/lib/rich-text/schemas";
@@ -192,6 +193,23 @@ describe("AnnouncementToolbar", () => {
         .getByRole("button", { name: "Negrita" })
         .getAttribute("aria-pressed"),
     ).toBe("true");
+  });
+
+  it("stops Tab at the second list level", () => {
+    const editor = makeEditor([
+      {
+        type: "bulletListItem",
+        content: "Uno",
+        children: [{ type: "bulletListItem", content: "Dos" }],
+      },
+      { type: "paragraph", content: "Tres" },
+    ]);
+    editor.setTextCursorPosition(editor.document[0], "end");
+    expect(tabWouldNestTooDeep(editor)).toBe(false);
+    editor.setTextCursorPosition(editor.document[0].children[0], "end");
+    expect(tabWouldNestTooDeep(editor)).toBe(true);
+    editor.setTextCursorPosition(editor.document[1], "end");
+    expect(tabWouldNestTooDeep(editor)).toBe(false);
   });
 
   it("disables every control when the editor is read-only", () => {

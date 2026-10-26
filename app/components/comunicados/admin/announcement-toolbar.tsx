@@ -22,6 +22,7 @@ import { useCallback, useState } from "react";
 import { Button } from "@/app/components/ui/button";
 import type { announcementEditorSchema } from "@/app/lib/rich-text/schemas";
 import { cn } from "@/app/lib/utils";
+import { ANNOUNCEMENT_MAX_DEPTH } from "@/app/lib/comunicados/definitions";
 
 /**
  * The comunicado editor's only formatting controls (C1): the pieces of the
@@ -58,6 +59,20 @@ const BLOCK_TARGETS = {
  */
 function savedHeadingLevel(level: number): 2 | 3 {
   return level >= 3 ? 3 : 2;
+}
+
+/**
+ * Whether Tab would nest the current block past the levels a comunicado
+ * keeps: Tab makes it a child of the block above, one level deeper.
+ */
+export function tabWouldNestTooDeep(editor: AnnouncementEditor) {
+  let depth = 1;
+  let parent = editor.getParentBlock(editor.getTextCursorPosition().block);
+  while (parent) {
+    depth += 1;
+    parent = editor.getParentBlock(parent);
+  }
+  return depth >= ANNOUNCEMENT_MAX_DEPTH;
 }
 
 /** Gives every heading the level it will be saved with, in one step. */

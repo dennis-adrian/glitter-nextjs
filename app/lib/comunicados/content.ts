@@ -1,4 +1,5 @@
 import {
+  ANNOUNCEMENT_MAX_DEPTH,
   COMUNICADO_DOC_MAX_BYTES,
   COMUNICADO_MAX_BLOCKS,
   COMUNICADO_TEXT_MAX,
@@ -63,7 +64,7 @@ export type NormalizeAnnouncementResult =
  * Top-level blocks and their children: a list inside a list. A deeper block
  * follows its depth-2 ancestor instead (`normalizeBlocks`).
  */
-const MAX_DEPTH = 2;
+const MAX_DEPTH = ANNOUNCEMENT_MAX_DEPTH;
 const MAX_SHOWN_HREF = 60;
 const MAX_BLOCK_ID = 64;
 
@@ -98,13 +99,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Postgres refuses NUL and unpaired surrogates in jsonb, so a paste carrying
  * one would fail the save. Other control characters print nothing.
  */
+/** Half of a surrogate pair on its own: Postgres jsonb refuses it. */
+const LONE_SURROGATE =
+  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
 function cleanText(value: string) {
   return value
     .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "")
-    .replace(
-      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
-      "�",
-    );
+    .replace(LONE_SURROGATE, "�");
 }
 
 function textNode(raw: unknown): AnnouncementText {
@@ -176,7 +178,13 @@ function linkNode(raw: Record<string, unknown>): AnnouncementLink | null {
   // A pasted space is encoded once, here, so the inbox, the email and its
   // text part all carry the same address: the email's path rule would
   // otherwise turn "/mis cosas" into plain words.
-  return { type: "link", href: encodeHrefWhitespace(href), content };
+  // A lone surrogate would make jsonb refuse the whole autosave, title and
+  // audience included: it becomes an encoded replacement character.
+  return {
+    type: "link",
+    href: encodeHrefWhitespace(href).replace(LONE_SURROGATE, "%EF%BF%BD"),
+    content,
+  };
 }
 
 function inlineContent(raw: unknown): AnnouncementInline[] {

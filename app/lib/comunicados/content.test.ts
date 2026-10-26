@@ -364,6 +364,22 @@ describe("normalizeAnnouncementDoc: silent normalization", () => {
     expect(blocks[0].content).toEqual([text("ab\nc�d")]);
   });
 
+  it("encodes a lone surrogate in a link's address, which jsonb would refuse", () => {
+    const { blocks } = ok(
+      draft([
+        paragraph([
+          { type: "link", href: "/merch?q=a\ud800b", content: [text("x")] },
+        ]),
+      ]),
+    );
+    const href = (blocks[0].content ?? []).map((node) =>
+      node.type === "link" ? node.href : null,
+    )[0];
+    expect(href).toBe("/merch?q=a%EF%BF%BDb");
+    // The stored document survives a JSON round trip Postgres would accept.
+    expect(JSON.stringify(blocks)).not.toMatch(/\\ud800/i);
+  });
+
   it("returns blocks in the editor's shape, keeping ids and dropping extra keys", () => {
     const { blocks } = ok(
       draft([

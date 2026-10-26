@@ -115,7 +115,13 @@ function inlineText(content: unknown, opts: AnnouncementTextOptions): string {
         if (!shown) return label;
         if (!label.trim()) return shown;
         // A pasted address is its own label: "x.com (https://x.com)" says it twice.
-        if (stripScheme(label.trim()) === stripScheme(shown)) return label;
+        // The stored address has its spaces encoded; a label typed as the
+        // address itself still has them.
+        if (
+          stripScheme(encodeHrefWhitespace(label.trim())) === stripScheme(shown)
+        ) {
+          return label;
+        }
         return `${label} (${shown})`;
       }
       return typeof node.text === "string" ? node.text : "";

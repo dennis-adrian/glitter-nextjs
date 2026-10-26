@@ -103,6 +103,21 @@ describe("announcementBlocksToText", () => {
     );
   });
 
+  it("does not repeat a typed address with a space, stored encoded", () => {
+    const doc = [
+      block("paragraph", [
+        link(
+          "https://drive.example/mi%20archivo.pdf",
+          "https://drive.example/mi archivo.pdf",
+        ),
+      ]),
+    ];
+
+    expect(announcementBlocksToText(doc, withUrls)).toBe(
+      "https://drive.example/mi archivo.pdf",
+    );
+  });
+
   it("makes a Glitter path absolute by concatenation when given a base", () => {
     const doc = [
       block("paragraph", [link("/my_participations", "tu reserva")]),
