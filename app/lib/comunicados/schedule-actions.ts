@@ -135,7 +135,8 @@ export async function rescheduleComunicadoAction(
 
 /**
  * "Cancelar programación" (E1, G6). One already back to a draft answers
- * success: what the admin asked for is already so (D10).
+ * success: what the admin asked for is already so (§J implementation
+ * notes).
  */
 export async function cancelComunicadoScheduleAction(
   input: unknown,

@@ -239,7 +239,7 @@ describe("ScheduledComunicado", () => {
     expect(
       screen.getByRole("link", { name: "Comunicados" }).getAttribute("href"),
     ).toBe("/dashboard/communications");
-    // No editor and no field: nothing here saves (D4).
+    // No editor and no field: nothing here saves (G1).
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();
@@ -546,7 +546,7 @@ describe("ScheduledComunicado", () => {
       expect(button.disabled).toBe(true);
       const note = screen.getByText(SCHEDULE_DEVELOPMENT_REFUSAL);
       expect(button.getAttribute("aria-describedby")).toBe(note.id);
-      // Cancelling is a stop: it still works there (D10).
+      // Cancelling is a stop: it still works there (§J's notes).
       expect(headerButton("Cancelar programación").disabled).toBe(false);
     });
   });

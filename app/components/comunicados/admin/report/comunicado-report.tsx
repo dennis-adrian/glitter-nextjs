@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, PencilIcon } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -13,6 +13,7 @@ import RecipientsTable from "@/app/components/comunicados/admin/report/recipient
 import ComunicadoReportBanners from "@/app/components/comunicados/admin/report/report-banners";
 import ReportKpi from "@/app/components/comunicados/admin/report/report-kpi";
 import RetryFailedButton from "@/app/components/comunicados/admin/report/retry-failed-dialog";
+import RevisionHistory from "@/app/components/comunicados/admin/report/revision-history";
 import RetractComunicadoMenu from "@/app/components/comunicados/admin/retract-dialog";
 import RichTextHtml from "@/app/components/molecules/rich-text-html";
 import { Badge } from "@/app/components/ui/badge";
@@ -28,12 +29,14 @@ import {
   audienceSourcesText,
   bounceShareText,
   type ComunicadoRecipientFilter,
+  editedByText,
   emailNotSentText,
   essentialRecordText,
   notReceivedText,
   readKpiValue,
   sentByText,
 } from "@/app/lib/comunicados/report-labels";
+import type { ComunicadoRevisionSummary } from "@/app/lib/comunicados/revisions";
 import {
   formatAudienceCount,
   type Paged,
@@ -109,21 +112,23 @@ function ReportKpis({ report }: { report: ComunicadoReportData }) {
 }
 
 /**
- * A sent comunicado's page (docs/IMPLEMENTATION-comunicados.md G6, F6): who
- * sent it and to whom, how it is going, what it said, and each person's row.
- * Its actions are "Duplicar", "Reintentar fallidos" when something failed
- * and this environment sent it, and "⋯ Retirar…"; once retracted, only
- * "Duplicar". "Editar" comes in the
- * next release.
+ * A sent comunicado's page (docs/IMPLEMENTATION-comunicados.md G6, F2, F6):
+ * who sent it, who last edited it and to whom, how it is going, what it says
+ * now and what it said before, and each person's row. Its actions are
+ * "Editar", "Duplicar", "Reintentar fallidos" when something failed and this
+ * environment sent it, and "⋯ Retirar…"; once retracted, only "Duplicar".
  */
 export default function ComunicadoReport({
   report,
+  revisions,
   recipients,
   filter,
   query,
   env,
 }: {
   report: ComunicadoReportData;
+  /** "Historial", the first version first. */
+  revisions: ComunicadoRevisionSummary[];
   recipients: Paged<ComunicadoRecipientRow>;
   filter: ComunicadoRecipientFilter;
   query: string;
@@ -138,6 +143,12 @@ export default function ComunicadoReport({
   });
   const title = report.title.trim() || COMUNICADO_UNTITLED;
   const sources = report.summary ? audienceSourcesText(report.summary) : null;
+  // The latest edit, when there was one: the history is in order.
+  const latest = revisions.at(-1);
+  const edited =
+    latest && latest.revision > 1
+      ? editedByText(momentLabel(latest.createdAt), latest.createdByName)
+      : null;
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
@@ -163,6 +174,7 @@ export default function ComunicadoReport({
           </div>
           <p className="text-sm text-muted-foreground">
             {sentByText(momentLabel(report.sentAt), report.sentByName)}
+            {edited && ` · ${edited}`}
           </p>
           {report.essential && (
             <p className="break-words text-sm">
@@ -183,6 +195,15 @@ export default function ComunicadoReport({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
+          {report.retractedAt === null && (
+            <Link
+              href={`${COMUNICADOS_PATH}/${report.id}/edit`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <PencilIcon className="mr-2 h-4 w-4" aria-hidden />
+              Editar
+            </Link>
+          )}
           <DuplicateComunicadoButton comunicadoId={report.id} />
           {report.retractedAt === null && (
             <>
@@ -214,6 +235,12 @@ export default function ComunicadoReport({
           <RichTextHtml html={report.html} className="text-base" />
         </CardContent>
       </Card>
+
+      <RevisionHistory
+        comunicadoId={report.id}
+        revisions={revisions}
+        currentRevision={report.currentRevision}
+      />
 
       <section aria-label="Destinatarios" className="space-y-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

@@ -10,6 +10,7 @@ import {
   comunicadoDeviceLabel,
   comunicadoEmailLabel,
   comunicadoReportHref,
+  editedByText,
   emailNotSentText,
   essentialRecordText,
   notReceivedText,
@@ -17,6 +18,7 @@ import {
   readKpiValue,
   recipientsRangeLabel,
   retractedBannerText,
+  revisionLine,
   sendingBannerText,
   sentByText,
   stagingBannerText,
@@ -380,6 +382,15 @@ describe("header sentences", () => {
     );
   });
 
+  it("says when and by whom it was last edited", () => {
+    expect(editedByText("dom, 25 oct, 10:12 AM", "Ana")).toBe(
+      "Editado el dom, 25 oct, 10:12 AM por Ana",
+    );
+    expect(editedByText("dom, 25 oct, 10:12 AM", null)).toBe(
+      "Editado el dom, 25 oct, 10:12 AM",
+    );
+  });
+
   it("lists the sources as sent, the people picked by name as their own label", () => {
     expect(audienceSourcesText(summary())).toBe(
       "Destinatarios al enviar: Confirmados · Glitter Navidad 2026: 312 · Ilustradores: 845 · 3 personas por nombre",
@@ -442,6 +453,75 @@ describe("header sentences", () => {
     ).toBe(
       "Correo esencial · confirmado el sáb, 24 oct, 10:11 AM · «Cambió la sede».",
     );
+  });
+});
+
+describe("revisionLine", () => {
+  /** 10:12 AM in La Paz, the day it was sent and the day after. */
+  const SENT = new Date("2026-10-24T14:12:00Z");
+  const EDITED = new Date("2026-10-25T14:12:00Z");
+
+  it("says who sent the first version and when", () => {
+    expect(
+      revisionLine({
+        revision: 1,
+        createdAt: SENT,
+        createdByName: "Dennis",
+        editNote: null,
+      }),
+    ).toBe("Versión 1 · enviada por Dennis el sáb, 24 oct, 10:12 AM");
+  });
+
+  it("says who edited a later one, when, and why", () => {
+    expect(
+      revisionLine({
+        revision: 2,
+        createdAt: EDITED,
+        createdByName: "Ana",
+        editNote: "Cambió el horario de armado",
+      }),
+    ).toBe(
+      "Versión 2 · editada por Ana el dom, 25 oct, 10:12 AM · «Cambió el horario de armado»",
+    );
+  });
+
+  it("leaves out the note when there is none, and the person once they are gone", () => {
+    expect(
+      revisionLine({
+        revision: 3,
+        createdAt: EDITED,
+        createdByName: "Ana",
+        editNote: null,
+      }),
+    ).toBe("Versión 3 · editada por Ana el dom, 25 oct, 10:12 AM");
+    expect(
+      revisionLine({
+        revision: 1,
+        createdAt: SENT,
+        createdByName: null,
+        editNote: null,
+      }),
+    ).toBe("Versión 1 · enviada el sáb, 24 oct, 10:12 AM");
+    expect(
+      revisionLine({
+        revision: 2,
+        createdAt: EDITED,
+        createdByName: null,
+        editNote: "Cambió la sede",
+      }),
+    ).toBe("Versión 2 · editada el dom, 25 oct, 10:12 AM · «Cambió la sede»");
+  });
+
+  it("writes the time of day in Bolivia, afternoon included", () => {
+    expect(
+      revisionLine({
+        revision: 2,
+        // 23:05 UTC is 7:05 PM in La Paz, still the same day.
+        createdAt: new Date("2026-10-25T23:05:00Z"),
+        createdByName: "Ana",
+        editNote: null,
+      }),
+    ).toBe("Versión 2 · editada por Ana el dom, 25 oct, 7:05 PM");
   });
 });
 

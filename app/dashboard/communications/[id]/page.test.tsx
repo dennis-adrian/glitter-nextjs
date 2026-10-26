@@ -4,13 +4,14 @@ import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ComunicadoComposer from "@/app/components/comunicados/admin/composer/composer";
+import ComunicadoReport from "@/app/components/comunicados/admin/report/comunicado-report";
 import ScheduledComunicado from "@/app/components/comunicados/admin/scheduled/scheduled-comunicado";
 import type { ComposerComunicado } from "@/app/lib/comunicados/queries";
 import ComunicadoPage from "@/app/dashboard/communications/[id]/page";
 
 /**
  * Which page a comunicado opens, and what the server hands it
- * (docs/IMPLEMENTATION-comunicados.md G1, E6, D4, D5). The page is called as
+ * (docs/IMPLEMENTATION-comunicados.md G1, E6, G6). The page is called as
  * the server calls it; what it returns is inspected, not rendered.
  */
 
@@ -19,6 +20,10 @@ const mocks = vi.hoisted(() => ({
   fetchComunicado: vi.fn(),
   fetchCopySourceTitle: vi.fn(),
   audienceLabel: vi.fn(),
+  // Not sent unless a test says so.
+  fetchReport: vi.fn(async (): Promise<unknown> => null),
+  fetchRecipients: vi.fn(),
+  fetchRevisions: vi.fn(),
 }));
 vi.mock("@/env", () => ({ serverEnv: mocks.env }));
 vi.mock("next/navigation", () => ({
@@ -38,8 +43,11 @@ vi.mock("@/app/lib/comunicados/queries", () => ({
   comunicadoAudienceLabel: mocks.audienceLabel,
 }));
 vi.mock("@/app/lib/comunicados/report", () => ({
-  fetchComunicadoReport: vi.fn(async () => null),
-  fetchComunicadoRecipients: vi.fn(),
+  fetchComunicadoReport: mocks.fetchReport,
+  fetchComunicadoRecipients: mocks.fetchRecipients,
+}));
+vi.mock("@/app/lib/comunicados/revisions", () => ({
+  fetchComunicadoRevisions: mocks.fetchRevisions,
 }));
 vi.mock("@/app/lib/distribution_lists/queries", () => ({
   fetchFestivalLists: vi.fn(async () => []),
@@ -120,6 +128,47 @@ describe("ComunicadoPage", () => {
   afterEach(() => {
     vi.clearAllMocks();
     mocks.env.VERCEL_ENV = "production";
+  });
+
+  describe("a sent comunicado", () => {
+    const REPORT = { id: 7, currentRevision: 2 };
+    const RECIPIENTS = { rows: [], total: 0, page: 2, pageCount: 1 };
+    const REVISIONS = [
+      { revision: 1, title: "Cambio de horario de armado" },
+      { revision: 2, title: "Cambio de horario de armado (corregido)" },
+    ];
+
+    it("opens its report with its history, the table as the URL asks", async () => {
+      mocks.fetchReport.mockResolvedValueOnce(REPORT);
+      mocks.fetchRecipients.mockResolvedValueOnce(RECIPIENTS);
+      mocks.fetchRevisions.mockResolvedValueOnce(REVISIONS);
+
+      const page = await open({ filter: "unread", q: "ana", page: "2" });
+      expect(page.type).toBe(ComunicadoReport);
+      expect(page.props).toEqual({
+        report: REPORT,
+        revisions: REVISIONS,
+        recipients: RECIPIENTS,
+        filter: "unread",
+        query: "ana",
+        env: "production",
+      });
+      expect(mocks.fetchRevisions).toHaveBeenCalledWith(7);
+      expect(mocks.fetchRecipients).toHaveBeenCalledWith(7, {
+        filter: "unread",
+        query: "ana",
+        page: 2,
+      });
+      expect(mocks.fetchComunicado).not.toHaveBeenCalled();
+    });
+
+    it("shows no history when it cannot be read", async () => {
+      mocks.fetchReport.mockResolvedValueOnce(REPORT);
+      mocks.fetchRecipients.mockResolvedValueOnce(RECIPIENTS);
+      mocks.fetchRevisions.mockResolvedValueOnce(null);
+
+      expect((await open()).props.revisions).toEqual([]);
+    });
   });
 
   describe("a scheduled comunicado", () => {
@@ -204,7 +253,7 @@ describe("ComunicadoPage", () => {
   });
 
   describe("a draft", () => {
-    it("names the comunicado it was copied from (D5)", async () => {
+    it("names the comunicado it was copied from (G6)", async () => {
       mocks.fetchComunicado.mockResolvedValue(comunicado());
       mocks.fetchCopySourceTitle.mockResolvedValue("Cambio de horario");
 
@@ -216,7 +265,12 @@ describe("ComunicadoPage", () => {
     it("names nothing without a readable copia", async () => {
       mocks.fetchComunicado.mockResolvedValue(comunicado());
 
-      for (const searchParams of [{}, { copia: "abc" }, { copia: "0" }]) {
+      const unreadable: Record<string, string>[] = [
+        {},
+        { copia: "abc" },
+        { copia: "0" },
+      ];
+      for (const searchParams of unreadable) {
         expect((await composerOf(searchParams)).copiedFromTitle).toBeNull();
       }
       expect(mocks.fetchCopySourceTitle).not.toHaveBeenCalled();

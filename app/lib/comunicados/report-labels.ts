@@ -270,6 +270,40 @@ export function sentByText(moment: string, by: string | null) {
   return by ? `Enviado el ${moment} por ${by}` : `Enviado el ${moment}`;
 }
 
+/** "Editado el dom, 25 oct, 10:12 AM por Ana": the latest edit, after the sender. */
+export function editedByText(moment: string, by: string | null) {
+  return by ? `Editado el ${moment} por ${by}` : `Editado el ${moment}`;
+}
+
+/** "sáb, 24 oct, 10:12 AM", in Bolivia time, as the page's header says it. */
+function revisionMomentLabel(date: Date) {
+  return formatDisplayDate(date, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * A row of "Historial" (F2, G6): "Versión 1 · enviada por Dennis el sáb, 24
+ * oct, 10:12 AM", then "Versión 2 · editada por Ana el dom, 25 oct, 10:12 AM
+ * · «Cambió el horario de armado»". Who wrote it and the note only when
+ * known: the person may have been deleted, and the first version has none.
+ */
+export function revisionLine(rev: {
+  revision: number;
+  createdAt: Date;
+  createdByName: string | null;
+  editNote: string | null;
+}) {
+  const verb = rev.revision === 1 ? "enviada" : "editada";
+  const who = rev.createdByName ? ` por ${rev.createdByName}` : "";
+  const line = `Versión ${rev.revision} · ${verb}${who} el ${revisionMomentLabel(rev.createdAt)}`;
+  return rev.editNote ? `${line} · «${rev.editNote}»` : line;
+}
+
 /**
  * "Destinatarios al enviar: Confirmados · Glitter Navidad 2026: 312 ·
  * Ilustradores: 845 · 3 personas por nombre". The people picked by name are

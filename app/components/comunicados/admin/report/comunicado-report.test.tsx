@@ -9,6 +9,7 @@ import type {
   ComunicadoRecipientRow,
   ComunicadoReport as ComunicadoReportData,
 } from "@/app/lib/comunicados/report";
+import type { ComunicadoRevisionSummary } from "@/app/lib/comunicados/revisions";
 import type { Paged } from "@/app/lib/distribution_lists/definitions";
 
 // One router for every render, as Next gives: the auto-refresh's effect
@@ -24,6 +25,9 @@ vi.mock("@/app/lib/comunicados/duplicate-actions", () => ({
 }));
 vi.mock("@/app/lib/comunicados/retry-actions", () => ({
   retryFailedComunicadoAction: vi.fn(),
+}));
+vi.mock("@/app/lib/comunicados/revision-actions", () => ({
+  loadComunicadoRevisionAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
@@ -139,6 +143,22 @@ function reportOf(
   };
 }
 
+/** As sent on Saturday at 10:12 AM in La Paz, and edited on Sunday. */
+const SENT_REVISION: ComunicadoRevisionSummary = {
+  revision: 1,
+  title: "Cambio de horario de armado",
+  editNote: null,
+  createdAt: new Date("2026-10-24T14:12:00Z"),
+  createdByName: "Dennis",
+};
+const EDITED_REVISION: ComunicadoRevisionSummary = {
+  revision: 2,
+  title: "Cambio de horario de armado (corregido)",
+  editNote: "Cambió el horario de armado",
+  createdAt: new Date("2026-10-25T14:12:00Z"),
+  createdByName: "Ana",
+};
+
 function rowOf(
   overrides: Partial<ComunicadoRecipientRow> = {},
 ): ComunicadoRecipientRow {
@@ -164,6 +184,7 @@ function pagedOf(
 function renderReport(
   report: ComunicadoReportData = reportOf(),
   options: {
+    revisions?: ComunicadoRevisionSummary[];
     recipients?: Paged<ComunicadoRecipientRow>;
     filter?: "all" | "unread" | "email_not_sent" | "skipped" | "error";
     query?: string;
@@ -173,6 +194,7 @@ function renderReport(
   return render(
     <ComunicadoReport
       report={report}
+      revisions={options.revisions ?? [SENT_REVISION]}
       recipients={options.recipients ?? pagedOf([rowOf()])}
       filter={options.filter ?? "all"}
       query={options.query ?? ""}
@@ -209,6 +231,68 @@ describe("ComunicadoReport", () => {
         "Destinatarios al enviar: Confirmados · Glitter Navidad 2026: 312 · 3 personas por nombre",
       ),
     ).toBeTruthy();
+  });
+
+  it("says who edited it last, after who sent it", () => {
+    const third: ComunicadoRevisionSummary = {
+      ...EDITED_REVISION,
+      revision: 3,
+      editNote: null,
+      createdAt: new Date("2026-10-26T14:12:00Z"),
+      createdByName: null,
+    };
+    const { unmount } = renderReport(reportOf({ currentRevision: 2 }), {
+      revisions: [SENT_REVISION, EDITED_REVISION],
+    });
+
+    expect(
+      screen.getByText(
+        "Enviado el sáb, 24 oct, 10:12 AM por Dennis · Editado el dom, 25 oct, 10:12 AM por Ana",
+      ),
+    ).toBeTruthy();
+    unmount();
+
+    // The latest edit, by someone whose profile is gone.
+    renderReport(reportOf({ currentRevision: 3 }), {
+      revisions: [SENT_REVISION, EDITED_REVISION, third],
+    });
+    expect(
+      screen.getByText(
+        "Enviado el sáb, 24 oct, 10:12 AM por Dennis · Editado el lun, 26 oct, 10:12 AM",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("says nothing of an edit when it was never edited", () => {
+    renderReport();
+
+    expect(
+      screen.getByText("Enviado el sáb, 24 oct, 10:12 AM por Dennis"),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Editado el/)).toBeNull();
+  });
+
+  it("offers Editar first, on its own page, while it is not retracted", () => {
+    renderReport(
+      reportOf({
+        retryCounts: { emails: 6, people: 2, maybeSentEmails: 3 },
+      }),
+    );
+
+    const editar = screen.getByRole("link", { name: "Editar" });
+    expect(editar.getAttribute("href")).toBe(
+      "/dashboard/communications/7/edit",
+    );
+    expect(
+      Array.from(editar.parentElement!.children).map(
+        (action) => action.textContent,
+      ),
+    ).toEqual([
+      "Editar",
+      "Duplicar",
+      "Reintentar fallidos (8)",
+      "Retirar «Cambio de horario de armado»",
+    ]);
   });
 
   it("offers Duplicar, Reintentar fallidos when something failed, and the retraction", () => {
@@ -274,6 +358,7 @@ describe("ComunicadoReport", () => {
     );
 
     expect(screen.getByRole("button", { name: "Duplicar" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Editar" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: /^Reintentar fallidos/ }),
     ).toBeNull();
@@ -479,6 +564,34 @@ describe("ComunicadoReport", () => {
 
     expect(screen.getByRole("heading", { name: "Nuevo horario" })).toBeTruthy();
     expect(screen.getByText("El armado empieza a las 8.")).toBeTruthy();
+  });
+
+  it("keeps the history after the message, the current version marked, also once retracted", () => {
+    renderReport(
+      reportOf({
+        currentRevision: 2,
+        retractedAt: new Date("2026-10-25T15:02:00Z"),
+        retractedByName: "Dennis",
+        retractReason: "Salió con la fecha equivocada",
+      }),
+      { revisions: [SENT_REVISION, EDITED_REVISION] },
+    );
+
+    const history = screen.getByRole("list", { name: "Versiones" });
+    expect(
+      within(history)
+        .getAllByRole("listitem")
+        .map((row) => row.textContent),
+    ).toEqual([
+      "Versión 1 · enviada por Dennis el sáb, 24 oct, 10:12 AMVer",
+      "Versión 2 · editada por Ana el dom, 25 oct, 10:12 AM · «Cambió el horario de armado»ActualVer",
+    ]);
+    // After "Mensaje" in the page's order.
+    const message = screen.getByText("Mensaje");
+    expect(
+      message.compareDocumentPosition(history) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("lists each person with their labels, the origin in words", () => {

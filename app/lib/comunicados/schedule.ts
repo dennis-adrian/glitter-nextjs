@@ -174,8 +174,8 @@ export async function scheduleComunicado(i: {
 
 /**
  * "Cambiar fecha" (E1): only the time moves, and the admin who scheduled it
- * still sends it (D9). Only the new time is checked, so a schedule about to
- * fall due can still be moved.
+ * still sends it (E1's SQL). Only the new time is checked, so a schedule
+ * about to fall due can still be moved.
  */
 export async function rescheduleComunicado(i: {
   comunicadoId: number;
@@ -227,9 +227,10 @@ export async function rescheduleComunicado(i: {
 /**
  * "Cancelar programación" (E1): back to a draft, without its scheduler or
  * its essential confirmation, which the next "Programar" or "Enviar ahora"
- * records again. Allowed in development, since it is a stop (D10). Not tied
- * to a version: whatever time it had, the admin wants it stopped. A release
- * holding the row makes it wait, and then it reads "sent".
+ * records again. Allowed in development, since it is a stop (§J
+ * implementation notes). Not tied to a version: whatever time it had, the
+ * admin wants it stopped. A release holding the row makes it wait, and then
+ * it reads "sent".
  */
 export async function cancelComunicadoSchedule(i: {
   comunicadoId: number;

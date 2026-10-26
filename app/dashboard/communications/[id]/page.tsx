@@ -23,6 +23,7 @@ import {
   fetchComunicadoReport,
 } from "@/app/lib/comunicados/report";
 import { parseRecipientFilter } from "@/app/lib/comunicados/report-labels";
+import { fetchComunicadoRevisions } from "@/app/lib/comunicados/revisions";
 import { isScheduleOverdue } from "@/app/lib/comunicados/schedule-rules";
 import {
   fetchFestivalLists,
@@ -62,7 +63,7 @@ function draftOf(comunicado: ComposerComunicado): ComposerDraft {
 }
 
 /**
- * A scheduled one as its page shows it (D4). Dates travel as ISO strings to
+ * A scheduled one as its page shows it (G1). Dates travel as ISO strings to
  * the client. The festival an essential email names is the audience's one
  * festival: B7 allows nothing else, and scheduling checked it.
  */
@@ -106,7 +107,7 @@ function audienceLabelOf(comunicado: ComposerComunicado) {
  * One comunicado (docs/IMPLEMENTATION-comunicados.md G1, G4, G6). A draft
  * opens the composer, a scheduled one its read-only page (E1, E6) and a sent
  * one its report. "Duplicar" opens its copy with `?copia={sourceId}`, which
- * the composer names in a banner (D5).
+ * the composer names in a banner (G6).
  */
 export default async function ComunicadoPage(props: {
   params: Promise<{ id: string }>;
@@ -129,15 +130,19 @@ export default async function ComunicadoPage(props: {
     const searchParams = await props.searchParams;
     const filter = parseRecipientFilter(searchParams.filter);
     const query = querySchema.parse(searchParams.q);
-    const recipients = await fetchComunicadoRecipients(id, {
-      filter,
-      query,
-      page: pageSchema.parse(searchParams.page),
-    });
+    const [recipients, revisions] = await Promise.all([
+      fetchComunicadoRecipients(id, {
+        filter,
+        query,
+        page: pageSchema.parse(searchParams.page),
+      }),
+      fetchComunicadoRevisions(id),
+    ]);
     if (!recipients) notFound();
     return (
       <ComunicadoReport
         report={report}
+        revisions={revisions ?? []}
         recipients={recipients}
         filter={filter}
         query={query}

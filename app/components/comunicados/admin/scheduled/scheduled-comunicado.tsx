@@ -116,7 +116,7 @@ function ChannelLine({ label, on }: { label: string; on: boolean }) {
 
 /**
  * A scheduled comunicado's page (docs/IMPLEMENTATION-comunicados.md E1, E5,
- * E6, G6, D4): when it goes out and who scheduled it, its actions, and what
+ * E6, G1, G6): when it goes out and who scheduled it, its actions, and what
  * it says, read-only. It is frozen until it is sent or the schedule is
  * cancelled, so nothing here edits or saves: there is no editor and no
  * autosave, and nothing can race the release.

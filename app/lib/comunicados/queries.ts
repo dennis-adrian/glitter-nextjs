@@ -469,7 +469,7 @@ function toComposerPerson(row: PersonRow): ComposerPerson {
 
 /**
  * The full working copy, any status: a draft for the composer, a scheduled
- * one for its read-only page (D4). With the names behind its stored audience,
+ * one for its read-only page (G1). With the names behind its stored audience,
  * and who scheduled it. Null when it does not exist.
  */
 export async function fetchComunicadoForComposer(
@@ -583,7 +583,7 @@ export async function fetchComunicadoForComposer(
 }
 
 /**
- * What "Copia de «…»" names (G6, D5): the title "Duplicar" copied, so a sent
+ * What "Copia de «…»" names (G6): the title "Duplicar" copied, so a sent
  * comunicado's current revision's and any other's working title, trimmed.
  * Null for anyone but a global admin, and for an id that does not exist.
  */

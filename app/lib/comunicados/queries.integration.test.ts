@@ -160,7 +160,7 @@ async function insertScheduled(scheduler: number | null, authorId: number) {
 
 /**
  * A sent comunicado edited once: revision 2 is current, and the working copy
- * still holds what was written before the send (D16).
+ * still holds what was written before the send (F1 step 4).
  */
 async function insertEditedSent(authorId: number) {
   const campaign = await pool!.query<{ id: number }>(
