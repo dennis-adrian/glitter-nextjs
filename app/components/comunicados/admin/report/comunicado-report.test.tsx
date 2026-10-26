@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ComunicadoReport from "@/app/components/comunicados/admin/report/comunicado-report";
@@ -11,11 +11,16 @@ import type {
 } from "@/app/lib/comunicados/report";
 import type { Paged } from "@/app/lib/distribution_lists/definitions";
 
+// One router for every render, as Next gives: the auto-refresh's effect
+// depends on it.
+const mocks = vi.hoisted(() => ({
+  router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
+}));
 vi.mock("@/app/lib/comunicados/actions", () => ({
   createComunicadoDraftAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => mocks.router,
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // The menu and the button are tested on their own; here they only show up.
@@ -170,7 +175,11 @@ function kpi(label: string) {
 }
 
 describe("ComunicadoReport", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    mocks.router.refresh.mockReset();
+  });
 
   it("heads the page with who sent it, to whom, and its badges", () => {
     renderReport(reportOf({ essential: true, campaignStatus: "processing" }));
@@ -228,6 +237,7 @@ describe("ComunicadoReport", () => {
   });
 
   it("says it is sending and refreshes, and offers the retraction", () => {
+    vi.useFakeTimers();
     renderReport(reportOf({ campaignStatus: "processing" }));
 
     expect(
@@ -240,9 +250,22 @@ describe("ComunicadoReport", () => {
         .getByRole("button", { name: "Retirar «Cambio de horario de armado»" })
         .getAttribute("data-comunicado"),
     ).toBe("7");
+
+    // Every 3 s for the first two minutes, then every 30 s.
+    act(() => vi.advanceTimersByTime(2_999));
+    expect(mocks.router.refresh).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(mocks.router.refresh).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(2 * 60_000 - 3_000));
+    expect(mocks.router.refresh).toHaveBeenCalledTimes(40);
+    act(() => vi.advanceTimersByTime(29_999));
+    expect(mocks.router.refresh).toHaveBeenCalledTimes(40);
+    act(() => vi.advanceTimersByTime(1));
+    expect(mocks.router.refresh).toHaveBeenCalledTimes(41);
   });
 
   it("freezes once retracted: its banner, no sending, stall or Resend banners, no queue and no menu", () => {
+    vi.useFakeTimers();
     renderReport(
       reportOf({
         campaignStatus: "processing",
@@ -269,6 +292,18 @@ describe("ComunicadoReport", () => {
     expect(screen.queryByText(/^Resend no acepta más correos/)).toBeNull();
     expect(screen.queryByText("En cola", { selector: "p" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Retirar/ })).toBeNull();
+    // The campaign is still processing, but the page no longer refreshes.
+    act(() => vi.advanceTimersByTime(5 * 60_000));
+    expect(mocks.router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("stops refreshing once the send is done", () => {
+    vi.useFakeTimers();
+    renderReport(reportOf({ campaignStatus: "completed" }));
+
+    expect(screen.queryByText(/^Lo estamos enviando/)).toBeNull();
+    act(() => vi.advanceTimersByTime(5 * 60_000));
+    expect(mocks.router.refresh).not.toHaveBeenCalled();
   });
 
   it("says when Resend stopped it, ran out, or nothing moves, with the button on a preview", () => {

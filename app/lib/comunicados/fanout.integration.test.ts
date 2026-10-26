@@ -825,6 +825,38 @@ describeDatabase("comunicado fan-out", () => {
       expect(await deliveriesOf(fixture.campaignId)).toEqual([]);
     });
 
+    it("writes no push when push was not ticked, though the person has a device", async () => {
+      const ana = await createUser();
+      await addDevice(ana);
+      const fixture = await insertSent({
+        people: [{ userId: ana, source: "list" }],
+        sendPush: false,
+      });
+
+      const outcome = await fanout.processComunicadoChunk(
+        fixture.campaignId,
+        fixture.comunicadoId,
+        new Set(),
+      );
+      expect(outcome).toMatchObject({
+        kind: "processed",
+        notified: 1,
+        skipped: 0,
+        pushDeliveryIds: [],
+      });
+      const items = await itemsOf(fixture.campaignId);
+      expect(items.map((item) => item.user_id)).toEqual([ana]);
+      const deliveries = await deliveriesOf(fixture.campaignId);
+      expect(deliveries).toEqual([
+        expect.objectContaining({
+          notification_id: items[0]!.id,
+          user_id: ana,
+          channel: "email",
+        }),
+      ]);
+      expect(deliveries.filter((row) => row.channel === "push")).toEqual([]);
+    });
+
     it("judges everyone again under the locks, so whatever changed since the send leaves them skipped", async () => {
       const people = {
         ok: await createUser(),

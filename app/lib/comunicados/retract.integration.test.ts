@@ -168,6 +168,8 @@ const RETRACTED = "Retirado antes de enviarse";
 const REASON = "Salió con el horario equivocado";
 const MISSING_ID = 2_147_483_000;
 const LATER = () => Date.now() + 60_000;
+/** Older than anything else the shared database holds, so lane-wide reads take these first. */
+const LONG_AGO = "2001-01-01T00:00:00Z";
 
 /** No test waits on the production waits. */
 const FAST: Partial<BulkTiming> = {
@@ -272,19 +274,21 @@ async function insertSent({
   people,
   sendEmail = true,
   sendPush = false,
+  createdAt = null,
 }: {
   people: number[];
   sendEmail?: boolean;
   sendPush?: boolean;
+  createdAt?: string | null;
 }): Promise<Sent> {
   const authorId = await createUser("admin");
   const title = "Cambio de horario de armado";
   const campaign = await pool!.query<{ id: number }>(
     `INSERT INTO notification_campaigns
-       (type, status, title, message, created_by_user_id, idempotency_key)
-     VALUES ('comunicado', 'processing', $1, $2, $3, $4)
+       (type, status, title, message, created_by_user_id, idempotency_key, created_at)
+     VALUES ('comunicado', 'processing', $1, $2, $3, $4, coalesce($5::timestamp, now()))
      RETURNING id`,
-    [title, TEXT, authorId, `comunicado:test-${randomUUID()}`],
+    [title, TEXT, authorId, `comunicado:test-${randomUUID()}`, createdAt],
   );
   const campaignId = campaign.rows[0]!.id;
   created.campaigns.push(campaignId);
@@ -966,7 +970,8 @@ describeDatabase("retracting a sent comunicado", () => {
 
     it("leaves a claimed batch to meet the retraction in its pre-check, and the sweep closes the campaign (V10)", async () => {
       const people = await createPeople(2);
-      const sent = await insertSent({ people });
+      // The sweep takes the oldest campaigns first, whatever else is open.
+      const sent = await insertSent({ people, createdAt: LONG_AGO });
       await fanOut(sent);
       const claimed = gate();
       const proceed = gate();
@@ -1014,7 +1019,7 @@ describeDatabase("retracting a sent comunicado", () => {
         });
       }
 
-      await fanout.sweepComunicadoCompletions();
+      await fanout.sweepComunicadoCompletions({ limit: 50 });
       expect(await campaignStatus(sent.campaignId)).toEqual({
         status: "completed",
         completed: true,
