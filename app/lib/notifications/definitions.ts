@@ -52,29 +52,33 @@ export function canSeeAdminNotifications(role: string | null | undefined) {
 }
 
 /**
- * Filters with nothing to show yet. "Anuncios" waits for phase 3's comunicados:
- * an always-empty chip reads as something missing.
+ * The chips the inbox shows. "Anuncios" waits until the person has an anuncio
+ * in view: an always-empty chip reads as something missing.
  */
-const UNUSED_FILTERS: ReadonlySet<NotificationFilter> = new Set([
-  "announcements",
-]);
-
 export function visibleNotificationFilters(
   role: string | null | undefined,
+  { hasAnnouncements }: { hasAnnouncements: boolean },
 ): NotificationFilter[] {
   return NOTIFICATION_FILTERS.filter(
     (filter) =>
-      !UNUSED_FILTERS.has(filter) &&
+      (filter !== "announcements" || hasAnnouncements) &&
       (filter !== "admin" || canSeeAdminNotifications(role)),
   );
 }
 
+/**
+ * The filter a URL asks for, if the viewer's role allows it. "Anuncios" is
+ * allowed on the role alone: whether there is one to show is the chip's
+ * business, and an empty filter is only an empty list.
+ */
 export function parseNotificationFilter(
   value: unknown,
   role: string | null | undefined,
 ): NotificationFilter {
-  return typeof value === "string" &&
-    (visibleNotificationFilters(role) as string[]).includes(value)
+  const allowed: readonly string[] = visibleNotificationFilters(role, {
+    hasAnnouncements: true,
+  });
+  return typeof value === "string" && allowed.includes(value)
     ? (value as NotificationFilter)
     : "all";
 }
@@ -103,6 +107,8 @@ export type InboxNotification = {
   opensDetail: boolean;
   readAt: string | null;
   createdAt: string;
+  /** When its text was rewritten after it arrived ("Editado"), or null. */
+  editedAt: string | null;
 };
 
 export type InboxPage = {

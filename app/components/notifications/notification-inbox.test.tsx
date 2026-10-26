@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -63,6 +64,7 @@ function item(id: number, title = `Notificación ${id}`): InboxNotification {
     opensDetail: false,
     readAt: null,
     createdAt: new Date().toISOString(),
+    editedAt: null,
   };
 }
 
@@ -309,6 +311,29 @@ describe("the inbox on screen", () => {
 
     expect(await screen.findByText("Nueva")).toBeTruthy();
     expect(requests.length).toBe(asked + 2);
+  });
+
+  it("marks an item rewritten after it arrived as Editado, and only that one", async () => {
+    const edited = {
+      ...item(2, "Cambio de horario"),
+      kind: "comunicado",
+      category: "announcements" as const,
+      editedAt: new Date().toISOString(),
+    };
+    answers.push(page([edited, item(1, "Primera")]));
+    render(
+      <NotificationInbox
+        initialPage={page([edited, item(1, "Primera")])}
+        filter="all"
+        filters={["all", "announcements"]}
+      />,
+    );
+    await settle();
+
+    const row = screen.getByText("Cambio de horario").closest("a")!;
+    expect(within(row).getByText("· Editado", { exact: false })).toBeTruthy();
+    const other = screen.getByText("Primera").closest("a")!;
+    expect(within(other).queryByText("Editado", { exact: false })).toBeNull();
   });
 
   it("keeps what 'Ver más' loaded below a refreshed first page", async () => {

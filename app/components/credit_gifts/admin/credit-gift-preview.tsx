@@ -84,6 +84,7 @@ export default function CreditGiftPreview({
               opensDetail: true,
               readAt: null,
               createdAt: now,
+              editedAt: null,
             }}
           />
         </div>

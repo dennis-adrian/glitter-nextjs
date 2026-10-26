@@ -26,9 +26,9 @@ type NotificationItemProps = {
 };
 
 /**
- * One inbox row: category tile, title, two lines of body, time, unread dot,
- * and the credits it moved. Clicking anywhere opens the item; its detail page
- * carries the one action.
+ * One inbox row: category tile, title, two lines of body, time ("· Editado"
+ * when rewritten), unread dot, and the credits it moved. Clicking anywhere
+ * opens the item; its detail page carries the one action.
  */
 export default function NotificationItem({
   item,
@@ -59,9 +59,12 @@ export default function NotificationItem({
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5 text-xs text-muted-foreground">
-        <time dateTime={item.createdAt} suppressHydrationWarning>
-          {formatNotificationTime(item.createdAt)}
-        </time>
+        <span className="whitespace-nowrap">
+          <time dateTime={item.createdAt} suppressHydrationWarning>
+            {formatNotificationTime(item.createdAt)}
+          </time>
+          {item.editedAt && " · Editado"}
+        </span>
         {item.creditDelta != null && (
           <span
             className={cn(

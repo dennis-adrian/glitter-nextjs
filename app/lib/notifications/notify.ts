@@ -16,7 +16,7 @@ import { safeActionPath } from "@/app/lib/notifications/definitions";
 import { db } from "@/db";
 import { notificationDeliveries, notifications } from "@/db/schema";
 
-type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type NotifyTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type NotifyResult = {
   notificationId: number;
@@ -42,7 +42,7 @@ export type NotifyResult = {
  * often the worker retries.
  */
 export async function notify<K extends NotificationKind>(
-  tx: DbTx,
+  tx: NotifyTx,
   input: {
     userId: number;
     kind: K;
@@ -143,4 +143,150 @@ export async function notify<K extends NotificationKind>(
   }
 
   return { notificationId: inserted.id, deliveryIds, created: true };
+}
+
+export type NotifyManyResult = {
+  /**
+   * Every requested person who has the item after this call, new or already
+   * there; someone no longer in `users` is absent.
+   */
+  notificationIdByUser: Map<number, number>;
+  /** Whose item this call wrote, in id order. */
+  createdUserIds: number[];
+  /** Lane 'bulk': the bulk email lane drains them, never scheduled. */
+  emailDeliveryIds: number[];
+  /** Lane 'bulk': drained by `sendBulkPushes`, never scheduled. */
+  pushDeliveryIds: number[];
+};
+
+function intArray(ids: readonly number[]) {
+  return sql`${sql.param([...ids])}::int[]`;
+}
+
+/**
+ * `notify()` for many people at once, in a few statements however many they
+ * are: a comunicado's fan-out (docs/IMPLEMENTATION-comunicados.md D2). The
+ * same contract: one item per person per dedupe key, and someone who already
+ * had it gets no new deliveries.
+ *
+ * Its deliveries are the bulk lane's. Email goes only when the caller asks
+ * for it (`email: "bulk"`), whatever the kind's own email, and the address is
+ * read in SQL, never passed as a parameter, so the query logger never prints
+ * thousands of addresses. Pushes follow the kind, as in `notify()`.
+ */
+export async function notifyMany<K extends NotificationKind>(
+  tx: NotifyTx,
+  input: {
+    kind: K;
+    data: NotificationData<K>;
+    userIds: readonly number[];
+    dedupeKey: string;
+    campaignId?: number | null;
+    /** "bulk": an email row for each new item, sent by the bulk lane. */
+    email?: "bulk" | null;
+    /** What the email row stores; the data itself when omitted. */
+    emailPayload?: Record<string, unknown>;
+    /** As in `notify()`: read only by per-send kinds. */
+    push?: boolean;
+  },
+): Promise<NotifyManyResult> {
+  const data = parseNotificationData(input.kind, input.data);
+  if (!data) {
+    throw new Error(`notification_data_invalid:${input.kind}`);
+  }
+  const result: NotifyManyResult = {
+    notificationIdByUser: new Map(),
+    createdUserIds: [],
+    emailDeliveryIds: [],
+    pushDeliveryIds: [],
+  };
+  const userIds = [...new Set(input.userIds)].sort((a, b) => a - b);
+  if (userIds.length === 0) return result;
+  const copy = buildInAppCopy(input.kind, data);
+
+  // Joined to users, so someone deleted meanwhile is left out rather than
+  // failing the foreign key for everyone.
+  const inserted = await tx.execute<{ id: number; user_id: number }>(sql`
+    INSERT INTO notifications
+      (user_id, kind, category, title, body, action_path, action_label,
+       data, campaign_id, dedupe_key, read_at)
+    SELECT u.id, ${input.kind}::text,
+      ${notificationCategory(input.kind)}::notification_category,
+      ${copy.title}::text, ${copy.body}::text,
+      ${safeActionPath(copy.actionPath)}::text, ${copy.actionLabel}::text,
+      ${JSON.stringify(data)}::jsonb, ${input.campaignId ?? null}::integer,
+      ${input.dedupeKey}::text,
+      CASE WHEN ${notificationStartsRead(input.kind, data)}::boolean THEN now() END
+    FROM unnest(${intArray(userIds)}) AS t(id)
+    JOIN users u ON u.id = t.id
+    ORDER BY u.id
+    ON CONFLICT (user_id, dedupe_key) DO NOTHING
+    RETURNING id, user_id
+  `);
+  const created = new Map<number, number>();
+  for (const row of inserted.rows) {
+    created.set(Number(row.user_id), Number(row.id));
+  }
+  result.notificationIdByUser = new Map(created);
+  result.createdUserIds = [...created.keys()].sort((a, b) => a - b);
+
+  if (created.size < userIds.length) {
+    // Already notified under this key, or gone from users.
+    const existing = await tx.execute<{ id: number; user_id: number }>(sql`
+      SELECT id, user_id FROM notifications
+      WHERE dedupe_key = ${input.dedupeKey}::text
+        AND user_id = ANY(${intArray(userIds)})
+    `);
+    for (const row of existing.rows) {
+      result.notificationIdByUser.set(Number(row.user_id), Number(row.id));
+    }
+  }
+  if (created.size === 0) return result;
+
+  const newItemIds = result.createdUserIds.map(
+    (userId) => created.get(userId)!,
+  );
+  if (input.email === "bulk") {
+    // `notify()` skips a blank address the same way; the CHECK wants one.
+    const emails = await tx.execute<{ id: number }>(sql`
+      INSERT INTO notification_deliveries
+        (notification_id, user_id, template_key, channel, lane,
+         recipient_email, payload, idempotency_key)
+      SELECT n.id, n.user_id, ${input.kind}::text,
+        'email'::notification_delivery_channel,
+        'bulk'::notification_delivery_lane,
+        btrim(u.email), ${JSON.stringify(input.emailPayload ?? data)}::jsonb,
+        'notification:' || n.id || ':email'
+      FROM unnest(${intArray(newItemIds)}) AS t(nid)
+      JOIN notifications n ON n.id = t.nid
+      JOIN users u ON u.id = n.user_id
+      WHERE btrim(u.email) <> ''
+      ORDER BY n.id
+      RETURNING id
+    `);
+    for (const row of emails.rows) result.emailDeliveryIds.push(Number(row.id));
+  }
+
+  if (notificationPushes(input.kind, data, { push: input.push })) {
+    // As in `notify()`: FOR KEY SHARE skips a device removed meanwhile rather
+    // than failing the foreign key. OF ps: a function scan cannot be locked.
+    const pushed = await tx.execute<{ id: number }>(sql`
+      INSERT INTO notification_deliveries
+        (notification_id, user_id, template_key, channel, lane,
+         push_subscription_id, payload, idempotency_key)
+      SELECT t.nid, t.user_id, ${input.kind}::text,
+        'push'::notification_delivery_channel,
+        'bulk'::notification_delivery_lane,
+        ps.id, '{}'::jsonb, 'notification:' || t.nid || ':push:' || ps.id
+      FROM push_subscriptions ps
+      JOIN unnest(${intArray(result.createdUserIds)}, ${intArray(newItemIds)})
+        AS t(user_id, nid) ON ps.user_id = t.user_id
+      ORDER BY ps.id
+      FOR KEY SHARE OF ps
+      RETURNING id
+    `);
+    for (const row of pushed.rows) result.pushDeliveryIds.push(Number(row.id));
+  }
+
+  return result;
 }

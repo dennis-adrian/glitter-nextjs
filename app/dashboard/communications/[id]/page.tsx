@@ -9,6 +9,7 @@ import type {
   ComposerDraft,
   ComposerSourceNames,
 } from "@/app/components/comunicados/admin/composer/types";
+import ComunicadoReport from "@/app/components/comunicados/admin/report/comunicado-report";
 import { Badge } from "@/app/components/ui/badge";
 import { Banner } from "@/app/components/ui/banner";
 import { buttonVariants } from "@/app/components/ui/button";
@@ -21,6 +22,11 @@ import {
   type ComposerComunicado,
   fetchComunicadoForComposer,
 } from "@/app/lib/comunicados/queries";
+import {
+  fetchComunicadoRecipients,
+  fetchComunicadoReport,
+} from "@/app/lib/comunicados/report";
+import { parseRecipientFilter } from "@/app/lib/comunicados/report-labels";
 import {
   fetchFestivalLists,
   fetchSavedLists,
@@ -37,6 +43,8 @@ export const metadata: Metadata = {
 const COMUNICADOS_PATH = "/dashboard/communications";
 
 const idSchema = z.coerce.number().int().positive().max(MAX_SERIAL_ID);
+const pageSchema = z.coerce.number().int().positive().catch(1);
+const querySchema = z.string().catch("");
 
 function draftOf(comunicado: ComposerComunicado): ComposerDraft {
   return {
@@ -58,20 +66,52 @@ function draftOf(comunicado: ComposerComunicado): ComposerDraft {
 }
 
 /**
- * One comunicado (docs/IMPLEMENTATION-comunicados.md G1, G4). A draft opens
- * the composer; a scheduled or sent one gets its own page in the next
- * release, so for now it only says what it is.
+ * One comunicado (docs/IMPLEMENTATION-comunicados.md G1, G4, G6). A draft
+ * opens the composer and a sent one its report; a scheduled one gets its
+ * own page in the next release, so for now it only says what it is.
  */
 export default async function ComunicadoPage(props: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    filter?: string | string[];
+    q?: string | string[];
+    page?: string | string[];
+  }>;
 }) {
   await requireCommunicationsAdmin();
   const parsed = idSchema.safeParse((await props.params).id);
   if (!parsed.success) notFound();
+  const id = parsed.data;
 
-  const comunicado = await fetchComunicadoForComposer(parsed.data);
+  // A sent comunicado never goes back, so its report is read first: the page
+  // refreshes itself while it sends, and the composer's reads would be wasted.
+  const report = await fetchComunicadoReport(id);
+  if (report) {
+    const searchParams = await props.searchParams;
+    const filter = parseRecipientFilter(searchParams.filter);
+    const query = querySchema.parse(searchParams.q);
+    const recipients = await fetchComunicadoRecipients(id, {
+      filter,
+      query,
+      page: pageSchema.parse(searchParams.page),
+    });
+    if (!recipients) notFound();
+    return (
+      <ComunicadoReport
+        report={report}
+        recipients={recipients}
+        filter={filter}
+        query={query}
+        env={serverEnv.VERCEL_ENV}
+      />
+    );
+  }
+
+  const comunicado = await fetchComunicadoForComposer(id);
   // Discarding re-renders this route: back to the list, not a 404.
   if (!comunicado) redirect(COMUNICADOS_PATH);
+  // Sent between the two reads: this same page now shows its report.
+  if (comunicado.status === "sent") redirect(`${COMUNICADOS_PATH}/${id}`);
 
   if (comunicado.status !== "draft") {
     return (
@@ -95,9 +135,8 @@ export default async function ComunicadoPage(props: {
           </Badge>
         </div>
         <Banner variant="info">
-          {comunicado.status === "scheduled"
-            ? "Este comunicado está programado, así que ya no se puede editar desde acá. Su página llega en la próxima versión."
-            : "Este comunicado ya se envió. Su página y el informe de envío llegan en la próxima versión."}
+          Este comunicado está programado, así que ya no se puede editar desde
+          acá. Su página llega en la próxima versión.
         </Banner>
       </div>
     );

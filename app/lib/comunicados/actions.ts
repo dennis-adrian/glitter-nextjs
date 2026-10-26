@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import {
+  type ComunicadosFailure,
+  comunicadosActor,
+  logComunicadosFailure,
+} from "@/app/lib/comunicados/actor";
+import {
   type ComunicadoAudiencePreview,
   type ComunicadoSkippedPerson,
   previewComunicadoAudience,
@@ -23,14 +28,9 @@ import {
   type ComunicadoPersonOption,
   searchComunicadoPeople,
 } from "@/app/lib/comunicados/queries";
-import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
-import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { serverEnv } from "@/env";
 
 const COMUNICADOS_PATH = "/dashboard/communications";
-
-type Failure = { success: false; message: string };
 
 /**
  * `FORBIDDEN`: not a global admin, or the flag is off. `FAILED`: the
@@ -67,37 +67,14 @@ const AudiencePreviewSchema = z.object({
 
 const SkippedPreviewSchema = z.object({ audience: ComunicadoAudienceSchema });
 
-/**
- * Global admins with the flag on, before anything else (G2). Festival admins
- * see nothing of Comunicaciones, so they are refused here too.
- */
-async function comunicadosActor() {
-  const actor = await getCurrentUserProfile();
-  if (!canMutateAdminReservations(actor)) {
-    return {
-      actor: null,
-      blocked: { success: false, message: "No autorizado." } as Failure,
-    };
-  }
-  const blocked = await featureFlagGuard("comunicados", actor);
-  if (blocked) return { actor: null, blocked };
-  return { actor, blocked: null };
-}
-
 /** Lists in the composer and dialog are counted before a preview narrows. */
 function narrowsAudience() {
   return serverEnv.VERCEL_ENV !== "production";
 }
 
-function logFailure(log: string, error: unknown) {
-  console.error(log, {
-    errorType: error instanceof Error ? error.name : typeof error,
-  });
-}
-
 /** "Nuevo comunicado": an empty draft, for the composer to open. */
 export async function createComunicadoDraftAction(): Promise<
-  { success: true; comunicadoId: number } | Failure
+  { success: true; comunicadoId: number } | ComunicadosFailure
 > {
   const { actor, blocked } = await comunicadosActor();
   if (blocked) return blocked;
@@ -107,7 +84,7 @@ export async function createComunicadoDraftAction(): Promise<
     revalidatePath(COMUNICADOS_PATH);
     return { success: true, comunicadoId };
   } catch (error) {
-    logFailure("Error creating a comunicado draft", error);
+    logComunicadosFailure("Error creating a comunicado draft", error);
     return { success: false, message: "No se pudo crear el borrador." };
   }
 }
@@ -145,7 +122,7 @@ export async function saveComunicadoDraftAction(
       replayed: saved.replayed,
     };
   } catch (error) {
-    logFailure("Error saving a comunicado draft", error);
+    logComunicadosFailure("Error saving a comunicado draft", error);
     return {
       success: false,
       code: "FAILED",
@@ -157,7 +134,7 @@ export async function saveComunicadoDraftAction(
 /** "Descartar borrador". Only a draft: never a scheduled or sent one. */
 export async function discardComunicadoDraftAction(
   comunicadoId: unknown,
-): Promise<{ success: true; message: string } | Failure> {
+): Promise<{ success: true; message: string } | ComunicadosFailure> {
   const { blocked } = await comunicadosActor();
   if (blocked) return blocked;
   const parsed = ComunicadoIdSchema.safeParse(comunicadoId);
@@ -171,7 +148,7 @@ export async function discardComunicadoDraftAction(
     revalidatePath(COMUNICADOS_PATH);
     return { success: true, message: "Descartamos el borrador." };
   } catch (error) {
-    logFailure("Error discarding a comunicado draft", error);
+    logComunicadosFailure("Error discarding a comunicado draft", error);
     return { success: false, message: "No se pudo descartar el borrador." };
   }
 }
@@ -182,7 +159,9 @@ export async function discardComunicadoDraftAction(
  */
 export async function previewComunicadoAudienceAction(
   input: unknown,
-): Promise<{ success: true; preview: ComunicadoAudiencePreview } | Failure> {
+): Promise<
+  { success: true; preview: ComunicadoAudiencePreview } | ComunicadosFailure
+> {
   const { blocked } = await comunicadosActor();
   if (blocked) return blocked;
   const parsed = AudiencePreviewSchema.safeParse(input);
@@ -202,7 +181,7 @@ export async function previewComunicadoAudienceAction(
     if (!preview) return { success: false, message: "No autorizado." };
     return { success: true, preview };
   } catch (error) {
-    logFailure("Error previewing a comunicado audience", error);
+    logComunicadosFailure("Error previewing a comunicado audience", error);
     return {
       success: false,
       message: "No pudimos contar los destinatarios. Probá de nuevo.",
@@ -213,7 +192,9 @@ export async function previewComunicadoAudienceAction(
 /** "Ver por qué": the first people who would not receive it. Reads only. */
 export async function previewSkippedPeopleAction(
   input: unknown,
-): Promise<{ success: true; people: ComunicadoSkippedPerson[] } | Failure> {
+): Promise<
+  { success: true; people: ComunicadoSkippedPerson[] } | ComunicadosFailure
+> {
   const { blocked } = await comunicadosActor();
   if (blocked) return blocked;
   const parsed = SkippedPreviewSchema.safeParse(input);
@@ -231,7 +212,7 @@ export async function previewSkippedPeopleAction(
     if (!people) return { success: false, message: "No autorizado." };
     return { success: true, people };
   } catch (error) {
-    logFailure("Error listing a comunicado's skipped people", error);
+    logComunicadosFailure("Error listing a comunicado's skipped people", error);
     return {
       success: false,
       message: "No pudimos cargar a quiénes no les llega. Probá de nuevo.",

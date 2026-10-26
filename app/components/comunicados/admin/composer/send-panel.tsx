@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConicalIcon } from "lucide-react";
+import { FlaskConicalIcon, SendIcon } from "lucide-react";
 
 import { realSkippedCount } from "@/app/components/comunicados/admin/composer/composer-copy";
 import { Button } from "@/app/components/ui/button";
@@ -23,13 +23,17 @@ type SendPanelProps = {
   missing: string[];
   onTestSend: () => void;
   testPending: boolean;
+  /** "Enviar…": saves what is on screen, then opens the confirm dialog. */
+  onSend: () => void;
+  /** Saving before the dialog, or the dialog is open. */
+  sendPending: boolean;
   disabled?: boolean;
 };
 
 /**
- * "Enviar" (docs/IMPLEMENTATION-comunicados.md G4, D11). Sending and
- * scheduling arrive in the next release; for now the admin can mail
- * themselves a test of the saved draft.
+ * "Enviar" (docs/IMPLEMENTATION-comunicados.md G4, G5, D11): today's numbers,
+ * a test of the saved draft to the admin, and "Enviar…", which confirms the
+ * send in a dialog. Scheduling arrives in the next release.
  */
 export default function SendPanel({
   preview,
@@ -39,6 +43,8 @@ export default function SendPanel({
   missing,
   onTestSend,
   testPending,
+  onSend,
+  sendPending,
   disabled = false,
 }: SendPanelProps) {
   const count = (value: number | undefined) =>
@@ -47,6 +53,13 @@ export default function SendPanel({
       : value === undefined
         ? "—"
         : formatAudienceCount(value);
+  // Nothing the dialog could send: it would only refuse.
+  const sendDisabled =
+    disabled ||
+    sendPending ||
+    missing.length > 0 ||
+    audienceEmpty ||
+    preview?.tooLarge === true;
 
   return (
     <Card>
@@ -93,14 +106,20 @@ export default function SendPanel({
           <FlaskConicalIcon className="mr-2 h-4 w-4" aria-hidden />
           {testPending ? "Enviando la prueba…" : "Enviarme una prueba"}
         </Button>
+        <Button
+          type="button"
+          className="w-full"
+          disabled={sendDisabled}
+          onClick={onSend}
+        >
+          <SendIcon className="mr-2 h-4 w-4" aria-hidden />
+          Enviar…
+        </Button>
         {missing.length > 0 && (
           <p className="text-xs text-muted-foreground">
             Falta {missing.join(", ")}.
           </p>
         )}
-        <p className="text-xs text-muted-foreground">
-          Programar y enviar llegan en la próxima versión.
-        </p>
       </CardContent>
     </Card>
   );

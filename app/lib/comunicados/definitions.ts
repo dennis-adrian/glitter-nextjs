@@ -226,3 +226,85 @@ export function maskEmail(email: string) {
   if (!local || !domain) return email;
   return `${local[0]}•••@${domain}`;
 }
+
+/** People per fan-out chunk: one transaction writes their inbox rows (D2). */
+export const FANOUT_CHUNK = 250;
+/**
+ * A recipient fails for good after this many chunk failures (gifts'
+ * MAX_RECIPIENT_ATTEMPTS).
+ */
+export const FANOUT_MAX_ATTEMPTS = 3;
+/** One run of the work (D9), each under `maxDuration: 100` (vercel.json). */
+export const COMUNICADOS_CRON_DEADLINE_MS = 75_000;
+export const SEND_AFTER_DEADLINE_MS = 85_000;
+export const PROCESS_BUTTON_DEADLINE_MS = 80_000;
+/** The bulk push step's share of a run (D9 step 3). */
+export const COMUNICADO_PUSH_STEP_MAX_MS = 20_000;
+/** Lane-wide fan-out takes this many campaigns a run, oldest first (D9). */
+export const COMUNICADO_LANE_FANOUT_LIMIT = 5;
+/** Processing campaigns the lane's completion sweep checks a run (D2). */
+export const COMUNICADO_COMPLETION_SWEEP_LIMIT = 20;
+/** "Procesar envíos pendientes": once per 30 s across every admin (A9, D9). */
+export const COMUNICADOS_PROCESS_RATE_LIMIT = {
+  key: "comunicados-process",
+  limit: 1,
+  windowMs: 30_000,
+} as const;
+export const COMUNICADO_RETRACT_REASON_MAX = 300;
+
+const summaryCount = z.number().int().min(0);
+/**
+ * `comunicados.audience_summary`, frozen at send (A4, B7, B8). `env` is the
+ * VERCEL_ENV that wrote it: lane-wide drains take only their own (D9).
+ */
+export const ComunicadoAudienceSummarySchema = z.object({
+  v: z.literal(1),
+  env: z.enum(["development", "preview", "production"]),
+  narrowed: z.boolean(),
+  sources: z.array(
+    z.object({
+      kind: z.enum(["festival", "list", "people"]),
+      id: z.number().int().nullable(),
+      label: z.string(),
+      matched: summaryCount,
+      eligible: summaryCount,
+    }),
+  ),
+  matched: summaryCount,
+  /** "Pueden recibirlo hoy" at send, before narrowing. */
+  eligible: summaryCount,
+  /** Recipient rows written `pending`. */
+  willReceive: summaryCount,
+  stagingAdmins: summaryCount,
+  pickedByName: summaryCount,
+  /**
+   * Skipped at the snapshot, by B5 label, most first (the staging label
+   * included).
+   */
+  skipped: z.array(z.object({ reason: z.string(), count: summaryCount })),
+  channels: z.object({ email: z.boolean(), push: z.boolean() }),
+  /** Among willReceive, by B7; zeros when email was not ticked. */
+  email: z.object({
+    sendTo: summaryCount,
+    unsubscribedAnnouncements: summaryCount,
+    unsubscribedAll: summaryCount,
+    suppressed: summaryCount,
+    invalid: summaryCount,
+  }),
+  essentialFestival: z
+    .object({ id: z.number().int(), name: z.string() })
+    .nullable(),
+  /** Top level, as runbook query I4 #6 reads them. */
+  essentialOverride: summaryCount,
+  essentialNotOverridden: summaryCount,
+});
+export type ComunicadoAudienceSummary = z.output<
+  typeof ComunicadoAudienceSummarySchema
+>;
+
+export function parseComunicadoAudienceSummary(
+  value: unknown,
+): ComunicadoAudienceSummary | null {
+  const parsed = ComunicadoAudienceSummarySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}

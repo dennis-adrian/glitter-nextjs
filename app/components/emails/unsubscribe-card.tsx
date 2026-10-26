@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import type { MailingTopic } from "@/app/lib/emails/topics";
 import {
   confirmUnsubscribe,
   undoUnsubscribe,
@@ -22,6 +23,8 @@ type UnsubscribeCardProps = {
   token: string;
   /** The address, partly hidden: "ca••••@gmail.com". */
   maskedEmail: string;
+  /** The link's topic. */
+  topic: MailingTopic;
   /** What they stop receiving: "las invitaciones para acreditarte…". */
   topicLabel: string;
   /** How "every kind of bulk mail" reads, for an all-mail opt-out. */
@@ -95,6 +98,15 @@ export default function UnsubscribeCard(props: UnsubscribeCardProps) {
               soporte@productoraglitter.com
             </a>
             .
+          </p>
+        ) : props.topic === "announcements" && !fromAll ? (
+          // Essential mail still reaches someone off Anuncios (never someone
+          // off all bulk mail), so this says so before it arrives (H6).
+          <p>
+            Seguirás recibiendo los correos que vos pidas, como tus entradas o
+            reservas, y los correos esenciales sobre los festivales donde tenés
+            un espacio confirmado, como un cambio en el horario de armado. Los
+            anuncios seguirán apareciendo en tus notificaciones de Glitter.
           </p>
         ) : (
           <p>

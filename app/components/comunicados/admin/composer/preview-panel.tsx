@@ -158,6 +158,7 @@ export default function PreviewPanel({
                       opensDetail: true,
                       readAt: null,
                       createdAt: openedAt,
+                      editedAt: null,
                     }}
                   />
                 </div>

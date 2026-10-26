@@ -169,7 +169,8 @@ export class DraftAutosave {
   /** Unmounted: the flush that follows retries nothing. */
   private leaving = false;
   private disposed = false;
-  private discarded = false;
+  /** Discarded or sent: no longer a draft, and leaving refreshes nothing. */
+  private ended = false;
   /** One per mount, so a remount stops the previous unmount's disposal. */
   private session = 0;
   private listener: ((snapshot: AutosaveSnapshot) => void) | null = null;
@@ -434,9 +435,29 @@ export class DraftAutosave {
     };
   }
 
+  /**
+   * The last version the server confirmed, which a send expects to find
+   * (G5). Once a flush succeeds it is the version of what is on screen.
+   */
+  storedVersion() {
+    return this.version;
+  }
+
   /** The draft is deleted: nothing saves again, and leaving refreshes nothing. */
   markDiscarded() {
-    this.discarded = true;
+    this.end();
+  }
+
+  /**
+   * The comunicado is sent and no longer a draft: nothing saves again, and
+   * leaving refreshes nothing, since the send refreshes the page itself.
+   */
+  markSent() {
+    this.end();
+  }
+
+  private end() {
+    this.ended = true;
     this.dispose();
   }
 
@@ -447,17 +468,12 @@ export class DraftAutosave {
   }
 
   /**
-   * The component unmounted: saves what is on screen once, retries nothing
-   * after it, and stops. Resolves whether a request of this mount may have
-   * stored something, so what the router keeps can be refreshed.
-   */
-  /**
    * Whether leaving now may leave something stored behind the router's back:
    * a stored save, or one in flight, pending or of unknown outcome.
    */
   mayStoreOnLeave() {
     return (
-      !this.discarded &&
+      !this.ended &&
       (this.storedOnce ||
         this.uncertain !== null ||
         this.inFlight !== null ||
@@ -465,6 +481,11 @@ export class DraftAutosave {
     );
   }
 
+  /**
+   * The component unmounted: saves what is on screen once, retries nothing
+   * after it, and stops. Resolves whether a request of this mount may have
+   * stored something, so what the router keeps can be refreshed.
+   */
   async leave(): Promise<boolean> {
     const session = this.session;
     this.leaving = true;
@@ -472,7 +493,7 @@ export class DraftAutosave {
     // Mounted again meanwhile: it goes on saving.
     if (session !== this.session) return false;
     this.dispose();
-    return !this.discarded && (this.storedOnce || this.uncertain !== null);
+    return !this.ended && (this.storedOnce || this.uncertain !== null);
   }
 }
 
@@ -482,7 +503,7 @@ export class DraftAutosave {
  *
  * `onLeave` runs when the component unmounts after a request may have stored
  * something, once what was on screen is saved too, unless the draft was
- * discarded. The router keeps the pages it rendered for Back and Forward: the
+ * discarded or sent. The router keeps the pages it rendered for Back and Forward: the
  * composer with the fields and the version it opened with, the list with the
  * titles it had. Refreshing there drops them.
  */

@@ -24,6 +24,7 @@ import {
   comunicadoEmailExclusion,
 } from "@/app/lib/emails/suppressions";
 import { isDeliverableEmail } from "@/app/lib/festivals/invitation-helpers";
+import type { ComunicadosTx } from "@/app/lib/comunicados/locks";
 import { comunicadoSkipReasonSql } from "@/app/lib/participants/recipient-eligibility-queries";
 import { requireAdmin } from "@/app/lib/users/helpers";
 import { getUserName } from "@/app/lib/users/utils";
@@ -32,6 +33,7 @@ import {
   distributionLists,
   festivalDates,
   festivals,
+  notificationCampaignRecipients,
   pendingUserDeletions,
   pushSubscriptions,
   users,
@@ -39,9 +41,9 @@ import {
 
 /**
  * Who a comunicado reaches (docs/IMPLEMENTATION-comunicados.md B2, B4–B7).
- * One resolver for the composer's counts today and the send's snapshot in
- * PR 5: the sources, the dedupe and the B5 rule are SQL fragments, so the
- * send can put the same ones inside its INSERT. Nothing here writes.
+ * One resolver for the composer's counts, the confirm dialog and the send's
+ * snapshot: the sources, the dedupe and the B5 rule are SQL fragments, so the
+ * send puts the same ones inside its INSERT. Only the snapshot writes.
  */
 
 export type Executor = Pick<typeof db, "execute" | "select">;
@@ -385,6 +387,36 @@ async function resolveAudienceSources(
   };
 }
 
+export type ResolvedComunicadoAudience = {
+  input: ComunicadoAudienceSourcesInput;
+  sources: ComunicadoAudienceSourcePreview[];
+  /** The first source that cannot be used as it is, or null. */
+  problem: string | null;
+};
+
+/**
+ * The stored audience as the send snapshots it (B2). A missing festival or
+ * list, or a filter that no longer parses, is named in `problem`: the send
+ * refuses it rather than leave the source out, so a broken list never quietly
+ * changes who it reaches (V9).
+ */
+export async function resolveComunicadoAudience(
+  executor: Executor,
+  audience: ComunicadoAudience,
+  { narrow }: { narrow: boolean },
+): Promise<ResolvedComunicadoAudience> {
+  const { input, sources } = await resolveAudienceSources(
+    executor,
+    audience,
+    narrow,
+  );
+  return {
+    input,
+    sources,
+    problem: sources.find((source) => source.problem)?.problem ?? null,
+  };
+}
+
 function sourceKey(source: ComunicadoAudienceSourcePreview) {
   return source.kind === "people" ? "people" : `${source.kind}:${source.id}`;
 }
@@ -590,6 +622,126 @@ export async function summarizeComunicadoAudience(
     narrowed: resolved.input.narrow && resolved.input.hasListSource,
     stagingAdmins: row.staging_admins,
     essentialAllowed,
+  };
+}
+
+export type ComunicadoSnapshotCounts = {
+  /** Distinct people across the sources who still exist, before narrowing. */
+  matched: number;
+  /**
+   * "Pueden recibirlo hoy", before narrowing: what the cap and the typed
+   * count are compared with.
+   */
+  eligible: number;
+  /** Rows written `pending`, after narrowing. */
+  willReceive: number;
+  /** Among them, the admins standing in for the lists. */
+  stagingAdmins: number;
+  /** Among them, the people picked by name. */
+  pickedByName: number;
+  /** Rows written `skipped`, by B5 label, most first. */
+  skipped: { reason: string; count: number }[];
+};
+
+type SnapshotCountsRow = {
+  matched: number;
+  eligible: number;
+  will_receive: number;
+  staging_admins: number;
+  picked_by_name: number;
+  skipped: { reason: string; count: number }[];
+};
+
+/**
+ * B4's snapshot, inside the send transaction: one recipient row per person
+ * who still exists, `pending` or `skipped` with its B5 label and the source
+ * they came in by, and the counts read back from the same statement, which
+ * decide the send's refusals. Rows go in ascending user id, so the foreign-key
+ * locks on `users` are taken in the order reservations take theirs.
+ */
+export async function snapshotComunicadoRecipients(
+  tx: ComunicadosTx,
+  campaignId: number,
+  input: ComunicadoAudienceSourcesInput,
+): Promise<ComunicadoSnapshotCounts> {
+  const result = await tx.execute<SnapshotCountsRow>(sql`
+    WITH ${judgedCtes(input)},
+    inserted AS (
+      INSERT INTO ${notificationCampaignRecipients}
+        (campaign_id, user_id, status, skipped_reason, source, processed_at)
+      SELECT ${campaignId}::int, j.user_id,
+             (CASE WHEN j.reason IS NULL THEN 'pending' ELSE 'skipped' END)
+               ::notification_campaign_recipient_status,
+             j.reason, j.source::campaign_recipient_source,
+             CASE WHEN j.reason IS NULL THEN NULL ELSE now() END
+      FROM judged j
+      ORDER BY j.user_id
+      ON CONFLICT (campaign_id, user_id) DO NOTHING
+      RETURNING status, skipped_reason, source
+    )
+    SELECT
+      (SELECT count(*) FROM judged WHERE base_source IS NOT NULL)::int AS matched,
+      (SELECT count(*) FROM judged
+       WHERE base_source IS NOT NULL AND base_reason IS NULL)::int AS eligible,
+      (SELECT count(*) FROM inserted WHERE status = 'pending')::int AS will_receive,
+      (SELECT count(*) FROM inserted
+       WHERE status = 'pending' AND source = 'staging_admin')::int AS staging_admins,
+      (SELECT count(*) FROM inserted
+       WHERE status = 'pending' AND source = 'person')::int AS picked_by_name,
+      (SELECT coalesce(json_agg(json_build_object('reason', s.reason, 'count', s.n)
+                                ORDER BY s.n DESC, s.reason), '[]'::json)
+       FROM (SELECT skipped_reason AS reason, count(*)::int AS n FROM inserted
+             WHERE status = 'skipped' GROUP BY skipped_reason) s) AS skipped`);
+  const row = result.rows[0]!;
+  return {
+    matched: row.matched,
+    eligible: row.eligible,
+    willReceive: row.will_receive,
+    stagingAdmins: row.staging_admins,
+    pickedByName: row.picked_by_name,
+    skipped: row.skipped,
+  };
+}
+
+/** The confirm dialog names this many people picked by name, at most. */
+export const PICKED_RECEIVING_NAMES_MAX = 10;
+
+/**
+ * Who among the people picked by name receives it, as the snapshot would
+ * judge them, for the confirm dialog's test-environment callout (G5): how
+ * many, and the first names in alphabetical order. Reads only.
+ */
+export async function pickedPeopleReceiving(
+  executor: Executor,
+  people: readonly number[],
+  narrow: boolean,
+): Promise<{ count: number; names: string[] }> {
+  if (people.length === 0) return { count: 0, names: [] };
+  const person = { id: users.id, role: users.role, status: users.status };
+  const result = await executor.execute<{
+    email: string;
+    display_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+  }>(sql`
+    SELECT ${users.email} AS email, ${users.displayName} AS display_name,
+           ${users.firstName} AS first_name, ${users.lastName} AS last_name
+    FROM ${users}
+    WHERE ${users.id} = ANY(${intArray(people)})
+      AND ${comunicadoSkipReasonSql(person, sql`'person'`, narrow)} IS NULL`);
+  const names = result.rows
+    .map(
+      (row) =>
+        getUserName({
+          displayName: row.display_name,
+          firstName: row.first_name,
+          lastName: row.last_name,
+        }) || row.email,
+    )
+    .sort((a, b) => a.localeCompare(b, "es"));
+  return {
+    count: names.length,
+    names: names.slice(0, PICKED_RECEIVING_NAMES_MAX),
   };
 }
 

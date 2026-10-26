@@ -962,11 +962,62 @@ describe("useDraftAutosave", () => {
     expect(onLeave).not.toHaveBeenCalled();
   });
 
+  it("tells the version the server last confirmed, which a send expects", async () => {
+    const server = fakeServer(fields());
+    const { result, rerender } = setup({ server });
+    const { controller } = result.current;
+    expect(controller.storedVersion()).toBe(OPENED);
+
+    rerender({ value: fields({ title: "Uno" }) });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.answer();
+    expect(controller.storedVersion()).toBe(OPENED + 1);
+
+    // Stored, but no answer said so: not confirmed yet.
+    rerender({ value: fields({ title: "Dos" }) });
+    await advance(DEBOUNCE);
+    await server.requests[1]!.lose();
+    expect(server.row.version).toBe(OPENED + 2);
+    expect(controller.storedVersion()).toBe(OPENED + 1);
+
+    // The retry is answered as a replay, then what is on screen goes again.
+    await advance(retryDelayMs(1));
+    await server.answerAll();
+    expect(result.current.status.kind).toBe("saved");
+    expect(controller.storedVersion()).toBe(server.row.version);
+    expect(server.row.fields.title).toBe("Dos");
+  });
+
+  it("saves nothing once the comunicado is sent, and leaving refreshes nothing", async () => {
+    const server = fakeServer(fields());
+    const onLeave = vi.fn();
+    const { result, rerender, unmount } = setup({ server, onLeave });
+
+    rerender({ value: fields({ title: "Uno" }) });
+    await advance(DEBOUNCE);
+    await server.requests[0]!.answer();
+    // A change still waiting for its pause when the send lands.
+    rerender({ value: fields({ title: "Uno dos" }) });
+    act(() => result.current.controller.markSent());
+
+    await advance(DEBOUNCE * 2);
+    rerender({ value: fields({ title: "Tres" }) });
+    await advance(DEBOUNCE * 2);
+    await flushNow(result.current.controller);
+    expect(server.save).toHaveBeenCalledTimes(1);
+
+    // The send refreshed the page itself.
+    unmount();
+    await advance(retryDelayMs(5) * 2);
+    expect(server.save).toHaveBeenCalledTimes(1);
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
   describe("where crypto.randomUUID is missing, as over plain http", () => {
     beforeEach(() => {
       const real = globalThis.crypto;
       vi.stubGlobal("crypto", {
-        getRandomValues: <T extends ArrayBufferView>(array: T) =>
+        getRandomValues: (array: Uint8Array<ArrayBuffer>) =>
           real.getRandomValues(array),
       });
     });

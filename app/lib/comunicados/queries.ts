@@ -11,6 +11,12 @@ import {
   parseStoredComunicadoAudience,
 } from "@/app/lib/comunicados/definitions";
 import {
+  readRecipientSql,
+  receivingRecipientSql,
+  recipientsWithLatestEmailSql,
+} from "@/app/lib/comunicados/report";
+import { wholePercent } from "@/app/lib/comunicados/report-labels";
+import {
   confirmadosListName,
   type DistributionListKind,
   type Paged,
@@ -152,6 +158,16 @@ export function comunicadoAudienceLabel(
   return parts.length > 0 ? `Para: ${listFormat.format(parts)}` : null;
 }
 
+/** "1.240 personas · 1.180 correos · 41 % leído", as the report counts them. */
+export type ComunicadoListStats = {
+  /** Notified or still pending: the report's "Destinatarios". */
+  recipients: number;
+  /** Null when email was not ticked. */
+  emailsSent: number | null;
+  /** Of the recipients, in whole percent; null when there is nobody. */
+  readPercent: number | null;
+};
+
 export type ComunicadoListRow = {
   id: number;
   /** As written; empty shows "Sin título". */
@@ -172,6 +188,8 @@ export type ComunicadoListRow = {
   createdByName: string | null;
   updatedByName: string | null;
   sentByName: string | null;
+  /** Once sent; null before. */
+  stats: ComunicadoListStats | null;
 };
 
 const createdBy = alias(users, "created_by");
@@ -184,6 +202,60 @@ function pageOf(page: number) {
 
 function pageCountOf(total: number) {
   return Math.max(1, Math.ceil(total / COMUNICADO_LIST_PAGE_SIZE));
+}
+
+type CampaignCounts = { recipients: number; read: number; emailsSent: number };
+
+/**
+ * The sent rows' numbers in one grouped statement over the page's campaigns,
+ * read exactly as the report reads them (G3, G6).
+ */
+async function campaignCounts(
+  campaignIds: number[],
+): Promise<Map<number, CampaignCounts>> {
+  if (campaignIds.length === 0) return new Map();
+  const result = await db.execute<{
+    campaign_id: number;
+    recipients: number;
+    read: number;
+    emails_sent: number;
+  }>(sql`
+    SELECT r.campaign_id,
+      count(*) FILTER (WHERE ${receivingRecipientSql})::int AS recipients,
+      count(*) FILTER (WHERE ${readRecipientSql})::int AS read,
+      count(*) FILTER (WHERE d.status = 'sent')::int AS emails_sent
+    FROM ${recipientsWithLatestEmailSql}
+    WHERE r.campaign_id = ANY(${sql.param(campaignIds)}::int[])
+    GROUP BY r.campaign_id`);
+  return new Map(
+    result.rows.map((row) => [
+      Number(row.campaign_id),
+      {
+        recipients: row.recipients,
+        read: row.read,
+        emailsSent: row.emails_sent,
+      },
+    ]),
+  );
+}
+
+function statsOf(
+  row: {
+    status: ComunicadoStatus;
+    campaignId: number | null;
+    sendEmail: boolean;
+  },
+  counts: Map<number, CampaignCounts>,
+): ComunicadoListStats | null {
+  if (row.status !== "sent" || row.campaignId === null) return null;
+  const found = counts.get(row.campaignId);
+  const recipients = found?.recipients ?? 0;
+  return {
+    recipients,
+    emailsSent: row.sendEmail ? (found?.emailsSent ?? 0) : null,
+    readPercent:
+      recipients > 0 ? wholePercent(found?.read ?? 0, recipients) : null,
+  };
 }
 
 /** One tab of the list, 25 at a time, newest activity first. */
@@ -216,6 +288,8 @@ export async function fetchComunicadoList(input: {
       retractedAt: comunicados.retractedAt,
       updatedAt: comunicados.updatedAt,
       audience: comunicados.audience,
+      campaignId: comunicados.campaignId,
+      sendEmail: comunicados.sendEmail,
       campaignStatus: notificationCampaigns.status,
       editedAt: sql<Date | null>`(
         SELECT ${max(comunicadoRevisions.createdAt)} FROM ${comunicadoRevisions}
@@ -254,7 +328,16 @@ export async function fetchComunicadoList(input: {
   const audiences = rows.map((row) =>
     parseStoredComunicadoAudience(row.audience),
   );
-  const names = await audienceNames(audiences);
+  const [names, counts] = await Promise.all([
+    audienceNames(audiences),
+    campaignCounts(
+      rows.flatMap((row) =>
+        row.status === "sent" && row.campaignId !== null
+          ? [row.campaignId]
+          : [],
+      ),
+    ),
+  ]);
   return {
     rows: rows.map((row, index) => ({
       id: row.id,
@@ -272,6 +355,7 @@ export async function fetchComunicadoList(input: {
       createdByName: personName(row.createdBy),
       updatedByName: personName(row.updatedBy),
       sentByName: personName(row.sentBy),
+      stats: statsOf(row, counts),
     })),
     total,
     page,

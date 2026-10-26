@@ -11,9 +11,13 @@ import { Button } from "@/app/components/ui/button";
 import { COMUNICADO_UNTITLED } from "@/app/lib/comunicados/definitions";
 import type {
   ComunicadoListRow,
+  ComunicadoListStats,
   ComunicadoTab,
 } from "@/app/lib/comunicados/queries";
-import type { Paged } from "@/app/lib/distribution_lists/definitions";
+import {
+  formatAudienceCount,
+  type Paged,
+} from "@/app/lib/distribution_lists/definitions";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { formatNotificationTime } from "@/app/lib/notifications/format";
 
@@ -27,7 +31,7 @@ const EMPTY_TAB_COPY = {
 } as const satisfies Record<ComunicadoTab, string>;
 
 /** "sáb, 31 oct, 9:00 AM", in Bolivia time, as the bell's items say it. */
-function momentLabel(date: Date) {
+export function momentLabel(date: Date) {
   return formatDisplayDate(date, {
     weekday: "short",
     day: "numeric",
@@ -99,6 +103,27 @@ export function comunicadoActivityLine(
   return by ? `${updated} · ${by}` : updated;
 }
 
+/**
+ * "1.240 personas · 1.180 correos · 41 % leído" once sent (G3). The correos
+ * part is left out when email was not ticked, the share while nobody has it.
+ */
+export function comunicadoStatsLine(stats: ComunicadoListStats) {
+  const parts = [
+    stats.recipients === 1
+      ? "1 persona"
+      : `${formatAudienceCount(stats.recipients)} personas`,
+  ];
+  if (stats.emailsSent !== null) {
+    parts.push(
+      stats.emailsSent === 1
+        ? "1 correo"
+        : `${formatAudienceCount(stats.emailsSent)} correos`,
+    );
+  }
+  if (stats.readPercent !== null) parts.push(`${stats.readPercent} % leído`);
+  return parts.join(" · ");
+}
+
 function ComunicadoRow({ row, now }: { row: ComunicadoListRow; now: Date }) {
   const badge = comunicadoBadge(row);
   const title = row.title.trim();
@@ -126,6 +151,11 @@ function ComunicadoRow({ row, now }: { row: ComunicadoListRow; now: Date }) {
             <p className="break-words text-sm text-muted-foreground">
               {row.audienceLabel ?? "Sin destinatarios todavía"}
             </p>
+            {row.stats && (
+              <p className="text-sm tabular-nums text-muted-foreground">
+                {comunicadoStatsLine(row.stats)}
+              </p>
+            )}
           </div>
           <p className="text-xs text-muted-foreground md:max-w-64 md:shrink-0 md:text-right">
             {comunicadoActivityLine(row, now)}

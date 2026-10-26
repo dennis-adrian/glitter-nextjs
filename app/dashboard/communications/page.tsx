@@ -9,6 +9,7 @@ import ComunicadosTabs, {
 } from "@/app/components/comunicados/admin/comunicados-tabs";
 import ComunicadosEnvironmentBanner from "@/app/components/comunicados/admin/environment-banner";
 import NewComunicadoButton from "@/app/components/comunicados/admin/new-comunicado-button";
+import ProcessPendingButton from "@/app/components/comunicados/admin/process-pending-button";
 import { requireCommunicationsAdmin } from "@/app/lib/communications/access";
 import {
   fetchComunicadoList,
@@ -39,10 +40,22 @@ export default async function ComunicadosPage(props: {
     fetchComunicadoList({ tab, page }),
   ]);
   const nothingYet = counts.drafts + counts.scheduled + counts.sent === 0;
+  const environment = serverEnv.VERCEL_ENV;
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
-      <ComunicadosEnvironmentBanner environment={serverEnv.VERCEL_ENV} />
+      {environment === "preview" ? (
+        // Vercel runs crons in production only: on a preview, what a send's
+        // own run left behind waits for this button (D9).
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          <div className="min-w-0 flex-1">
+            <ComunicadosEnvironmentBanner environment={environment} />
+          </div>
+          <ProcessPendingButton className="w-full sm:w-auto" />
+        </div>
+      ) : (
+        <ComunicadosEnvironmentBanner environment={environment} />
+      )}
 
       {nothingYet ? (
         <ComunicadosEmptyState />

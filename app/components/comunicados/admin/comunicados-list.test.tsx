@@ -7,6 +7,7 @@ import ComunicadosList, {
   comunicadoActivityLine,
   comunicadoBadge,
   ComunicadosEmptyState,
+  comunicadoStatsLine,
 } from "@/app/components/comunicados/admin/comunicados-list";
 import type { ComunicadoListRow } from "@/app/lib/comunicados/queries";
 import type { Paged } from "@/app/lib/distribution_lists/definitions";
@@ -36,6 +37,7 @@ function row(overrides: Partial<ComunicadoListRow> = {}): ComunicadoListRow {
     createdByName: "Ana",
     updatedByName: "Dennis",
     sentByName: null,
+    stats: null,
     ...overrides,
   };
 }
@@ -118,8 +120,51 @@ describe("comunicadoActivityLine", () => {
   });
 });
 
+describe("comunicadoStatsLine", () => {
+  it("reads as G3 words it", () => {
+    expect(
+      comunicadoStatsLine({
+        recipients: 1_240,
+        emailsSent: 1_180,
+        readPercent: 41,
+      }),
+    ).toBe("1.240 personas · 1.180 correos · 41 % leído");
+  });
+
+  it("leaves the correos out when email was not ticked, and the share with nobody", () => {
+    expect(
+      comunicadoStatsLine({ recipients: 1, emailsSent: null, readPercent: 0 }),
+    ).toBe("1 persona · 0 % leído");
+    expect(
+      comunicadoStatsLine({ recipients: 0, emailsSent: 1, readPercent: null }),
+    ).toBe("0 personas · 1 correo");
+  });
+});
+
 describe("ComunicadosList", () => {
   afterEach(cleanup);
+
+  it("shows a sent row's numbers, and none before it is sent", () => {
+    render(
+      <ComunicadosList
+        tab="sent"
+        now={NOW}
+        list={paged([
+          row({
+            status: "sent",
+            sentAt: new Date("2026-10-24T14:12:00Z"),
+            stats: { recipients: 1_240, emailsSent: 1_180, readPercent: 41 },
+          }),
+          row({ id: 8 }),
+        ])}
+      />,
+    );
+    const [sent, draft] = screen.getAllByRole("link");
+    expect(
+      within(sent!).getByText("1.240 personas · 1.180 correos · 41 % leído"),
+    ).toBeTruthy();
+    expect(draft!.textContent).not.toContain("% leído");
+  });
 
   it("links each row to its comunicado, untitled ones included", () => {
     render(

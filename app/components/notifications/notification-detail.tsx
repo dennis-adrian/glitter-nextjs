@@ -1,8 +1,9 @@
 import Link from "next/link";
 
+import RichTextHtml from "@/app/components/molecules/rich-text-html";
 import NotificationIcon from "@/app/components/notifications/notification-icon";
 import { Button } from "@/app/components/ui/button";
-import { formatDateWithTime } from "@/app/lib/formatters";
+import { formatDateWithTime, formatDisplayDate } from "@/app/lib/formatters";
 import { NOTIFICATION_CATEGORY_LABELS } from "@/app/lib/notifications/definitions";
 import { formatCreditDelta } from "@/app/lib/notifications/format";
 import type { NotificationDetail as NotificationDetailData } from "@/app/lib/notifications/queries";
@@ -30,6 +31,17 @@ export default function NotificationDetail({
           <h1 className="font-display text-xl font-bold leading-tight">
             {notification.title}
           </h1>
+          {notification.editedAt && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Editado el{" "}
+              {formatDisplayDate(notification.editedAt, {
+                day: "numeric",
+                month: "long",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </p>
+          )}
         </div>
         {notification.creditDelta != null && (
           <span
@@ -44,7 +56,12 @@ export default function NotificationDetail({
         )}
       </header>
 
-      <p className="whitespace-pre-line leading-relaxed">{text}</p>
+      {/* A comunicado reads as written; anything else, as plain text. */}
+      {notification.bodyHtml?.trim() ? (
+        <RichTextHtml html={notification.bodyHtml} className="text-base" />
+      ) : (
+        <p className="whitespace-pre-line leading-relaxed">{text}</p>
+      )}
 
       {notification.actionPath && notification.actionLabel && (
         <Button asChild>
