@@ -5,6 +5,7 @@ import { z } from "zod";
 import { formatCreditCount, formatCredits } from "@/app/lib/credits/format";
 import CreditGiftReceivedEmail from "@/app/emails/credit-gift-received";
 import CreditGiftRevokedEmail from "@/app/emails/credit-gift-revoked";
+import { comunicadoKinds } from "@/app/lib/notifications/kinds/comunicado";
 import { disciplinaryKinds } from "@/app/lib/notifications/kinds/disciplinary";
 import { reservationOutboxKinds } from "@/app/lib/notifications/kinds/reservation-outbox";
 import type {
@@ -157,6 +158,7 @@ const kinds = {
 
   ...reservationOutboxKinds,
   ...disciplinaryKinds,
+  ...comunicadoKinds,
 } as const;
 
 export type NotificationKind = keyof typeof kinds;
@@ -242,14 +244,17 @@ export function notificationStartsRead<K extends NotificationKind>(
 
 /**
  * Whether this notification also goes to the person's devices; see
- * `KindDefinition.push`. An item written already read never does.
+ * `KindDefinition.push`. An item written already read never does, and a
+ * per-send kind only when its sender asked (`opts.push`).
  */
 export function notificationPushes<K extends NotificationKind>(
   kind: K,
   data: NotificationData<K>,
+  opts?: { push?: boolean },
 ): boolean {
   const def = definition(kind);
-  return def.push === true && !(def.startsRead?.(data) ?? false);
+  if (def.startsRead?.(data)) return false;
+  return def.push === true || (def.push === "per_send" && opts?.push === true);
 }
 
 /** Disciplinary notices, whose content stays off a lock screen. */

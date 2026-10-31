@@ -21,6 +21,8 @@ import {
 } from "@/app/lib/notifications/registry";
 import { db } from "@/db";
 import {
+  comunicadoRevisions,
+  comunicados,
   notificationCampaignRecipients,
   notifications,
   users,
@@ -103,6 +105,7 @@ function toInboxNotification(row: NotificationRow): InboxNotification {
     opensDetail: notificationOpensDetail(row.kind, row.data),
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    editedAt: row.editedAt?.toISOString() ?? null,
   };
 }
 
@@ -125,6 +128,21 @@ async function hasNoVisibleNotifications(viewer: InboxViewer) {
     .where(visibleTo(viewer))
     .limit(1);
   return !row;
+}
+
+/**
+ * Whether the viewer has an anuncio in view. The "Anuncios" chip waits for
+ * one, so it shows the moment the first arrives and never empty (H1).
+ */
+export async function hasVisibleAnnouncements(
+  viewer: InboxViewer,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(and(visibleTo(viewer), eq(notifications.category, "announcements")))
+    .limit(1);
+  return row != null;
 }
 
 export async function fetchInboxPage(
@@ -175,12 +193,55 @@ export async function fetchInboxPage(
 export type NotificationDetail = InboxNotification & {
   /** The full gift message, when the item is about a gift. */
   message: string | null;
+  /**
+   * A comunicado's text as it reads now: its current revision's sanitized
+   * HTML. Null for every other kind, whose page shows `message` or `body`.
+   */
+  bodyHtml: string | null;
 };
 
 /** The kinds whose snapshot keeps a message longer than the inbox body. */
 const KINDS_WITH_MESSAGE: ReadonlySet<string> = new Set([
   "credit_gift_received",
 ]);
+
+/**
+ * The current revision's HTML of the comunicado this item delivered (H2), so
+ * an edit reaches the page without rewriting anyone's row. The comunicado has
+ * to be the one the item's campaign sent, not just any id in `data`.
+ */
+async function comunicadoBodyHtml(
+  row: NotificationRow,
+): Promise<string | null> {
+  const comunicadoId = row.data?.comunicadoId;
+  if (
+    row.campaignId == null ||
+    typeof comunicadoId !== "number" ||
+    !Number.isInteger(comunicadoId) ||
+    comunicadoId < 1 ||
+    comunicadoId > MAX_SERIAL_ID
+  ) {
+    return null;
+  }
+  const [revision] = await db
+    .select({ html: comunicadoRevisions.html })
+    .from(comunicados)
+    .innerJoin(
+      comunicadoRevisions,
+      and(
+        eq(comunicadoRevisions.comunicadoId, comunicados.id),
+        eq(comunicadoRevisions.revision, comunicados.currentRevision),
+      ),
+    )
+    .where(
+      and(
+        eq(comunicados.id, comunicadoId),
+        eq(comunicados.campaignId, row.campaignId),
+      ),
+    )
+    .limit(1);
+  return revision?.html ?? null;
+}
 
 export async function fetchNotificationForViewer(
   viewer: InboxViewer,
@@ -196,7 +257,9 @@ export async function fetchNotificationForViewer(
     KINDS_WITH_MESSAGE.has(row.kind) && typeof row.data?.message === "string"
       ? row.data.message
       : null;
-  return { ...toInboxNotification(row), message };
+  const bodyHtml =
+    row.kind === "comunicado" ? await comunicadoBodyHtml(row) : null;
+  return { ...toInboxNotification(row), message, bodyHtml };
 }
 
 export type PendingCelebration = {

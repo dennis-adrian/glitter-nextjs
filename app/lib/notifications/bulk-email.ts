@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm";
 import type { CreateBatchEmailOptions } from "resend";
 
+import { comunicadoBatchRenderer } from "@/app/lib/comunicados/delivery";
 import { isDeliverableEmail } from "@/app/lib/festivals/invitation-helpers";
 import { sendBatchEmails } from "@/app/vendors/resend";
 import { retryAfterMs } from "@/app/vendors/resend-result";
@@ -94,9 +95,13 @@ export type BulkEmailRenderers = Readonly<Record<string, BulkEmailRenderer>>;
 
 /**
  * Renderers by `notification_deliveries.template_key`. A bulk email whose
- * template has none is never claimed, and expires after 20 hours.
+ * template has none is never claimed, and expires after 20 hours. The key is
+ * also the batch key's prefix: `comunicado-batch:{campaignId}:{uuid}`.
+ * `delivery.ts` imports only this file's types, so there is no cycle.
  */
-export const BULK_EMAIL_RENDERERS: BulkEmailRenderers = {};
+export const BULK_EMAIL_RENDERERS: BulkEmailRenderers = {
+  comunicado: comunicadoBatchRenderer,
+};
 
 /**
  * First key of the lane's advisory lock. Distinct from tickets (4711),

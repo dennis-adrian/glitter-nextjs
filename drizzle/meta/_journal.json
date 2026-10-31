@@ -2115,6 +2115,20 @@
       "when": 1792936152163,
       "tag": "0302_distribution_lists",
       "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1792958176901,
+      "tag": "0303_comunicados",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1792974982613,
+      "tag": "0304_comunicados_autosave_key",
+      "breakpoints": true
     }
   ]
 }

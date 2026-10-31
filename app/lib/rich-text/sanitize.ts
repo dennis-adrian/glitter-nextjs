@@ -1,6 +1,7 @@
 import sanitizeHtml from "sanitize-html";
 
 import type { EditorVariant } from "@/app/lib/rich-text/schemas";
+import { isUploadThingFileUrl } from "@/app/lib/uploadthing/file-key";
 
 const COMPACT_TAGS = [
   "p",
@@ -50,8 +51,21 @@ const BLOG_TAGS = [
   "td",
 ];
 
+/**
+ * Comunicados: compact plus the divider and images, with the `figure` and
+ * `figcaption` BlockNote wraps a captioned image in.
+ */
+const ANNOUNCEMENT_TAGS = [
+  ...COMPACT_TAGS,
+  "hr",
+  "img",
+  "figure",
+  "figcaption",
+];
+
 function tagsForVariant(variant: EditorVariant): string[] {
   if (variant === "blog") return BLOG_TAGS;
+  if (variant === "announcement") return ANNOUNCEMENT_TAGS;
   return variant === "article" ? ARTICLE_TAGS : COMPACT_TAGS;
 }
 
@@ -100,6 +114,16 @@ export function sanitizeRichTextHtml(
         if (attribs.src && !isAllowedRichTextUri(attribs.src)) {
           delete attribs.src;
         }
+        // A comunicado shows only images uploaded to Glitter (C2.5): a
+        // draft's preview may still hold a pasted one. `exclusiveFilter`
+        // then drops the image.
+        if (
+          variant === "announcement" &&
+          attribs.src &&
+          !isUploadThingFileUrl(attribs.src)
+        ) {
+          delete attribs.src;
+        }
         return { tagName, attribs };
       },
       // Check lists are a rendering of the author's document, not a control
@@ -113,5 +137,14 @@ export function sanitizeRichTextHtml(
         },
       }),
     },
+    // A comunicado's image left without a source would show as a broken
+    // one: it goes, with the figure around it and its caption, as in the
+    // email.
+    exclusiveFilter:
+      variant === "announcement"
+        ? (frame) =>
+            (frame.tag === "img" && !frame.attribs.src) ||
+            (frame.tag === "figure" && frame.mediaChildren.length === 0)
+        : undefined,
   });
 }

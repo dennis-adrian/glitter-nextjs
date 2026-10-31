@@ -44,8 +44,9 @@ export type KindDefinition<Data> = {
    * Whether it also goes to the person's devices as a push, for those who
    * turned avisos on. Participant news does; of the Administración copies,
    * only those asking an admin to act. A receipt that starts read never does.
+   * `"per_send"`: only when whoever sent it asked (a comunicado's tick).
    */
-  push?: true;
+  push?: true | "per_send";
   /**
    * Disciplinary notices. A push says only that something arrived, never
    * what, since it shows on a lock screen.

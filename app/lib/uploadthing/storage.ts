@@ -12,6 +12,7 @@ import { randomUUID } from "crypto";
 
 import { utapi } from "@/app/server/uploadthing";
 import { utcTimestamp } from "@/app/lib/sql-time";
+import { getUploadThingFileKey } from "@/app/lib/uploadthing/file-key";
 import { db } from "@/db";
 import { storageCleanupJobs } from "@/db/schema";
 
@@ -38,24 +39,8 @@ const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 
 export type StoredFileDeleteResult = { success: boolean; error?: string };
 
-/** The UploadThing key in a utfs.io / ufs.sh file URL, or null for any other URL. */
-export function getUploadThingFileKey(url: string) {
-  try {
-    const parsedUrl = new URL(url);
-    if (
-      parsedUrl.hostname === "utfs.io" ||
-      parsedUrl.hostname === "ufs.sh" ||
-      parsedUrl.hostname.endsWith(".ufs.sh")
-    ) {
-      const fileKey = parsedUrl.pathname.split("/f/")[1];
-      return fileKey || null;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
+// Pure, so it lives in `./file-key`; kept here for this module's callers.
+export { getUploadThingFileKey };
 
 function computeNextAttemptAt(attemptCount: number): Date {
   const delayMs = Math.min(

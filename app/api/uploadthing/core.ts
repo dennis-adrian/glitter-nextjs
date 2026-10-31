@@ -4,6 +4,7 @@ import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
+import type { ComunicadoImageType } from "@/app/lib/comunicados/definitions";
 import type { FestivalArtworkType } from "@/app/lib/festivals/artwork";
 import { fetchUserProfile } from "@/app/lib/users/queries";
 import {
@@ -11,7 +12,10 @@ import {
   submitCreditTopUpVoucher,
 } from "@/app/lib/credits/service";
 import { canAuthorPosts } from "@/app/lib/posts/eligibility";
-import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import {
+  requireAdmin,
+  requireAdminOrFestivalAdmin,
+} from "@/app/lib/users/helpers";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolveReservationPaymentUpload } from "@/app/lib/payments/helpers";
 import { activateFullTableAccessAfterPurchase } from "@/app/lib/reservations/full-table-service";
@@ -54,6 +58,32 @@ export const ourFileRouter = {
     .onUploadComplete(({ file }) => ({
       imageUrl: (file as { url: string }).url,
     })),
+  // A comunicado's images (docs/IMPLEMENTATION-comunicados.md C4): JPEG and
+  // PNG for the same mail clients, from a global admin with the flag, as
+  // every comunicado action asks. Nothing ever cleans them up, so mail
+  // already sent keeps showing them; recalling one posted by mistake means
+  // deleting its file by the key in its `/f/<key>` address (I4).
+  comunicadoImage: f({
+    "image/jpeg": { maxFileSize: "4MB", maxFileCount: 1 },
+    "image/png": { maxFileSize: "4MB", maxFileCount: 1 },
+  } satisfies Record<
+    ComunicadoImageType,
+    { maxFileSize: "4MB"; maxFileCount: number }
+  >)
+    .middleware(async ({ files }) => {
+      const profile = await requireAdmin();
+      if (!profile) throw new UploadThingError("No autorizado");
+      if (!(await isFeatureEnabled("comunicados", profile))) {
+        throw new UploadThingError("No autorizado");
+      }
+      // The count is per type, so a JPEG and a PNG would pass it together.
+      if (files.length !== 1) {
+        throw new UploadThingError("Subí una sola imagen.");
+      }
+      return { userId: profile.id };
+    })
+    // The `https://<app>.ufs.sh/f/<key>` address the content rules accept.
+    .onUploadComplete(({ file }) => ({ imageUrl: file.ufsUrl })),
   landingPageImageUploader: f({
     image: { maxFileSize: "4MB", maxFileCount: 1 },
   })

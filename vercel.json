@@ -27,6 +27,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/morning/comunicados",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/morning/reservationNotifications",
       "schedule": "*/5 * * * *"
     },

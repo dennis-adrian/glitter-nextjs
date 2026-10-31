@@ -2,6 +2,7 @@ import {
   BlockNoteSchema,
   createHeadingBlockSpec,
   defaultBlockSpecs,
+  defaultStyleSpecs,
 } from "@blocknote/core";
 
 const {
@@ -45,7 +46,17 @@ export const BLOG_BLOCK_TYPES = [
   "table",
 ] as const;
 
-export type EditorVariant = "compact" | "article" | "blog";
+/**
+ * Comunicados: what survives an email client. No tables, toggles, check lists
+ * or code. Images are uploaded to Glitter (`normalizeAnnouncementDoc`).
+ */
+export const ANNOUNCEMENT_BLOCK_TYPES = [
+  ...COMPACT_BLOCK_TYPES,
+  "divider",
+  "image",
+] as const;
+
+export type EditorVariant = "compact" | "article" | "blog" | "announcement";
 
 export const compactEditorSchema = BlockNoteSchema.create({
   blockSpecs: {
@@ -87,18 +98,49 @@ export const blogEditorSchema = BlockNoteSchema.create({
   },
 });
 
+/**
+ * Bold and italic are the only styles, so the editor never shows underline,
+ * strike, code or a colour that the email would drop. Toggle headings are off
+ * for the same reason (they export as `<details>`), and a heading made
+ * without a level is a "Título". The image is the spec article and blog use;
+ * the server keeps only its address and caption.
+ */
+export const announcementEditorSchema = BlockNoteSchema.create({
+  blockSpecs: {
+    paragraph,
+    heading: createHeadingBlockSpec({
+      levels: [2, 3],
+      defaultLevel: 2,
+      allowToggleHeadings: false,
+    }),
+    bulletListItem,
+    numberedListItem,
+    quote,
+    divider,
+    image,
+  },
+  styleSpecs: {
+    bold: defaultStyleSpecs.bold,
+    italic: defaultStyleSpecs.italic,
+  },
+});
+
 export function schemaForVariant(variant: EditorVariant) {
   if (variant === "blog") return blogEditorSchema;
+  if (variant === "announcement") return announcementEditorSchema;
   return variant === "article" ? articleEditorSchema : compactEditorSchema;
 }
 
 export function allowedBlockTypes(variant: EditorVariant): readonly string[] {
   if (variant === "blog") return BLOG_BLOCK_TYPES;
+  if (variant === "announcement") return ANNOUNCEMENT_BLOCK_TYPES;
   return variant === "article" ? ARTICLE_BLOCK_TYPES : COMPACT_BLOCK_TYPES;
 }
 
 export function allowedHeadingLevels(variant: EditorVariant): number[] {
-  return variant === "compact" ? [2, 3] : [1, 2, 3, 4];
+  return variant === "compact" || variant === "announcement"
+    ? [2, 3]
+    : [1, 2, 3, 4];
 }
 
 type WalkableBlock = {
@@ -157,21 +199,40 @@ export function headingLevelsIn(blocks: unknown): number[] {
   return levels;
 }
 
-export function assertCompactDocument(
+function assertDocumentFits(
   blocks: unknown,
-  documentLabel = "este documento",
+  variant: "compact" | "announcement",
+  documentLabel: string,
 ): void {
-  const extra = disallowedBlockTypes(blocks, "compact");
+  const extra = disallowedBlockTypes(blocks, variant);
   if (extra.length > 0) {
     throw new Error(
       `Bloques no permitidos en ${documentLabel}: ${extra.join(", ")}`,
     );
   }
   const levels = headingLevelsIn(blocks);
-  const allowed = new Set(allowedHeadingLevels("compact"));
+  const allowed = new Set(allowedHeadingLevels(variant));
   if (levels.some((level) => !allowed.has(level))) {
     throw new Error(
       `Solo se admiten títulos de nivel 2 y 3 en ${documentLabel}`,
     );
   }
+}
+
+export function assertCompactDocument(
+  blocks: unknown,
+  documentLabel = "este documento",
+): void {
+  assertDocumentFits(blocks, "compact", documentLabel);
+}
+
+/**
+ * A backstop for the renderer: comunicados reach it already checked by
+ * `normalizeAnnouncementDoc`, which explains a refusal to the admin.
+ */
+export function assertAnnouncementDocument(
+  blocks: unknown,
+  documentLabel = "un comunicado",
+): void {
+  assertDocumentFits(blocks, "announcement", documentLabel);
 }
