@@ -1664,7 +1664,7 @@ It loads fresh numbers from the server when it opens:
 
 - a new draft with the current revision's title, text and button, `send_email` and the audience;
 - never push, essential, its reason or the schedule;
-- the composer opens with "Copia de «…». Revisá los destinatarios antes de enviar."
+- the composer opens with the banner "Copia de «…». Revisá los destinatarios antes de enviar."; the title itself is copied unchanged, with no "Copia de" prefix.
 
 ### G7. Edit and retract dialogs
 
@@ -1904,7 +1904,7 @@ It loads fresh numbers from the server when it opens:
     - then "Enviar ahora" on that draft works;
     - cancel a schedule, and change another's date;
     - "Reintentar fallidos (N)" on a preview, on a comunicado with a failed email row (for example after a "Con error"): the dialog says what it retries and what may have arrived, and the rows go back to "En cola" and are sent;
-    - "Duplicar" from a retracted comunicado opens a new draft with "Copia de «…». Revisá los destinatarios antes de enviar.", the same title, text, button, email setting and recipients, push and essential unticked.
+    - "Duplicar" from a retracted comunicado opens a new draft with the banner "Copia de «…». Revisá los destinatarios antes de enviar." and the same title (no "Copia de" prefix), text, button, email setting and recipients, push and essential unticked.
 12. **Cron and topics:**
     - `curl -H "Authorization: Bearer $CRON_SECRET" -H "x-vercel-protection-bypass: $BYPASS" https://<preview>/api/cron/morning/comunicados` returns the step counts;
     - `/dashboard/emails` lists "Anuncios".

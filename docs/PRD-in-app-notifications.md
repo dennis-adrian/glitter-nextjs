@@ -392,7 +392,7 @@ Agreed with Dennis on 2026-10-24.
 - **Figures:** recipients, read in the app, emails sent, emails not sent (by reason), bounces and spam reports from this comunicado, devices reached, still queued.
 - **Recipients,** 50 per page, filterable (no leídos, correo no enviado, omitidos, con error) and searchable by name or email. Each row shows how the person was added (list, by name, or "Admin de prueba" on a preview), the app state, the email state with its reason, and devices.
 - **While it sends** the page refreshes itself and says how far along it is. Banners say when it stopped: Resend refused the key or the sender, the monthly allowance ran out, or nothing moved in 10 minutes.
-- **"Reintentar fallidos (N)"** queues the failed emails and recipients again with the current text, never an email that may have arrived, at most once every 5 minutes, and only from the environment that sent it. **"Duplicar"** makes a new draft with the same title, text, button, email setting and recipients, never the push, the essential mark or the schedule; it opens with "Copia de «…». Revisá los destinatarios antes de enviar."
+- **"Reintentar fallidos (N)"** queues the failed emails and recipients again with the current text, never an email that may have arrived, at most once every 5 minutes, and only from the environment that sent it. **"Duplicar"** makes a new draft with the same title, text, button, email setting and recipients, never the push, the essential mark or the schedule; it opens with the banner "Copia de «…». Revisá los destinatarios antes de enviar.", and the title itself has no "Copia de" prefix.
 
 ### What participants see
 
