@@ -101,6 +101,7 @@ export default async function DistributionListPage(props: {
           initialFilter={list.filter ?? EMPTY_DISTRIBUTION_LIST_FILTER}
           options={options}
           readOnly={archived}
+          unreadableFilter={list.unreadableFilter}
         />
       ) : members ? (
         <FixedListEditor
