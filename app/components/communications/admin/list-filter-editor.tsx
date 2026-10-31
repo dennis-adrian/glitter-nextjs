@@ -73,6 +73,7 @@ export default function ListFilterEditor({
   initialFilter,
   options,
   readOnly = false,
+  unreadableFilter = false,
 }: {
   /** Null while creating. */
   listId: number | null;
@@ -82,6 +83,11 @@ export default function ListFilterEditor({
   options: ListFilterOptions;
   /** An archived list: shown, never saved. */
   readOnly?: boolean;
+  /**
+   * The stored filter could not be read, so `initialFilter` is a stand-in:
+   * saving it untouched would quietly send to everyone.
+   */
+  unreadableFilter?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -91,6 +97,7 @@ export default function ListFilterEditor({
   const [preview, setPreview] = useState<Preview>({ state: "loading" });
   // Set by an edit, cleared by the answer: the numbers shown are a step behind.
   const [refreshing, setRefreshing] = useState(false);
+  const [filterEdited, setFilterEdited] = useState(false);
   const latestRequest = useRef(0);
   const filterKey = JSON.stringify(filter);
 
@@ -124,6 +131,7 @@ export default function ListFilterEditor({
 
   function update(patch: Partial<DistributionListFilter>) {
     setRefreshing(true);
+    setFilterEdited(true);
     setFilter((current) => ({ ...current, ...patch }));
   }
 
@@ -163,6 +171,7 @@ export default function ListFilterEditor({
   }
 
   const disabled = readOnly || isPending;
+  const needsFilterEdit = unreadableFilter && !filterEdited;
   const subcategoryOptions = options.subcategories.map((subcategory) => ({
     value: String(subcategory.id),
     label: subcategory.label,
@@ -333,7 +342,10 @@ export default function ListFilterEditor({
           <Button
             type="button"
             className="w-full"
-            disabled={isPending || !name.trim()}
+            disabled={isPending || !name.trim() || needsFilterEdit}
+            aria-describedby={
+              needsFilterEdit ? "list-filter-save-reason" : undefined
+            }
             onClick={save}
           >
             <SaveIcon className="mr-2 h-4 w-4" aria-hidden />
@@ -343,6 +355,14 @@ export default function ListFilterEditor({
                 ? "Guardar lista"
                 : "Guardar cambios"}
           </Button>
+        )}
+        {!readOnly && needsFilterEdit && (
+          <p
+            id="list-filter-save-reason"
+            className="text-xs text-muted-foreground"
+          >
+            Elegí los filtros de nuevo para poder guardar.
+          </p>
         )}
       </div>
     </div>
