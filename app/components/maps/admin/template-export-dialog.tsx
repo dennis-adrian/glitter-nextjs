@@ -23,6 +23,7 @@ import {
 } from "@/app/lib/map_templates/actions";
 import { MapTemplate } from "@/app/lib/map_templates/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type TemplateExportDialogProps = {
   open: boolean;
@@ -154,7 +155,7 @@ export default function TemplateExportDialog({
       }
     } catch (error) {
       console.error("Error saving template", error);
-      toast.error("Error al guardar la plantilla");
+      toastActionError(error, "Error al guardar la plantilla");
     } finally {
       setIsSaving(false);
     }

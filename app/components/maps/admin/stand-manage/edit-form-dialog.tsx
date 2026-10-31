@@ -28,6 +28,7 @@ import {
   StandCategory,
   StandStatus,
 } from "@/app/components/maps/admin/stand-manage/shared";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const FormSchema = z.object({
   label: z.string().trim().min(1, "La etiqueta es requerida"),
@@ -109,7 +110,8 @@ export default function StandEditFormDialog({
       }
     } catch (error) {
       console.error(error);
-      toast.error(
+      toastActionError(
+        error,
         error instanceof Error
           ? error.message
           : "No se pudo actualizar el espacio. Intenta de nuevo.",

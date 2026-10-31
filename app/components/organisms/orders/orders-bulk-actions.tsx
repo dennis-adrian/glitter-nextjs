@@ -34,6 +34,7 @@ import {
   canTransitionOrderStatus,
 } from "@/app/lib/orders/status-transitions";
 import { cn } from "@/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type BulkStatusAction = {
   status: OrderStatus;
@@ -128,8 +129,11 @@ export default function OrdersBulkActions({
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("No se pudieron actualizar los pedidos. Intenta de nuevo.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No se pudieron actualizar los pedidos. Intenta de nuevo.",
+      );
     } finally {
       setIsPending(false);
     }

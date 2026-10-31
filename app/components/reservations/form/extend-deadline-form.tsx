@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 function toLocalInputValue(date: Date): string {
   return DateTime.fromJSDate(date, { zone: "local" }).toFormat(
@@ -78,8 +79,8 @@ export function ExtendDeadlineForm({
       } else {
         toast.error(res.message);
       }
-    } catch {
-      toast.error("Error al extender el plazo de pago");
+    } catch (error) {
+      toastActionError(error, "Error al extender el plazo de pago");
     }
   });
 

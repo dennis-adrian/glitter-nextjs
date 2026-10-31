@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { restoreActivityParticipant } from "@/app/lib/festival_activites/admin-actions";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type RestoreParticipantButtonProps = {
   participationId: number;
@@ -34,8 +35,11 @@ export default function RestoreParticipantButton({
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("No se pudo restaurar al participante. Intentá nuevamente.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No se pudo restaurar al participante. Intentá nuevamente.",
+      );
     } finally {
       restoringRef.current = false;
       setIsRestoring(false);

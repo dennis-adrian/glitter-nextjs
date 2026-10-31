@@ -24,6 +24,7 @@ import {
 import { Input } from "@/app/components/ui/input";
 import { verifyTicket } from "@/app/data/tickets/actions";
 import { parseTicketNumber } from "@/app/lib/tickets/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const FormSchema = z.object({
   ticketCode: z.string().trim().min(1, {
@@ -90,10 +91,14 @@ export default function VerifyTicketForm({
             position: "top-right",
           });
         }
-      } catch {
-        toast.error("No pudimos verificar la entrada. Intenta de nuevo.", {
-          position: "top-right",
-        });
+      } catch (error) {
+        toastActionError(
+          error,
+          "No pudimos verificar la entrada. Intenta de nuevo.",
+          {
+            position: "top-right",
+          },
+        );
       } finally {
         setVerifying(false);
       }

@@ -47,6 +47,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type SectorUsage = {
   id: number;
@@ -376,7 +377,8 @@ export default function UpdateFestivalForm({
           toast.error(result.message);
         }
       } catch (error) {
-        toast.error(
+        toastActionError(
+          error,
           "Error al actualizar el festival. Por favor, intenta nuevamente.",
         );
       }

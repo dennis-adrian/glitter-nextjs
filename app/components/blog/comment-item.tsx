@@ -10,6 +10,7 @@ import CommentForm from "@/app/components/blog/comment-form";
 import { deleteOwnComment, hideComment } from "@/app/lib/posts/comment-actions";
 import type { CommentNode } from "@/app/lib/posts/definitions";
 import { postAuthorName } from "@/app/lib/posts/helpers";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   postId: number;
@@ -54,11 +55,14 @@ export default function CommentItem({
           return;
         }
         router.refresh();
-      } catch {
+      } catch (error) {
         // The actions return `{ success: false }` for anything they can
         // foresee, so a rejection here is the transport failing. Left uncaught
         // it takes the whole article down with the error boundary.
-        toast.error("No se pudo completar la acción. Intentá de nuevo.");
+        toastActionError(
+          error,
+          "No se pudo completar la acción. Intentá de nuevo.",
+        );
       }
     });
   }

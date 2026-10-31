@@ -1,10 +1,10 @@
 "use client";
 
 import { Building2Icon } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
 import { UploadThingImageButton } from "@/app/components/uploads/uploadthing-image-button";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ExternalParticipantImageUploadProps = {
   imageUrl?: string;
@@ -27,8 +27,8 @@ export function ExternalParticipantImageUpload({
   async function handleRemove() {
     try {
       await onRemove?.();
-    } catch {
-      toast.error("Error al eliminar la imagen");
+    } catch (error) {
+      toastActionError(error, "Error al eliminar la imagen");
     }
   }
 

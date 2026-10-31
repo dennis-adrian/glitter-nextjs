@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { Button } from "@/app/components/ui/button";
 import { adjustCreditAccountAction } from "@/app/lib/credits/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Undoes one admin grant or discount.
@@ -62,7 +63,10 @@ export default function CreditRevertButton({
         router.refresh();
       } catch (error) {
         console.error("Error reverting credit adjustment", error);
-        toast.error("No se pudo revertir el movimiento. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo revertir el movimiento. Intentá nuevamente.",
+        );
         setIdempotencyKey(crypto.randomUUID());
       }
     });

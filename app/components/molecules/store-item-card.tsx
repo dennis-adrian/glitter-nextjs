@@ -31,6 +31,7 @@ import {
   getVariantLabel,
 } from "@/app/lib/products/variants";
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type StoreItemCardProps = {
   presentation?: "default" | "merch";
@@ -232,7 +233,7 @@ export default function StoreItemCard({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Error desconocido";
-      toast.error(`No se pudo agregar al carrito. ${message}`);
+      toastActionError(error, `No se pudo agregar al carrito. ${message}`);
     } finally {
       setSubmitting(false);
     }

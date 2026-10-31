@@ -16,6 +16,7 @@ import {
 } from "@/app/components/ui/dialog";
 import { deletePostCategory } from "@/app/lib/posts/actions";
 import type { PostCategoryRow } from "@/app/lib/posts/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function CategoriesTable({
   categories,
@@ -37,11 +38,14 @@ export default function CategoriesTable({
       } else {
         toast.error(res.message);
       }
-    } catch {
+    } catch (error) {
       // The action returns `{ success: false }` for anything it can foresee,
       // so a rejection is the transport failing. Without this the row simply
       // stopped being busy and nothing was said.
-      toast.error("No se pudo eliminar la categoría. Intentá de nuevo.");
+      toastActionError(
+        error,
+        "No se pudo eliminar la categoría. Intentá de nuevo.",
+      );
     } finally {
       setBusyId(null);
     }

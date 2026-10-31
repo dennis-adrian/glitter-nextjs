@@ -27,6 +27,7 @@ import {
   type HoldIntentCache,
 } from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ActiveHold =
   | ReservationActiveHoldDto
@@ -248,7 +249,7 @@ export function StandInfoCard({
         }
       } catch (error) {
         console.error("Error activating full table", error);
-        toast.error("No se pudo activar la mesa completa.");
+        toastActionError(error, "No se pudo activar la mesa completa.");
         return;
       }
       takeStand();
@@ -295,8 +296,8 @@ export function StandInfoCard({
         } else {
           toast.error(res.message);
         }
-      } catch {
-        toast.error("No se pudo seleccionar el espacio");
+      } catch (error) {
+        toastActionError(error, "No se pudo seleccionar el espacio");
       }
     });
   };

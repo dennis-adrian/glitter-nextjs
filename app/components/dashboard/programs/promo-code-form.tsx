@@ -30,6 +30,7 @@ import {
   numberOrNull,
   toDateTimeLocal,
 } from "@/app/lib/programs/form-schemas";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const formSchema = z.object({
   programId: z.string().trim().min(1, "El programa es obligatorio"),
@@ -117,7 +118,8 @@ export default function PromoCodeForm({
       router.refresh();
     } catch (error) {
       console.error(error);
-      toast.error(
+      toastActionError(
+        error,
         error instanceof Error
           ? error.message
           : "No se pudo guardar el código promocional",

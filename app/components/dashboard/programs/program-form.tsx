@@ -26,6 +26,7 @@ import {
   type ProgramFormValues,
 } from "@/app/lib/programs/form-schemas";
 import { PARTICIPANT_DISCOUNT_TYPE_LABELS } from "@/app/lib/programs/pricing";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   program?: Program;
@@ -134,7 +135,7 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
       router.refresh();
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo guardar el programa");
+      toastActionError(error, "No se pudo guardar el programa");
     }
   });
 

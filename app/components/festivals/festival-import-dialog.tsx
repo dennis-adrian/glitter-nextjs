@@ -26,6 +26,7 @@ import {
   importFestivalData,
   createFestivalFromImport,
 } from "@/app/lib/festival_exports/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type FestivalImportDialogProps = {
   open: boolean;
@@ -230,7 +231,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
       }
     } catch (error) {
       console.error("Error importing data", error);
-      toast.error("Error al importar los datos");
+      toastActionError(error, "Error al importar los datos");
     } finally {
       setIsImporting(false);
     }

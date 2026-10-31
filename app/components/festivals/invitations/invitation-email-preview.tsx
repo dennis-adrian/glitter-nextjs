@@ -7,6 +7,7 @@ import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import type { InvitationKind } from "@/app/lib/festivals/invitation-definitions";
 import { previewInvitationEmail } from "@/app/lib/festivals/invitations";
+import { actionErrorMessage } from "@/app/lib/errors/action-error";
 
 type InvitationEmailPreviewProps = {
   festivalId: number;
@@ -57,10 +58,13 @@ export default function InvitationEmailPreview({
             }
           : { status: "error", message: result.message },
       );
-    } catch {
+    } catch (error) {
       setPreview({
         status: "error",
-        message: "No se pudo generar la vista previa del correo.",
+        message: actionErrorMessage(
+          error,
+          "No se pudo generar la vista previa del correo.",
+        ),
       });
     }
   }

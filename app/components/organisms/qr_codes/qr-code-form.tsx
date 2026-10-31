@@ -19,6 +19,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   qrCode?: QrCodeBase;
@@ -77,7 +78,7 @@ export default function QrCodeForm({ qrCode }: Props) {
         error instanceof Error
           ? error.message
           : "No se pudo guardar el código QR.";
-      toast.error(message);
+      toastActionError(error, message);
     }
   });
 

@@ -14,6 +14,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { Textarea } from "@/app/components/ui/textarea";
 import { requestChanges } from "@/app/lib/posts/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   postId: number;
@@ -43,11 +44,14 @@ export default function RequestChangesDialog({
         onOpenChange(false);
         setNotes("");
         onDone?.();
-      } catch {
+      } catch (error) {
         // The action returns { success: false } for anything it can foresee, so
         // a rejection is the transport failing. The dialog stays open with the
         // notes intact, otherwise the review feedback is lost to a retry.
-        toast.error("No se pudieron enviar los comentarios. Intentá de nuevo.");
+        toastActionError(
+          error,
+          "No se pudieron enviar los comentarios. Intentá de nuevo.",
+        );
       }
     });
   }

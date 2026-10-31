@@ -9,6 +9,7 @@ import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { Button, type ButtonProps } from "@/app/components/ui/button";
 import { createFeatureCreditTopUpAction } from "@/app/lib/credits/purchase-actions";
 import type { PurchasableFeatureType } from "@/app/lib/credits/purchase-service";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type BuyFeatureCreditsButtonProps = {
   festivalId: number;
@@ -60,7 +61,10 @@ export default function BuyFeatureCreditsButton({
         router.push(`/my_credits/${result.topUpId}`);
       } catch (error) {
         console.error("Error creating feature credit top-up", error);
-        toast.error("No se pudo iniciar la compra. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo iniciar la compra. Intentá nuevamente.",
+        );
         setIdempotencyKey(crypto.randomUUID());
       }
     });

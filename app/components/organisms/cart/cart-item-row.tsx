@@ -27,6 +27,7 @@ import {
   getProductVariantImageUrl,
   getVariantLabel,
 } from "@/app/lib/products/variants";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type CartItemRowProps = {
   item: CartItemWithProduct;
@@ -97,7 +98,7 @@ export default function CartItemRow({
     } catch (err) {
       if (generation !== updateGenerationRef.current) return;
       console.error("handleQuantitySelect:", err);
-      toast.error("No se pudo actualizar la cantidad");
+      toastActionError(err, "No se pudo actualizar la cantidad");
       setLocalQty(previousCommittedQtyRef.current);
     } finally {
       if (generation === updateGenerationRef.current) setPending(false);
@@ -117,7 +118,7 @@ export default function CartItemRow({
       }
     } catch (err) {
       console.error("handleRemove:", err);
-      toast.error("No se pudo eliminar el producto del carrito");
+      toastActionError(err, "No se pudo eliminar el producto del carrito");
     } finally {
       setPending(false);
     }

@@ -38,6 +38,7 @@ import {
   MapTemplateRecord,
 } from "@/app/lib/map_templates/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type TemplateImportDialogProps = {
   open: boolean;
@@ -83,7 +84,7 @@ export default function TemplateImportDialog({
       setTemplates(result);
     } catch (error) {
       console.error("Error loading templates", error);
-      toast.error("Error al cargar las plantillas");
+      toastActionError(error, "Error al cargar las plantillas");
     } finally {
       setIsLoadingTemplates(false);
     }
@@ -157,7 +158,7 @@ export default function TemplateImportDialog({
       }
     } catch (error) {
       console.error("Error importing template", error);
-      toast.error("Error al importar la plantilla");
+      toastActionError(error, "Error al importar la plantilla");
     } finally {
       setIsImporting(false);
     }
