@@ -31,6 +31,7 @@ import {
   LibraryBigIcon,
   LogOutIcon,
   MailXIcon,
+  MegaphoneIcon,
   MicIcon,
   PackageIcon,
   QrCodeIcon,
@@ -72,6 +73,8 @@ type MobileSidebarProps = {
   programsHref?: string | null;
   /** False until the `blog` flag is visible to this viewer. */
   blogEnabled?: boolean;
+  /** The `comunicados` flag for this viewer; shown to global admins only. */
+  communicationsEnabled?: boolean;
   children: React.ReactNode;
 };
 
@@ -80,6 +83,7 @@ const MobileSidebar = ({
   profile,
   programsHref,
   blogEnabled,
+  communicationsEnabled,
 }: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const { isSignedIn } = useUser();
@@ -268,6 +272,12 @@ const MobileSidebar = ({
                   <CoinsIcon className="mr-2 h-6 w-6" />
                   Créditos
                 </MobileSidebarItem>
+                {communicationsEnabled && (
+                  <MobileSidebarItem href="/dashboard/communications">
+                    <MegaphoneIcon className="mr-2 h-6 w-6" />
+                    Comunicaciones
+                  </MobileSidebarItem>
+                )}
                 <li>
                   <h4 className="flex items-center p-2 text-lg">
                     <StoreIcon className="mr-2 h-6 w-6" />

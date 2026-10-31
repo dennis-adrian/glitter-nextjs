@@ -207,7 +207,8 @@ export type PendingCelebration = {
 /**
  * Gifts the person has not been shown the banner for, added up. Independent of
  * the inbox flag: the banner, the wallet row and the email are how a gift
- * reaches participants before the bell does.
+ * reaches participants before the bell does. Not a gift they already opened
+ * (from the inbox, or a tap on the device): it has nothing left to announce.
  */
 export async function fetchPendingGiftCelebration(
   userId: number,
@@ -220,6 +221,7 @@ export async function fetchPendingGiftCelebration(
         eq(notifications.userId, userId),
         eq(notifications.kind, "credit_gift_received"),
         isNull(notifications.celebratedAt),
+        isNull(notifications.readAt),
         isNull(notifications.archivedAt),
         gt(notifications.createdAt, retentionCutoff()),
       ),

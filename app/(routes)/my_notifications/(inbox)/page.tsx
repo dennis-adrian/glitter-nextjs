@@ -23,17 +23,20 @@ export default async function MyNotificationsPage(props: {
 }) {
   const viewer = await resolveInboxViewer();
   if (!viewer) notFound();
-  await requireFeatureEnabled("notifications", viewer);
 
   const filter = parseNotificationFilter(
     (await props.searchParams).filter,
     viewer.role,
   );
-  const [page, pushEnabled] = await Promise.all([
+  // Asked together, each its own trip to the database; the flag check still
+  // turns the page away when it is off.
+  const [, page, [pushEnabled, devices]] = await Promise.all([
+    requireFeatureEnabled("notifications", viewer),
     fetchInboxPage(viewer, { filter }),
-    isPushEnabledFor(viewer),
+    isPushEnabledFor(viewer).then(
+      async (on) => [on, on ? await fetchPushDevices(viewer.id) : []] as const,
+    ),
   ]);
-  const devices = pushEnabled ? await fetchPushDevices(viewer.id) : [];
 
   return (
     <div className="container max-w-2xl p-3 md:p-6">

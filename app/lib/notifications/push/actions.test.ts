@@ -55,7 +55,7 @@ const INVALID = { success: false, message: "Datos inválidos." };
 const UNSUPPORTED = {
   success: false,
   message:
-    "Este navegador no puede recibir avisos. Probá con Chrome, Edge, Firefox o Safari actualizados.",
+    "Este navegador no puede recibir notificaciones. Probá con Chrome, Edge, Firefox o Safari actualizados.",
 };
 
 const ENDPOINT = "https://fcm.googleapis.com/fcm/send/dXw7:APA91bHk-_AbC";
@@ -151,7 +151,7 @@ describe("savePushDeviceAction", () => {
 
     expect(result).toEqual({
       success: false,
-      message: "Los avisos no están disponibles por ahora.",
+      message: "Las notificaciones no están disponibles por ahora.",
     });
     expect(consumeActionRateLimitMock).not.toHaveBeenCalled();
     expectNothingStored();
@@ -501,7 +501,7 @@ describe("a device query that fails", () => {
       expect(result).toEqual({
         success: false,
         message:
-          "No pudimos guardar los avisos de este dispositivo. Intentá de nuevo.",
+          "No pudimos activar las notificaciones en este dispositivo. Intentá de nuevo.",
       });
       const output = JSON.stringify(logged.mock.calls);
       expect(output).toContain("DrizzleQueryError");

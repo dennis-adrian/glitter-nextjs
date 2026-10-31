@@ -67,12 +67,14 @@ type GiftService = typeof import("@/app/lib/credit_gifts/service");
 type CreditService = typeof import("@/app/lib/credits/service");
 type Deliveries = typeof import("@/app/lib/notifications/deliveries");
 type InboxQueries = typeof import("@/app/lib/notifications/queries");
+type ReadModule = typeof import("@/app/lib/notifications/read");
 type Notify = typeof import("@/app/lib/notifications/notify");
 type AppDb = (typeof import("@/db"))["db"];
 let gifts: GiftService;
 let credits: CreditService;
 let deliveries: Deliveries;
 let inbox: InboxQueries;
+let read: ReadModule;
 let notifyModule: Notify;
 let appDb: AppDb;
 
@@ -165,6 +167,7 @@ describeDatabase("credit gifts", () => {
     credits = await import("@/app/lib/credits/service");
     deliveries = await import("@/app/lib/notifications/deliveries");
     inbox = await import("@/app/lib/notifications/queries");
+    read = await import("@/app/lib/notifications/read");
     notifyModule = await import("@/app/lib/notifications/notify");
     // The service's own drizzle instance; @/db builds its pool on import.
     appDb = (await import("@/db")).db;
@@ -645,10 +648,12 @@ describeDatabase("credit gifts", () => {
       expect.anything(),
     );
 
+    // A throttle is not the email failing: it waits, without spending an
+    // attempt (2 s here, since the refusal carried no Retry-After).
     const [retry] = await deliveriesFor(rejected.id);
     expect(retry).toMatchObject({
       status: "pending",
-      attempts: 1,
+      attempts: 0,
       lastError: "resend:rate_limit_exceeded",
     });
     expect(retry!.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
@@ -772,6 +777,62 @@ describeDatabase("credit gifts", () => {
       .update(notifications)
       .set({ celebratedAt: new Date() })
       .where(inArray(notifications.id, pending!.notificationIds));
+    expect(await inbox.fetchPendingGiftCelebration(ana.id)).toBeNull();
+  });
+
+  it("leaves a gift already opened out of the banner", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    for (const amount of [20, 5]) {
+      const created = await gifts.createCreditGift(
+        giftInput([ana.id], { amountPerRecipient: amount }),
+        { id: admin.id },
+      );
+      if (!created.ok) throw new Error("gift not created");
+      await gifts.processCreditGift(created.campaignId);
+    }
+    const twenty = (await notificationsFor(ana.id)).find(
+      (row) =>
+        row.kind === "credit_gift_received" &&
+        (row.data as { amount: number }).amount === 20,
+    );
+
+    // Opened from a tap on the device, before any page showed the banner.
+    await integrationDb!
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.id, twenty!.id));
+
+    const pending = await inbox.fetchPendingGiftCelebration(ana.id);
+    expect(pending?.totalCredits).toBe(5);
+    expect(pending?.notificationIds).toHaveLength(1);
+    expect(pending?.notificationIds).not.toContain(twenty!.id);
+  });
+
+  it("counts a gift read as seen, so marking it unread again brings no banner", async () => {
+    const admin = await createUser({ role: "admin" });
+    const ana = await createUser();
+    const created = await gifts.createCreditGift(giftInput([ana.id]), {
+      id: admin.id,
+    });
+    if (!created.ok) throw new Error("gift not created");
+    await gifts.processCreditGift(created.campaignId);
+    const [gift] = (await notificationsFor(ana.id)).filter(
+      (row) => row.kind === "credit_gift_received",
+    );
+
+    await read.markNotificationRead({ id: ana.id, role: "user" }, gift!.id);
+    const [opened] = await integrationDb!
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, gift!.id));
+    expect(opened!.readAt).not.toBeNull();
+    expect(opened!.celebratedAt).not.toBeNull();
+
+    await integrationDb!
+      .update(notifications)
+      .set({ readAt: null })
+      .where(eq(notifications.id, gift!.id));
     expect(await inbox.fetchPendingGiftCelebration(ana.id)).toBeNull();
   });
 

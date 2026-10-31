@@ -80,7 +80,11 @@ const fetchMock = vi.fn();
 function resendReply(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      // The wrapper retries a 429 once after Retry-After; no real wait here.
+      ...(status === 429 ? { "retry-after": "0" } : {}),
+    },
   });
 }
 
@@ -141,6 +145,8 @@ describe("reservation notification outbox delivery", () => {
     });
 
     expect(updates[0]).toMatchObject({ status: "failed", attempts: 5 });
+    // The wrapper's one retry was throttled too.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("completes the job and keys the send on it", async () => {

@@ -14,6 +14,10 @@ import {
   resolveInboxViewerWithAccess,
   retentionCutoff,
 } from "@/app/lib/notifications/queries";
+import {
+  CELEBRATED_ON_READ,
+  markNotificationRead,
+} from "@/app/lib/notifications/read";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
 
@@ -46,11 +50,18 @@ async function updateOne(
   if (!parsed.success) return { success: false, message: "Datos inválidos." };
 
   // Scoped to the owner in the statement itself: an id from someone else's
-  // inbox updates nothing.
+  // inbox updates nothing. Nor does a retracted item, from a stale client:
+  // un-archiving it would hit the CHECK, and its read time is the report's.
   await db
     .update(notifications)
     .set(values)
-    .where(and(eq(notifications.id, parsed.data), ownedBy(viewer)));
+    .where(
+      and(
+        eq(notifications.id, parsed.data),
+        ownedBy(viewer),
+        isNull(notifications.retractedAt),
+      ),
+    );
   return { success: true };
 }
 
@@ -60,16 +71,7 @@ export async function markNotificationReadAction(id: unknown) {
   if (!viewer) return UNAVAILABLE;
   const parsed = idSchema.safeParse(id);
   if (!parsed.success) return { success: false, message: "Datos inválidos." };
-  await db
-    .update(notifications)
-    .set({ readAt: new Date() })
-    .where(
-      and(
-        eq(notifications.id, parsed.data),
-        ownedBy(viewer),
-        isNull(notifications.readAt),
-      ),
-    );
+  await markNotificationRead(viewer, parsed.data);
   return { success: true };
 }
 
@@ -104,7 +106,7 @@ export async function markAllNotificationsReadAction(
 
   const rows = await db
     .update(notifications)
-    .set({ readAt: new Date() })
+    .set({ readAt: new Date(), celebratedAt: CELEBRATED_ON_READ })
     .where(
       and(
         ownedBy(viewer),
@@ -137,6 +139,8 @@ export async function markNotificationsUnreadAction(
         ownedBy(viewer),
         inArray(notifications.id, parsed.data),
         isNotNull(notifications.readAt),
+        // Retracted since "Marcar todo" read it: the read time is the report's.
+        isNull(notifications.retractedAt),
       ),
     );
   return { success: true };

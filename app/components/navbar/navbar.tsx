@@ -34,6 +34,7 @@ export default async function Navbar() {
     programsHref,
     creditsEnabled,
     blogEnabled,
+    communicationsEnabled,
     notificationsEnabled,
     pushPublicKey,
     landingContent,
@@ -41,6 +42,7 @@ export default async function Navbar() {
     resolveProgramsHref(),
     isLayoutFeatureEnabled("credits"),
     isLayoutFeatureEnabled("blog"),
+    isLayoutFeatureEnabled("comunicados"),
     isLayoutFeatureEnabled("notifications"),
     layoutPushPublicKey(),
     getPublishedLandingContent(),
@@ -53,6 +55,7 @@ export default async function Navbar() {
         programsHref={programsHref}
         creditsEnabled={creditsEnabled}
         blogEnabled={blogEnabled}
+        communicationsEnabled={communicationsEnabled}
         notificationsEnabled={notificationsEnabled}
         pushPublicKey={pushPublicKey}
       />

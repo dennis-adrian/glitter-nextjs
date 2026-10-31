@@ -8,7 +8,10 @@ import {
   type FeatureFlagViewer,
   isFeatureVisible,
 } from "@/app/lib/feature_flags/visibility";
-import { canSeeAdminNotifications } from "@/app/lib/notifications/definitions";
+import {
+  canSeeAdminNotifications,
+  notificationTapHref,
+} from "@/app/lib/notifications/definitions";
 import { pushVapidConfig } from "@/app/lib/notifications/push/config";
 import {
   isAllowedPushEndpoint,
@@ -50,6 +53,11 @@ export type PushSkipReason =
   /** The device was removed, or now belongs to someone else. */
   | "no_device"
   | "no_notification"
+  /**
+   * Withdrawn by whoever sent it. Such an item is archived too; this reason
+   * keeps it apart from one the person archived.
+   */
+  | "retracted"
   /** Archived, or rewritten unreadable by a profile-deletion scrub. */
   | "archived"
   /** Already opened in the app: an alert now would be old news. */
@@ -152,8 +160,10 @@ export async function attemptPushDelivery(delivery: {
       data: notifications.data,
       title: notifications.title,
       body: notifications.body,
+      actionPath: notifications.actionPath,
       readAt: notifications.readAt,
       archivedAt: notifications.archivedAt,
+      retractedAt: notifications.retractedAt,
       role: users.role,
       deviceUserId: pushSubscriptions.userId,
       endpoint: pushSubscriptions.endpoint,
@@ -188,6 +198,7 @@ export async function attemptPushDelivery(delivery: {
     return { kind: "release", reason: "key_mismatch" };
   }
   if (row.deleting) return { kind: "skip", reason: "deleting" };
+  if (row.retractedAt) return { kind: "skip", reason: "retracted" };
   if (row.archivedAt) return { kind: "skip", reason: "archived" };
   if (row.readAt) return { kind: "skip", reason: "read" };
   // The inbox hides these from anyone no longer an admin; the tap would 404.
@@ -212,12 +223,18 @@ export async function attemptPushDelivery(delivery: {
     return { kind: "failed", error: "endpoint_rejected" };
   }
 
+  const sensitive = isSensitiveNotificationKind(row.kind);
+  const writtenText = notificationOpensDetail(row.kind, row.data);
   const payload = buildPushPayload({
     id: row.id,
     title: row.title,
     body: row.body,
-    sensitive: isSensitiveNotificationKind(row.kind),
-    writtenText: notificationOpensDetail(row.kind, row.data),
+    sensitive,
+    writtenText,
+    href: notificationTapHref(
+      { id: row.id, actionPath: row.actionPath, opensDetail: writtenText },
+      sensitive,
+    ),
   });
 
   let result: PushAttemptResult;

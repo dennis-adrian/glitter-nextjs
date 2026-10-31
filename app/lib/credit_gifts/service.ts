@@ -32,6 +32,7 @@ import { roundCredits } from "@/app/lib/credits/balances";
 import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { loggableError } from "@/app/lib/errors/loggable-error";
 import { notify } from "@/app/lib/notifications/notify";
+import { classifyParticipantRecipients } from "@/app/lib/participants/recipient-eligibility-queries";
 import { buildInAppCopy } from "@/app/lib/notifications/registry";
 import { getUserName } from "@/app/lib/users/utils";
 import { db } from "@/db";
@@ -41,7 +42,6 @@ import {
   notificationCampaigns,
   notificationDeliveries,
   notifications,
-  pendingUserDeletions,
   users,
 } from "@/db/schema";
 
@@ -78,50 +78,15 @@ function revokeLedgerKey(campaignId: number, userId: number) {
   return `credit-gift-revoke:${campaignId}:${userId}`;
 }
 
-async function pendingDeletionUserIds(
-  executor: Pick<typeof db, "select">,
-  userIds: readonly number[],
-) {
-  if (userIds.length === 0) return new Set<number>();
-  const rows = await executor
-    .select({ userId: pendingUserDeletions.userId })
-    .from(pendingUserDeletions)
-    .where(
-      and(
-        inArray(pendingUserDeletions.userId, [...userIds]),
-        isNull(pendingUserDeletions.localDeletedAt),
-      ),
-    );
-  return new Set(
-    rows.map((row) => row.userId).filter((id): id is number => id != null),
-  );
-}
-
 /**
  * Who among `userIds` would be skipped, and why. The composer shows it before
  * confirming; the worker asks again under the account lock, since a profile
  * can be banned or deleted in between.
  */
-export async function classifyCreditGiftRecipients(userIds: readonly number[]) {
-  const unique = [...new Set(userIds)];
-  if (unique.length === 0) {
-    return new Map<number, CreditGiftSkipReason | null>();
-  }
-  const [rows, deleting] = await Promise.all([
-    db
-      .select({ id: users.id, role: users.role, status: users.status })
-      .from(users)
-      .where(inArray(users.id, unique)),
-    pendingDeletionUserIds(db, unique),
-  ]);
-  const reasons = new Map<number, CreditGiftSkipReason | null>();
-  for (const row of rows) {
-    reasons.set(
-      row.id,
-      deleting.has(row.id) ? "deletion_pending" : creditGiftSkipReason(row),
-    );
-  }
-  return reasons;
+export async function classifyCreditGiftRecipients(
+  userIds: readonly number[],
+): Promise<Map<number, CreditGiftSkipReason | null>> {
+  return classifyParticipantRecipients(userIds);
 }
 
 /**

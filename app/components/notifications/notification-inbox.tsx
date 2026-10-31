@@ -3,7 +3,10 @@
 import { BellIcon } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
+import {
+  announceNotificationsChanged,
+  onNotificationsChanged,
+} from "@/app/components/notifications/notification-events";
 import NotificationFilterChips from "@/app/components/notifications/notification-filter-chips";
 import NotificationItem from "@/app/components/notifications/notification-item";
 import NotificationItemMenu from "@/app/components/notifications/notification-item-menu";
@@ -35,6 +38,23 @@ async function fetchInboxFirstPage(
   } catch {
     return null;
   }
+}
+
+/**
+ * The first page asked for again, merged into the list on screen: its items
+ * replace theirs and go on top, and older ones that "Ver más" loaded stay
+ * below. Ids only grow, so anything below the page's last id is older; an
+ * item gone from the page's range was archived or read away elsewhere. A
+ * page with no cursor holds everything there is, so nothing older stays.
+ */
+export function mergeFirstPage(
+  current: readonly InboxNotification[],
+  page: InboxPage,
+): { items: InboxNotification[]; keepsCursor: boolean } {
+  if (page.nextCursor == null) return { items: page.items, keepsCursor: false };
+  const last = page.items.at(-1);
+  const older = last ? current.filter((item) => item.id < last.id) : [];
+  return { items: [...page.items, ...older], keepsCursor: older.length > 0 };
 }
 
 type NotificationInboxProps = {
@@ -69,8 +89,8 @@ export default function NotificationInbox({
   const [cursor, setCursor] = useState(initialPage.nextCursor);
   const [loadFailed, setLoadFailed] = useState(false);
   const [isLoading, startLoading] = useTransition();
-  // Bumped by every local change, so an answer requested before one of them
-  // cannot overwrite it.
+  // Bumped by every change made here to what is read or archived, so an
+  // answer requested before one of them cannot overwrite it.
   const changes = useRef(0);
   // The list as it is now, for handlers that run after an await and must
   // compare with the latest list, not the one their closure saw. Every change
@@ -85,20 +105,59 @@ export default function NotificationInbox({
     setItems(next);
   }
 
-  // The router can hand back this page's payload from its cache, on "back"
-  // after opening an item for example, so the first page is asked for again
-  // once mounted rather than trusting what the server rendered earlier.
+  // The first page is asked for again whenever it may have changed out of
+  // sight: once mounted (the router can hand back a cached render, on "back"
+  // after opening an item for example), when Glitter comes back to the front
+  // (an installed app resumes as it was left), and when a change is
+  // announced: a notification arriving while it is open, or an action here
+  // saved.
   useEffect(() => {
     let current = true;
-    const changesAtRequest = changes.current;
-    void fetchInboxFirstPage(filter).then((page) => {
-      if (!current || !page || changes.current !== changesAtRequest) return;
-      updateItems(() => page.items);
-      setUnreadCount(page.unreadCount);
-      setCursor(page.nextCursor);
-    });
+    let inFlight = false;
+    let again = false;
+
+    const refresh = (announced = false) => {
+      if (document.visibilityState !== "visible") return;
+      if (inFlight) {
+        // A change announced mid-request may postdate the answer on its way,
+        // so ask once more when it lands. Focus and visibility, which fire
+        // together, are already answered by the request in flight.
+        if (announced) again = true;
+        return;
+      }
+      inFlight = true;
+      const changesAtRequest = changes.current;
+      void fetchInboxFirstPage(filter)
+        .then((page) => {
+          // A change made here meanwhile wins. Its action announces itself
+          // once saved, which asks again.
+          if (!current || !page || changes.current !== changesAtRequest) return;
+          const merged = mergeFirstPage(itemsRef.current, page);
+          updateItems(() => merged.items);
+          setUnreadCount(page.unreadCount);
+          if (!merged.keepsCursor) setCursor(page.nextCursor);
+        })
+        .finally(() => {
+          inFlight = false;
+          if (current && again) {
+            again = false;
+            refresh();
+          }
+        });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    const unsubscribe = onNotificationsChanged(() => refresh(true));
     return () => {
       current = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      unsubscribe();
     };
   }, [filter]);
 
@@ -150,9 +209,10 @@ export default function NotificationInbox({
     );
   }
 
+  // Not a change a refresh could undo: it keeps what loads here below the
+  // first page (mergeFirstPage).
   function loadMore() {
     if (!cursor) return;
-    changes.current += 1;
     startLoading(async () => {
       setLoadFailed(false);
       try {

@@ -2,9 +2,15 @@ import "server-only";
 
 import {
   CREDITS_NOT_LAUNCHED_GIFT_REASON,
+  type CreditGiftListsAvailability,
   NOT_GLOBAL_ADMIN_GIFT_REASON,
 } from "@/app/lib/credit_gifts/definitions";
-import { isFeatureLaunched } from "@/app/lib/feature_flags/helpers";
+import {
+  isFeatureEnabled,
+  isFeatureLaunched,
+} from "@/app/lib/feature_flags/helpers";
+import type { FeatureFlagViewer } from "@/app/lib/feature_flags/visibility";
+import { serverEnv } from "@/env";
 import {
   canMutateAdminReservations,
   type ReservationActor,
@@ -22,4 +28,17 @@ export async function creditGiftBlocker(
     return CREDITS_NOT_LAUNCHED_GIFT_REASON;
   }
   return null;
+}
+
+/**
+ * Whether the picker's "Agregar una lista" shows, and whether it works. Hidden
+ * from anyone who cannot see the lists; disabled outside production, where
+ * gift email is real and a gift cannot be narrowed to admins (B9, K16).
+ */
+export async function creditGiftListsAvailability(
+  actor: FeatureFlagViewer,
+): Promise<CreditGiftListsAvailability> {
+  if (!canMutateAdminReservations(actor)) return "hidden";
+  if (!(await isFeatureEnabled("comunicados", actor))) return "hidden";
+  return serverEnv.VERCEL_ENV === "production" ? "enabled" : "staging";
 }

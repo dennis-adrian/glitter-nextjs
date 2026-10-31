@@ -61,7 +61,7 @@ const idSchema = z.coerce.number().int().positive().max(MAX_SERIAL_ID);
 const DEVICE_ERROR = {
   success: false,
   message:
-    "No pudimos guardar los avisos de este dispositivo. Intentá de nuevo.",
+    "No pudimos activar las notificaciones en este dispositivo. Intentá de nuevo.",
 } as const;
 
 /**
@@ -119,7 +119,7 @@ export async function savePushDeviceAction(
   if (!vapid) {
     return {
       success: false,
-      message: "Los avisos no están disponibles por ahora.",
+      message: "Las notificaciones no están disponibles por ahora.",
     };
   }
 
@@ -133,7 +133,7 @@ export async function savePushDeviceAction(
     return {
       success: false,
       message:
-        "Este navegador no puede recibir avisos. Probá con Chrome, Edge, Firefox o Safari actualizados.",
+        "Este navegador no puede recibir notificaciones. Probá con Chrome, Edge, Firefox o Safari actualizados.",
     };
   }
 

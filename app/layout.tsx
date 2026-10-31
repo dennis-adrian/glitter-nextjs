@@ -14,6 +14,7 @@ import { figtree, gabarito } from "@/ui/fonts";
 import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
 import InstalledAppHead from "@/app/components/installed-app-head";
 import Navbar from "@/app/components/navbar/navbar";
+import ServiceWorkerMessages from "@/app/components/notifications/service-worker-messages";
 import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
@@ -59,6 +60,9 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
         <InstalledAppHead />
+        {/* Outside every Suspense boundary: a tapped notification's message
+            can arrive as soon as the page loads. */}
+        <ServiceWorkerMessages />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
