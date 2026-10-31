@@ -18,7 +18,10 @@ import { unsubscribeLinks } from "@/app/lib/emails/unsubscribe-links";
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { isDeliverableEmail } from "@/app/lib/festivals/invitation-helpers";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
-import { consumeActionRateLimit } from "@/app/lib/rate-limit";
+import {
+  consumeActionRateLimit,
+  releaseActionRateLimit,
+} from "@/app/lib/rate-limit";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { emailBaseUrlProblem, publicBaseUrl } from "@/app/lib/urls";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -80,11 +83,13 @@ export async function sendComunicadoTestAction(
   const parsed = ComunicadoIdSchema.safeParse(comunicadoId);
   if (!parsed.success) return { success: false, message: NOT_FOUND };
 
-  const allowed = await consumeActionRateLimit({
+  const limit = {
     key: `comunicado-test:${actor.id}`,
     limit: COMUNICADO_TEST_SEND_LIMIT,
     windowMs: COMUNICADO_TEST_SEND_WINDOW_MS,
-  }).catch(() => null);
+    now: new Date(),
+  };
+  const allowed = await consumeActionRateLimit(limit).catch(() => null);
   if (allowed === null) return { success: false, message: FAILED };
   if (!allowed) {
     return {
@@ -93,6 +98,12 @@ export async function sendComunicadoTestAction(
         "Ya te enviaste varias pruebas hace poco. Esperá unos minutos e intentá de nuevo.",
     };
   }
+  // A try that sent nothing gives its slot back, best effort: only a test
+  // that went out counts against the limit.
+  const notSent = async (message: string) => {
+    await releaseActionRateLimit(limit).catch(() => {});
+    return { success: false, message };
+  };
 
   try {
     const [row] = await db
@@ -110,14 +121,12 @@ export async function sendComunicadoTestAction(
       .from(comunicados)
       .where(eq(comunicados.id, parsed.data))
       .limit(1);
-    if (!row) return { success: false, message: NOT_FOUND };
+    if (!row) return notSent(NOT_FOUND);
     // A sent one has revisions, not a working copy to try.
     if (row.status === "sent") {
-      return {
-        success: false,
-        message:
-          "Este comunicado ya se envió: la prueba es para borradores y programados.",
-      };
+      return notSent(
+        "Este comunicado ya se envió: la prueba es para borradores y programados.",
+      );
     }
 
     // The test is the email, whatever the channels say.
@@ -130,35 +139,30 @@ export async function sendComunicadoTestAction(
       essentialReason: row.essentialReason,
       sendEmail: true,
     });
-    if (!checked.ok) return { success: false, message: checked.message };
+    if (!checked.ok) return notSent(checked.message);
 
     const env = serverEnv.VERCEL_ENV;
     const baseUrl = publicBaseUrl();
     const baseProblem = emailBaseUrlProblem(baseUrl, env);
     if (baseProblem) {
       console.error("[comunicados] test send refused:", baseProblem);
-      return {
-        success: false,
-        message:
-          "Falta configurar la dirección pública del sitio: los enlaces del correo no funcionarían.",
-      };
+      return notSent(
+        "Falta configurar la dirección pública del sitio: los enlaces del correo no funcionarían.",
+      );
     }
 
     const address = actor.email?.trim();
     if (!address || !isDeliverableEmail(address)) {
-      return {
-        success: false,
-        message: "Tu perfil no tiene un correo válido para recibir la prueba.",
-      };
+      return notSent(
+        "Tu perfil no tiene un correo válido para recibir la prueba.",
+      );
     }
     // Resend delivers nothing to an address that bounced or marked us as
     // spam, so the toast would promise a test that never arrives.
     if (await isSuppressed(address)) {
-      return {
-        success: false,
-        message:
-          "Tu correo está bloqueado porque rebotó o lo marcaron como spam. Desbloquealo en Correos bloqueados y volvé a intentarlo.",
-      };
+      return notSent(
+        "Tu correo está bloqueado porque rebotó o lo marcaron como spam. Desbloquealo en Correos bloqueados y volvé a intentarlo.",
+      );
     }
 
     const links = unsubscribeLinks(
@@ -212,6 +216,6 @@ export async function sendComunicadoTestAction(
       comunicadoId: parsed.data,
       errorType: sendFailureType(error),
     });
-    return { success: false, message: FAILED };
+    return notSent(FAILED);
   }
 }

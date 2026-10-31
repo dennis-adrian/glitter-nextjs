@@ -11,6 +11,7 @@ const {
   getCurrentUserProfileMock,
   featureFlagGuardMock,
   consumeActionRateLimitMock,
+  releaseActionRateLimitMock,
   sendEmailMock,
   isSuppressedMock,
   rowsByTable,
@@ -31,6 +32,7 @@ const {
     getCurrentUserProfileMock: vi.fn(),
     featureFlagGuardMock: vi.fn(),
     consumeActionRateLimitMock: vi.fn(),
+    releaseActionRateLimitMock: vi.fn(),
     sendEmailMock: vi.fn(),
     isSuppressedMock: vi.fn(),
     rowsByTable,
@@ -56,6 +58,7 @@ vi.mock("@/app/lib/feature_flags/helpers", () => ({
 }));
 vi.mock("@/app/lib/rate-limit", () => ({
   consumeActionRateLimit: consumeActionRateLimitMock,
+  releaseActionRateLimit: releaseActionRateLimitMock,
 }));
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/lib/emails/suppressions", () => ({
@@ -150,6 +153,7 @@ beforeEach(() => {
   getCurrentUserProfileMock.mockResolvedValue(ADMIN);
   featureFlagGuardMock.mockResolvedValue(null);
   consumeActionRateLimitMock.mockResolvedValue(true);
+  releaseActionRateLimitMock.mockReset().mockResolvedValue(undefined);
   isSuppressedMock.mockResolvedValue(false);
   sendEmailMock.mockResolvedValue({
     data: { id: "email_1" },
@@ -256,6 +260,7 @@ describe("sendComunicadoTestAction", () => {
       key: "comunicado-test:42",
       limit: COMUNICADO_TEST_SEND_LIMIT,
       windowMs: COMUNICADO_TEST_SEND_WINDOW_MS,
+      now: expect.any(Date),
     });
     expect(COMUNICADO_TEST_SEND_LIMIT).toBe(5);
     expect(COMUNICADO_TEST_SEND_WINDOW_MS).toBe(10 * 60_000);
@@ -387,6 +392,80 @@ describe("sendComunicadoTestAction", () => {
     // The error's type only: never the address.
     expect(JSON.stringify(errors.mock.calls)).not.toContain("dennis@gmail.com");
     errors.mockRestore();
+  });
+
+  it("keeps the slot spent once a test goes out", async () => {
+    expect((await sendComunicadoTestAction(7)).success).toBe(true);
+    expect(releaseActionRateLimitMock).not.toHaveBeenCalled();
+  });
+
+  it("gives the slot back, as it was taken, whenever nothing went out", async () => {
+    const tries: [string, () => void][] = [
+      ["missing", () => rowsByTable.set(comunicados, [])],
+      [
+        "sent",
+        () => rowsByTable.set(comunicados, [{ ...DRAFT, status: "sent" }]),
+      ],
+      [
+        "invalid",
+        () => rowsByTable.set(comunicados, [{ ...DRAFT, title: "" }]),
+      ],
+      [
+        "url",
+        () => vi.stubEnv("NEXT_PUBLIC_BASE_URL", "http://localhost:3000"),
+      ],
+      ["suppressed", () => isSuppressedMock.mockResolvedValue(true)],
+      [
+        "no address",
+        () =>
+          getCurrentUserProfileMock.mockResolvedValue({ ...ADMIN, email: "" }),
+      ],
+      [
+        "resend",
+        () =>
+          sendEmailMock.mockResolvedValue({
+            data: null,
+            error: { name: "validation_error", message: "x" },
+            headers: null,
+          }),
+      ],
+    ];
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const [name, arrange] of tries) {
+      rowsByTable.set(comunicados, [DRAFT]);
+      vi.unstubAllEnvs();
+      isSuppressedMock.mockResolvedValue(false);
+      getCurrentUserProfileMock.mockResolvedValue(ADMIN);
+      sendEmailMock.mockResolvedValue({
+        data: { id: "re_1" },
+        error: null,
+        headers: null,
+      });
+      releaseActionRateLimitMock.mockClear();
+      arrange();
+
+      expect((await sendComunicadoTestAction(7)).success, name).toBe(false);
+      const taken = consumeActionRateLimitMock.mock.lastCall![0];
+      expect(releaseActionRateLimitMock, name).toHaveBeenCalledExactlyOnceWith(
+        taken,
+      );
+    }
+    errors.mockRestore();
+  });
+
+  it("answers the refusal even when the give-back fails", async () => {
+    rowsByTable.set(comunicados, []);
+    releaseActionRateLimitMock.mockRejectedValue(new Error("db down"));
+    expect(await sendComunicadoTestAction(7)).toEqual({
+      success: false,
+      message: "No encontramos este comunicado.",
+    });
+  });
+
+  it("gives nothing back when the limit refused the try", async () => {
+    consumeActionRateLimitMock.mockResolvedValue(false);
+    await sendComunicadoTestAction(7);
+    expect(releaseActionRateLimitMock).not.toHaveBeenCalled();
   });
 
   it("never reaches the inbox, delivery or bulk code", () => {

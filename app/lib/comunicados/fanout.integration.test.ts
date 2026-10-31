@@ -1655,5 +1655,27 @@ describeDatabase("comunicado fan-out", () => {
         "processing",
       );
     });
+
+    it("sweeps this environment's campaigns before older ones from another", async () => {
+      state.vercelEnv = "preview";
+      const ana = await createUser();
+      const otherEnv = await insertSent({
+        people: [{ userId: ana, source: "list" }],
+        env: "production",
+        createdAt: "1999-01-01T00:00:00Z",
+      });
+      const own = await insertSent({
+        people: [],
+        env: "preview",
+        createdAt: LONG_AGO,
+      });
+
+      const result = await fanout.sweepComunicadoCompletions({ limit: 1 });
+      expect(result).toEqual({ checked: 1, completed: 1 });
+      expect((await campaignStatus(own.campaignId)).status).toBe("completed");
+      expect((await campaignStatus(otherEnv.campaignId)).status).toBe(
+        "processing",
+      );
+    });
   });
 });

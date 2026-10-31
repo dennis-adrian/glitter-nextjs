@@ -594,15 +594,19 @@ export async function completeComunicadoCampaign(
 /**
  * The lane tick's sweep (D2, V10): the oldest processing comunicado
  * campaigns, whichever environment sent them, since closing one only checks
- * facts and sends nothing. One failing campaign does not stop the others.
+ * facts and sends nothing. This environment's come first, so another
+ * environment's stuck campaigns on a shared database cannot fill the limit.
+ * One failing campaign does not stop the others.
  */
 export async function sweepComunicadoCompletions({
   limit = COMUNICADO_COMPLETION_SWEEP_LIMIT,
 }: { limit?: number } = {}): Promise<{ checked: number; completed: number }> {
+  const env = serverEnv.VERCEL_ENV;
   const { rows } = await db.execute<{ id: number }>(sql`
-    SELECT id FROM notification_campaigns
-    WHERE status = 'processing' AND type = 'comunicado'
-    ORDER BY created_at, id
+    SELECT c.id FROM notification_campaigns c
+    LEFT JOIN comunicados k ON k.campaign_id = c.id
+    WHERE c.status = 'processing' AND c.type = 'comunicado'
+    ORDER BY (k.audience_summary->>'env') IS DISTINCT FROM ${env}, c.created_at, c.id
     LIMIT ${limit}::int
   `);
   let completed = 0;
