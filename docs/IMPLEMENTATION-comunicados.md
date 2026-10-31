@@ -1266,13 +1266,13 @@ COMMIT;
   - the default is the next full hour plus one.
 - **Storage:** the instant, in the repo's naive-UTC `timestamp` convention. Bolivia has no daylight saving time, so no local time is ambiguous.
 - **Validation** (server clock): at least now + 5 minutes, at most now + 60 days.
-- **The time is always shown afterwards** with `formatDateTime`: "Programado para el sábado 31 de octubre, 09:00 (hora de Bolivia)", on the list row, the badge and the page.
+- **The time is always shown afterwards** with `formatDateTime`: "Programado para el sábado, 31 de octubre, 9:00 AM (hora de Bolivia)", on the list row, the badge and the page.
 - **Dialog copy:** "Horario de Bolivia (La Paz). Se envía dentro del minuto siguiente a la hora elegida. Si por algún problema se atrasa más de una hora, no se envía y queda como borrador."
 
 ### E6. Previews, and overdue schedules everywhere
 
 - **On previews,** scheduling writes the same rows, but nothing fires by itself. The dialog adds: "En el entorno de prueba no corren las tareas programadas: después de la hora elegida tocá «Procesar envíos pendientes»."
-- **In every environment,** a comunicado still `scheduled` 3 minutes after its time shows, on the list row and on its page: "Debería haber salido el sáb 31 oct, 09:00 y todavía no salió." It offers **Enviar ahora**, and on previews also **Procesar envíos pendientes**. A broken cron in production is visible the same way.
+- **In every environment,** a comunicado still `scheduled` 3 minutes after its time shows, on the list row and on its page: "Debería haber salido el sáb, 31 oct, 9:00 AM y todavía no salió." It offers **Enviar ahora**, and on previews also **Procesar envíos pendientes**. A broken cron in production is visible the same way.
 - **The 60-minute limit applies on previews too,** so waiting an hour is a way to test the missed path.
 
 ---
@@ -1319,13 +1319,13 @@ The content is normalized and rendered (C2, send stage; C3) before the transacti
 | Surface                             | Effect                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inbox list                          | new title and excerpt, "· Editado", the next time the list loads: opening the bell, coming back to the tab, navigating (`notification-inbox.tsx:152-155`; `notification-popover-content.tsx:73-80`). The 60 s poll reads only the unread count (`use-unread-notification-count.ts:8,12,69`), which an edit does not change. Read state kept |
-| Detail page                         | the current revision's HTML at once, plus "Editado el 25 de octubre, 10:12"                                                                                                                                                                                                                                                                 |
+| Detail page                         | the current revision's HTML at once, plus "Editado el 25 de octubre, 10:12 AM"                                                                                                                                                                                                                                                              |
 | Rows written after the edit         | revision n+1, no "Editado"                                                                                                                                                                                                                                                                                                                  |
 | Email pending or claimed            | renders n+1 when sent                                                                                                                                                                                                                                                                                                                       |
 | Email held after an unknown outcome | re-sent with n+1 under the old key: 409 means an earlier request was accepted ("Enviado (sin confirmación por persona)"); otherwise n+1 goes out                                                                                                                                                                                            |
 | Email sent                          | stays; the report shows "versión 1"                                                                                                                                                                                                                                                                                                         |
 | Push pending / delivered            | new title / stays on the device                                                                                                                                                                                                                                                                                                             |
-| Report                              | "Historial": "Versión 2 · editada por Ana el 25 oct., 10:12 · «Cambió el horario de armado»"                                                                                                                                                                                                                                                |
+| Report                              | "Historial": "Versión 2 · editada por Ana el dom, 25 oct, 10:12 AM · «Cambió el horario de armado»"                                                                                                                                                                                                                                         |
 
 ### F3. Retract: `retractComunicado(id, { reason }, by)` in `app/lib/comunicados/retract.ts`
 
@@ -1395,7 +1395,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - **Everything is kept:** every recipient and their `read_at`; every delivery's status, reason, `maybe_sent_at` and `content_revision`; the revision history.
 - **After a retraction:**
   - the KPIs freeze;
-  - a banner reads "Retirado el 25 oct., 11:02 por Dennis · Motivo: «…»";
+  - a banner reads "Retirado el dom, 25 oct, 11:02 AM por Dennis · Motivo: «…»";
   - cancelled emails read "Cancelado (retirado)", mapped from `last_error = 'retracted'`, unless `maybe_sent_at` is set ("Puede haber llegado", G6). This follows the `revoked` → cancelled precedent in `emailStateOf` (`credit_gifts/queries.ts:224-239`).
 
 ---
@@ -1443,10 +1443,10 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - **Button "Nuevo comunicado":** it creates a draft and redirects, and stays disabled while pending.
 - **Each row shows:**
   - the title, or _"Sin título"_;
-  - a badge: "Borrador", "Programado · sáb 31 oct, 09:00", "Enviando…", "Enviado", "Retirado", "No se envió", plus the tags "Editado" and "Esencial";
+  - a badge: "Borrador", "Programado · sáb, 31 oct, 9:00 AM", "Enviando…", "Enviado", "Retirado", "No se envió", plus the tags "Editado" and "Esencial";
   - "Para: Confirmados · Glitter Navidad 2026 y 3 personas";
   - once sent: "1.240 personas · 1.180 correos · 41 % leído";
-  - "Enviado el sáb 24 oct, 10:12 · Dennis".
+  - "Enviado el sáb, 24 oct, 10:12 AM · Dennis".
 - **Overdue schedule:** E6's sentence on the row, with "Enviar ahora".
 - **Empty state:** "Todavía no hay comunicados." / "Escribí el primero para avisar algo a los participantes: llega a sus notificaciones y, si querés, a su correo."
 - **Banners, when they apply:**
@@ -1557,7 +1557,7 @@ It loads fresh numbers from the server when it opens:
 
 - puts the date and time picker on top ("Horario de Bolivia (La Paz)");
 - adds "La audiencia se calcula al momento del envío: hoy serían 1.240 personas.";
-- labels its button "Programar para sáb 31 oct, 09:00".
+- labels its button "Programar para sáb, 31 oct, 9:00 AM".
 
 **Server refusals:**
 
@@ -1572,8 +1572,8 @@ It loads fresh numbers from the server when it opens:
 
 **Header:**
 
-- the title, the badges, and "Enviado el sáb 24 oct, 10:12 por Dennis · Editado el dom 25 oct, 10:12 por Ana";
-- the essential block, when essential: "Correo esencial · Confirmados · Glitter Navidad 2026 · lo confirmó Dennis el sáb 24 oct, 10:11 · «…» · 30 personas dadas de baja de los anuncios lo recibieron igual · 4 sin correos masivos no.";
+- the title, the badges, and "Enviado el sáb, 24 oct, 10:12 AM por Dennis · Editado el dom, 25 oct, 10:12 AM por Ana";
+- the essential block, when essential: "Correo esencial · Confirmados · Glitter Navidad 2026 · lo confirmó Dennis el sáb, 24 oct, 10:11 AM · «…» · 30 personas dadas de baja de los anuncios lo recibieron igual · 4 sin correos masivos no.";
 - "Destinatarios al enviar", from `audience_summary`: "Confirmados · Glitter Navidad 2026: 312 · Ilustradores: 845 · 3 personas por nombre".
 
 | State     | Actions                                                                                    |
@@ -1587,7 +1587,7 @@ It loads fresh numbers from the server when it opens:
 - **Sending:** "Lo estamos enviando: ya está en la app de 820 de 1.240 personas y salieron 600 correos. Esta página se actualiza sola." It refreshes every 3 s for 2 minutes, then every 30 s, while anything is pending (the gift cadence, `credit-gift-auto-refresh.tsx:6-9`).
 - **Stopped by configuration**, when the oldest pending bulk email's `last_error` is a config code: "Detenido: Resend rechazó el envío (clave o remitente). Avisale a quien administra Resend. Reintentamos cada 15 minutos; los correos que no salgan en 20 horas quedan como vencidos."
 - **Quota**, when failed rows carry a quota code: "Resend no acepta más correos por ahora (límite del plan). Los correos que faltaban quedaron sin enviar: reintentalos con «Reintentar fallidos» cuando se renueve el límite."
-- **Not moving**, when emails are pending and nothing settled in 10 minutes: "No avanza desde las 10:12." On previews it also offers "Procesar envíos pendientes".
+- **Not moving**, when emails are pending and nothing settled in 10 minutes: "No avanza desde las 10:12 AM." On previews it also offers "Procesar envíos pendientes".
 - **Overdue schedule:** E6.
 - **Retracted:** F6.
 - **Test environment:** "Enviado en un entorno de prueba: las listas se reemplazaron por los 4 administradores."
@@ -1624,26 +1624,26 @@ It loads fresh numbers from the server when it opens:
 - **App:** "Leído" · "No leído" · "Omitido: Cuenta suspendida" · "Retirado antes de enviarse" · "Falló".
 - **Correo**, from the latest email delivery (a `LATERAL` join by `notification_id`, served by `notification_deliveries_notification_idx`). The first matching row wins:
 
-  | Delivery state                                  | Label                                                            |
-  | ----------------------------------------------- | ---------------------------------------------------------------- |
-  | sent, `idempotent_replay`                       | Enviado (sin confirmación por persona)                           |
-  | sent                                            | Enviado 10:14 (· versión 1 when older than the current revision) |
-  | pending or processing, `maybe_sent_at` set      | En cola (puede haber llegado)                                    |
-  | ended not sent, `maybe_sent_at` set, any reason | Puede haber llegado                                              |
-  | pending, processing                             | En cola                                                          |
-  | `unsubscribed`                                  | Se dio de baja de los anuncios / de los correos masivos          |
-  | `suppressed`                                    | Correo bloqueado (rebote o spam)                                 |
-  | `invalid_address`                               | Correo inválido                                                  |
-  | `not_eligible`                                  | Ya no puede recibirlo                                            |
-  | `deleting`                                      | Cuenta en eliminación                                            |
-  | `staging`                                       | Entorno de prueba                                                |
-  | `retracted`                                     | Cancelado (retirado)                                             |
-  | failed, `expired`                               | Venció sin enviarse                                              |
-  | failed, `address_changed`                       | Cambió su correo                                                 |
-  | failed, `resend:*_quota_exceeded`               | Límite de Resend                                                 |
-  | failed, other                                   | Con error                                                        |
-  | no row, email unticked                          | Sin correo                                                       |
-  | no row, recipient skipped                       | —                                                                |
+  | Delivery state                                  | Label                                                               |
+  | ----------------------------------------------- | ------------------------------------------------------------------- |
+  | sent, `idempotent_replay`                       | Enviado (sin confirmación por persona)                              |
+  | sent                                            | Enviado 10:14 AM (· versión 1 when older than the current revision) |
+  | pending or processing, `maybe_sent_at` set      | En cola (puede haber llegado)                                       |
+  | ended not sent, `maybe_sent_at` set, any reason | Puede haber llegado                                                 |
+  | pending, processing                             | En cola                                                             |
+  | `unsubscribed`                                  | Se dio de baja de los anuncios / de los correos masivos             |
+  | `suppressed`                                    | Correo bloqueado (rebote o spam)                                    |
+  | `invalid_address`                               | Correo inválido                                                     |
+  | `not_eligible`                                  | Ya no puede recibirlo                                               |
+  | `deleting`                                      | Cuenta en eliminación                                               |
+  | `staging`                                       | Entorno de prueba                                                   |
+  | `retracted`                                     | Cancelado (retirado)                                                |
+  | failed, `expired`                               | Venció sin enviarse                                                 |
+  | failed, `address_changed`                       | Cambió su correo                                                    |
+  | failed, `resend:*_quota_exceeded`               | Límite de Resend                                                    |
+  | failed, other                                   | Con error                                                           |
+  | no row, email unticked                          | Sin correo                                                          |
+  | no row, recipient skipped                       | —                                                                   |
 
 - **Dispositivo:** "Enviada a 2" · "Sin dispositivos" · "—".
 
@@ -1738,7 +1738,7 @@ It loads fresh numbers from the server when it opens:
 - **Action:** "Ver comunicado" → `/dashboard/communications/{id}`.
 - **Title:** "No se envió «{título}»".
 - **Body, by reason:**
-  - `late`: "Estaba programado para el sáb 31 oct, 09:00 y el envío se atrasó más de una hora. Quedó como borrador para que lo revises."
+  - `late`: "Estaba programado para el sáb, 31 oct, 9:00 AM y el envío se atrasó más de una hora. Quedó como borrador para que lo revises."
   - `too_large`: "Al enviarlo, {detalle}. Quedó como borrador." For example: "la audiencia sumaba 3.120 personas y el máximo es 3.000".
   - `empty`: "Al enviarlo, nadie de la audiencia podía recibirlo. Quedó como borrador."
   - `invalid`: "Al enviarlo, {detalle}. Quedó como borrador." For example: "la lista «Ilustradores» tiene un filtro que ya no se puede leer", or "el festival ya terminó y no puede ser esencial".
@@ -1763,7 +1763,7 @@ It loads fresh numbers from the server when it opens:
 
 ### H2. Detail page (`/my_notifications/[id]`)
 
-- **Top:** "Anuncios · 24 oct. 2026, 18:02" (`notification-detail.tsx:26-29`), the title, and a muted "Editado el 25 de octubre, 10:12" when edited.
+- **Top:** "Anuncios · 24 oct 2026, 6:02 PM" (`notification-detail.tsx:26-29`), the title, and a muted "Editado el 25 de octubre, 10:12 AM" when edited.
 - **Body:** the current revision's sanitized HTML, through `RichTextHtml`.
   - `fetchNotificationForViewer` (`queries.ts:175-200`) adds `bodyHtml` for kind `comunicado`, joining `comunicados` on `data.comunicadoId` to `comunicado_revisions` at `current_revision`. It falls back to the plain body.
   - This generalizes the `KINDS_WITH_MESSAGE` path.
@@ -2233,7 +2233,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 
 What the code does where this design left a detail open or said something else. Where a section above would mislead, it was corrected in place too (E2, E4, G1, C2, C3); the rest still reads as designed and is amended here.
 
-**Times (E5, E6, F2, G6, G9, H2).** Every time is written in La Paz, the way the rest of the dashboard writes it (`formatDisplayDate`), not as "sáb 31 oct, 09:00":
+**Times (E5, E6, F2, G3, G5, G6, G9, H2).** Every time is written in La Paz, the way the rest of the dashboard writes it (`formatDisplayDate`, 12-hour with AM/PM); the examples in those sections use this format too:
 
 - "sáb, 31 oct, 9:00 AM" on the badge, the overdue banner, the bell item, the header's "Enviado el …" and "Editado el …", and "Historial": "Versión 2 · editada por Ana el dom, 25 oct, 10:12 AM · «Cambió el horario de armado»";
 - "Programado para el sábado, 31 de octubre, 9:00 AM (hora de Bolivia)" on a scheduled comunicado's page;
