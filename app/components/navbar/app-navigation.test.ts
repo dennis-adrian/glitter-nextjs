@@ -81,6 +81,25 @@ describe("buildAppNavigation groups", () => {
     );
   });
 
+  it("keeps credits and history to the profiles their pages let in", () => {
+    for (const status of ["verified", "paused"] as const) {
+      const nav = buildAppNavigation({
+        viewer: { role: "user", status },
+        creditsEnabled: true,
+      });
+      expect(hrefs(group(nav, "mine")!.items)).toEqual(
+        expect.arrayContaining(["/my_credits", "/my_history"]),
+      );
+    }
+    for (const status of ["pending", "rejected", "banned"] as const) {
+      const nav = buildAppNavigation({
+        viewer: { role: "user", status },
+        creditsEnabled: true,
+      });
+      expect(hrefs(group(nav, "mine")!.items)).toEqual(["/portal", "/my_orders"]);
+    }
+  });
+
   it("offers the supplies market only to verified participants", () => {
     expect(
       hrefs(group(buildAppNavigation({ viewer: verified }), "explore")!.items),

@@ -97,6 +97,15 @@ function isVerified(viewer: NavViewer | null) {
   return viewer?.status === "verified";
 }
 
+/**
+ * Who may open the participant's own records (credits, history). Mirrors
+ * `PARTICIPANT_READ_ONLY_ROUTE_STATUSES`, which those pages pass to
+ * `protectRoute`; anyone else would be sent straight to their profile.
+ */
+function hasParticipantRecords(viewer: NavViewer | null) {
+  return viewer?.status === "verified" || viewer?.status === "paused";
+}
+
 function isStaff(viewer: NavViewer | null) {
   return viewer?.role === "admin" || viewer?.role === "festival_admin";
 }
@@ -435,7 +444,7 @@ export function buildAppNavigation({
       href: "/my_orders",
       icon: ShoppingBagIcon,
     },
-    ...(creditsEnabled
+    ...(creditsEnabled && hasParticipantRecords(viewer)
       ? [
           {
             key: "credits",
@@ -455,12 +464,16 @@ export function buildAppNavigation({
           },
         ]
       : []),
-    {
-      key: "history",
-      label: "Mi historial",
-      href: "/my_history",
-      icon: ListIcon,
-    },
+    ...(hasParticipantRecords(viewer)
+      ? [
+          {
+            key: "history",
+            label: "Mi historial",
+            href: "/my_history",
+            icon: ListIcon,
+          },
+        ]
+      : []),
   ];
 
   const sections = adminSections(viewer);
