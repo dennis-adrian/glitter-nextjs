@@ -182,11 +182,9 @@ describe("sendComunicadoTestAction", () => {
     expect(payload.subject).toBe("[Prev] [Prueba] Cambio de horario de armado");
     expect(payload.from).toBe(COMUNICADOS_FROM_STAGING);
     expect(payload.replyTo).toBe("soporte@productoraglitter.com");
-    expect(payload.html).toContain("¡Hola Dennis Guzmán!");
+    expect(payload.html).not.toContain("¡Hola");
     expect(payload.html).toContain(`href="${BASE}/my_participations"`);
-    expect(payload.html).toContain(
-      "Este correo salió del entorno de prueba de Glitter.",
-    );
+    expect(payload.html).not.toContain("entorno de prueba");
     expect(payload.text).toContain(`tu reserva (${BASE}/my_participations)`);
     expect(payload.text).toContain(`Ver mi reserva: ${BASE}/my_participations`);
     expect(options.idempotencyKey).toMatch(

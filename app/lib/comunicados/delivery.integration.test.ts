@@ -16,10 +16,7 @@ import {
   vi,
 } from "vitest";
 
-import {
-  COMUNICADO_STAGING_NOTE,
-  comunicadoEssentialNote,
-} from "@/app/emails/comunicado";
+import { comunicadoEssentialNote } from "@/app/emails/comunicado";
 import type { ComunicadoAudienceSummary } from "@/app/lib/comunicados/definitions";
 import type {
   BulkEmailRun,
@@ -608,13 +605,12 @@ describeDatabase("comunicado emails on the bulk lane", () => {
       expect(email.headers?.["List-Unsubscribe-Post"]).toBe(
         "List-Unsubscribe=One-Click",
       );
-      expect(email.text).toContain("¡Hola Ana Ilustra!");
+      expect(email.text).not.toContain("¡Hola");
       expect(email.text).toContain("Texto de la revisión 2.");
       expect(email.text).not.toContain("revisión 1");
       expect(email.text).toContain(
         `Darme de baja: ${BASE_URL}/email/unsubscribe?token=`,
       );
-      expect(email.text).not.toContain(COMUNICADO_STAGING_NOTE);
       expect(email.html).toContain("Texto de la revisión 2.");
 
       expect(await deliveryOf(person)).toMatchObject({
@@ -716,8 +712,7 @@ describeDatabase("comunicado emails on the bulk lane", () => {
       const email = emailTo(person);
       expect(email.from).toBe(FROM_STAGING);
       expect(email.subject).toBe("[Prev] Revisión 1");
-      expect(email.text).toContain(COMUNICADO_STAGING_NOTE);
-      expect(email.html).toContain("entorno de prueba de Glitter");
+      expect(email.html).not.toContain("entorno de prueba");
     }
     expect(batchCalls.flatMap((call) => call.emails)).toHaveLength(2);
   });

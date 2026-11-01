@@ -15,7 +15,6 @@ import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 import { publicBaseUrl } from "@/app/lib/urls";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { getUserName } from "@/app/lib/users/utils";
 import { serverEnv } from "@/env";
 
 const PreviewSchema = ComunicadoDraftSchema.pick({
@@ -69,7 +68,6 @@ export async function renderComunicadoPreviewAction(input: unknown): Promise<
       blocks: content.blocks,
       actionLabel: fields.actionLabel,
       actionPath: fields.actionPath,
-      greetingName: getUserName(actor),
       // Never a working link: the page refuses this token, so following it
       // from the preview unsubscribes nobody.
       unsubscribeUrl: `${baseUrl}${UNSUBSCRIBE_PAGE_PATH}?token=preview`,
