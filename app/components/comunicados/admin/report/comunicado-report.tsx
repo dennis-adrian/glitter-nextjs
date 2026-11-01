@@ -68,7 +68,7 @@ function ReportKpis({
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-4",
+        "grid grid-cols-2 gap-2 xl:grid-cols-3 2xl:grid-cols-4",
         className,
       )}
     >
@@ -241,14 +241,15 @@ export default function ComunicadoReport({
 
       <ComunicadoReportBanners report={report} env={env} />
 
-      {/* Stacked below xl, in this order. From xl the message and its history
-          take a side column about an email's width, and the numbers and the
-          recipients the wide one; the second row takes the side column's
-          extra height, so a long message never stretches the KPIs. */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:grid-rows-[auto_1fr] xl:items-start">
-        <ReportKpis report={report} className="xl:col-start-1 xl:row-start-1" />
+      {/* Stacked on phones, in this order. From md the message and its
+          history take a side column, up to about an email's width, and the
+          numbers and the recipients the wide one; the second row takes the
+          side column's extra height, so a long message never stretches the
+          KPIs. */}
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px] md:grid-rows-[auto_1fr] md:items-start lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
+        <ReportKpis report={report} className="md:col-start-1 md:row-start-1" />
 
-        <div className="w-full max-w-2xl space-y-4 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:max-w-none">
+        <div className="w-full space-y-4 md:col-start-2 md:row-span-2 md:row-start-1">
           <Card>
             <CardContent className="space-y-2 pt-6">
               <p className="text-xs font-medium text-muted-foreground">
@@ -267,9 +268,9 @@ export default function ComunicadoReport({
 
         <section
           aria-label="Destinatarios"
-          className="min-w-0 space-y-3 xl:col-start-1 xl:row-start-2"
+          className="min-w-0 space-y-3 md:col-start-1 md:row-start-2"
         >
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <RecipientsFilters
               comunicadoId={report.id}
               filter={filter}
