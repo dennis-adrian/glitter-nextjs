@@ -21,6 +21,7 @@ import {
 import * as schema from "@/db/schema";
 import {
   distributionListMembers,
+  distributionListRemovals,
   distributionLists,
   festivals,
   pendingUserDeletions,
@@ -983,6 +984,412 @@ describeDatabase("distribution lists", () => {
     });
   });
 
+  describe("duplicating and «Traer nuevos»", () => {
+    async function membersOfList(listId: number) {
+      const rows = await integrationDb!
+        .select({ userId: distributionListMembers.userId })
+        .from(distributionListMembers)
+        .where(eq(distributionListMembers.listId, listId));
+      return rows.map((row) => row.userId).sort((a, b) => a - b);
+    }
+
+    async function storedList(listId: number) {
+      const [row] = await integrationDb!
+        .select()
+        .from(distributionLists)
+        .where(eq(distributionLists.id, listId));
+      return row!;
+    }
+
+    function ids(members: { userId: number }[]) {
+      return members.map((member) => member.userId).sort((a, b) => a - b);
+    }
+
+    function sorted(values: number[]) {
+      return [...values].sort((a, b) => a - b);
+    }
+
+    async function duplicate(
+      source:
+        | { kind: "festival"; festivalId: number }
+        | { kind: "list"; listId: number },
+      name = `Copia ${randomUUID().slice(0, 8)}`,
+    ) {
+      const result = await actions.duplicateDistributionListAction({
+        source,
+        name,
+      });
+      if (result.success) created.lists.push(result.listId);
+      return result;
+    }
+
+    it("freezes a festival's Confirmados into a fixed list that remembers its origin", async () => {
+      const admin = await signInAs("admin");
+      const festival = await createFestival();
+      const ana = await createUser();
+      const beto = await createUser({ status: "banned" });
+      const owner = await createUser({ role: "admin" });
+      const pending = await createUser();
+      await reserve(festival.id, { owner: ana, partners: [beto] });
+      await reserve(festival.id, { owner });
+      await reserve(festival.id, { status: "pending", owner: pending });
+
+      const result = await duplicate({
+        kind: "festival",
+        festivalId: festival.id,
+      });
+      expect(result).toMatchObject({
+        success: true,
+        message: `Copiamos 2 personas de «Confirmados · ${festival.name}». 1 no es participante y no se copió.`,
+      });
+      const listId = (result as { listId: number }).listId;
+      expect(await membersOfList(listId)).toEqual(sorted([ana, beto]));
+      const stored = await storedList(listId);
+      expect(stored).toMatchObject({
+        kind: "fixed",
+        filter: null,
+        originFestivalId: festival.id,
+        originListId: null,
+        originName: `Confirmados · ${festival.name}`,
+        lastPulledAt: null,
+        createdByUserId: admin.id,
+      });
+      expect(stored.copiedAt).toBeInstanceOf(Date);
+
+      const summary = (await queries.fetchSavedLists()).find(
+        (list) => list.id === listId,
+      );
+      expect(summary).toMatchObject({
+        kind: "fixed",
+        count: { eligible: 1, skipped: 1 },
+        origin: {
+          name: `Confirmados · ${festival.name}`,
+          source: { kind: "festival", festivalId: festival.id },
+          lastPulledAt: null,
+        },
+      });
+
+      // Someone confirmed later does not enter the copy by themselves.
+      const late = await createUser();
+      await reserve(festival.id, { owner: late });
+      expect(await membersOfList(listId)).toEqual(sorted([ana, beto]));
+      const preview = await actions.previewDistributionListPullAction(listId);
+      expect(preview).toMatchObject({
+        ok: true,
+        originName: `Confirmados · ${festival.name}`,
+        removed: [],
+      });
+      expect(
+        ids((preview as { candidates: { userId: number }[] }).candidates),
+      ).toEqual([late]);
+    });
+
+    it("pulls the ticked newcomers and leaves out those removed by hand, unless asked", async () => {
+      await signInAs("admin");
+      const festival = await createFestival();
+      const [ana, beto] = [await createUser(), await createUser()];
+      await reserve(festival.id, { owner: ana, partners: [beto] });
+      const result = await duplicate({
+        kind: "festival",
+        festivalId: festival.id,
+      });
+      const listId = (result as { listId: number }).listId;
+
+      const [nuevo, otro, nadie] = [
+        await createUser(),
+        await createUser(),
+        await createUser({ role: "festival_admin" }),
+      ];
+      await reserve(festival.id, { owner: nuevo, partners: [otro, nadie] });
+
+      // Removing by hand from a copy is remembered.
+      expect(
+        await actions.removeDistributionListMemberAction({
+          listId,
+          userIds: [ana],
+        }),
+      ).toMatchObject({ success: true });
+      const removals = await integrationDb!
+        .select({ userId: distributionListRemovals.userId })
+        .from(distributionListRemovals)
+        .where(eq(distributionListRemovals.listId, listId));
+      expect(removals.map((row) => row.userId)).toEqual([ana]);
+
+      const preview = await actions.previewDistributionListPullAction(listId);
+      expect(preview.ok).toBe(true);
+      const loaded = preview as Extract<typeof preview, { ok: true }>;
+      // Non-participants are never offered.
+      expect(ids(loaded.candidates)).toEqual(sorted([nuevo, otro]));
+      expect(ids(loaded.removed)).toEqual([ana]);
+
+      // `otro` unticked; `ana` sent anyway, without asking for removed ones.
+      const pulled = await actions.pullDistributionListMembersAction({
+        listId,
+        userIds: [nuevo, ana],
+      });
+      expect(pulled).toMatchObject({
+        success: true,
+        added: 1,
+        message: `Agregamos 1 persona de «Confirmados · ${festival.name}». 1 ya no estaba para agregar.`,
+      });
+      expect(await membersOfList(listId)).toEqual(sorted([beto, nuevo]));
+      expect((await storedList(listId)).lastPulledAt).toBeInstanceOf(Date);
+
+      // The unticked one is offered again; the removed one still held out.
+      const again = (await actions.previewDistributionListPullAction(
+        listId,
+      )) as Extract<typeof preview, { ok: true }>;
+      expect(ids(again.candidates)).toEqual([otro]);
+      expect(ids(again.removed)).toEqual([ana]);
+
+      // Asked for, the removed one comes back and the removal is forgotten.
+      expect(
+        await actions.pullDistributionListMembersAction({
+          listId,
+          userIds: [ana, otro],
+          includeRemoved: true,
+        }),
+      ).toMatchObject({ success: true, added: 2 });
+      expect(await membersOfList(listId)).toEqual(
+        sorted([ana, beto, nuevo, otro]),
+      );
+      expect(
+        await integrationDb!
+          .select()
+          .from(distributionListRemovals)
+          .where(eq(distributionListRemovals.listId, listId)),
+      ).toEqual([]);
+      expect(
+        await actions.previewDistributionListPullAction(listId),
+      ).toMatchObject({ ok: true, candidates: [], removed: [] });
+
+      // Adding someone back by hand forgets their removal too.
+      await actions.removeDistributionListMemberAction({
+        listId,
+        userIds: [beto],
+      });
+      await actions.addDistributionListMembersAction({
+        listId,
+        userIds: [beto],
+      });
+      expect(
+        await integrationDb!
+          .select()
+          .from(distributionListRemovals)
+          .where(eq(distributionListRemovals.listId, listId)),
+      ).toEqual([]);
+
+      // Nothing ticked is refused by the schema.
+      expect(
+        await actions.pullDistributionListMembersAction({
+          listId,
+          userIds: [],
+        }),
+      ).toMatchObject({ success: false });
+    });
+
+    it("copies a filter list with its origin, and pulls from it even once archived", async () => {
+      await signInAs("admin");
+      const sub = await createSubcategory();
+      const [one, two] = [await createUser(), await createUser()];
+      await tag([one, two], sub);
+      const source = await actions.createDistributionListAction({
+        kind: "filter",
+        name: `Origen ${randomUUID().slice(0, 8)}`,
+        filter: { v: 1, subcategoryIds: [sub] },
+      });
+      const sourceId = (source as { listId: number }).listId;
+      created.lists.push(sourceId);
+      const sourceName = (await storedList(sourceId)).name;
+
+      const result = await duplicate({ kind: "list", listId: sourceId });
+      expect(result).toMatchObject({
+        success: true,
+        message: `Copiamos 2 personas de «${sourceName}».`,
+      });
+      const listId = (result as { listId: number }).listId;
+      expect(await storedList(listId)).toMatchObject({
+        kind: "fixed",
+        originListId: sourceId,
+        originFestivalId: null,
+        originName: sourceName,
+      });
+      expect(await membersOfList(listId)).toEqual(sorted([one, two]));
+
+      const three = await createUser();
+      await tag([three], sub);
+      await actions.archiveDistributionListAction(sourceId);
+      expect(
+        await actions.pullDistributionListMembersAction({
+          listId,
+          userIds: [three],
+        }),
+      ).toMatchObject({ success: true, added: 1 });
+
+      // An origin whose filter no longer parses refuses; it never means everyone.
+      await integrationDb!
+        .update(distributionLists)
+        .set({ filter: { v: 2 } })
+        .where(eq(distributionLists.id, sourceId));
+      expect(
+        await actions.previewDistributionListPullAction(listId),
+      ).toMatchObject({
+        ok: false,
+        message: `La lista «${sourceName}» tiene un filtro que ya no se puede leer; editala.`,
+      });
+      expect(
+        await actions.pullDistributionListMembersAction({
+          listId,
+          userIds: [one],
+        }),
+      ).toMatchObject({ success: false });
+      expect(await duplicate({ kind: "list", listId: sourceId })).toMatchObject(
+        {
+          success: false,
+          message: `La lista «${sourceName}» tiene un filtro que ya no se puede leer; editala.`,
+        },
+      );
+    });
+
+    it("copies a fixed list plainly: no origin, no pull, removals not kept", async () => {
+      await signInAs("admin");
+      const [one, two] = [await createUser(), await createUser()];
+      const source = await actions.createDistributionListAction({
+        kind: "fixed",
+        name: `Fija ${randomUUID().slice(0, 8)}`,
+        memberIds: [one, two],
+      });
+      const sourceId = (source as { listId: number }).listId;
+      created.lists.push(sourceId);
+
+      const result = await duplicate({ kind: "list", listId: sourceId });
+      expect(result).toMatchObject({ success: true });
+      const listId = (result as { listId: number }).listId;
+      expect(await storedList(listId)).toMatchObject({
+        kind: "fixed",
+        originFestivalId: null,
+        originListId: null,
+        originName: null,
+        copiedAt: null,
+      });
+      expect(await membersOfList(listId)).toEqual(sorted([one, two]));
+      expect(
+        (await queries.fetchSavedLists()).find((list) => list.id === listId)
+          ?.origin,
+      ).toBeNull();
+
+      await actions.removeDistributionListMemberAction({
+        listId,
+        userIds: [one],
+      });
+      expect(
+        await integrationDb!
+          .select()
+          .from(distributionListRemovals)
+          .where(eq(distributionListRemovals.listId, listId)),
+      ).toEqual([]);
+      expect(
+        await actions.previewDistributionListPullAction(listId),
+      ).toMatchObject({ ok: false });
+      expect(
+        await actions.pullDistributionListMembersAction({
+          listId,
+          userIds: [one],
+        }),
+      ).toMatchObject({ success: false });
+      // The original is untouched.
+      expect(await membersOfList(sourceId)).toEqual(sorted([one, two]));
+    });
+
+    it("refuses a taken name, a reserved name, and a source past the cap", async () => {
+      await signInAs("admin");
+      const festival = await createFestival();
+      const taken = `Tomada ${randomUUID().slice(0, 8)}`;
+      expect(
+        await duplicate({ kind: "festival", festivalId: festival.id }, taken),
+      ).toMatchObject({ success: true });
+      expect(
+        await duplicate({ kind: "festival", festivalId: festival.id }, taken),
+      ).toMatchObject({
+        success: false,
+        message: "Ya hay una lista con ese nombre. Elegí otro.",
+      });
+      expect(
+        await duplicate(
+          { kind: "festival", festivalId: festival.id },
+          `Confirmados · ${festival.name}`,
+        ),
+      ).toMatchObject({ success: false });
+
+      // A fixed list over the cap, written past the action: its copy is refused
+      // and nothing is left behind.
+      const [big] = await integrationDb!
+        .insert(distributionLists)
+        .values({ name: `Grande ${randomUUID().slice(0, 8)}`, kind: "fixed" })
+        .returning({ id: distributionLists.id, name: distributionLists.name });
+      created.lists.push(big!.id);
+      const { rows } = await pool!.query<{ id: number }>(
+        `INSERT INTO users (clerk_id, email, display_name, role, status)
+         SELECT 'lists-copy-' || $1 || '-' || g, 'lists-copy-' || $1 || '-' || g || '@example.com',
+                'Copia ' || g, 'user', 'verified'
+         FROM generate_series(1, 3001) g
+         RETURNING id`,
+        [randomUUID()],
+      );
+      created.users.push(...rows.map((row) => row.id));
+      await pool!.query(
+        `INSERT INTO distribution_list_members (list_id, user_id)
+         SELECT $1, unnest($2::int[])`,
+        [big!.id, rows.map((row) => row.id)],
+      );
+      const name = `Copia grande ${randomUUID().slice(0, 8)}`;
+      expect(
+        await duplicate({ kind: "list", listId: big!.id }, name),
+      ).toMatchObject({
+        success: false,
+        message: expect.stringContaining("3.000 como máximo"),
+      });
+      expect(
+        await integrationDb!
+          .select()
+          .from(distributionLists)
+          .where(eq(distributionLists.name, name)),
+      ).toEqual([]);
+    }, 60_000);
+
+    it("enforces the origin shape in the database", async () => {
+      const festival = await createFestival();
+      for (const values of [
+        // A filter list is never a copy.
+        {
+          kind: "filter" as const,
+          filter: { v: 1 },
+          originName: "X",
+          copiedAt: new Date(),
+        },
+        // Two origins.
+        {
+          kind: "fixed" as const,
+          originFestivalId: festival.id,
+          originListId: created.lists[0]!,
+          originName: "X",
+          copiedAt: new Date(),
+        },
+        // An origin without its name and date.
+        { kind: "fixed" as const, originFestivalId: festival.id },
+        // A pull on a list that is not a copy.
+        { kind: "fixed" as const, lastPulledAt: new Date() },
+      ]) {
+        await expect(
+          integrationDb!.insert(distributionLists).values({
+            name: `Forma ${randomUUID().slice(0, 8)}`,
+            ...values,
+          }),
+        ).rejects.toThrow();
+      }
+    });
+  });
+
   describe("who may use them", () => {
     it("refuses every action to a festival admin, a participant, and an admin without the flag", async () => {
       const list = await integrationDb!
@@ -1009,6 +1416,17 @@ describeDatabase("distribution lists", () => {
           userIds: [someone],
         }),
         actions.previewDistributionListFilterAction({ v: 1 }),
+        actions.duplicateDistributionListAction({
+          source: { kind: "list", listId },
+          name: `Copia ${randomUUID().slice(0, 8)}`,
+        }),
+        actions.pullDistributionListMembersAction({
+          listId,
+          userIds: [someone],
+        }),
+        actions
+          .previewDistributionListPullAction(listId)
+          .then((result) => ({ success: result.ok })),
         giftActions.expandListForCreditGiftAction({
           source: { kind: "list", listId },
           chosenIds: [],

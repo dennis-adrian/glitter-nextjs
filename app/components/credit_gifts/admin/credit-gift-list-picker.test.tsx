@@ -57,6 +57,7 @@ const LISTS: CreditGiftListOptions = {
       kind: "filter",
       count: { eligible: 42, skipped: 0 },
       updatedAt: new Date(),
+      origin: null,
     },
     {
       id: 4,
@@ -65,6 +66,7 @@ const LISTS: CreditGiftListOptions = {
       kind: "filter",
       count: null,
       updatedAt: new Date(),
+      origin: null,
     },
   ],
 };
