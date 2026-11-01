@@ -1,8 +1,8 @@
 import { DateTime } from "luxon";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import CheckInPanel from "@/app/components/dashboard/programs/checkin/checkin-panel";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDisplayDate } from "@/app/lib/formatters";
@@ -46,14 +46,13 @@ export default async function OccurrenceCheckInPage({ params }: Props) {
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <ScreenTitle title={session.title} />
       <div className="space-y-2">
-        {/* The installed app's top bar carries back and the title. */}
-        <Link
-          href={`/dashboard/programs/occurrences/${occurrence.id}`}
-          data-installed-hidden=""
-          className="text-sm text-muted-foreground underline-offset-2 hover:underline"
-        >
-          ← Inscritos
-        </Link>
+        {/* The level above is the occurrence, named by its date. */}
+        <PageBreadcrumbs
+          labels={{
+            [`/dashboard/programs/occurrences/${occurrence.id}`]:
+              formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED),
+          }}
+        />
         <h1 className="text-2xl font-bold" data-installed-title="">
           {session.title}
         </h1>

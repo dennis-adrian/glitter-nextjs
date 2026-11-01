@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, PencilIcon } from "lucide-react";
+import { PencilIcon } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -16,6 +16,7 @@ import RetryFailedButton from "@/app/components/comunicados/admin/report/retry-f
 import RevisionHistory from "@/app/components/comunicados/admin/report/revision-history";
 import RetractComunicadoMenu from "@/app/components/comunicados/admin/retract-dialog";
 import RichTextHtml from "@/app/components/molecules/rich-text-html";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants } from "@/app/components/ui/button";
@@ -42,7 +43,6 @@ import {
   formatAudienceCount,
   type Paged,
 } from "@/app/lib/distribution_lists/definitions";
-import { cn } from "@/app/lib/utils";
 
 const COMUNICADOS_PATH = "/dashboard/communications";
 
@@ -154,17 +154,7 @@ export default function ComunicadoReport({
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
       <ScreenTitle title={title} />
-      <Link
-        href={COMUNICADOS_PATH}
-        data-installed-hidden=""
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "-ml-3",
-        )}
-      >
-        <ArrowLeftIcon className="mr-1 h-4 w-4" aria-hidden />
-        Comunicados
-      </Link>
+      <PageBreadcrumbs />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">

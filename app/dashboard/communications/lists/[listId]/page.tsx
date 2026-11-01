@@ -1,5 +1,4 @@
 import { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -7,6 +6,7 @@ import { FixedListEditor } from "@/app/components/communications/admin/fixed-lis
 import ListArchiveButton from "@/app/components/communications/admin/list-archive-button";
 import ListFilterEditor from "@/app/components/communications/admin/list-filter-editor";
 import ListMembersPagination from "@/app/components/communications/admin/list-members-pagination";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import { Banner } from "@/app/components/ui/banner";
@@ -58,13 +58,7 @@ export default async function DistributionListPage(props: {
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
       <ScreenTitle title={list.name} />
-      <Link
-        href="/dashboard/communications/lists"
-        data-installed-hidden=""
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        Volver a las listas
-      </Link>
+      <PageBreadcrumbs />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">

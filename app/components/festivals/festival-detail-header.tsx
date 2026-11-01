@@ -8,16 +8,9 @@ import Link from "next/link";
 
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import FestivalActionsMenu from "@/app/components/festivals/festival-actions-menu";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenRoot, ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/app/components/ui/breadcrumb";
 import { Button } from "@/app/components/ui/button";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatFestivalDateRange } from "@/app/lib/festivals/utils";
@@ -45,21 +38,7 @@ export default function FestivalDetailHeader({
       <ScreenTitle title={festival.name} />
       {/* The festival in progress is the staff Festival tab's own page. */}
       {festival.status === "active" ? <ScreenRoot tab="festival" /> : null}
-      <Breadcrumb data-installed-hidden="">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard/festivals">
-              Festivales
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem className="min-w-0">
-            <BreadcrumbPage className="block max-w-[60vw] truncate sm:max-w-md">
-              {festival.name}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <PageBreadcrumbs />
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 space-y-2">

@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ArrowLeftIcon,
-  CalendarClockIcon,
-  CheckIcon,
-  SendIcon,
-  XIcon,
-} from "lucide-react";
-import Link from "next/link";
+import { CalendarClockIcon, CheckIcon, SendIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -21,10 +14,11 @@ import CreditGiftAutoRefresh from "@/app/components/credit_gifts/admin/credit-gi
 import ScheduleDialog, {
   type ScheduleDialogResult,
 } from "@/app/components/molecules/schedule-dialog";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import { Banner } from "@/app/components/ui/banner";
-import { Button, buttonVariants } from "@/app/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import {
   Card,
   CardContent,
@@ -49,8 +43,6 @@ import {
 import { scheduleAtProblem } from "@/app/lib/comunicados/schedule-rules";
 import { confirmadosListName } from "@/app/lib/distribution_lists/definitions";
 import { cn } from "@/app/lib/utils";
-
-const COMUNICADOS_PATH = "/dashboard/communications";
 
 /** `setTimeout`'s longest delay; a longer one fires at once. */
 const MAX_TIMER_MS = 2_147_483_647;
@@ -193,17 +185,7 @@ export default function ScheduledComunicado({
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
       <ScreenTitle title={title} />
-      <Link
-        href={COMUNICADOS_PATH}
-        data-installed-hidden=""
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "-ml-3",
-        )}
-      >
-        <ArrowLeftIcon className="mr-1 h-4 w-4" aria-hidden />
-        Comunicados
-      </Link>
+      <PageBreadcrumbs />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">

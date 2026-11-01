@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import ImageUploadField from "@/app/components/molecules/image-upload-field";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ImpactConfirmDialog from "@/app/components/organisms/impact-confirm-dialog";
 import RichTextEditor from "@/app/components/organisms/rich-text-editor";
@@ -122,13 +123,7 @@ export default function CategoryEditor({
       <form onSubmit={action} className="space-y-6">
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 py-3 backdrop-blur">
           <div className="min-w-0">
-            <Link
-              href="/dashboard/categories"
-              data-installed-hidden=""
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              ← Categorías
-            </Link>
+            <PageBreadcrumbs />
             <ScreenTitle title={heading} />
             <h1
               className="truncate text-xl font-semibold"

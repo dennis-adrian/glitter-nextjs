@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import SessionForm from "@/app/components/dashboard/programs/session-form";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { fetchFestivals } from "@/app/lib/festivals/actions";
 import { fetchSessionTopics, fetchVenues } from "@/app/lib/programs/data";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -19,14 +19,7 @@ export default async function NewStandaloneSessionPage() {
   return (
     <div className="container max-w-2xl p-3 md:p-6 flex flex-col gap-6">
       <div className="space-y-1">
-        {/* The installed app's top bar carries back and the title. */}
-        <Link
-          href="/dashboard/programs"
-          data-installed-hidden=""
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          ← Programas
-        </Link>
+        <PageBreadcrumbs />
         <h1 className="text-2xl font-bold" data-installed-title="">
           Nueva charla o taller suelto
         </h1>

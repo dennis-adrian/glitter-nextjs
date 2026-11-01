@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 
 import Heading from "@/app/components/atoms/heading";
 import { staffMenuSection } from "@/app/components/navbar/app-navigation";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -36,16 +37,8 @@ export default async function StaffMenuSectionPage({ params }: PageProps) {
 
   return (
     <div className="container flex max-w-xl flex-col gap-5 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        {/* The installed app's top bar carries back and the title. */}
-        <Link
-          href="/menu"
-          aria-label="Volver a Más"
-          data-installed-hidden=""
-          className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-brand-border bg-brand-card text-brand-ink hover:text-brand-primary"
-        >
-          <ChevronLeftIcon className="size-5" aria-hidden="true" />
-        </Link>
+      <div className="flex flex-col gap-2">
+        <PageBreadcrumbs />
         <Heading
           className="text-2xl leading-none md:text-3xl lg:text-3xl"
           data-installed-title=""

@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe("SessionContextHeader", () => {
-  it("points a program session back to its program", () => {
+  it("names a program session's program", () => {
     render(
       <SessionContextHeader
         program={{ slug: "semana", name: "Semana Glitter" }}
@@ -18,7 +18,7 @@ describe("SessionContextHeader", () => {
 
     expect(
       screen
-        .getByRole("link", { name: "Volver a Semana Glitter" })
+        .getByRole("link", { name: "Parte de Semana Glitter" })
         .getAttribute("href"),
     ).toBe("/programs/semana");
   });
@@ -31,11 +31,6 @@ describe("SessionContextHeader", () => {
       />,
     );
 
-    expect(
-      screen
-        .getByRole("link", { name: "Charlas y Talleres" })
-        .getAttribute("href"),
-    ).toBe("/programs");
     expect(
       screen
         .getByRole("link", { name: /Parte de Glitter 12/ })
@@ -52,6 +47,6 @@ describe("SessionContextHeader", () => {
     );
 
     expect(screen.queryByText(/Parte de/)).toBeNull();
-    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 });

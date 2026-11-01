@@ -211,7 +211,8 @@ export const SCREENS: Record<string, ScreenDef> = {
   "/merch/combos/[slug]": { title: "Combo", parent: "/merch" },
   "/store/products/[slug]": { title: "Producto", parent: "/merch" },
   "/checkout": { title: "Confirmar pedido", parent: "/merch", close: true },
-  "/orders/[orderId]": { title: "Pedido", parent: "/my_orders" },
+  // The guest order page: a buyer without an account has no "Mis pedidos".
+  "/orders/[orderId]": { title: "Pedido", parent: "/merch" },
   // Checkout is over by then: the X leads to the order, not back into it.
   "/orders/[orderId]/payment": {
     title: "Pagar pedido",
@@ -561,17 +562,20 @@ export const SCREENS: Record<string, ScreenDef> = {
   },
 };
 
+/** The admin store's sections, by the names its own navigation gives them. */
+const STAFF_STORE_SECTIONS: Record<string, string> = {
+  "/dashboard/store/analytics": "Analíticas",
+  "/dashboard/store/payments": "Pagos",
+  "/dashboard/store/orders": "Pedidos",
+  "/dashboard/store/products": "Productos",
+  "/dashboard/store/collections": "Colecciones",
+  "/dashboard/store/bundles": "Combos",
+  "/dashboard/store/rentals": "Alquileres",
+  "/dashboard/store/settings": "Configuración",
+};
+
 /** The admin store's sections: each one is the Tienda tab itself. */
-const STAFF_STORE_ROOTS = [
-  "/dashboard/store/analytics",
-  "/dashboard/store/payments",
-  "/dashboard/store/orders",
-  "/dashboard/store/products",
-  "/dashboard/store/collections",
-  "/dashboard/store/bundles",
-  "/dashboard/store/rentals",
-  "/dashboard/store/settings",
-];
+const STAFF_STORE_ROOTS = Object.keys(STAFF_STORE_SECTIONS);
 
 export type Screen = {
   title: string;
@@ -776,9 +780,7 @@ function rootLabel(path: string, ctx: ScreenContext): string {
     );
     if (festival) return festival.label;
   }
-  if (STAFF_STORE_ROOTS.includes(path)) {
-    return ctx.tabs.find((tab) => tab.key === "store")?.label ?? "Tienda";
-  }
+  if (STAFF_STORE_ROOTS.includes(path)) return STAFF_STORE_SECTIONS[path];
   return ctx.tabs.find((tab) => tab.key === "home")?.label ?? "Inicio";
 }
 

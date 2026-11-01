@@ -1,11 +1,9 @@
-import { ArrowLeftIcon } from "lucide-react";
-import Link from "next/link";
-
 import Title from "@/app/components/atoms/heading";
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import CreditPurchaseOutcome from "@/app/components/credits/credit-purchase-outcome";
 import { topUpReturn } from "@/app/components/credits/top-up-return";
 import CreditTopUpVoucherUpload from "@/app/components/credits/credit-top-up-voucher-upload";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -64,14 +62,7 @@ export default async function CreditPurchase({
 
   return (
     <div className="container max-w-[560px] p-3 md:p-6">
-      <Link
-        href="/my_credits"
-        data-installed-hidden=""
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeftIcon className="h-4 w-4" />
-        Mis créditos
-      </Link>
+      <PageBreadcrumbs className="mb-4" />
 
       <div className="mb-4 flex flex-col gap-1 md:gap-2">
         <Title data-installed-title="">Compra de créditos</Title>

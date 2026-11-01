@@ -21,14 +21,21 @@ import { cn } from "@/app/lib/utils";
  */
 export default function PageBreadcrumbs({
   labels,
+  current,
   className,
 }: {
   labels?: Record<string, string>;
+  /** The page's own crumb, when it should differ from the bar's title. */
+  current?: string;
   className?: string;
 }) {
   const { nav, path, title, parentHref, isRoot } = useScreenPlacement();
   const trail = nav
-    ? breadcrumbTrail(path, nav, { labels, current: title, parentHref })
+    ? breadcrumbTrail(path, nav, {
+        labels,
+        current: current ?? title,
+        parentHref,
+      })
     : [];
 
   // Until the navbar has streamed in, keep the line so nothing moves.

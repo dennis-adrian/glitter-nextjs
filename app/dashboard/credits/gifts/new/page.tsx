@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import CreditGiftComposer from "@/app/components/credit_gifts/admin/credit-gift-composer";
 import type { CreditGiftListOptions } from "@/app/components/credit_gifts/admin/credit-gift-list-picker";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { Banner } from "@/app/components/ui/banner";
 import {
   creditGiftBlocker,
@@ -31,17 +31,11 @@ export default async function NewCreditGiftPage() {
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
+      <PageBreadcrumbs />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold" data-installed-title="">
           Regalar créditos
         </h2>
-        <Link
-          href="/dashboard/credits/gifts"
-          data-installed-hidden=""
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          Volver a los regalos
-        </Link>
       </div>
       {blocker ? (
         <Banner variant="warning" title="No podés regalar créditos todavía">

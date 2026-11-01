@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { Skeleton } from "@/app/components/ui/skeleton";
 
 /**
@@ -9,13 +8,7 @@ import { Skeleton } from "@/app/components/ui/skeleton";
 export default function Loading() {
   return (
     <div className="container max-w-2xl space-y-3 p-3 md:p-6">
-      <Link
-        href="/my_notifications"
-        className="text-sm text-muted-foreground hover:underline"
-        data-installed-hidden=""
-      >
-        Volver a las notificaciones
-      </Link>
+      <PageBreadcrumbs />
       <div
         className="space-y-4 rounded-lg border bg-background p-4 md:p-6"
         aria-busy="true"

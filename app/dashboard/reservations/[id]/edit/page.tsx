@@ -14,15 +14,8 @@ import { summarizeReservationStands } from "@/app/lib/reservations/member-stands
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import {
   Card,
   CardContent,
@@ -135,21 +128,16 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         title={title}
         backHref={`/dashboard/festivals/${reservation.festivalId}/reservations`}
       />
-      <Breadcrumb data-installed-hidden="">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              href={`/dashboard/festivals/${reservation.festivalId}/reservations`}
-            >
-              Reservas
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Editar Reserva</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <PageBreadcrumbs
+        labels={
+          festival
+            ? {
+                [`/dashboard/festivals/${reservation.festivalId}`]:
+                  festival.name,
+              }
+            : undefined
+        }
+      />
 
       {/* The stand is what this page is about, so it is the heading. Burying it
           in a card title left the page titled "Editar Reserva" — true of every

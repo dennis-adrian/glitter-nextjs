@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import Link from "next/link";
-import { ArrowLeftIcon } from "lucide-react";
 
 import FestivalActivityForm from "@/app/components/festivals/festival_activities/forms/festival-activity-form";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -18,18 +18,18 @@ export default async function Page({ params }: NewFestivalActivityPageProps) {
   if (!validatedParams.success) return notFound();
 
   const { id: festivalId } = validatedParams.data;
+  const festival = await fetchBaseFestival(festivalId);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6">
-      <div className="flex items-center gap-2">
-        <Link
-          href={`/dashboard/festivals/${festivalId}/festival_activities`}
-          aria-label="Volver a las actividades"
-          data-installed-hidden=""
-          className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-        </Link>
+      <div className="space-y-1">
+        <PageBreadcrumbs
+          labels={
+            festival
+              ? { [`/dashboard/festivals/${festivalId}`]: festival.name }
+              : undefined
+          }
+        />
         <h1 className="text-2xl font-bold" data-installed-title="">
           Nueva actividad
         </h1>

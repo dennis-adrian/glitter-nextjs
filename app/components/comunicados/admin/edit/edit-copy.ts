@@ -11,8 +11,6 @@ import { formatAudienceCount } from "@/app/lib/distribution_lists/definitions";
 
 const fmt = formatAudienceCount;
 
-export const EDIT_BACK_LABEL = "Volver al comunicado";
-
 export const EDIT_BANNER_TEXT =
   "Estás editando un comunicado enviado. Podés cambiar el título, el texto y el botón. Los destinatarios y los canales quedan como están.";
 

@@ -1,13 +1,6 @@
 import Title from "@/app/components/atoms/heading";
 import UserParticipationCard from "@/app/components/molecules/user-participation-card";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/app/components/ui/breadcrumb";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { fetchUserParticipations } from "@/app/lib/users/actions";
 import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -47,17 +40,7 @@ export default async function ParticipationsPage(
 
   return (
     <div className="container p-3 md:p-6">
-      <Breadcrumb data-installed-hidden="">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/my_history">Mi historial</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Participaciones</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <PageBreadcrumbs />
       {!!participations.length ? (
         <>
           <Title data-installed-title="">Participaciones</Title>

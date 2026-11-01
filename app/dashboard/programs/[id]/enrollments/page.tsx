@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import ProgramRosterView from "@/app/components/dashboard/programs/enrollments/program-roster-view";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import {
   Card,
   CardContent,
@@ -35,15 +35,10 @@ export default async function ProgramEnrollmentsPage({ params }: Props) {
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-2">
-        {/* The installed app's top bar carries back and the title. */}
-        <Link
-          href={`/dashboard/programs/${program.id}`}
-          data-installed-hidden=""
-          className="text-sm text-muted-foreground underline-offset-2 hover:underline"
-        >
-          ← {program.name}
-        </Link>
-        {/* Where the back link steps aside, the program is still named. */}
+        <PageBreadcrumbs
+          labels={{ [`/dashboard/programs/${program.id}`]: program.name }}
+        />
+        {/* Where the breadcrumb steps aside, the program is still named. */}
         <p className="hidden text-sm text-muted-foreground standalone:block">
           {program.name}
         </p>

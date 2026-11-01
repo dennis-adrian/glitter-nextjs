@@ -1,12 +1,10 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import HistoricalCategoryFilters from "@/app/components/organisms/store/historical-category-filters";
 import HistoricalCategorySourcesTable from "@/app/components/organisms/store/historical-category-sources-table";
-import { Button } from "@/app/components/ui/button";
 import { fetchHistoricalLineCategorySourcesForAdmin } from "@/app/lib/orders/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { ArrowLeftIcon } from "lucide-react";
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -40,6 +38,7 @@ export default async function HistoricalLineCategoriesPage(props: {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
+          <PageBreadcrumbs />
           <h3 className="text-xl font-semibold" data-installed-title="">
             Corregir categorías históricas
           </h3>
@@ -49,13 +48,6 @@ export default async function HistoricalLineCategoriesPage(props: {
             estados. Muestra los últimos 45 días si no filtras por fecha.
           </p>
         </div>
-        <Button asChild variant="ghost" size="sm">
-          {/* The installed app's top bar carries back. */}
-          <Link href="/dashboard/store/settings" data-installed-hidden="">
-            <ArrowLeftIcon className="mr-1 h-4 w-4" />
-            Configuración
-          </Link>
-        </Button>
       </div>
 
       <HistoricalCategoryFilters />

@@ -1,11 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeftIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import {
   updateOrder,
@@ -31,6 +30,7 @@ import EditOrderBundleRow, {
   type EditableBundle,
 } from "@/app/components/organisms/orders/edit-order-bundle-row";
 import Heading from "@/app/components/atoms/heading";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
@@ -414,14 +414,10 @@ export default function EditOrderForm({
     <div className="flex flex-col gap-4 md:gap-6 pb-32 lg:pb-0">
       {/* Header */}
       <div>
-        <Link
-          href={orderDetailUrl}
-          data-installed-hidden=""
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2"
-        >
-          <ArrowLeftIcon className="h-4 w-4" />
-          Volver al pedido
-        </Link>
+        <PageBreadcrumbs
+          labels={{ [orderDetailUrl]: `Pedido #${order.id}` }}
+          className="mb-2"
+        />
         <Heading level={2} data-installed-title="">
           Editar pedido #{order.id}
         </Heading>

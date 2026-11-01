@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import ListMemberCell from "@/app/components/communications/admin/list-member-cell";
 import ListMembersPagination from "@/app/components/communications/admin/list-members-pagination";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import {
@@ -50,13 +50,7 @@ export default async function ConfirmadosListPage(props: {
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
       <ScreenTitle title={festival.listName} />
-      <Link
-        href="/dashboard/communications/lists"
-        data-installed-hidden=""
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        Volver a las listas
-      </Link>
+      <PageBreadcrumbs />
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold" data-installed-title="">

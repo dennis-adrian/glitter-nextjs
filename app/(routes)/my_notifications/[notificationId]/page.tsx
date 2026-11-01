@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import MarkNotificationRead from "@/app/components/notifications/mark-notification-read";
 import NotificationDetail from "@/app/components/notifications/notification-detail";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
@@ -32,13 +32,7 @@ export default async function NotificationPage(props: {
 
   return (
     <div className="container max-w-2xl space-y-3 p-3 md:p-6">
-      <Link
-        href="/my_notifications"
-        className="text-sm text-muted-foreground hover:underline"
-        data-installed-hidden=""
-      >
-        Volver a las notificaciones
-      </Link>
+      <PageBreadcrumbs />
       <NotificationDetail notification={notification} />
       <MarkNotificationRead
         id={notification.id}

@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import FestivalTermsVersionPreview from "@/app/components/festival-terms/version-preview";
 import { fetchFestivalTermsVersionById } from "@/app/lib/festival-terms/queries";
@@ -35,13 +35,7 @@ export default async function FestivalTermsVersionPage({ params }: PageProps) {
     <div className="container space-y-6 p-4 md:p-6">
       <ScreenTitle title={`Versión ${version.versionNumber} ${statusLabel}`} />
       <div>
-        <Link
-          href="/dashboard/terms"
-          data-installed-hidden=""
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Términos y condiciones
-        </Link>
+        <PageBreadcrumbs />
         <h1 className="text-2xl font-semibold" data-installed-title="">
           Versión {version.versionNumber}{" "}
           <span className="text-base font-normal text-muted-foreground">

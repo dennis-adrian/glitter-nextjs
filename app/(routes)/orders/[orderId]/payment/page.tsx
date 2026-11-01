@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { ArrowLeftIcon, BoxIcon, CalendarClockIcon } from "lucide-react";
-import Link from "next/link";
+import { BoxIcon, CalendarClockIcon } from "lucide-react";
 
 import Heading from "@/app/components/atoms/heading";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { ClearGuestCartOnPaymentMount } from "@/app/components/organisms/orders/clear-guest-cart-on-payment-mount";
 import MobilePaymentBar from "@/app/components/organisms/orders/mobile-payment-bar";
@@ -81,14 +81,15 @@ export default async function OrderPaymentPage(props: {
       {isGuest ? <ClearGuestCartOnPaymentMount /> : null}
       <ScreenTitle backHref={backHref} />
       <div className="mb-4">
-        <Link
-          href={backHref}
-          data-installed-hidden=""
-          className="text-sm text-muted-foreground flex items-center gap-1 mb-3 hover:text-foreground transition-colors"
-        >
-          <ArrowLeftIcon className="h-3.5 w-3.5" />
-          Ver detalles del pedido
-        </Link>
+        <PageBreadcrumbs
+          labels={{
+            // As the order's page names itself, for a guest or for the buyer.
+            [backHref]: isGuest
+              ? `Tu orden #${order.id}`
+              : `Pedido #${order.id}`,
+          }}
+          className="mb-3"
+        />
         <Heading level={2} data-installed-title="">
           Pagar pedido
         </Heading>
