@@ -312,7 +312,7 @@ One row per "Enviar a más personas" (G10), never updated:
 | `summary` (jsonb, `ComunicadoResendSummarySchema`)       | the counts at the resend                                                                                  |
 | `created_by_user_id` (SET NULL), `created_at`            | who and when                                                                                              |
 
-CHECKs: it targets something (`includes_audience OR people <> []`); `essential` only with email, the audience and nobody by name; `essential = (essential_confirmed_by_user_id IS NOT NULL)`. A new table and a new nullable column: nothing references an enum label 0306 adds (A0).
+CHECKs: it targets something (`includes_audience OR people <> []`); `essential` only with email, the audience and nobody by name; `essential = (essential_confirmed_by_user_id IS NOT NULL)`. A new table and a new nullable column: nothing references an enum label 0306 adds (A0). The file is idempotent, as 0281 and 0304 are: an earlier version ran on preview databases as `0305_comunicado_resends`, stamped after `0305_distribution_list_copies`, so 0306 also re-applies that migration's DDL for any database where the earlier stamp pushed it below the migrator's high-water mark. On a database migrated in order, those statements are no-ops.
 
 ### A7. Registry kinds (code: `app/lib/notifications/kinds/comunicado.ts`)
 
