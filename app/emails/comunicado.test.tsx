@@ -22,7 +22,6 @@ vi.mock("@/app/lib/feature_flags/helpers", () => ({
 
 import ComunicadoEmail, {
   COMUNICADO_PREHEADER_MAX,
-  COMUNICADO_STAGING_NOTE,
   type ComunicadoEmailProps,
   comunicadoPreheader,
 } from "@/app/emails/comunicado";
@@ -129,7 +128,6 @@ function emailProps(
     actionLabel: "Ver mi reserva",
     actionPath: "/my_participations",
     unsubscribeUrl: UNSUBSCRIBE,
-    staging: false,
     baseUrl: BASE,
     ...overrides,
   };
@@ -299,7 +297,6 @@ describe("announcementBlocksToEmail", () => {
     const html = await render(
       ComunicadoEmail(
         emailProps({
-          staging: true,
           blocks: [...EVERY_BLOCK, image(IMAGE, "El plano"), image(IMAGE)],
         }),
       ),
@@ -542,7 +539,7 @@ describe("ComunicadoEmail", () => {
 });
 
 describe("renderComunicadoEmail", () => {
-  it("adds the essential note and the staging note above the unsubscribe line", async () => {
+  it("adds the essential note above the unsubscribe line, and no staging note", async () => {
     const email = await renderInput({
       essentialFestivalName: "Glitter Navidad 2026",
       staging: true,
@@ -550,17 +547,14 @@ describe("renderComunicadoEmail", () => {
     const essential =
       "Es un correo esencial sobre tu participación en Glitter Navidad 2026: llega también a quienes se dieron de baja de los anuncios.";
     const essentialAt = email.html.indexOf(essential);
-    const stagingAt = email.html.indexOf(COMUNICADO_STAGING_NOTE);
     expect(essentialAt).toBeGreaterThan(-1);
-    expect(stagingAt).toBeGreaterThan(essentialAt);
-    expect(email.html.indexOf("Darme de baja")).toBeGreaterThan(stagingAt);
+    expect(email.html.indexOf("Darme de baja")).toBeGreaterThan(essentialAt);
     expect(email.text).toContain(essential);
-    expect(email.text).toContain(COMUNICADO_STAGING_NOTE);
+    expect(email.html).not.toContain("entorno de prueba");
+    expect(email.text).not.toContain("entorno de prueba");
 
     const plain = await renderInput();
     expect(plain.html).not.toContain("Es un correo esencial");
-    expect(plain.html).not.toContain(COMUNICADO_STAGING_NOTE);
-    expect(plain.text).not.toContain("entorno de prueba");
   });
 
   it("marks staging mail in the From name and the subject", async () => {

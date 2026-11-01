@@ -47,7 +47,7 @@ export type ComunicadoEmailInput = {
   unsubscribeUrl: string;
   /** Set on an essential send only. */
   essentialFestivalName?: string | null;
-  /** Any environment but production: the From name, subject and note (D7). */
+  /** Any environment but production: the From name and subject (D7). */
   staging: boolean;
   /** "[Prueba]" in the subject. */
   test: boolean;
@@ -99,7 +99,6 @@ export async function renderComunicadoEmail(
       actionPath: input.actionPath,
       unsubscribeUrl: input.unsubscribeUrl,
       essentialFestivalName: input.essentialFestivalName,
-      staging: input.staging,
       baseUrl: input.baseUrl,
     }),
   );

@@ -184,9 +184,7 @@ describe("sendComunicadoTestAction", () => {
     expect(payload.replyTo).toBe("soporte@productoraglitter.com");
     expect(payload.html).not.toContain("¡Hola");
     expect(payload.html).toContain(`href="${BASE}/my_participations"`);
-    expect(payload.html).toContain(
-      "Este correo salió del entorno de prueba de Glitter.",
-    );
+    expect(payload.html).not.toContain("entorno de prueba");
     expect(payload.text).toContain(`tu reserva (${BASE}/my_participations)`);
     expect(payload.text).toContain(`Ver mi reserva: ${BASE}/my_participations`);
     expect(options.idempotencyKey).toMatch(

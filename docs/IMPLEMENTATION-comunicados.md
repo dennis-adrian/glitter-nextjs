@@ -986,7 +986,7 @@ WHERE d.id = ANY($claimed) AND d.lease_owner = $o;
 
 **Render per row:**
 
-- `render(<ComunicadoEmail revision unsubscribeUrl essentialNote stagingNote />)`;
+- `render(<ComunicadoEmail revision unsubscribeUrl essentialNote />)`;
 - `text` is the revision's text with URLs, plus the action URL and the unsubscribe page URL;
 - **headers:** `unsubscribeLinks({ kind: "user", id }, "announcements").headers` (`unsubscribe-links.ts:26-41`), **except on `overridden` rows** (D7);
 - `from: COMUNICADOS_FROM` (outside production `COMUNICADOS_FROM_STAGING`), `replyTo: COMUNICADOS_REPLY_TO` (K3);
@@ -1088,7 +1088,7 @@ Comunicado email never queues ahead of transactional email, and it uses under ha
 - **Staging marks** (every environment except production; also on the test send):
   - the subject is prefixed with `getEnvLabel()`, giving "[Prev] Cambio de horario de armado";
   - the From display name becomes "Productora Glitter (prueba)";
-  - a footer note reads: "Este correo salió del entorno de prueba de Glitter. Darte de baja acá no cambia nada en los correos del sitio real de Glitter; si no esperabas recibirlo, respondé a este correo."
+  - no footer note: the From name and subject are enough.
 - **The override** is the single `essential` argument of `comunicadoEmailExclusion` in the pre-check. `essential` cannot change after the send starts.
 - **`EmailCopy` and the transactional `runDelivery` do not change:** the bulk lane builds its own Resend payload.
 
@@ -2114,7 +2114,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 
 - **Unit:**
   - `comunicados/content.test.ts`: refuses unknown types, h1/h4, depth 3, `javascript:`/`data:`/`//`; strips colours, underline, strike, alignment; size limits; draft vs send stage;
-  - `app/emails/comunicado.test.tsx`: absolute URLs by concatenation, inline styles, no `details`/`input`/`figure`/`pre`, no greeting, essential and staging notes, the `[Prev]` subject;
+  - `app/emails/comunicado.test.tsx`: absolute URLs by concatenation, inline styles, no `details`/`input`/`figure`/`pre`, no greeting, the essential note and no staging note, the `[Prev]` subject;
   - `comunicados/text.test.ts`;
   - the announcement sanitizer's XSS cases (as `rich-text.test.ts:100-177`);
   - `definitions.test.ts`: `safeActionPath` refuses `/\t/x`, `/\n/x`, `/ x`;
