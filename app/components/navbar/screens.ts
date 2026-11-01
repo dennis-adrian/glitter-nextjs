@@ -795,10 +795,13 @@ export function breadcrumbTrail(
   {
     labels = {},
     current,
+    parentHref: parentOverride,
   }: {
     labels?: Record<string, string>;
     /** The page's own name, when it names itself (ScreenTitle). */
     current?: string;
+    /** The page's own parent, when the path cannot give it (ScreenTitle). */
+    parentHref?: string;
   } = {},
 ): Crumb[] {
   const path = normalize(pathname);
@@ -809,7 +812,7 @@ export function breadcrumbTrail(
     { label: current ?? labels[path] ?? here.title, href: path },
   ];
   const seen = new Set([path]);
-  let parentHref = here.parentHref;
+  let parentHref = parentOverride ?? here.parentHref;
   // Short and acyclic in practice; the bound only guards a mistake in SCREENS.
   for (let step = 0; step < 8; step++) {
     const parentPath = normalize(parentHref);

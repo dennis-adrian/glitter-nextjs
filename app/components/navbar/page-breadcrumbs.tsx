@@ -26,9 +26,9 @@ export default function PageBreadcrumbs({
   labels?: Record<string, string>;
   className?: string;
 }) {
-  const { nav, path, title, isRoot } = useScreenPlacement();
+  const { nav, path, title, parentHref, isRoot } = useScreenPlacement();
   const trail = nav
-    ? breadcrumbTrail(path, nav, { labels, current: title })
+    ? breadcrumbTrail(path, nav, { labels, current: title, parentHref })
     : [];
 
   // Until the navbar has streamed in, keep the line so nothing moves.

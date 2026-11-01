@@ -207,7 +207,13 @@ export function useScreenPlacement() {
   const isRoot = Boolean(
     rootTab && nav?.tabs.some((tab) => tab.key === rootTab),
   );
-  return { nav, path, title: current(overrides.title, path), isRoot };
+  return {
+    nav,
+    path,
+    title: current(overrides.title, path),
+    parentHref: current(overrides.backHref, path),
+    isRoot,
+  };
 }
 
 function current<T>(

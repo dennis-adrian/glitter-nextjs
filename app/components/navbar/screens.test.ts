@@ -257,6 +257,15 @@ describe("breadcrumbTrail", () => {
     ]);
   });
 
+  it("follows a parent the page gives, then that parent's own place", () => {
+    expect(
+      breadcrumbTrail("/dashboard/reservations/5/edit", ctx(admin, { id: 9 }), {
+        parentHref: "/dashboard/festivals/9/reservations",
+        labels: { "/dashboard/festivals/9": "Festicker 2026" },
+      }).map((c) => c.label),
+    ).toEqual(["Festicker 2026", "Reservas y cobros", "Editar reserva"]);
+  });
+
   it("is empty on a tab's own page", () => {
     expect(breadcrumbTrail("/my_participations", ctx(verified))).toEqual([]);
   });
