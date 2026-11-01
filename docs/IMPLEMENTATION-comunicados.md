@@ -1,6 +1,6 @@
 # Implementation: comunicados and distribution lists (phase 3)
 
-**Status:** Built behind the hidden `comunicados` flag, 2026-10-26; not yet released. PRs 2 and 3 merged on their own (#603, #604); PRs 4–8 shipped together in one pull request (#605). Where the code settled a detail this design left open or got wrong, the implementation notes at the end of §J say what it does. "Enviar a más personas" (G10, migration 0305) came after, on Dennis's rules of 2026-11-01.
+**Status:** Built behind the hidden `comunicados` flag, 2026-10-26; not yet released. PRs 2 and 3 merged on their own (#603, #604); PRs 4–8 shipped together in one pull request (#605). Where the code settled a detail this design left open or got wrong, the implementation notes at the end of §J say what it does. "Enviar a más personas" (G10, migration 0306) came after, on Dennis's rules of 2026-11-01.
 **PRD:** §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md)
 
 This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md): comunicados (admin-written announcements) and distribution lists. §12 holds the decisions agreed with Dennis on 2026-10-24. Decisions 1–9 are binding here and are cited as "decision N", by their number there. Its defaults 10–24 are proposed, not decided: each is asked here as a K question, with its default number. "PRD §n" is a section of that PRD. Citations are `file:line` in the repo, checked against develop at `bf067e1b`.
@@ -142,6 +142,37 @@ CREATE INDEX distribution_list_members_user_idx ON distribution_list_members (us
 
 - **No index on `stand_reservations (festival_id) WHERE status = 'accepted'` in 0302.** The release that carries 0302 also carries 0301 (A0). 0301 holds `notifications` exclusively, so a `CREATE INDEX` on `stand_reservations` after it takes the two tables in the reverse of a reservation change that writes the reservation and then `notify()`s in one transaction: a deadlock window during the deploy. The table is a few thousand rows, so the lists read it without one. If it is ever needed, it ships in a release of its own, or as `CREATE INDEX CONCURRENTLY` outside the migration transaction. The foreign keys to `users` take `SHARE ROW EXCLUSIVE` on `users` after 0301's locks too; that is safe only because no transaction writes `users` and then calls `notify()` (checked for this release), so none may be added before 0301 is in production.
 
+**Copies (0305, B10).** Duplicating an audience adds these to `distribution_lists`, and one table:
+
+```sql
+ALTER TABLE distribution_lists
+  ADD COLUMN origin_festival_id int REFERENCES festivals ON DELETE SET NULL,          -- copy of "Confirmados · F"
+  ADD COLUMN origin_list_id int REFERENCES distribution_lists ON DELETE SET NULL,     -- copy of a filter list
+  ADD COLUMN origin_name text,                                                        -- the origin's name when copied
+  ADD COLUMN copied_at timestamp,
+  ADD COLUMN last_pulled_at timestamp,                                                -- the last "Traer nuevos"
+  ADD CONSTRAINT distribution_lists_origin CHECK (
+    num_nonnulls(origin_festival_id, origin_list_id) <= 1
+    AND (origin_name IS NULL) = (copied_at IS NULL)
+    AND (origin_name IS NOT NULL OR (origin_festival_id IS NULL AND origin_list_id IS NULL AND last_pulled_at IS NULL))
+    AND (origin_name IS NULL OR kind = 'fixed'));
+
+CREATE TABLE distribution_list_removals (             -- removed by hand from a copy; "Traer nuevos" leaves them out
+  list_id int NOT NULL REFERENCES distribution_lists ON DELETE CASCADE,
+  user_id int NOT NULL REFERENCES users ON DELETE CASCADE,
+  removed_by_user_id int REFERENCES users ON DELETE SET NULL,
+  removed_at timestamp NOT NULL DEFAULT now(),
+  PRIMARY KEY (list_id, user_id)
+);
+CREATE INDEX distribution_list_removals_user_idx ON distribution_list_removals (user_id);
+```
+
+- A copy is an ordinary fixed list: `kind = 'fixed'`, members in `distribution_list_members`. The composer, the scheduler, the send and the gift picker (B9) resolve it exactly like any fixed list, and none of them reads the origin columns.
+- `origin_name` survives the origin: if the festival is deleted the foreign key goes null and the page still says what it was a copy of, with no pull.
+- Only a copy of a computed audience has an origin. A copy of a fixed list has none.
+- **Contacts without an account, later.** Members and removals are keyed by `user_id` today. Visitor audiences (a parallel effort) would add a nullable contact column to both tables and a surrogate key, with a CHECK that exactly one of `user_id` and the contact is set; nothing in B10 depends on members being users beyond that key, and the pull's `NOT EXISTS` and removal lookups compare whichever is set.
+- The foreign key to `festivals` takes `SHARE ROW EXCLUSIVE` on `festivals` while 0305 runs, briefly. No reservation or `notify()` path writes `festivals` and then the lists tables, so there is no lock-order inversion (compare the 0302 note below).
+
 - "Confirmados · \<festival\>" lists are **not rows**. They are computed from `festivals` every time they are used (decision 4). `festivals.name` is unique (`db/schema.ts:370`), so the label is stable.
 - A saved list's name may not start with "Confirmados ·". The action checks it.
 - Lists are archived, never deleted. Archiving frees the name, because of the partial unique index.
@@ -264,9 +295,9 @@ ALTER TABLE notification_campaign_recipients ADD COLUMN source campaign_recipien
 - Gift-only columns stay NULL: `ledger_entry_id`, `reversal_entry_id`, `revoked_at`, `revoked_by_user_id`.
 - `revoked_was_granted` can never fire, because retraction is per comunicado, never per recipient.
 - `source` is how the person entered the audience. Every send-time check is an allowlist on it: a row without a source, or with an unknown one, is never sent (D3).
-- `resend_id` (0305, RESTRICT) names the "Enviar a más personas" that wrote the row, whose channels and essential mark it goes out with (G10). NULL for the original send's snapshot and for gifts.
+- `resend_id` (0306, RESTRICT) names the "Enviar a más personas" that wrote the row, whose channels and essential mark it goes out with (G10). NULL for the original send's snapshot and for gifts.
 
-### A6a. `comunicado_resends` (0305)
+### A6a. `comunicado_resends` (0306)
 
 One row per "Enviar a más personas" (G10), never updated:
 
@@ -281,7 +312,7 @@ One row per "Enviar a más personas" (G10), never updated:
 | `summary` (jsonb, `ComunicadoResendSummarySchema`)       | the counts at the resend                                                                                  |
 | `created_by_user_id` (SET NULL), `created_at`            | who and when                                                                                              |
 
-CHECKs: it targets something (`includes_audience OR people <> []`); `essential` only with email, the audience and nobody by name; `essential = (essential_confirmed_by_user_id IS NOT NULL)`. A new table and a new nullable column: nothing references an enum label 0305 adds (A0).
+CHECKs: it targets something (`includes_audience OR people <> []`); `essential` only with email, the audience and nobody by name; `essential = (essential_confirmed_by_user_id IS NOT NULL)`. A new table and a new nullable column: nothing references an enum label 0306 adds (A0).
 
 ### A7. Registry kinds (code: `app/lib/notifications/kinds/comunicado.ts`)
 
@@ -606,6 +637,27 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
   - Gifts accept participants only, so they cannot be narrowed to admins.
   - Gift email is real on previews.
   - The first real use is therefore checked by hand in production (I2).
+
+### B10. Duplicating an audience, and "Traer nuevos" (0305)
+
+Any audience can be duplicated into a frozen, hand-editable list (decided by Dennis, 2026-11):
+
+- **Duplicate = frozen copy.** `duplicateDistributionListAction({ source: { kind: "festival", festivalId } | { kind: "list", listId }, name })` in `app/lib/distribution_lists/actions.ts`:
+  - resolves the source as B2 and B3 do (an unreadable filter refuses with its usual message; an archived list can be copied, which is how one comes back);
+  - in one transaction, inserts a fixed list and, in one statement, the source's distinct members who still exist and are participants (`role = 'user'`), as `distribution_list_members` rows. Membership is not eligibility, as for any list: a banned participant is copied and shows "No lo recibe ahora";
+  - refuses past `DISTRIBUTION_LIST_MAX_MEMBERS` (3,000), rolling back: "«…» tiene 3.240 participantes y una lista elegida a mano llega a 3.000 como máximo. Copiá una lista más chica.";
+  - answers "Copiamos 312 personas de «Confirmados · Glitter Navidad 2026». 2 no son participantes y no se copiaron." (admin owners on Confirmados, say);
+  - for a Confirmados or filter source, records `origin_*`, `origin_name` and `copied_at`. New members of the source do **not** enter the copy by themselves.
+- **Duplicating a fixed list is a plain copy:** same people, no origin, no pull, removals not recorded.
+- The name defaults to "Copia de \<origen\>" cut to 60 characters (`defaultCopyName`), which never starts with "Confirmados ·"; it follows the usual name rules and uniqueness.
+- **"Traer nuevos de «\<origen\>»"**, on a copy with an origin that still exists and is not archived:
+  - `previewDistributionListPullAction(listId)` resolves the origin again (B2, B3; an archived origin list still resolves, an unreadable filter refuses) and returns the participants in it now and not in the copy, split into `candidates` and `removed` (in `distribution_list_removals`);
+  - the dialog lists the candidates **all ticked**, so the admin can untick some, and says "N quitados a mano no se agregan" with "Incluirlos", which adds them to the ticked list;
+  - `pullDistributionListMembersAction({ listId, userIds, includeRemoved })` locks the list, resolves the origin again, and adds only ids still offered: in the origin, not in the copy, a participant, and not removed by hand unless `includeRemoved`. The rest are counted as "ya no estaba para agregar". It honours the 3,000 cap like any add, forgets the removals of those it adds, and sets `last_pulled_at`;
+  - an unticked person is not remembered: they are offered again next time.
+- **Manual removals are remembered.** "Quitar" on a copy upserts `distribution_list_removals`; adding the person back by hand ("Agregar por nombre o correo") deletes the row.
+- **Where it shows** (G8): "Duplicar" on every Confirmados row and page and on every saved list (menu and page, archived included); a copy's page shows "Copia de «…», del \<fecha\>", when it was last pulled ("Todavía no trajiste nuevos."), and the pull button; the lists page shows "Copia de «…»" under the name.
+- Festival admins see none of it; every action refuses them (G2).
 
 ---
 
@@ -1754,6 +1806,10 @@ It loads fresh numbers from the server when it opens:
 - members paged at 50, with "Quitar" (at most 3,000 members);
 - a member who cannot receive it today shows "No lo recibe ahora: Cuenta suspendida".
 
+**Duplicar (B10):** on each Confirmados row and page, in each saved list's ⋯ menu, and on a saved list's page. The dialog asks for the copy's name ("Copia de «…»" by default) and explains, for a computed source: "Copiamos a quienes están hoy en «…» en una lista elegida a mano, que podés cambiar. Quienes entren después a «…» no se suman solos: los traés con «Traer nuevos»." It then opens the copy.
+
+**A copy's page:** the fixed editor, plus a line "Copia de «Confirmados · Glitter Navidad 2026», del 1 nov 2026, 4:12 PM. Trajiste nuevos por última vez el … / Todavía no trajiste nuevos." and the button "Traer nuevos de «…»" (not on an archived copy, nor when the origin is gone: "El original ya no existe: no hay de dónde traer nuevos.").
+
 **Archivar:** "¿Archivar «Ilustradores»? Deja de aparecer al elegir destinatarios. Los borradores y los programados que la usan la siguen usando; los enviados no cambian."
 
 ### G9. Admin item in the bell: `comunicado_not_sent`
@@ -2375,6 +2431,15 @@ What the code does where this design left a detail open or said something else. 
 **Tests.** PR 6's integration tests are five files, not one (PR 6 above).
 
 ---
+
+### Follow-up: duplicating lists and "Traer nuevos" (B10)
+
+**Migration:** `0305_distribution_list_copies` (generated from `db/schema.ts`; additive: five nullable columns, one CHECK that every existing row passes, one new table).
+
+**Tests:**
+
+- **Unit:** `distribution_lists/definitions.test.ts` (default copy name, the duplicate and pull schemas, the messages); `duplicate-list-dialog.test.tsx` (suggested name, the frozen-copy explanation only for a computed source, opens the copy, stays open on a refusal); `pull-new-members-dialog.test.tsx` (all ticked, unticked left out, removed counted and only included when asked, nothing new, a refusal).
+- **Integration** (`lists.integration.test.ts`): a Confirmados copy holds its participants only and remembers the origin, and a later confirmation does not enter it; the pull offers newcomers, adds only the ticked, re-offers the unticked, keeps out removals unless asked and forgets them once added (by pull or by hand), and sets `last_pulled_at`; a filter-list copy pulls from an archived origin and refuses an unreadable one; a fixed-list copy has no origin, no pull and no removals; a taken or reserved name and a source over 3,000 are refused with nothing left behind; the CHECK refuses malformed origins; every new action refuses a festival admin, a participant and an admin without the flag.
 
 ## K. Open questions for Dennis, and risks
 

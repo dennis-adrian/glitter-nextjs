@@ -7603,6 +7603,26 @@ export const distributionLists = pgTable(
       onDelete: "set null",
     }),
     archivedAt: timestamp("archived_at"),
+    /**
+     * A copy of a computed audience ("Confirmados · <festival>" or a filter
+     * list) remembers where it came from, so "Traer nuevos" can resolve it
+     * again. At most one of the two is set; both go null if the origin is
+     * deleted, and `originName` still says what it was.
+     */
+    originFestivalId: integer("origin_festival_id").references(
+      () => festivals.id,
+      { onDelete: "set null" },
+    ),
+    originListId: integer("origin_list_id").references(
+      (): AnyPgColumn => distributionLists.id,
+      { onDelete: "set null" },
+    ),
+    /** The origin's name when copied; null for a list that is not a copy. */
+    originName: text("origin_name"),
+    /** When the copy was made; set exactly when `originName` is. */
+    copiedAt: timestamp("copied_at"),
+    /** The last "Traer nuevos"; null until the first one. */
+    lastPulledAt: timestamp("last_pulled_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -7621,6 +7641,15 @@ export const distributionLists = pgTable(
     check(
       "distribution_lists_description_length",
       sql`${t.description} IS NULL OR char_length(${t.description}) <= 200`,
+    ),
+    // Only a fixed list is a copy; a copy has one origin at most, and its
+    // name and date; a list that is not a copy has no pull either.
+    check(
+      "distribution_lists_origin",
+      sql`num_nonnulls(${t.originFestivalId}, ${t.originListId}) <= 1
+        AND (${t.originName} IS NULL) = (${t.copiedAt} IS NULL)
+        AND (${t.originName} IS NOT NULL OR (${t.originFestivalId} IS NULL AND ${t.originListId} IS NULL AND ${t.lastPulledAt} IS NULL))
+        AND (${t.originName} IS NULL OR ${t.kind} = 'fixed')`,
     ),
   ],
 );
@@ -7644,6 +7673,32 @@ export const distributionListMembers = pgTable(
     primaryKey({ columns: [t.listId, t.userId] }),
     // Deleting a user cascades here; without it that scans the table.
     index("distribution_list_members_user_idx").on(t.userId),
+  ],
+);
+
+/**
+ * People removed by hand from a copy of a computed audience. "Traer nuevos"
+ * leaves them out unless the admin asks for them; adding one back by hand
+ * forgets the removal.
+ */
+export const distributionListRemovals = pgTable(
+  "distribution_list_removals",
+  {
+    listId: integer("list_id")
+      .notNull()
+      .references(() => distributionLists.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    removedByUserId: integer("removed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    removedAt: timestamp("removed_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.listId, t.userId] }),
+    // Deleting a user cascades here; without it that scans the table.
+    index("distribution_list_removals_user_idx").on(t.userId),
   ],
 );
 

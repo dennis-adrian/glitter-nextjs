@@ -1,9 +1,11 @@
 "use server";
 
-import { and, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
+  confirmadosListName,
+  copiedMessage,
   CreateDistributionListSchema,
   DISTRIBUTION_LIST_MAX_MEMBERS,
   type DistributionListFilter,
@@ -11,19 +13,38 @@ import {
   DistributionListIdSchema,
   type DistributionListMember,
   DistributionListMembersSchema,
+  DuplicateDistributionListSchema,
+  PullDistributionListSchema,
+  pulledMessage,
   UpdateDistributionListSchema,
   type AudienceCount,
 } from "@/app/lib/distribution_lists/definitions";
 import {
+  fetchPullCandidates,
+  type PullCandidates,
   previewFilterAudience,
   searchDistributionListCandidates,
 } from "@/app/lib/distribution_lists/queries";
+import {
+  confirmadosMemberIdsSql,
+  fixedMemberIdsSql,
+  originMemberIdsSql,
+  pullCandidatesSql,
+  UnreadableListFilterError,
+  listMemberIdsSql,
+} from "@/app/lib/distribution_lists/resolve";
 import { hasPgErrorCode, isUniqueViolationOn } from "@/app/lib/errors/postgres";
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { distributionListMembers, distributionLists, users } from "@/db/schema";
+import {
+  distributionListMembers,
+  distributionListRemovals,
+  distributionLists,
+  festivals,
+  users,
+} from "@/db/schema";
 
 const LISTS_PATH = "/dashboard/communications/lists";
 
@@ -142,6 +163,9 @@ async function lockList(tx: DbTx, listId: number) {
       id: distributionLists.id,
       kind: distributionLists.kind,
       archivedAt: distributionLists.archivedAt,
+      originFestivalId: distributionLists.originFestivalId,
+      originListId: distributionLists.originListId,
+      originName: distributionLists.originName,
     })
     .from(distributionLists)
     .where(eq(distributionLists.id, listId))
@@ -152,6 +176,22 @@ async function lockList(tx: DbTx, listId: number) {
 }
 
 class Refusal extends Error {}
+
+async function forgetRemovals(
+  tx: DbTx,
+  listId: number,
+  userIds: readonly number[],
+) {
+  if (userIds.length === 0) return;
+  await tx
+    .delete(distributionListRemovals)
+    .where(
+      and(
+        eq(distributionListRemovals.listId, listId),
+        inArray(distributionListRemovals.userId, [...userIds]),
+      ),
+    );
+}
 
 /** A member write that threw: a person deleted meanwhile, or anything else. */
 function memberWriteFailure(error: unknown, log: string): Failure {
@@ -335,6 +375,8 @@ export async function addDistributionListMembersAction(
         } as const;
       }
       const added = await addMembersInTx(tx, listId, userIds, actor.id);
+      // Added back by hand: a later "Traer nuevos" no longer holds them out.
+      if (added.ok) await forgetRemovals(tx, listId, userIds);
       if (added.ok && added.added > 0) {
         await tx
           .update(distributionLists)
@@ -380,6 +422,25 @@ export async function removeDistributionListMemberAction(
           ),
         )
         .returning({ userId: distributionListMembers.userId });
+      // A copy remembers who was taken out by hand, so a pull leaves them out.
+      if (removed.length > 0 && locked.list.originName !== null) {
+        await tx
+          .insert(distributionListRemovals)
+          .values(
+            removed.map(({ userId }) => ({
+              listId,
+              userId,
+              removedByUserId: actor.id,
+            })),
+          )
+          .onConflictDoUpdate({
+            target: [
+              distributionListRemovals.listId,
+              distributionListRemovals.userId,
+            ],
+            set: { removedByUserId: actor.id, removedAt: sql`now()` },
+          });
+      }
       if (removed.length > 0) {
         await tx
           .update(distributionLists)
@@ -433,4 +494,220 @@ export async function searchDistributionListCandidatesAction(input: {
     input.query,
     listId.success ? listId.data : null,
   );
+}
+
+/**
+ * Any audience into a fixed list (B10): the source's participants today,
+ * frozen. A copy of a festival's Confirmados or of a filter list remembers its
+ * origin for "Traer nuevos"; a copy of a fixed list is a plain copy.
+ */
+export async function duplicateDistributionListAction(
+  input: unknown,
+): Promise<ActionResult<{ listId: number }>> {
+  const { actor, blocked } = await listsActor();
+  if (blocked) return blocked;
+  const parsed = DuplicateDistributionListSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { source, name } = parsed.data;
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      let sourceName: string;
+      let memberIds: SQL;
+      let origin: {
+        originFestivalId?: number;
+        originListId?: number;
+        originName?: string;
+        copiedAt?: SQL;
+      } = {};
+      if (source.kind === "festival") {
+        const [festival] = await tx
+          .select({ id: festivals.id, name: festivals.name })
+          .from(festivals)
+          .where(eq(festivals.id, source.festivalId));
+        if (!festival) throw new Refusal("No encontramos ese festival.");
+        sourceName = confirmadosListName(festival.name);
+        memberIds = confirmadosMemberIdsSql([festival.id]);
+        origin = {
+          originFestivalId: festival.id,
+          originName: sourceName,
+          copiedAt: sql`now()`,
+        };
+      } else {
+        // An archived list can be copied too: it is how one comes back.
+        const [list] = await tx
+          .select({
+            id: distributionLists.id,
+            name: distributionLists.name,
+            kind: distributionLists.kind,
+            filter: distributionLists.filter,
+          })
+          .from(distributionLists)
+          .where(eq(distributionLists.id, source.listId));
+        if (!list) throw new Refusal(NOT_FOUND);
+        sourceName = list.name;
+        if (list.kind === "fixed") {
+          memberIds = fixedMemberIdsSql([list.id]);
+        } else {
+          try {
+            memberIds = listMemberIdsSql(list);
+          } catch (error) {
+            if (error instanceof UnreadableListFilterError) {
+              throw new Refusal(error.message);
+            }
+            throw error;
+          }
+          origin = {
+            originListId: list.id,
+            originName: sourceName,
+            copiedAt: sql`now()`,
+          };
+        }
+      }
+
+      const [copy] = await tx
+        .insert(distributionLists)
+        .values({
+          name,
+          kind: "fixed",
+          createdByUserId: actor.id,
+          updatedByUserId: actor.id,
+          ...origin,
+        })
+        .returning({ id: distributionLists.id });
+
+      // One statement: who is on the source now is what the copy holds.
+      const inserted = await tx.execute<{ copied: number; others: number }>(sql`
+        WITH people AS (
+          SELECT ${users.id} AS user_id, ${users.role} = 'user' AS participant
+          FROM (SELECT DISTINCT m.user_id FROM (${memberIds}) AS m(user_id)) AS d
+          JOIN ${users} ON ${users.id} = d.user_id
+        ),
+        copied AS (
+          INSERT INTO ${distributionListMembers} (list_id, user_id, added_by_user_id)
+          SELECT ${copy.id}, people.user_id, ${actor.id}
+          FROM people WHERE people.participant
+          ORDER BY people.user_id
+          ON CONFLICT DO NOTHING
+          RETURNING 1
+        )
+        SELECT (SELECT count(*) FROM copied)::int AS copied,
+               (SELECT count(*) FROM people WHERE NOT people.participant)::int AS others`);
+      const { copied, others } = inserted.rows[0] ?? { copied: 0, others: 0 };
+      if (copied > DISTRIBUTION_LIST_MAX_MEMBERS) {
+        throw new Refusal(
+          `«${sourceName}» tiene ${copied.toLocaleString("es-BO")} participantes y una lista elegida a mano llega a ${DISTRIBUTION_LIST_MAX_MEMBERS.toLocaleString("es-BO")} como máximo. Copiá una lista más chica.`,
+        );
+      }
+      return { listId: copy.id, sourceName, copied, others };
+    });
+    revalidatePath(LISTS_PATH);
+    return {
+      success: true,
+      message: copiedMessage(
+        outcome.copied,
+        outcome.sourceName,
+        outcome.others,
+      ),
+      listId: outcome.listId,
+    };
+  } catch (error) {
+    if (isNameTaken(error)) return { success: false, message: NAME_TAKEN };
+    if (error instanceof Refusal) {
+      return { success: false, message: error.message };
+    }
+    if (hasPgErrorCode(error, "23503")) {
+      return {
+        success: false,
+        message: "La lista cambió mientras la copiábamos. Intentá de nuevo.",
+      };
+    }
+    console.error("Error duplicating a distribution list", {
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return { success: false, message: "No se pudo copiar la lista." };
+  }
+}
+
+/** The "Traer nuevos" dialog: who is in the origin now and not in the copy. */
+export async function previewDistributionListPullAction(
+  listId: unknown,
+): Promise<PullCandidates> {
+  const { blocked } = await listsActor();
+  if (blocked) return { ok: false, message: blocked.message };
+  const parsed = DistributionListIdSchema.safeParse(listId);
+  if (!parsed.success) return { ok: false, message: NOT_FOUND };
+  return fetchPullCandidates(parsed.data);
+}
+
+/**
+ * Adds the people ticked in "Traer nuevos", re-checked against the origin as
+ * it is now: anyone no longer in it, or already in the copy, is left out, and
+ * those removed by hand only come back with `includeRemoved`.
+ */
+export async function pullDistributionListMembersAction(
+  input: unknown,
+): Promise<ActionResult<{ added: number }>> {
+  const { actor, blocked } = await listsActor();
+  if (blocked) return blocked;
+  const parsed = PullDistributionListSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { listId, userIds, includeRemoved } = parsed.data;
+
+  let result:
+    | { ok: true; added: number; leftOut: number; originName: string }
+    | { ok: false; message: string };
+  try {
+    result = await db.transaction(async (tx) => {
+      const locked = await lockList(tx, listId);
+      if (!locked.list) return { ok: false, message: locked.message } as const;
+      if (locked.list.kind !== "fixed") {
+        return { ok: false, message: NOT_FOUND } as const;
+      }
+      const origin = await originMemberIdsSql(tx, locked.list);
+      if (!origin.ok) return origin;
+      const current = await tx.execute<{ user_id: number; removed: boolean }>(
+        sql`SELECT c.user_id, c.removed
+            FROM (${pullCandidatesSql(listId, origin.memberIds)}) AS c`,
+      );
+      const offered = new Map(
+        current.rows.map((row) => [Number(row.user_id), row.removed]),
+      );
+      const wanted = userIds.filter((id) => {
+        const removed = offered.get(id);
+        return removed !== undefined && (!removed || includeRemoved);
+      });
+      let added = 0;
+      if (wanted.length > 0) {
+        const outcome = await addMembersInTx(tx, listId, wanted, actor.id);
+        if (!outcome.ok) return outcome;
+        added = outcome.added;
+        await forgetRemovals(tx, listId, wanted);
+      }
+      await tx
+        .update(distributionLists)
+        .set({
+          lastPulledAt: sql`now()`,
+          updatedByUserId: actor.id,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(distributionLists.id, listId));
+      return {
+        ok: true,
+        added,
+        leftOut: userIds.length - added,
+        originName: locked.list.originName!,
+      } as const;
+    });
+  } catch (error) {
+    return memberWriteFailure(error, "Error pulling distribution list members");
+  }
+  if (!result.ok) return { success: false, message: result.message };
+  revalidatePath(`${LISTS_PATH}/${listId}`);
+  revalidatePath(LISTS_PATH);
+  return {
+    success: true,
+    message: pulledMessage(result.added, result.originName, result.leftOut),
+    added: result.added,
+  };
 }

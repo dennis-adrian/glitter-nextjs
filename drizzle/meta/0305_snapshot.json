@@ -1,5 +1,5 @@
 {
-  "id": "bea9dd7c-c5d2-46a2-a4c8-683e747c5f70",
+  "id": "010708f2-de1a-44d8-8da6-a36cb245c8ff",
   "prevId": "4c662ef9-ee36-49bb-a7c8-36d4d18b012a",
   "version": "7",
   "dialect": "postgresql",
@@ -953,190 +953,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.comunicado_resends": {
-      "name": "comunicado_resends",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "comunicado_id": {
-          "name": "comunicado_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_key": {
-          "name": "request_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "includes_audience": {
-          "name": "includes_audience",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "people": {
-          "name": "people",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "send_email": {
-          "name": "send_email",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "send_push": {
-          "name": "send_push",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "essential": {
-          "name": "essential",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "essential_confirmed_by_user_id": {
-          "name": "essential_confirmed_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary": {
-          "name": "summary",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "comunicado_resends_request_key_unique": {
-          "name": "comunicado_resends_request_key_unique",
-          "columns": [
-            {
-              "expression": "request_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "comunicado_resends_comunicado_idx": {
-          "name": "comunicado_resends_comunicado_idx",
-          "columns": [
-            {
-              "expression": "comunicado_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "comunicado_resends_comunicado_id_comunicados_id_fk": {
-          "name": "comunicado_resends_comunicado_id_comunicados_id_fk",
-          "tableFrom": "comunicado_resends",
-          "tableTo": "comunicados",
-          "columnsFrom": [
-            "comunicado_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "comunicado_resends_essential_confirmed_by_user_id_users_id_fk": {
-          "name": "comunicado_resends_essential_confirmed_by_user_id_users_id_fk",
-          "tableFrom": "comunicado_resends",
-          "tableTo": "users",
-          "columnsFrom": [
-            "essential_confirmed_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "comunicado_resends_created_by_user_id_users_id_fk": {
-          "name": "comunicado_resends_created_by_user_id_users_id_fk",
-          "tableFrom": "comunicado_resends",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "comunicado_resends_has_target": {
-          "name": "comunicado_resends_has_target",
-          "value": "\"comunicado_resends\".\"includes_audience\" OR jsonb_array_length(\"comunicado_resends\".\"people\") > 0"
-        },
-        "comunicado_resends_essential": {
-          "name": "comunicado_resends_essential",
-          "value": "NOT \"comunicado_resends\".\"essential\" OR (\"comunicado_resends\".\"send_email\" AND \"comunicado_resends\".\"includes_audience\" AND jsonb_array_length(\"comunicado_resends\".\"people\") = 0)"
-        },
-        "comunicado_resends_essential_confirmed": {
-          "name": "comunicado_resends_essential_confirmed",
-          "value": "\"comunicado_resends\".\"essential\" = (\"comunicado_resends\".\"essential_confirmed_by_user_id\" IS NOT NULL)"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.comunicado_revisions": {
@@ -2980,6 +2796,108 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.distribution_list_removals": {
+      "name": "distribution_list_removals",
+      "schema": "",
+      "columns": {
+        "list_id": {
+          "name": "list_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "removed_by_user_id": {
+          "name": "removed_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "distribution_list_removals_user_idx": {
+          "name": "distribution_list_removals_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "distribution_list_removals_list_id_distribution_lists_id_fk": {
+          "name": "distribution_list_removals_list_id_distribution_lists_id_fk",
+          "tableFrom": "distribution_list_removals",
+          "tableTo": "distribution_lists",
+          "columnsFrom": [
+            "list_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "distribution_list_removals_user_id_users_id_fk": {
+          "name": "distribution_list_removals_user_id_users_id_fk",
+          "tableFrom": "distribution_list_removals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "distribution_list_removals_removed_by_user_id_users_id_fk": {
+          "name": "distribution_list_removals_removed_by_user_id_users_id_fk",
+          "tableFrom": "distribution_list_removals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "removed_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "distribution_list_removals_list_id_user_id_pk": {
+          "name": "distribution_list_removals_list_id_user_id_pk",
+          "columns": [
+            "list_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.distribution_lists": {
       "name": "distribution_lists",
       "schema": "",
@@ -3029,6 +2947,36 @@
         },
         "archived_at": {
           "name": "archived_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin_festival_id": {
+          "name": "origin_festival_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin_list_id": {
+          "name": "origin_list_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin_name": {
+          "name": "origin_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "copied_at": {
+          "name": "copied_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_pulled_at": {
+          "name": "last_pulled_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -3092,6 +3040,32 @@
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
+        },
+        "distribution_lists_origin_festival_id_festivals_id_fk": {
+          "name": "distribution_lists_origin_festival_id_festivals_id_fk",
+          "tableFrom": "distribution_lists",
+          "tableTo": "festivals",
+          "columnsFrom": [
+            "origin_festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "distribution_lists_origin_list_id_distribution_lists_id_fk": {
+          "name": "distribution_lists_origin_list_id_distribution_lists_id_fk",
+          "tableFrom": "distribution_lists",
+          "tableTo": "distribution_lists",
+          "columnsFrom": [
+            "origin_list_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3109,6 +3083,10 @@
         "distribution_lists_description_length": {
           "name": "distribution_lists_description_length",
           "value": "\"distribution_lists\".\"description\" IS NULL OR char_length(\"distribution_lists\".\"description\") <= 200"
+        },
+        "distribution_lists_origin": {
+          "name": "distribution_lists_origin",
+          "value": "num_nonnulls(\"distribution_lists\".\"origin_festival_id\", \"distribution_lists\".\"origin_list_id\") <= 1\n        AND (\"distribution_lists\".\"origin_name\" IS NULL) = (\"distribution_lists\".\"copied_at\" IS NULL)\n        AND (\"distribution_lists\".\"origin_name\" IS NOT NULL OR (\"distribution_lists\".\"origin_festival_id\" IS NULL AND \"distribution_lists\".\"origin_list_id\" IS NULL AND \"distribution_lists\".\"last_pulled_at\" IS NULL))\n        AND (\"distribution_lists\".\"origin_name\" IS NULL OR \"distribution_lists\".\"kind\" = 'fixed')"
         }
       },
       "isRLSEnabled": false
@@ -8158,12 +8136,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "resend_id": {
-          "name": "resend_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -8303,19 +8275,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "notification_campaign_recipients_resend_id_comunicado_resends_id_fk": {
-          "name": "notification_campaign_recipients_resend_id_comunicado_resends_id_fk",
-          "tableFrom": "notification_campaign_recipients",
-          "tableTo": "comunicado_resends",
-          "columnsFrom": [
-            "resend_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
