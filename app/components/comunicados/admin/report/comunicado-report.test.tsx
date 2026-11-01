@@ -31,6 +31,7 @@ vi.mock("@/app/lib/comunicados/revision-actions", () => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
+  usePathname: () => "/dashboard/communications/7",
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // The menu and the button are tested on their own; here they only show up.

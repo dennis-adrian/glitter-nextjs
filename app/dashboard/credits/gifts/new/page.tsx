@@ -32,9 +32,12 @@ export default async function NewCreditGiftPage() {
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Regalar créditos</h2>
+        <h2 className="text-lg font-semibold" data-installed-title="">
+          Regalar créditos
+        </h2>
         <Link
           href="/dashboard/credits/gifts"
+          data-installed-hidden=""
           className="text-sm text-muted-foreground hover:underline"
         >
           Volver a los regalos

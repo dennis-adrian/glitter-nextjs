@@ -414,12 +414,15 @@ export default function EditOrderForm({
       <div>
         <Link
           href={orderDetailUrl}
+          data-installed-hidden=""
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2"
         >
           <ArrowLeftIcon className="h-4 w-4" />
           Volver al pedido
         </Link>
-        <Heading level={2}>Editar pedido #{order.id}</Heading>
+        <Heading level={2} data-installed-title="">
+          Editar pedido #{order.id}
+        </Heading>
       </div>
 
       {/* Conflict error alert */}

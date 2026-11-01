@@ -48,7 +48,7 @@ export default function CouponBookActivityPage({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Heading>{activity.name}</Heading>
+        <Heading data-installed-title="">{activity.name}</Heading>
         {activity.description && (
           <p className="text-sm md:text-base">{activity.description}</p>
         )}

@@ -29,13 +29,16 @@ export default async function NewDistributionListPage(props: {
     <div className="space-y-4 overflow-y-auto pb-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold">Nueva lista</h2>
+          <h2 className="text-lg font-semibold" data-installed-title="">
+            Nueva lista
+          </h2>
           <p className="text-sm text-muted-foreground">
             {DISTRIBUTION_LIST_KIND_DESCRIPTIONS[kind]}
           </p>
         </div>
         <Link
           href="/dashboard/communications/lists"
+          data-installed-hidden=""
           className="text-sm text-muted-foreground hover:underline"
         >
           Volver a las listas

@@ -45,7 +45,7 @@ export default function StickerHuntActivityPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <Heading>{activity.name}</Heading>
+      <Heading data-installed-title="">{activity.name}</Heading>
       <p className="text-sm md:text-base">
         La Cacería de Stickers es una actividad que invita al público del evento
         a recorrer los stands para coleccionar stickers diseñados por los

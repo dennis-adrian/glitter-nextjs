@@ -18,7 +18,9 @@ export default async function AddDiscountCodePage() {
 
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-2xl font-bold mb-4">Nuevo código de descuento</h1>
+      <h1 className="text-2xl font-bold mb-4" data-installed-title="">
+        Nuevo código de descuento
+      </h1>
       <div className="max-w-xl">
         <DiscountCodeForm festivalsOptions={getFestivalsOptions(festivals)} />
       </div>

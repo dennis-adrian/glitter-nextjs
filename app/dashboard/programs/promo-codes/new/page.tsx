@@ -27,13 +27,17 @@ export default async function NewProgramPromoCodePage({ searchParams }: Props) {
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-4 md:p-6">
       <div>
+        {/* The installed app's top bar carries back and the title. */}
         <Link
           href="/dashboard/programs/promo-codes"
+          data-installed-hidden=""
           className="text-sm text-muted-foreground underline-offset-2 hover:underline"
         >
           ← Códigos promocionales
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">Nuevo código</h1>
+        <h1 className="mt-2 text-2xl font-bold" data-installed-title="">
+          Nuevo código
+        </h1>
       </div>
       <Card>
         <CardHeader>

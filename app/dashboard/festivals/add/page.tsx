@@ -11,7 +11,8 @@ import {
 export default function Page() {
   return (
     <div className="container p-4 md:p-6">
-      <div className="mb-6">
+      {/* The installed app's top bar carries back and the title. */}
+      <div className="mb-6" data-installed-hidden="">
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -28,7 +29,9 @@ export default function Page() {
       </div>
 
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold">Nuevo Festival</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Nuevo Festival
+        </h1>
         <NewFestivalForm />
       </div>
     </div>

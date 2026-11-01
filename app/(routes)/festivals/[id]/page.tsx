@@ -4,6 +4,7 @@ import { Suspense, cache } from "react";
 import { z } from "zod";
 
 import FestivalPageHero from "@/app/components/festivals/festival-page-hero";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { FestivalGuideSkeleton } from "@/app/components/festivals/festival-guide";
 import FestivalVisitorDiscovery, {
   FestivalGuideSection,
@@ -75,6 +76,8 @@ export default async function Page({ params }: PageProps) {
 
   return (
     <article>
+      {/* A deeper screen for verified participants: the bar names it. */}
+      <ScreenTitle title={festival.name} />
       <FestivalPageHero festival={festival} hasFastPass={false} />
 
       <div className="container mx-auto flex max-w-7xl flex-col gap-12 px-4 pb-10 pt-6 sm:gap-16 sm:px-6 sm:pb-14 lg:px-8">

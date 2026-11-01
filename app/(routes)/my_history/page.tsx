@@ -21,7 +21,7 @@ export default async function MyHistoryPage() {
   return (
     <div className="container p-3 md:p-6">
       <div className="flex flex-col gap-1 md:gap-2 mb-4">
-        <Title>Mi historial</Title>
+        <Title data-installed-title="">Mi historial</Title>
         <p className="text-muted-foreground leading-tight text-sm md:text-base">
           Aquí puedes ver el historial de tus participaciones en festivales.
         </p>

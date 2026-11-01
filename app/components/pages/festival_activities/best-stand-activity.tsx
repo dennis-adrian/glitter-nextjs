@@ -57,7 +57,9 @@ export default async function BestStandActivityPage({
   return (
     <div className="container p-2 md:p-4 space-y-4 md:space-y-5">
       <section>
-        <Heading level={1}>{activity.name}</Heading>
+        <Heading level={1} data-installed-title="">
+          {activity.name}
+        </Heading>
         <p>{activity.description}</p>
       </section>
       {!activityVariantForProfile && (

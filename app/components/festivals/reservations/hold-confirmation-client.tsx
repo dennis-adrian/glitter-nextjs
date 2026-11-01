@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { UserCategory } from "@/app/api/users/definitions";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
+import { useScreenBack } from "@/app/components/navbar/screen-bar";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import {
   getStandFillColor,
@@ -384,7 +385,7 @@ export default function HoldConfirmationClient({
     });
   };
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (isSubmitting) return;
     startSubmitTransition(async () => {
       try {
@@ -408,7 +409,20 @@ export default function HoldConfirmationClient({
         toast.error("Error al cancelar");
       }
     });
-  };
+  }, [
+    isSubmitting,
+    hold.id,
+    festival.id,
+    festival.name,
+    stand.id,
+    stand.standNumber,
+    profile.category,
+    router,
+    mapUrl,
+  ]);
+  // Back in the installed app's top bar frees the held stand too, like the
+  // in-page "Volver al mapa".
+  useScreenBack(handleCancel);
 
   const isExpired = remainingSeconds === 0;
   const allKnownPartnerOptions = useMemo(

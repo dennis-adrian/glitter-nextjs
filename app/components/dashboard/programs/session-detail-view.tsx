@@ -4,6 +4,7 @@ import OccurrenceForm from "@/app/components/dashboard/programs/occurrence-form"
 import OccurrenceRow from "@/app/components/dashboard/programs/occurrence-row";
 import PublicUrlField from "@/app/components/dashboard/programs/public-url-field";
 import PublicationButtons from "@/app/components/dashboard/programs/publication-buttons";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import SessionForm from "@/app/components/dashboard/programs/session-form";
 import SessionSpeakersPanel from "@/app/components/dashboard/programs/session-speakers-panel";
 import { Badge } from "@/app/components/ui/badge";
@@ -88,14 +89,17 @@ export default async function SessionDetailView({
 
   return (
     <div className="container p-3 md:p-6 flex flex-col gap-6">
+      <ScreenTitle title={session.title} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
+          {/* The installed app's top bar carries back and the title. */}
           <Link
             href={
               program
                 ? `/dashboard/programs/${program.id}`
                 : "/dashboard/programs"
             }
+            data-installed-hidden=""
             className="text-sm text-muted-foreground hover:underline"
           >
             ← {program ? program.name : "Programas"}
@@ -114,7 +118,9 @@ export default async function SessionDetailView({
               <Badge variant="secondary">{session.festival.name}</Badge>
             ) : null}
           </div>
-          <h1 className="text-2xl font-bold">{session.title}</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            {session.title}
+          </h1>
           {/* A session is the thing people actually share, so its own URL
               matters more than the program's. Draft either way hides it. */}
           <PublicUrlField

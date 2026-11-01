@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import CheckInPanel from "@/app/components/dashboard/programs/checkin/checkin-panel";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
@@ -43,14 +44,19 @@ export default async function OccurrenceCheckInPage({ params }: Props) {
 
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
+      <ScreenTitle title={session.title} />
       <div className="space-y-2">
+        {/* The installed app's top bar carries back and the title. */}
         <Link
           href={`/dashboard/programs/occurrences/${occurrence.id}`}
+          data-installed-hidden=""
           className="text-sm text-muted-foreground underline-offset-2 hover:underline"
         >
           ← Inscritos
         </Link>
-        <h1 className="text-2xl font-bold">{session.title}</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          {session.title}
+        </h1>
         <p className="text-sm text-muted-foreground">
           {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
           {" — "}

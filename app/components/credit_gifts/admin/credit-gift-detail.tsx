@@ -3,6 +3,7 @@ import CreditGiftKpi from "@/app/components/credit_gifts/admin/credit-gift-kpi";
 import CreditGiftRecipientsTable from "@/app/components/credit_gifts/admin/credit-gift-recipients-table";
 import CreditGiftStatusBadge from "@/app/components/credit_gifts/admin/credit-gift-status-badge";
 import CreditAmount from "@/app/components/credits/credit-amount";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Card, CardContent } from "@/app/components/ui/card";
 import {
   CREDIT_GIFT_OCCASION_LABELS,
@@ -24,11 +25,14 @@ export default function CreditGiftDetail({
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
       <CreditGiftAutoRefresh active={gift.status === "processing"} />
+      <ScreenTitle title={gift.title} />
 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold">{gift.title}</h2>
+            <h2 className="text-lg font-semibold" data-installed-title="">
+              {gift.title}
+            </h2>
             <CreditGiftStatusBadge
               status={gift.status}
               failed={counts.failed}

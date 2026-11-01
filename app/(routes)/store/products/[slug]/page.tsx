@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { z } from "zod";
 
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import SuppliesAccessNotice from "@/app/components/organisms/store/supplies-access-notice";
@@ -139,8 +140,10 @@ export default async function ProductDetailPage(props: {
   return (
     <StoreSectionGate section={product.storeCategory}>
       <div className="container px-3 py-6">
+        <ScreenTitle title={product.name} backHref={returnLink.href} />
         <Link
           href={returnLink.href}
+          data-installed-hidden=""
           className="text-sm text-muted-foreground flex items-center gap-1 mb-6 hover:text-foreground transition-colors"
         >
           <ArrowLeftIcon className="h-3.5 w-3.5" />

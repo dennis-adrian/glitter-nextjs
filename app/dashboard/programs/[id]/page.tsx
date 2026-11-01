@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import ProgramForm from "@/app/components/dashboard/programs/program-form";
 import PublicUrlField from "@/app/components/dashboard/programs/public-url-field";
 import PublicationButtons from "@/app/components/dashboard/programs/publication-buttons";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -40,6 +41,7 @@ export default async function ProgramDetailPage({ params }: Props) {
 
   return (
     <div className="container p-3 md:p-6 flex flex-col gap-6">
+      <ScreenTitle title={program.name} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -49,7 +51,9 @@ export default async function ProgramDetailPage({ params }: Props) {
               {program.status === "published" ? "Publicado" : "Borrador"}
             </Badge>
           </div>
-          <h1 className="text-2xl font-bold">{program.name}</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            {program.name}
+          </h1>
           <PublicUrlField
             path={`/programs/${program.slug}`}
             isDraft={program.status !== "published"}

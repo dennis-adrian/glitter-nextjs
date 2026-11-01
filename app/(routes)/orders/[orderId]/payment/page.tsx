@@ -5,6 +5,7 @@ import { ArrowLeftIcon, BoxIcon, CalendarClockIcon } from "lucide-react";
 import Link from "next/link";
 
 import Heading from "@/app/components/atoms/heading";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { ClearGuestCartOnPaymentMount } from "@/app/components/organisms/orders/clear-guest-cart-on-payment-mount";
 import MobilePaymentBar from "@/app/components/organisms/orders/mobile-payment-bar";
 import OrderPaymentSection from "@/app/components/organisms/orders/order-payment-section";
@@ -78,15 +79,19 @@ export default async function OrderPaymentPage(props: {
   return (
     <div className="container p-3 pb-28 md:p-6 md:pb-6">
       {isGuest ? <ClearGuestCartOnPaymentMount /> : null}
+      <ScreenTitle backHref={backHref} />
       <div className="mb-4">
         <Link
           href={backHref}
+          data-installed-hidden=""
           className="text-sm text-muted-foreground flex items-center gap-1 mb-3 hover:text-foreground transition-colors"
         >
           <ArrowLeftIcon className="h-3.5 w-3.5" />
           Ver detalles del pedido
         </Link>
-        <Heading level={2}>Pagar pedido</Heading>
+        <Heading level={2} data-installed-title="">
+          Pagar pedido
+        </Heading>
       </div>
 
       <div className="space-y-4">

@@ -40,7 +40,7 @@ export default async function HistoricalLineCategoriesPage(props: {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h3 className="text-xl font-semibold">
+          <h3 className="text-xl font-semibold" data-installed-title="">
             Corregir categorías históricas
           </h3>
           <p className="text-sm text-muted-foreground md:text-base">
@@ -50,7 +50,8 @@ export default async function HistoricalLineCategoriesPage(props: {
           </p>
         </div>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/dashboard/store/settings">
+          {/* The installed app's top bar carries back. */}
+          <Link href="/dashboard/store/settings" data-installed-hidden="">
             <ArrowLeftIcon className="mr-1 h-4 w-4" />
             Configuración
           </Link>

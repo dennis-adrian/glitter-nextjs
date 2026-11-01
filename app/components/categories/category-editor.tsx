@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import ImageUploadField from "@/app/components/molecules/image-upload-field";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ImpactConfirmDialog from "@/app/components/organisms/impact-confirm-dialog";
 import RichTextEditor from "@/app/components/organisms/rich-text-editor";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
@@ -113,6 +114,9 @@ export default function CategoryEditor({
     });
   });
 
+  const heading =
+    form.watch("label") || (category ? "Editar categoría" : "Nueva categoría");
+
   return (
     <Form {...form}>
       <form onSubmit={action} className="space-y-6">
@@ -120,12 +124,17 @@ export default function CategoryEditor({
           <div className="min-w-0">
             <Link
               href="/dashboard/categories"
+              data-installed-hidden=""
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               ← Categorías
             </Link>
-            <h1 className="truncate text-xl font-semibold">
-              {form.watch("label") || (category ? "Editar categoría" : "Nueva categoría")}
+            <ScreenTitle title={heading} />
+            <h1
+              className="truncate text-xl font-semibold"
+              data-installed-title=""
+            >
+              {heading}
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">

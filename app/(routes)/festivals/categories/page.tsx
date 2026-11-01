@@ -8,7 +8,12 @@ export default async function Page() {
 
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="mb-2 text-2xl font-bold md:text-3xl">Categorías</h1>
+      <h1
+        className="mb-2 text-2xl font-bold md:text-3xl"
+        data-installed-title=""
+      >
+        Categorías
+      </h1>
       <Image
         className="mx-auto mb-6 h-auto"
         alt="mascota de glitter"

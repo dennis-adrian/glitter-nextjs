@@ -5,6 +5,7 @@ import { z } from "zod";
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import ListMemberCell from "@/app/components/communications/admin/list-member-cell";
 import ListMembersPagination from "@/app/components/communications/admin/list-members-pagination";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import {
   Table,
@@ -48,15 +49,19 @@ export default async function ConfirmadosListPage(props: {
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
+      <ScreenTitle title={festival.listName} />
       <Link
         href="/dashboard/communications/lists"
+        data-installed-hidden=""
         className="text-sm text-muted-foreground hover:underline"
       >
         Volver a las listas
       </Link>
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">{festival.listName}</h2>
+          <h2 className="text-lg font-semibold" data-installed-title="">
+            {festival.listName}
+          </h2>
           <FestivalStatusBadge
             status={festival.festivalStatus as FestivalBase["status"]}
           />

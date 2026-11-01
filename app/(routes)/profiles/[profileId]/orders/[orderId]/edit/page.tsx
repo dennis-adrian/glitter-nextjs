@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import EditOrderForm from "@/app/components/organisms/orders/edit-order-form";
 
 const ParamsSchema = z.object({
@@ -37,6 +38,7 @@ export default async function EditOrderPage(props: {
 
   return (
     <div className="container p-3 md:p-6">
+      <ScreenTitle title={`Editar pedido #${order.id}`} />
       <EditOrderForm order={order} profileId={profileId} />
     </div>
   );

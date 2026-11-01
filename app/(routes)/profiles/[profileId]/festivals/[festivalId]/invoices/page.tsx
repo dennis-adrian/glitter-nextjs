@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
 import FestivalInvoicesList from "@/app/components/payments/festival-invoices-list";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import FestivalInvoicesListSkeleton from "@/app/components/payments/festival-invoices-list-skeleton";
 import { Button } from "@/app/components/ui/button";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
@@ -32,14 +33,18 @@ export default async function Page(props: {
 
   return (
     <div className="container max-w-3xl p-4 md:p-6">
+      <ScreenTitle title={festival.name} />
+      {/* The installed app's top bar carries back and the festival's name. */}
       <Button asChild variant="link" size="sm" className="px-0 mb-2">
-        <Link href="/portal">
+        <Link href="/portal" data-installed-hidden="">
           <ArrowLeftIcon className="w-3.5 h-3.5 mr-1" />
           Volver al inicio
         </Link>
       </Button>
 
-      <Heading level={2}>{festival.name}</Heading>
+      <Heading level={2} data-installed-title="">
+        {festival.name}
+      </Heading>
       <p className="text-sm md:text-base text-muted-foreground mb-6">
         Tus pagos para este festival
       </p>

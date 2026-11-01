@@ -47,7 +47,7 @@ export default async function ParticipationsPage(
 
   return (
     <div className="container p-3 md:p-6">
-      <Breadcrumb>
+      <Breadcrumb data-installed-hidden="">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink href="/my_history">Mi historial</BreadcrumbLink>
@@ -60,7 +60,7 @@ export default async function ParticipationsPage(
       </Breadcrumb>
       {!!participations.length ? (
         <>
-          <Title>Participaciones</Title>
+          <Title data-installed-title="">Participaciones</Title>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {participations.map((participation) => (

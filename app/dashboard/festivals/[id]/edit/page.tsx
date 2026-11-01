@@ -17,7 +17,8 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="container p-4 md:p-6">
-      <Breadcrumb className="mb-4">
+      {/* The installed app's top bar carries back and the title. */}
+      <Breadcrumb className="mb-4" data-installed-hidden="">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink href="/dashboard/festivals">
@@ -36,7 +37,12 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h1 className="mb-2 text-2xl font-bold md:text-3xl">Editar Festival</h1>
+      <h1
+        className="mb-2 text-2xl font-bold md:text-3xl"
+        data-installed-title=""
+      >
+        Editar Festival
+      </h1>
       <UpdateFestivalForm festival={festival} />
     </div>
   );

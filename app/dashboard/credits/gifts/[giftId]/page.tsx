@@ -26,6 +26,7 @@ export default async function CreditGiftPage(props: {
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <Link
         href="/dashboard/credits/gifts"
+        data-installed-hidden=""
         className="text-sm text-muted-foreground hover:underline"
       >
         Volver a los regalos

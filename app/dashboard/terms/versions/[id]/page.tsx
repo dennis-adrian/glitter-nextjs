@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import FestivalTermsVersionPreview from "@/app/components/festival-terms/version-preview";
 import { fetchFestivalTermsVersionById } from "@/app/lib/festival-terms/queries";
 import { formatDateWithTime } from "@/app/lib/formatters";
@@ -23,23 +24,28 @@ export default async function FestivalTermsVersionPage({ params }: PageProps) {
   const version = await fetchFestivalTermsVersionById(versionId);
   if (!version) notFound();
 
+  const statusLabel =
+    version.status === "published"
+      ? "publicada"
+      : version.status === "archived"
+        ? "archivada"
+        : "borrador";
+
   return (
     <div className="container space-y-6 p-4 md:p-6">
+      <ScreenTitle title={`Versión ${version.versionNumber} ${statusLabel}`} />
       <div>
         <Link
           href="/dashboard/terms"
+          data-installed-hidden=""
           className="text-sm text-muted-foreground hover:text-foreground"
         >
           ← Términos y condiciones
         </Link>
-        <h1 className="text-2xl font-semibold">
+        <h1 className="text-2xl font-semibold" data-installed-title="">
           Versión {version.versionNumber}{" "}
           <span className="text-base font-normal text-muted-foreground">
-            {version.status === "published"
-              ? "publicada"
-              : version.status === "archived"
-                ? "archivada"
-                : "borrador"}
+            {statusLabel}
           </span>
         </h1>
         <p className="text-sm text-muted-foreground">

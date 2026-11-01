@@ -35,13 +35,17 @@ export default async function ProgramEnrollmentsPage({ params }: Props) {
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-2">
+        {/* The installed app's top bar carries back and the title. */}
         <Link
           href={`/dashboard/programs/${program.id}`}
+          data-installed-hidden=""
           className="text-sm text-muted-foreground underline-offset-2 hover:underline"
         >
           ← {program.name}
         </Link>
-        <h1 className="text-2xl font-bold">Inscritos</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Inscritos
+        </h1>
       </div>
 
       <Card>

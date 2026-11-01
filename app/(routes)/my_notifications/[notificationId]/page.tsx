@@ -35,6 +35,7 @@ export default async function NotificationPage(props: {
       <Link
         href="/my_notifications"
         className="text-sm text-muted-foreground hover:underline"
+        data-installed-hidden=""
       >
         Volver a las notificaciones
       </Link>

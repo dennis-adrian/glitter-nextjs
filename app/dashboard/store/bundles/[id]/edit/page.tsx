@@ -15,7 +15,9 @@ export default async function EditBundlePage({
   if (!bundle) notFound();
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold">Editar combo</h2>
+      <h2 className="text-2xl font-semibold" data-installed-title="">
+        Editar combo
+      </h2>
       <BundleForm
         key={`${bundle.id}-${revision}`}
         bundle={bundle}

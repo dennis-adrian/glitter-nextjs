@@ -30,17 +30,30 @@ export default function SessionContextHeader({ program, festival }: Props) {
   return (
     // A program or festival name can be long; let the pill drop under the back
     // link rather than squeeze it.
-    <div className="container relative mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-4 px-5 py-6 sm:px-8 lg:px-12">
+    // The installed app's top bar carries back: the strip steps aside there
+    // unless it still names the festival.
+    <div
+      className="container relative mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-4 px-5 py-6 sm:px-8 lg:px-12"
+      data-installed-hidden={!program && festivalHref ? undefined : ""}
+    >
       {program ? (
         <>
-          <Link href={programPath(program.slug)} className={BACK_LINK_CLASS}>
+          <Link
+            href={programPath(program.slug)}
+            className={BACK_LINK_CLASS}
+            data-installed-hidden=""
+          >
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
             Volver a {program.name}
           </Link>
         </>
       ) : (
         <>
-          <Link href="/programs" className={BACK_LINK_CLASS}>
+          <Link
+            href="/programs"
+            className={BACK_LINK_CLASS}
+            data-installed-hidden=""
+          >
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
             Charlas y Talleres
           </Link>

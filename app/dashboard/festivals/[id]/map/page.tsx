@@ -42,7 +42,8 @@ export default async function FestivalMapPage(props: {
 
   return (
     <div className="container p-4 md:p-6">
-      <Breadcrumb>
+      {/* The installed app's top bar carries back and the title. */}
+      <Breadcrumb data-installed-hidden="">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink href="/dashboard/festivals">

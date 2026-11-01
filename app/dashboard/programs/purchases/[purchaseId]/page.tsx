@@ -7,6 +7,7 @@ import EnrollmentEventHistory from "@/app/components/dashboard/programs/enrollme
 import EnrollmentHeader from "@/app/components/dashboard/programs/enrollment/enrollment-header";
 import EnrollmentLines from "@/app/components/dashboard/programs/enrollment/enrollment-lines";
 import EnrollmentVouchers from "@/app/components/dashboard/programs/enrollment/enrollment-vouchers";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import {
   Card,
   CardContent,
@@ -62,23 +63,26 @@ export default async function EnrollmentDetailPage({ params }: Props) {
 
   const isGuest = purchase.userId === null;
   const buyerEmail = purchase.guestEmail ?? purchase.buyer?.email ?? "";
+  const buyerName =
+    purchase.guestName ??
+    purchase.buyer?.displayName ??
+    purchase.buyer?.email ??
+    "Comprador";
 
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-3 md:p-6">
+      <ScreenTitle title={buyerName} />
+      {/* The installed app's top bar carries back and the title. */}
       <Link
         href="/dashboard/programs/purchases"
+        data-installed-hidden=""
         className="text-sm text-muted-foreground underline-offset-2 hover:underline"
       >
         ← Pagos por revisar
       </Link>
 
       <EnrollmentHeader
-        buyerName={
-          purchase.guestName ??
-          purchase.buyer?.displayName ??
-          purchase.buyer?.email ??
-          "Comprador"
-        }
+        buyerName={buyerName}
         buyerEmail={buyerEmail}
         buyerPhone={purchase.guestPhone ?? purchase.buyer?.phoneNumber ?? null}
         isGuest={isGuest}

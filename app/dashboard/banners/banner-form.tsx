@@ -1,5 +1,6 @@
 "use client";
 
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { BannerImageUpload } from "@/app/components/uploads/banner-image-upload";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -163,14 +164,18 @@ export default function BannerForm(props: Props) {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <ScreenTitle title={title} />
       <Link
         href="/dashboard/banners"
+        data-installed-hidden=""
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeftIcon className="size-4 mr-1" />
         Volver al listado
       </Link>
-      <h1 className="text-2xl font-bold">{title}</h1>
+      <h1 className="text-2xl font-bold" data-installed-title="">
+        {title}
+      </h1>
       <form onSubmit={onSubmit} className="space-y-6">
         <BannerImageUpload
           title="Escritorio"

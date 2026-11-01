@@ -16,7 +16,9 @@ export default async function NewProgramPage() {
 
   return (
     <div className="container p-3 md:p-6 max-w-2xl flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Nuevo programa</h1>
+      <h1 className="text-2xl font-bold" data-installed-title="">
+        Nuevo programa
+      </h1>
       <ProgramForm
         venues={venues}
         festivals={festivals.map((festival) => ({

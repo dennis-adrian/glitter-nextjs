@@ -88,6 +88,7 @@ export default function ComposerHeader({
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <Link
           href="/dashboard/communications"
+          data-installed-hidden=""
           className={cn(
             buttonVariants({ variant: "ghost", size: "sm" }),
             "-ml-3",

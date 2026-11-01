@@ -268,13 +268,14 @@ export function AppScreenBar({ screen }: { screen: Screen }) {
  * no back button of their own in an installed app's window.
  */
 export function ScreenHeaderBack({ screen }: { screen: Screen }) {
-  const { title, back, close } = useScreenBar(screen);
+  const { title, action, back, close } = useScreenBar(screen);
   return (
     <div className="hidden min-w-0 items-center gap-2 standalone:lg:flex">
       <BackButton close={close} onClick={back} />
       <p className="truncate font-display text-xl font-semibold text-brand-ink">
         {title}
       </p>
+      {action ? <div className="ml-2 shrink-0">{action}</div> : null}
     </div>
   );
 }

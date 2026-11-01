@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -456,11 +457,16 @@ export default function FestivalTermsEditor({
         <div className="min-w-0">
           <Link
             href="/dashboard/terms"
+            data-installed-hidden=""
             className="text-sm text-muted-foreground hover:text-foreground"
           >
             ← Términos y condiciones
           </Link>
-          <h1 className="text-lg font-semibold sm:text-xl">
+          <ScreenTitle title={`Editar borrador · v${draft.versionNumber}`} />
+          <h1
+            className="text-lg font-semibold sm:text-xl"
+            data-installed-title=""
+          >
             Editar borrador · v{draft.versionNumber}
           </h1>
         </div>

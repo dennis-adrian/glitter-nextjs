@@ -19,13 +19,17 @@ export default async function NewStandaloneSessionPage() {
   return (
     <div className="container max-w-2xl p-3 md:p-6 flex flex-col gap-6">
       <div className="space-y-1">
+        {/* The installed app's top bar carries back and the title. */}
         <Link
           href="/dashboard/programs"
+          data-installed-hidden=""
           className="text-sm text-muted-foreground hover:underline"
         >
           ← Programas
         </Link>
-        <h1 className="text-2xl font-bold">Nueva charla o taller suelto</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Nueva charla o taller suelto
+        </h1>
         <p className="text-sm text-muted-foreground">
           Una sesión que no pertenece a ningún programa. Se vende por su cuenta
           y no acepta códigos promocionales.

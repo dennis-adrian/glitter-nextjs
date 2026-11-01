@@ -41,7 +41,12 @@ export default async function Page() {
 
   return (
     <div className="container mx-auto min-h-full p-4 md:p-6">
-      <h1 className="mb-2 text-2xl font-bold md:text-3xl">Actos en vivo</h1>
+      <h1
+        className="mb-2 text-2xl font-bold md:text-3xl"
+        data-installed-title=""
+      >
+        Actos en vivo
+      </h1>
 
       <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
         <TotalsCard

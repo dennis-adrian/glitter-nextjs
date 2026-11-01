@@ -66,6 +66,7 @@ export default async function CreditPurchase({
     <div className="container max-w-[560px] p-3 md:p-6">
       <Link
         href="/my_credits"
+        data-installed-hidden=""
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeftIcon className="h-4 w-4" />
@@ -73,7 +74,7 @@ export default async function CreditPurchase({
       </Link>
 
       <div className="mb-4 flex flex-col gap-1 md:gap-2">
-        <Title>Compra de créditos</Title>
+        <Title data-installed-title="">Compra de créditos</Title>
         <p className="text-sm leading-tight text-muted-foreground md:text-base">
           {purposeLabel(topUp)}
         </p>

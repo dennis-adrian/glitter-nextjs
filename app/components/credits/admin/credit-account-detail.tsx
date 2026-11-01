@@ -8,6 +8,7 @@ import CreditHoldsDataTable from "@/app/components/credits/admin/credit-holds-da
 import CreditLedgerDataTable from "@/app/components/credits/admin/credit-ledger-data-table";
 import CreditPurchasesDataTable from "@/app/components/credits/admin/credit-purchases-data-table";
 import CreditAmount from "@/app/components/credits/credit-amount";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import {
   CreditLedgerSearchParamsSchema,
@@ -129,10 +130,12 @@ export default async function CreditAccountDetail({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <ScreenTitle title={name} />
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <Link
             href="/dashboard/credits/accounts"
+            data-installed-hidden=""
             className="mt-0.5 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Volver a los saldos"
           >
@@ -140,7 +143,12 @@ export default async function CreditAccountDetail({
           </Link>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-lg font-semibold">{name}</h2>
+              <h2
+                className="truncate text-lg font-semibold"
+                data-installed-title=""
+              >
+                {name}
+              </h2>
               {debtAmount > 0 && <Badge variant="red">Debe</Badge>}
               {account?.hasDrift && <Badge variant="amber">Descuadre</Badge>}
               {subject.role !== "user" && (

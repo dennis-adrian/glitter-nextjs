@@ -36,7 +36,7 @@ export default async function AllowedParticipantsPage(props: {
 
   return (
     <div className="container p-3 md:p-6">
-      <h1 className="text-xl md:text-2xl font-bold">
+      <h1 className="text-xl md:text-2xl font-bold" data-installed-title="">
         Participantes Habilitados
       </h1>
       {/* The parsed id: the route param itself is a string. */}

@@ -1,3 +1,4 @@
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import OrderDetailActions from "@/app/components/organisms/orders/order-detail-actions";
 import RentalReturnForm from "@/app/components/organisms/orders/rental-return-form";
@@ -161,18 +162,25 @@ export default async function OrderDetailPage({
 
   return (
     <div className="space-y-6">
+      <ScreenTitle title={`Pedido #${order.id}`} />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
+          {/* The installed app's top bar carries back and the title. */}
           <Link
             href="/dashboard/store/orders"
+            data-installed-hidden=""
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeftIcon className="h-4 w-4" />
             Pedidos
           </Link>
-          <span className="text-muted-foreground">/</span>
-          <span className="font-semibold">Pedido #{order.id}</span>
+          <span className="text-muted-foreground" data-installed-hidden="">
+            /
+          </span>
+          <span className="font-semibold" data-installed-title="">
+            Pedido #{order.id}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <OrderStatusBadge status={order.status} />

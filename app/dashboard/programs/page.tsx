@@ -23,18 +23,22 @@ export default async function ProgramsDashboardPage() {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) redirect("/dashboard");
 
-  const [programs, standaloneSessions, paidProgramsEnabled] = await Promise.all([
-    fetchProgramsForAdmin(),
-    fetchStandaloneSessionsForAdmin(),
-    isFeatureEnabled("paid_programs", profile),
-  ]);
+  const [programs, standaloneSessions, paidProgramsEnabled] = await Promise.all(
+    [
+      fetchProgramsForAdmin(),
+      fetchStandaloneSessionsForAdmin(),
+      isFeatureEnabled("paid_programs", profile),
+    ],
+  );
   const now = new Date();
 
   return (
     <div className="container p-3 md:p-6 flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold">Programas</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            Programas
+          </h1>
           <p className="text-sm text-muted-foreground">
             Programas como Glitter Week, y charlas o talleres sueltos.
           </p>
@@ -51,7 +55,9 @@ export default async function ProgramsDashboardPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/dashboard/programs/enrollments">Inscripciones</Link>
+                <Link href="/dashboard/programs/enrollments">
+                  Inscripciones
+                </Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/dashboard/programs/purchases">

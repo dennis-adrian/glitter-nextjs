@@ -108,6 +108,7 @@ export default function MerchStorefront({
       {pageCollection && (
         <Link
           href="/merch"
+          data-installed-hidden=""
           className="mb-5 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />

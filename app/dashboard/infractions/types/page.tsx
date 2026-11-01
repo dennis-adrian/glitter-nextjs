@@ -12,13 +12,17 @@ export default async function InfractionTypesPage() {
       <div className="space-y-2">
         <Link
           href="/dashboard/infractions?limit=25&offset=0"
+          data-installed-hidden=""
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon className="size-4" />
           Volver a infracciones
         </Link>
         <div>
-          <h1 className="text-2xl font-bold md:text-3xl">
+          <h1
+            className="text-2xl font-bold md:text-3xl"
+            data-installed-title=""
+          >
             Tipos de infracción
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">

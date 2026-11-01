@@ -124,7 +124,9 @@ export default function ProductDetailContent({
       />
 
       <div className="flex flex-col gap-4 w-full">
-        <Heading level={2}>{product.name}</Heading>
+        <Heading level={2} data-installed-title="">
+          {product.name}
+        </Heading>
 
         {product.description && (
           <p className="text-muted-foreground text-sm leading-relaxed">

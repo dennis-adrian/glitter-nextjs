@@ -209,6 +209,7 @@ export default function ComunicadoEditor({
     <div className="space-y-4 overflow-y-auto pb-6">
       <Link
         href={itemPath}
+        data-installed-hidden=""
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
           "-ml-3",

@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh, push: mocks.push }),
+  usePathname: () => "/dashboard/communications/7",
 }));
 vi.mock("sonner", () => ({
   toast: { success: mocks.success, error: mocks.error },

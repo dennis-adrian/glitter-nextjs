@@ -4,6 +4,7 @@ import {
   InfractionNotesPanel,
 } from "@/app/components/infractions/detail-panels";
 import EditInfractionForm from "@/app/components/infractions/edit-form";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import InfractionStatusActions from "@/app/components/infractions/status-actions";
 import {
   InfractionSeverityBadge,
@@ -58,13 +59,17 @@ export default async function InfractionDetailPage({
       <div className="space-y-2">
         <Link
           href="/dashboard/infractions"
+          data-installed-hidden=""
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon className="w-4 h-4" />
           Volver al listado
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold">Infracción #{infraction.id}</h1>
+          <ScreenTitle title={`Infracción #${infraction.id}`} />
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            Infracción #{infraction.id}
+          </h1>
           <InfractionStatusBadge status={infraction.status} />
           <InfractionSeverityBadge severity={infraction.type.severity} />
         </div>

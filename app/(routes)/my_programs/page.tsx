@@ -25,7 +25,9 @@ export default async function MyProgramsPage() {
   return (
     <div className="container space-y-6 p-3 md:p-6">
       <div className="space-y-1">
-        <Heading level={3}>Mis inscripciones</Heading>
+        <Heading level={3} data-installed-title="">
+          Mis inscripciones
+        </Heading>
         <p className="text-sm text-muted-foreground">
           Tus charlas y talleres, con el QR que necesitás para entrar.
         </p>

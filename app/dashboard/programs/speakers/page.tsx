@@ -13,7 +13,9 @@ export default async function SpeakersPage() {
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold">Expositores</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Expositores
+        </h1>
         <p className="text-sm text-muted-foreground">
           Perfiles públicos de quienes dan las charlas y talleres. No necesitan
           cuenta en Glitter.

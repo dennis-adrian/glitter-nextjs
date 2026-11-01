@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import { Button } from "@/app/components/ui/button";
@@ -65,8 +66,9 @@ export default async function UserOrderPage(props: {
 
   return (
     <div className={`container p-3 md:p-6${canPay ? " pb-32 lg:pb-0" : ""}`}>
+      <ScreenTitle title={`Pedido #${order.id}`} />
       <div className="mb-4">
-        <Heading>Detalles del Pedido</Heading>
+        <Heading data-installed-title="">Detalles del Pedido</Heading>
         <p className="text-muted-foreground">
           Orden #{order.id} • Pedido realizado el{" "}
           {formatDisplayDate(order.createdAt, {

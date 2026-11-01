@@ -68,6 +68,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   "/my_programs": { title: "Mis inscripciones", parent: MENU },
   "/my_profile": { title: "Mi perfil", parent: MENU },
   "/my_profile/verification": { title: "Mi perfil", parent: "/my_profile" },
+  "/my_profile/creation": { title: "Mi perfil", parent: MENU },
   "/my_notifications": { title: "Notificaciones", parent: MENU },
   "/my_notifications/[notificationId]": {
     title: "Notificación",
@@ -77,6 +78,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   "/blog/[slug]": { title: "Artículo", parent: "/blog" },
   "/blog/category/[slug]": { title: "Categoría", parent: "/blog" },
   "/blog/tag/[slug]": { title: "Etiqueta", parent: "/blog" },
+  "/blog/compartido/[token]": { title: "Artículo", parent: "/blog" },
   "/programs": { title: "Charlas y talleres", parent: MENU },
   "/programs/[slug]": { title: "Programa", parent: "/programs" },
   "/programs/[slug]/[sessionSlug]": {

@@ -14,6 +14,7 @@ import { summarizeReservationStands } from "@/app/lib/reservations/member-stands
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -124,9 +125,17 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
       released: "Liberada",
     }[reservation.status] ?? reservation.status;
 
+  const title = `${standSummary.isFullTable ? "Espacios" : "Espacio"} ${standSummary.label}`;
+
   return (
     <div className="m-auto max-w-3xl px-4 py-6 md:px-6 md:py-8">
-      <Breadcrumb>
+      {/* The installed app's top bar carries back and the stand. Its list is
+          the festival's, which the path alone cannot name. */}
+      <ScreenTitle
+        title={title}
+        backHref={`/dashboard/festivals/${reservation.festivalId}/reservations`}
+      />
+      <Breadcrumb data-installed-hidden="">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink
@@ -147,9 +156,8 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
           reservation, and identifying of none. */}
       <header className="mt-4 mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold">
-            {standSummary.isFullTable ? "Espacios" : "Espacio"}{" "}
-            {standSummary.label}
+          <h1 className="text-3xl font-bold" data-installed-title="">
+            {title}
           </h1>
           <Badge variant="secondary">{statusLabel}</Badge>
           {standSummary.isFullTable ? <Badge>Mesa completa</Badge> : null}

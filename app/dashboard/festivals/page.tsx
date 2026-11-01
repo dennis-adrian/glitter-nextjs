@@ -25,7 +25,12 @@ export default async function Page() {
     <div className="container flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold md:text-3xl">Festivales</h1>
+          <h1
+            className="text-2xl font-bold md:text-3xl"
+            data-installed-title=""
+          >
+            Festivales
+          </h1>
           <p className="text-sm text-muted-foreground">
             Abre un festival para gestionar su estado, acreditación, espacios y
             participantes.

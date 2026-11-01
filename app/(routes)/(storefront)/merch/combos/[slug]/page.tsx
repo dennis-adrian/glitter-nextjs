@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import BundleDetail from "@/app/components/organisms/store/bundle-detail";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
@@ -62,8 +63,10 @@ async function BundlePageContent({ params, searchParams }: Props) {
   );
   return (
     <div className="mx-auto max-w-6xl px-4 pb-16 pt-5 sm:px-6 lg:px-8">
+      <ScreenTitle title={bundle.name} backHref={returnLink.href} />
       <Link
         href={returnLink.href}
+        data-installed-hidden=""
         className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" aria-hidden="true" />

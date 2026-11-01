@@ -34,7 +34,12 @@ export default async function SubmittedProductsPage(props: {
 
   return (
     <div className="container p-3 md:p-6">
-      <h1 className="text-lg md:text-2xl font-bold my-3">Productos subidos</h1>
+      <h1
+        className="text-lg md:text-2xl font-bold my-3"
+        data-installed-title=""
+      >
+        Productos subidos
+      </h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {products.map((product) => (
           <SubmittedProductCard key={product.id} product={product} />

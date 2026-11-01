@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import OccurrenceRosterTable from "@/app/components/dashboard/programs/occurrence-roster-table";
 import OccurrenceSeatSummary from "@/app/components/dashboard/programs/occurrence-seat-summary";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -58,20 +59,23 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
     rescheduledAt: occurrence.rescheduledAt,
   });
 
+  const when = `${formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)} — ${formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}`;
+
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
+      <ScreenTitle title={when} backHref={sessionAdminPath(session)} />
       <div className="space-y-2">
+        {/* The installed app's top bar carries back and the title. */}
         <Link
           href={sessionAdminPath(session)}
+          data-installed-hidden=""
           className="text-sm text-muted-foreground underline-offset-2 hover:underline"
         >
           ← {session.title}
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold">
-            {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
-            {" — "}
-            {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            {when}
           </h1>
           <ProgramStatusBadge
             state={resolved.state}
