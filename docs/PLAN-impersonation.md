@@ -55,7 +55,7 @@ request
                     and admin_clerk_session_id = actor's session id
                     and actor's profile.role = 'admin'
                   found → viewer = subject's profile, mode = viewing
-                  not found → cookie is cleared on the response, viewer = actor
+                  not found → viewer = actor (the cookie is ignored, see 5.4)
 ```
 
 Cached per request with React `cache`, so the row is read once. The binding to the Clerk session id means a stolen cookie is worthless in another browser, and signing out of Clerk ends the view by itself.
@@ -137,7 +137,9 @@ A route handler rather than a server action so it is callable from the banner on
 ### 5.4 Expiry
 
 - Cookie `maxAge` and `expires_at` coincide, so most expiries never reach the server.
-- A request that still carries the cookie past `expires_at` resolves as the admin and clears the cookie.
+- A request that still carries the cookie past `expires_at`, or one bound to another Clerk session, resolves as the admin and ignores the cookie. A render cannot clear it (`cookies().set` only works in a Server Function or Route Handler, per the Next 16 docs), and it needs no clearing: it resolves to nothing and its `maxAge` removes it within the hour. The exit route and the next start overwrite it.
+- **Who writes `signed_out`:** the sign-out button (`app/components/user_dropdown/sign-out-button.tsx` and Más) posts to the exit route with `reason: "signed_out"` before calling Clerk's `signOut`. A sign-out that skips our button (another tab, Clerk revoking the session) leaves the row open; it reads as **expirada** at `expires_at`, which is accurate enough for the audit and grants nothing meanwhile, because the row only resolves for the Clerk session it was bound to.
+- **A view that stops resolving early** (the admin demoted, the participant promoted to staff, a profile replaced) also leaves the row open until `expires_at`. Same reasoning: it can no longer resolve, and it reads as expired within the hour.
 - The banner is mounted with `expiresAt`; a client timer and a `visibilitychange` check flip it to the ended state at that time: "La vista como {nombre} terminó" with "Volver a mi cuenta" (`router.refresh()` → admin again).
 
 ---

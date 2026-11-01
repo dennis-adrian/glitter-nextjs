@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -49,6 +49,7 @@ type Queries = typeof import("@/app/lib/impersonation/queries");
 let queries: Queries;
 
 const createdUsers: number[] = [];
+const createdSessions: number[] = [];
 
 async function createUser(
   values: Partial<typeof users.$inferInsert> = {},
@@ -90,6 +91,7 @@ async function open(
     },
     testDb!,
   );
+  createdSessions.push(row!.id);
   return { ...row!, tokenHash, adminClerkSessionId };
 }
 
@@ -131,19 +133,13 @@ describeDatabase("impersonation sessions", () => {
 
   afterAll(async () => {
     if (!testDb) return;
+    // Only this run's own rows: another run may share the database.
+    if (createdSessions.length > 0) {
+      await testDb
+        .delete(impersonationSessions)
+        .where(inArray(impersonationSessions.id, createdSessions));
+    }
     if (createdUsers.length > 0) {
-      await testDb
-        .delete(impersonationSessions)
-        .where(
-          or(
-            inArray(impersonationSessions.adminUserId, createdUsers),
-            inArray(impersonationSessions.subjectUserId, createdUsers),
-          ),
-        );
-      // Rows whose profiles were deleted mid-test only keep the Clerk ids.
-      await testDb
-        .delete(impersonationSessions)
-        .where(sql`${impersonationSessions.adminClerkId} like 'view-as-%'`);
       await testDb
         .delete(pendingUserDeletions)
         .where(inArray(pendingUserDeletions.userId, createdUsers));
@@ -276,6 +272,27 @@ describeDatabase("impersonation sessions", () => {
       expect(await queries.findLiveImpersonation(view, testDb!)).toBeNull();
     });
 
+    it("stops when the admin's profile no longer matches its Clerk id", async () => {
+      const replacedAdmin = await createUser({ role: "admin" });
+      const view = await open(replacedAdmin, subject);
+      await testDb!
+        .update(users)
+        .set({ clerkId: `view-as-${randomUUID()}` })
+        .where(eq(users.id, replacedAdmin.id));
+      expect(await queries.findLiveImpersonation(view, testDb!)).toBeNull();
+    });
+
+    it.each(["verified", "pending", "paused", "rejected", "banned"] as const)(
+      "resolves a participant in any status (%s)",
+      async (status) => {
+        const person = await createUser({ status });
+        const view = await open(admin, person);
+        expect(
+          (await queries.findLiveImpersonation(view, testDb!))?.subject.id,
+        ).toBe(person.id);
+      },
+    );
+
     it("stops when the participant's profile is deleted", async () => {
       const deleted = await createUser();
       const view = await open(admin, deleted);
@@ -399,6 +416,30 @@ describeDatabase("impersonation sessions", () => {
       expect(recent[0]!.durationSeconds).toBeLessThan(60);
       expect(recent[0]!.blockedWrites).toBe(1);
       expect(recent[0]!.admin?.id).toBe(viewer.id);
+    });
+
+    it("stops counting an exited view's time at its exit", async () => {
+      const viewer = await createUser({ role: "admin" });
+      const view = await open(viewer, subject);
+      await queries.endImpersonationSession(
+        { id: view.id, reason: "exited" },
+        testDb!,
+      );
+      // Ten minutes long, ended five minutes ago: still ten.
+      await testDb!
+        .update(impersonationSessions)
+        .set({
+          startedAt: sql`now() - interval '15 minutes'`,
+          endedAt: sql`now() - interval '5 minutes'`,
+        })
+        .where(eq(impersonationSessions.id, view.id));
+      const [row] = await queries.listRecentImpersonations(
+        { adminUserId: viewer.id },
+        10,
+        testDb!,
+      );
+      expect(row?.state).toBe("exited");
+      expect(row?.durationSeconds).toBe(600);
     });
 
     it("lists the views of one person's account across admins", async () => {

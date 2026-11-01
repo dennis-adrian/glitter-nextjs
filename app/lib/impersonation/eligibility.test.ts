@@ -64,6 +64,20 @@ describe("impersonationRefusal", () => {
     );
   });
 
+  it.each(["verified", "pending", "paused", "rejected", "banned"] as const)(
+    "accepts a participant in any status (%s)",
+    (status) => {
+      expect(
+        impersonationRefusal({
+          actor: admin,
+          actorIsViewing: false,
+          subject: { id: 2, role: "user", status } as never,
+          subjectPendingDeletion: false,
+        }),
+      ).toBeNull();
+    },
+  );
+
   it("refuses an account being deleted", () => {
     expect(refusal({ subjectPendingDeletion: true })).toBe("deleting");
   });
