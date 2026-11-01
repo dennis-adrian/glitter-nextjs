@@ -1,26 +1,26 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import {
-  CalendarIcon,
-  ChevronRightIcon,
-  MapPinIcon,
-  SparklesIcon,
-} from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
-import { formatFestivalDateRange } from "@/app/lib/festivals/utils";
+import { formatDisplayDate } from "@/app/lib/formatters";
+import { formatFestivalDays } from "@/app/lib/home/festival";
 
-const FESTIVAL_TYPE_LABELS: Record<FestivalWithDates["festivalType"], string> =
-  {
-    glitter: "Glitter",
-    twinkler: "Twinkler",
-    festicker: "Festicker",
-  };
+function festivalWhen(festival: FestivalWithDates) {
+  const first = [...festival.festivalDates].sort(
+    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
+  )[0]?.startDate;
+  if (!first) return null;
+  const year = formatDisplayDate(first, { year: "numeric" });
+  return `${formatFestivalDays(festival.festivalDates)} de ${year}`;
+}
 
 /**
  * The festivals that have already happened, each opening its public page:
- * participants, map and activities stay there after the festival ends.
+ * participants, map and activities stay there after the festival ends. Each
+ * shows its poster as a small 3:4 thumbnail; the name already says the
+ * festival's type, so there is no type label.
  */
 export default function PastFestivalsList({
   festivals,
@@ -29,7 +29,7 @@ export default function PastFestivalsList({
 }) {
   if (festivals.length === 0) {
     return (
-      <p className="rounded-2xl border border-brand-border bg-brand-card p-4 text-sm text-brand-neutral">
+      <p className="rounded-2xl border border-dashed border-brand-lavender p-4 text-center text-sm text-brand-neutral">
         Todavía no hay festivales anteriores.
       </p>
     );
@@ -38,11 +38,10 @@ export default function PastFestivalsList({
   return (
     <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {festivals.map((festival) => {
-        const artwork =
-          festival.thumbnailUrl ??
-          festival.posterUrl ??
-          festival.festivalBannerUrl;
-        const dates = formatFestivalDateRange(festival.festivalDates);
+        const poster = festival.posterUrl ?? festival.thumbnailUrl;
+        const line = [festivalWhen(festival), festival.locationLabel]
+          .filter(Boolean)
+          .join(" · ");
 
         return (
           <li key={festival.id} className="min-w-0">
@@ -50,40 +49,23 @@ export default function PastFestivalsList({
               href={`/festivals/${festival.id}`}
               className="flex h-full items-center gap-3 rounded-2xl border border-brand-border bg-brand-card p-3 transition-colors hover:border-brand-primary"
             >
-              <span className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-lavender text-brand-primary">
-                {artwork ? (
+              <span className="relative block aspect-3/4 w-12 shrink-0 overflow-hidden rounded-lg bg-brand-lavender/40 shadow-sm">
+                {poster ? (
                   <Image
-                    src={artwork}
+                    src={poster}
                     alt=""
                     fill
-                    sizes="80px"
+                    sizes="48px"
                     className="object-cover"
                   />
-                ) : (
-                  <SparklesIcon className="size-7" aria-hidden="true" />
-                )}
+                ) : null}
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-primary">
-                  {FESTIVAL_TYPE_LABELS[festival.festivalType]}
-                </span>
                 <span className="truncate font-display text-base font-bold leading-tight text-brand-ink">
                   {festival.name}
                 </span>
-                {dates ? (
-                  <span className="flex items-center gap-1 text-xs text-brand-neutral">
-                    <CalendarIcon className="size-3.5" aria-hidden="true" />
-                    {dates}
-                  </span>
-                ) : null}
-                {festival.locationLabel ? (
-                  <span className="flex min-w-0 items-center gap-1 text-xs text-brand-neutral">
-                    <MapPinIcon
-                      className="size-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <span className="truncate">{festival.locationLabel}</span>
-                  </span>
+                {line ? (
+                  <span className="text-xs text-brand-neutral">{line}</span>
                 ) : null}
               </span>
               <ChevronRightIcon

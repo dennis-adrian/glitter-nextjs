@@ -1,5 +1,8 @@
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import type { VisitorActivity } from "@/app/components/festivals/public-festival-activities";
+import FestivalGuide, {
+  buildGuideCards,
+} from "@/app/components/festivals/festival-guide";
 import FestivalVisitorExplorer from "@/app/components/festivals/festival-visitor-explorer";
 import { fetchPublicFestivalParticipants } from "@/app/lib/festival_sectors/actions";
 import { toPublicMapSectors } from "@/app/lib/festival_sectors/public";
@@ -15,9 +18,13 @@ import { formatStandLabel } from "@/app/lib/stands/helpers";
 export default async function FestivalVisitorDiscovery({
   festivalId,
   festivalName,
+  locationLabel = null,
+  locationUrl = null,
 }: {
   festivalId: number;
   festivalName: string;
+  locationLabel?: string | null;
+  locationUrl?: string | null;
 }) {
   const [rawSectors, activities, publicParticipants] = await Promise.all([
     fetchFestivalSectors(festivalId),
@@ -98,13 +105,32 @@ export default async function FestivalVisitorDiscovery({
     },
   );
 
+  const guide = buildGuideCards({
+    sectorCount: sectors.length,
+    standCount: sectors.reduce(
+      (total, sector) =>
+        total +
+        sector.stands.filter((stand) => stand.status !== "disabled").length,
+      0,
+    ),
+    participantCount: publicParticipants.length,
+    activityNames: visitorActivities.map((activity) => activity.name),
+    locationLabel,
+    locationUrl,
+  });
+
   return (
-    <FestivalVisitorExplorer
-      festivalName={festivalName}
-      sectors={sectors}
-      participants={publicParticipants}
-      activities={visitorActivities}
-      mapActivityData={mapActivityData}
-    />
+    <div className="flex flex-col gap-12 sm:gap-16">
+      <FestivalGuide cards={guide} />
+      <section id="mapa" tabIndex={-1} className="scroll-mt-24">
+        <FestivalVisitorExplorer
+          festivalName={festivalName}
+          sectors={sectors}
+          participants={publicParticipants}
+          activities={visitorActivities}
+          mapActivityData={mapActivityData}
+        />
+      </section>
+    </div>
   );
 }

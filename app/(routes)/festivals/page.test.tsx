@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
-const { activeMock, pastMock, redirectMock } = vi.hoisted(() => ({
+const { activeMock, pastMock, upcomingMock, profileMock, redirectMock } = vi.hoisted(() => ({
   activeMock: vi.fn(),
   pastMock: vi.fn(),
+  upcomingMock: vi.fn(),
+  profileMock: vi.fn(),
   redirectMock: vi.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT ${path}`);
   }),
@@ -17,6 +19,12 @@ vi.mock("@/app/lib/festivals/actions", () => ({
 }));
 vi.mock("@/app/lib/festivals/queries", () => ({
   fetchPastFestivals: pastMock,
+}));
+vi.mock("@/app/lib/home/load", () => ({
+  loadUpcomingFestival: upcomingMock,
+}));
+vi.mock("@/app/lib/users/helpers", () => ({
+  getCurrentUserProfile: profileMock,
 }));
 
 import FestivalsPage from "@/app/(routes)/festivals/page";
@@ -47,11 +55,21 @@ function festival(
 beforeEach(() => {
   activeMock.mockReset();
   pastMock.mockReset();
+  upcomingMock.mockReset().mockResolvedValue(null);
+  profileMock.mockReset().mockResolvedValue({ status: "pending" });
   redirectMock.mockClear();
 });
 afterEach(cleanup);
 
 describe("/festivals", () => {
+  it("sends a verified participant to their hub", async () => {
+    profileMock.mockResolvedValue({ status: "verified" });
+
+    await expect(FestivalsPage()).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirectMock).toHaveBeenCalledWith("/my_participations");
+    expect(activeMock).not.toHaveBeenCalled();
+  });
+
   it("opens the festival in progress", async () => {
     activeMock.mockResolvedValue({ id: 7 });
 
@@ -69,17 +87,33 @@ describe("/festivals", () => {
 
     render(await FestivalsPage());
 
-    expect(
-      screen.getByRole("heading", { name: "No hay un festival en curso" }),
-    ).toBeTruthy();
+    // Nothing announced, nothing is announced.
+    expect(screen.queryByText(/No hay un festival en curso/)).toBeNull();
     const links = screen.getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/festivals/4",
       "/festivals/2",
     ]);
     expect(links[0].textContent).toContain("Festicker 2026");
-    expect(links[0].textContent).toContain("11–12 abr 2026");
+    expect(links[0].textContent).toContain("11 y 12 de abril de 2026");
     expect(links[0].textContent).toContain("Teatro CBA");
+    // The name says the type; there is no type label.
+    expect(links[0].textContent).not.toMatch(/^Festicker\s*Festicker/);
+  });
+
+  it("shows the next edition once it is announced, above the archive", async () => {
+    activeMock.mockResolvedValue(undefined);
+    upcomingMock.mockResolvedValue(
+      festival(9, "Festicker 2027", { status: "published" }),
+    );
+    pastMock.mockResolvedValue([festival(4, "Festicker 2026")]);
+
+    render(await FestivalsPage());
+
+    expect(screen.getByRole("heading", { name: "Próximo festival" })).toBeTruthy();
+    expect(
+      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).toEqual(["/festivals/9", "/festivals/4"]);
   });
 
   it("says so when there is no archive yet", async () => {
