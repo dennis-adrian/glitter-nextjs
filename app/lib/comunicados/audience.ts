@@ -65,6 +65,12 @@ export type ComunicadoAudienceSourcesInput = {
   narrow: boolean;
   /** The stored audience names a festival or a saved list, found or not. */
   hasListSource: boolean;
+  /**
+   * "Enviar a más personas" (G10): leave out everyone who already has a
+   * recipient row in this campaign, so every count and the snapshot are about
+   * people new to it.
+   */
+  excludeCampaignId?: number;
 };
 
 function intArray(ids: readonly number[]) {
@@ -129,7 +135,16 @@ export function comunicadoAudienceSourcesSql(
  */
 function judgedCtes(input: ComunicadoAudienceSourcesInput): SQL {
   const person = { id: users.id, role: users.role, status: users.status };
-  return sql`keyed AS (${keyedSourcesSql(input)}),
+  const keyed =
+    input.excludeCampaignId === undefined
+      ? keyedSourcesSql(input)
+      : sql`SELECT ks.* FROM (${keyedSourcesSql(input)}) AS ks
+          WHERE NOT EXISTS (
+            SELECT 1 FROM ${notificationCampaignRecipients} er
+            WHERE er.campaign_id = ${input.excludeCampaignId}::int
+              AND er.user_id = ks.user_id
+          )`;
+  return sql`keyed AS (${keyed}),
     dedup AS (
       SELECT k.user_id,
              CASE WHEN bool_or(k.via = 'person') THEN 'person'
@@ -234,6 +249,8 @@ export type ComunicadoPreviewOptions = {
   /** Applied only when the audience allows it (B7). */
   essential: boolean;
   sendEmail: boolean;
+  /** Count only people with no recipient row in this campaign (G10). */
+  excludeCampaignId?: number;
 };
 
 export const ESSENTIAL_NOT_ALLOWED_MESSAGE =
@@ -509,6 +526,7 @@ export async function summarizeComunicadoAudience(
     audience,
     opts.narrow,
   );
+  resolved.input.excludeCampaignId = opts.excludeCampaignId;
   const essentialAllowed = judgeEssential(
     audience,
     opts.sendEmail,
@@ -664,18 +682,35 @@ export async function snapshotComunicadoRecipients(
   tx: ComunicadosTx,
   campaignId: number,
   input: ComunicadoAudienceSourcesInput,
+  opts: { resendId?: number } = {},
 ): Promise<ComunicadoSnapshotCounts> {
+  const resendId = opts.resendId ?? null;
+  // A resend (G10) adds people new to the campaign, and writes a row only for
+  // whoever receives it, or would but for the preview narrowing: someone who
+  // cannot receive it today keeps no row, so a later resend can still reach
+  // them once they can.
+  const judged =
+    resendId === null
+      ? judgedCtes(input)
+      : judgedCtes({ ...input, excludeCampaignId: campaignId });
+  const written =
+    resendId === null
+      ? sql`true`
+      : sql`(j.reason IS NULL OR j.reason = ${COMUNICADO_SKIP_REASONS.staging})`;
   const result = await tx.execute<SnapshotCountsRow>(sql`
-    WITH ${judgedCtes(input)},
+    WITH ${judged},
     inserted AS (
       INSERT INTO ${notificationCampaignRecipients}
-        (campaign_id, user_id, status, skipped_reason, source, processed_at)
+        (campaign_id, user_id, status, skipped_reason, source, processed_at,
+         resend_id)
       SELECT ${campaignId}::int, j.user_id,
              (CASE WHEN j.reason IS NULL THEN 'pending' ELSE 'skipped' END)
                ::notification_campaign_recipient_status,
              j.reason, j.source::campaign_recipient_source,
-             CASE WHEN j.reason IS NULL THEN NULL ELSE now() END
+             CASE WHEN j.reason IS NULL THEN NULL ELSE now() END,
+             ${resendId}::int
       FROM judged j
+      WHERE ${written}
       ORDER BY j.user_id
       ON CONFLICT (campaign_id, user_id) DO NOTHING
       RETURNING status, skipped_reason, source

@@ -1,6 +1,6 @@
 # Implementation: comunicados and distribution lists (phase 3)
 
-**Status:** Built behind the hidden `comunicados` flag, 2026-10-26; not yet released. PRs 2 and 3 merged on their own (#603, #604); PRs 4–8 shipped together in one pull request (#605). Where the code settled a detail this design left open or got wrong, the implementation notes at the end of §J say what it does.
+**Status:** Built behind the hidden `comunicados` flag, 2026-10-26; not yet released. PRs 2 and 3 merged on their own (#603, #604); PRs 4–8 shipped together in one pull request (#605). Where the code settled a detail this design left open or got wrong, the implementation notes at the end of §J say what it does. "Enviar a más personas" (G10, migration 0305) came after, on Dennis's rules of 2026-11-01.
 **PRD:** §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md)
 
 This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md): comunicados (admin-written announcements) and distribution lists. §12 holds the decisions agreed with Dennis on 2026-10-24. Decisions 1–9 are binding here and are cited as "decision N", by their number there. Its defaults 10–24 are proposed, not decided: each is asked here as a K question, with its default number. "PRD §n" is a section of that PRD. Citations are `file:line` in the repo, checked against develop at `bf067e1b`.
@@ -264,6 +264,24 @@ ALTER TABLE notification_campaign_recipients ADD COLUMN source campaign_recipien
 - Gift-only columns stay NULL: `ledger_entry_id`, `reversal_entry_id`, `revoked_at`, `revoked_by_user_id`.
 - `revoked_was_granted` can never fire, because retraction is per comunicado, never per recipient.
 - `source` is how the person entered the audience. Every send-time check is an allowlist on it: a row without a source, or with an unknown one, is never sent (D3).
+- `resend_id` (0305, RESTRICT) names the "Enviar a más personas" that wrote the row, whose channels and essential mark it goes out with (G10). NULL for the original send's snapshot and for gifts.
+
+### A6a. `comunicado_resends` (0305)
+
+One row per "Enviar a más personas" (G10), never updated:
+
+| Column                                                   | Meaning                                                                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `comunicado_id` (RESTRICT)                               | the sent comunicado                                                                                       |
+| `request_key` (unique)                                   | minted when the dialog opens, so a double submit is one resend                                            |
+| `includes_audience`, `people` (jsonb ids)                | what was asked: the original audience re-resolved, people picked by name, or both                         |
+| `send_email`, `send_push`                                | the channels its rows go out on                                                                           |
+| `essential`, `essential_confirmed_by_user_id` (RESTRICT) | whether its email lifts the Anuncios opt-out, and who confirmed it; profile deletion is refused as for A4 |
+| `revision`                                               | the revision current when it was confirmed (the fan-out sends whatever is current then)                   |
+| `summary` (jsonb, `ComunicadoResendSummarySchema`)       | the counts at the resend                                                                                  |
+| `created_by_user_id` (SET NULL), `created_at`            | who and when                                                                                              |
+
+CHECKs: it targets something (`includes_audience OR people <> []`); `essential` only with email, the audience and nobody by name; `essential = (essential_confirmed_by_user_id IS NOT NULL)`. A new table and a new nullable column: nothing references an enum label 0305 adds (A0).
 
 ### A7. Registry kinds (code: `app/lib/notifications/kinds/comunicado.ts`)
 
@@ -299,8 +317,9 @@ comunicado_not_sent: {              // Administración, in-app only, no push
 
 ```
 comunicados ─┬─* comunicado_revisions
+             ├─* comunicado_resends (G10) ─* notification_campaign_recipients.resend_id
              └─1 notification_campaigns (type 'comunicado', created at send)
-                   ├─* notification_campaign_recipients (source, status, notification_id)
+                   ├─* notification_campaign_recipients (source, status, notification_id, resend_id)
                    └─* notifications (kind 'comunicado', dedupe 'comunicado:{id}', edited_at, retracted_at)
                          └─* notification_deliveries (lane 'bulk': email {comunicadoId}, push {})
 comunicados.audience (jsonb) ──> festivals ("Confirmados") | distribution_lists | users
@@ -567,6 +586,7 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
   - This is the gifts' `CONFIRMATION_MISMATCH` pattern (`credit_gifts/service.ts:210-217`).
   - Below the threshold, a small drift is accepted.
 - **The snapshot is the recipient rows plus `audience_summary`.** So the report can still say "Lista «Ilustración La Paz» (filtro al 24/10, 312 personas)" after the list itself changes.
+- **"Enviar a más personas" (G10) never changes it.** It adds rows for people who had none, and `audience_summary` keeps the send's own numbers; the resends add up in its `resends` field.
 
 ### B9. Lists in the credit-gift picker (100-recipient cap)
 
@@ -794,6 +814,7 @@ BEGIN
  6. classify with B5 rows 1–6; skip any `source` outside (list, person, staging_admin) as "No es participante", an allowlist, so a NULL or unknown source never gets an inbox row or a push; and re-apply row 7 by this process's VERCEL_ENV with the `source` read in step 4 (B6)
  7. notifyMany(tx, { kind: "comunicado", data, userIds: eligible, dedupeKey: `comunicado:${k}`, campaignId: c,
                      email: sendEmail ? "bulk" : null, push: sendPush })
+      -- once per (sendEmail, sendPush) group: each row's channels are coalesce(resend's, comunicado's) (G10)
  8. UPDATE notification_campaign_recipients r SET status = 'notified', notification_id = v.nid, attempts = r.attempts + 1,
       processed_at = now() FROM unnest($rids, $nids) v(rid, nid) WHERE r.id = v.rid
     UPDATE … SET status = 'skipped', skipped_reason = v.reason, processed_at = now() FROM unnest($rids, $reasons) v …
@@ -964,15 +985,17 @@ SELECT d.id, d.user_id, CASE
   WHEN $sendingEnv <> 'production'
        AND r.source IS DISTINCT FROM 'person' AND r.source IS DISTINCT FROM 'staging_admin' THEN 'staging'
   WHEN lower(btrim(d.recipient_email)) <> lower(btrim(u.email))                          THEN 'address_changed'
-  ELSE <comunicadoEmailExclusion(d.recipient_email, essential => k.essential)>           -- 'suppressed' | 'unsubscribed' | NULL
+  ELSE <comunicadoEmailExclusion(d.recipient_email, essential => $rowEssential)>           -- 'suppressed' | 'unsubscribed' | NULL
 END AS skip,
-<announcementOptOutOverridden(d.recipient_email, k.essential)> AS overridden,
+<announcementOptOutOverridden(d.recipient_email, $rowEssential)> AS overridden,
+-- $rowEssential: k.essential for the send's rows (r.resend_id NULL), else the resend's own mark (G10)
 u.first_name, u.last_name, u.display_name
 FROM notification_deliveries d
 JOIN notifications n ON n.id = d.notification_id
 JOIN comunicados k ON k.campaign_id = n.campaign_id
 LEFT JOIN users u ON u.id = d.user_id
 LEFT JOIN notification_campaign_recipients r ON r.campaign_id = n.campaign_id AND r.user_id = d.user_id
+LEFT JOIN comunicado_resends rs ON rs.id = r.resend_id
 WHERE d.id = ANY($claimed) AND d.lease_owner = $o;
 ```
 
@@ -1282,7 +1305,7 @@ COMMIT;
 ### F1. Edit: `editSentComunicado(id, { expectedRevision, title, doc, actionLabel, actionPath, editNote? }, by)` in `app/lib/comunicados/edit.ts`
 
 - **Who:** a global admin, with the flag.
-- **What can change:** only the title, the text and the button. The audience, the channels and the essential mark are fixed once sent.
+- **What can change:** only the title, the text and the button. The audience, the channels and the essential mark are fixed once sent. "Enviar a más personas" (G10) reaches people new to it with channels of its own, without changing what anyone already got.
 - **When:** while the campaign is `processing` or `completed`; refused once retracted.
 - **Essential comunicados** require `editNote`: "Contá por qué cambia un correo esencial (lo ve solo el equipo)." The amber essential callout is repeated in the dialog (G7).
 
@@ -1362,21 +1385,23 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 
 ### F4. Concurrency matrix
 
-| A ∥ B                                                   | Outcome                                                                                                                                                                      |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| edit or retract ∥ fan-out chunk                         | Serialized by the advisory lock. Either the chunk writes revision _n_ and the edit then rewrites it, or the chunk runs after and reads _n+1_ (or the retraction, and stops). |
-| edit or retract ∥ email batch                           | The batch's shared lock spans the Resend call. The edit waits up to about 15 s, and every later batch renders _n+1_ or skips `retracted`.                                    |
-| edit ∥ edit                                             | Serialized; the second fails the `expectedRevision` check.                                                                                                                   |
-| retract ∥ edit                                          | Serialized; whichever comes second is refused.                                                                                                                               |
-| retract ∥ "Reintentar fallidos"                         | The retry takes the shared lock and checks `retracted_at`, so it is refused.                                                                                                 |
-| retry ∥ retry                                           | Both take the shared lock, then the campaign row `FOR UPDATE`. The second waits, then re-selects in a later statement and finds nothing failed to retry.                     |
-| retry ∥ completion                                      | Completion locks the campaign row first and checks in a later statement, so it sees the retry's reopened status and rows.                                                    |
-| profile deletion ∥ chunk                                | The user row decides it (D2). The deleted person's rows cascade away. A rare deadlock with the cron's multi-user claim is retried.                                           |
-| profile deletion ∥ batch                                | The batch holds no user lock. A delivery the deletion cascades away makes its settle update 0 rows; a pending deletion is in the pre-check.                                  |
-| profile deletion ∥ snapshot                             | Foreign-key locks are taken in ascending order. A deletion committing mid-statement (23503) retries the send once.                                                           |
-| profile deletion ∥ retract                              | A rare cycle is possible. Postgres aborts one side; the retraction retries once, then answers "Probá de nuevo"; the deletion cron retries on its next run. **Accepted.**     |
-| cron release ∥ "Enviar ahora" ∥ cancel ∥ change of date | `FOR UPDATE` plus a compare-and-set on status, and on version for the miss: exactly one wins.                                                                                |
-| two cron runs, or `after()` ∥ cron                      | Chunks take disjoint rows (`SKIP LOCKED`); one bulk request at a time with spacing (the try-lock); releases and completions are compare-and-set.                             |
+| A ∥ B                                                   | Outcome                                                                                                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| edit or retract ∥ fan-out chunk                         | Serialized by the advisory lock. Either the chunk writes revision _n_ and the edit then rewrites it, or the chunk runs after and reads _n+1_ (or the retraction, and stops).   |
+| edit or retract ∥ email batch                           | The batch's shared lock spans the Resend call. The edit waits up to about 15 s, and every later batch renders _n+1_ or skips `retracted`.                                      |
+| edit ∥ edit                                             | Serialized; the second fails the `expectedRevision` check.                                                                                                                     |
+| retract ∥ edit                                          | Serialized; whichever comes second is refused.                                                                                                                                 |
+| retract ∥ "Reintentar fallidos"                         | The retry takes the shared lock and checks `retracted_at`, so it is refused.                                                                                                   |
+| retry ∥ retry                                           | Both take the shared lock, then the campaign row `FOR UPDATE`. The second waits, then re-selects in a later statement and finds nothing failed to retry.                       |
+| retry ∥ completion                                      | Completion locks the campaign row first and checks in a later statement, so it sees the retry's reopened status and rows.                                                      |
+| profile deletion ∥ chunk                                | The user row decides it (D2). The deleted person's rows cascade away. A rare deadlock with the cron's multi-user claim is retried.                                             |
+| profile deletion ∥ batch                                | The batch holds no user lock. A delivery the deletion cascades away makes its settle update 0 rows; a pending deletion is in the pre-check.                                    |
+| profile deletion ∥ snapshot                             | Foreign-key locks are taken in ascending order. A deletion committing mid-statement (23503) retries the send once.                                                             |
+| profile deletion ∥ retract                              | A rare cycle is possible. Postgres aborts one side; the retraction retries once, then answers "Probá de nuevo"; the deletion cron retries on its next run. **Accepted.**       |
+| cron release ∥ "Enviar ahora" ∥ cancel ∥ change of date | `FOR UPDATE` plus a compare-and-set on status, and on version for the miss: exactly one wins.                                                                                  |
+| resend ∥ edit or retract                                | The resend takes the shared lock. A retraction that commits first refuses it; one that comes after skips its pending rows. An edit's new revision reaches its rows at fan-out. |
+| resend ∥ resend, or resend ∥ completion                 | Both lock the campaign row. The second resend reads fresh: its `request_key` finds the first (a double submit), or the first's people now have rows and drop out.              |
+| two cron runs, or `after()` ∥ cron                      | Chunks take disjoint rows (`SKIP LOCKED`); one bulk request at a time with spacing (the try-lock); releases and completions are compare-and-set.                               |
 
 ### F5. Invariants the tests pin
 
@@ -1576,11 +1601,11 @@ It loads fresh numbers from the server when it opens:
 - the essential block, when essential: "Correo esencial · Confirmados · Glitter Navidad 2026 · lo confirmó Dennis el sáb, 24 oct, 10:11 AM · «…» · 30 personas dadas de baja de los anuncios lo recibieron igual · 4 sin correos masivos no.";
 - "Destinatarios al enviar", from `audience_summary`: "Confirmados · Glitter Navidad 2026: 312 · Ilustradores: 845 · 3 personas por nombre".
 
-| State     | Actions                                                                                    |
-| --------- | ------------------------------------------------------------------------------------------ |
-| Scheduled | **Enviar ahora** · **Cambiar fecha** · **Cancelar programación** · **Duplicar**            |
-| Sent      | **Editar** · **Duplicar** · **Reintentar fallidos (N)** (only when N > 0) · ⋯ **Retirar…** |
-| Retracted | **Duplicar**                                                                               |
+| State     | Actions                                                                                                                      |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Scheduled | **Enviar ahora** · **Cambiar fecha** · **Cancelar programación** · **Duplicar**                                              |
+| Sent      | **Editar** · **Duplicar** · **Enviar a más personas** (G10) · **Reintentar fallidos (N)** (only when N > 0) · ⋯ **Retirar…** |
+| Retracted | **Duplicar**                                                                                                                 |
 
 **Banners.** All are derived from rows the page already reads:
 
@@ -1743,6 +1768,72 @@ It loads fresh numbers from the server when it opens:
   - `empty`: "Al enviarlo, nadie de la audiencia podía recibirlo. Quedó como borrador."
   - `invalid`: "Al enviarlo, {detalle}. Quedó como borrador." For example: "la lista «Ilustradores» tiene un filtro que ya no se puede leer", or "el festival ya terminó y no puede ser esencial".
   - `sender_not_admin`: "La persona que lo programó ya no es administradora, así que no se envió. Quedó como borrador."
+
+### G10. "Enviar a más personas" (resend to people who do not have it yet)
+
+Rules decided by Dennis (2026-11-01). The code is `app/lib/comunicados/resend.ts`, `resend-actions.ts` and `app/components/comunicados/admin/report/resend-dialog.tsx`.
+
+**Who it reaches.** Two ways, combinable in one resend:
+
+1. **New in the audience:** the original `audience` (its festivals and saved lists, filters evaluated today; V9 still refuses a filter that no longer parses) is resolved again, and everyone with **no recipient row in the campaign** is new. "Added since the last send" falls out of this, since every send and resend adds rows.
+2. **By name:** Glitter users picked with the composer's person search (participants and global admins, K13). The search marks anyone already in the campaign "Ya está en este comunicado". Users only, never a raw address. Up to 100.
+
+People who left the audience since are ignored and keep what they got. Anyone with a row, notified or skipped, is never added again (`unique(campaign_id, user_id)`).
+
+**Only who receives it gets a row.** A new person who cannot receive it today (B5 rows 1–6: unverified, banned, in deletion, not a participant) gets no row and is shown as "No pueden recibirlo", so a later resend still reaches them once they can. Outside production, list newcomers who could receive it are written `skipped` with the staging label, as the send writes them (B6), and new global admins come in as staging admins.
+
+**What they get.** The **current revision**: the fan-out reads it under the content lock, as for everyone else (D2), and later edits reach them as they reach everyone (F1).
+
+**Channels.** They start from the original's and can be changed for this resend. Each resend records its own (`comunicado_resends.send_email`, `send_push`), and its rows carry `resend_id`, so the fan-out groups a chunk by each row's channels (D2) and the report reads each row's own ("Sin correo" for someone added without email). The report's `sendEmail` and `sendPush` mean "any of its sends used it".
+
+**Refusals** (`ResendRefusal`, in the dialog):
+
+| Code                 | When                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| `RETRACTED`          | the comunicado is retracted: it can never be resent                                |
+| `NOT_SENT`           | a draft or a scheduled one                                                         |
+| `OTHER_ENV`          | `audience_summary.env` is another environment's (as for "Reintentar fallidos", D9) |
+| `EMPTY`              | neither the audience nor anyone by name                                            |
+| `ESSENTIAL_PEOPLE`   | people by name on an essential comunicado                                          |
+| `INVALID_AUDIENCE`   | the stored audience or a list cannot be read                                       |
+| `BASE_URL`           | email ticked and the public URL unusable                                           |
+| `NOBODY`             | nobody new can receive it                                                          |
+| `AUDIENCE_TOO_LARGE` | more than 3,000 new eligible people (counted before narrowing)                     |
+| `AUDIENCE_CHANGED`   | typed confirmation applies (≥ 300 new, or essential) and the typed count differs   |
+| `ESSENTIAL_CHANGED`  | whether it goes out essential changed since the dialog counted it                  |
+| `LOCKED`             | the 20 s lock timeout                                                              |
+
+There is **no time limit** otherwise.
+
+**Essential comunicados** (B7):
+
+- A resend to the festival's newcomers **stays essential** when email is ticked and the 7-day festival window holds **at resend time**: the same Anuncios override (never `all`, never a suppression), typed confirmation, and the confirmer recorded on the resend (`essential_confirmed_by_user_id`, RESTRICT). The original's reason stands.
+- **Outside the window** it can only go out as a normal comunicado: no override, no essential note, and the dialog says so ("El festival terminó hace más de 7 días…").
+- **Adding people by name is not offered**, and the server refuses it.
+- The pre-check judges each row by its own mark (D3): the send's rows by `k.essential`, a resend's by its own.
+
+**The transaction** (`resendComunicado`), one retry on 40P01/23503:
+
+1. `SET LOCAL lock_timeout = '20s'`; the comunicado lock **shared**, in its own statement (so an edit or a retraction serializes with it);
+2. the comunicado read; the campaign row `FOR UPDATE`; an earlier resend with the same `request_key` answers "already resent";
+3. the checks above, the counts (B4's SQL with everyone already in the campaign left out at the source);
+4. `INSERT comunicado_resends`, then the snapshot with `resend_id` (ascending user ids, B4), then the cap, nobody and typed count against the snapshot's own count;
+5. the campaign back to `processing` (as a retry reopens it); `audience_summary.resends` adds this one (`count`, `willReceive`, `pickedByName`, `essentialOverride`, `essentialNotOverridden`), so I4 #6 can add them up; the send's own fields stay as they were.
+
+Then `after(runComunicadoWork(own))`, as "Enviar ahora" does (D9).
+
+**Dialog.** "Enviar a más personas" on the report's actions, while not retracted and in the environment that sent it. It loads fresh numbers whenever the choice changes:
+
+- "12 personas nuevas en la audiencia desde el envío" (a checkbox; fixed on for an essential one);
+- "Agregar por nombre o correo", the composer's picker, with chips to remove;
+- "En la app" (always), "Por correo", "Notificación en el dispositivo";
+- the table: "Le llega a", "De ellos" (new · by name), "Por correo", "En el dispositivo", "No pueden recibirlo";
+- the essential callout, or the lapsed one; the test-environment callout;
+- the typed count when it applies; the button "Enviar a 15 personas".
+
+Toast: "Se lo estamos enviando a 15 personas más."
+
+**Report.** A card "Envíos a más personas", one line each: "Enviado a 12 personas más el dom, 25 oct, 10:12 AM por Ana · 9 nuevas en la audiencia · 3 por nombre · en la app y por correo · esencial". In the recipients table, a resend's rows say "Después del envío" under Origen. The KPIs already count every row.
 
 ---
 
@@ -1926,6 +2017,7 @@ The large-audience paths (2,000 recipients, held batches, expiry, 429s, quota, c
 - `[comunicados] release missed {comunicadoId, reason}`: back to draft, with the bell item (E4)
 - `[comunicados] release failed {comunicadoId, errorType, code}`: still scheduled, tried again next tick until it is late (E4)
 - `[comunicados] retry {comunicadoId, campaignId, emails, people}`
+- `[comunicados] resend {comunicadoId, campaignId, resendId, eligible, willReceive, essential}`
 - `[comunicados] edit {comunicadoId, revision, items}`
 - `[comunicados] chunk {campaignId, notified, skipped, ms}`
 - `[comunicados] batch {campaignId, size, outcome, attempt, ms}`
@@ -1968,6 +2060,11 @@ SELECT k.id, k.title, k.essential_reason, u.email AS confirmed_by, k.essential_c
        k.audience_summary->'essentialNotOverridden' AS not_reached
 FROM comunicados k JOIN users u ON u.id=k.essential_confirmed_by_user_id
 WHERE k.essential AND k.status='sent' ORDER BY k.sent_at DESC;
+-- 6b. Every essential resend (G10): who confirmed it, when, and whom it reached
+SELECT r.comunicado_id, u.email AS confirmed_by, r.created_at, r.summary->'essentialOverride' AS reached_opted_out,
+       r.summary->'essentialNotOverridden' AS not_reached, r.summary->'willReceive' AS recipients
+FROM comunicado_resends r JOIN users u ON u.id=r.essential_confirmed_by_user_id
+WHERE r.essential ORDER BY r.created_at DESC;
 -- 7. Throttles and quota still unresolved
 SELECT date_trunc('hour', updated_at), last_error, count(*) FROM notification_deliveries
 WHERE status IN ('pending','failed') AND (last_error LIKE 'resend:rate_limit%' OR last_error LIKE 'resend:%quota%')

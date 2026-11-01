@@ -98,6 +98,8 @@ function report(overrides: Partial<ComunicadoReport> = {}): ComunicadoReport {
       sentEmails: 1180,
     },
     retryCounts: { emails: 0, people: 0, maybeSentEmails: 0 },
+    sentChannels: { email: true, push: false },
+    resends: [],
     ...overrides,
   };
 }

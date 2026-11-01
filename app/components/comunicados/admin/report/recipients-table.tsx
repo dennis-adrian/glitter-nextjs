@@ -49,6 +49,12 @@ export default function RecipientsTable({
               </TableCell>
               <TableCell className="whitespace-nowrap">
                 {row.source ? COMUNICADO_SOURCE_LABELS[row.source] : "—"}
+                {/* Added by "Enviar a más personas" (G10). */}
+                {row.resent && (
+                  <span className="block text-xs text-muted-foreground">
+                    Después del envío
+                  </span>
+                )}
               </TableCell>
               <TableCell className="min-w-32">{row.app}</TableCell>
               <TableCell className="min-w-40">{row.emailLabel}</TableCell>

@@ -130,13 +130,14 @@ export default async function ComunicadoPage(props: {
     const searchParams = await props.searchParams;
     const filter = parseRecipientFilter(searchParams.filter);
     const query = querySchema.parse(searchParams.q);
-    const [recipients, revisions] = await Promise.all([
+    const [recipients, revisions, pushLaunched] = await Promise.all([
       fetchComunicadoRecipients(id, {
         filter,
         query,
         page: pageSchema.parse(searchParams.page),
       }),
       fetchComunicadoRevisions(id),
+      isFeatureLaunched("push_notifications"),
     ]);
     if (!recipients) notFound();
     return (
@@ -147,6 +148,7 @@ export default async function ComunicadoPage(props: {
         filter={filter}
         query={query}
         env={serverEnv.VERCEL_ENV}
+        pushLaunched={pushLaunched}
       />
     );
   }

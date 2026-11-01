@@ -30,6 +30,11 @@ type PersonPickerProps = {
   fullReason: string | null;
   onPick: (person: ComposerPerson) => void;
   disabled?: boolean;
+  /**
+   * Who matches the term; the composer's search by default. "Enviar a más
+   * personas" passes one that knows who already has the comunicado (G10).
+   */
+  search?: (term: string) => Promise<ComunicadoPersonOption[]>;
 };
 
 /** The last answer, and the term it answers. */
@@ -49,6 +54,7 @@ export default function PersonPicker({
   fullReason,
   onPick,
   disabled = false,
+  search: searchPeople = searchComunicadoPeopleAction,
 }: PersonPickerProps) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -62,7 +68,7 @@ export default function PersonPicker({
     const timer = setTimeout(() => {
       latestRef.current += 1;
       const request = latestRef.current;
-      searchComunicadoPeopleAction(trimmed).then(
+      searchPeople(trimmed).then(
         (results) => {
           // A slower answer for an earlier term never replaces this one.
           if (request !== latestRef.current) return;
@@ -76,7 +82,7 @@ export default function PersonPicker({
       );
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [trimmed]);
+  }, [trimmed, searchPeople]);
 
   // Only the answer for what is typed now: one for an earlier term would let
   // Enter add someone who does not match it. Until it arrives, "Buscando…".

@@ -77,7 +77,7 @@ const SKIP_REASON_NOUNS = {
   readonly [string, string]
 >;
 
-function skipReasonText(reason: string, count: number) {
+export function skipReasonText(reason: string, count: number) {
   if (Object.hasOwn(SKIP_REASON_NOUNS, reason)) {
     const [one, many] =
       SKIP_REASON_NOUNS[reason as keyof typeof SKIP_REASON_NOUNS];
@@ -89,7 +89,14 @@ function skipReasonText(reason: string, count: number) {
 
 /** "1.194 · 30 dados de baja de los anuncios · 4 sin correos masivos…". */
 function emailValue({ preview, essential }: ComunicadoSendConfirmation) {
-  const { email } = preview;
+  return emailSplitText(preview.email, essential);
+}
+
+/** The email split for any count (G5, G10). */
+export function emailSplitText(
+  email: ComunicadoAudiencePreview["email"],
+  essential: boolean,
+) {
   const parts = [fmt(email.sendTo)];
   // An essential send reaches them: they are in `sendTo` already.
   if (!essential && email.unsubscribedAnnouncements > 0) {

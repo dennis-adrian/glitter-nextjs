@@ -47,6 +47,11 @@ export type ComunicadoPrecheck = {
   skip: string | null;
   /** An essential send lifted this person's Anuncios opt-out (D7). */
   overridden: boolean;
+  /**
+   * This person's email goes out essential: the comunicado's mark, or the
+   * resend's that added them (G10), so it carries the essential note.
+   */
+  essential: boolean;
   displayName: string | null;
   firstName: string | null;
   lastName: string | null;
@@ -171,10 +176,16 @@ async function precheck(
 ): Promise<ComunicadoPrecheck[]> {
   const sendingEnv = serverEnv.VERCEL_ENV;
   const owner = rows[0]!.leaseOwner;
+  // A resend's rows go out with its own mark: one to an essential
+  // comunicado's newcomers after the festival's window does not override
+  // anyone's opt-out (G10, B7). The original send's rows have no resend.
+  const essential = sql`(CASE WHEN r.resend_id IS NULL THEN k.essential
+    ELSE coalesce(rs.essential, false) END)`;
   const { rows: checked } = await tx.execute<{
     id: number;
     skip: string | null;
     overridden: boolean | null;
+    essential: boolean | null;
     first_name: string | null;
     last_name: string | null;
     display_name: string | null;
@@ -197,10 +208,11 @@ async function precheck(
         AND r.source IS DISTINCT FROM 'staging_admin' THEN 'staging'
       WHEN lower(btrim(d.recipient_email)) <> lower(btrim(u.email)) THEN 'address_changed'
       ELSE ${comunicadoEmailExclusion(sql`d.recipient_email`, {
-        essential: sql`k.essential`,
+        essential: essential,
       })}
     END AS skip,
-    ${announcementOptOutOverridden(sql`d.recipient_email`, sql`k.essential`)} AS overridden,
+    ${announcementOptOutOverridden(sql`d.recipient_email`, essential)} AS overridden,
+    ${essential} AS essential,
     u.first_name, u.last_name, u.display_name
     FROM notification_deliveries d
     JOIN notifications n ON n.id = d.notification_id
@@ -208,6 +220,7 @@ async function precheck(
     LEFT JOIN users u ON u.id = d.user_id
     LEFT JOIN notification_campaign_recipients r
       ON r.campaign_id = n.campaign_id AND r.user_id = d.user_id
+    LEFT JOIN comunicado_resends rs ON rs.id = r.resend_id
     WHERE d.id = ANY(${intArray(rows.map((row) => row.id))})
       AND d.lease_owner = ${owner}::text
       AND n.campaign_id = ${campaignId}::int
@@ -216,6 +229,7 @@ async function precheck(
     id: Number(row.id),
     skip: row.skip,
     overridden: row.overridden === true,
+    essential: row.essential === true,
     displayName: row.display_name,
     firstName: row.first_name,
     lastName: row.last_name,
@@ -284,7 +298,9 @@ export const comunicadoBatchRenderer: BulkEmailRenderer = {
         actionPath: content.actionPath,
         greetingName: getUserName(row.check),
         unsubscribeUrl: links.pageUrl,
-        essentialFestivalName,
+        essentialFestivalName: row.check.essential
+          ? essentialFestivalName
+          : null,
         staging,
         test: false,
         baseUrl,
