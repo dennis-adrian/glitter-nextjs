@@ -1359,6 +1359,11 @@ describeDatabase("distribution lists", () => {
 
     it("enforces the origin shape in the database", async () => {
       const festival = await createFestival();
+      const [originList] = await integrationDb!
+        .insert(distributionLists)
+        .values({ name: `Origen ${randomUUID().slice(0, 8)}`, kind: "fixed" })
+        .returning({ id: distributionLists.id });
+      created.lists.push(originList!.id);
       for (const values of [
         // A filter list is never a copy.
         {
@@ -1371,7 +1376,7 @@ describeDatabase("distribution lists", () => {
         {
           kind: "fixed" as const,
           originFestivalId: festival.id,
-          originListId: created.lists[0]!,
+          originListId: originList!.id,
           originName: "X",
           copiedAt: new Date(),
         },
