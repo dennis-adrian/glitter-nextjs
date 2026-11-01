@@ -1,5 +1,6 @@
 import SubmittedProductCard from "@/app/components/molecules/submitted-products/submitted-product-card";
 import { fetchParticipantProductsByParticipationId } from "@/app/lib/participant_products/queries";
+import { requireProfileOwnerOrStaff } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -15,6 +16,14 @@ export default async function SubmittedProductsPage(props: {
   const validatedParams = ParamsSchema.safeParse(params);
 
   if (!validatedParams.success) {
+    return notFound();
+  }
+
+  // The products are the participant's and staff's only. Festival admins
+  // open this page from the festival's participants table, so it is not
+  // `protectRoute`, which lets in global admins alone. Anyone else gets the
+  // page as if it did not exist, rather than an empty list.
+  if (!(await requireProfileOwnerOrStaff(validatedParams.data.profileId))) {
     return notFound();
   }
 
